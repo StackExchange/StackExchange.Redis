@@ -148,7 +148,7 @@ namespace StackExchange.Redis
         internal enum SubscriptionAction
         {
             Subscribe,
-            Unsubscribe
+            Unsubscribe,
         }
 
         /// <summary>
@@ -159,6 +159,7 @@ namespace StackExchange.Redis
         internal sealed class Subscription
         {
             private Action<RedisChannel, RedisValue>? _handlers;
+            private readonly object _handlersLock = new object();
             private ChannelMessageQueue? _queues;
             private ServerEndPoint? CurrentServer;
             public CommandFlags Flags { get; }
@@ -210,7 +211,10 @@ namespace StackExchange.Redis
             {
                 if (handler != null)
                 {
-                    _handlers += handler;
+                    lock (_handlersLock)
+                    {
+                        _handlers += handler;
+                    }
                 }
                 if (queue != null)
                 {
@@ -222,7 +226,10 @@ namespace StackExchange.Redis
             {
                 if (handler != null)
                 {
-                    _handlers -= handler;
+                    lock (_handlersLock)
+                    {
+                        _handlers -= handler;
+                    }
                 }
                 if (queue != null)
                 {
@@ -240,7 +247,10 @@ namespace StackExchange.Redis
 
             internal void MarkCompleted()
             {
-                _handlers = null;
+                lock (_handlersLock)
+                {
+                    _handlers = null;
+                }
                 ChannelMessageQueue.MarkAllCompleted(ref _queues);
             }
 
@@ -400,7 +410,6 @@ namespace StackExchange.Redis
             if (sub.IsConnected) { return true; }
 
             // TODO: Cleanup old hangers here?
-
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
             var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = multiplexer.SelectServer(message);
@@ -432,7 +441,6 @@ namespace StackExchange.Redis
             if (sub.IsConnected) { return CompletedTask<bool>.Default(null); }
 
             // TODO: Cleanup old hangers here?
-
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
             var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = multiplexer.SelectServer(message);

@@ -1,6 +1,5 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
-using StackExchange.Redis.Configuration;
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
@@ -13,6 +12,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
+using StackExchange.Redis.Configuration;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -24,52 +25,82 @@ public class ConfigTests : TestBase
 {
     public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
-    public Version DefaultVersion = new (3, 0, 0);
-    public Version DefaultAzureVersion = new (4, 0, 0);
+    public Version DefaultVersion = new(3, 0, 0);
 
     [Fact]
     public void ExpectedFields()
     {
         // if this test fails, check that you've updated ConfigurationOptions.Clone(), then: fix the test!
         // this is a simple but pragmatic "have you considered?" check
-
-        var fields = Array.ConvertAll(typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
+        var fields = Array.ConvertAll(
+            typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
             x => Regex.Replace(x.Name, """^<(\w+)>k__BackingField$""", "$1"));
         Array.Sort(fields);
-        Assert.Equal(new[] {
-            "abortOnConnectFail", "allowAdmin", "asyncTimeout", "backlogPolicy", "BeforeSocketConnect",
-            "CertificateSelection", "CertificateValidation", "ChannelPrefix",
-            "checkCertificateRevocation", "ClientName", "commandMap",
-            "configChannel", "configCheckSeconds", "connectRetry",
-            "connectTimeout", "DefaultDatabase", "defaultOptions",
-            "defaultVersion", "EndPoints", "heartbeatConsistencyChecks",
-            "heartbeatInterval", "includeDetailInExceptions", "includePerformanceCountersInExceptions",
-            "keepAlive", "LibraryName", "loggerFactory",
-            "password", "Protocol", "proxy",
-            "reconnectRetryPolicy", "resolveDns", "responseTimeout",
-            "ServiceName", "setClientLibrary", "SocketManager",
-            "ssl",
-#if !NETFRAMEWORK
-            "SslClientAuthenticationOptions",
-#endif
-            "sslHost", "SslProtocols",
-            "syncTimeout", "tieBreaker", "Tunnel",
-            "user"
-            }, fields);
+        Assert.Equal(
+            new[]
+            {
+                "abortOnConnectFail",
+                "allowAdmin",
+                "asyncTimeout",
+                "backlogPolicy",
+                "BeforeSocketConnect",
+                "CertificateSelection",
+                "CertificateValidation",
+                "ChannelPrefix",
+                "checkCertificateRevocation",
+                "ClientName",
+                "commandMap",
+                "configChannel",
+                "configCheckSeconds",
+                "connectRetry",
+                "connectTimeout",
+                "DefaultDatabase",
+                "defaultOptions",
+                "defaultVersion",
+                "EndPoints",
+                "heartbeatConsistencyChecks",
+                "heartbeatInterval",
+                "highIntegrity",
+                "includeDetailInExceptions",
+                "includePerformanceCountersInExceptions",
+                "keepAlive",
+                "LibraryName",
+                "loggerFactory",
+                "password",
+                "Protocol",
+                "proxy",
+                "reconnectRetryPolicy",
+                "resolveDns",
+                "responseTimeout",
+                "ServiceName",
+                "setClientLibrary",
+                "SocketManager",
+                "ssl",
+    #if !NETFRAMEWORK
+                "SslClientAuthenticationOptions",
+    #endif
+                "sslHost",
+                "SslProtocols",
+                "syncTimeout",
+                "tieBreaker",
+                "Tunnel",
+                "user",
+            },
+            fields);
     }
 
     [Fact]
     public void SslProtocols_SingleValue()
     {
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
-        Assert.Equal(SslProtocols.Tls11, options.SslProtocols.GetValueOrDefault());
+        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12");
+        Assert.Equal(SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
     }
 
     [Fact]
     public void SslProtocols_MultipleValues()
     {
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
-        Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
+        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12|Tls13");
+        Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, options.SslProtocols.GetValueOrDefault());
     }
 
     [Theory]
@@ -90,9 +121,9 @@ public class ConfigTests : TestBase
         // The below scenario is for cases where the *targeted*
         // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
         // but the OS has been patched with support
-        const int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
+        const int integerValue = (int)(SslProtocols.Tls12 | SslProtocols.Tls13);
         var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
-        Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
+        Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, options.SslProtocols.GetValueOrDefault());
     }
 
     [Fact]
@@ -101,12 +132,21 @@ public class ConfigTests : TestBase
         Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
     }
 
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzure()
+    [Theory]
+    [InlineData("contoso.redis.cache.windows.net:6380", true)]
+    [InlineData("contoso.REDIS.CACHE.chinacloudapi.cn:6380", true)] // added a few upper case chars to validate comparison
+    [InlineData("contoso.redis.cache.usgovcloudapi.net:6380", true)]
+    [InlineData("contoso.redisenterprise.cache.azure.net:10000", false)]
+    [InlineData("contoso.redis.azure.net:10000", true)]
+    [InlineData("contoso.redis.chinacloudapi.cn:10000", true)]
+    [InlineData("contoso.redis.usgovcloudapi.net:10000", true)]
+    public void ConfigurationOptionsDefaultForAzure(string hostAndPort, bool sslShouldBeEnabled)
     {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
+        Version defaultAzureVersion = new(6, 0, 0);
+        var options = ConfigurationOptions.Parse(hostAndPort);
+        Assert.True(options.DefaultVersion.Equals(defaultAzureVersion));
         Assert.False(options.AbortOnConnectFail);
+        Assert.Equal(sslShouldBeEnabled, options.Ssl);
     }
 
     [Fact]
@@ -115,31 +155,6 @@ public class ConfigTests : TestBase
         var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
         Assert.True(options.DefaultVersion.Equals(new Version(2, 1, 1)));
         Assert.True(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureChina()
-    {
-        // added a few upper case chars to validate comparison
-        var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureGermany()
-    {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureUSGov()
-    {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
     }
 
     [Fact]
@@ -188,7 +203,7 @@ public class ConfigTests : TestBase
     public void CanParseAndFormatUnixDomainSocket()
     {
         const string ConfigString = "!/some/path,allowAdmin=True";
-#if NET472
+#if NETFRAMEWORK
         var ex = Assert.Throws<PlatformNotSupportedException>(() => ConfigurationOptions.Parse(ConfigString));
         Assert.Equal("Unix domain sockets require .NET Core 3 or above", ex.Message);
 #else
@@ -208,9 +223,9 @@ public class ConfigTests : TestBase
             AbortOnConnectFail = false,
             EndPoints =
             {
-                { "127.0.0.1:1234" }
+                { "127.0.0.1:1234" },
             },
-            ConnectTimeout = 200
+            ConnectTimeout = 200,
         };
         var log = new StringWriter();
         using (var conn = ConnectionMultiplexer.Connect(config, log))
@@ -544,7 +559,7 @@ public class ConfigTests : TestBase
         var config = new ConfigurationOptions
         {
             EndPoints = { { IPAddress.Loopback, 6379 } },
-            SocketManager = SocketManager.ThreadPool
+            SocketManager = SocketManager.ThreadPool,
         };
 
         using var conn = ConnectionMultiplexer.Connect(config);
@@ -759,5 +774,25 @@ public class ConfigTests : TestBase
         options = options.Clone();
         Assert.Equal(setlib, options.SetClientLibrary);
         Assert.Equal(configurationString, options.ToString());
+    }
+
+    [Theory]
+    [InlineData(null, false, "dummy")]
+    [InlineData(false, false, "dummy,highIntegrity=False")]
+    [InlineData(true, true, "dummy,highIntegrity=True")]
+    public void CheckHighIntegrity(bool? assigned, bool expected, string cs)
+    {
+        var options = ConfigurationOptions.Parse("dummy");
+        if (assigned.HasValue) options.HighIntegrity = assigned.Value;
+
+        Assert.Equal(expected, options.HighIntegrity);
+        Assert.Equal(cs, options.ToString());
+
+        var clone = options.Clone();
+        Assert.Equal(expected, clone.HighIntegrity);
+        Assert.Equal(cs, clone.ToString());
+
+        var parsed = ConfigurationOptions.Parse(cs);
+        Assert.Equal(expected, parsed.HighIntegrity);
     }
 }

@@ -138,23 +138,73 @@ csharp_space_between_method_call_empty_parameter_list_parentheses = false
 csharp_preserve_single_line_statements = true
 csharp_preserve_single_line_blocks = true
 
-# IDE0090: Use 'new(...)'
-dotnet_diagnostic.IDE0090.severity = silent
 
-# RCS1037: Remove trailing white-space.
-dotnet_diagnostic.RCS1037.severity = error
+# IDE preferences
+dotnet_diagnostic.IDE0090.severity = silent # IDE0090: Use 'new(...)'
 
-# RCS1098: Constant values should be placed on right side of comparisons.
-dotnet_diagnostic.RCS1098.severity = none
+#Roslynator preferences
+dotnet_diagnostic.RCS1037.severity = error # RCS1037: Remove trailing white-space.
+dotnet_diagnostic.RCS1098.severity = none # RCS1098: Constant values should be placed on right side of comparisons.
 
-# RCS1194: Implement exception constructors.
-dotnet_diagnostic.RCS1194.severity = none
+dotnet_diagnostic.RCS1194.severity = none # RCS1194: Implement exception constructors.
+dotnet_diagnostic.RCS1229.severity = none # RCS1229: Use async/await when necessary.
+dotnet_diagnostic.RCS1233.severity = none # RCS1233: Use short-circuiting operator.
+dotnet_diagnostic.RCS1234.severity = none # RCS1234: Duplicate enum value.
 
-# RCS1229: Use async/await when necessary.
-dotnet_diagnostic.RCS1229.severity = none
+# StyleCop preferences
+dotnet_diagnostic.SA0001.severity = none # SA0001: XML comment analysis is disabled
 
-# RCS1233: Use short-circuiting operator.
-dotnet_diagnostic.RCS1233.severity = none
+dotnet_diagnostic.SA1101.severity = none # SA1101: Prefix local calls with this
+dotnet_diagnostic.SA1108.severity = none # SA1108: Block statements should not contain embedded comments
+dotnet_diagnostic.SA1122.severity = none # SA1122: Use string.Empty for empty strings
+dotnet_diagnostic.SA1127.severity = none # SA1127: Generic type constraints should be on their own line
+dotnet_diagnostic.SA1128.severity = none # SA1128: Put constructor initializers on their own line
+dotnet_diagnostic.SA1132.severity = none # SA1132: Do not combine fields
+dotnet_diagnostic.SA1133.severity = none # SA1133: Do not combine attributes
 
-# RCS1234: Duplicate enum value.
-dotnet_diagnostic.RCS1234.severity = none
+dotnet_diagnostic.SA1200.severity = none # SA1200: Using directives should be placed correctly
+dotnet_diagnostic.SA1201.severity = none # SA1201: Elements should appear in the correct order
+dotnet_diagnostic.SA1202.severity = none # SA1202: Elements should be ordered by access
+dotnet_diagnostic.SA1203.severity = none # SA1203: Constants should appear before fields
+
+dotnet_diagnostic.SA1306.severity = none # SA1306: Field names should begin with lower-case letter
+dotnet_diagnostic.SA1309.severity = none # SA1309: Field names should not begin with underscore
+dotnet_diagnostic.SA1310.severity = silent # SA1310: Field names should not contain underscore
+dotnet_diagnostic.SA1311.severity = none # SA1311: Static readonly fields should begin with upper-case letter
+dotnet_diagnostic.SA1312.severity = none # SA1312: Variable names should begin with lower-case letter
+
+dotnet_diagnostic.SA1401.severity = silent # SA1401: Fields should be private
+dotnet_diagnostic.SA1402.severity = suggestion # SA1402: File may only contain a single type
+
+dotnet_diagnostic.SA1503.severity = silent # SA1503: Braces should not be omitted
+dotnet_diagnostic.SA1516.severity = silent # SA1516: Elements should be separated by blank line
+
+dotnet_diagnostic.SA1600.severity = none # SA1600: Elements should be documented
+dotnet_diagnostic.SA1601.severity = none # SA1601: Partial elements should be documented
+dotnet_diagnostic.SA1602.severity = none # SA1602: Enumeration items should be documented
+dotnet_diagnostic.SA1615.severity = none # SA1615: Element return value should be documented
+dotnet_diagnostic.SA1623.severity = none # SA1623: Property summary documentation should match accessors
+dotnet_diagnostic.SA1633.severity = none # SA1633: File should have header
+dotnet_diagnostic.SA1642.severity = none # SA1642: Constructor summary documentation should begin with standard text
+dotnet_diagnostic.SA1643.severity = none # SA1643: Destructor summary documentation should begin with standard text
+
+
+# To Fix:
+dotnet_diagnostic.SA1204.severity = none # SA1204: Static elements should appear before instance elements
+dotnet_diagnostic.SA1214.severity = none # SA1214: Readonly fields should appear before non-readonly fields
+dotnet_diagnostic.SA1304.severity = none # SA1304: Non-private readonly fields should begin with upper-case letter
+dotnet_diagnostic.SA1307.severity = none # SA1307: Accessible fields should begin with upper-case letter
+dotnet_diagnostic.SA1308.severity = suggestion # SA1308: Variable names should not be prefixed
+dotnet_diagnostic.SA1131.severity = none # SA1131: Use readable conditions
+dotnet_diagnostic.SA1405.severity = none # SA1405: Debug.Assert should provide message text
+dotnet_diagnostic.SA1501.severity = none # SA1501: Statement should not be on a single line
+dotnet_diagnostic.SA1502.severity = suggestion # SA1502: Element should not be on a single line
+dotnet_diagnostic.SA1513.severity = none # SA1513: Closing brace should be followed by blank line
+dotnet_diagnostic.SA1515.severity = none # SA1515: Single-line comment should be preceded by blank line
+dotnet_diagnostic.SA1611.severity = suggestion # SA1611: Element parameters should be documented
+dotnet_diagnostic.SA1649.severity = suggestion # SA1649: File name should match first type name
+
+
+
+
+

@@ -11,6 +11,7 @@ namespace StackExchange.Redis
     {
         private readonly EventHandler<EndPointEventArgs>? handler;
         private readonly object sender;
+
         internal EndPointEventArgs(EventHandler<EndPointEventArgs>? handler, object sender, EndPoint endpoint)
         {
             this.handler = handler;
@@ -24,7 +25,7 @@ namespace StackExchange.Redis
         /// <param name="sender">The source of the event.</param>
         /// <param name="endpoint">Redis endpoint.</param>
         public EndPointEventArgs(object sender, EndPoint endpoint)
-            : this (null, sender, endpoint)
+            : this(null, sender, endpoint)
         {
         }
 

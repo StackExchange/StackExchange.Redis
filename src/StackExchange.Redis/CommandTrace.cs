@@ -14,7 +14,7 @@ namespace StackExchange.Redis
             UniqueId = uniqueId;
             Time = RedisBase.UnixEpoch.AddSeconds(time);
             // duration = The amount of time needed for its execution, in microseconds.
-            // A tick is equal to 100 nanoseconds, or one ten-millionth of a second. 
+            // A tick is equal to 100 nanoseconds, or one ten-millionth of a second.
             // So 1 microsecond = 10 ticks
             Duration = TimeSpan.FromTicks(duration * 10);
             Arguments = arguments;
@@ -42,7 +42,7 @@ namespace StackExchange.Redis
         public long UniqueId { get; }
 
         /// <summary>
-        /// Deduces a link to the redis documentation about the specified command
+        /// Deduces a link to the redis documentation about the specified command.
         /// </summary>
         public string? GetHelpUrl()
         {
@@ -73,18 +73,18 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch(result.Resp2TypeArray)
+                switch (result.Resp2TypeArray)
                 {
                     case ResultType.Array:
                         var parts = result.GetItems();
                         CommandTrace[] arr = new CommandTrace[parts.Length];
                         int i = 0;
-                        foreach(var item in parts)
+                        foreach (var item in parts)
                         {
                             var subParts = item.GetItems();
                             if (!subParts[0].TryGetInt64(out long uniqueid) || !subParts[1].TryGetInt64(out long time) || !subParts[2].TryGetInt64(out long duration))
                                 return false;
-                             arr[i++] = new CommandTrace(uniqueid, time, duration, subParts[3].GetItemsAsValues()!);
+                            arr[i++] = new CommandTrace(uniqueid, time, duration, subParts[3].GetItemsAsValues()!);
                         }
                         SetResult(message, arr);
                         return true;

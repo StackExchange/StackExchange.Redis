@@ -75,46 +75,22 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool skipMe, CommandFlags flags)
+        public long ClientKill(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
         {
-            var parts = new List<RedisValue>(9)
-            {
-                RedisLiterals.KILL
-            };
-            if (id != null)
-            {
-                parts.Add(RedisLiterals.ID);
-                parts.Add(id.Value);
-            }
-            if (clientType != null)
-            {
-                parts.Add(RedisLiterals.TYPE);
-                switch (clientType.Value)
-                {
-                    case ClientType.Normal:
-                        parts.Add(RedisLiterals.normal);
-                        break;
-                    case ClientType.Replica:
-                        parts.Add(Features.ReplicaCommands ? RedisLiterals.replica : RedisLiterals.slave);
-                        break;
-                    case ClientType.PubSub:
-                        parts.Add(RedisLiterals.pubsub);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(clientType));
-                }
-            }
-            if (endpoint != null)
-            {
-                parts.Add(RedisLiterals.ADDR);
-                parts.Add((RedisValue)Format.ToString(endpoint));
-            }
-            if (!skipMe)
-            {
-                parts.Add(RedisLiterals.SKIPME);
-                parts.Add(RedisLiterals.no);
-            }
-            return Message.Create(-1, flags, RedisCommand.CLIENT, parts);
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands));
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> ClientKillAsync(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands));
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool? skipMe, CommandFlags flags)
+        {
+            var args = new ClientKillFilter().WithId(id).WithClientType(clientType).WithEndpoint(endpoint).WithSkipMe(skipMe).ToList(Features.ReplicaCommands);
+            return Message.Create(-1, flags, RedisCommand.CLIENT, args);
         }
 
         public ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None)
@@ -248,24 +224,22 @@ namespace StackExchange.Redis
             {
                 return Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST);
             }
-
             else if (moduleName != null && category == null && pattern == null)
             {
                 return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, (RedisValue)moduleName));
             }
-
             else if (moduleName == null && category != null && pattern == null)
             {
                 return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, (RedisValue)category));
             }
-
             else if (moduleName == null && category == null && pattern != null)
             {
                 return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, (RedisValue)pattern));
             }
-
             else
+            {
                 throw new ArgumentException("More then one filter is not allowed");
+            }
         }
 
         private RedisValue[] AddValueToArray(RedisValue val, RedisValue[] arr)
@@ -277,7 +251,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private RedisValue[] MakeArray(params RedisValue[] redisValues) { return redisValues; }
+        private RedisValue[] MakeArray(params RedisValue[] redisValues) => redisValues;
 
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
         {
@@ -330,7 +304,7 @@ namespace StackExchange.Redis
         public ServerCounters GetCounters() => server.GetCounters();
 
         private static IGrouping<string, KeyValuePair<string, string>>[] InfoDefault =>
-            Enumerable.Empty<KeyValuePair<string, string>>().GroupBy(k => k.Key).ToArray();
+            Array.Empty<IGrouping<string, KeyValuePair<string, string>>>();
 
         public IGrouping<string, KeyValuePair<string, string>>[] Info(RedisValue section = default, CommandFlags flags = CommandFlags.None)
         {
@@ -408,7 +382,7 @@ namespace StackExchange.Redis
         }
 
         public void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null)
-    {
+        {
             // Do you believe in magic?
             multiplexer.MakePrimaryAsync(server, options, log).Wait(60000);
         }
@@ -1072,7 +1046,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// For testing only
+        /// For testing only.
         /// </summary>
         internal void SimulateConnectionFailure(SimulatedFailureType failureType) => server.SimulateConnectionFailure(failureType);
 

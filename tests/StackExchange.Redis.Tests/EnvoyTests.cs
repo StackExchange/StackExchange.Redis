@@ -35,15 +35,15 @@ public class EnvoyTests : TestBase
         }
         catch (TimeoutException ex) when (ex.Message == "Connect timeout" || sb.ToString().Contains("Returned, but incorrectly"))
         {
-            Skip.Inconclusive("Envoy server not found.");
+            Skip.Inconclusive($"Envoy server not found: {ex}.");
         }
-        catch (AggregateException)
+        catch (AggregateException ex)
         {
-            Skip.Inconclusive("Envoy server not found.");
+            Skip.Inconclusive($"Envoy server not found: {ex}.");
         }
-        catch (RedisConnectionException) when (sb.ToString().Contains("It was not possible to connect to the redis server(s)"))
+        catch (RedisConnectionException ex) when (sb.ToString().Contains("It was not possible to connect to the redis server(s)"))
         {
-            Skip.Inconclusive("Envoy server not found.");
+            Skip.Inconclusive($"Envoy server not found: {ex}.");
         }
     }
 }

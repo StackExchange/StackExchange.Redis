@@ -84,6 +84,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashExistsAsync(ToInner(key), hashField, flags);
 
+        public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpireAsync(ToInner(key), hashFields, expiry, when, flags);
+
+        public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldExpireAsync(ToInner(key), hashFields, expiry, when, flags);
+
+        public Task<long[]> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashFieldGetExpireDateTimeAsync(ToInner(key), hashFields, flags);
+
+        public Task<PersistResult[]> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashFieldPersistAsync(ToInner(key), hashFields, flags);
+
+        public Task<long[]> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags) =>
+            Inner.HashFieldGetTimeToLiveAsync(ToInner(key), hashFields, flags);
+
         public Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.HashGetAllAsync(ToInner(key), flags);
 
@@ -117,9 +132,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<HashEntry[]> HashRandomFieldsWithValuesAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.HashRandomFieldsWithValuesAsync(ToInner(key), count, flags);
 
-
         public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
             Inner.HashScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
+
+        public IAsyncEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) =>
+            Inner.HashScanNoValuesAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
         public Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSetAsync(ToInner(key), hashField, value, when, flags);

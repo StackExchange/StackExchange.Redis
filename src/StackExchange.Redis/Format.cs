@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Text;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
 using System.Text;
-using System.Diagnostics.CodeAnalysis;
 
 #if UNIX_SOCKET
 using System.Net.Sockets;
@@ -86,7 +86,7 @@ namespace StackExchange.Redis
             float f => ToString(f),
             double d => ToString(d),
             EndPoint e => ToString(e),
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture)
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture),
         };
 
         internal static string ToString(EndPoint? endpoint)
@@ -97,7 +97,20 @@ namespace StackExchange.Redis
                     if (dns.Port == 0) return dns.Host;
                     return dns.Host + ":" + Format.ToString(dns.Port);
                 case IPEndPoint ip:
-                    if (ip.Port == 0) return ip.Address.ToString();
+                    var addr = ip.Address.ToString();
+
+                    if (ip.Port == 0)
+                    {
+                        // no port specified; use naked IP
+                        return addr;
+                    }
+
+                    if (addr.IndexOf(':') >= 0)
+                    {
+                        // ipv6 with port; use "[IP]:port" notation
+                        return "[" + addr + "]:" + Format.ToString(ip.Port);
+                    }
+                    // ipv4 with port; use "IP:port" notation
                     return ip.Address + ":" + Format.ToString(ip.Port);
 #if UNIX_SOCKET
                 case UnixDomainSocketEndPoint uds:
@@ -113,7 +126,7 @@ namespace StackExchange.Redis
             {
                 DnsEndPoint dns => dns.Host,
                 IPEndPoint ip => ip.Address.ToString(),
-                _ => ""
+                _ => "",
             };
 
         internal static bool TryGetHostPort(EndPoint? endpoint, [NotNullWhen(true)] out string? host, [NotNullWhen(true)] out int? port)
@@ -258,7 +271,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// <para>
         /// Adapted from IPEndPointParser in Microsoft.AspNetCore
-        /// Link: <see href="https://github.com/aspnet/BasicMiddleware/blob/f320511b63da35571e890d53f3906c7761cd00a1/src/Microsoft.AspNetCore.HttpOverrides/Internal/IPEndPointParser.cs#L8"/>
+        /// Link: <see href="https://github.com/aspnet/BasicMiddleware/blob/f320511b63da35571e890d53f3906c7761cd00a1/src/Microsoft.AspNetCore.HttpOverrides/Internal/IPEndPointParser.cs#L8"/>.
         /// </para>
         /// <para>
         /// Copyright (c) .NET Foundation. All rights reserved.
@@ -276,7 +289,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            if (addressWithPort[0]=='!')
+            if (addressWithPort[0] == '!')
             {
                 if (addressWithPort.Length == 1)
                 {

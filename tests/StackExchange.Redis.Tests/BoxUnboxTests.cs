@@ -52,7 +52,7 @@ public class BoxUnboxTests
 
     private static readonly byte[] s_abc = Encoding.UTF8.GetBytes("abc");
     public static IEnumerable<object[]> RoundTripValues
-        => new []
+        => new[]
         {
             new object[] { RedisValue.Null },
             new object[] { RedisValue.EmptyString },
@@ -94,7 +94,7 @@ public class BoxUnboxTests
         };
 
     public static IEnumerable<object?[]> UnboxValues
-        => new []
+        => new[]
         {
             new object?[] { null, RedisValue.Null },
             new object[] { "", RedisValue.EmptyString },
@@ -125,7 +125,7 @@ public class BoxUnboxTests
             new object[] { double.NegativeInfinity, (RedisValue)double.NegativeInfinity },
             new object[] { double.NaN, (RedisValue)double.NaN },
             new object[] { true, (RedisValue)true },
-            new object[] { false, (RedisValue)false},
+            new object[] { false, (RedisValue)false },
             new object[] { "abc", (RedisValue)"abc" },
             new object[] { s_abc, (RedisValue)s_abc },
             new object[] { new Memory<byte>(s_abc), (RedisValue)s_abc },
@@ -135,7 +135,7 @@ public class BoxUnboxTests
 
     public static IEnumerable<object[]> InternedValues()
     {
-        for(int i = -20; i <= 40; i++)
+        for (int i = -20; i <= 40; i++)
         {
             bool expectInterned = i >= -1 & i <= 20;
             yield return new object[] { (RedisValue)i, expectInterned };
@@ -146,13 +146,13 @@ public class BoxUnboxTests
 
         yield return new object[] { (RedisValue)float.NegativeInfinity, true };
         yield return new object[] { (RedisValue)(-0.5F), false };
-        yield return new object[] { (RedisValue)(0.5F), false };
+        yield return new object[] { (RedisValue)0.5F, false };
         yield return new object[] { (RedisValue)float.PositiveInfinity, true };
         yield return new object[] { (RedisValue)float.NaN, true };
 
         yield return new object[] { (RedisValue)double.NegativeInfinity, true };
         yield return new object[] { (RedisValue)(-0.5D), false };
-        yield return new object[] { (RedisValue)(0.5D), false };
+        yield return new object[] { (RedisValue)0.5D, false };
         yield return new object[] { (RedisValue)double.PositiveInfinity, true };
         yield return new object[] { (RedisValue)double.NaN, true };
 

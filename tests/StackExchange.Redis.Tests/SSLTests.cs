@@ -7,10 +7,12 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using NSubstitute.Exceptions;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
@@ -23,10 +25,9 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
 
     public SSLTests(ITestOutputHelper output, SSLServerFixture fixture) : base(output) => Fixture = fixture;
 
-    [Theory]
+    [Theory] // (note the 6379 port is closed)
     [InlineData(null, true)] // auto-infer port (but specify 6380)
     [InlineData(6380, true)] // all explicit
-    // (note the 6379 port is closed)
     public void ConnectToAzure(int? port, bool ssl)
     {
         Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
@@ -82,7 +83,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
         };
         var map = new Dictionary<string, string?>
         {
-            ["config"] = null // don't rely on config working
+            ["config"] = null, // don't rely on config working
         };
         if (!isAzure) map["cluster"] = null;
         config.CommandMap = CommandMap.Create(map);
@@ -152,18 +153,14 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             long value = (long)await db.StringGetAsync(key).ForAwait();
             watch.Stop();
             Assert.Equal(AsyncLoop, value);
-            Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
-                AsyncLoop,
-                watch.ElapsedMilliseconds,
-                (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
-                value);
+            Log($"F&F: {AsyncLoop} INCR, {watch.ElapsedMilliseconds:###,##0}ms, {(long)(AsyncLoop / watch.Elapsed.TotalSeconds)} ops/s; final value: {value}");
 
             // perf: sync/multi-threaded
             // TestConcurrent(db, key, 30, 10);
-            //TestConcurrent(db, key, 30, 20);
-            //TestConcurrent(db, key, 30, 30);
-            //TestConcurrent(db, key, 30, 40);
-            //TestConcurrent(db, key, 30, 50);
+            // TestConcurrent(db, key, 30, 20);
+            // TestConcurrent(db, key, 30, 30);
+            // TestConcurrent(db, key, 30, 40);
+            // TestConcurrent(db, key, 30, 50);
         }
         else
         {
@@ -176,8 +173,8 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     // Docker configured with only TLS_AES_256_GCM_SHA384 for testing
     [Theory]
     [InlineData(SslProtocols.None, true, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
-    [InlineData(SslProtocols.Tls12 , true, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
-    [InlineData(SslProtocols.Tls13 , true, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
+    [InlineData(SslProtocols.Tls12, true, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
+    [InlineData(SslProtocols.Tls13, true, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
     [InlineData(SslProtocols.Tls12, false, TlsCipherSuite.TLS_AES_128_CCM_8_SHA256)]
     [InlineData(SslProtocols.Tls12, true)]
     [InlineData(SslProtocols.Tls13, true)]
@@ -187,34 +184,35 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     [InlineData(SslProtocols.Ssl3 | SslProtocols.Tls12 | SslProtocols.Tls13, true)]
     [InlineData(SslProtocols.Ssl2, false, TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TlsCipherSuite.TLS_AES_256_GCM_SHA384)]
 #pragma warning restore CS0618 // Type or member is obsolete
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Interoperability", "CA1416:Validate platform compatibility", Justification = "Yes, we know.")]
     public async Task ConnectSslClientAuthenticationOptions(SslProtocols protocols, bool expectSuccess, params TlsCipherSuite[] tlsCipherSuites)
     {
         Fixture.SkipIfNoServer();
 
-        var config = new ConfigurationOptions()
-        {
-            EndPoints = { TestConfig.Current.SslServerAndPort },
-            AllowAdmin = true,
-            ConnectRetry = 1,
-            SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
-            Ssl = true,
-            SslClientAuthenticationOptions = host => new SslClientAuthenticationOptions()
-            {
-                TargetHost = host,
-                CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
-                EnabledSslProtocols = protocols,
-                CipherSuitesPolicy = tlsCipherSuites?.Length > 0 ? new CipherSuitesPolicy(tlsCipherSuites) : null,
-                RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
-                {
-                    Log("  Errors: " + errors);
-                    Log("  Cert issued to: " + cert?.Subject);
-                    return true;
-                }
-            }
-        };
-
         try
         {
+            var config = new ConfigurationOptions()
+            {
+                EndPoints = { TestConfig.Current.SslServerAndPort },
+                AllowAdmin = true,
+                ConnectRetry = 1,
+                SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
+                Ssl = true,
+                SslClientAuthenticationOptions = host => new SslClientAuthenticationOptions()
+                {
+                    TargetHost = host,
+                    CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
+                    EnabledSslProtocols = protocols,
+                    CipherSuitesPolicy = tlsCipherSuites?.Length > 0 ? new CipherSuitesPolicy(tlsCipherSuites) : null,
+                    RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
+                    {
+                        Log("  Errors: " + errors);
+                        Log("  Cert issued to: " + cert?.Subject);
+                        return true;
+                    },
+                },
+            };
+
             if (expectSuccess)
             {
                 using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
@@ -258,9 +256,14 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             EndPoints = { { TestConfig.Current.RedisLabsSslServer, TestConfig.Current.RedisLabsSslPort } },
             ConnectTimeout = timeout,
             AllowAdmin = true,
-            CommandMap = CommandMap.Create(new HashSet<string> {
-                "subscribe", "unsubscribe", "cluster"
-            }, false)
+            CommandMap = CommandMap.Create(
+                new HashSet<string>
+                {
+                    "subscribe",
+                    "unsubscribe",
+                    "cluster",
+                },
+                false),
         };
 
         options.TrustIssuer("redislabs_ca.pem");
@@ -270,10 +273,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
         ConnectionMultiplexer.EchoPath = Me();
 #endif
         options.Ssl = true;
-        options.CertificateSelection += delegate
-        {
-            return cert;
-        };
+        options.CertificateSelection += (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => cert;
 
         using var conn = ConnectionMultiplexer.Connect(options);
 
@@ -320,9 +320,14 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
                 EndPoints = { { TestConfig.Current.RedisLabsSslServer, TestConfig.Current.RedisLabsSslPort } },
                 ConnectTimeout = timeout,
                 AllowAdmin = true,
-                CommandMap = CommandMap.Create(new HashSet<string> {
-                    "subscribe", "unsubscribe", "cluster"
-                }, false)
+                CommandMap = CommandMap.Create(
+                    new HashSet<string>
+                    {
+                        "subscribe",
+                        "unsubscribe",
+                        "cluster",
+                    },
+                    false),
             };
 
             if (!Directory.Exists(Me())) Directory.CreateDirectory(Me());
@@ -366,21 +371,20 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     {
         var options = new ConfigurationOptions
         {
-            EndPoints = {
-                          { "mycache.rediscache.windows.net", 15000},
-                          { "mycache.rediscache.windows.net", 15001 },
-                          { "mycache.rediscache.windows.net", 15002 },
-                        },
+            EndPoints =
+            {
+                { "mycache.rediscache.windows.net", 15000 },
+                { "mycache.rediscache.windows.net", 15001 },
+                { "mycache.rediscache.windows.net", 15002 },
+            },
             Ssl = true,
         };
-        Assert.True(options.SslHost == "mycache.rediscache.windows.net");
+        Assert.Equal("mycache.rediscache.windows.net", options.SslHost);
         options = new ConfigurationOptions()
         {
-            EndPoints = {
-                          { "121.23.23.45", 15000},
-                        }
+            EndPoints = { { "121.23.23.45", 15000 } },
         };
-        Assert.True(options.SslHost == null);
+        Assert.Null(options.SslHost);
     }
 
     private void Check(string name, object? x, object? y)
@@ -453,7 +457,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             SyncTimeout = 5000,
             DefaultDatabase = 0,
             EndPoints = { { TestConfig.Current.AzureCacheServer, 6380 } },
-            Password = TestConfig.Current.AzureCachePassword
+            Password = TestConfig.Current.AzureCachePassword,
         };
         options.CertificateValidation += ShowCertFailures(Writer);
 
@@ -527,7 +531,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
     [Fact]
     public void ConfigObject_Issue1407_ToStringIncludesSslProtocols()
     {
-        const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
+        const SslProtocols sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
         var sourceOptions = new ConfigurationOptions
         {
             AbortOnConnectFail = false,
@@ -538,7 +542,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             SyncTimeout = 5000,
             DefaultDatabase = 0,
             EndPoints = { { "endpoint.test", 6380 } },
-            Password = "123456"
+            Password = "123456",
         };
 
         var targetOptions = ConfigurationOptions.Parse(sourceOptions.ToString());

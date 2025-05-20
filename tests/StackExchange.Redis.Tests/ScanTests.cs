@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Xunit;
 using Xunit.Abstractions;
-// ReSharper disable PossibleMultipleEnumeration
 
 namespace StackExchange.Redis.Tests;
 
@@ -146,7 +145,6 @@ public class ScanTests : TestBase
         // page size, with zero guarantees; in this particular test, the first page actually has 19 elements, for example. So: we cannot
         // make the following assertion:
         // Assert.Equal(12, snapOffset);
-
         seq = server.Keys(dbId, prefix + ":*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
         var seqCur = (IScanningCursor)seq;
         Assert.Equal(snapCursor, seqCur.Cursor);
@@ -257,7 +255,7 @@ public class ScanTests : TestBase
         Assert.Equal(2, basicArr[1].Score);
         Assert.Equal(3, basicArr[2].Score);
         basic = basicArr.ToDictionary();
-        Assert.Equal(3, basic.Count); //asc
+        Assert.Equal(3, basic.Count); // asc
         Assert.Equal(1, basic["a"]);
         Assert.Equal(2, basic["b"]);
         Assert.Equal(3, basic["c"]);
@@ -334,6 +332,58 @@ public class ScanTests : TestBase
         Assert.Equal(2000, count);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void HashScanNoValues(bool supported)
+    {
+        string[]? disabledCommands = supported ? null : new[] { "hscan" };
+
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1, disabledCommands: disabledCommands);
+
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        db.HashSet(key, "a", "1", flags: CommandFlags.FireAndForget);
+        db.HashSet(key, "b", "2", flags: CommandFlags.FireAndForget);
+        db.HashSet(key, "c", "3", flags: CommandFlags.FireAndForget);
+
+        var arr = db.HashScanNoValues(key).ToArray();
+        Assert.Equal(3, arr.Length);
+        Assert.True(arr.Any(x => x == "a"), "a");
+        Assert.True(arr.Any(x => x == "b"), "b");
+        Assert.True(arr.Any(x => x == "c"), "c");
+
+        var basic = db.HashGetAll(key).ToDictionary();
+        Assert.Equal(3, basic.Count);
+        Assert.Equal(1, (long)basic["a"]);
+        Assert.Equal(2, (long)basic["b"]);
+        Assert.Equal(3, (long)basic["c"]);
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(100)]
+    [InlineData(1000)]
+    [InlineData(10000)]
+    public void HashScanNoValuesLarge(int pageSize)
+    {
+        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+
+        RedisKey key = Me() + pageSize;
+        var db = conn.GetDatabase();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        for (int i = 0; i < 2000; i++)
+        {
+            db.HashSet(key, "k" + i, "v" + i, flags: CommandFlags.FireAndForget);
+        }
+
+        int count = db.HashScanNoValues(key, pageSize: pageSize).Count();
+        Assert.Equal(2000, count);
+    }
+
     /// <summary>
     /// See <see href="https://github.com/StackExchange/StackExchange.Redis/issues/729"/>.
     /// </summary>
@@ -364,7 +414,7 @@ public class ScanTests : TestBase
 
         var found = false;
         var response = db.HashScan(key);
-        var cursor = ((IScanningCursor)response);
+        var cursor = (IScanningCursor)response;
         foreach (var _ in response)
         {
             if (cursor.Cursor > 0)

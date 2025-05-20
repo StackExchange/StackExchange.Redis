@@ -52,12 +52,12 @@ namespace StackExchange.Redis
         public RedisValue Message { get; }
 
         /// <summary>
-        /// Checks if 2 messages are .Equal()
+        /// Checks if 2 messages are .Equal().
         /// </summary>
         public static bool operator ==(ChannelMessage left, ChannelMessage right) => left.Equals(right);
 
         /// <summary>
-        /// Checks if 2 messages are not .Equal()
+        /// Checks if 2 messages are not .Equal().
         /// </summary>
         public static bool operator !=(ChannelMessage left, ChannelMessage right) => !left.Equals(right);
     }
@@ -72,6 +72,7 @@ namespace StackExchange.Redis
     public sealed class ChannelMessageQueue : IAsyncEnumerable<ChannelMessage>
     {
         private readonly Channel<ChannelMessage> _queue;
+
         /// <summary>
         /// The Channel that was subscribed for this queue.
         /// </summary>
@@ -202,7 +203,8 @@ namespace StackExchange.Redis
                 {
                     old = Volatile.Read(ref head);
                     queue._next = old;
-                } while (Interlocked.CompareExchange(ref head, queue, old) != old);
+                }
+                while (Interlocked.CompareExchange(ref head, queue, old) != old);
             }
         }
 
@@ -226,7 +228,8 @@ namespace StackExchange.Redis
             }
 
             bool found;
-            do // if we fail due to a conflict, re-do from start
+            // if we fail due to a conflict, re-do from start
+            do
             {
                 var current = Volatile.Read(ref head);
                 if (current == null) return; // no queue? nothing to do
@@ -261,9 +264,11 @@ namespace StackExchange.Redis
                         }
                         previous = current;
                         current = Volatile.Read(ref previous!._next);
-                    } while (current != null);
+                    }
+                    while (current != null);
                 }
-            } while (found);
+            }
+            while (found);
         }
 
         internal static int Count(ref ChannelMessageQueue? head)

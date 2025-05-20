@@ -6,7 +6,7 @@ namespace StackExchange.Redis.Tests.Issues;
 
 public class SO25113323Tests : TestBase
 {
-    public SO25113323Tests(ITestOutputHelper output) : base (output) { }
+    public SO25113323Tests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public async Task SetExpirationToPassed()

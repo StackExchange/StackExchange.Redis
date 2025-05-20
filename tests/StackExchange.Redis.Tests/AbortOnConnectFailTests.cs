@@ -1,6 +1,6 @@
-﻿using StackExchange.Redis.Tests.Helpers;
-using System;
+﻿using System;
 using System.Threading.Tasks;
+using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 
 public class AbortOnConnectFailTests : TestBase
 {
-    public AbortOnConnectFailTests(ITestOutputHelper output) : base (output) { }
+    public AbortOnConnectFailTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void NeverEverConnectedNoBacklogThrowsConnectionNotAvailableSync()

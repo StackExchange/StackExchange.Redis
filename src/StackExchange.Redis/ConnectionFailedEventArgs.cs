@@ -32,7 +32,7 @@ namespace StackExchange.Redis
         /// <param name="exception">The exception that occurred.</param>
         /// <param name="physicalName">Connection physical name.</param>
         public ConnectionFailedEventArgs(object sender, EndPoint endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, string physicalName)
-            : this (null, sender, endPoint, connectionType, failureType, exception, physicalName)
+            : this(null, sender, endPoint, connectionType, failureType, exception, physicalName)
         {
         }
 

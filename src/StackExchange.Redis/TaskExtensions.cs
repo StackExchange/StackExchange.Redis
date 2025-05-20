@@ -40,7 +40,7 @@ namespace StackExchange.Redis
         /// Licensed to the .NET Foundation under one or more agreements.
         /// The .NET Foundation licenses this file to you under the MIT license.
         /// </summary>
-        /// <remarks>Inspired from <see href="https://github.com/dotnet/corefx/blob/81a246f3adf1eece3d981f1d8bb8ae9de12de9c6/src/Common/tests/System/Threading/Tasks/TaskTimeoutExtensions.cs#L15-L43"/></remarks>
+        /// <remarks>Inspired from <see href="https://github.com/dotnet/corefx/blob/81a246f3adf1eece3d981f1d8bb8ae9de12de9c6/src/Common/tests/System/Threading/Tasks/TaskTimeoutExtensions.cs#L15-L43"/>.</remarks>
         internal static async Task<bool> TimeoutAfter(this Task task, int timeoutMs)
         {
             var cts = new CancellationTokenSource();

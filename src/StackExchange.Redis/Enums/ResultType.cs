@@ -19,14 +19,17 @@ namespace StackExchange.Redis
         /// Basic strings typically represent status results such as "OK".
         /// </summary>
         SimpleString = 1,
+
         /// <summary>
         /// Error strings represent invalid operation results from the server.
         /// </summary>
         Error = 2,
+
         /// <summary>
         /// Integers are returned for count operations and some integer-based increment operations.
         /// </summary>
         Integer = 3,
+
         /// <summary>
         /// Bulk strings represent typical user content values.
         /// </summary>
@@ -65,7 +68,7 @@ namespace StackExchange.Redis
         Double = (1 << 3) | SimpleString,
 
         /// <summary>
-        /// A large number non representable by the <see cref="Integer"/> type
+        /// A large number non representable by the <see cref="Integer"/> type.
         /// </summary>
         BigInteger = (2 << 3) | SimpleString,
 

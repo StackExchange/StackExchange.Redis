@@ -7,8 +7,58 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
+No pending unreleased changes
 
-- Add new `LoggingTunnel` API; see https://stackexchange.github.io/StackExchange.Redis/Logging ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
+## 2.8.37
+
+- Add `ConfigurationOptions.SetUserPemCertificate(...)` and `ConfigurationOptions.SetUserPfxCertificate(...)` methods to simplify using client certificates ([#2873 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2873))
+- Add logging for when a Multiplexer reconfigures ([#2864 by st-dev-gh](https://github.com/StackExchange/StackExchange.Redis/pull/2864))
+- Fix: Move `AuthenticateAsClient` to fully async after dropping older framework support, to help client thread starvation in cases TLS negotiation stalls server-side ([#2878 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2878))
+
+## 2.8.31
+
+- Fix: Respect `IReconnectRetryPolicy` timing in the case that a node that was present disconnects indefinitely ([#2853](https://github.com/StackExchange/StackExchange.Redis/pull/2853) & [#2856](https://github.com/StackExchange/StackExchange.Redis/pull/2856) by NickCraver)
+  - Special thanks to [sampdei](https://github.com/sampdei) tracking this down and working a fix
+- Changes max default retry policy backoff to 60 seconds ([#2853 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2853))
+- Fix [#2652](https://github.com/StackExchange/StackExchange.Redis/issues/2652): Track client-initiated shutdown for any pipe type ([#2814 by bgrainger](https://github.com/StackExchange/StackExchange.Redis/pull/2814))
+
+## 2.8.24
+
+- Update Envoy command definitions to [allow `UNWATCH`](https://github.com/envoyproxy/envoy/pull/37620) ([#2824 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2824))
+
+## 2.8.22
+
+- Format IPv6 endpoints correctly when rewriting configration strings ([#2813 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2813))
+- Update default Redis version from `4.0.0` to `6.0.0` for Azure Redis resources ([#2810 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2810))
+- Detect Azure Managed Redis caches and tune default connection settings for them ([#2818 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2818))
+- Bump `Microsoft.Bcl.AsyncInterfaces` dependency from `5.0.0` to `6.0.0` ([#2820 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2820))
+
+## 2.8.16
+
+- Fix: PhysicalBridge: Always perform "last read" check in heartbeat when `HeartbeatConsistencyChecks` is enabled ([#2795 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2795))
+
+## 2.8.14
+
+- Fix [#2793](https://github.com/StackExchange/StackExchange.Redis/issues/2793): Update Envoyproxy's command map according to latest Envoy documentation ([#2794 by dbarbosapn](https://github.com/StackExchange/StackExchange.Redis/pull/2794))
+
+## 2.8.12
+
+- Add support for hash field expiration (see [#2715](https://github.com/StackExchange/StackExchange.Redis/issues/2715)) ([#2716 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2716]))
+- Add support for `HSCAN NOVALUES` (see [#2721](https://github.com/StackExchange/StackExchange.Redis/issues/2721)) ([#2722 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2722))
+- Fix [#2763](https://github.com/StackExchange/StackExchange.Redis/issues/2763): Make ConnectionMultiplexer.Subscription thread-safe ([#2769 by Chuck-EP](https://github.com/StackExchange/StackExchange.Redis/pull/2769))
+- Fix [#2778](https://github.com/StackExchange/StackExchange.Redis/issues/2778): Run `CheckInfoReplication` even with `HeartbeatConsistencyChecks` ([#2784 by NickCraver and leachdaniel-clark](https://github.com/StackExchange/StackExchange.Redis/pull/2784))
+
+## 2.8.0
+
+- Add high-integrity mode ([docs](https://stackexchange.github.io/StackExchange.Redis/Configuration), [#2471 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2741))
+- TLS certificate/`TrustIssuer`: Check EKU in X509 chain checks when validating certificates ([#2670 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2670))
+
+## 2.7.33
+
+- **Potentially Breaking**: Fix `CheckTrustedIssuer` certificate validation for broken chain scenarios ([#2665 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2665))
+  - Users inadvertently trusting a remote cert with a broken chain could not be failing custom validation before this change. This is only in play if you are using `ConfigurationOptions.TrustIssuer` at all.
+- Add new `LoggingTunnel` API; see [https://stackexchange.github.io/StackExchange.Redis/RespLogging](https://stackexchange.github.io/StackExchange.Redis/RespLogging) ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
+- Fix [#2664](https://github.com/StackExchange/StackExchange.Redis/issues/2664): Move ProcessBacklog to fully sync to prevent thread pool hopping and blocking on awaits ([#2667 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2667))
 
 ## 2.7.27
 

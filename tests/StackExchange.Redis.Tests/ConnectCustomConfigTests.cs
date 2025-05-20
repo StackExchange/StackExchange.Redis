@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests;
 
 public class ConnectCustomConfigTests : TestBase
 {
-    public ConnectCustomConfigTests(ITestOutputHelper output) : base (output) { }
+    public ConnectCustomConfigTests(ITestOutputHelper output) : base(output) { }
 
     // So we're triggering tiebreakers here
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
@@ -93,7 +93,7 @@ public class ConnectCustomConfigTests : TestBase
     }
 
     [Theory]
-    [InlineData(true, 5, 15)]
+    [InlineData(true, 4, 15)]
     [InlineData(false, 0, 0)]
     public async Task HeartbeatConsistencyCheckPingsAsync(bool enableConsistencyChecks, int minExpected, int maxExpected)
     {

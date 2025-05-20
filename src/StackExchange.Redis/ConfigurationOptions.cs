@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -62,7 +63,7 @@ namespace StackExchange.Redis
 
             internal static SslProtocols ParseSslProtocols(string key, string? value)
             {
-                //Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
+                // Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
                 value = value?.Replace("|", ",");
 
                 if (!Enum.TryParse(value, true, out SslProtocols tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires an SslProtocol value (multiple values separated by '|'); the value '{value}' is not recognised.");
@@ -109,7 +110,8 @@ namespace StackExchange.Redis
                 CheckCertificateRevocation = "checkCertificateRevocation",
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
-                Protocol = "protocol";
+                Protocol = "protocol",
+                HighIntegrity = "highIntegrity";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -140,6 +142,7 @@ namespace StackExchange.Redis
                 WriteBuffer,
                 CheckCertificateRevocation,
                 Protocol,
+                HighIntegrity,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -155,7 +158,7 @@ namespace StackExchange.Redis
         private DefaultOptionsProvider? defaultOptions;
 
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation, heartbeatConsistencyChecks,
-                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary;
+                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary, highIntegrity;
 
         private string? tieBreaker, sslHost, configChannel, user, password;
 
@@ -179,14 +182,14 @@ namespace StackExchange.Redis
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
         /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly", Justification = "Existing compatibility")]
         public event LocalCertificateSelectionCallback? CertificateSelection;
 
         /// <summary>
         /// A RemoteCertificateValidationCallback delegate responsible for validating the certificate supplied by the remote party; note
         /// that this cannot be specified in the configuration-string.
         /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly", Justification = "Existing compatibility")]
         public event RemoteCertificateValidationCallback? CertificateValidation;
 
         /// <summary>
@@ -235,7 +238,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether the connection should be encrypted
+        /// Indicates whether the connection should be encrypted.
         /// </summary>
         [Obsolete("Please use .Ssl instead of .UseSsl, will be removed in 3.0."),
          Browsable(false),
@@ -254,7 +257,6 @@ namespace StackExchange.Redis
             get => setClientLibrary ?? Defaults.SetClientLibrary;
             set => setClientLibrary = value;
         }
-
 
         /// <summary>
         /// Gets or sets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
@@ -279,13 +281,71 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine.
+        /// A Boolean value that specifies whether to use per-command validation of strict protocol validity.
+        /// This sends an additional command after EVERY command which incurs measurable overhead.
+        /// </summary>
+        /// <remarks>
+        /// The regular RESP protocol does not include correlation identifiers between requests and responses; in exceptional
+        /// scenarios, protocol desynchronization can occur, which may not be noticed immediately; this option adds additional data
+        /// to ensure that this cannot occur, at the cost of some (small) additional bandwidth usage.
+        /// </remarks>
+        public bool HighIntegrity
+        {
+            get => highIntegrity ?? Defaults.HighIntegrity;
+            set => highIntegrity = value;
+        }
+
+        /// <summary>
+        /// Create a certificate validation check that checks against the supplied issuer even when not known by the machine.
         /// </summary>
         /// <param name="issuerCertificatePath">The file system path to find the certificate at.</param>
         public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
 
+#if NET5_0_OR_GREATER
         /// <summary>
-        /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine.
+        /// Supply a user certificate from a PEM file pair and enable TLS.
+        /// </summary>
+        /// <param name="userCertificatePath">The path for the the user certificate (commonly a .crt file).</param>
+        /// <param name="userKeyPath">The path for the the user key (commonly a .key file).</param>
+        public void SetUserPemCertificate(string userCertificatePath, string? userKeyPath = null)
+        {
+            CertificateSelectionCallback = CreatePemUserCertificateCallback(userCertificatePath, userKeyPath);
+            Ssl = true;
+        }
+#endif
+
+        /// <summary>
+        /// Supply a user certificate from a PFX file and optional password and enable TLS.
+        /// </summary>
+        /// <param name="userCertificatePath">The path for the the user certificate (commonly a .pfx file).</param>
+        /// <param name="password">The password for the certificate file.</param>
+        public void SetUserPfxCertificate(string userCertificatePath, string? password = null)
+        {
+            CertificateSelectionCallback = CreatePfxUserCertificateCallback(userCertificatePath, password);
+            Ssl = true;
+        }
+
+#if NET5_0_OR_GREATER
+        internal static LocalCertificateSelectionCallback CreatePemUserCertificateCallback(string userCertificatePath, string? userKeyPath)
+        {
+            // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
+            using var pem = X509Certificate2.CreateFromPemFile(userCertificatePath, userKeyPath);
+#pragma warning disable SYSLIB0057 // Type or member is obsolete
+            var pfx = new X509Certificate2(pem.Export(X509ContentType.Pfx));
+#pragma warning restore SYSLIB0057 // Type or member is obsolete
+
+            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
+        }
+#endif
+
+        internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
+        {
+            var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
+        }
+
+        /// <summary>
+        /// Create a certificate validation check that checks against the supplied issuer even when not known by the machine.
         /// </summary>
         /// <param name="issuer">The issuer to trust.</param>
         public void TrustIssuer(X509Certificate2 issuer) => CertificateValidationCallback = TrustIssuerCallback(issuer);
@@ -296,24 +356,73 @@ namespace StackExchange.Redis
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
 
-            return (object _, X509Certificate? certificate, X509Chain? __, SslPolicyErrors sslPolicyError)
-                => sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors
-                    && certificate is X509Certificate2 v2
-                    && CheckTrustedIssuer(v2, issuer);
+            return (object _, X509Certificate? certificate, X509Chain? certificateChain, SslPolicyErrors sslPolicyError) =>
+            {
+                // If we're already valid, there's nothing further to check
+                if (sslPolicyError == SslPolicyErrors.None)
+                {
+                    return true;
+                }
+                // If we're not valid due to chain errors - check against the trusted issuer
+                // Note that we're only proceeding at all here if the *only* issue is chain errors (not more flags in SslPolicyErrors)
+                return sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors
+                       && certificate is X509Certificate2 v2
+                       && CheckTrustedIssuer(v2, certificateChain, issuer);
+            };
         }
 
-        private static bool CheckTrustedIssuer(X509Certificate2 certificateToValidate, X509Certificate2 authority)
+        private static readonly Oid _serverAuthOid = new Oid("1.3.6.1.5.5.7.3.1", "1.3.6.1.5.5.7.3.1");
+
+        private static bool CheckTrustedIssuer(X509Certificate2 certificateToValidate, X509Chain? chainToValidate, X509Certificate2 authority)
         {
-            // reference: https://stackoverflow.com/questions/6497040/how-do-i-validate-that-a-certificate-was-created-by-a-particular-certification-a
-            X509Chain chain = new X509Chain();
+            // Reference:
+            // https://stackoverflow.com/questions/6497040/how-do-i-validate-that-a-certificate-was-created-by-a-particular-certification-a
+            // https://github.com/stewartadam/dotnet-x509-certificate-verification
+            using X509Chain chain = new X509Chain();
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-            chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
             chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
-            chain.ChainPolicy.VerificationTime = DateTime.Now;
+            chain.ChainPolicy.VerificationTime = chainToValidate?.ChainPolicy?.VerificationTime ?? DateTime.Now;
             chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 0, 0);
+            // Ensure entended key usage checks are run and that we're observing a server TLS certificate
+            chain.ChainPolicy.ApplicationPolicy.Add(_serverAuthOid);
 
             chain.ChainPolicy.ExtraStore.Add(authority);
-            return chain.Build(certificateToValidate);
+            try
+            {
+                // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
+                // self-signed or partial chained vertificates
+                var chainIsVerified = chain.Build(certificateToValidate);
+                if (chainIsVerified)
+                {
+                    // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust
+                    // is a valid thing to trust, up until it's a root CA
+                    bool found = false;
+                    byte[] authorityData = authority.RawData;
+                    foreach (var chainElement in chain.ChainElements)
+                    {
+                        using var chainCert = chainElement.Certificate;
+                        if (!found)
+                        {
+#if NET8_0_OR_GREATER
+                            if (chainCert.RawDataMemory.Span.SequenceEqual(authorityData))
+#else
+                            if (chainCert.RawData.SequenceEqual(authorityData))
+#endif
+                            {
+                                found = true;
+                            }
+                        }
+                    }
+                    return found;
+                }
+            }
+            catch (CryptographicException)
+            {
+                // We specifically don't want to throw during validation here and would rather exit out gracefully
+            }
+
+            // If we didn't find the trusted issuer in the chain at all - we do not trust the result.
+            return false;
         }
 
         /// <summary>
@@ -414,9 +523,9 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Controls how often the connection heartbeats. A heartbeat includes:
-        /// - Evaluating if any messages have timed out
-        /// - Evaluating connection status (checking for failures)
-        /// - Sending a server message to keep the connection alive if needed
+        /// - Evaluating if any messages have timed out.
+        /// - Evaluating connection status (checking for failures).
+        /// - Sending a server message to keep the connection alive if needed.
         /// </summary>
         /// <remarks>
         /// This defaults to 1000 milliseconds and should not be changed for most use cases.
@@ -443,7 +552,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Should exceptions include identifiable details? (key names, additional .Data annotations)
+        /// Whether exceptions include identifiable details (key names, additional .Data annotations).
         /// </summary>
         public bool IncludeDetailInExceptions
         {
@@ -452,7 +561,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Should exceptions include performance counter details?
+        /// Whether exceptions include performance counter details.
         /// </summary>
         /// <remarks>
         /// CPU usage, etc - note that this can be problematic on some platforms.
@@ -465,7 +574,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity.
-        /// -1 Defaults to 60 Seconds
+        /// -1 Defaults to 60 Seconds.
         /// </summary>
         public int KeepAlive
         {
@@ -723,6 +832,7 @@ namespace StackExchange.Redis
             Protocol = Protocol,
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
+            highIntegrity = highIntegrity,
         };
 
         /// <summary>
@@ -803,6 +913,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
+            Append(sb, OptionKeys.HighIntegrity, highIntegrity);
             Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
@@ -848,7 +959,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = null;
+            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = highIntegrity = null;
             SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -967,6 +1078,9 @@ namespace StackExchange.Redis
                         case OptionKeys.SetClientLibrary:
                             SetClientLibrary = OptionKeys.ParseBoolean(key, value);
                             break;
+                        case OptionKeys.HighIntegrity:
+                            HighIntegrity = OptionKeys.ParseBoolean(key, value);
+                            break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())
                             {
@@ -1039,7 +1153,7 @@ namespace StackExchange.Redis
         public Tunnel? Tunnel { get; set; }
 
         /// <summary>
-        /// Specify the redis protocol type
+        /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol { get; set; }
 
@@ -1047,12 +1161,12 @@ namespace StackExchange.Redis
         {
             // note: deliberately leaving the IsAvailable duplicated to use short-circuit
 
-            //if (Protocol is null)
-            //{
-            //    // if not specified, lean on the server version and whether HELLO is available
-            //    return new RedisFeatures(DefaultVersion).Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
-            //}
-            //else
+            // if (Protocol is null)
+            // {
+            //     // if not specified, lean on the server version and whether HELLO is available
+            //     return new RedisFeatures(DefaultVersion).Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
+            // }
+            // else
             // ^^^ left for context; originally our intention was to auto-enable RESP3 by default *if* the server version
             // is >= 6; however, it turns out (see extensive conversation here https://github.com/StackExchange/StackExchange.Redis/pull/2396)
             // that tangential undocumented API breaks were made at the same time; this means that even if we fix every

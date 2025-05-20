@@ -9,10 +9,12 @@
         /// Direct communication to the redis server(s).
         /// </summary>
         None,
+
         /// <summary>
         /// Communication via <a href="https://github.com/twitter/twemproxy">twemproxy</a>.
         /// </summary>
         Twemproxy,
+
         /// <summary>
         /// Communication via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>.
         /// </summary>
@@ -28,7 +30,7 @@
         {
             Proxy.Twemproxy => false,
             Proxy.Envoyproxy => false,
-            _ => true
+            _ => true,
         };
 
         /// <summary>
@@ -38,7 +40,7 @@
         {
             Proxy.Twemproxy => false,
             Proxy.Envoyproxy => false,
-            _ => true
+            _ => true,
         };
 
         /// <summary>
@@ -48,7 +50,7 @@
         {
             Proxy.Twemproxy => false,
             Proxy.Envoyproxy => false,
-            _ => true
+            _ => true,
         };
     }
 }

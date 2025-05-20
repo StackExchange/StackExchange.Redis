@@ -102,7 +102,7 @@ namespace StackExchange.Redis
 
         void IResultBox<T>.SetResult(T value) => _value = value;
 
-        T? IResultBox<T>.GetResult(out Exception? ex, bool _)
+        T? IResultBox<T>.GetResult(out Exception? ex, bool unused)
         {
             ex = _exception;
             return _value;
@@ -145,9 +145,10 @@ namespace StackExchange.Redis
             // how it is being used in those 2 different ways; also, the *fact* that they
             // are the same underlying object is an implementation detail that the rest of
             // the code doesn't need to know about
-            var obj = new TaskResultBox<T>(asyncState, ConnectionMultiplexer.PreventThreadTheft
-                ? TaskCreationOptions.None // if we don't trust the TPL/sync-context, avoid a double QUWI dispatch
-                : TaskCreationOptions.RunContinuationsAsynchronously);
+            var obj = new TaskResultBox<T>(
+                asyncState,
+                // if we don't trust the TPL/sync-context, avoid a double QUWI dispatch
+                ConnectionMultiplexer.PreventThreadTheft ? TaskCreationOptions.None : TaskCreationOptions.RunContinuationsAsynchronously);
             source = obj;
             return obj;
         }

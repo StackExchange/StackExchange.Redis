@@ -2,6 +2,8 @@
 
 namespace StackExchange.Redis
 {
+#pragma warning disable SA1310 // Field names should not contain underscore
+#pragma warning disable SA1311 // Static readonly fields should begin with upper-case letter
     internal static class CommonReplies
     {
         public static readonly CommandBytes
@@ -76,6 +78,7 @@ namespace StackExchange.Redis
             EX = "EX",
             EXAT = "EXAT",
             EXISTS = "EXISTS",
+            FIELDS = "FIELDS",
             FILTERBY = "FILTERBY",
             FLUSH = "FLUSH",
             FREQ = "FREQ",
@@ -89,6 +92,7 @@ namespace StackExchange.Redis
             IDLETIME = "IDLETIME",
             KEEPTTL = "KEEPTTL",
             KILL = "KILL",
+            LADDR = "LADDR",
             LATEST = "LATEST",
             LEFT = "LEFT",
             LEN = "LEN",
@@ -101,6 +105,7 @@ namespace StackExchange.Redis
             MATCH = "MATCH",
             MALLOC_STATS = "MALLOC-STATS",
             MAX = "MAX",
+            MAXAGE = "MAXAGE",
             MAXLEN = "MAXLEN",
             MIN = "MIN",
             MINMATCHLEN = "MINMATCHLEN",
@@ -108,6 +113,7 @@ namespace StackExchange.Redis
             NODES = "NODES",
             NOSAVE = "NOSAVE",
             NOT = "NOT",
+            NOVALUES = "NOVALUES",
             NUMPAT = "NUMPAT",
             NUMSUB = "NUMSUB",
             NX = "NX",
@@ -137,6 +143,7 @@ namespace StackExchange.Redis
             STATS = "STATS",
             STORE = "STORE",
             TYPE = "TYPE",
+            USERNAME = "USERNAME",
             WEIGHTS = "WEIGHTS",
             WITHMATCHLEN = "WITHMATCHLEN",
             WITHSCORES = "WITHSCORES",
@@ -150,14 +157,14 @@ namespace StackExchange.Redis
             REPLICAS = "REPLICAS",
             SLAVES = "SLAVES",
             GETMASTERADDRBYNAME = "GET-MASTER-ADDR-BY-NAME",
-            //            RESET = "RESET",
+            // RESET = "RESET",
             FAILOVER = "FAILOVER",
             SENTINELS = "SENTINELS",
 
             // Sentinel Literals as of 2.8.4
             MONITOR = "MONITOR",
             REMOVE = "REMOVE",
-            //            SET = "SET",
+            // SET = "SET",
 
             // replication states
             connect = "connect",
@@ -212,4 +219,6 @@ namespace StackExchange.Redis
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
     }
+#pragma warning restore SA1310 // Field names should not contain underscore
+#pragma warning restore SA1311 // Static readonly fields should begin with upper-case letter
 }
