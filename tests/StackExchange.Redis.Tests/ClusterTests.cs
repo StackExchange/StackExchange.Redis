@@ -1,11 +1,11 @@
-﻿using StackExchange.Redis.Profiling;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -15,7 +15,9 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class ClusterTests : TestBase
 {
-    public ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+    public ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture)
+    {
+    }
 
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
@@ -747,7 +749,6 @@ public class ClusterTests : TestBase
         }
     }
 
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -762,7 +763,8 @@ public class ClusterTests : TestBase
         List<(RedisChannel, RedisValue)> received = new();
         var queue = await pubsub.SubscribeAsync(channel);
         _ = Task.Run(async () =>
-        {   // use queue API to have control over order
+        {
+            // use queue API to have control over order
             await foreach (var item in queue)
             {
                 lock (received)

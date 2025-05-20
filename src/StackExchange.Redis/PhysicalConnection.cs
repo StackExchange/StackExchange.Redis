@@ -384,7 +384,7 @@ namespace StackExchange.Redis
             bool isInitialConnect = false,
             IDuplexPipe? connectingPipe = null)
         {
-            bool weAskedForThis = false;
+            bool weAskedForThis;
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -1669,10 +1669,13 @@ namespace StackExchange.Redis
 
                     // invoke the handlers
                     RedisChannel channel;
-                    if (items[0].IsEqual(message)) {
+                    if (items[0].IsEqual(message))
+                    {
                         channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.None);
                         Trace("MESSAGE: " + channel);
-                    } else {
+                    }
+                    else
+                    {
                         channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Sharded);
                         Trace("SMESSAGE: " + channel);
                     }

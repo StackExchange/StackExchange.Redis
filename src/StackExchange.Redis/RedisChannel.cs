@@ -9,7 +9,7 @@ namespace StackExchange.Redis
     public readonly struct RedisChannel : IEquatable<RedisChannel>
     {
         internal readonly byte[]? Value;
-        
+
         internal readonly RedisChannelOptions Options;
 
         [Flags]
@@ -33,14 +33,9 @@ namespace StackExchange.Redis
         public bool IsPattern => (Options & RedisChannelOptions.Pattern) != 0;
 
         /// <summary>
-        /// Indicates whether this channel represents a shard channel (see <c>SSUBSCRIBE</c>)
+        /// Indicates whether this channel represents a shard channel (see <c>SSUBSCRIBE</c>).
         /// </summary>
         public bool IsSharded => (Options & RedisChannelOptions.Sharded) != 0;
-
-        /// <summary>
-        /// Indicates whether this channel represents a shard channel (see <c>SSUBSCRIBE</c>)
-        /// </summary>
-        public bool IsSharded => _isSharded;
 
         internal bool IsNull => Value == null;
 
@@ -80,14 +75,18 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(byte[]? value, PatternMode mode) : this(value, DeterminePatternBased(value, mode) ? RedisChannelOptions.Pattern : RedisChannelOptions.None) { }
+        public RedisChannel(byte[]? value, PatternMode mode) : this(value, DeterminePatternBased(value, mode) ? RedisChannelOptions.Pattern : RedisChannelOptions.None)
+        {
+        }
 
         /// <summary>
         /// Create a new redis channel from a string, explicitly controlling the pattern mode.
         /// </summary>
         /// <param name="value">The string name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(string value, PatternMode mode) : this(value is null ? null : Encoding.UTF8.GetBytes(value), mode) { }
+        public RedisChannel(string value, PatternMode mode) : this(value is null ? null : Encoding.UTF8.GetBytes(value), mode)
+        {
+        }
 
         /// <summary>
         /// Create a new redis channel from a buffer, representing a sharded channel.

@@ -354,8 +354,7 @@ namespace StackExchange.Redis
                 switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
-                        long time;
-                        if (result.TryGetInt64(out time))
+                        if (result.TryGetInt64(out long time))
                         {
                             if (time < 0)
                             {
@@ -470,7 +469,7 @@ namespace StackExchange.Redis
                         var newServer = message.Command switch
                         {
                             RedisCommand.SUBSCRIBE or RedisCommand.SSUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
-                            _ => null
+                            _ => null,
                         };
                         Subscription?.SetCurrentServer(newServer);
                         return true;
@@ -1253,8 +1252,7 @@ namespace StackExchange.Redis
                 switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
-                        long i64;
-                        if (result.TryGetInt64(out i64))
+                        if (result.TryGetInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
@@ -1262,8 +1260,7 @@ namespace StackExchange.Redis
                         break;
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        double val;
-                        if (result.TryGetDouble(out val))
+                        if (result.TryGetDouble(out double val))
                         {
                             SetResult(message, val);
                             return true;
@@ -1366,8 +1363,7 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        long i64;
-                        if (result.TryGetInt64(out i64))
+                        if (result.TryGetInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
@@ -1423,8 +1419,7 @@ namespace StackExchange.Redis
                             SetResult(message, null);
                             return true;
                         }
-                        double val;
-                        if (result.TryGetDouble(out val))
+                        if (result.TryGetDouble(out double val))
                         {
                             SetResult(message, val);
                             return true;
@@ -1449,8 +1444,7 @@ namespace StackExchange.Redis
                             SetResult(message, null);
                             return true;
                         }
-                        long i64;
-                        if (result.TryGetInt64(out i64))
+                        if (result.TryGetInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
@@ -2167,7 +2161,10 @@ The coordinates as a two items x,y array (longitude,latitude).
             protected override bool AllowJaggedPairs => false; // we only use this on a flattened map
 
             public static readonly RedisStreamInterleavedProcessor Instance = new();
-            private RedisStreamInterleavedProcessor() { }
+            private RedisStreamInterleavedProcessor()
+            {
+            }
+
             protected override RedisStream Parse(in RawResult first, in RawResult second, object? state)
                 => new(key: first.AsRedisKey(), entries: ((MultiStreamProcessor)state!).ParseRedisStreamEntries(second));
         }
@@ -2549,7 +2546,10 @@ The coordinates as a two items x,y array (longitude,latitude).
         internal class StreamNameValueEntryProcessor : ValuePairInterleavedProcessorBase<NameValueEntry>
         {
             public static readonly StreamNameValueEntryProcessor Instance = new();
-            private StreamNameValueEntryProcessor() { }
+            private StreamNameValueEntryProcessor()
+            {
+            }
+
             protected override NameValueEntry Parse(in RawResult first, in RawResult second, object? state)
                 => new NameValueEntry(first.AsRedisValue(), second.AsRedisValue());
         }
