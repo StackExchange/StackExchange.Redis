@@ -749,6 +749,60 @@ public class ClusterTests : TestBase
         }
     }
 
+    [Fact]
+    public async Task TestSubscriberReconnected()
+    {
+        var channel = RedisChannel.Sharded("testShardChannel");
+        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false);
+        Assert.True(conn.IsConnected);
+        var db = conn.GetDatabase();
+        Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        var pubsub = conn.GetSubscriber();
+        List<(RedisChannel, RedisValue)> received = new();
+        var queue = await pubsub.SubscribeAsync(channel);
+        _ = Task.Run(async () =>
+        {
+            // use queue API to have control over order
+            await foreach (var item in queue)
+            {
+                lock (received)
+                {
+                    if (item.Channel.IsSharded && item.Channel == channel) received.Add((item.Channel, item.Message));
+                }
+            }
+        });
+        Assert.Equal(1, conn.GetSubscriptionsCount());
+
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+        await db.PingAsync();
+
+        for (int i = 0; i < 5; i++)
+        {
+            // check we get a hit
+            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+        }
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        // this is endpoint at index 1 which has the hashslot for "testShardChannel"
+        var server = conn.GetServer(conn.GetEndPoints()[1]);
+        server.SimulateConnectionFailure(SimulatedFailureType.All);
+        SetExpectedAmbientFailureCount(2);
+
+        await Task.Delay(4000);
+        for (int i = 0; i < 5; i++)
+        {
+            // check we get a hit
+            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+        }
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        Assert.Equal(1, conn.GetSubscriptionsCount());
+        Assert.Equal(10, received.Count);
+        ClearAmbientFailures();
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
