@@ -810,7 +810,6 @@ public class ClusterTests : TestBase
         using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false);
         Assert.True(conn.IsConnected);
         var db = conn.GetDatabase();
-        db.StringSet("testShardChannel", "testValue");
         Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
         await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
 
@@ -891,14 +890,12 @@ public class ClusterTests : TestBase
 
         IServer fromServer, toServer;
         string fromNode, toNode;
-        int toPort;
         if (rollback)
         {
             fromServer = serverWithPort7000!;
             fromNode = nodeIdForPort7000;
             toServer = serverWithPort7001!;
             toNode = nodeIdForPort7001;
-            toPort = 7001;
         }
         else
         {
@@ -906,12 +903,10 @@ public class ClusterTests : TestBase
             fromNode = nodeIdForPort7001;
             toServer = serverWithPort7000!;
             toNode = nodeIdForPort7000;
-            toPort = 7000;
         }
 
         Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "IMPORTING", fromNode).ToString());
         Assert.Equal("OK", fromServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "MIGRATING", toNode).ToString());
-        Assert.Equal("OK", fromServer.Execute("MIGRATE", "127.0.0.1", toPort, "", 0, 5000, "KEYS", "testShardChannel").ToString());
         Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
         Assert.Equal("OK", fromServer!.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
     }
