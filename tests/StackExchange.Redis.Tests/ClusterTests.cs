@@ -810,6 +810,7 @@ public class ClusterTests : TestBase
         using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false);
         Assert.True(conn.IsConnected);
         var db = conn.GetDatabase();
+        db.StringSet("testShardChannel", "testValue");
         Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
         await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
 
