@@ -636,7 +636,10 @@ namespace StackExchange.Redis
             if (bridge == interactive)
             {
                 CompletePendingConnectionMonitors("Disconnected");
-                if (KnowOrAssumeResp3()) Multiplexer.UpdateSubscriptions();
+                if (Protocol is RedisProtocol.Resp3)
+                {
+                    Multiplexer.UpdateSubscriptions();
+                }
             }
             else if (bridge == subscription)
             {

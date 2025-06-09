@@ -276,7 +276,11 @@ namespace StackExchange.Redis
         private RedisProtocol _protocol; // note starts at **zero**, not RESP2
         public RedisProtocol? Protocol => _protocol == 0 ? null : _protocol;
 
-        internal void SetProtocol(RedisProtocol value) => _protocol = value;
+        internal void SetProtocol(RedisProtocol value)
+        {
+            _protocol = value;
+            BridgeCouldBeNull?.SetProtocol(value);
+        }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "Trust me yo")]
         internal void Shutdown()
