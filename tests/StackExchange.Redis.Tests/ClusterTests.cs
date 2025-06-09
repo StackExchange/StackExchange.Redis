@@ -753,7 +753,7 @@ public class ClusterTests : TestBase
     public async Task TestShardedPubsubSubscriberAgainstReconnects()
     {
         var channel = RedisChannel.Sharded("testShardChannel");
-        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false);
+        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
         Assert.True(conn.IsConnected);
         var db = conn.GetDatabase();
         Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
@@ -807,7 +807,7 @@ public class ClusterTests : TestBase
     public async Task TestShardedPubsubSubscriberAgainsHashSlotMigration()
     {
         var channel = RedisChannel.Sharded("testShardChannel");
-        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false);
+        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
         Assert.True(conn.IsConnected);
         var db = conn.GetDatabase();
         Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
@@ -918,7 +918,7 @@ public class ClusterTests : TestBase
     {
         var guid = Guid.NewGuid().ToString();
         var channel = sharded ? RedisChannel.Sharded(guid) : RedisChannel.Literal(guid);
-        using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false);
+        using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false, require: sharded ? RedisFeatures.v7_0_0_rc1 : RedisFeatures.v2_0_0);
         Assert.True(conn.IsConnected);
 
         var pubsub = conn.GetSubscriber();
