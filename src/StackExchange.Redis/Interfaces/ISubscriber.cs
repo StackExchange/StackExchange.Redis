@@ -110,6 +110,7 @@ namespace StackExchange.Redis
         /// See
         /// <seealso href="https://redis.io/commands/unsubscribe"/>,
         /// <seealso href="https://redis.io/commands/punsubscribe"/>.
+        /// <seealso href="https://redis.io/commands/sunsubscribe"/>.
         /// </remarks>
         void UnsubscribeAll(CommandFlags flags = CommandFlags.None);
 

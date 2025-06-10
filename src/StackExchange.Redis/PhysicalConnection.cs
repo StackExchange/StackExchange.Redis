@@ -1678,7 +1678,7 @@ namespace StackExchange.Redis
                         channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.None);
                         Trace("MESSAGE: " + channel);
                     }
-                    else
+                    else // see check on outer-if that restricts to message / smessage
                     {
                         channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Sharded);
                         Trace("SMESSAGE: " + channel);
