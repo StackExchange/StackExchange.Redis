@@ -1309,6 +1309,7 @@ StackExchange.Redis.RedisChannel
 StackExchange.Redis.RedisChannel.Equals(StackExchange.Redis.RedisChannel other) -> bool
 StackExchange.Redis.RedisChannel.IsNullOrEmpty.get -> bool
 StackExchange.Redis.RedisChannel.IsPattern.get -> bool
+StackExchange.Redis.RedisChannel.IsSharded.get -> bool
 StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Auto = 0 -> StackExchange.Redis.RedisChannel.PatternMode
 StackExchange.Redis.RedisChannel.PatternMode.Literal = 1 -> StackExchange.Redis.RedisChannel.PatternMode
@@ -1893,4 +1894,8 @@ virtual StackExchange.Redis.RedisResult.Length.get -> int
 virtual StackExchange.Redis.RedisResult.this[int index].get -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.ConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
 StackExchange.Redis.IConnectionMultiplexer.AddLibraryNameSuffix(string! suffix) -> void
+StackExchange.Redis.RedisFeatures.ShardedPubSub.get -> bool
+static StackExchange.Redis.RedisChannel.Sharded(byte[]? value) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.Sharded(string! value) -> StackExchange.Redis.RedisChannel
+StackExchange.Redis.ClientInfo.ShardedSubscriptionCount.get -> int
 StackExchange.Redis.ConfigurationOptions.SetUserPfxCertificate(string! userCertificatePath, string? password = null) -> void

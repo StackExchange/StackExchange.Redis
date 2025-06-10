@@ -15,7 +15,9 @@ namespace StackExchange.Redis.Tests;
 [Collection(SharedConnectionFixture.Key)]
 public class ClusterTests : TestBase
 {
-    public ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+    public ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture)
+    {
+    }
 
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
@@ -744,6 +746,226 @@ public class ClusterTests : TestBase
         {
             Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
             Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
+        }
+    }
+
+    [Fact]
+    public async Task TestShardedPubsubSubscriberAgainstReconnects()
+    {
+        var channel = RedisChannel.Sharded(Me());
+        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
+        Assert.True(conn.IsConnected);
+        var db = conn.GetDatabase();
+        Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        var pubsub = conn.GetSubscriber();
+        List<(RedisChannel, RedisValue)> received = new();
+        var queue = await pubsub.SubscribeAsync(channel);
+        _ = Task.Run(async () =>
+        {
+            // use queue API to have control over order
+            await foreach (var item in queue)
+            {
+                lock (received)
+                {
+                    if (item.Channel.IsSharded && item.Channel == channel) received.Add((item.Channel, item.Message));
+                }
+            }
+        });
+        Assert.Equal(1, conn.GetSubscriptionsCount());
+
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+        await db.PingAsync();
+
+        for (int i = 0; i < 5; i++)
+        {
+            // check we get a hit
+            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+        }
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        // this is endpoint at index 1 which has the hashslot for "testShardChannel"
+        var server = conn.GetServer(conn.GetEndPoints()[1]);
+        server.SimulateConnectionFailure(SimulatedFailureType.All);
+        SetExpectedAmbientFailureCount(2);
+
+        await Task.Delay(4000);
+        for (int i = 0; i < 5; i++)
+        {
+            // check we get a hit
+            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+        }
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        Assert.Equal(1, conn.GetSubscriptionsCount());
+        Assert.Equal(10, received.Count);
+        ClearAmbientFailures();
+    }
+
+    [Fact]
+    public async Task TestShardedPubsubSubscriberAgainsHashSlotMigration()
+    {
+        var channel = RedisChannel.Sharded(Me());
+        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
+        Assert.True(conn.IsConnected);
+        var db = conn.GetDatabase();
+        Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        var pubsub = conn.GetSubscriber();
+        List<(RedisChannel, RedisValue)> received = new();
+        var queue = await pubsub.SubscribeAsync(channel);
+        _ = Task.Run(async () =>
+        {
+            // use queue API to have control over order
+            await foreach (var item in queue)
+            {
+                lock (received)
+                {
+                    if (item.Channel.IsSharded && item.Channel == channel) received.Add((item.Channel, item.Message));
+                }
+            }
+        });
+        Assert.Equal(1, conn.GetSubscriptionsCount());
+
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+        await db.PingAsync();
+
+        for (int i = 0; i < 5; i++)
+        {
+            // check we get a hit
+            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+        }
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        // lets migrate the slot for "testShardChannel" to another node
+        DoHashSlotMigration();
+
+        await Task.Delay(4000);
+        for (int i = 0; i < 5; i++)
+        {
+            // check we get a hit
+            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+        }
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        Assert.Equal(1, conn.GetSubscriptionsCount());
+        Assert.Equal(10, received.Count);
+        RollbackHashSlotMigration();
+        ClearAmbientFailures();
+    }
+
+    private void DoHashSlotMigration()
+    {
+        MigrateSlotForTestShardChannel(false);
+    }
+    private void RollbackHashSlotMigration()
+    {
+        MigrateSlotForTestShardChannel(true);
+    }
+
+    private void MigrateSlotForTestShardChannel(bool rollback)
+    {
+        int hashSlotForTestShardChannel = 7177;
+        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 5000, shared: false);
+        var servers = conn.GetServers();
+        IServer? serverWithPort7000 = null;
+        IServer? serverWithPort7001 = null;
+
+        string nodeIdForPort7000 = "780813af558af81518e58e495d63b6e248e80adf";
+        string nodeIdForPort7001 = "ea828c6074663c8bd4e705d3e3024d9d1721ef3b";
+        foreach (var server in servers)
+        {
+            string id = server.Execute("CLUSTER", "MYID").ToString();
+            if (id == nodeIdForPort7000)
+            {
+                serverWithPort7000 = server;
+            }
+            if (id == nodeIdForPort7001)
+            {
+                serverWithPort7001 = server;
+            }
+        }
+
+        IServer fromServer, toServer;
+        string fromNode, toNode;
+        if (rollback)
+        {
+            fromServer = serverWithPort7000!;
+            fromNode = nodeIdForPort7000;
+            toServer = serverWithPort7001!;
+            toNode = nodeIdForPort7001;
+        }
+        else
+        {
+            fromServer = serverWithPort7001!;
+            fromNode = nodeIdForPort7001;
+            toServer = serverWithPort7000!;
+            toNode = nodeIdForPort7000;
+        }
+
+        Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "IMPORTING", fromNode).ToString());
+        Assert.Equal("OK", fromServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "MIGRATING", toNode).ToString());
+        Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
+        Assert.Equal("OK", fromServer!.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ClusterPubSub(bool sharded)
+    {
+        var guid = Guid.NewGuid().ToString();
+        var channel = sharded ? RedisChannel.Sharded(guid) : RedisChannel.Literal(guid);
+        using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false, require: sharded ? RedisFeatures.v7_0_0_rc1 : RedisFeatures.v2_0_0);
+        Assert.True(conn.IsConnected);
+
+        var pubsub = conn.GetSubscriber();
+        List<(RedisChannel, RedisValue)> received = new();
+        var queue = await pubsub.SubscribeAsync(channel);
+        _ = Task.Run(async () =>
+        {
+            // use queue API to have control over order
+            await foreach (var item in queue)
+            {
+                lock (received)
+                {
+                    received.Add((item.Channel, item.Message));
+                }
+            }
+        });
+
+        var db = conn.GetDatabase();
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+        await db.PingAsync();
+        for (int i = 0; i < 10; i++)
+        {
+            // check we get a hit
+            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+        }
+        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+        await db.PingAsync();
+        await pubsub.UnsubscribeAsync(channel);
+
+        (RedisChannel Channel, RedisValue Value)[] snap;
+        lock (received)
+        {
+            snap = received.ToArray(); // in case of concurrency
+        }
+        Log("items received: {0}", snap.Length);
+        Assert.Equal(10, snap.Length);
+        // separate log and validate loop here simplifies debugging (ask me how I know!)
+        for (int i = 0; i < 10; i++)
+        {
+            var pair = snap[i];
+            Log("element {0}: {1}/{2}", i, pair.Channel, pair.Value);
+        }
+        for (int i = 0; i < 10; i++)
+        {
+            var pair = snap[i];
+            Assert.Equal(channel, pair.Channel);
+            Assert.Equal(i, pair.Value);
         }
     }
 }

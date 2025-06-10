@@ -260,6 +260,8 @@ namespace StackExchange.Redis
                 case RedisCommand.UNSUBSCRIBE:
                 case RedisCommand.PSUBSCRIBE:
                 case RedisCommand.PUNSUBSCRIBE:
+                case RedisCommand.SSUBSCRIBE:
+                case RedisCommand.SUNSUBSCRIBE:
                     message.SetForSubscriptionBridge();
                     break;
             }
@@ -278,6 +280,8 @@ namespace StackExchange.Redis
                 case RedisCommand.UNSUBSCRIBE:
                 case RedisCommand.PSUBSCRIBE:
                 case RedisCommand.PUNSUBSCRIBE:
+                case RedisCommand.SSUBSCRIBE:
+                case RedisCommand.SUNSUBSCRIBE:
                     if (!KnowOrAssumeResp3())
                     {
                         return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
@@ -632,6 +636,10 @@ namespace StackExchange.Redis
             if (bridge == interactive)
             {
                 CompletePendingConnectionMonitors("Disconnected");
+                if (Protocol is RedisProtocol.Resp3)
+                {
+                    Multiplexer.UpdateSubscriptions();
+                }
             }
             else if (bridge == subscription)
             {
