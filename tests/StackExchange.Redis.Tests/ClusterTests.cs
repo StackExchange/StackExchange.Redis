@@ -752,7 +752,7 @@ public class ClusterTests : TestBase
     [Fact]
     public async Task TestShardedPubsubSubscriberAgainstReconnects()
     {
-        var channel = RedisChannel.Sharded("testShardChannel");
+        var channel = RedisChannel.Sharded(Me());
         using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
         Assert.True(conn.IsConnected);
         var db = conn.GetDatabase();
@@ -806,7 +806,7 @@ public class ClusterTests : TestBase
     [Fact]
     public async Task TestShardedPubsubSubscriberAgainsHashSlotMigration()
     {
-        var channel = RedisChannel.Sharded("testShardChannel");
+        var channel = RedisChannel.Sharded(Me());
         using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
         Assert.True(conn.IsConnected);
         var db = conn.GetDatabase();
