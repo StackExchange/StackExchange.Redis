@@ -1203,6 +1203,27 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void StreamTrimByMinId()
+    {
+        prefixed.StreamTrimByMinId("key", 1111111111);
+        mock.Received().StreamTrimByMinId("prefix:key", 1111111111);
+    }
+
+    [Fact]
+    public void StreamTrimByMinIdWithApproximate()
+    {
+        prefixed.StreamTrimByMinId("key", 1111111111, useApproximateMaxLength: true);
+        mock.Received().StreamTrimByMinId("prefix:key", 1111111111, useApproximateMaxLength: true);
+    }
+
+    [Fact]
+    public void StreamTrimByMinIdWithApproximateAndLimit()
+    {
+        prefixed.StreamTrimByMinId("key", 1111111111, useApproximateMaxLength: true, limit: 100);
+        mock.Received().StreamTrimByMinId("prefix:key", 1111111111, useApproximateMaxLength: true, limit: 100);
+    }
+
+    [Fact]
     public void StringAppend()
     {
         prefixed.StringAppend("key", "value", CommandFlags.None);

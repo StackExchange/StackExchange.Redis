@@ -1119,6 +1119,27 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StreamTrimByMinIdAsync()
+        {
+            await prefixed.StreamTrimByMinIdAsync("key", 1111111111);
+            await mock.Received().StreamTrimByMinIdAsync("prefix:key", 1111111111);
+        }
+
+        [Fact]
+        public async Task StreamTrimByMinIdAsyncWithApproximate()
+        {
+            await prefixed.StreamTrimByMinIdAsync("key", 1111111111, useApproximateMaxLength: true);
+            await mock.Received().StreamTrimByMinIdAsync("prefix:key", 1111111111, useApproximateMaxLength: true);
+        }
+
+        [Fact]
+        public async Task StreamTrimByMinIdAsyncWithApproximateAndLimit()
+        {
+            await prefixed.StreamTrimByMinIdAsync("key", 1111111111, useApproximateMaxLength: true, limit: 100);
+            await mock.Received().StreamTrimByMinIdAsync("prefix:key", 1111111111, useApproximateMaxLength: true, limit: 100);
+        }
+
+        [Fact]
         public async Task StringAppendAsync()
         {
             await prefixed.StringAppendAsync("key", "value", CommandFlags.None);

@@ -3007,6 +3007,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamTrimByMinIdMessage(key, minId, useApproximateMaxLength, limit, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamTrimByMinIdMessage(key, minId, useApproximateMaxLength, limit, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.APPEND, key, value);
@@ -4484,6 +4496,40 @@ namespace StackExchange.Redis
             else
             {
                 values[1] = maxLength;
+            }
+
+            return Message.Create(
+                Database,
+                flags,
+                RedisCommand.XTRIM,
+                key,
+                values);
+        }
+
+        private Message GetStreamTrimByMinIdMessage(RedisKey key, RedisValue minId, bool useApproximateMaxLength, int? limit, CommandFlags flags)
+        {
+            if (limit.HasValue && limit.Value <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(limit), "limit must be greater than 0 when specified.");
+            }
+
+            var values = new RedisValue[2 + (useApproximateMaxLength ? 1 : 0) + (useApproximateMaxLength && limit.HasValue ? 2 : 0)];
+
+            var offset = 0;
+
+            values[offset++] = StreamConstants.MinId;
+
+            if (useApproximateMaxLength)
+            {
+                values[offset++] = StreamConstants.ApproximateMaxLen;
+            }
+
+            values[offset++] = minId;
+
+            if (useApproximateMaxLength && limit.HasValue)
+            {
+                values[offset++] = RedisLiterals.LIMIT;
+                values[offset] = limit.Value;
             }
 
             return Message.Create(

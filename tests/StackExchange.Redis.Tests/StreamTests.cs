@@ -1917,6 +1917,49 @@ public class StreamTests : TestBase
     }
 
     [Fact]
+    public void StreamTrimByMinId()
+    {
+        using var conn = Create(require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // Add a couple items and check length.
+        db.StreamAdd(key, "field1", "value1", 1111111110);
+        db.StreamAdd(key, "field2", "value2", 1111111111);
+        db.StreamAdd(key, "field3", "value3", 1111111112);
+
+        var numRemoved = db.StreamTrimByMinId(key, 1111111111);
+        var len = db.StreamLength(key);
+
+        Assert.Equal(1, numRemoved);
+        Assert.Equal(2, len);
+    }
+
+    [Fact]
+    public void StreamTrimByMinIdWithApproximateAndLimit()
+    {
+        using var conn = Create(require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        const int maxLength = 1000;
+        const int limit = 100;
+
+        for (var i = 0; i < maxLength; i++)
+        {
+            db.StreamAdd(key, $"field", $"value", 1111111110 + i);
+        }
+
+        var numRemoved = db.StreamTrimByMinId(key, 1111111110 + maxLength, useApproximateMaxLength: true, limit: limit);
+        var len = db.StreamLength(key);
+
+        Assert.Equal(limit, numRemoved);
+        Assert.Equal(maxLength - limit, len);
+    }
+
+    [Fact]
     public void StreamVerifyLength()
     {
         using var conn = Create(require: RedisFeatures.v5_0_0);
