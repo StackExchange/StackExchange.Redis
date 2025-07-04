@@ -624,8 +624,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamTrim(ToInner(key), maxLength, useApproximateMaxLength, flags);
 
-        public long StreamTrim(RedisKey key, RedisValue minId, CommandFlags flags) =>
-            Inner.StreamTrim(ToInner(key), minId, flags);
+        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamTrimByMinId(ToInner(key), minId, useApproximateMaxLength, limit, flags);
 
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringAppend(ToInner(key), value, flags);
