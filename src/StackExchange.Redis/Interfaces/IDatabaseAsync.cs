@@ -672,8 +672,8 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StreamTrim(RedisKey, int, bool, CommandFlags)"/>
         Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.StreamTrim(RedisKey, RedisValue, CommandFlags)"/>
-        Task<long> StreamTrimAsync(RedisKey key, RedisValue minId, CommandFlags flags);
+        /// <inheritdoc cref="IDatabase.StreamTrimByMinId(RedisKey, RedisValue, bool, int?, CommandFlags)"/>
+        Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringAppend(RedisKey, RedisValue, CommandFlags)"/>
         Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);

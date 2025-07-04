@@ -1,3 +1,3 @@
 ﻿#nullable enable
-StackExchange.Redis.IDatabase.StreamTrim(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue minId, StackExchange.Redis.CommandFlags flags) -> long
-StackExchange.Redis.IDatabaseAsync.StreamTrimAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue minId, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabase.StreamTrimByMinId(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabaseAsync.StreamTrimByMinIdAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!

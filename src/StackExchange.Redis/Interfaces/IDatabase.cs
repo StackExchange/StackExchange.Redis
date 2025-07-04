@@ -2780,10 +2780,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="minId">All entries with an id (timestamp) earlier minId will be removed.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed minId by a small number. This improves performance when removing messages.</param>
+        /// <param name="limit">The maximum number of entries to remove per call when useApproximateMaxLength = true. If 0, the limiting mechanism is disabled entirely.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages removed from the stream.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        long StreamTrim(RedisKey key, RedisValue minId, CommandFlags flags);
+        long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// If key already exists and is a string, this command appends the value at the end of the string.
