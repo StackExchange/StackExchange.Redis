@@ -93,7 +93,6 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}"
 	ProjectSection(SolutionItems) = preProject
 		tests\.editorconfig = tests\.editorconfig
-		tests\Directory.Build.props = tests\Directory.Build.props
 		tests\Directory.Build.targets = tests\Directory.Build.targets
 	EndProjectSection
 EndProject

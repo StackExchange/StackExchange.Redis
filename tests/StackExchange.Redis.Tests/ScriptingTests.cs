@@ -8,6 +8,9 @@ using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
 
+// ReSharper disable UseAwaitUsing # for consistency with existing tests
+// ReSharper disable MethodHasAsyncOverload # grandfathered existing usage
+// ReSharper disable StringLiteralTypo # because of Lua scripts
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
@@ -27,7 +30,7 @@ public class ScriptingTests : TestBase
     public void ClientScripting()
     {
         using var conn = GetScriptConn();
-        _ = conn.GetDatabase().ScriptEvaluate("return redis.call('info','server')", null, null);
+        _ = conn.GetDatabase().ScriptEvaluate(script: "return redis.call('info','server')", keys: null, values: null);
     }
 
     [Fact]
@@ -37,14 +40,14 @@ public class ScriptingTests : TestBase
 
         var db = conn.GetDatabase();
         var noCache = db.ScriptEvaluateAsync(
-            "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
-            new RedisKey[] { "key1", "key2" },
-            new RedisValue[] { "first", "second" });
+            script: "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
+            keys: new RedisKey[] { "key1", "key2" },
+            values: new RedisValue[] { "first", "second" });
         var cache = db.ScriptEvaluateAsync(
-            "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
-            new RedisKey[] { "key1", "key2" },
-            new RedisValue[] { "first", "second" });
-        var results = (string[]?)await noCache;
+            script: "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
+            keys: new RedisKey[] { "key1", "key2" },
+            values: new RedisValue[] { "first", "second" });
+        var results = (string[]?)(await noCache)!;
         Assert.NotNull(results);
         Assert.Equal(4, results.Length);
         Assert.Equal("key1", results[0]);
@@ -52,7 +55,7 @@ public class ScriptingTests : TestBase
         Assert.Equal("first", results[2]);
         Assert.Equal("second", results[3]);
 
-        results = (string[]?)await cache;
+        results = (string[]?)(await cache)!;
         Assert.NotNull(results);
         Assert.Equal(4, results.Length);
         Assert.Equal("key1", results[0]);
@@ -69,16 +72,18 @@ public class ScriptingTests : TestBase
         var db = conn.GetDatabase();
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-        var result = (string?)db.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
+        var result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key }, values: null);
         Assert.Equal("bar", result);
     }
 
     [Fact]
     public async Task TestRandomThingFromForum()
     {
-        const string script = @"local currentVal = tonumber(redis.call('GET', KEYS[1]));
-                if (currentVal <= 0 ) then return 1 elseif (currentVal - (tonumber(ARGV[1])) < 0 ) then return 0 end;
-                return redis.call('INCRBY', KEYS[1], -tonumber(ARGV[1]));";
+        const string Script = """
+                              local currentVal = tonumber(redis.call('GET', KEYS[1]));
+                              if (currentVal <= 0 ) then return 1 elseif (currentVal - (tonumber(ARGV[1])) < 0 ) then return 0 end;
+                              return redis.call('INCRBY', KEYS[1], -tonumber(ARGV[1]));
+                              """;
 
         using var conn = GetScriptConn();
 
@@ -88,18 +93,18 @@ public class ScriptingTests : TestBase
         db.StringSet(prefix + "B", "5", flags: CommandFlags.FireAndForget);
         db.StringSet(prefix + "C", "10", flags: CommandFlags.FireAndForget);
 
-        var a = db.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "A" }, new RedisValue[] { 6 }).ForAwait();
-        var b = db.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "B" }, new RedisValue[] { 6 }).ForAwait();
-        var c = db.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "C" }, new RedisValue[] { 6 }).ForAwait();
+        var a = db.ScriptEvaluateAsync(script: Script, keys: new RedisKey[] { prefix + "A" }, values: new RedisValue[] { 6 }).ForAwait();
+        var b = db.ScriptEvaluateAsync(script: Script, keys: new RedisKey[] { prefix + "B" }, values: new RedisValue[] { 6 }).ForAwait();
+        var c = db.ScriptEvaluateAsync(script: Script, keys: new RedisKey[] { prefix + "C" }, values: new RedisValue[] { 6 }).ForAwait();
 
-        var vals = await db.StringGetAsync(new RedisKey[] { prefix + "A", prefix + "B", prefix + "C" }).ForAwait();
+        var values = await db.StringGetAsync(new RedisKey[] { prefix + "A", prefix + "B", prefix + "C" }).ForAwait();
 
         Assert.Equal(1, (long)await a); // exit code when current val is non-positive
         Assert.Equal(0, (long)await b); // exit code when result would be negative
         Assert.Equal(4, (long)await c); // 10 - 6 = 4
-        Assert.Equal("0", vals[0]);
-        Assert.Equal("5", vals[1]);
-        Assert.Equal("4", vals[2]);
+        Assert.Equal("0", values[0]);
+        Assert.Equal("5", values[1]);
+        Assert.Equal("4", values[2]);
     }
 
     [Fact]
@@ -118,9 +123,9 @@ public class ScriptingTests : TestBase
         // run the script, passing "a", "b", "c", "c" to
         // increment a & b by 1, c twice
         var result = db.ScriptEvaluateAsync(
-            "for i,key in ipairs(KEYS) do redis.call('incr', key) end",
-            new RedisKey[] { prefix + "a", prefix + "b", prefix + "c", prefix + "c" }, // <== aka "KEYS" in the script
-            null).ForAwait(); // <== aka "ARGV" in the script
+            script: "for i,key in ipairs(KEYS) do redis.call('incr', key) end",
+            keys: new RedisKey[] { prefix + "a", prefix + "b", prefix + "c", prefix + "c" }, // <== aka "KEYS" in the script
+            values: null).ForAwait(); // <== aka "ARGV" in the script
 
         // check the incremented values
         var a = db.StringGetAsync(prefix + "a").ForAwait();
@@ -151,9 +156,9 @@ public class ScriptingTests : TestBase
         // run the script, passing "a", "b", "c" and 1,2,3
         // increment a & b by 1, c twice
         var result = db.ScriptEvaluateAsync(
-            "for i,key in ipairs(KEYS) do redis.call('incrby', key, ARGV[i]) end",
-            new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, // <== aka "KEYS" in the script
-            new RedisValue[] { 1, 1, 2 }).ForAwait(); // <== aka "ARGV" in the script
+            script: "for i,key in ipairs(KEYS) do redis.call('incrby', key, ARGV[i]) end",
+            keys: new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, // <== aka "KEYS" in the script
+            values: new RedisValue[] { 1, 1, 2 }).ForAwait(); // <== aka "ARGV" in the script
 
         // check the incremented values
         var a = db.StringGetAsync(prefix + "a").ForAwait();
@@ -174,7 +179,7 @@ public class ScriptingTests : TestBase
         var db = conn.GetDatabase();
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-        var result = (byte[]?)db.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key });
+        var result = (byte[]?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key });
         Assert.NotNull(result);
         Assert.Equal("bar", Encoding.UTF8.GetString(result));
     }
@@ -188,16 +193,16 @@ public class ScriptingTests : TestBase
         var db = conn.GetDatabase();
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-        var result = (string?)db.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
+        var result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key }, values: null);
         Assert.Equal("bar", result);
 
         // now cause all kinds of problems
         GetServer(conn).ScriptFlush();
 
         // expect this one to <strike>fail</strike> just work fine (self-fix)
-        db.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
+        db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key }, values: null);
 
-        result = (string?)db.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
+        result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key }, values: null);
         Assert.Equal("bar", result);
     }
 
@@ -241,11 +246,11 @@ public class ScriptingTests : TestBase
     {
         using var conn = GetScriptConn();
 
-        const string evil = "return '僕'";
+        const string Evil = "return '僕'";
         var db = conn.GetDatabase();
-        GetServer(conn).ScriptLoad(evil);
+        GetServer(conn).ScriptLoad(Evil);
 
-        var result = (string?)db.ScriptEvaluate(evil, null, null);
+        var result = (string?)db.ScriptEvaluate(script: Evil, keys: null, values: null);
         Assert.Equal("僕", result);
     }
 
@@ -258,7 +263,7 @@ public class ScriptingTests : TestBase
             var db = conn.GetDatabase();
             try
             {
-                await db.ScriptEvaluateAsync("return redis.error_reply('oops')", null, null).ForAwait();
+                await db.ScriptEvaluateAsync(script: "return redis.error_reply('oops')", keys: null, values: null).ForAwait();
             }
             catch (AggregateException ex)
             {
@@ -280,7 +285,7 @@ public class ScriptingTests : TestBase
         var tran = db.CreateTransaction();
         {
             var a = tran.StringIncrementAsync(key);
-            var b = tran.ScriptEvaluateAsync("return redis.error_reply('oops')", null, null);
+            var b = tran.ScriptEvaluateAsync(script: "return redis.error_reply('oops')", keys: null, values: null);
             var c = tran.StringIncrementAsync(key);
             var complete = tran.ExecuteAsync();
 
@@ -322,10 +327,10 @@ public class ScriptingTests : TestBase
         Log("Key: " + key);
         var db = conn.GetDatabase(2);
         var evalResult = db.ScriptEvaluateAsync(
-            @"redis.call('select', 1)
+            script: @"redis.call('select', 1)
             return redis.call('get','" + key + "')",
-            null,
-            null);
+            keys: null,
+            values: null);
         var getResult = db.StringGetAsync(key);
 
         Assert.Equal("db 1", (string?)await evalResult);
@@ -345,10 +350,10 @@ public class ScriptingTests : TestBase
         var db = conn.GetDatabase(2);
         var tran = db.CreateTransaction();
         var evalResult = tran.ScriptEvaluateAsync(
-            @"redis.call('select', 1)
+            script: @"redis.call('select', 1)
             return redis.call('get','" + key + "')",
-            null,
-            null);
+            keys: null,
+            values: null);
         var getResult = tran.StringGetAsync(key);
         Assert.True(tran.Execute());
 
@@ -369,16 +374,16 @@ public class ScriptingTests : TestBase
         db.HashSet(key, "id", 123, flags: CommandFlags.FireAndForget);
 
         var wasSet = (bool)db.ScriptEvaluate(
-            "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-            new[] { key },
-            new[] { newId });
+            script: "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
+            keys: new[] { key },
+            values: new[] { newId });
 
         Assert.True(wasSet);
 
         wasSet = (bool)db.ScriptEvaluate(
-            "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-            new[] { key },
-            new[] { newId });
+            script: "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
+            keys: new[] { key },
+            values: new[] { newId });
         Assert.False(wasSet);
     }
 
@@ -394,16 +399,16 @@ public class ScriptingTests : TestBase
         // the flush to drop the local cache - assume it is a surprise!)
         var server = conn0.GetServer(TestConfig.Current.PrimaryServerAndPort);
         var db = conn1.GetDatabase();
-        const string script = "return 1;";
+        const string Script = "return 1;";
 
         // start empty
         server.ScriptFlush();
-        Assert.False(server.ScriptExists(script));
+        Assert.False(server.ScriptExists(Script));
 
         // run once, causes to be cached
         Assert.True(await EvaluateScript());
 
-        Assert.True(server.ScriptExists(script));
+        Assert.True(server.ScriptExists(Script));
 
         // can run again
         Assert.True(await EvaluateScript());
@@ -411,7 +416,7 @@ public class ScriptingTests : TestBase
         // ditch the scripts; should no longer exist
         db.Ping();
         server.ScriptFlush();
-        Assert.False(server.ScriptExists(script));
+        Assert.False(server.ScriptExists(Script));
         db.Ping();
 
         // just works; magic
@@ -421,13 +426,13 @@ public class ScriptingTests : TestBase
         Assert.True(await EvaluateScript());
 
         // which will cause it to be cached
-        Assert.True(server.ScriptExists(script));
+        Assert.True(server.ScriptExists(Script));
 
         async Task<bool> EvaluateScript()
         {
             return async ?
-            (bool)await db!.ScriptEvaluateAsync(script) :
-            (bool)db!.ScriptEvaluate(script);
+            (bool)await db.ScriptEvaluateAsync(script: Script) :
+            (bool)db.ScriptEvaluate(script: Script);
         }
     }
 
@@ -445,25 +450,25 @@ public class ScriptingTests : TestBase
         db.Ping(); // k, we're all up to date now; clean db, minimal script cache
 
         // we're using a pipeline here, so send 1000 messages, but for timing: only care about the last
-        const int LOOP = 5000;
+        const int Loop = 5000;
         RedisKey key = Me();
         RedisKey[] keys = new[] { key }; // script takes an array
 
         // run via script
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var watch = Stopwatch.StartNew();
-        for (int i = 1; i < LOOP; i++) // the i=1 is to do all-but-one
+        for (int i = 1; i < Loop; i++) // the i=1 is to do all-but-one
         {
-            db.ScriptEvaluate(Script, keys, flags: CommandFlags.FireAndForget);
+            db.ScriptEvaluate(script: Script, keys: keys, flags: CommandFlags.FireAndForget);
         }
-        var scriptResult = db.ScriptEvaluate(Script, keys); // last one we wait for (no F+F)
+        var scriptResult = db.ScriptEvaluate(script: Script, keys: keys); // last one we wait for (no F+F)
         watch.Stop();
         TimeSpan scriptTime = watch.Elapsed;
 
         // run via raw op
         db.KeyDelete(key, CommandFlags.FireAndForget);
         watch = Stopwatch.StartNew();
-        for (int i = 1; i < LOOP; i++) // the i=1 is to do all-but-one
+        for (int i = 1; i < Loop; i++) // the i=1 is to do all-but-one
         {
             db.StringIncrement(key, flags: CommandFlags.FireAndForget);
         }
@@ -471,8 +476,8 @@ public class ScriptingTests : TestBase
         watch.Stop();
         TimeSpan directTime = watch.Elapsed;
 
-        Assert.Equal(LOOP, (long)scriptResult);
-        Assert.Equal(LOOP, directResult);
+        Assert.Equal(Loop, (long)scriptResult);
+        Assert.Equal(Loop, directResult);
 
         Log("script: {0}ms; direct: {1}ms", scriptTime.TotalMilliseconds, directTime.TotalMilliseconds);
     }
@@ -486,7 +491,7 @@ public class ScriptingTests : TestBase
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
         server.ScriptFlush();
 
-        byte[]? hash = server.ScriptLoad(Script);
+        byte[] hash = server.ScriptLoad(Script);
         Assert.NotNull(hash);
 
         var db = conn.GetDatabase();
@@ -497,7 +502,7 @@ public class ScriptingTests : TestBase
         string hexHash = string.Concat(hash.Select(x => x.ToString("X2")));
         Assert.Equal("2BAB3B661081DB58BD2341920E0BA7CF5DC77B25", hexHash);
 
-        db.ScriptEvaluate(hexHash, keys, flags: CommandFlags.FireAndForget);
+        db.ScriptEvaluate(script: hexHash, keys: keys, flags: CommandFlags.FireAndForget);
         db.ScriptEvaluate(hash, keys, flags: CommandFlags.FireAndForget);
 
         var count = (int)db.StringGet(keys)[0];
@@ -571,39 +576,39 @@ public class ScriptingTests : TestBase
 
         // Scopes for repeated use
         {
-            var val = db.ScriptEvaluate(Script, values: new RedisValue[] { "hello" });
+            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { "hello" });
             Assert.Equal("hello", (string?)val);
         }
 
         {
-            var val = db.ScriptEvaluate(Script, values: new RedisValue[] { 123 });
+            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { 123 });
             Assert.Equal(123, (int)val);
         }
 
         {
-            var val = db.ScriptEvaluate(Script, values: new RedisValue[] { 123L });
+            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { 123L });
             Assert.Equal(123L, (long)val);
         }
 
         {
-            var val = db.ScriptEvaluate(Script, values: new RedisValue[] { 1.1 });
+            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { 1.1 });
             Assert.Equal(1.1, (double)val);
         }
 
         {
-            var val = db.ScriptEvaluate(Script, values: new RedisValue[] { true });
+            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { true });
             Assert.True((bool)val);
         }
 
         {
-            var val = db.ScriptEvaluate(Script, values: new RedisValue[] { new byte[] { 4, 5, 6 } });
+            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { new byte[] { 4, 5, 6 } });
             var valArray = (byte[]?)val;
             Assert.NotNull(valArray);
             Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
         }
 
         {
-            var val = db.ScriptEvaluate(Script, values: new RedisValue[] { new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
+            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
             var valArray = (byte[]?)val;
             Assert.NotNull(valArray);
             Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
@@ -786,7 +791,7 @@ public class ScriptingTests : TestBase
         Assert.Equal(0, LuaScript.GetCachedScriptCount());
 
         // This has to be a separate method to guarantee that the created LuaScript objects go out of scope,
-        //   and are thus available to be GC'd
+        //   and are thus available to be garbage collected.
         PurgeLuaScriptOnFinalizeImpl(Script);
         CollectGarbage();
 
@@ -797,7 +802,7 @@ public class ScriptingTests : TestBase
     }
 
     [Fact]
-    public void IDatabaseLuaScriptConvenienceMethods()
+    public void DatabaseLuaScriptConvenienceMethods()
     {
         using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
@@ -818,7 +823,7 @@ public class ScriptingTests : TestBase
     }
 
     [Fact]
-    public void IServerLuaScriptConvenienceMethods()
+    public void ServerLuaScriptConvenienceMethods()
     {
         using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
@@ -978,14 +983,14 @@ return arr;
 
         var p = conn.GetDatabase().WithKeyPrefix("prefix/");
 
-        const string script = @"
+        const string Script = @"
 local arr = {};
 arr[1] = ARGV[1];
 arr[2] = KEYS[1];
 arr[3] = ARGV[2];
 return arr;
 ";
-        var result = (RedisValue[]?)p.ScriptEvaluate(script, new RedisKey[] { "def" }, new RedisValue[] { "abc", 123 });
+        var result = (RedisValue[]?)p.ScriptEvaluate(script: Script, keys: new RedisKey[] { "def" }, values: new RedisValue[] { "abc", 123 });
         Assert.NotNull(result);
         Assert.Equal("abc", result[0]);
         Assert.Equal("prefix/def", result[1]);
@@ -1002,7 +1007,7 @@ return arr;
         LuaScript lua = LuaScript.Prepare("return {@k, @s, @v}");
         var viaArgs = (RedisValue[]?)p.ScriptEvaluate(lua, args);
 
-        var viaArr = (RedisValue[]?)p.ScriptEvaluate("return {KEYS[1], ARGV[1], ARGV[2]}", new[] { args.k }, new RedisValue[] { args.s, args.v });
+        var viaArr = (RedisValue[]?)p.ScriptEvaluate(script: "return {KEYS[1], ARGV[1], ARGV[2]}", keys: new[] { args.k }, values: new RedisValue[] { args.s, args.v });
         Assert.NotNull(viaArr);
         Assert.NotNull(viaArgs);
         Assert.Equal(string.Join(",", viaArr), string.Join(",", viaArgs));
@@ -1035,10 +1040,10 @@ return arr;
         Assert.Null((bool[]?)value);
         Assert.Null((long[]?)value);
         Assert.Null((ulong[]?)value);
-        Assert.Null((string[]?)value);
+        Assert.Null((string[]?)value!);
         Assert.Null((int[]?)value);
         Assert.Null((double[]?)value);
-        Assert.Null((byte[][]?)value);
+        Assert.Null((byte[][]?)value!);
         Assert.Null((RedisResult[]?)value);
     }
 
@@ -1054,8 +1059,8 @@ return arr;
         var db = conn.GetDatabase();
 
         string script = "return KEYS[1]";
-        RedisKey[] keys = new RedisKey[1] { "key1" };
-        RedisValue[] values = new RedisValue[1] { "first" };
+        RedisKey[] keys = { "key1" };
+        RedisValue[] values = { "first" };
 
         var result = db.ScriptEvaluateReadOnly(script, keys, values);
         Assert.Equal("key1", result.ToString());
@@ -1068,8 +1073,8 @@ return arr;
         var db = conn.GetDatabase();
 
         string script = "return KEYS[1]";
-        RedisKey[] keys = new RedisKey[1] { "key1" };
-        RedisValue[] values = new RedisValue[1] { "first" };
+        RedisKey[] keys = { "key1" };
+        RedisValue[] values = { "first" };
 
         var result = await db.ScriptEvaluateReadOnlyAsync(script, keys, values);
         Assert.Equal("key1", result.ToString());
@@ -1081,7 +1086,7 @@ return arr;
         using var conn = GetScriptConn();
         var db = conn.GetDatabase();
         db.StringSet("foo", "bar");
-        db.ScriptEvaluate("return redis.call('get','foo')");
+        db.ScriptEvaluate(script: "return redis.call('get','foo')");
         // Create a SHA1 hash of the script: 6b1bf486c81ceb7edf3c093f4c48582e38c0e791
         SHA1 sha1Hash = SHA1.Create();
 
@@ -1097,7 +1102,7 @@ return arr;
         using var conn = GetScriptConn();
         var db = conn.GetDatabase();
         db.StringSet("foo", "bar");
-        db.ScriptEvaluate("return redis.call('get','foo')");
+        db.ScriptEvaluate(script: "return redis.call('get','foo')");
         // Create a SHA1 hash of the script: 6b1bf486c81ceb7edf3c093f4c48582e38c0e791
         SHA1 sha1Hash = SHA1.Create();
 

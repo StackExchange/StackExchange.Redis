@@ -151,11 +151,11 @@ public class LockingTests : TestBase
         Assert.Equal(right, await t4);
         if (withTran) Assert.False(await t5!, "5");
         Assert.Equal(right, await t6);
-        var ttl = (await t7).Value.TotalSeconds;
+        var ttl = (await t7)!.Value.TotalSeconds;
         Assert.True(ttl > 0 && ttl <= 20, "7");
         Assert.True(await t8, "8");
         Assert.Equal(right, await t9);
-        ttl = (await t10).Value.TotalSeconds;
+        ttl = (await t10)!.Value.TotalSeconds;
         Assert.True(ttl > 50 && ttl <= 60, "10");
         Assert.True(await t11, "11");
         Assert.Null((string?)await t12);
@@ -185,7 +185,7 @@ public class LockingTests : TestBase
         }
         Assert.True(await taken!, "taken");
         Assert.Equal("new-value", await newValue!);
-        var ttlValue = (await ttl!).Value.TotalSeconds;
+        var ttlValue = (await ttl!)!.Value.TotalSeconds;
         Assert.True(ttlValue >= 8 && ttlValue <= 10, "ttl");
 
         Assert.Equal(0, errorCount);
@@ -206,7 +206,7 @@ public class LockingTests : TestBase
 
         Assert.False(await taken, "taken");
         Assert.Equal("old-value", await newValue);
-        var ttlValue = (await ttl).Value.TotalSeconds;
+        var ttlValue = (await ttl)!.Value.TotalSeconds;
         Assert.True(ttlValue >= 18 && ttlValue <= 20, "ttl");
     }
 }

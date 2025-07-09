@@ -338,7 +338,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluate(script, ToInner(keys), values, flags);
+            Inner.ScriptEvaluate(script: script, keys: ToInner(keys), values: values, flags: flags);
 
         public RedisResult ScriptEvaluate(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?

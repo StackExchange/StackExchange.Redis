@@ -338,7 +338,7 @@ public class SortedSetTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
 
-        var result = db.ScriptEvaluate("return redis.call('ZRANGE', KEYS[1], 0, -1, 'WITHSCORES')", new RedisKey[] { key });
+        var result = db.ScriptEvaluate(script: "return redis.call('ZRANGE', KEYS[1], 0, -1, 'WITHSCORES')", keys: new RedisKey[] { key });
         AssertFlatArrayEntries(result);
     }
 
