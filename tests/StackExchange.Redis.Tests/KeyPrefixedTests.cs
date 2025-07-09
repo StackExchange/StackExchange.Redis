@@ -550,7 +550,7 @@ namespace StackExchange.Redis.Tests
             RedisKey[] keys = new RedisKey[] { "a", "b" };
             Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.ScriptEvaluateAsync("script", keys, values, CommandFlags.None);
-            await mock.Received().ScriptEvaluateAsync("script", Arg.Is(valid), values, CommandFlags.None);
+            await mock.Received().ScriptEvaluateAsync(script: "script", keys: Arg.Is(valid), values: values, flags: CommandFlags.None);
         }
 
         [Fact]

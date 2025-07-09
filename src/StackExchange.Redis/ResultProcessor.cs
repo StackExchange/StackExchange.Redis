@@ -234,11 +234,11 @@ namespace StackExchange.Redis
             {
                 if (result.StartsWith(CommonReplies.NOAUTH))
                 {
-                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
                 }
                 else if (result.StartsWith(CommonReplies.WRONGPASS))
                 {
-                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException(result.ToString()));
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(result.ToString()));
                 }
 
                 var server = bridge?.ServerEndPoint;
@@ -259,7 +259,7 @@ namespace StackExchange.Redis
                         // no point sending back to same server, and no point sending to a dead server
                         if (!Equals(server?.EndPoint, endpoint))
                         {
-                            if (bridge == null)
+                            if (bridge is null)
                             {
                                 // already toast
                             }
@@ -308,7 +308,7 @@ namespace StackExchange.Redis
                 {
                     bridge?.Multiplexer.OnErrorMessage(server.EndPoint, err);
                 }
-                bridge?.Multiplexer?.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
+                bridge?.Multiplexer.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
                 if (unableToConnectError)
                 {
                     ConnectionFail(message, ConnectionFailureType.UnableToConnect, err);
@@ -323,7 +323,7 @@ namespace StackExchange.Redis
                 bool coreResult = SetResultCore(connection, message, result);
                 if (coreResult)
                 {
-                    bridge?.Multiplexer?.Trace("Completed with success: " + result.ToString() + " (" + GetType().Name + ")", ToString());
+                    bridge?.Multiplexer.Trace("Completed with success: " + result.ToString() + " (" + GetType().Name + ")", ToString());
                 }
                 else
                 {

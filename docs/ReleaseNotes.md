@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-No pending unreleased changes
+- Package updates ([#2906 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2906))
 
 ## 2.8.41
 

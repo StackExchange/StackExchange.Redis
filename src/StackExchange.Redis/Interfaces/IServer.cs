@@ -89,7 +89,7 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/client-kill"/></remarks>
         void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ClientKill(EndPoint, CommandFlags)"/>
+        /// <inheritdoc cref="ClientKill(System.Net.EndPoint, CommandFlags)"/>
         Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -104,7 +104,7 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/client-kill"/></remarks>
         long ClientKill(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ClientKill(long?, ClientType?, EndPoint?, bool, CommandFlags)"/>
+        /// <inheritdoc cref="ClientKill(long?, ClientType?, System.Net.EndPoint?, bool, CommandFlags)"/>
         Task<long> ClientKillAsync(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -475,17 +475,17 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/shutdown"/></remarks>
         void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ReplicaOfAsync(EndPoint, CommandFlags)"/>
+        /// <inheritdoc cref="ReplicaOfAsync(System.Net.EndPoint,CommandFlags)"/>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ReplicaOfAsync(EndPoint, CommandFlags)"/>
+        /// <inheritdoc cref="ReplicaOfAsync(System.Net.EndPoint,CommandFlags)"/>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="ReplicaOfAsync(EndPoint, CommandFlags)"/>
+        /// <inheritdoc cref="ReplicaOfAsync(System.Net.EndPoint,CommandFlags)"/>
         [Obsolete("Please use " + nameof(ReplicaOfAsync) + ", this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None);

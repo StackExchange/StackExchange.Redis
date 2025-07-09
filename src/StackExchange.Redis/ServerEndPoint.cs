@@ -708,7 +708,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
 

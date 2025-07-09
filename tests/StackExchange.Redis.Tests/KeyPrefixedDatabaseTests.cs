@@ -605,8 +605,8 @@ public sealed class KeyPrefixedDatabaseTests
         RedisValue[] values = Array.Empty<RedisValue>();
         RedisKey[] keys = new RedisKey[] { "a", "b" };
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-        prefixed.ScriptEvaluate("script", keys, values, CommandFlags.None);
-        mock.Received().ScriptEvaluate("script", Arg.Is(valid), values, CommandFlags.None);
+        prefixed.ScriptEvaluate(script: "script", keys: keys, values: values, flags: CommandFlags.None);
+        mock.Received().ScriptEvaluate(script: "script", keys: Arg.Is(valid), values: values, flags: CommandFlags.None);
     }
 
     [Fact]

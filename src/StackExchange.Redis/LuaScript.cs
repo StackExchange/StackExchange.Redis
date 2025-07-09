@@ -148,7 +148,7 @@ namespace StackExchange.Redis
         public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
-            return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
+            return db.ScriptEvaluate(script: ExecutableScript, keys: keys, values: args, flags: flags);
         }
 
         /// <summary>
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
-            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
+            return db.ScriptEvaluateAsync(script: ExecutableScript, keys: keys, values: args, flags: flags);
         }
 
         /// <summary>
@@ -269,7 +269,7 @@ namespace StackExchange.Redis
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
 
-            return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
+            return db.ScriptEvaluate(script: ExecutableScript, keys: keys, values: args, flags: flags);
         }
 
         /// <summary>
@@ -287,7 +287,7 @@ namespace StackExchange.Redis
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
 
-            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
+            return db.ScriptEvaluateAsync(script: ExecutableScript, keys: keys, values: args, flags: flags);
         }
     }
 }

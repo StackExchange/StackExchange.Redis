@@ -180,7 +180,7 @@ public sealed class RespProtocolTests : TestBase
             db.HashSet("key", "b", 2);
             db.HashSet("key", "c", 3);
         }
-        var result = await db.ScriptEvaluateAsync(script, flags: CommandFlags.NoScriptCache);
+        var result = await db.ScriptEvaluateAsync(script: script, flags: CommandFlags.NoScriptCache);
         Assert.Equal(resp2, result.Resp2Type);
         Assert.Equal(resp3, result.Resp3Type);
 

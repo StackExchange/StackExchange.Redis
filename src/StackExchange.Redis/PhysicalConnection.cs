@@ -1598,8 +1598,8 @@ namespace StackExchange.Redis
                         catch (Exception ex)
                         {
                             Debug.WriteLine(ex.Message);
-                            bridge.Multiplexer?.SetAuthSuspect(ex);
-                            bridge.Multiplexer?.Logger?.LogError(ex, ex.Message);
+                            bridge.Multiplexer.SetAuthSuspect(ex);
+                            bridge.Multiplexer.Logger?.LogError(ex, ex.Message);
                             throw;
                         }
                         log?.LogInformation($"TLS connection established successfully using protocol: {ssl.SslProtocol}");

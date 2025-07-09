@@ -351,7 +351,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluateAsync(script, ToInner(keys), values, flags);
+            Inner.ScriptEvaluateAsync(script: script, keys: ToInner(keys), values: values, flags: flags);
 
         public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -367,7 +367,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            Inner.ScriptEvaluateAsync(script, ToInner(keys), values, flags);
+            Inner.ScriptEvaluateAsync(script: script, keys: ToInner(keys), values: values, flags: flags);
 
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAddAsync(ToInner(key), values, flags);
