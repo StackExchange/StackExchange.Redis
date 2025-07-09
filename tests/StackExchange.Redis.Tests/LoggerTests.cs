@@ -69,7 +69,11 @@ public class LoggerTests : TestBase
 
         public TestWrapperLogger(ILogger toWrap) => Inner = toWrap;
 
+#if NET8_0_OR_GREATER
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => Inner.BeginScope(state);
+#else
         public IDisposable BeginScope<TState>(TState state) => Inner.BeginScope(state);
+#endif
         public bool IsEnabled(LogLevel logLevel) => Inner.IsEnabled(logLevel);
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
@@ -86,7 +90,11 @@ public class LoggerTests : TestBase
         private readonly ILogger[] _loggers;
         public TestMultiLogger(params ILogger[] loggers) => _loggers = loggers;
 
+#if NET8_0_OR_GREATER
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => throw new NotImplementedException();
+#else
         public IDisposable BeginScope<TState>(TState state) => throw new NotImplementedException();
+#endif
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
@@ -106,7 +114,11 @@ public class LoggerTests : TestBase
         public TestLogger(LogLevel logLevel, TextWriter output) =>
             (_logLevel, _output) = (logLevel, output);
 
+#if NET8_0_OR_GREATER
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => throw new NotImplementedException();
+#else
         public IDisposable BeginScope<TState>(TState state) => throw new NotImplementedException();
+#endif
         public bool IsEnabled(LogLevel logLevel) => logLevel >= _logLevel;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {

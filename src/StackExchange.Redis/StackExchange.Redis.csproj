@@ -16,8 +16,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- needed everywhere -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- needed everywhere (with hack to override to LTS when possible) -->
+    <PackageReference Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="8.0"/>
+    <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
 
     <!-- built into .NET core now -->
