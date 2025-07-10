@@ -2042,4 +2042,43 @@ public class StreamTests : TestBase
         Assert.Equal(123, (int)obj!.id);
         Assert.Equal("test", (string)obj.name);
     }
+
+    [Fact]
+    public void StreamConsumerGroupInfoLagIsNull()
+    {
+        using var conn = Create(require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        const string groupName = "test_group",
+                     consumer = "consumer";
+
+        db.StreamCreateConsumerGroup(key, groupName);
+        db.StreamReadGroup(key, groupName, consumer, "0-0", 1);
+        db.StreamAdd(key, "field1", "value1");
+        db.StreamAdd(key, "field1", "value1");
+
+        var streamInfo = db.StreamInfo(key);
+        db.StreamDelete(key, new[] { streamInfo.LastEntry.Id });
+
+        Assert.Null(db.StreamGroupInfo(key)[0].Lag);
+    }
+
+    [Fact]
+    public void StreamConsumerGroupInfoLagIsTwo()
+    {
+        using var conn = Create(require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        const string groupName = "test_group",
+                     consumer = "consumer";
+
+        db.StreamCreateConsumerGroup(key, groupName);
+        db.StreamReadGroup(key, groupName, consumer, "0-0", 1);
+        db.StreamAdd(key, "field1", "value1");
+        db.StreamAdd(key, "field1", "value1");
+
+        Assert.Equal(2, db.StreamGroupInfo(key)[0].Lag);
+    }
 }
