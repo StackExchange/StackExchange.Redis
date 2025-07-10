@@ -1240,6 +1240,42 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void StringBitOperation_Diff()
+    {
+        RedisKey[] keys = new RedisKey[] { "x", "y1", "y2" };
+        Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+        prefixed.StringBitOperation(Bitwise.Diff, "destination", keys, CommandFlags.None);
+        mock.Received().StringBitOperation(Bitwise.Diff, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringBitOperation_Diff1()
+    {
+        RedisKey[] keys = new RedisKey[] { "x", "y1", "y2" };
+        Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+        prefixed.StringBitOperation(Bitwise.Diff1, "destination", keys, CommandFlags.None);
+        mock.Received().StringBitOperation(Bitwise.Diff1, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringBitOperation_AndOr()
+    {
+        RedisKey[] keys = new RedisKey[] { "x", "y1", "y2" };
+        Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+        prefixed.StringBitOperation(Bitwise.AndOr, "destination", keys, CommandFlags.None);
+        mock.Received().StringBitOperation(Bitwise.AndOr, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringBitOperation_One()
+    {
+        RedisKey[] keys = new RedisKey[] { "a", "b", "c" };
+        Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:a" && _[1] == "prefix:b" && _[2] == "prefix:c";
+        prefixed.StringBitOperation(Bitwise.One, "destination", keys, CommandFlags.None);
+        mock.Received().StringBitOperation(Bitwise.One, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+    }
+
+    [Fact]
     public void StringBitPosition()
     {
         prefixed.StringBitPosition("key", true, 123, 456, CommandFlags.None);

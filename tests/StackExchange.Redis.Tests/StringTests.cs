@@ -596,6 +596,279 @@ public class StringTests : TestBase
     }
 
     [Fact]
+    public async Task BitOpExtended()
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        var keyX = prefix + "X";
+        var keyY1 = prefix + "Y1";
+        var keyY2 = prefix + "Y2";
+        var keyY3 = prefix + "Y3";
+
+        // Clean up keys
+        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyY2, keyY3 }, CommandFlags.FireAndForget);
+
+        // Set up test data with more complex patterns
+        // X = 11110000 (240)
+        // Y1 = 10101010 (170)
+        // Y2 = 01010101 (85)
+        // Y3 = 11001100 (204)
+        db.StringSet(keyX, new byte[] { 240 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY1, new byte[] { 170 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY2, new byte[] { 85 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY3, new byte[] { 204 }, flags: CommandFlags.FireAndForget);
+
+        // Test DIFF: X ∧ ¬(Y1 ∨ Y2 ∨ Y3)
+        // Y1 ∨ Y2 ∨ Y3 = 170 | 85 | 204 = 255
+        // X ∧ ¬(Y1 ∨ Y2 ∨ Y3) = 240 & ~255 = 240 & 0 = 0
+        var len_diff = await db.StringBitOperationAsync(Bitwise.Diff, "diff", new RedisKey[] { keyX, keyY1, keyY2, keyY3 });
+        Assert.Equal(1, len_diff);
+        var r_diff = ((byte[]?)(await db.StringGetAsync("diff")))?.Single();
+        Assert.Equal((byte)0, r_diff);
+
+        // Test DIFF1: ¬X ∧ (Y1 ∨ Y2 ∨ Y3)
+        // ¬X = ~240 = 15
+        // Y1 ∨ Y2 ∨ Y3 = 255
+        // ¬X ∧ (Y1 ∨ Y2 ∨ Y3) = 15 & 255 = 15
+        var len_diff1 = await db.StringBitOperationAsync(Bitwise.Diff1, "diff1", new RedisKey[] { keyX, keyY1, keyY2, keyY3 });
+        Assert.Equal(1, len_diff1);
+        var r_diff1 = ((byte[]?)(await db.StringGetAsync("diff1")))?.Single();
+        Assert.Equal((byte)15, r_diff1);
+
+        // Test ANDOR: X ∧ (Y1 ∨ Y2 ∨ Y3)
+        // Y1 ∨ Y2 ∨ Y3 = 255
+        // X ∧ (Y1 ∨ Y2 ∨ Y3) = 240 & 255 = 240
+        var len_andor = await db.StringBitOperationAsync(Bitwise.AndOr, "andor", new RedisKey[] { keyX, keyY1, keyY2, keyY3 });
+        Assert.Equal(1, len_andor);
+        var r_andor = ((byte[]?)(await db.StringGetAsync("andor")))?.Single();
+        Assert.Equal((byte)240, r_andor);
+
+        // Test ONE: bits set in exactly one bitmap
+        // For X=240, Y1=170, Y2=85, Y3=204
+        // We need to count bits that appear in exactly one of these values
+        var len_one = await db.StringBitOperationAsync(Bitwise.One, "one", new RedisKey[] { keyX, keyY1, keyY2, keyY3 });
+        Assert.Equal(1, len_one);
+        var r_one = ((byte[]?)(await db.StringGetAsync("one")))?.Single();
+
+        // Calculate expected ONE result manually
+        // Bit 7: X=1, Y1=1, Y2=0, Y3=1 -> count=3, not exactly 1
+        // Bit 6: X=1, Y1=0, Y2=1, Y3=1 -> count=3, not exactly 1
+        // Bit 5: X=1, Y1=1, Y2=0, Y3=0 -> count=2, not exactly 1
+        // Bit 4: X=1, Y1=0, Y2=1, Y3=0 -> count=2, not exactly 1
+        // Bit 3: X=0, Y1=1, Y2=0, Y3=1 -> count=2, not exactly 1
+        // Bit 2: X=0, Y1=0, Y2=1, Y3=1 -> count=2, not exactly 1
+        // Bit 1: X=0, Y1=1, Y2=0, Y3=0 -> count=1, exactly 1! -> bit should be set
+        // Bit 0: X=0, Y1=0, Y2=1, Y3=0 -> count=1, exactly 1! -> bit should be set
+        // Expected result: 00000011 = 3
+        Assert.Equal((byte)3, r_one);
+    }
+
+    [Fact]
+    public async Task BitOpTwoOperands()
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        var key1 = prefix + "1";
+        var key2 = prefix + "2";
+
+        // Clean up keys
+        db.KeyDelete(new RedisKey[] { key1, key2 }, CommandFlags.FireAndForget);
+
+        // Test with two operands: key1=10101010 (170), key2=11001100 (204)
+        db.StringSet(key1, new byte[] { 170 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(key2, new byte[] { 204 }, flags: CommandFlags.FireAndForget);
+
+        // Test DIFF: key1 ∧ ¬key2 = 170 & ~204 = 170 & 51 = 34
+        var len_diff = await db.StringBitOperationAsync(Bitwise.Diff, "diff2", new RedisKey[] { key1, key2 });
+        Assert.Equal(1, len_diff);
+        var r_diff = ((byte[]?)(await db.StringGetAsync("diff2")))?.Single();
+        Assert.Equal((byte)(170 & ~204), r_diff);
+
+        // Test ONE with two operands (should be equivalent to XOR)
+        var len_one = await db.StringBitOperationAsync(Bitwise.One, "one2", new RedisKey[] { key1, key2 });
+        Assert.Equal(1, len_one);
+        var r_one = ((byte[]?)(await db.StringGetAsync("one2")))?.Single();
+        Assert.Equal((byte)(170 ^ 204), r_one);
+
+        // Verify ONE equals XOR for two operands
+        var len_xor = await db.StringBitOperationAsync(Bitwise.Xor, "xor2", new RedisKey[] { key1, key2 });
+        Assert.Equal(1, len_xor);
+        var r_xor = ((byte[]?)(await db.StringGetAsync("xor2")))?.Single();
+        Assert.Equal(r_one, r_xor);
+    }
+
+    [Fact]
+    public void BitOpDiff()
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        var keyX = prefix + "X";
+        var keyY1 = prefix + "Y1";
+        var keyY2 = prefix + "Y2";
+        var keyResult = prefix + "result";
+
+        // Clean up keys
+        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyY2, keyResult }, CommandFlags.FireAndForget);
+
+        // Set up test data: X=11110000, Y1=10100000, Y2=01010000
+        // Expected DIFF result: X ∧ ¬(Y1 ∨ Y2) = 11110000 ∧ ¬(11110000) = 00000000
+        db.StringSet(keyX, new byte[] { 0b11110000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY2, new byte[] { 0b01010000 }, flags: CommandFlags.FireAndForget);
+
+        var length = db.StringBitOperation(Bitwise.Diff, keyResult, new RedisKey[] { keyX, keyY1, keyY2 });
+        Assert.Equal(1, length);
+
+        var result = ((byte[]?)db.StringGet(keyResult))?.Single();
+        // X ∧ ¬(Y1 ∨ Y2) = 11110000 ∧ ¬(11110000) = 11110000 ∧ 00001111 = 00000000
+        Assert.Equal((byte)0b00000000, result);
+    }
+
+    [Fact]
+    public void BitOpDiff1()
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        var keyX = prefix + "X";
+        var keyY1 = prefix + "Y1";
+        var keyY2 = prefix + "Y2";
+        var keyResult = prefix + "result";
+
+        // Clean up keys
+        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyY2, keyResult }, CommandFlags.FireAndForget);
+
+        // Set up test data: X=11000000, Y1=10100000, Y2=01010000
+        // Expected DIFF1 result: ¬X ∧ (Y1 ∨ Y2) = ¬11000000 ∧ (10100000 ∨ 01010000) = 00111111 ∧ 11110000 = 00110000
+        db.StringSet(keyX, new byte[] { 0b11000000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY2, new byte[] { 0b01010000 }, flags: CommandFlags.FireAndForget);
+
+        var length = db.StringBitOperation(Bitwise.Diff1, keyResult, new RedisKey[] { keyX, keyY1, keyY2 });
+        Assert.Equal(1, length);
+
+        var result = ((byte[]?)db.StringGet(keyResult))?.Single();
+        // ¬X ∧ (Y1 ∨ Y2) = 00111111 ∧ 11110000 = 00110000
+        Assert.Equal((byte)0b00110000, result);
+    }
+
+    [Fact]
+    public void BitOpAndOr()
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        var keyX = prefix + "X";
+        var keyY1 = prefix + "Y1";
+        var keyY2 = prefix + "Y2";
+        var keyResult = prefix + "result";
+
+        // Clean up keys
+        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyY2, keyResult }, CommandFlags.FireAndForget);
+
+        // Set up test data: X=11110000, Y1=10100000, Y2=01010000
+        // Expected ANDOR result: X ∧ (Y1 ∨ Y2) = 11110000 ∧ (10100000 ∨ 01010000) = 11110000 ∧ 11110000 = 11110000
+        db.StringSet(keyX, new byte[] { 0b11110000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY2, new byte[] { 0b01010000 }, flags: CommandFlags.FireAndForget);
+
+        var length = db.StringBitOperation(Bitwise.AndOr, keyResult, new RedisKey[] { keyX, keyY1, keyY2 });
+        Assert.Equal(1, length);
+
+        var result = ((byte[]?)db.StringGet(keyResult))?.Single();
+        // X ∧ (Y1 ∨ Y2) = 11110000 ∧ 11110000 = 11110000
+        Assert.Equal((byte)0b11110000, result);
+    }
+
+    [Fact]
+    public void BitOpOne()
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        var key1 = prefix + "1";
+        var key2 = prefix + "2";
+        var key3 = prefix + "3";
+        var keyResult = prefix + "result";
+
+        // Clean up keys
+        db.KeyDelete(new RedisKey[] { key1, key2, key3, keyResult }, CommandFlags.FireAndForget);
+
+        // Set up test data: key1=10100000, key2=01010000, key3=00110000
+        // Expected ONE result: bits set in exactly one bitmap = 11000000
+        db.StringSet(key1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(key2, new byte[] { 0b01010000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(key3, new byte[] { 0b00110000 }, flags: CommandFlags.FireAndForget);
+
+        var length = db.StringBitOperation(Bitwise.One, keyResult, new RedisKey[] { key1, key2, key3 });
+        Assert.Equal(1, length);
+
+        var result = ((byte[]?)db.StringGet(keyResult))?.Single();
+        // Bits set in exactly one: position 7 (key1 only), position 6 (key2 only) = 11000000
+        Assert.Equal((byte)0b11000000, result);
+    }
+
+    [Fact]
+    public async Task BitOpDiffAsync()
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        var keyX = prefix + "X";
+        var keyY1 = prefix + "Y1";
+        var keyResult = prefix + "result";
+
+        // Clean up keys
+        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyResult }, CommandFlags.FireAndForget);
+
+        // Set up test data: X=11110000, Y1=10100000
+        // Expected DIFF result: X ∧ ¬Y1 = 11110000 ∧ 01011111 = 01010000
+        db.StringSet(keyX, new byte[] { 0b11110000 }, flags: CommandFlags.FireAndForget);
+        db.StringSet(keyY1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
+
+        var length = await db.StringBitOperationAsync(Bitwise.Diff, keyResult, new RedisKey[] { keyX, keyY1 });
+        Assert.Equal(1, length);
+
+        var result = ((byte[]?)await db.StringGetAsync(keyResult))?.Single();
+        // X ∧ ¬Y1 = 11110000 ∧ 01011111 = 01010000
+        Assert.Equal((byte)0b01010000, result);
+    }
+
+    [Fact]
+    public void BitOpEdgeCases()
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        var keyEmpty = prefix + "empty";
+        var keyNonEmpty = prefix + "nonempty";
+        var keyResult = prefix + "result";
+
+        // Clean up keys
+        db.KeyDelete(new RedisKey[] { keyEmpty, keyNonEmpty, keyResult }, CommandFlags.FireAndForget);
+
+        // Test with empty bitmap
+        db.StringSet(keyNonEmpty, new byte[] { 0b11110000 }, flags: CommandFlags.FireAndForget);
+
+        // DIFF with empty key should return the first key
+        var length = db.StringBitOperation(Bitwise.Diff, keyResult, new RedisKey[] { keyNonEmpty, keyEmpty });
+        Assert.Equal(1, length);
+
+        var result = ((byte[]?)db.StringGet(keyResult))?.Single();
+        Assert.Equal((byte)0b11110000, result);
+
+        // ONE with single key should return that key
+        length = db.StringBitOperation(Bitwise.One, keyResult, new RedisKey[] { keyNonEmpty });
+        Assert.Equal(1, length);
+
+        result = ((byte[]?)db.StringGet(keyResult))?.Single();
+        Assert.Equal((byte)0b11110000, result);
+    }
+
+    [Fact]
     public async Task BitPosition()
     {
         using var conn = Create(require: RedisFeatures.v2_6_0);

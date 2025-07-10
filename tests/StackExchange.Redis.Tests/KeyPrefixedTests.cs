@@ -1156,6 +1156,42 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StringBitOperationAsync_Diff()
+        {
+            RedisKey[] keys = new RedisKey[] { "x", "y1", "y2" };
+            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+            await prefixed.StringBitOperationAsync(Bitwise.Diff, "destination", keys, CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.Diff, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringBitOperationAsync_Diff1()
+        {
+            RedisKey[] keys = new RedisKey[] { "x", "y1", "y2" };
+            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+            await prefixed.StringBitOperationAsync(Bitwise.Diff1, "destination", keys, CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.Diff1, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringBitOperationAsync_AndOr()
+        {
+            RedisKey[] keys = new RedisKey[] { "x", "y1", "y2" };
+            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+            await prefixed.StringBitOperationAsync(Bitwise.AndOr, "destination", keys, CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.AndOr, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringBitOperationAsync_One()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b", "c" };
+            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:a" && _[1] == "prefix:b" && _[2] == "prefix:c";
+            await prefixed.StringBitOperationAsync(Bitwise.One, "destination", keys, CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.One, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+        }
+
+        [Fact]
         public async Task StringBitPositionAsync()
         {
             await prefixed.StringBitPositionAsync("key", true, 123, 456, CommandFlags.None);

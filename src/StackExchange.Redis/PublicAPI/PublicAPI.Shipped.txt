@@ -1899,3 +1899,7 @@ static StackExchange.Redis.RedisChannel.Sharded(byte[]? value) -> StackExchange.
 static StackExchange.Redis.RedisChannel.Sharded(string! value) -> StackExchange.Redis.RedisChannel
 StackExchange.Redis.ClientInfo.ShardedSubscriptionCount.get -> int
 StackExchange.Redis.ConfigurationOptions.SetUserPfxCertificate(string! userCertificatePath, string? password = null) -> void
+StackExchange.Redis.Bitwise.AndOr = 6 -> StackExchange.Redis.Bitwise
+StackExchange.Redis.Bitwise.Diff = 4 -> StackExchange.Redis.Bitwise
+StackExchange.Redis.Bitwise.Diff1 = 5 -> StackExchange.Redis.Bitwise
+StackExchange.Redis.Bitwise.One = 7 -> StackExchange.Redis.Bitwise
