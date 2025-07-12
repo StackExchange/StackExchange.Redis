@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
-using Xunit.Abstractions;
 
 // ReSharper disable UseAwaitUsing # for consistency with existing tests
 // ReSharper disable MethodHasAsyncOverload # grandfathered existing usage
@@ -15,10 +14,8 @@ namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class ScriptingTests : TestBase
+public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     private IConnectionMultiplexer GetScriptConn(bool allowAdmin = false)
     {
         int syncTimeout = 5000;
@@ -783,9 +780,10 @@ public class ScriptingTests : TestBase
         Assert.Equal(1, LuaScript.GetCachedScriptCount());
     }
 
-    [FactLongRunning]
+    [Fact]
     public void PurgeLuaScriptOnFinalize()
     {
+        Skip.UnlessLongRunning();
         const string Script = "redis.call('set', @PurgeLuaScriptOnFinalizeKey, @PurgeLuaScriptOnFinalizeValue)";
         LuaScript.PurgeCache();
         Assert.Equal(0, LuaScript.GetCachedScriptCount());

@@ -3,18 +3,16 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class SentinelFailoverTests : SentinelBase
+public class SentinelFailoverTests(ITestOutputHelper output) : SentinelBase(output)
 {
-    public SentinelFailoverTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task ManagedPrimaryConnectionEndToEndWithFailoverTest()
     {
+        Skip.UnlessLongRunning();
         var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
         using var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
 

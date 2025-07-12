@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Text;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class EnvoyTests : TestBase
+public class EnvoyTests(ITestOutputHelper output) : TestBase(output)
 {
-    public EnvoyTests(ITestOutputHelper output) : base(output) { }
-
     protected override string GetConfiguration() => TestConfig.Current.ProxyServerAndPort;
 
     /// <summary>
@@ -35,15 +32,15 @@ public class EnvoyTests : TestBase
         }
         catch (TimeoutException ex) when (ex.Message == "Connect timeout" || sb.ToString().Contains("Returned, but incorrectly"))
         {
-            Skip.Inconclusive($"Envoy server not found: {ex}.");
+            Assert.Skip($"Envoy server not found: {ex}.");
         }
         catch (AggregateException ex)
         {
-            Skip.Inconclusive($"Envoy server not found: {ex}.");
+            Assert.Skip($"Envoy server not found: {ex}.");
         }
         catch (RedisConnectionException ex) when (sb.ToString().Contains("It was not possible to connect to the redis server(s)"))
         {
-            Skip.Inconclusive($"Envoy server not found: {ex}.");
+            Assert.Skip($"Envoy server not found: {ex}.");
         }
     }
 }

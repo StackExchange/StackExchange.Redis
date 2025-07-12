@@ -4,14 +4,11 @@ using System.Security.Authentication;
 using System.Threading.Tasks;
 using StackExchange.Redis.Configuration;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectionFailedErrorsTests : TestBase
+public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectionFailedErrorsTests(ITestOutputHelper output) : base(output) { }
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -78,7 +75,7 @@ public class ConnectionFailedErrorsTests : TestBase
         {
             conn.ConnectionFailed += (sender, e) =>
             {
-                if (e.FailureType == ConnectionFailureType.SocketFailure) Skip.Inconclusive("socket fail"); // this is OK too
+                if (e.FailureType == ConnectionFailureType.SocketFailure) Assert.Skip("socket fail"); // this is OK too
                 Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
             };
             var ex = Assert.Throws<RedisConnectionException>(() => conn.GetDatabase().Ping());

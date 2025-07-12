@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectFailTimeoutTests : TestBase
+public class ConnectFailTimeoutTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectFailTimeoutTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task NoticesConnectFail()
     {

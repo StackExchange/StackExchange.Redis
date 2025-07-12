@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(SharedConnectionFixture.Key)]
-public class CopyTests : TestBase
+public class CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task Basic()
     {

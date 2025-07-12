@@ -2,18 +2,16 @@
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class PerformanceTests : TestBase
+public class PerformanceTests(ITestOutputHelper output) : TestBase(output)
 {
-    public PerformanceTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public void VerifyPerformanceImprovement()
     {
+        Skip.UnlessLongRunning();
         int asyncTimer, sync, op = 0, asyncFaF, syncFaF;
         var key = Me();
         using (var conn = Create())

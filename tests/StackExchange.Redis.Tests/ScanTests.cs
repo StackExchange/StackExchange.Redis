@@ -2,16 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class ScanTests : TestBase
+public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -24,7 +21,7 @@ public class ScanTests : TestBase
         var db = conn.GetDatabase(dbId);
         var prefix = Me() + ":";
         var server = GetServer(conn);
-        Assert.Equal(Context.Test.Protocol, server.Protocol);
+        Assert.Equal(TestContext.Current.GetProtocol(), server.Protocol);
         server.FlushDatabase(dbId);
         for (int i = 0; i < 100; i++)
         {

@@ -1,18 +1,16 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class AggressiveTests : TestBase
+public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
 {
-    public AggressiveTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task ParallelTransactionsWithConditions()
     {
+        Skip.UnlessLongRunning();
         const int Muxers = 4, Workers = 20, PerThread = 250;
 
         var muxers = new IConnectionMultiplexer[Muxers];
@@ -73,9 +71,10 @@ public class AggressiveTests : TestBase
 
     private const int IterationCount = 5000, InnerCount = 20;
 
-    [FactLongRunning]
+    [Fact]
     public void RunCompetingBatchesOnSameMuxer()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
         var db = conn.GetDatabase();
 
@@ -132,9 +131,10 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task RunCompetingBatchesOnSameMuxerAsync()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
         var db = conn.GetDatabase();
 
@@ -189,9 +189,10 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
+    [Fact]
     public void RunCompetingTransactionsOnSameMuxer()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create(logTransactionData: false);
         var db = conn.GetDatabase();
 
@@ -252,9 +253,10 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task RunCompetingTransactionsOnSameMuxerAsync()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create(logTransactionData: false);
         var db = conn.GetDatabase();
 

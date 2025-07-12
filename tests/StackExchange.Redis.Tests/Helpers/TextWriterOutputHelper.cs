@@ -1,22 +1,17 @@
 ﻿using System;
 using System.IO;
 using System.Text;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace StackExchange.Redis.Tests.Helpers;
 
-public class TextWriterOutputHelper : TextWriter
+public class TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToConsole) : TextWriter
 {
     private StringBuilder Buffer { get; } = new StringBuilder(2048);
     private StringBuilder? Echo { get; set; }
     public override Encoding Encoding => Encoding.UTF8;
-    private readonly ITestOutputHelper Output;
-    private readonly bool ToConsole;
-    public TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToConsole)
-    {
-        Output = outputHelper;
-        ToConsole = echoToConsole;
-    }
+    private readonly ITestOutputHelper Output = outputHelper;
+    private readonly bool ToConsole = echoToConsole;
 
     public void EchoTo(StringBuilder sb) => Echo = sb;
 

@@ -1,14 +1,11 @@
 ﻿using System.Diagnostics;
 using System.Linq;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO22786599Tests : TestBase
+public class SO22786599Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public SO22786599Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void Execute()
     {

@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class GeoTests : TestBase
+public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     private static readonly GeoEntry
         Palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),
         Catania = new GeoEntry(15.087269, 37.502669, "Catania"),

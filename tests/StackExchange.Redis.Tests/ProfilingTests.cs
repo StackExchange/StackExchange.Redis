@@ -6,15 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class ProfilingTests : TestBase
+public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ProfilingTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void Simple()
     {
@@ -49,7 +46,7 @@ public class ProfilingTests : TestBase
         var i = 0;
         foreach (var cmd in cmds)
         {
-            Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd?.ToString()?.Replace("\n", ", "));
+            Log($"Command {i++} (DB: {cmd.Db}): {cmd?.ToString()?.Replace("\n", ", ")}");
         }
 
         var all = string.Join(",", cmds.Select(x => x.Command));
@@ -98,9 +95,10 @@ public class ProfilingTests : TestBase
         Assert.True(command.RetransmissionReason == null, nameof(command.RetransmissionReason));
     }
 
-    [FactLongRunning]
+    [Fact]
     public void ManyThreads()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
 
         var session = new ProfilingSession();
@@ -156,9 +154,10 @@ public class ProfilingTests : TestBase
         }
     }
 
-    [FactLongRunning]
+    [Fact]
     public void ManyContexts()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
 
         var profiler = new AsyncLocalProfiler();
@@ -273,9 +272,10 @@ public class ProfilingTests : TestBase
         Assert.Equal(OuterLoop * 2, res.Count(r => r.Db > 0));
     }
 
-    [FactLongRunning]
+    [Fact]
     public void ProfilingMD_Ex1()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
 
         var session = new ProfilingSession();
@@ -313,9 +313,10 @@ public class ProfilingTests : TestBase
         Assert.Equal(16000, timings.Count());
     }
 
-    [FactLongRunning]
+    [Fact]
     public void ProfilingMD_Ex2()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
 
         var profiler = new PerThreadProfiler();
@@ -356,9 +357,10 @@ public class ProfilingTests : TestBase
         Assert.True(perThreadTimings.All(kv => kv.Value.Count == 1000));
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task ProfilingMD_Ex2_Async()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
 
         var profiler = new AsyncLocalProfiler();

@@ -1,12 +1,9 @@
 ﻿using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO11766033Tests : TestBase
+public class SO11766033Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public SO11766033Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void TestNullString()
     {

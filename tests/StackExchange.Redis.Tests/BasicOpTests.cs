@@ -3,23 +3,18 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(SharedConnectionFixture.Key)]
-public class HighIntegrityBasicOpsTests : BasicOpsTests
+public class HighIntegrityBasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : BasicOpsTests(output, fixture)
 {
-    public HighIntegrityBasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     internal override bool HighIntegrity => true;
 }
 
 [Collection(SharedConnectionFixture.Key)]
-public class BasicOpsTests : TestBase
+public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task PingOnce()
     {

@@ -3,16 +3,13 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class PubSubCommandTests : TestBase
+public class PubSubCommandTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public PubSubCommandTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public void SubscriberCount()
     {

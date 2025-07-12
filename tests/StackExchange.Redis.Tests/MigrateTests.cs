@@ -2,17 +2,15 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class MigrateTests : TestBase
+public class MigrateTests(ITestOutputHelper output) : TestBase(output)
 {
-    public MigrateTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task Basic()
     {
+        Skip.UnlessLongRunning();
         var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
         var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } }, AllowAdmin = true };
 
@@ -20,7 +18,7 @@ public class MigrateTests : TestBase
         using var toConn = ConnectionMultiplexer.Connect(toConfig, Writer);
 
         if (await IsWindows(fromConn) || await IsWindows(toConn))
-            Skip.Inconclusive("'migrate' is unreliable on redis-64");
+            Assert.Skip("'migrate' is unreliable on redis-64");
 
         RedisKey key = Me();
         var fromDb = fromConn.GetDatabase();

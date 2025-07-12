@@ -2,15 +2,13 @@
 using System.Linq;
 using System.Text;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class MultiPrimaryTests : TestBase
+public class MultiPrimaryTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() =>
         TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword;
-    public MultiPrimaryTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void CannotFlushReplica()

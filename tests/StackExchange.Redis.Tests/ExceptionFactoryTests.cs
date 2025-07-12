@@ -1,13 +1,10 @@
 ﻿using System;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ExceptionFactoryTests : TestBase
+public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ExceptionFactoryTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void NullLastException()
     {

@@ -2,16 +2,14 @@
 using System.Net;
 using System.Threading;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 
-public class ClientKillTests : TestBase
+public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public ClientKillTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void ClientKill()

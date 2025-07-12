@@ -1,14 +1,11 @@
 ﻿using System.Globalization;
 using Xunit;
-using Xunit.Abstractions;
 using static StackExchange.Redis.RedisValue;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue1103Tests : TestBase
+public class Issue1103Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public Issue1103Tests(ITestOutputHelper output) : base(output) { }
-
     [Theory]
     [InlineData(142205255210238005UL, (int)StorageType.Int64)]
     [InlineData(ulong.MaxValue, (int)StorageType.UInt64)]

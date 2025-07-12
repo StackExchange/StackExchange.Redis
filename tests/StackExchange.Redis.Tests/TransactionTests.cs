@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class TransactionTests : TestBase
+public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public TransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public void BasicEmptyTran()
     {
@@ -1285,9 +1282,10 @@ public class TransactionTests : TestBase
     }
 #endif
 
-    [FactLongRunning]
+    [Fact]
     public async Task ExecCompletes_Issue943()
     {
+        Skip.UnlessLongRunning();
         int hashHit = 0, hashMiss = 0, expireHit = 0, expireMiss = 0;
         using (var conn = Create())
         {

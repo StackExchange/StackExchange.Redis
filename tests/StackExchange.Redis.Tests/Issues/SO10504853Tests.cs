@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Diagnostics;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO10504853Tests : TestBase
+public class SO10504853Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public SO10504853Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void LoopLotsOfTrivialStuff()
     {

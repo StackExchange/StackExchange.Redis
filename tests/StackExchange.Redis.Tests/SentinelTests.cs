@@ -4,14 +4,11 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class SentinelTests : SentinelBase
+public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
 {
-    public SentinelTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task PrimaryConnectTest()
     {
@@ -458,7 +455,7 @@ public class SentinelTests : SentinelBase
         var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
         if (replicas.Length == 0)
         {
-            Skip.Inconclusive("Sentinel race: 0 replicas to test against.");
+            Assert.Skip("Sentinel race: 0 replicas to test against.");
         }
 
         var config = new ConfigurationOptions();

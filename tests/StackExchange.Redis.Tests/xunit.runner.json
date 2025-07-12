@@ -3,7 +3,6 @@
   "maxParallelThreads": 16,
   "parallelizeAssembly": true,
   "parallelizeTestCollections": true,
-  "parallelAlgorithm": "aggressive",
   "diagnosticMessages": false,
   "longRunningTestSeconds": 60
 }

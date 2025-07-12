@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(SharedConnectionFixture.Key)]
-public class FloatingPointTests : TestBase
+public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public FloatingPointTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     private static bool Within(double x, double y, double delta) => Math.Abs(x - y) <= delta;
 
     [Fact]

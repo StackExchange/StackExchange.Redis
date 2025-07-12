@@ -1,15 +1,12 @@
 ﻿using System;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(SharedConnectionFixture.Key)]
-public class WithKeyPrefixTests : TestBase
+public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public void BlankPrefixYieldsSame_Bytes()
     {

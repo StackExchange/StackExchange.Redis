@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class BacklogTests : TestBase
+public class BacklogTests(ITestOutputHelper output) : TestBase(output)
 {
-    public BacklogTests(ITestOutputHelper output) : base(output) { }
-
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
     [Fact]

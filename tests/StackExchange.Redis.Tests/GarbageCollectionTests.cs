@@ -2,15 +2,12 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)] // because I need to measure some things that could get confused
-public class GarbageCollectionTests : TestBase
+public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
 {
-    public GarbageCollectionTests(ITestOutputHelper helper) : base(helper) { }
-
     private static void ForceGC()
     {
         for (int i = 0; i < 3; i++)
@@ -24,7 +21,7 @@ public class GarbageCollectionTests : TestBase
     public async Task MuxerIsCollected()
     {
 #if DEBUG
-        Skip.Inconclusive("Only predictable in release builds");
+        Assert.Skip("Only predictable in release builds");
 #endif
         // this is more nuanced than it looks; multiple sockets with
         // async callbacks, plus a heartbeat on a timer

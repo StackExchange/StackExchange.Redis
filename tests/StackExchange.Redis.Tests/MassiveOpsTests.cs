@@ -2,18 +2,16 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class MassiveOpsTests : TestBase
+public class MassiveOpsTests(ITestOutputHelper output) : TestBase(output)
 {
-    public MassiveOpsTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task LongRunning()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
 
         var key = Me();
@@ -57,13 +55,14 @@ public class MassiveOpsTests : TestBase
         Log($"{Me()}: Time for {AsyncOpsQty} ops: {watch.ElapsedMilliseconds}ms ({(withContinuation ? "with continuation" : "no continuation")}, any order); ops/s: {AsyncOpsQty / watch.Elapsed.TotalSeconds}");
     }
 
-    [TheoryLongRunning]
+    [Theory]
     [InlineData(1)]
     [InlineData(5)]
     [InlineData(10)]
     [InlineData(50)]
     public void MassiveBulkOpsSync(int threads)
     {
+        Skip.UnlessLongRunning();
         using var conn = Create(syncTimeout: 30000);
 
         RedisKey key = Me();

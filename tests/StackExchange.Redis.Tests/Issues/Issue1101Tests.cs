@@ -4,14 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue1101Tests : TestBase
+public class Issue1101Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public Issue1101Tests(ITestOutputHelper output) : base(output) { }
-
     private static void AssertCounts(ISubscriber pubsub, in RedisChannel channel, bool has, int handlers, int queues)
     {
         if (pubsub.Multiplexer is ConnectionMultiplexer muxer)

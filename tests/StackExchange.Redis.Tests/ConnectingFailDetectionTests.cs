@@ -2,14 +2,11 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectingFailDetectionTests : TestBase
+public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectingFailDetectionTests(ITestOutputHelper output) : base(output) { }
-
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
     [Fact]

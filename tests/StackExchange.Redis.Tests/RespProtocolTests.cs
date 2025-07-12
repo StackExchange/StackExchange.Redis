@@ -3,15 +3,12 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(SharedConnectionFixture.Key)]
-public sealed class RespProtocolTests : TestBase
+public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public RespProtocolTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     [RunPerProtocol]
     public async Task ConnectWithTiming()
@@ -81,11 +78,11 @@ public sealed class RespProtocolTests : TestBase
         await muxer.GetDatabase().PingAsync();
 
         var server = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
-        if (Context.IsResp3 && !server.GetFeatures().Resp3)
+        if (TestContext.Current.IsResp3() && !server.GetFeatures().Resp3)
         {
-            Skip.Inconclusive("server does not support RESP3");
+            Assert.Skip("server does not support RESP3");
         }
-        if (Context.IsResp3)
+        if (TestContext.Current.IsResp3())
         {
             Assert.Equal(RedisProtocol.Resp3, server.Protocol);
         }
@@ -163,11 +160,11 @@ public sealed class RespProtocolTests : TestBase
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
         if (serverMin > ep.Version.Major)
         {
-            Skip.Inconclusive($"applies to v{serverMin} onwards - detected v{ep.Version.Major}");
+            Assert.Skip($"applies to v{serverMin} onwards - detected v{ep.Version.Major}");
         }
         if (script.Contains("redis.setresp(3)") && !ep.GetFeatures().Resp3) /* v6 check */
         {
-            Skip.Inconclusive("debug protocol not available");
+            Assert.Skip("debug protocol not available");
         }
         if (ep.Protocol is null) throw new InvalidOperationException($"No protocol! {ep.InteractiveConnectionState}");
         Assert.Equal(protocol, ep.Protocol);
@@ -319,7 +316,7 @@ public sealed class RespProtocolTests : TestBase
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
         if (command == "debug" && args.Length > 0 && args[0] is "protocol" && !ep.GetFeatures().Resp3 /* v6 check */)
         {
-            Skip.Inconclusive("debug protocol not available");
+            Assert.Skip("debug protocol not available");
         }
         Assert.Equal(protocol, ep.Protocol);
 

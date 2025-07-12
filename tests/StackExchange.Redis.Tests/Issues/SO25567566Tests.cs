@@ -1,18 +1,17 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO25567566Tests : TestBase
+public class SO25567566Tests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public SO25567566Tests(ITestOutputHelper output) : base(output) { }
 
-    [FactLongRunning]
+    [Fact]
     public async Task Execute()
     {
+        Skip.UnlessLongRunning();
         using var conn = ConnectionMultiplexer.Connect(GetConfiguration());
 
         for (int i = 0; i < 100; i++)

@@ -1,13 +1,10 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO25113323Tests : TestBase
+public class SO25113323Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public SO25113323Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task SetExpirationToPassed()
     {

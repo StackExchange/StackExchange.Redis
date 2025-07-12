@@ -4,7 +4,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -15,9 +14,9 @@ public class FailoverTests : TestBase, IAsyncLifetime
 
     public FailoverTests(ITestOutputHelper output) : base(output) { }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var conn = Create();
 
@@ -98,7 +97,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
 
         // and send a second time via a re-primary operation
         var server = GetServer(senderConn);
-        if (server.IsReplica) Skip.Inconclusive("didn't expect a replica");
+        if (server.IsReplica) Assert.Skip("didn't expect a replica");
         await server.MakePrimaryAsync(ReplicationChangeOptions.Broadcast);
         await Task.Delay(1000).ConfigureAwait(false);
         GetServer(receiverConn).Ping();
@@ -134,7 +133,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
             string log = writer.ToString();
             Log(log);
             bool isUnanimous = log.Contains("tie-break is unanimous at " + TestConfig.Current.FailoverPrimaryServerAndPort);
-            if (!isUnanimous) Skip.Inconclusive("this is timing sensitive; unable to verify this time");
+            if (!isUnanimous) Assert.Skip("this is timing sensitive; unable to verify this time");
         }
 
         // k, so we know everyone loves 6379; is that what we get?
@@ -295,11 +294,11 @@ public class FailoverTests : TestBase, IAsyncLifetime
     [Fact]
     public async Task SubscriptionsSurvivePrimarySwitchAsync()
     {
-        static void TopologyFail() => Skip.Inconclusive("Replication topology change failed...and that's both inconsistent and not what we're testing.");
+        static void TopologyFail() => Assert.Skip("Replication topology change failed...and that's both inconsistent and not what we're testing.");
 
         if (RunningInCI)
         {
-            Skip.Inconclusive("TODO: Fix race in broadcast reconfig a zero latency.");
+            Assert.Skip("TODO: Fix race in broadcast reconfig a zero latency.");
         }
 
         using var aConn = Create(allowAdmin: true, shared: false);
@@ -391,7 +390,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
                     Log("    IsReplica: " + !server.IsReplica);
                     Log("    Type: " + server.ServerType);
                 }
-                // Skip.Inconclusive("Not enough latency.");
+                // Assert.Skip("Not enough latency.");
             }
             Assert.True(sanityCheck, $"B Connection: {TestConfig.Current.FailoverPrimaryServerAndPort} should be a replica");
             Assert.False(bConn.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"B Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a primary");

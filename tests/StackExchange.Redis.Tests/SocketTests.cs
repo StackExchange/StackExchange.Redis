@@ -1,16 +1,16 @@
 ﻿using System.Diagnostics;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class SocketTests : TestBase
+public class SocketTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public SocketTests(ITestOutputHelper output) : base(output) { }
 
-    [FactLongRunning]
+    [Fact]
     public void CheckForSocketLeaks()
     {
+        Skip.UnlessLongRunning();
         const int count = 2000;
         for (var i = 0; i < count; i++)
         {

@@ -1,13 +1,10 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class BgSaveResponseTests : TestBase
+public class BgSaveResponseTests(ITestOutputHelper output) : TestBase(output)
 {
-    public BgSaveResponseTests(ITestOutputHelper output) : base(output) { }
-
     [Theory(Skip = "We don't need to test this, and it really screws local testing hard.")]
     [InlineData(SaveType.BackgroundSave)]
     [InlineData(SaveType.BackgroundRewriteAppendOnlyFile)]

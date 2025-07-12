@@ -3,15 +3,13 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class LockingTests : TestBase
+public class LockingTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public LockingTests(ITestOutputHelper output) : base(output) { }
 
     public enum TestMode
     {

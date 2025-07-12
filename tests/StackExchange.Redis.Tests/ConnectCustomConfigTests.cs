@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectCustomConfigTests : TestBase
+public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectCustomConfigTests(ITestOutputHelper output) : base(output) { }
-
     // So we're triggering tiebreakers here
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 

@@ -2,14 +2,12 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectionShutdownTests : TestBase
+public class ConnectionShutdownTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public ConnectionShutdownTests(ITestOutputHelper output) : base(output) { }
 
     [Fact(Skip = "Unfriendly")]
     public async Task ShutdownRaisesConnectionFailedAndRestore()

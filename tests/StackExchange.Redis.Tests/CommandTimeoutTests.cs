@@ -1,18 +1,16 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class CommandTimeoutTests : TestBase
+public class CommandTimeoutTests(ITestOutputHelper output) : TestBase(output)
 {
-    public CommandTimeoutTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task DefaultHeartbeatTimeout()
     {
+        Skip.UnlessLongRunning();
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
         options.AllowAdmin = true;
         options.AsyncTimeout = 1000;

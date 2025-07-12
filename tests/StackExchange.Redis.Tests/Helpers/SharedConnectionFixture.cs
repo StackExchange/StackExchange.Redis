@@ -68,7 +68,7 @@ public class SharedConnectionFixture : IDisposable
         }
     }
 
-    internal sealed class NonDisposingConnection : IInternalConnectionMultiplexer
+    internal sealed class NonDisposingConnection(IInternalConnectionMultiplexer inner) : IInternalConnectionMultiplexer
     {
         public IInternalConnectionMultiplexer UnderlyingConnection => _inner;
 
@@ -92,8 +92,7 @@ public class SharedConnectionFixture : IDisposable
 
         public ConnectionMultiplexer UnderlyingMultiplexer => _inner.UnderlyingMultiplexer;
 
-        private readonly IInternalConnectionMultiplexer _inner;
-        public NonDisposingConnection(IInternalConnectionMultiplexer inner) => _inner = inner;
+        private readonly IInternalConnectionMultiplexer _inner = inner;
 
         public int GetSubscriptionsCount() => _inner.GetSubscriptionsCount();
         public ConcurrentDictionary<RedisChannel, ConnectionMultiplexer.Subscription> GetSubscriptions() => _inner.GetSubscriptions();

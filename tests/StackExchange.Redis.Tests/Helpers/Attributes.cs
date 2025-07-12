@@ -5,9 +5,16 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using Xunit.Abstractions;
+using Microsoft.Testing.Platform.Extensions.Messages;
+using Xunit;
+using Xunit.Internal;
 using Xunit.Sdk;
+using Xunit.v3;
 
+#pragma warning disable SA1402 // File may only contain a single type
+#pragma warning disable SA1502 // Element should not be on a single line
+#pragma warning disable SA1649 // File name should match first type name
+#pragma warning disable IDE0130 // Namespace does not match folder structure
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
@@ -19,18 +26,8 @@ namespace StackExchange.Redis.Tests;
 /// </para>
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-[XunitTestCaseDiscoverer("StackExchange.Redis.Tests.FactDiscoverer", "StackExchange.Redis.Tests")]
+[XunitTestCaseDiscoverer(typeof(FactDiscoverer))]
 public class FactAttribute : Xunit.FactAttribute { }
-
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public class FactLongRunningAttribute : FactAttribute
-{
-    public override string Skip
-    {
-        get => TestConfig.Current.RunLongRunning ? base.Skip : "Config.RunLongRunning is false - skipping long test.";
-        set => base.Skip = value;
-    }
-}
 
 /// <summary>
 /// <para>Override for <see cref="Xunit.TheoryAttribute"/> that truncates our DisplayName down.</para>
@@ -43,223 +40,139 @@ public class FactLongRunningAttribute : FactAttribute
 /// </para>
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-[XunitTestCaseDiscoverer("StackExchange.Redis.Tests.TheoryDiscoverer", "StackExchange.Redis.Tests")]
+[XunitTestCaseDiscoverer(typeof(TheoryDiscoverer))]
 public class TheoryAttribute : Xunit.TheoryAttribute { }
 
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public class TheoryLongRunningAttribute : Xunit.TheoryAttribute
+public class FactDiscoverer : Xunit.v3.FactDiscoverer
 {
-    public override string Skip
-    {
-        get => TestConfig.Current.RunLongRunning ? base.Skip : "Config.RunLongRunning is false - skipping long test.";
-        set => base.Skip = value;
-    }
+    public override ValueTask<IReadOnlyCollection<IXunitTestCase>> Discover(ITestFrameworkDiscoveryOptions discoveryOptions, IXunitTestMethod testMethod, IFactAttribute factAttribute)
+        => base.Discover(discoveryOptions, testMethod, factAttribute).ExpandAsync();
 }
 
-public class FactDiscoverer : Xunit.Sdk.FactDiscoverer
+public class TheoryDiscoverer : Xunit.v3.TheoryDiscoverer
 {
-    public FactDiscoverer(IMessageSink diagnosticMessageSink) : base(diagnosticMessageSink) { }
+    protected override ValueTask<IReadOnlyCollection<IXunitTestCase>> CreateTestCasesForDataRow(ITestFrameworkDiscoveryOptions discoveryOptions, IXunitTestMethod testMethod, ITheoryAttribute theoryAttribute, ITheoryDataRow dataRow, object?[] testMethodArguments)
+        => base.CreateTestCasesForDataRow(discoveryOptions, testMethod, theoryAttribute, dataRow, testMethodArguments).ExpandAsync();
 
-    public override IEnumerable<IXunitTestCase> Discover(ITestFrameworkDiscoveryOptions discoveryOptions, ITestMethod testMethod, IAttributeInfo factAttribute)
-    {
-        if (testMethod.Method.GetParameters().Any())
-        {
-            return new[] { new ExecutionErrorTestCase(DiagnosticMessageSink, discoveryOptions.MethodDisplayOrDefault(), discoveryOptions.MethodDisplayOptionsOrDefault(), testMethod, "[Fact] methods are not allowed to have parameters. Did you mean to use [Theory]?") };
-        }
-        else if (testMethod.Method.IsGenericMethodDefinition)
-        {
-            return new[] { new ExecutionErrorTestCase(DiagnosticMessageSink, discoveryOptions.MethodDisplayOrDefault(), discoveryOptions.MethodDisplayOptionsOrDefault(), testMethod, "[Fact] methods are not allowed to be generic.") };
-        }
-        else
-        {
-            return testMethod.Expand(protocol => new SkippableTestCase(DiagnosticMessageSink, discoveryOptions.MethodDisplayOrDefault(), discoveryOptions.MethodDisplayOptionsOrDefault(), testMethod, protocol: protocol));
-        }
-    }
+    protected override ValueTask<IReadOnlyCollection<IXunitTestCase>> CreateTestCasesForTheory(ITestFrameworkDiscoveryOptions discoveryOptions, IXunitTestMethod testMethod, ITheoryAttribute theoryAttribute)
+        => base.CreateTestCasesForTheory(discoveryOptions, testMethod, theoryAttribute).ExpandAsync();
 }
 
-public class TheoryDiscoverer : Xunit.Sdk.TheoryDiscoverer
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
+public class RunPerProtocol() : Attribute { }
+
+public interface IProtocolTestCase
 {
-    public TheoryDiscoverer(IMessageSink diagnosticMessageSink) : base(diagnosticMessageSink) { }
-
-    protected override IEnumerable<IXunitTestCase> CreateTestCasesForDataRow(ITestFrameworkDiscoveryOptions discoveryOptions, ITestMethod testMethod, IAttributeInfo theoryAttribute, object[] dataRow)
-        => testMethod.Expand(protocol => new SkippableTestCase(DiagnosticMessageSink, discoveryOptions.MethodDisplayOrDefault(), discoveryOptions.MethodDisplayOptionsOrDefault(), testMethod, dataRow, protocol: protocol));
-
-    protected override IEnumerable<IXunitTestCase> CreateTestCasesForSkip(ITestFrameworkDiscoveryOptions discoveryOptions, ITestMethod testMethod, IAttributeInfo theoryAttribute, string skipReason)
-        => testMethod.Expand(protocol => new SkippableTestCase(DiagnosticMessageSink, discoveryOptions.MethodDisplayOrDefault(), discoveryOptions.MethodDisplayOptionsOrDefault(), testMethod, protocol: protocol));
-
-    protected override IEnumerable<IXunitTestCase> CreateTestCasesForTheory(ITestFrameworkDiscoveryOptions discoveryOptions, ITestMethod testMethod, IAttributeInfo theoryAttribute)
-        => testMethod.Expand(protocol => new SkippableTheoryTestCase(DiagnosticMessageSink, discoveryOptions.MethodDisplayOrDefault(), discoveryOptions.MethodDisplayOptionsOrDefault(), testMethod, protocol: protocol));
-
-    protected override IEnumerable<IXunitTestCase> CreateTestCasesForSkippedDataRow(ITestFrameworkDiscoveryOptions discoveryOptions, ITestMethod testMethod, IAttributeInfo theoryAttribute, object[] dataRow, string skipReason)
-        => new[] { new NamedSkippedDataRowTestCase(DiagnosticMessageSink, discoveryOptions.MethodDisplayOrDefault(), discoveryOptions.MethodDisplayOptionsOrDefault(), testMethod, skipReason, dataRow) };
+    RedisProtocol Protocol { get; }
 }
 
-public class SkippableTestCase : XunitTestCase, IRedisTest
+public class ProtocolTestCase : XunitTestCase, IProtocolTestCase
 {
-    public RedisProtocol Protocol { get; set; }
-    public string ProtocolString => Protocol switch
-    {
-        RedisProtocol.Resp2 => "RESP2",
-        RedisProtocol.Resp3 => "RESP3",
-        _ => "UnknownProtocolFixMeeeeee",
-    };
-
-    protected override string GetUniqueID() => base.GetUniqueID() + ProtocolString;
-
-    protected override string GetDisplayName(IAttributeInfo factAttribute, string displayName) =>
-        base.GetDisplayName(factAttribute, displayName).StripName() + "(" + ProtocolString + ")";
+    public RedisProtocol Protocol { get; private set; }
 
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
-    public SkippableTestCase() { }
+    public ProtocolTestCase() { }
 
-    public SkippableTestCase(IMessageSink diagnosticMessageSink, TestMethodDisplay defaultMethodDisplay, TestMethodDisplayOptions defaultMethodDisplayOptions, ITestMethod testMethod, object[]? testMethodArguments = null, RedisProtocol? protocol = null)
-        : base(diagnosticMessageSink, defaultMethodDisplay, defaultMethodDisplayOptions, testMethod, testMethodArguments)
+    public ProtocolTestCase(XunitTestCase testCase, RedisProtocol protocol) : base(
+        testMethod: testCase.TestMethod,
+        testCaseDisplayName: $"{testCase.TestCaseDisplayName.Replace("StackExchange.Redis.Tests.", "")} ({protocol.GetString()})",
+        uniqueID: testCase.UniqueID + protocol.GetString(),
+        @explicit: testCase.Explicit,
+        skipExceptions: testCase.SkipExceptions,
+        skipReason: testCase.SkipReason,
+        skipType: testCase.SkipType,
+        skipUnless: testCase.SkipUnless,
+        skipWhen: testCase.SkipWhen,
+        traits: testCase.TestMethod.Traits.ToReadWrite(StringComparer.OrdinalIgnoreCase),
+        testMethodArguments: testCase.TestMethodArguments,
+        sourceFilePath: testCase.SourceFilePath,
+        sourceLineNumber: testCase.SourceLineNumber,
+        timeout: testCase.Timeout)
     {
-        // TODO: Default RESP2 somewhere cleaner
-        Protocol = protocol ?? RedisProtocol.Resp2;
+        Protocol = protocol;
     }
 
-    public override void Serialize(IXunitSerializationInfo data)
+    protected override void Serialize(IXunitSerializationInfo data)
     {
         data.AddValue(nameof(Protocol), (int)Protocol);
         base.Serialize(data);
     }
 
-    public override void Deserialize(IXunitSerializationInfo data)
+    protected override void Deserialize(IXunitSerializationInfo data)
     {
         Protocol = (RedisProtocol)data.GetValue<int>(nameof(Protocol));
         base.Deserialize(data);
     }
-
-    public override async Task<RunSummary> RunAsync(
-        IMessageSink diagnosticMessageSink,
-        IMessageBus messageBus,
-        object[] constructorArguments,
-        ExceptionAggregator aggregator,
-        CancellationTokenSource cancellationTokenSource)
-    {
-        var skipMessageBus = new SkippableMessageBus(messageBus);
-        TestBase.SetContext(new TestContext(this));
-        var result = await base.RunAsync(diagnosticMessageSink, skipMessageBus, constructorArguments, aggregator, cancellationTokenSource).ForAwait();
-        return result.Update(skipMessageBus);
-    }
 }
 
-public class SkippableTheoryTestCase : XunitTheoryTestCase, IRedisTest
+public class ProtocolDelayEnumeratedTestCase : XunitDelayEnumeratedTheoryTestCase, IProtocolTestCase
 {
-    public RedisProtocol Protocol { get; set; }
-
-    protected override string GetDisplayName(IAttributeInfo factAttribute, string displayName) =>
-        base.GetDisplayName(factAttribute, displayName).StripName();
+    public RedisProtocol Protocol { get; private set; }
 
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
-    public SkippableTheoryTestCase() { }
+    public ProtocolDelayEnumeratedTestCase() { }
 
-    public SkippableTheoryTestCase(IMessageSink diagnosticMessageSink, TestMethodDisplay defaultMethodDisplay, TestMethodDisplayOptions defaultMethodDisplayOptions, ITestMethod testMethod, RedisProtocol? protocol = null)
-        : base(diagnosticMessageSink, defaultMethodDisplay, defaultMethodDisplayOptions, testMethod)
+    public ProtocolDelayEnumeratedTestCase(XunitDelayEnumeratedTheoryTestCase testCase, RedisProtocol protocol) : base(
+        testMethod: testCase.TestMethod,
+        testCaseDisplayName: $"{testCase.TestCaseDisplayName.Replace("StackExchange.Redis.Tests.", "")} ({protocol.GetString()})",
+        uniqueID: testCase.UniqueID + protocol.GetString(),
+        @explicit: testCase.Explicit,
+        skipTestWithoutData: testCase.SkipTestWithoutData,
+        skipExceptions: testCase.SkipExceptions,
+        skipReason: testCase.SkipReason,
+        skipType: testCase.SkipType,
+        skipUnless: testCase.SkipUnless,
+        skipWhen: testCase.SkipWhen,
+        traits: testCase.TestMethod.Traits.ToReadWrite(StringComparer.OrdinalIgnoreCase),
+        sourceFilePath: testCase.SourceFilePath,
+        sourceLineNumber: testCase.SourceLineNumber,
+        timeout: testCase.Timeout)
     {
-        // TODO: Default RESP2 somewhere cleaner
-        Protocol = protocol ?? RedisProtocol.Resp2;
+        Protocol = protocol;
     }
 
-    public override async Task<RunSummary> RunAsync(
-        IMessageSink diagnosticMessageSink,
-        IMessageBus messageBus,
-        object[] constructorArguments,
-        ExceptionAggregator aggregator,
-        CancellationTokenSource cancellationTokenSource)
+    protected override void Serialize(IXunitSerializationInfo data)
     {
-        var skipMessageBus = new SkippableMessageBus(messageBus);
-        TestBase.SetContext(new TestContext(this));
-        var result = await base.RunAsync(diagnosticMessageSink, skipMessageBus, constructorArguments, aggregator, cancellationTokenSource).ForAwait();
-        return result.Update(skipMessageBus);
-    }
-}
-
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public class RunPerProtocol : Attribute
-{
-    public static RedisProtocol[] AllProtocols { get; } = new[] { RedisProtocol.Resp2, RedisProtocol.Resp3 };
-
-    public RedisProtocol[] Protocols { get; }
-    public RunPerProtocol(params RedisProtocol[] procotols) => Protocols = procotols ?? AllProtocols;
-}
-
-public class NamedSkippedDataRowTestCase : XunitSkippedDataRowTestCase
-{
-    protected override string GetDisplayName(IAttributeInfo factAttribute, string displayName) =>
-        base.GetDisplayName(factAttribute, displayName).StripName();
-
-    [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
-    public NamedSkippedDataRowTestCase() { }
-
-    public NamedSkippedDataRowTestCase(IMessageSink diagnosticMessageSink, TestMethodDisplay defaultMethodDisplay, TestMethodDisplayOptions defaultMethodDisplayOptions, ITestMethod testMethod, string skipReason, object[]? testMethodArguments = null)
-    : base(diagnosticMessageSink, defaultMethodDisplay, defaultMethodDisplayOptions, testMethod, skipReason, testMethodArguments) { }
-}
-
-public class SkippableMessageBus : IMessageBus
-{
-    private readonly IMessageBus InnerBus;
-    public SkippableMessageBus(IMessageBus innerBus) => InnerBus = innerBus;
-
-    public int DynamicallySkippedTestCount { get; private set; }
-
-    public void Dispose()
-    {
-        InnerBus.Dispose();
-        GC.SuppressFinalize(this);
+        data.AddValue(nameof(Protocol), (int)Protocol);
+        base.Serialize(data);
     }
 
-    public bool QueueMessage(IMessageSinkMessage message)
+    protected override void Deserialize(IXunitSerializationInfo data)
     {
-        if (message is ITestFailed testFailed)
-        {
-            var exceptionType = testFailed.ExceptionTypes.FirstOrDefault();
-            if (exceptionType == typeof(SkipTestException).FullName)
-            {
-                DynamicallySkippedTestCount++;
-                return InnerBus.QueueMessage(new TestSkipped(testFailed.Test, testFailed.Messages.FirstOrDefault()));
-            }
-        }
-        return InnerBus.QueueMessage(message);
+        Protocol = (RedisProtocol)data.GetValue<int>(nameof(Protocol));
+        base.Deserialize(data);
     }
 }
 
 internal static class XUnitExtensions
 {
-    internal static string StripName(this string name) =>
-        name.Replace("StackExchange.Redis.Tests.", "");
-
-    public static RunSummary Update(this RunSummary summary, SkippableMessageBus bus)
+    public static async ValueTask<IReadOnlyCollection<IXunitTestCase>> ExpandAsync(this ValueTask<IReadOnlyCollection<IXunitTestCase>> discovery)
     {
-        if (bus.DynamicallySkippedTestCount > 0)
+        static IXunitTestCase CreateTestCase(XunitTestCase tc, RedisProtocol protocol) => tc switch
         {
-            summary.Failed -= bus.DynamicallySkippedTestCount;
-            summary.Skipped += bus.DynamicallySkippedTestCount;
-        }
-        return summary;
-    }
+            XunitDelayEnumeratedTheoryTestCase delayed => new ProtocolDelayEnumeratedTestCase(delayed, protocol),
+            _ => new ProtocolTestCase(tc, protocol),
+        };
 
-    public static IEnumerable<IXunitTestCase> Expand(this ITestMethod testMethod, Func<RedisProtocol, IXunitTestCase> generator)
-    {
-        if ((testMethod.Method.GetCustomAttributes(typeof(RunPerProtocol)).FirstOrDefault()
-                          ?? testMethod.TestClass.Class.GetCustomAttributes(typeof(RunPerProtocol)).FirstOrDefault()) is IAttributeInfo attr)
+        var testCases = await discovery;
+        var result = new List<IXunitTestCase>();
+        foreach (var testCase in testCases.OfType<XunitTestCase>())
         {
-            // params means not null but default empty
-            var protocols = attr.GetNamedArgument<RedisProtocol[]>(nameof(RunPerProtocol.Protocols));
-            if (protocols.Length == 0)
+            var testMethod = testCase.TestMethod;
+
+            if ((testMethod.Method.GetCustomAttributes(typeof(RunPerProtocol)).FirstOrDefault()
+                 ?? testMethod.TestClass.Class.GetCustomAttributes(typeof(RunPerProtocol)).FirstOrDefault()) is RunPerProtocol)
             {
-                protocols = RunPerProtocol.AllProtocols;
+                result.Add(CreateTestCase(testCase, RedisProtocol.Resp2));
+                result.Add(CreateTestCase(testCase, RedisProtocol.Resp3));
             }
-            foreach (var protocol in protocols)
+            else
             {
-                yield return generator(protocol);
+                // Default to RESP2 everywhere else
+                result.Add(CreateTestCase(testCase, RedisProtocol.Resp2));
             }
         }
-        else
-        {
-            yield return generator(RedisProtocol.Resp2);
-        }
+        return result;
     }
 }
 
@@ -269,25 +182,22 @@ internal static class XUnitExtensions
 /// </summary>
 /// <remarks>
 /// Based on: https://bartwullems.blogspot.com/2022/03/xunit-change-culture-during-your-test.html.
+/// Replaces the culture and UI culture of the current thread with <paramref name="culture" />.
 /// </remarks>
+/// <param name="culture">The name of the culture.</param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
-public class TestCultureAttribute : BeforeAfterTestAttribute
+public class TestCultureAttribute(string culture) : BeforeAfterTestAttribute
 {
-    private readonly CultureInfo culture;
+    private readonly CultureInfo culture = new CultureInfo(culture, false);
     private CultureInfo? originalCulture;
-
-    /// <summary>
-    /// Replaces the culture and UI culture of the current thread with <paramref name="culture" />.
-    /// </summary>
-    /// <param name="culture">The name of the culture.</param>
-    public TestCultureAttribute(string culture) => this.culture = new CultureInfo(culture, false);
 
     /// <summary>
     /// Stores the current <see cref="Thread.CurrentPrincipal" /> and <see cref="CultureInfo.CurrentCulture" />
     /// and replaces them with the new cultures defined in the constructor.
     /// </summary>
     /// <param name="methodUnderTest">The method under test.</param>
-    public override void Before(MethodInfo methodUnderTest)
+    /// <param name="test">The current <see cref="ITest"/>.</param>
+    public override void Before(MethodInfo methodUnderTest, IXunitTest test)
     {
         originalCulture = Thread.CurrentThread.CurrentCulture;
         Thread.CurrentThread.CurrentCulture = culture;
@@ -298,7 +208,8 @@ public class TestCultureAttribute : BeforeAfterTestAttribute
     /// Restores the original <see cref="CultureInfo.CurrentCulture" /> to <see cref="Thread.CurrentPrincipal" />.
     /// </summary>
     /// <param name="methodUnderTest">The method under test.</param>
-    public override void After(MethodInfo methodUnderTest)
+    /// <param name="test">The current <see cref="ITest"/>.</param>
+    public override void After(MethodInfo methodUnderTest, IXunitTest test)
     {
         if (originalCulture is not null)
         {

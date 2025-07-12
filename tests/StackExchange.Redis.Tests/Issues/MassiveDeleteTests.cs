@@ -2,14 +2,12 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class MassiveDeleteTests : TestBase
+public class MassiveDeleteTests(ITestOutputHelper output) : TestBase(output)
 {
-    public MassiveDeleteTests(ITestOutputHelper output) : base(output) { }
-
     private void Prep(int dbId, string key)
     {
         using var conn = Create(allowAdmin: true);
@@ -28,9 +26,10 @@ public class MassiveDeleteTests : TestBase
         db.Wait(last!);
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task ExecuteMassiveDelete()
     {
+        Skip.UnlessLongRunning();
         var dbId = TestConfig.GetDedicatedDB();
         var key = Me();
         Prep(dbId, key);

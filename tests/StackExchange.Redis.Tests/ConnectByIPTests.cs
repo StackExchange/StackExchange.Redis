@@ -3,14 +3,11 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectByIPTests : TestBase
+public class ConnectByIPTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectByIPTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void ParseEndpoints()
     {

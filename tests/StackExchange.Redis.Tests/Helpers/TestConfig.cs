@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests;
 
 public static class TestConfig
 {
-    private const string FileName = "TestConfig.json";
+    private const string FileName = "RedisTestConfig.json";
 
     public static Config Current { get; }
 

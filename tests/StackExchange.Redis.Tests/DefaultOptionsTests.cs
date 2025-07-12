@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -9,18 +8,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis.Configuration;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class DefaultOptionsTests : TestBase
+public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
 {
-    public DefaultOptionsTests(ITestOutputHelper output) : base(output) { }
-
-    public class TestOptionsProvider : DefaultOptionsProvider
+    public class TestOptionsProvider(string domainSuffix) : DefaultOptionsProvider
     {
-        private readonly string _domainSuffix;
-        public TestOptionsProvider(string domainSuffix) => _domainSuffix = domainSuffix;
+        private readonly string _domainSuffix = domainSuffix;
 
         public override bool AbortOnConnectFail => true;
         public override TimeSpan? ConnectTimeout => TimeSpan.FromSeconds(123);

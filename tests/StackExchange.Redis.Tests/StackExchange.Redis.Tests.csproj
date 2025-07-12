@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net481;net8.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <SignAssembly>true</SignAssembly>
@@ -23,7 +24,7 @@
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" />
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="System.IO.Compression" />
     <PackageReference Include="System.IO.Pipelines" />

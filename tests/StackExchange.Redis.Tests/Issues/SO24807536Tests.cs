@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO24807536Tests : TestBase
+public class SO24807536Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public SO24807536Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task Exec()
     {

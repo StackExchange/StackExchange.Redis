@@ -7,18 +7,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class ClusterTests : TestBase
+public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture)
-    {
-    }
-
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
     [Fact]
@@ -53,7 +48,7 @@ public class ClusterTests : TestBase
                 var srv = conn.GetServer(ep);
                 var counters = srv.GetCounters();
                 Assert.Equal(1, counters.Interactive.SocketCount);
-                Assert.Equal(Context.IsResp3 ? 0 : 1, counters.Subscription.SocketCount);
+                Assert.Equal(TestContext.Current.IsResp3() ? 0 : 1, counters.Subscription.SocketCount);
             }
         }
     }
@@ -161,7 +156,7 @@ public class ClusterTests : TestBase
         int slot = conn.HashSlot(key);
         var rightPrimaryNode = config.GetBySlot(key);
         Assert.NotNull(rightPrimaryNode);
-        Log("Right Primary: {0} {1}", rightPrimaryNode.EndPoint, rightPrimaryNode.NodeId);
+        Log($"Right Primary: {rightPrimaryNode.EndPoint} {rightPrimaryNode.NodeId}");
 
         Assert.NotNull(rightPrimaryNode.EndPoint);
         string? a = StringGet(conn.GetServer(rightPrimaryNode.EndPoint), key);
@@ -169,7 +164,7 @@ public class ClusterTests : TestBase
 
         var node = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightPrimaryNode.NodeId);
         Assert.NotNull(node);
-        Log("Using Primary: {0}", node.EndPoint, node.NodeId);
+        Log($"Using Primary: {node.EndPoint} {node.NodeId}");
         {
             Assert.NotNull(node.EndPoint);
             string? b = StringGet(conn.GetServer(node.EndPoint), key);
@@ -223,7 +218,7 @@ public class ClusterTests : TestBase
                 y = Guid.NewGuid().ToString();
             }
             while (--abort > 0 && config.GetBySlot(y) == xNode);
-            if (abort == 0) Skip.Inconclusive("failed to find a different node to use");
+            if (abort == 0) Assert.Skip("failed to find a different node to use");
             var yNode = config.GetBySlot(y);
             Assert.NotNull(yNode);
             Log("x={0}, served by {1}", x, xNode.NodeId);
@@ -279,7 +274,7 @@ public class ClusterTests : TestBase
                 y = Guid.NewGuid().ToString();
             }
             while (--abort > 0 && config.GetBySlot(y) != xNode);
-            if (abort == 0) Skip.Inconclusive("failed to find a key with the same node to use");
+            Assert.SkipWhen(abort == 0, "failed to find a key with the same node to use");
             var yNode = config.GetBySlot(y);
             Assert.NotNull(xNode);
             Log("x={0}, served by {1}", x, xNode.NodeId);
@@ -377,11 +372,11 @@ public class ClusterTests : TestBase
         try
         {
             Assert.False(server.Keys(pattern: pattern, pageSize: pageSize).Any());
-            Log("Complete: '{0}' / {1}", pattern, pageSize);
+            Log($"Complete: '{pattern}' / {pageSize}");
         }
         catch
         {
-            Log("Failed: '{0}' / {1}", pattern, pageSize);
+            Log($"Failed: '{pattern}' / {pageSize}");
             throw;
         }
     }
@@ -905,10 +900,17 @@ public class ClusterTests : TestBase
             toNode = nodeIdForPort7000;
         }
 
-        Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "IMPORTING", fromNode).ToString());
-        Assert.Equal("OK", fromServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "MIGRATING", toNode).ToString());
-        Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
-        Assert.Equal("OK", fromServer!.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
+        try
+        {
+            Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "IMPORTING", fromNode).ToString());
+            Assert.Equal("OK", fromServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "MIGRATING", toNode).ToString());
+            Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
+            Assert.Equal("OK", fromServer!.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
+        }
+        catch (RedisServerException ex) when (ex.Message == "ERR I'm already the owner of hash slot 7177")
+        {
+            Log("Slot already migrated.");
+        }
     }
 
     [Theory]

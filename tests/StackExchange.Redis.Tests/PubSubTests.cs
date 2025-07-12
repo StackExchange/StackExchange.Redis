@@ -7,16 +7,13 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class PubSubTests : TestBase
+public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task ExplicitPublishMode()
     {
@@ -285,18 +282,20 @@ public class PubSubTests : TestBase
 #pragma warning restore CS0618
     }
 
-    [FactLongRunning]
+    [Fact]
     public void TestMassivePublishWithWithoutFlush_Local()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create();
 
         var sub = conn.GetSubscriber();
         TestMassivePublish(sub, Me(), "local");
     }
 
-    [FactLongRunning]
+    [Fact]
     public void TestMassivePublishWithWithoutFlush_Remote()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
 
         var sub = conn.GetSubscriber();

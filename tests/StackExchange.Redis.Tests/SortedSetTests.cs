@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class SortedSetTests : TestBase
+public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     private static readonly SortedSetEntry[] entries = new SortedSetEntry[]
     {
         new SortedSetEntry("a", 1),
@@ -354,7 +351,7 @@ public class SortedSetTests : TestBase
 
         var result = db.Execute("ZRANGE", new object[] { key, 0, -1, "WITHSCORES" });
 
-        if (Context.IsResp3)
+        if (TestContext.Current.IsResp3())
         {
             AssertJaggedArrayEntries(result);
         }

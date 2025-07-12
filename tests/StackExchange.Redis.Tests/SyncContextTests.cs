@@ -3,14 +3,11 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class SyncContextTests : TestBase
+    public class SyncContextTests(ITestOutputHelper testOutput) : TestBase(testOutput)
     {
-        public SyncContextTests(ITestOutputHelper testOutput) : base(testOutput) { }
-
         /* Note A (referenced below)
          *
          * When sync-context is *enabled*, we don't validate OpCount > 0 - this is because *with the additional checks*,

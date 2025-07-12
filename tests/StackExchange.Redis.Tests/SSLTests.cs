@@ -7,23 +7,18 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
-using NSubstitute.Exceptions;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
+public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixture) : TestBase(output), IClassFixture<SSLTests.SSLServerFixture>
 {
-    private SSLServerFixture Fixture { get; }
-
-    public SSLTests(ITestOutputHelper output, SSLServerFixture fixture) : base(output) => Fixture = fixture;
+    private SSLServerFixture Fixture { get; } = fixture;
 
     [Theory] // (note the 6379 port is closed)
     [InlineData(null, true)] // auto-infer port (but specify 6380)
@@ -228,13 +223,13 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
                 Log("(Expected) Failure connecting: " + ex.Message);
                 if (ex.InnerException is PlatformNotSupportedException pnse)
                 {
-                    Skip.Inconclusive("Expected failure, but also test not supported on this platform: " + pnse.Message);
+                    Assert.Skip("Expected failure, but also test not supported on this platform: " + pnse.Message);
                 }
             }
         }
         catch (RedisException ex) when (ex.InnerException is PlatformNotSupportedException pnse)
         {
-            Skip.Inconclusive("Test not supported on this platform: " + pnse.Message);
+            Assert.Skip("Test not supported on this platform: " + pnse.Message);
         }
     }
 #endif
@@ -563,7 +558,7 @@ public class SSLTests : TestBase, IClassFixture<SSLTests.SSLServerFixture>
             Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), TestConfig.Current.SslServer);
             if (!ServerRunning)
             {
-                Skip.Inconclusive($"SSL/TLS Server was not running at {TestConfig.Current.SslServer}:{TestConfig.Current.SslPort}");
+                Assert.Skip($"SSL/TLS Server was not running at {TestConfig.Current.SslServer}:{TestConfig.Current.SslPort}");
             }
         }
 

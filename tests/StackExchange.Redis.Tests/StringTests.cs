@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -13,10 +12,8 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class StringTests : TestBase
+public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public StringTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task Append()
     {

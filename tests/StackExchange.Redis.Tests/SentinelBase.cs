@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -28,9 +27,9 @@ public class SentinelBase : TestBase, IAsyncLifetime
     }
 #nullable enable
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => default;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var options = ServiceOptions.Clone();
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);

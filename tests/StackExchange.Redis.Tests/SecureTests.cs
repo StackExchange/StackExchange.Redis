@@ -1,17 +1,14 @@
 ﻿using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class SecureTests : TestBase
+public class SecureTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() =>
         TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
-
-    public SecureTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public void MassiveBulkOpsFireAndForgetSecure()

@@ -2,16 +2,13 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class PubSubMultiserverTests : TestBase
+public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
     [Fact]
@@ -72,7 +69,7 @@ public class PubSubMultiserverTests : TestBase
         Log("Connected to: " + initialServer);
 
         conn.AllowConnect = false;
-        if (Context.IsResp3)
+        if (TestContext.Current.IsResp3())
         {
             subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.All);
 
@@ -157,7 +154,7 @@ public class PubSubMultiserverTests : TestBase
         Log("Connected to: " + initialServer);
 
         conn.AllowConnect = false;
-        if (Context.IsResp3)
+        if (TestContext.Current.IsResp3())
         {
             subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.All); // need to kill the main connection
             Assert.False(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");

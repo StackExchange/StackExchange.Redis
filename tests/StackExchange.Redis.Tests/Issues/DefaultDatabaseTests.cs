@@ -1,13 +1,10 @@
 ﻿using System.IO;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class DefaultDatabaseTests : TestBase
+public class DefaultDatabaseTests(ITestOutputHelper output) : TestBase(output)
 {
-    public DefaultDatabaseTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void UnspecifiedDbId_ReturnsNull()
     {

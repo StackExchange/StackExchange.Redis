@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -10,10 +9,8 @@ namespace StackExchange.Redis.Tests;
 /// past versions work correctly and aren't source breaking.
 /// </summary>
 [Collection(SharedConnectionFixture.Key)]
-public class OverloadCompatTests : TestBase
+public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task KeyExpire()
     {

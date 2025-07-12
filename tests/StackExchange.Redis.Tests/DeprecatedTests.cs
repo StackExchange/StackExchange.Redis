@@ -1,16 +1,13 @@
 ﻿using System;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
 /// Testing that things we deprecate still parse, but are otherwise defaults.
 /// </summary>
-public class DeprecatedTests : TestBase
+public class DeprecatedTests(ITestOutputHelper output) : TestBase(output)
 {
-    public DeprecatedTests(ITestOutputHelper output) : base(output) { }
-
 #pragma warning disable CS0618 // Type or member is obsolete
     [Fact]
     public void HighPrioritySocketThreads()

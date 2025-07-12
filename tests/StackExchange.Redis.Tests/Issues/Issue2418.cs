@@ -1,15 +1,11 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue2418 : TestBase
+public class Issue2418(ITestOutputHelper output, SharedConnectionFixture? fixture = null) : TestBase(output, fixture)
 {
-    public Issue2418(ITestOutputHelper output, SharedConnectionFixture? fixture = null)
-        : base(output, fixture) { }
-
     [Fact]
     public async Task Execute()
     {

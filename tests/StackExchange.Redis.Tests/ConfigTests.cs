@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
@@ -15,16 +14,13 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis.Configuration;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class ConfigTests : TestBase
+public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     public Version DefaultVersion = new(3, 0, 0);
 
     [Fact]
@@ -320,7 +316,7 @@ public class ConfigTests : TestBase
             conn.AddLibraryNameSuffix("foo");
 
             libName = (await server.ClientListAsync()).Single(x => x.Id == id).LibraryName;
-            Log("library name: {0}", libName);
+            Log($"library name: {libName}");
             Assert.Equal("SE.Redis-bar-foo", libName);
         }
         else
@@ -360,7 +356,7 @@ public class ConfigTests : TestBase
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();
         Assert.True(servers[0].IsConnected);
-        if (!Context.IsResp3)
+        if (!TestContext.Current.IsResp3())
         {
             Assert.False(servers[0].IsSubscriberConnected);
         }
@@ -481,7 +477,7 @@ public class ConfigTests : TestBase
             var self = clients.First(x => x.Id == id);
             if (server.Version.Major >= 7)
             {
-                Assert.Equal(Context.Test.Protocol, self.Protocol);
+                Assert.Equal(TestContext.Current.GetProtocol(), self.Protocol);
             }
             else
             {

@@ -2,19 +2,17 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue182Tests : TestBase
+public class Issue182Tests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() => $"{TestConfig.Current.PrimaryServerAndPort},responseTimeout=10000";
 
-    public Issue182Tests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task SetMembers()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create(syncTimeout: 20000);
 
         conn.ConnectionFailed += (s, a) =>
@@ -41,9 +39,10 @@ public class Issue182Tests : TestBase
         Assert.Equal(count, result.Length); // SMEMBERS result length
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task SetUnion()
     {
+        Skip.UnlessLongRunning();
         using var conn = Create(syncTimeout: 10000);
 
         var db = conn.GetDatabase();

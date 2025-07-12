@@ -1,11 +1,9 @@
-﻿using Xunit.Abstractions;
+﻿using Xunit;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue6Tests : TestBase
+public class Issue6Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public Issue6Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void ShouldWorkWithoutEchoOrPing()
     {

@@ -4,16 +4,13 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
 [Collection(SharedConnectionFixture.Key)]
-public class StreamTests : TestBase
+public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public StreamTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     public override string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
         base.Me(filePath, caller) + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 

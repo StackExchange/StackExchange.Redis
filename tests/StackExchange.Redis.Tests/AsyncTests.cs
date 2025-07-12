@@ -3,15 +3,12 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class AsyncTests : TestBase
+public class AsyncTests(ITestOutputHelper output) : TestBase(output)
 {
-    public AsyncTests(ITestOutputHelper output) : base(output) { }
-
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
     [Fact]

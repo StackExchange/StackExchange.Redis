@@ -2,16 +2,12 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
     [Collection(NonParallelCollection.Name)]
-    public class Issue2507 : TestBase
+    public class Issue2507(ITestOutputHelper output, SharedConnectionFixture? fixture = null) : TestBase(output, fixture)
     {
-        public Issue2507(ITestOutputHelper output, SharedConnectionFixture? fixture = null)
-            : base(output, fixture) { }
-
         [Fact]
         public async Task Execute()
         {
@@ -21,7 +17,7 @@ namespace StackExchange.Redis.Tests.Issues
             var queue = await pubsub.SubscribeAsync(RedisChannel.Literal("__redis__:invalidate"));
             await Task.Delay(100);
             var connectionId = conn.GetConnectionId(conn.GetEndPoints().Single(), ConnectionType.Subscription);
-            if (connectionId is null) Skip.Inconclusive("Connection id not available");
+            if (connectionId is null) Assert.Skip("Connection id not available");
 
             string baseKey = Me();
             RedisKey key1 = baseKey + "abc",
