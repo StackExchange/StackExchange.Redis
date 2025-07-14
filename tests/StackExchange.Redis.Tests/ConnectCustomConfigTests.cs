@@ -74,7 +74,7 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
     public async Task TiebreakerIncorrectType()
     {
         var tiebreakerKey = Me();
-        using var fubarConn = Create(allowAdmin: true, log: Writer);
+        await using var fubarConn = Create(allowAdmin: true, log: Writer);
         // Store something nonsensical in the tiebreaker key:
         fubarConn.GetDatabase().HashSet(tiebreakerKey, "foo", "bar");
 
@@ -101,7 +101,7 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
         };
         options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
         var db = conn.GetDatabase();
         await db.PingAsync();

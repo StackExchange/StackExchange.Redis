@@ -24,16 +24,16 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void ClientScripting()
+    public async Task ClientScripting()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
         _ = conn.GetDatabase().ScriptEvaluate(script: "return redis.call('info','server')", keys: null, values: null);
     }
 
     [Fact]
     public async Task BasicScripting()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var db = conn.GetDatabase();
         var noCache = db.ScriptEvaluateAsync(
@@ -62,9 +62,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void KeysScripting()
+    public async Task KeysScripting()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -82,7 +82,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
                               return redis.call('INCRBY', KEYS[1], -tonumber(ARGV[1]));
                               """;
 
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var prefix = Me();
         var db = conn.GetDatabase();
@@ -107,7 +107,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task MultiIncrWithoutReplies()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -140,7 +140,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task MultiIncrByWithoutReplies()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -169,9 +169,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void DisableStringInference()
+    public async Task DisableStringInference()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -182,10 +182,10 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void FlushDetection()
+    public async Task FlushDetection()
     {
         // we don't expect this to handle everything; we just expect it to be predictable
-        using var conn = GetScriptConn(allowAdmin: true);
+        await using var conn = GetScriptConn(allowAdmin: true);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -239,9 +239,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void NonAsciiScripts()
+    public async Task NonAsciiScripts()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         const string Evil = "return '僕'";
         var db = conn.GetDatabase();
@@ -254,7 +254,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task ScriptThrowsError()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
         await Assert.ThrowsAsync<RedisServerException>(async () =>
         {
             var db = conn.GetDatabase();
@@ -270,9 +270,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void ScriptThrowsErrorInsideTransaction()
+    public async Task ScriptThrowsErrorInsideTransaction()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -315,7 +315,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task ChangeDbInScript()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var key = Me();
         conn.GetDatabase(1).StringSet(key, "db 1", flags: CommandFlags.FireAndForget);
@@ -338,7 +338,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task ChangeDbInTranScript()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
 
         var key = Me();
         conn.GetDatabase(1).StringSet(key, "db 1", flags: CommandFlags.FireAndForget);
@@ -389,8 +389,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [InlineData(false)]
     public async Task CheckLoads(bool async)
     {
-        using var conn0 = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
-        using var conn1 = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn0 = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn1 = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         // note that these are on different connections (so we wouldn't expect
         // the flush to drop the local cache - assume it is a surprise!)
@@ -1051,9 +1051,9 @@ return arr;
     public void RedisResultUnderstandsNullValue() => TestNullValue(RedisResult.Create(RedisValue.Null, ResultType.None));
 
     [Fact]
-    public void TestEvalReadonly()
+    public async Task TestEvalReadonly()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
         var db = conn.GetDatabase();
 
         string script = "return KEYS[1]";
@@ -1067,7 +1067,7 @@ return arr;
     [Fact]
     public async Task TestEvalReadonlyAsync()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
         var db = conn.GetDatabase();
 
         string script = "return KEYS[1]";
@@ -1079,9 +1079,9 @@ return arr;
     }
 
     [Fact]
-    public void TestEvalShaReadOnly()
+    public async Task TestEvalShaReadOnly()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
         var db = conn.GetDatabase();
         db.StringSet("foo", "bar");
         db.ScriptEvaluate(script: "return redis.call('get','foo')");
@@ -1097,7 +1097,7 @@ return arr;
     [Fact]
     public async Task TestEvalShaReadOnlyAsync()
     {
-        using var conn = GetScriptConn();
+        await using var conn = GetScriptConn();
         var db = conn.GetDatabase();
         db.StringSet("foo", "bar");
         db.ScriptEvaluate(script: "return redis.call('get','foo')");

@@ -371,9 +371,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task PubSubGetAllAnyOrder()
     {
-        using var sonn = Create(syncTimeout: 20000, shared: false, log: Writer);
+        await using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
 
-        var sub = sonn.GetSubscriber();
+        var sub = conn.GetSubscriber();
         RedisChannel channel = RedisChannel.Literal(Me());
         const int count = 1000;
         var syncLock = new object();
@@ -626,9 +626,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestPublishWithSubscribers()
     {
-        using var connA = Create(shared: false, log: Writer);
-        using var connB = Create(shared: false, log: Writer);
-        using var connPub = Create();
+        await using var connA = Create(shared: false, log: Writer);
+        await using var connB = Create(shared: false, log: Writer);
+        await using var connPub = Create();
 
         var channel = Me();
         var listenA = connA.GetSubscriber();
@@ -653,9 +653,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestMultipleSubscribersGetMessage()
     {
-        using var connA = Create(shared: false, log: Writer);
-        using var connB = Create(shared: false, log: Writer);
-        using var connPub = Create();
+        await using var connA = Create(shared: false, log: Writer);
+        await using var connB = Create(shared: false, log: Writer);
+        await using var connPub = Create();
 
         var channel = RedisChannel.Literal(Me());
         var listenA = connA.GetSubscriber();
@@ -718,9 +718,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestPartialSubscriberGetMessage()
     {
-        using var connA = Create();
-        using var connB = Create();
-        using var connPub = Create();
+        await using var connA = Create();
+        await using var connB = Create();
+        await using var connPub = Create();
 
         int gotA = 0, gotB = 0;
         var listenA = connA.GetSubscriber();
@@ -751,8 +751,8 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestSubscribeUnsubscribeAndSubscribeAgain()
     {
-        using var connPub = Create();
-        using var connSub = Create();
+        await using var connPub = Create();
+        await using var connSub = Create();
 
         var prefix = Me();
         var pub = connPub.GetSubscriber();

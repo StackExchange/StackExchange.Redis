@@ -145,7 +145,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         var provider = new TestAfterConnectOptionsProvider();
         options.Defaults = provider;
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
         Assert.True(conn.IsConnected);
         Assert.Equal(1, provider.Calls);
@@ -162,7 +162,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.Defaults = new TestClientNameOptionsProvider();
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
         Assert.True(conn.IsConnected);
         Assert.Equal("Hey there", conn.ClientName);
@@ -174,7 +174,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         var options = ConfigurationOptions.Parse(GetConfiguration() + ",name=FooBar");
         options.Defaults = new TestClientNameOptionsProvider();
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
         Assert.True(conn.IsConnected);
         Assert.Equal("FooBar", conn.ClientName);
@@ -194,7 +194,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         options.AllowAdmin = true;
         options.Defaults = defaults;
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
         // CLIENT SETINFO is in 7.2.0+
         ThrowIfBelowMinVersion(conn, RedisFeatures.v7_2_0_rc1);
 

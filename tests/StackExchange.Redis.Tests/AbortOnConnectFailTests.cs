@@ -8,9 +8,9 @@ namespace StackExchange.Redis.Tests;
 public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact]
-    public void NeverEverConnectedNoBacklogThrowsConnectionNotAvailableSync()
+    public async Task NeverEverConnectedNoBacklogThrowsConnectionNotAvailableSync()
     {
-        using var conn = GetFailFastConn();
+        await using var conn = GetFailFastConn();
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -23,7 +23,7 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
     [Fact]
     public async Task NeverEverConnectedNoBacklogThrowsConnectionNotAvailableAsync()
     {
-        using var conn = GetFailFastConn();
+        await using var conn = GetFailFastConn();
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -34,9 +34,9 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
     }
 
     [Fact]
-    public void DisconnectAndReconnectThrowsConnectionExceptionSync()
+    public async Task DisconnectAndReconnectThrowsConnectionExceptionSync()
     {
-        using var conn = GetWorkingBacklogConn();
+        await using var conn = GetWorkingBacklogConn();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -60,7 +60,7 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
     [Fact]
     public async Task DisconnectAndNoReconnectThrowsConnectionExceptionAsync()
     {
-        using var conn = GetWorkingBacklogConn();
+        await using var conn = GetWorkingBacklogConn();
 
         var db = conn.GetDatabase();
         var key = Me();

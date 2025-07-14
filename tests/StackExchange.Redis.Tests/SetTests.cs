@@ -376,7 +376,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         var items = Enumerable.Repeat(0, 200).Select(_ => random.Next()).ToList();
         await db.SetAddAsync(key, items.Select(x => (RedisValue)x).ToArray());
 
-        using var readonlyConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v7_0_0_rc1);
+        await using var readonlyConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v7_0_0_rc1);
         var readonlyDb = conn.GetDatabase();
 
         items.Sort();

@@ -88,7 +88,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     {
         var options = ServiceOptions.Clone();
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
-        using var conn = ConnectionMultiplexer.SentinelConnect(options);
+        await using var conn = ConnectionMultiplexer.SentinelConnect(options);
 
         var db = conn.GetDatabase();
         var test = await db.PingAsync();
@@ -120,7 +120,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
             Log("  Endpoint: " + ep);
         }
 
-        using var conn2 = ConnectionMultiplexer.Connect(options);
+        await using var conn2 = ConnectionMultiplexer.Connect(options);
 
         var db2 = conn2.GetDatabase();
         var test2 = await db2.PingAsync();

@@ -15,10 +15,8 @@ public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task ClientKill()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
-
         SetExpectedAmbientFailureCount(-1);
-        using var otherConnection = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var otherConnection = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast, require: RedisFeatures.v7_4_0_rc1);
         var id = otherConnection.GetDatabase().Execute(RedisCommand.CLIENT.ToString(), RedisLiterals.ID);
 
         await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
@@ -30,12 +28,10 @@ public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task ClientKillWithMaxAge()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
-
         SetExpectedAmbientFailureCount(-1);
-        using var otherConnection = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var otherConnection = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast, require: RedisFeatures.v7_4_0_rc1);
         var id = otherConnection.GetDatabase().Execute(RedisCommand.CLIENT.ToString(), RedisLiterals.ID);
-        Thread.Sleep(1000);
+        await Task.Delay(1000);
 
         await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var server = conn.GetServer(conn.GetEndPoints()[0]);

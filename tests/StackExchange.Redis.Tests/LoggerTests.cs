@@ -27,7 +27,7 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.LoggerFactory = new TestWrapperLoggerFactory(new TestMultiLogger(traceLogger, debugLogger, infoLogger, warningLogger, errorLogger, criticalLogger));
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         // We expect more at the trace level: GET, ECHO, PING on commands
         Assert.True(traceLogger.CallCount > debugLogger.CallCount);
         // Many calls for all log lines - don't set exact here since every addition would break the test
@@ -46,7 +46,7 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
         var wrapped = new TestWrapperLoggerFactory(NullLogger.Instance);
         options.LoggerFactory = wrapped;
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         Assert.True(wrapped.Logger.LogCount > 0);
     }
 

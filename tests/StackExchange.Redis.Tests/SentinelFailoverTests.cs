@@ -14,7 +14,7 @@ public class SentinelFailoverTests(ITestOutputHelper output) : SentinelBase(outp
     {
         Skip.UnlessLongRunning();
         var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
-        using var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
 
         conn.ConfigurationChanged += (s, e) => Log($"Configuration changed: {e.EndPoint}");
 

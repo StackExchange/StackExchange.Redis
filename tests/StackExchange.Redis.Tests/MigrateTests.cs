@@ -14,8 +14,8 @@ public class MigrateTests(ITestOutputHelper output) : TestBase(output)
         var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
         var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } }, AllowAdmin = true };
 
-        using var fromConn = ConnectionMultiplexer.Connect(fromConfig, Writer);
-        using var toConn = ConnectionMultiplexer.Connect(toConfig, Writer);
+        await using var fromConn = ConnectionMultiplexer.Connect(fromConfig, Writer);
+        await using var toConn = ConnectionMultiplexer.Connect(toConfig, Writer);
 
         if (await IsWindows(fromConn) || await IsWindows(toConn))
             Assert.Skip("'migrate' is unreliable on redis-64");

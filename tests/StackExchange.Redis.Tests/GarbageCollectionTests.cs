@@ -62,7 +62,7 @@ public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
         Task? completedTestTask = null;
         _ = Task.Run(async () =>
         {
-            using var conn = await ConnectionMultiplexer.ConnectAsync(
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(
                 new ConfigurationOptions()
                 {
                     BacklogPolicy = BacklogPolicy.Default,

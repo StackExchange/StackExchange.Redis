@@ -56,7 +56,7 @@ public class SecureTests(ITestOutputHelper output) : TestBase(output)
     [InlineData("", "NOAUTH Returned - connection has not yet authenticated")]
     public async Task ConnectWithWrongPassword(string password, string exepctedMessage)
     {
-        using var checkConn = Create();
+        await using var checkConn = Create();
         var checkServer = GetServer(checkConn);
 
         var config = ConfigurationOptions.Parse(GetConfiguration());
@@ -68,7 +68,7 @@ public class SecureTests(ITestOutputHelper output) : TestBase(output)
         {
             SetExpectedAmbientFailureCount(-1);
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false);
 
             await conn.GetDatabase().PingAsync();
         }).ConfigureAwait(false);

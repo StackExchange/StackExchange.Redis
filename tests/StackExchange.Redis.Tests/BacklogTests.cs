@@ -46,7 +46,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
             var db = conn.GetDatabase();
             Log("Test: Initial (connected) ping");
@@ -119,7 +119,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
             conn.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
             conn.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
@@ -210,7 +210,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
             conn.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
             conn.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
@@ -308,7 +308,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             options.AllowAdmin = true;
             options.SocketManager = SocketManager.ThreadPool;
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
             conn.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
             conn.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));

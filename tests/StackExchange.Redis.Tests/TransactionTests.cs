@@ -1236,8 +1236,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [Fact]
     public async Task WatchAbort_StringEqual()
     {
-        using var vicConn = Create();
-        using var perpConn = Create();
+        await using var vicConn = Create();
+        await using var perpConn = Create();
 
         var key = Me();
         var db = vicConn.GetDatabase();
@@ -1260,8 +1260,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [Fact]
     public async Task WatchAbort_HashLengthEqual()
     {
-        using var vicConn = Create();
-        using var perpConn = Create();
+        await using var vicConn = Create();
+        await using var perpConn = Create();
 
         var key = Me();
         var db = vicConn.GetDatabase();

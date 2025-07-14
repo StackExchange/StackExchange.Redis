@@ -76,8 +76,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
     public async Task ConfigVerifyReceiveConfigChangeBroadcast()
     {
         _ = GetConfiguration();
-        using var senderConn = Create(allowAdmin: true);
-        using var receiverConn = Create(syncTimeout: 2000);
+        await using var senderConn = Create(allowAdmin: true);
+        await using var receiverConn = Create(syncTimeout: 2000);
 
         int total = 0;
         receiverConn.ConfigurationChangedBroadcast += (s, a) =>
@@ -296,8 +296,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
     {
         static void TopologyFail() => Assert.Skip("Replication topology change failed...and that's both inconsistent and not what we're testing.");
 
-        using var aConn = Create(allowAdmin: true, shared: false);
-        using var bConn = Create(allowAdmin: true, shared: false);
+        await using var aConn = Create(allowAdmin: true, shared: false);
+        await using var bConn = Create(allowAdmin: true, shared: false);
 
         RedisChannel channel = RedisChannel.Literal(Me());
         Log("Using Channel: " + channel);

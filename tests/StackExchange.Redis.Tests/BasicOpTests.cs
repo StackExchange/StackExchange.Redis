@@ -29,14 +29,14 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact(Skip = "This needs some CI love, it's not a scenario we care about too much but noisy atm.")]
     public async Task RapidDispose()
     {
-        using var primary = Create();
+        await using var primary = Create();
         var db = primary.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         for (int i = 0; i < 10; i++)
         {
-            using var secondary = Create(fail: true, shared: false);
+            await using var secondary = Create(fail: true, shared: false);
             secondary.GetDatabase().StringIncrement(key, flags: CommandFlags.FireAndForget);
         }
         // Give it a moment to get through the pipe...they were fire and forget
@@ -371,21 +371,21 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void ShouldUseSharedMuxer()
+    public async Task ShouldUseSharedMuxer()
     {
         Log($"Shared: {SharedFixtureAvailable}");
         if (SharedFixtureAvailable)
         {
-            using var a = Create();
+            await using var a = Create();
             Assert.IsNotType<ConnectionMultiplexer>(a);
-            using var b = Create();
+            await using var b = Create();
             Assert.Same(a, b);
         }
         else
         {
-            using var a = Create();
+            await using var a = Create();
             Assert.IsType<ConnectionMultiplexer>(a);
-            using var b = Create();
+            await using var b = Create();
             Assert.NotSame(a, b);
         }
     }

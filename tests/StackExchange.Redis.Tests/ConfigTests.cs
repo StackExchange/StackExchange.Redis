@@ -236,7 +236,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         foreach (var ep in conn.GetServerSnapshot().ToArray())
         {
@@ -509,7 +509,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             oldTimeout = srv.ConfigGet("timeout")[0].Value;
             srv.ConfigSet("timeout", 5);
 
-            using var innerConn = Create();
+            await using var innerConn = Create();
             var innerDb = innerConn.GetDatabase();
             await innerDb.PingAsync(); // need to wait to pick up configuration etc
 
@@ -679,7 +679,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var originalUser = options.User = "originalUser";
         var originalPassword = options.Password = "originalPassword";
         Assert.Equal("Details", options.ClientName);
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         // Same instance
         Assert.Same(options, conn.RawConfig);

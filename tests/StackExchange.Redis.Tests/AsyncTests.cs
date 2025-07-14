@@ -43,7 +43,7 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
     public async Task AsyncTimeoutIsNoticed()
     {
         await using var conn = Create(syncTimeout: 1000, asyncTimeout: 1000);
-        using var pauseConn = Create();
+        await using var pauseConn = Create();
         var opt = ConfigurationOptions.Parse(conn.Configuration);
         if (!Debugger.IsAttached)
         { // we max the timeouts if a debugger is detected

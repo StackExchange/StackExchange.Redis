@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests.Issues
             };
             options.EndPoints.Add("127.0.0.1:1234");
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             var key = Me();
             var db = conn.GetDatabase();
             var server = conn.GetServerSnapshot()[0];

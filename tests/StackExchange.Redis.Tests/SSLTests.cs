@@ -210,7 +210,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
 
             if (expectSuccess)
             {
-                using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+                await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
 
                 var db = conn.GetDatabase();
                 Log("Pinging...");

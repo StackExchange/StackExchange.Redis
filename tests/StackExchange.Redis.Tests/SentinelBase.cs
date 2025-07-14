@@ -42,7 +42,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
             await Task.Delay(100).ForAwait();
             if (Conn.IsConnected)
             {
-                using var checkConn = Conn.GetSentinelMasterConnection(options, Writer);
+                await using var checkConn = Conn.GetSentinelMasterConnection(options, Writer);
                 if (checkConn.IsConnected)
                 {
                     break;
@@ -98,7 +98,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
             throw new RedisException($"Primary was expected to be {expectedPrimary}");
         Log($"Primary is {primary}");
 
-        using var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
+        await using var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
         await WaitForRoleAsync(checkConn.GetServer(primary), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
 

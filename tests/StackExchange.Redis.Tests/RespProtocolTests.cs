@@ -111,7 +111,7 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
         config.Protocol = RedisProtocol.Resp3;
         config.CommandMap = CommandMap.Create(new() { ["hello"] = command });
 
-        using var muxer = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+        await using var muxer = await ConnectionMultiplexer.ConnectAsync(config, Writer);
         await muxer.GetDatabase().PingAsync(); // is connected
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints()[0]);
         if (!ep.GetFeatures().Resp3) // this is just a v6 check
