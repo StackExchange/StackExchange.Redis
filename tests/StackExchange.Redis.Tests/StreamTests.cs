@@ -15,9 +15,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         base.Me(filePath, caller) + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     [Fact]
-    public void IsStreamType()
+    public async Task IsStreamType()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -29,9 +29,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAddSinglePairWithAutoId()
+    public async Task StreamAddSinglePairWithAutoId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -41,9 +41,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAddMultipleValuePairsWithAutoId()
+    public async Task StreamAddMultipleValuePairsWithAutoId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -69,9 +69,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAddWithManualId()
+    public async Task StreamAddWithManualId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string id = "42-0";
@@ -83,9 +83,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAddMultipleValuePairsWithManualId()
+    public async Task StreamAddMultipleValuePairsWithManualId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string id = "42-0";
@@ -109,7 +109,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamAutoClaim_MissingKey()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -126,9 +126,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAutoClaim_ClaimsPendingMessages()
+    public async Task StreamAutoClaim_ClaimsPendingMessages()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -153,7 +153,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamAutoClaim_ClaimsPendingMessagesAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -176,9 +176,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAutoClaim_ClaimsSingleMessageWithCountOption()
+    public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOption()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -201,9 +201,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnly()
+    public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnly()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -228,7 +228,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -253,7 +253,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnlyAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -276,9 +276,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAutoClaim_IncludesDeletedMessageId()
+    public async Task StreamAutoClaim_IncludesDeletedMessageId()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -306,7 +306,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamAutoClaim_IncludesDeletedMessageIdAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -332,9 +332,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAutoClaim_NoMessagesToClaim()
+    public async Task StreamAutoClaim_NoMessagesToClaim()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -358,7 +358,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamAutoClaim_NoMessagesToClaimAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -380,9 +380,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAutoClaim_NoMessageMeetsMinIdleTime()
+    public async Task StreamAutoClaim_NoMessageMeetsMinIdleTime()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -404,7 +404,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamAutoClaim_NoMessageMeetsMinIdleTimeAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -424,9 +424,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamAutoClaim_ReturnsMessageIdOnly()
+    public async Task StreamAutoClaim_ReturnsMessageIdOnly()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -451,7 +451,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamAutoClaim_ReturnsMessageIdOnlyAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -490,9 +490,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupSetId()
+    public async Task StreamConsumerGroupSetId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -521,9 +521,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupWithNoConsumers()
+    public async Task StreamConsumerGroupWithNoConsumers()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -542,9 +542,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamCreateConsumerGroup()
+    public async Task StreamCreateConsumerGroup()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -560,9 +560,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamCreateConsumerGroupBeforeCreatingStream()
+    public async Task StreamCreateConsumerGroupBeforeCreatingStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -581,9 +581,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamCreateConsumerGroupFailsIfKeyDoesntExist()
+    public async Task StreamCreateConsumerGroupFailsIfKeyDoesntExist()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -598,9 +598,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamCreateConsumerGroupSucceedsWhenKeyExists()
+    public async Task StreamCreateConsumerGroupSucceedsWhenKeyExists()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -619,9 +619,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupReadOnlyNewMessagesWithEmptyResponse()
+    public async Task StreamConsumerGroupReadOnlyNewMessagesWithEmptyResponse()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -641,9 +641,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupReadFromStreamBeginning()
+    public async Task StreamConsumerGroupReadFromStreamBeginning()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -662,9 +662,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupReadFromStreamBeginningWithCount()
+    public async Task StreamConsumerGroupReadFromStreamBeginningWithCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -687,9 +687,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupAcknowledgeMessage()
+    public async Task StreamConsumerGroupAcknowledgeMessage()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -725,9 +725,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupClaimMessages()
+    public async Task StreamConsumerGroupClaimMessages()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -775,9 +775,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupClaimMessagesReturningIds()
+    public async Task StreamConsumerGroupClaimMessagesReturningIds()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -823,14 +823,14 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupReadMultipleOneReadBeginningOneReadNew()
+    public async Task StreamConsumerGroupReadMultipleOneReadBeginningOneReadNew()
     {
         // Create a group for each stream. One set to read from the beginning of the
         // stream and the other to begin reading only new messages.
 
         // Ask redis to read from the beginning of both stream, expect messages
         // for only the stream set to read from the beginning.
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
@@ -867,9 +867,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpectNoResult()
+    public async Task StreamConsumerGroupReadMultipleOnlyNewMessagesExpectNoResult()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
@@ -899,9 +899,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpect1Result()
+    public async Task StreamConsumerGroupReadMultipleOnlyNewMessagesExpect1Result()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
@@ -938,9 +938,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupReadMultipleRestrictCount()
+    public async Task StreamConsumerGroupReadMultipleRestrictCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
@@ -976,9 +976,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupViewPendingInfoNoConsumers()
+    public async Task StreamConsumerGroupViewPendingInfoNoConsumers()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -998,9 +998,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupViewPendingInfoWhenNothingPending()
+    public async Task StreamConsumerGroupViewPendingInfoWhenNothingPending()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1021,9 +1021,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupViewPendingInfoSummary()
+    public async Task StreamConsumerGroupViewPendingInfoSummary()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1061,7 +1061,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamConsumerGroupViewPendingMessageInfo()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1096,9 +1096,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamConsumerGroupViewPendingMessageInfoForConsumer()
+    public async Task StreamConsumerGroupViewPendingMessageInfoForConsumer()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1131,9 +1131,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamDeleteConsumer()
+    public async Task StreamDeleteConsumer()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1162,9 +1162,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamDeleteConsumerGroup()
+    public async Task StreamDeleteConsumerGroup()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1191,9 +1191,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamDeleteMessage()
+    public async Task StreamDeleteMessage()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1211,9 +1211,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamDeleteMessages()
+    public async Task StreamDeleteMessages()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1290,9 +1290,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamGroupConsumerInfoGet()
+    public async Task StreamGroupConsumerInfoGet()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1322,9 +1322,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamInfoGet()
+    public async Task StreamInfoGet()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1344,9 +1344,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamInfoGetWithEmptyStream()
+    public async Task StreamInfoGetWithEmptyStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1366,9 +1366,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamNoConsumerGroups()
+    public async Task StreamNoConsumerGroups()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1382,9 +1382,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamPendingNoMessagesOrConsumers()
+    public async Task StreamPendingNoMessagesOrConsumers()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1441,9 +1441,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamRead()
+    public async Task StreamRead()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1462,9 +1462,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadEmptyStream()
+    public async Task StreamReadEmptyStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1484,9 +1484,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadEmptyStreams()
+    public async Task StreamReadEmptyStreams()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1515,9 +1515,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadLastMessage()
+    public async Task StreamReadLastMessage()
     {
-        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
         var db = conn.GetDatabase();
         var key1 = Me();
 
@@ -1533,9 +1533,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadExpectedExceptionInvalidCountMultipleStream()
+    public async Task StreamReadExpectedExceptionInvalidCountMultipleStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var streamPositions = new[]
@@ -1547,9 +1547,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadExpectedExceptionInvalidCountSingleStream()
+    public async Task StreamReadExpectedExceptionInvalidCountSingleStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1557,18 +1557,18 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadExpectedExceptionNullStreamList()
+    public async Task StreamReadExpectedExceptionNullStreamList()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         Assert.Throws<ArgumentNullException>(() => db.StreamRead(null!));
     }
 
     [Fact]
-    public void StreamReadExpectedExceptionEmptyStreamList()
+    public async Task StreamReadExpectedExceptionEmptyStreamList()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var emptyList = Array.Empty<StreamPosition>();
@@ -1576,9 +1576,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadMultipleStreams()
+    public async Task StreamReadMultipleStreams()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1612,9 +1612,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadMultipleStreamsLastMessage()
+    public async Task StreamReadMultipleStreamsLastMessage()
     {
-        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1654,9 +1654,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadMultipleStreamsWithCount()
+    public async Task StreamReadMultipleStreamsWithCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1688,9 +1688,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadMultipleStreamsWithReadPastSecondStream()
+    public async Task StreamReadMultipleStreamsWithReadPastSecondStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1719,9 +1719,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadMultipleStreamsWithEmptyResponse()
+    public async Task StreamReadMultipleStreamsWithEmptyResponse()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1746,9 +1746,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadPastEndOfStream()
+    public async Task StreamReadPastEndOfStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1763,9 +1763,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadRange()
+    public async Task StreamReadRange()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1781,9 +1781,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadRangeOfEmptyStream()
+    public async Task StreamReadRangeOfEmptyStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1801,9 +1801,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadRangeWithCount()
+    public async Task StreamReadRangeWithCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1818,9 +1818,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadRangeReverse()
+    public async Task StreamReadRangeReverse()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1836,9 +1836,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadRangeReverseWithCount()
+    public async Task StreamReadRangeReverseWithCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1853,9 +1853,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadWithAfterIdAndCount_1()
+    public async Task StreamReadWithAfterIdAndCount_1()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1872,9 +1872,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadWithAfterIdAndCount_2()
+    public async Task StreamReadWithAfterIdAndCount_2()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1893,9 +1893,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamTrimLength()
+    public async Task StreamTrimLength()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1914,9 +1914,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamVerifyLength()
+    public async Task StreamVerifyLength()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1933,7 +1933,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task AddWithApproxCountAsync()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1941,9 +1941,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void AddWithApproxCount()
+    public async Task AddWithApproxCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1951,9 +1951,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadGroupWithNoAckShowsNoPendingMessages()
+    public async Task StreamReadGroupWithNoAckShowsNoPendingMessages()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1978,9 +1978,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamReadGroupMultiStreamWithNoAckShowsNoPendingMessages()
+    public async Task StreamReadGroupMultiStreamWithNoAckShowsNoPendingMessages()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -2017,7 +2017,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamReadIndexerUsage()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var streamName = Me();

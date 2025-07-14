@@ -13,9 +13,9 @@ namespace StackExchange.Redis.Tests;
 public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact]
-    public void Simple()
+    public async Task Simple()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
         var script = LuaScript.Prepare("return redis.call('get', @key)");
@@ -96,10 +96,10 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void ManyThreads()
+    public async Task ManyThreads()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
 
         var session = new ProfilingSession();
         var prefix = Me();
@@ -155,10 +155,10 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void ManyContexts()
+    public async Task ManyContexts()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
 
         var profiler = new AsyncLocalProfiler();
         var prefix = Me();
@@ -227,9 +227,9 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void LowAllocationEnumerable()
+    public async Task LowAllocationEnumerable()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         const int OuterLoop = 1000;
         var session = new ProfilingSession();
@@ -273,10 +273,10 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void ProfilingMD_Ex1()
+    public async Task ProfilingMD_Ex1()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
 
         var session = new ProfilingSession();
         var prefix = Me();
@@ -314,10 +314,10 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void ProfilingMD_Ex2()
+    public async Task ProfilingMD_Ex2()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
 
         var profiler = new PerThreadProfiler();
         var prefix = Me();
@@ -361,7 +361,7 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
     public async Task ProfilingMD_Ex2_Async()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
 
         var profiler = new AsyncLocalProfiler();
         var prefix = Me();

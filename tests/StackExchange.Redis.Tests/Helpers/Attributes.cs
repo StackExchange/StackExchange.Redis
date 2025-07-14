@@ -5,7 +5,6 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Testing.Platform.Extensions.Messages;
 using Xunit;
 using Xunit.Internal;
 using Xunit.Sdk;

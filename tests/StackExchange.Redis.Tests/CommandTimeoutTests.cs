@@ -15,8 +15,8 @@ public class CommandTimeoutTests(ITestOutputHelper output) : TestBase(output)
         options.AllowAdmin = true;
         options.AsyncTimeout = 1000;
 
-        using var pauseConn = ConnectionMultiplexer.Connect(options);
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var pauseConn = ConnectionMultiplexer.Connect(options);
+        await using var conn = ConnectionMultiplexer.Connect(options);
 
         var pauseServer = GetServer(pauseConn);
         var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 5000);
@@ -42,8 +42,8 @@ public class CommandTimeoutTests(ITestOutputHelper output) : TestBase(output)
         options.AsyncTimeout = 50;
         options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
 
-        using var pauseConn = ConnectionMultiplexer.Connect(options);
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var pauseConn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         var pauseServer = GetServer(pauseConn);
         var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 2000);

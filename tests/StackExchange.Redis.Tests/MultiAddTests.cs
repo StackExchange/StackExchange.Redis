@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -7,9 +8,9 @@ namespace StackExchange.Redis.Tests;
 public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
-    public void AddSortedSetEveryWay()
+    public async Task AddSortedSetEveryWay()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -58,9 +59,9 @@ public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void AddHashEveryWay()
+    public async Task AddHashEveryWay()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -109,9 +110,9 @@ public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void AddSetEveryWay()
+    public async Task AddSetEveryWay()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -129,9 +130,9 @@ public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void AddSetEveryWayNumbers()
+    public async Task AddSetEveryWayNumbers()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
 

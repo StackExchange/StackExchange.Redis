@@ -8,9 +8,9 @@ namespace StackExchange.Redis.Tests.Issues
     public class Issue2763Tests(ITestOutputHelper output) : TestBase(output)
     {
         [Fact]
-        public void Execute()
+        public async Task Execute()
         {
-            using var conn = Create();
+            await using var conn = Create();
             var subscriber = conn.GetSubscriber();
 
             static void Handler(RedisChannel c, RedisValue v) { }

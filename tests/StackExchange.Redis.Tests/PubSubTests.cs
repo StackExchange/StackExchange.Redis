@@ -17,7 +17,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task ExplicitPublishMode()
     {
-        using var conn = Create(channelPrefix: "foo:", log: Writer);
+        await using var conn = Create(channelPrefix: "foo:", log: Writer);
 
         var pub = conn.GetSubscriber();
         int a = 0, b = 0, c = 0, d = 0;
@@ -55,7 +55,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("Foo:", true, "f")]
     public async Task TestBasicPubSub(string? channelPrefix, bool wildCard, string breaker)
     {
-        using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
+        await using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
 
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
@@ -140,7 +140,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestBasicPubSubFireAndForget()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
 
         var profiler = conn.AddProfiler();
         var pub = GetAnyPrimary(conn);
@@ -215,7 +215,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestPatternPubSub()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
 
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
@@ -272,9 +272,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void TestPublishWithNoSubscribers()
+    public async Task TestPublishWithNoSubscribers()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var sub = conn.GetSubscriber();
 #pragma warning disable CS0618
@@ -283,20 +283,20 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void TestMassivePublishWithWithoutFlush_Local()
+    public async Task TestMassivePublishWithWithoutFlush_Local()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
 
         var sub = conn.GetSubscriber();
         TestMassivePublish(sub, Me(), "local");
     }
 
     [Fact]
-    public void TestMassivePublishWithWithoutFlush_Remote()
+    public async Task TestMassivePublishWithWithoutFlush_Remote()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
+        await using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
 
         var sub = conn.GetSubscriber();
         TestMassivePublish(sub, Me(), "remote");
@@ -336,7 +336,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task SubscribeAsyncEnumerable()
     {
-        using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
+        await using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
 
         var sub = conn.GetSubscriber();
         RedisChannel channel = RedisChannel.Literal(Me());
@@ -660,7 +660,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var channel = RedisChannel.Literal(Me());
         var listenA = connA.GetSubscriber();
         var listenB = connB.GetSubscriber();
-        connPub.GetDatabase().Ping();
+        await connPub.GetDatabase().PingAsync();
         var pub = connPub.GetSubscriber();
         int gotA = 0, gotB = 0;
         var tA = listenA.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
@@ -683,7 +683,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task Issue38()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         var sub = conn.GetSubscriber();
         int count = 0;

@@ -10,9 +10,9 @@ public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixtur
     private static bool Within(double x, double y, double delta) => Math.Abs(x - y) <= delta;
 
     [Fact]
-    public void IncrDecrFloatingPoint()
+    public async Task IncrDecrFloatingPoint()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -49,7 +49,7 @@ public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixtur
     [Fact]
     public async Task IncrDecrFloatingPointAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -84,9 +84,9 @@ public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixtur
     }
 
     [Fact]
-    public void HashIncrDecrFloatingPoint()
+    public async Task HashIncrDecrFloatingPoint()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -124,7 +124,7 @@ public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixtur
     [Fact]
     public async Task HashIncrDecrFloatingPointAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();

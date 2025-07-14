@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Net;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -12,7 +13,7 @@ public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
     [Fact]
-    public void ClientKill()
+    public async Task ClientKill()
     {
         var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
 
@@ -20,14 +21,14 @@ public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
         using var otherConnection = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var id = otherConnection.GetDatabase().Execute(RedisCommand.CLIENT.ToString(), RedisLiterals.ID);
 
-        using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         long result = server.ClientKill(id.AsInt64(), ClientType.Normal, null, true);
         Assert.Equal(1, result);
     }
 
     [Fact]
-    public void ClientKillWithMaxAge()
+    public async Task ClientKillWithMaxAge()
     {
         var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
 
@@ -36,7 +37,7 @@ public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
         var id = otherConnection.GetDatabase().Execute(RedisCommand.CLIENT.ToString(), RedisLiterals.ID);
         Thread.Sleep(1000);
 
-        using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         var filter = new ClientKillFilter().WithId(id.AsInt64()).WithMaxAgeInSeconds(1).WithSkipMe(true);
         long result = server.ClientKill(filter, CommandFlags.DemandMaster);

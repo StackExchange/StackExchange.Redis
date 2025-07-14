@@ -1,13 +1,14 @@
-﻿using Xunit;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests.Issues;
 
 public class SO23949477Tests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact]
-    public void Execute()
+    public async Task Execute()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();

@@ -12,7 +12,7 @@ public class SO25567566Tests(ITestOutputHelper output) : TestBase(output)
     public async Task Execute()
     {
         Skip.UnlessLongRunning();
-        using var conn = ConnectionMultiplexer.Connect(GetConfiguration());
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(GetConfiguration());
 
         for (int i = 0; i < 100; i++)
         {

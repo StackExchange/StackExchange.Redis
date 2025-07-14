@@ -23,7 +23,7 @@ public class Issue1101Tests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task ExecuteWithUnsubscribeViaChannel()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();
@@ -88,7 +88,7 @@ public class Issue1101Tests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task ExecuteWithUnsubscribeViaSubscriber()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
 
         RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();
@@ -139,7 +139,7 @@ public class Issue1101Tests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task ExecuteWithUnsubscribeViaClearAll()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();

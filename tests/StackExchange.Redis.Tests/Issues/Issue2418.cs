@@ -9,7 +9,7 @@ public class Issue2418(ITestOutputHelper output, SharedConnectionFixture? fixtur
     [Fact]
     public async Task Execute()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();

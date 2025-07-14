@@ -12,7 +12,7 @@ public class InfoReplicationCheckTests(ITestOutputHelper output) : TestBase(outp
     {
         Assert.Skip("need to think about CompletedSynchronously");
 
-        using var conn = Create();
+        await using var conn = Create();
 
         var parsed = ConfigurationOptions.Parse(conn.Configuration);
         Assert.Equal(2, parsed.ConfigCheckSeconds);

@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
@@ -6,9 +7,9 @@ namespace StackExchange.Redis.Tests;
 public class AdhocTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
-    public void TestAdhocCommandsAPI()
+    public async Task TestAdhocCommandsAPI()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         // needs explicit RedisKey type for key-based

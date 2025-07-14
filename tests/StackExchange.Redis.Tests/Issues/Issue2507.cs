@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public async Task Execute()
         {
-            using var conn = Create(shared: false);
+            await using var conn = Create(shared: false);
             var db = conn.GetDatabase();
             var pubsub = conn.GetSubscriber();
             var queue = await pubsub.SubscribeAsync(RedisChannel.Literal("__redis__:invalidate"));

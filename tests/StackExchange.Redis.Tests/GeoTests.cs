@@ -17,9 +17,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     private static readonly GeoEntry[] All = { Palermo, Catania, Agrigento, Cefalù };
 
     [Fact]
-    public void GeoAdd()
+    public async Task GeoAdd()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -43,9 +43,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GetDistance()
+    public async Task GetDistance()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -60,9 +60,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoHash()
+    public async Task GeoHash()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -84,9 +84,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoGetPosition()
+    public async Task GeoGetPosition()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -103,9 +103,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoRemove()
+    public async Task GeoRemove()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -124,9 +124,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoRadius()
+    public async Task GeoRadius()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -170,7 +170,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoRadiusOverloads()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -219,7 +219,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchCircleMemberAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -240,7 +240,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchCircleMemberAsyncOnlyHash()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -261,7 +261,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchCircleMemberAsyncHashAndDistance()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -282,7 +282,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchCircleLonLatAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -298,9 +298,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchCircleMember()
+    public async Task GeoSearchCircleMember()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -316,9 +316,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchCircleLonLat()
+    public async Task GeoSearchCircleLonLat()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -336,7 +336,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchBoxMemberAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -353,7 +353,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchBoxLonLatAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -368,9 +368,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchBoxMember()
+    public async Task GeoSearchBoxMember()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -385,9 +385,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchBoxLonLat()
+    public async Task GeoSearchBoxLonLat()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -402,9 +402,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchLimitCount()
+    public async Task GeoSearchLimitCount()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -418,9 +418,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchLimitCountMakeNoDemands()
+    public async Task GeoSearchLimitCountMakeNoDemands()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -436,7 +436,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchBoxLonLatDescending()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -454,7 +454,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchBoxMemberAndStoreAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var me = Me();
         var db = conn.GetDatabase();
@@ -476,7 +476,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchBoxLonLatAndStoreAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var me = Me();
         var db = conn.GetDatabase();
@@ -498,7 +498,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchCircleMemberAndStoreAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var me = Me();
         var db = conn.GetDatabase();
@@ -520,7 +520,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task GeoSearchCircleLonLatAndStoreAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var me = Me();
         var db = conn.GetDatabase();
@@ -540,9 +540,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchCircleMemberAndStore()
+    public async Task GeoSearchCircleMemberAndStore()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var me = Me();
         var db = conn.GetDatabase();
@@ -562,9 +562,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchCircleLonLatAndStore()
+    public async Task GeoSearchCircleLonLatAndStore()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var me = Me();
         var db = conn.GetDatabase();
@@ -584,9 +584,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchCircleAndStoreDistOnly()
+    public async Task GeoSearchCircleAndStoreDistOnly()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var me = Me();
         var db = conn.GetDatabase();
@@ -609,9 +609,9 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
-    public void GeoSearchBadArgs()
+    public async Task GeoSearchBadArgs()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();

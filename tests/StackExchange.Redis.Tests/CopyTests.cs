@@ -10,7 +10,7 @@ public class CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task Basic()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var src = Me();
@@ -27,7 +27,7 @@ public class CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task CrossDB()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var dbDestId = TestConfig.GetDedicatedDB(conn);
@@ -49,7 +49,7 @@ public class CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task WithReplace()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var src = Me();

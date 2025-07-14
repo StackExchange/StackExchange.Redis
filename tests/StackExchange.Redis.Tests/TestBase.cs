@@ -17,7 +17,6 @@ public abstract class TestBase : IDisposable
 {
     private ITestOutputHelper Output { get; }
     protected TextWriterOutputHelper Writer { get; }
-    protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
     protected virtual string GetConfiguration() => GetDefaultConfiguration();
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
@@ -30,7 +29,7 @@ public abstract class TestBase : IDisposable
         Output = output;
         Output.WriteFrameworkVersion();
         Output.WriteLine($"  Context: Protocol: {TestContext.Current.GetProtocol()}");
-        Writer = new TextWriterOutputHelper(output, TestConfig.Current.LogToConsole);
+        Writer = new TextWriterOutputHelper(output);
         _fixture = fixture;
         ClearAmbientFailures();
     }
@@ -52,22 +51,8 @@ public abstract class TestBase : IDisposable
         {
             output?.WriteLine(Time() + ": " + message);
         }
-        if (TestConfig.Current.LogToConsole)
-        {
-            Console.WriteLine(message);
-        }
     }
-    protected void Log(string? message, params object[] args)
-    {
-        lock (Output)
-        {
-            Output.WriteLine(Time() + ": " + message, args);
-        }
-        if (TestConfig.Current.LogToConsole)
-        {
-            Console.WriteLine(message ?? "", args);
-        }
-    }
+    protected void Log(string? message, params object[] args) => Output.WriteLine(Time() + ": " + message, args);
 
     protected ProfiledCommandEnumerable Log(ProfilingSession session)
     {

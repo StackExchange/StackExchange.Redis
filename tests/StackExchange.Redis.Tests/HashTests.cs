@@ -17,7 +17,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestIncrBy()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -42,7 +42,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task ScanAsync()
     {
-        using var conn = Create(require: RedisFeatures.v2_8_0);
+        await using var conn = Create(require: RedisFeatures.v2_8_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -86,17 +86,17 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     }
 
     [Fact]
-    public void Scan()
+    public async Task Scan()
     {
-        using var conn = Create(require: RedisFeatures.v2_8_0);
+        await using var conn = Create(require: RedisFeatures.v2_8_0);
 
         var db = conn.GetDatabase();
 
         var key = Me();
-        db.KeyDeleteAsync(key);
-        db.HashSetAsync(key, "abc", "def");
-        db.HashSetAsync(key, "ghi", "jkl");
-        db.HashSetAsync(key, "mno", "pqr");
+        _ = db.KeyDeleteAsync(key);
+        _ = db.HashSetAsync(key, "abc", "def");
+        _ = db.HashSetAsync(key, "ghi", "jkl");
+        _ = db.HashSetAsync(key, "mno", "pqr");
 
         var t1 = db.HashScan(key);
         var t2 = db.HashScan(key, "*h*");
@@ -126,7 +126,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task ScanNoValuesAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -170,17 +170,17 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     }
 
     [Fact]
-    public void ScanNoValues()
+    public async Task ScanNoValues()
     {
-        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         var db = conn.GetDatabase();
 
         var key = Me();
-        db.KeyDeleteAsync(key);
-        db.HashSetAsync(key, "abc", "def");
-        db.HashSetAsync(key, "ghi", "jkl");
-        db.HashSetAsync(key, "mno", "pqr");
+        _ = db.KeyDeleteAsync(key);
+        _ = db.HashSetAsync(key, "abc", "def");
+        _ = db.HashSetAsync(key, "ghi", "jkl");
+        _ = db.HashSetAsync(key, "mno", "pqr");
 
         var t1 = db.HashScanNoValues(key);
         var t2 = db.HashScanNoValues(key, "*h*");
@@ -209,12 +209,12 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     }
 
     [Fact]
-    public void TestIncrementOnHashThatDoesntExist()
+    public async Task TestIncrementOnHashThatDoesntExist()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
-        db.KeyDeleteAsync("keynotexist");
+        _ = db.KeyDeleteAsync("keynotexist");
         var result1 = db.Wait(db.HashIncrementAsync("keynotexist", "fieldnotexist", 1));
         var result2 = db.Wait(db.HashIncrementAsync("keynotexist", "anotherfieldnotexist", 1));
         Assert.Equal(1, result1);
@@ -224,7 +224,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestIncrByFloat()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -247,7 +247,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestGetAll()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -279,7 +279,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestGet()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -311,7 +311,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestSet()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -353,7 +353,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestSetNotExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -387,7 +387,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestDelSingle()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -410,7 +410,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestDelMulti()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -450,7 +450,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestDelMultiInsideTransaction()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var tran = conn.GetDatabase().CreateTransaction();
         {
@@ -489,7 +489,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -511,7 +511,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestHashKeys()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashKey = Me();
@@ -537,7 +537,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestHashValues()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -564,7 +564,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestHashLength()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -587,7 +587,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestGetMulti()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -622,18 +622,18 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     /// Tests for <see href="https://redis.io/commands/hgetall"/>.
     /// </summary>
     [Fact]
-    public void TestGetPairs()
+    public async Task TestGetPairs()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
-        db.KeyDeleteAsync(hashkey);
+        _ = db.KeyDeleteAsync(hashkey);
 
         var result0 = db.HashGetAllAsync(hashkey);
 
-        db.HashSetAsync(hashkey, "foo", "abc");
-        db.HashSetAsync(hashkey, "bar", "def");
+        _ = db.HashSetAsync(hashkey, "foo", "abc");
+        _ = db.HashSetAsync(hashkey, "bar", "def");
 
         var result1 = db.HashGetAllAsync(hashkey);
 
@@ -648,13 +648,13 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     /// Tests for <see href="https://redis.io/commands/hmset"/>.
     /// </summary>
     [Fact]
-    public void TestSetPairs()
+    public async Task TestSetPairs()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
-        db.KeyDeleteAsync(hashkey).ForAwait();
+        _ = db.KeyDeleteAsync(hashkey).ForAwait();
 
         var result0 = db.HashGetAllAsync(hashkey);
 
@@ -663,7 +663,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
             new HashEntry("foo", Encoding.UTF8.GetBytes("abc")),
             new HashEntry("bar", Encoding.UTF8.GetBytes("def")),
         };
-        db.HashSetAsync(hashkey, data).ForAwait();
+        _ = db.HashSetAsync(hashkey, data).ForAwait();
 
         var result1 = db.Wait(db.HashGetAllAsync(hashkey));
 
@@ -677,7 +677,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task TestWhenAlwaysAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -698,7 +698,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task HashRandomFieldAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var hashKey = Me();
@@ -724,9 +724,9 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     }
 
     [Fact]
-    public void HashRandomField()
+    public async Task HashRandomField()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var hashKey = Me();
@@ -752,9 +752,9 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
     }
 
     [Fact]
-    public void HashRandomFieldEmptyHash()
+    public async Task HashRandomFieldEmptyHash()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var hashKey = Me();

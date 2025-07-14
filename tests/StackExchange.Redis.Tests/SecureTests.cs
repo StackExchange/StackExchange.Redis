@@ -11,13 +11,13 @@ public class SecureTests(ITestOutputHelper output) : TestBase(output)
         TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
 
     [Fact]
-    public void MassiveBulkOpsFireAndForgetSecure()
+    public async Task MassiveBulkOpsFireAndForgetSecure()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         var watch = Stopwatch.StartNew();
 
@@ -44,11 +44,11 @@ public class SecureTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void Connect()
+    public async Task Connect()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
-        conn.GetDatabase().Ping();
+        await conn.GetDatabase().PingAsync();
     }
 
     [Theory]
@@ -70,7 +70,7 @@ public class SecureTests(ITestOutputHelper output) : TestBase(output)
 
             using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false);
 
-            conn.GetDatabase().Ping();
+            await conn.GetDatabase().PingAsync();
         }).ConfigureAwait(false);
         Log($"Exception ({ex.FailureType}): {ex.Message}");
         Assert.Equal(ConnectionFailureType.AuthenticationFailure, ex.FailureType);

@@ -12,7 +12,7 @@ public class ConnectionShutdownTests(ITestOutputHelper output) : TestBase(output
     [Fact(Skip = "Unfriendly")]
     public async Task ShutdownRaisesConnectionFailedAndRestore()
     {
-        using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, shared: false);
 
         int failed = 0, restored = 0;
         Stopwatch watch = Stopwatch.StartNew();
@@ -27,7 +27,7 @@ public class ConnectionShutdownTests(ITestOutputHelper output) : TestBase(output
             Interlocked.Increment(ref restored);
         };
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
         Assert.Equal(0, Interlocked.CompareExchange(ref failed, 0, 0));
         Assert.Equal(0, Interlocked.CompareExchange(ref restored, 0, 0));
         await Task.Delay(1).ForAwait(); // To make compiler happy in Release

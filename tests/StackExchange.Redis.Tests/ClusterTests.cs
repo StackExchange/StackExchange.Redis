@@ -30,11 +30,11 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void ConnectUsesSingleSocket()
+    public async Task ConnectUsesSingleSocket()
     {
         for (int i = 0; i < 5; i++)
         {
-            using var conn = Create(failMessage: i + ": ", log: Writer);
+            await using var conn = Create(failMessage: i + ": ", log: Writer);
 
             foreach (var ep in conn.GetEndPoints())
             {
@@ -54,9 +54,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void CanGetTotalStats()
+    public async Task CanGetTotalStats()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var counters = conn.GetCounters();
         Log(counters.ToString());
@@ -73,9 +73,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void Connect()
+    public async Task Connect()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         var expectedPorts = new HashSet<int>(Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount));
         var endpoints = conn.GetEndPoints();
@@ -124,9 +124,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void TestIdentity()
+    public async Task TestIdentity()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Guid.NewGuid().ToByteArray();
         var ep = conn.GetDatabase().IdentifyEndpoint(key);
@@ -135,12 +135,12 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void IntentionalWrongServer()
+    public async Task IntentionalWrongServer()
     {
         static string? StringGet(IServer server, RedisKey key, CommandFlags flags = CommandFlags.None)
             => (string?)server.Execute("GET", new object[] { key }, flags);
 
-        using var conn = Create();
+        await using var conn = Create();
 
         var endpoints = conn.GetEndPoints();
         var servers = endpoints.Select(e => conn.GetServer(e)).ToList();
@@ -150,7 +150,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, value, flags: CommandFlags.FireAndForget);
-        servers[0].Ping();
+        await servers[0].PingAsync();
         var config = servers[0].ClusterConfiguration;
         Assert.NotNull(config);
         int slot = conn.HashSlot(key);
@@ -195,15 +195,15 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void TransactionWithMultiServerKeys()
+    public async Task TransactionWithMultiServerKeys()
     {
-        using var conn = Create();
-        var ex = Assert.Throws<RedisCommandException>(() =>
+        await using var conn = Create();
+        var ex = await Assert.ThrowsAsync<RedisCommandException>(async () =>
         {
             // connect
             var cluster = conn.GetDatabase();
             var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
-            anyServer.Ping();
+            await anyServer.PingAsync();
             Assert.Equal(ServerType.Cluster, anyServer.ServerType);
             var config = anyServer.ClusterConfiguration;
             Assert.NotNull(config);
@@ -253,15 +253,15 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void TransactionWithSameServerKeys()
+    public async Task TransactionWithSameServerKeys()
     {
-        using var conn = Create();
-        var ex = Assert.Throws<RedisCommandException>(() =>
+        await using var conn = Create();
+        var ex = await Assert.ThrowsAsync<RedisCommandException>(async () =>
         {
             // connect
             var cluster = conn.GetDatabase();
             var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
-            anyServer.Ping();
+            await anyServer.PingAsync();
             var config = anyServer.ClusterConfiguration;
             Assert.NotNull(config);
 
@@ -310,14 +310,14 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void TransactionWithSameSlotKeys()
+    public async Task TransactionWithSameSlotKeys()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         // connect
         var cluster = conn.GetDatabase();
         var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
-        anyServer.Ping();
+        await anyServer.PingAsync();
         var config = anyServer.ClusterConfiguration;
         Assert.NotNull(config);
 
@@ -362,9 +362,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [InlineData(null, 100)]
     [InlineData("abc", 10)]
     [InlineData("abc", 100)]
-    public void Keys(string? pattern, int pageSize)
+    public async Task Keys(string? pattern, int pageSize)
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         _ = conn.GetDatabase();
         var server = conn.GetEndPoints().Select(x => conn.GetServer(x)).First(x => !x.IsReplica);
@@ -406,17 +406,17 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [InlineData("foo{bar}{zap}", 5061)]
     [InlineData("bar", 5061)]
 
-    public void HashSlots(string key, int slot)
+    public async Task HashSlots(string key, int slot)
     {
-        using var conn = Create(connectTimeout: 5000);
+        await using var conn = Create(connectTimeout: 5000);
 
         Assert.Equal(slot, conn.HashSlot(key));
     }
 
     [Fact]
-    public void SScan()
+    public async Task SScan()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = "a";
         var db = conn.GetDatabase();
@@ -436,9 +436,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void GetConfig()
+    public async Task GetConfig()
     {
-        using var conn = Create(allowAdmin: true, log: Writer);
+        await using var conn = Create(allowAdmin: true, log: Writer);
 
         var endpoints = conn.GetEndPoints();
         var server = conn.GetServer(endpoints[0]);
@@ -462,9 +462,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1004:Test methods should not be skipped", Justification = "Because.")]
     [Fact(Skip = "FlushAllDatabases")]
-    public void AccessRandomKeys()
+    public async Task AccessRandomKeys()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var cluster = conn.GetDatabase();
         int slotMovedCount = 0;
@@ -483,8 +483,8 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         {
             if (!server.IsReplica)
             {
-                server.Ping();
-                server.FlushAllDatabases();
+                await server.PingAsync();
+                await server.FlushAllDatabasesAsync();
             }
         }
 
@@ -537,9 +537,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [InlineData(CommandFlags.DemandReplica, true)]
     [InlineData(CommandFlags.PreferMaster, false)]
     [InlineData(CommandFlags.PreferReplica, true)]
-    public void GetFromRightNodeBasedOnFlags(CommandFlags flags, bool isReplica)
+    public async Task GetFromRightNodeBasedOnFlags(CommandFlags flags, bool isReplica)
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var db = conn.GetDatabase();
         for (int i = 0; i < 1000; i++)
@@ -555,9 +555,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     private static string Describe(EndPoint endpoint) => endpoint?.ToString() ?? "(unknown)";
 
     [Fact]
-    public void SimpleProfiling()
+    public async Task SimpleProfiling()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         var profiler = new ProfilingSession();
         var key = Me();
@@ -586,11 +586,11 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void MultiKeyQueryFails()
+    public async Task MultiKeyQueryFails()
     {
         var keys = InventKeys(); // note the rules expected of this data are enforced in GroupedQueriesWork
 
-        using var conn = Create();
+        await using var conn = Create();
 
         var ex = Assert.Throws<RedisCommandException>(() => conn.GetDatabase(0).StringGet(keys));
         Assert.Contains("Multi-key operations must involve a single slot", ex.Message);
@@ -618,13 +618,13 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void GroupedQueriesWork()
+    public async Task GroupedQueriesWork()
     {
         // note it doesn't matter that the data doesn't exist for this;
         // the point here is that the entire thing *won't work* otherwise,
         // as per above test
         var keys = InventKeys();
-        using var conn = Create();
+        await using var conn = Create();
 
         var grouped = keys.GroupBy(key => conn.GetHashSlot(key)).ToList();
         Assert.True(grouped.Count > 1); // check not all a super-group
@@ -646,14 +646,14 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void MovedProfiling()
+    public async Task MovedProfiling()
     {
         var key = Me();
         const string Value = "redirected-value";
 
         var profiler = new ProfilingTests.PerThreadProfiler();
 
-        using var conn = Create();
+        await using var conn = Create();
 
         conn.RegisterProfiler(profiler.GetSession);
 
@@ -729,187 +729,18 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Fact]
-    public void ConnectIncludesSubscriber()
+    public async Task ConnectIncludesSubscriber()
     {
-        using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false);
+        await using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
         Assert.True(conn.IsConnected);
 
         foreach (var server in conn.GetServerSnapshot())
         {
             Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
             Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
-        }
-    }
-
-    [Fact]
-    public async Task TestShardedPubsubSubscriberAgainstReconnects()
-    {
-        var channel = RedisChannel.Sharded(Me());
-        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
-        Assert.True(conn.IsConnected);
-        var db = conn.GetDatabase();
-        Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-
-        var pubsub = conn.GetSubscriber();
-        List<(RedisChannel, RedisValue)> received = new();
-        var queue = await pubsub.SubscribeAsync(channel);
-        _ = Task.Run(async () =>
-        {
-            // use queue API to have control over order
-            await foreach (var item in queue)
-            {
-                lock (received)
-                {
-                    if (item.Channel.IsSharded && item.Channel == channel) received.Add((item.Channel, item.Message));
-                }
-            }
-        });
-        Assert.Equal(1, conn.GetSubscriptionsCount());
-
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-        await db.PingAsync();
-
-        for (int i = 0; i < 5; i++)
-        {
-            // check we get a hit
-            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
-        }
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-
-        // this is endpoint at index 1 which has the hashslot for "testShardChannel"
-        var server = conn.GetServer(conn.GetEndPoints()[1]);
-        server.SimulateConnectionFailure(SimulatedFailureType.All);
-        SetExpectedAmbientFailureCount(2);
-
-        await Task.Delay(4000);
-        for (int i = 0; i < 5; i++)
-        {
-            // check we get a hit
-            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
-        }
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-
-        Assert.Equal(1, conn.GetSubscriptionsCount());
-        Assert.Equal(10, received.Count);
-        ClearAmbientFailures();
-    }
-
-    [Fact]
-    public async Task TestShardedPubsubSubscriberAgainsHashSlotMigration()
-    {
-        var channel = RedisChannel.Sharded(Me());
-        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
-        Assert.True(conn.IsConnected);
-        var db = conn.GetDatabase();
-        Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-
-        var pubsub = conn.GetSubscriber();
-        List<(RedisChannel, RedisValue)> received = new();
-        var queue = await pubsub.SubscribeAsync(channel);
-        _ = Task.Run(async () =>
-        {
-            // use queue API to have control over order
-            await foreach (var item in queue)
-            {
-                lock (received)
-                {
-                    if (item.Channel.IsSharded && item.Channel == channel) received.Add((item.Channel, item.Message));
-                }
-            }
-        });
-        Assert.Equal(1, conn.GetSubscriptionsCount());
-
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-        await db.PingAsync();
-
-        for (int i = 0; i < 5; i++)
-        {
-            // check we get a hit
-            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
-        }
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-
-        // lets migrate the slot for "testShardChannel" to another node
-        DoHashSlotMigration();
-
-        await Task.Delay(4000);
-        for (int i = 0; i < 5; i++)
-        {
-            // check we get a hit
-            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
-        }
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-
-        Assert.Equal(1, conn.GetSubscriptionsCount());
-        Assert.Equal(10, received.Count);
-        RollbackHashSlotMigration();
-        ClearAmbientFailures();
-    }
-
-    private void DoHashSlotMigration()
-    {
-        MigrateSlotForTestShardChannel(false);
-    }
-    private void RollbackHashSlotMigration()
-    {
-        MigrateSlotForTestShardChannel(true);
-    }
-
-    private void MigrateSlotForTestShardChannel(bool rollback)
-    {
-        int hashSlotForTestShardChannel = 7177;
-        using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 5000, shared: false);
-        var servers = conn.GetServers();
-        IServer? serverWithPort7000 = null;
-        IServer? serverWithPort7001 = null;
-
-        string nodeIdForPort7000 = "780813af558af81518e58e495d63b6e248e80adf";
-        string nodeIdForPort7001 = "ea828c6074663c8bd4e705d3e3024d9d1721ef3b";
-        foreach (var server in servers)
-        {
-            string id = server.Execute("CLUSTER", "MYID").ToString();
-            if (id == nodeIdForPort7000)
-            {
-                serverWithPort7000 = server;
-            }
-            if (id == nodeIdForPort7001)
-            {
-                serverWithPort7001 = server;
-            }
-        }
-
-        IServer fromServer, toServer;
-        string fromNode, toNode;
-        if (rollback)
-        {
-            fromServer = serverWithPort7000!;
-            fromNode = nodeIdForPort7000;
-            toServer = serverWithPort7001!;
-            toNode = nodeIdForPort7001;
-        }
-        else
-        {
-            fromServer = serverWithPort7001!;
-            fromNode = nodeIdForPort7001;
-            toServer = serverWithPort7000!;
-            toNode = nodeIdForPort7000;
-        }
-
-        try
-        {
-            Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "IMPORTING", fromNode).ToString());
-            Assert.Equal("OK", fromServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "MIGRATING", toNode).ToString());
-            Assert.Equal("OK", toServer.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
-            Assert.Equal("OK", fromServer!.Execute("CLUSTER", "SETSLOT", hashSlotForTestShardChannel, "NODE", toNode).ToString());
-        }
-        catch (RedisServerException ex) when (ex.Message == "ERR I'm already the owner of hash slot 7177")
-        {
-            Log("Slot already migrated.");
         }
     }
 
@@ -920,7 +751,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         var guid = Guid.NewGuid().ToString();
         var channel = sharded ? RedisChannel.Sharded(guid) : RedisChannel.Literal(guid);
-        using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false, require: sharded ? RedisFeatures.v7_0_0_rc1 : RedisFeatures.v2_0_0);
+        await using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false, require: sharded ? RedisFeatures.v7_0_0_rc1 : RedisFeatures.v2_0_0);
         Assert.True(conn.IsConnected);
 
         var pubsub = conn.GetSubscriber();

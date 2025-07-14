@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -10,9 +11,9 @@ namespace StackExchange.Redis.Tests;
 public class PreserveOrderTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
-    public void Execute()
+    public async Task Execute()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var sub = conn.GetSubscriber();
         var channel = Me();

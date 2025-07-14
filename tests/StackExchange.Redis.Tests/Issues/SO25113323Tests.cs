@@ -8,7 +8,7 @@ public class SO25113323Tests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task SetExpirationToPassed()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         // Given
         var key = Me();

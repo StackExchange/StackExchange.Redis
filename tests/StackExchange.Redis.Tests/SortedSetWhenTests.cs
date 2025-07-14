@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
@@ -6,9 +7,9 @@ namespace StackExchange.Redis.Tests;
 public class SortedSetWhenTest(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
-    public void GreaterThanLessThan()
+    public async Task GreaterThanLessThan()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -23,9 +24,9 @@ public class SortedSetWhenTest(ITestOutputHelper output, SharedConnectionFixture
     }
 
     [Fact]
-    public void IllegalCombinations()
+    public async Task IllegalCombinations()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();

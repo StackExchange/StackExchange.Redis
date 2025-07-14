@@ -17,7 +17,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task Append()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var server = GetServer(conn);
@@ -51,7 +51,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task Set()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -70,7 +70,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task SetEmpty()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -88,7 +88,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StringGetSetExpiryNoValue()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -102,7 +102,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StringGetSetExpiryRelative()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -121,7 +121,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StringGetSetExpiryAbsolute()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -145,7 +145,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StringGetSetExpiryPersist()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -162,7 +162,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task GetLease()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -179,7 +179,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task GetLeaseAsStream()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -199,9 +199,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void GetDelete()
+    public async Task GetDelete()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -223,7 +223,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task GetDeleteAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -245,7 +245,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task SetNotExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -281,7 +281,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task SetKeepTtl()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_0);
+        await using var conn = Create(require: RedisFeatures.v6_0_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -319,7 +319,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task SetAndGet()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -387,7 +387,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task SetNotExistsAndGet()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -417,7 +417,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task Ranges()
     {
-        using var conn = Create(require: RedisFeatures.v2_1_8);
+        await using var conn = Create(require: RedisFeatures.v2_1_8);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -436,7 +436,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task IncrDecr()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -463,7 +463,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task IncrDecrFloat()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -491,7 +491,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task GetRange()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -508,7 +508,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BitCount()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -536,7 +536,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BitCountWithBitUnit()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -560,7 +560,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BitOp()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -595,7 +595,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BitOpExtended()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -664,7 +664,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BitOpTwoOperands()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var key1 = prefix + "1";
@@ -697,9 +697,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void BitOpDiff()
+    public async Task BitOpDiff()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -725,9 +725,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void BitOpDiff1()
+    public async Task BitOpDiff1()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -753,9 +753,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void BitOpAndOr()
+    public async Task BitOpAndOr()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -781,9 +781,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void BitOpOne()
+    public async Task BitOpOne()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var key1 = prefix + "1";
@@ -811,7 +811,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BitOpDiffAsync()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -835,9 +835,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void BitOpEdgeCases()
+    public async Task BitOpEdgeCases()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyEmpty = prefix + "empty";
@@ -868,7 +868,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BitPosition()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -896,7 +896,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BitPositionWithBitUnit()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -913,7 +913,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task RangeString()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -925,7 +925,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task HashStringLengthAsync()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -938,9 +938,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void HashStringLength()
+    public async Task HashStringLength()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -951,9 +951,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void LongestCommonSubsequence()
+    public async Task LongestCommonSubsequence()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "1";
@@ -993,7 +993,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task LongestCommonSubsequenceAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "1";

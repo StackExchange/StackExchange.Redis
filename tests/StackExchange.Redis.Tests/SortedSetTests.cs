@@ -60,9 +60,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     };
 
     [Fact]
-    public void SortedSetCombine()
+    public async Task SortedSetCombine()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -89,7 +89,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetCombineAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -114,9 +114,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetCombineWithScores()
+    public async Task SortedSetCombineWithScores()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -143,7 +143,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetCombineWithScoresAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -168,9 +168,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetCombineAndStore()
+    public async Task SortedSetCombineAndStore()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -196,7 +196,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetCombineAndStoreAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -222,7 +222,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetCombineErrors()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -282,9 +282,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetIntersectionLength()
+    public async Task SortedSetIntersectionLength()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -306,7 +306,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetIntersectionLengthAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me();
@@ -326,9 +326,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeViaScript()
+    public async Task SortedSetRangeViaScript()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -340,9 +340,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeViaExecute()
+    public async Task SortedSetRangeViaExecute()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -401,9 +401,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetPopMulti_Multi()
+    public async Task SortedSetPopMulti_Multi()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -424,9 +424,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetPopMulti_Single()
+    public async Task SortedSetPopMulti_Single()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -448,7 +448,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetPopMulti_Multi_Async()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -471,7 +471,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetPopMulti_Single_Async()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -493,7 +493,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetPopMulti_Zero_Async()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -511,9 +511,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRandomMembers()
+    public async Task SortedSetRandomMembers()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -557,7 +557,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRandomMembersAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -600,7 +600,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByRankAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -616,7 +616,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByRankLimitedAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -637,7 +637,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByScoreAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -658,7 +658,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByScoreAsyncDefault()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -679,7 +679,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByScoreAsyncLimited()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -700,7 +700,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByScoreAsyncExclusiveRange()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -721,7 +721,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByScoreAsyncReverse()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -742,7 +742,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByLexAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -763,7 +763,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByLexExclusiveRangeAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -784,7 +784,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetRangeStoreByLexRevRangeAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -803,9 +803,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByRank()
+    public async Task SortedSetRangeStoreByRank()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -819,9 +819,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByRankLimited()
+    public async Task SortedSetRangeStoreByRankLimited()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -840,9 +840,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByScore()
+    public async Task SortedSetRangeStoreByScore()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -861,9 +861,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByScoreDefault()
+    public async Task SortedSetRangeStoreByScoreDefault()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -882,9 +882,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByScoreLimited()
+    public async Task SortedSetRangeStoreByScoreLimited()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -903,9 +903,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByScoreExclusiveRange()
+    public async Task SortedSetRangeStoreByScoreExclusiveRange()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -924,9 +924,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByScoreReverse()
+    public async Task SortedSetRangeStoreByScoreReverse()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -945,9 +945,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByLex()
+    public async Task SortedSetRangeStoreByLex()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -966,9 +966,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByLexExclusiveRange()
+    public async Task SortedSetRangeStoreByLexExclusiveRange()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -987,9 +987,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreByLexRevRange()
+    public async Task SortedSetRangeStoreByLexRevRange()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -1008,9 +1008,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreFailErroneousTake()
+    public async Task SortedSetRangeStoreFailErroneousTake()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -1024,9 +1024,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreFailExclude()
+    public async Task SortedSetRangeStoreFailExclude()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -1040,9 +1040,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetMultiPopSingleKey()
+    public async Task SortedSetMultiPopSingleKey()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1077,9 +1077,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetMultiPopMultiKey()
+    public async Task SortedSetMultiPopMultiKey()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1114,9 +1114,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetMultiPopNoSet()
+    public async Task SortedSetMultiPopNoSet()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1126,9 +1126,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetMultiPopCount0()
+    public async Task SortedSetMultiPopCount0()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1140,7 +1140,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetMultiPopAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1176,9 +1176,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetMultiPopEmptyKeys()
+    public async Task SortedSetMultiPopEmptyKeys()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.SortedSetPop(Array.Empty<RedisKey>(), 5));
@@ -1186,9 +1186,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetRangeStoreFailForReplica()
+    public async Task SortedSetRangeStoreFailForReplica()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var me = Me();
@@ -1202,9 +1202,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetScoresSingle()
+    public async Task SortedSetScoresSingle()
     {
-        using var conn = Create(require: RedisFeatures.v2_1_0);
+        await using var conn = Create(require: RedisFeatures.v2_1_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1222,7 +1222,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetScoresSingleAsync()
     {
-        using var conn = Create(require: RedisFeatures.v2_1_0);
+        await using var conn = Create(require: RedisFeatures.v2_1_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1238,9 +1238,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetScoresSingle_MissingSetStillReturnsNull()
+    public async Task SortedSetScoresSingle_MissingSetStillReturnsNull()
     {
-        using var conn = Create(require: RedisFeatures.v2_1_0);
+        await using var conn = Create(require: RedisFeatures.v2_1_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1256,7 +1256,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetScoresSingle_MissingSetStillReturnsNullAsync()
     {
-        using var conn = Create(require: RedisFeatures.v2_1_0);
+        await using var conn = Create(require: RedisFeatures.v2_1_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1270,9 +1270,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetScoresSingle_ReturnsNullForMissingMember()
+    public async Task SortedSetScoresSingle_ReturnsNullForMissingMember()
     {
-        using var conn = Create(require: RedisFeatures.v2_1_0);
+        await using var conn = Create(require: RedisFeatures.v2_1_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1289,7 +1289,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetScoresSingle_ReturnsNullForMissingMemberAsync()
     {
-        using var conn = Create(require: RedisFeatures.v2_1_0);
+        await using var conn = Create(require: RedisFeatures.v2_1_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1304,9 +1304,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetScoresMultiple()
+    public async Task SortedSetScoresMultiple()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1331,7 +1331,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetScoresMultipleAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1354,9 +1354,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetScoresMultiple_ReturnsNullItemsForMissingSet()
+    public async Task SortedSetScoresMultiple_ReturnsNullItemsForMissingSet()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1376,7 +1376,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetScoresMultiple_ReturnsNullItemsForMissingSetAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1394,9 +1394,9 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SortedSetScoresMultiple_ReturnsScoresAndNullItems()
+    public async Task SortedSetScoresMultiple_ReturnsScoresAndNullItems()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1424,7 +1424,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetScoresMultiple_ReturnsScoresAndNullItemsAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1452,7 +1452,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SortedSetUpdate()
     {
-        using var conn = Create(require: RedisFeatures.v3_0_0);
+        await using var conn = Create(require: RedisFeatures.v3_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();

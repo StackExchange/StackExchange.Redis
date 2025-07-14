@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 
@@ -8,9 +9,9 @@ namespace StackExchange.Redis.Tests;
 public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
-    public void BlankPrefixYieldsSame_Bytes()
+    public async Task BlankPrefixYieldsSame_Bytes()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var raw = conn.GetDatabase();
         var prefixed = raw.WithKeyPrefix(Array.Empty<byte>());
@@ -18,9 +19,9 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
     }
 
     [Fact]
-    public void BlankPrefixYieldsSame_String()
+    public async Task BlankPrefixYieldsSame_String()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var raw = conn.GetDatabase();
         var prefixed = raw.WithKeyPrefix("");
@@ -28,11 +29,11 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
     }
 
     [Fact]
-    public void NullPrefixIsError_Bytes()
+    public async Task NullPrefixIsError_Bytes()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
         {
-            using var conn = Create();
+            await using var conn = Create();
 
             var raw = conn.GetDatabase();
             raw.WithKeyPrefix((byte[]?)null);
@@ -40,11 +41,11 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
     }
 
     [Fact]
-    public void NullPrefixIsError_String()
+    public async Task NullPrefixIsError_String()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
         {
-            using var conn = Create();
+            await using var conn = Create();
 
             var raw = conn.GetDatabase();
             raw.WithKeyPrefix((string?)null);
@@ -65,9 +66,9 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
     }
 
     [Fact]
-    public void BasicSmokeTest()
+    public async Task BasicSmokeTest()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var raw = conn.GetDatabase();
 
@@ -98,9 +99,9 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
     }
 
     [Fact]
-    public void ConditionTest()
+    public async Task ConditionTest()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var raw = conn.GetDatabase();
 
@@ -114,7 +115,7 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
         raw.StringSet(prefix + "abc", "def", flags: CommandFlags.FireAndForget);
         var tran = foo.CreateTransaction();
         tran.AddCondition(Condition.KeyExists("abc"));
-        tran.StringIncrementAsync("i");
+        _ = tran.StringIncrementAsync("i");
         tran.Execute();
 
         int i = (int)raw.StringGet(prefix + "i");
@@ -124,7 +125,7 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
         raw.KeyDelete(prefix + "abc", CommandFlags.FireAndForget);
         tran = foo.CreateTransaction();
         tran.AddCondition(Condition.KeyExists("abc"));
-        tran.StringIncrementAsync("i");
+        _ = tran.StringIncrementAsync("i");
         tran.Execute();
 
         i = (int)raw.StringGet(prefix + "i");

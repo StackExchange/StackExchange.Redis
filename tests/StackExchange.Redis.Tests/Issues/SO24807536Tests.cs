@@ -9,7 +9,7 @@ public class SO24807536Tests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task Exec()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();

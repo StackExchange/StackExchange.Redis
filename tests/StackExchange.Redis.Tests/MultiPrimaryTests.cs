@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -11,11 +12,11 @@ public class MultiPrimaryTests(ITestOutputHelper output) : TestBase(output)
         TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword;
 
     [Fact]
-    public void CannotFlushReplica()
+    public async Task CannotFlushReplica()
     {
-        var ex = Assert.Throws<RedisCommandException>(() =>
+        var ex = await Assert.ThrowsAsync<RedisCommandException>(async () =>
         {
-            using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.ReplicaServerAndPort + ",allowAdmin=true");
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(TestConfig.Current.ReplicaServerAndPort + ",allowAdmin=true");
 
             var servers = conn.GetEndPoints().Select(e => conn.GetServer(e));
             var replica = servers.FirstOrDefault(x => x.IsReplica);

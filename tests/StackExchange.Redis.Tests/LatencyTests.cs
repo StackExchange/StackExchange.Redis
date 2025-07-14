@@ -9,7 +9,7 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task CanCallDoctor()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         string? doctor = server.LatencyDoctor();
@@ -24,7 +24,7 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task CanReset()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         _ = server.LatencyReset();
@@ -38,7 +38,7 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task GetLatest()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         server.ConfigSet("latency-monitor-threshold", 100);
@@ -60,7 +60,7 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task GetHistory()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         server.ConfigSet("latency-monitor-threshold", 100);

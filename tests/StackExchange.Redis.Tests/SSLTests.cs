@@ -23,7 +23,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
     [Theory] // (note the 6379 port is closed)
     [InlineData(null, true)] // auto-infer port (but specify 6380)
     [InlineData(6380, true)] // all explicit
-    public void ConnectToAzure(int? port, bool ssl)
+    public async Task ConnectToAzure(int? port, bool ssl)
     {
         Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
         Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
@@ -43,7 +43,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         Log(options.ToString());
         using (var connection = ConnectionMultiplexer.Connect(options))
         {
-            var ttl = connection.GetDatabase().Ping();
+            var ttl = await connection.GetDatabase().PingAsync();
             Log(ttl.ToString());
         }
     }
@@ -73,7 +73,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         var config = new ConfigurationOptions
         {
             AllowAdmin = true,
-            SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
+            SyncTimeout = Debugger.IsAttached ? int.MaxValue : 2000,
             Password = password,
         };
         var map = new Dictionary<string, string?>
@@ -110,7 +110,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
 
         if (useSsl)
         {
-            using var conn = ConnectionMultiplexer.Connect(config, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
 
             Log("Connect log:");
             lock (log)
@@ -235,7 +235,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
 #endif
 
     [Fact]
-    public void RedisLabsSSL()
+    public async Task RedisLabsSSL()
     {
         Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsSslServer), TestConfig.Current.RedisLabsSslServer);
         Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsPfxPath), TestConfig.Current.RedisLabsPfxPath);
@@ -270,7 +270,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         options.Ssl = true;
         options.CertificateSelection += (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => cert;
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = ConnectionMultiplexer.Connect(options);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -281,7 +281,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         s = db.StringGet(key);
         Assert.Equal("abc", s);
 
-        var latency = db.Ping();
+        var latency = await db.PingAsync();
         Log("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
 
         using (var file = File.Create("RedisLabs.zip"))
@@ -293,7 +293,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void RedisLabsEnvironmentVariableClientCertificate(bool setEnv)
+    public async Task RedisLabsEnvironmentVariableClientCertificate(bool setEnv)
     {
         try
         {
@@ -331,7 +331,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
 #endif
             options.Ssl = true;
 
-            using var conn = ConnectionMultiplexer.Connect(options);
+            await using var conn = ConnectionMultiplexer.Connect(options);
 
             RedisKey key = Me();
             if (!setEnv) Assert.Fail("Could not set environment");
@@ -344,7 +344,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
             s = db.StringGet(key);
             Assert.Equal("abc", s);
 
-            var latency = db.Ping();
+            var latency = await db.PingAsync();
             Log("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
 
             using (var file = File.Create("RedisLabs.zip"))
@@ -394,6 +394,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         var old = CultureInfo.CurrentCulture;
         try
         {
+            var fields = typeof(ConfigurationOptions).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             var all = CultureInfo.GetCultures(CultureTypes.AllCultures);
             Log($"Checking {all.Length} cultures...");
             foreach (var ci in all)
@@ -422,7 +423,6 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
                 Check(nameof(c.Port), c.Port, d.Port);
                 Check(nameof(c.AddressFamily), c.AddressFamily, d.AddressFamily);
 
-                var fields = typeof(ConfigurationOptions).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                 Log($"Comparing {fields.Length} fields...");
                 Array.Sort(fields, (x, y) => string.CompareOrdinal(x.Name, y.Name));
                 foreach (var field in fields)
@@ -438,7 +438,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
     }
 
     [Fact]
-    public void SSLParseViaConfig_Issue883_ConfigObject()
+    public async Task SSLParseViaConfig_Issue883_ConfigObject()
     {
         Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
         Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
@@ -456,9 +456,9 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         };
         options.CertificateValidation += ShowCertFailures(Writer);
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = ConnectionMultiplexer.Connect(options);
 
-        conn.GetDatabase().Ping();
+        await conn.GetDatabase().PingAsync();
     }
 
     public static RemoteCertificateValidationCallback? ShowCertFailures(TextWriterOutputHelper output)
@@ -509,7 +509,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
     }
 
     [Fact]
-    public void SSLParseViaConfig_Issue883_ConfigString()
+    public async Task SSLParseViaConfig_Issue883_ConfigString()
     {
         Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
         Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
@@ -518,9 +518,9 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         var options = ConfigurationOptions.Parse(configString);
         options.CertificateValidation += ShowCertFailures(Writer);
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = ConnectionMultiplexer.Connect(options);
 
-        conn.GetDatabase().Ping();
+        await conn.GetDatabase().PingAsync();
     }
 
     [Fact]

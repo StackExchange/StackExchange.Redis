@@ -360,9 +360,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void TestBasicScripting()
+    public async Task TestBasicScripting()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         RedisValue newId = Guid.NewGuid().ToString();
         RedisKey key = Me();
@@ -411,10 +411,10 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         Assert.True(await EvaluateScript());
 
         // ditch the scripts; should no longer exist
-        db.Ping();
+        await db.PingAsync();
         server.ScriptFlush();
         Assert.False(server.ScriptExists(Script));
-        db.Ping();
+        await db.PingAsync();
 
         // just works; magic
         Assert.True(await EvaluateScript());
@@ -434,9 +434,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void CompareScriptToDirect()
+    public async Task CompareScriptToDirect()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return redis.call('incr', KEYS[1])";
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -444,7 +444,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         server.ScriptLoad(Script);
         var db = conn.GetDatabase();
-        db.Ping(); // k, we're all up to date now; clean db, minimal script cache
+        await db.PingAsync(); // k, we're all up to date now; clean db, minimal script cache
 
         // we're using a pipeline here, so send 1000 messages, but for timing: only care about the last
         const int Loop = 5000;
@@ -480,9 +480,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void TestCallByHash()
+    public async Task TestCallByHash()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return redis.call('incr', KEYS[1])";
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -507,9 +507,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SimpleLuaScript()
+    public async Task SimpleLuaScript()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return @ident";
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -561,9 +561,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SimpleRawScriptEvaluate()
+    public async Task SimpleRawScriptEvaluate()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return ARGV[1]";
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -613,9 +613,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void LuaScriptWithKeys()
+    public async Task LuaScriptWithKeys()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -641,9 +641,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void NoInlineReplacement()
+    public async Task NoInlineReplacement()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, 'hello@example')";
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -674,9 +674,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void SimpleLoadedLuaScript()
+    public async Task SimpleLoadedLuaScript()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return @ident";
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -729,9 +729,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void LoadedLuaScriptWithKeys()
+    public async Task LoadedLuaScriptWithKeys()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
@@ -800,9 +800,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void DatabaseLuaScriptConvenienceMethods()
+    public async Task DatabaseLuaScriptConvenienceMethods()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
         var script = LuaScript.Prepare(Script);
@@ -821,9 +821,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void ServerLuaScriptConvenienceMethods()
+    public async Task ServerLuaScriptConvenienceMethods()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
         var script = LuaScript.Prepare(Script);
@@ -859,9 +859,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void LuaScriptWithWrappedDatabase()
+    public async Task LuaScriptWithWrappedDatabase()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
         var db = conn.GetDatabase();
@@ -884,7 +884,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task AsyncLuaScriptWithWrappedDatabase()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
         var db = conn.GetDatabase();
@@ -905,9 +905,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void LoadedLuaScriptWithWrappedDatabase()
+    public async Task LoadedLuaScriptWithWrappedDatabase()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
         var db = conn.GetDatabase();
@@ -931,7 +931,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task AsyncLoadedLuaScriptWithWrappedDatabase()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
         var db = conn.GetDatabase();
@@ -953,9 +953,9 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public void ScriptWithKeyPrefixViaTokens()
+    public async Task ScriptWithKeyPrefixViaTokens()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var p = conn.GetDatabase().WithKeyPrefix("prefix/");
 
@@ -975,9 +975,9 @@ return arr;
     }
 
     [Fact]
-    public void ScriptWithKeyPrefixViaArrays()
+    public async Task ScriptWithKeyPrefixViaArrays()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var p = conn.GetDatabase().WithKeyPrefix("prefix/");
 
@@ -996,9 +996,9 @@ return arr;
     }
 
     [Fact]
-    public void ScriptWithKeyPrefixCompare()
+    public async Task ScriptWithKeyPrefixCompare()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var p = conn.GetDatabase().WithKeyPrefix("prefix/");
         var args = new { k = (RedisKey)"key", s = "str", v = 123 };

@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
@@ -7,9 +8,9 @@ namespace StackExchange.Redis.Tests;
 public class HyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
-    public void SingleKeyLength()
+    public async Task SingleKeyLength()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = "hll1";
@@ -22,9 +23,9 @@ public class HyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture 
     }
 
     [Fact]
-    public void MultiKeyLength()
+    public async Task MultiKeyLength()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey[] keys = { "hll1", "hll2", "hll3" };

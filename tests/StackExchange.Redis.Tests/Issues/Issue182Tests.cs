@@ -13,7 +13,7 @@ public class Issue182Tests(ITestOutputHelper output) : TestBase(output)
     public async Task SetMembers()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create(syncTimeout: 20000);
+        await using var conn = Create(syncTimeout: 20000);
 
         conn.ConnectionFailed += (s, a) =>
         {
@@ -43,7 +43,7 @@ public class Issue182Tests(ITestOutputHelper output) : TestBase(output)
     public async Task SetUnion()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create(syncTimeout: 10000);
+        await using var conn = Create(syncTimeout: 10000);
 
         var db = conn.GetDatabase();
 

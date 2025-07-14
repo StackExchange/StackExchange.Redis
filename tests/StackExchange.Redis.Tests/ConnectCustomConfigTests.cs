@@ -16,12 +16,12 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
     [InlineData("config,get")]
     [InlineData("info,get")]
     [InlineData("config,info,get")]
-    public void DisabledCommandsStillConnect(string disabledCommands)
+    public async Task DisabledCommandsStillConnect(string disabledCommands)
     {
-        using var conn = Create(allowAdmin: true, disabledCommands: disabledCommands.Split(','), log: Writer);
+        await using var conn = Create(allowAdmin: true, disabledCommands: disabledCommands.Split(','), log: Writer);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
         Assert.True(db.IsConnected(default(RedisKey)));
     }
 
@@ -34,19 +34,19 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
     [InlineData("info,get")]
     [InlineData("config,info,get")]
     [InlineData("config,info,get,cluster")]
-    public void DisabledCommandsStillConnectCluster(string disabledCommands)
+    public async Task DisabledCommandsStillConnectCluster(string disabledCommands)
     {
-        using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, disabledCommands: disabledCommands.Split(','), log: Writer);
+        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, disabledCommands: disabledCommands.Split(','), log: Writer);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
         Assert.True(db.IsConnected(default(RedisKey)));
     }
 
     [Fact]
-    public void TieBreakerIntact()
+    public async Task TieBreakerIntact()
     {
-        using var conn = Create(allowAdmin: true, log: Writer);
+        await using var conn = Create(allowAdmin: true, log: Writer);
 
         var tiebreaker = conn.GetDatabase().StringGet(conn.RawConfig.TieBreaker);
         Log($"Tiebreaker: {tiebreaker}");
@@ -58,9 +58,9 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
     }
 
     [Fact]
-    public void TieBreakerSkips()
+    public async Task TieBreakerSkips()
     {
-        using var conn = Create(allowAdmin: true, disabledCommands: new[] { "get" }, log: Writer);
+        await using var conn = Create(allowAdmin: true, disabledCommands: new[] { "get" }, log: Writer);
         Assert.Throws<RedisCommandException>(() => conn.GetDatabase().StringGet(conn.RawConfig.TieBreaker));
 
         foreach (var server in conn.GetServerSnapshot())
@@ -71,7 +71,7 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
     }
 
     [Fact]
-    public void TiebreakerIncorrectType()
+    public async Task TiebreakerIncorrectType()
     {
         var tiebreakerKey = Me();
         using var fubarConn = Create(allowAdmin: true, log: Writer);
@@ -79,10 +79,10 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
         fubarConn.GetDatabase().HashSet(tiebreakerKey, "foo", "bar");
 
         // Ensure the next connection getting an invalid type still connects
-        using var conn = Create(allowAdmin: true, tieBreaker: tiebreakerKey, log: Writer);
+        await using var conn = Create(allowAdmin: true, tieBreaker: tiebreakerKey, log: Writer);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
         Assert.True(db.IsConnected(default(RedisKey)));
 
         var ex = Assert.Throws<RedisServerException>(() => db.StringGet(tiebreakerKey));
@@ -104,7 +104,7 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
         using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
         Assert.True(db.IsConnected(default));
 
         var preCount = conn.OperationCount;

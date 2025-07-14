@@ -5,13 +5,12 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests.Helpers;
 
-public class TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToConsole) : TextWriter
+public class TextWriterOutputHelper(ITestOutputHelper outputHelper) : TextWriter
 {
     private StringBuilder Buffer { get; } = new StringBuilder(2048);
     private StringBuilder? Echo { get; set; }
     public override Encoding Encoding => Encoding.UTF8;
     private readonly ITestOutputHelper Output = outputHelper;
-    private readonly bool ToConsole = echoToConsole;
 
     public void EchoTo(StringBuilder sb) => Echo = sb;
 
@@ -85,10 +84,6 @@ public class TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToC
             // Thrown when writing from a handler after a test has ended - just bail in this case
         }
         Echo?.AppendLine(text);
-        if (ToConsole)
-        {
-            Console.WriteLine(text);
-        }
         Buffer.Clear();
     }
 }

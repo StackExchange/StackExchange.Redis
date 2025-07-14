@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -12,13 +13,13 @@ public class EnvoyTests(ITestOutputHelper output) : TestBase(output)
     /// Tests basic envoy connection with the ability to set and get a key.
     /// </summary>
     [Fact]
-    public void TestBasicEnvoyConnection()
+    public async Task TestBasicEnvoyConnection()
     {
         var sb = new StringBuilder();
         Writer.EchoTo(sb);
         try
         {
-            using var conn = Create(configuration: GetConfiguration(), keepAlive: 1, connectTimeout: 2000, allowAdmin: true, shared: false, proxy: Proxy.Envoyproxy, log: Writer);
+            await using var conn = Create(configuration: GetConfiguration(), keepAlive: 1, connectTimeout: 2000, allowAdmin: true, shared: false, proxy: Proxy.Envoyproxy, log: Writer);
 
             var db = conn.GetDatabase();
 

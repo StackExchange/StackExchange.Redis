@@ -100,7 +100,7 @@ public class PerformanceTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task BasicStringGetPerf()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();

@@ -65,7 +65,6 @@ public static class TestConfig
     {
         public bool UseSharedConnection { get; set; } = true;
         public bool RunLongRunning { get; set; }
-        public bool LogToConsole { get; set; }
 
         public string PrimaryServer { get; set; } = "127.0.0.1";
         public int PrimaryPort { get; set; } = 6379;

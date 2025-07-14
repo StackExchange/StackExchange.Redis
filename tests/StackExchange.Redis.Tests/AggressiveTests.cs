@@ -72,10 +72,10 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
     private const int IterationCount = 5000, InnerCount = 20;
 
     [Fact]
-    public void RunCompetingBatchesOnSameMuxer()
+    public async Task RunCompetingBatchesOnSameMuxer()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         Thread x = new Thread(state => BatchRunPings((IDatabase)state!))
@@ -135,7 +135,7 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
     public async Task RunCompetingBatchesOnSameMuxerAsync()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         var x = Task.Run(() => BatchRunPingsAsync(db));
@@ -190,10 +190,10 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void RunCompetingTransactionsOnSameMuxer()
+    public async Task RunCompetingTransactionsOnSameMuxer()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create(logTransactionData: false);
+        await using var conn = Create(logTransactionData: false);
         var db = conn.GetDatabase();
 
         Thread x = new Thread(state => TranRunPings((IDatabase)state!))
@@ -257,7 +257,7 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
     public async Task RunCompetingTransactionsOnSameMuxerAsync()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create(logTransactionData: false);
+        await using var conn = Create(logTransactionData: false);
         var db = conn.GetDatabase();
 
         var x = Task.Run(() => TranRunPingsAsync(db));

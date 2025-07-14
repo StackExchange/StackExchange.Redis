@@ -244,7 +244,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         }
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         var before = conn.OperationCount;
 
@@ -260,40 +260,40 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData(10)]
     [InlineData(100)]
     [InlineData(200)]
-    public void GetSlowlog(int count)
+    public async Task GetSlowlog(int count)
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var rows = GetAnyPrimary(conn).SlowlogGet(count);
         Assert.NotNull(rows);
     }
 
     [Fact]
-    public void ClearSlowlog()
+    public async Task ClearSlowlog()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         GetAnyPrimary(conn).SlowlogReset();
     }
 
     [Fact]
-    public void ClientName()
+    public async Task ClientName()
     {
-        using var conn = Create(clientName: "Test Rig", allowAdmin: true, shared: false);
+        await using var conn = Create(clientName: "Test Rig", allowAdmin: true, shared: false);
 
         Assert.Equal("Test Rig", conn.ClientName);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
-        var name = (string?)GetAnyPrimary(conn).Execute("CLIENT", "GETNAME");
+        var name = (string?)(await GetAnyPrimary(conn).ExecuteAsync("CLIENT", "GETNAME"));
         Assert.Equal("TestRig", name);
     }
 
     [Fact]
     public async Task ClientLibraryName()
     {
-        using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, shared: false);
         var server = GetAnyPrimary(conn);
 
         await server.PingAsync();
@@ -326,22 +326,22 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void DefaultClientName()
+    public async Task DefaultClientName()
     {
-        using var conn = Create(allowAdmin: true, caller: "", shared: false); // force default naming to kick in
+        await using var conn = Create(allowAdmin: true, caller: "", shared: false); // force default naming to kick in
 
         Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", conn.ClientName);
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         var name = (string?)GetAnyPrimary(conn).Execute("CLIENT", "GETNAME");
         Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", name);
     }
 
     [Fact]
-    public void ReadConfigWithConfigDisabled()
+    public async Task ReadConfigWithConfigDisabled()
     {
-        using var conn = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" });
+        await using var conn = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" });
 
         var server = GetAnyPrimary(conn);
         var ex = Assert.Throws<RedisCommandException>(() => server.ConfigGet());
@@ -349,9 +349,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void ConnectWithSubscribeDisabled()
+    public async Task ConnectWithSubscribeDisabled()
     {
-        using var conn = Create(allowAdmin: true, disabledCommands: new[] { "subscribe" });
+        await using var conn = Create(allowAdmin: true, disabledCommands: new[] { "subscribe" });
 
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();
@@ -366,9 +366,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void ReadConfig()
+    public async Task ReadConfig()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         Log("about to get config");
         var server = GetAnyPrimary(conn);
@@ -387,9 +387,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void GetTime()
+    public async Task GetTime()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = GetAnyPrimary(conn);
         var serverTime = server.Time();
@@ -400,9 +400,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void DebugObject()
+    public async Task DebugObject()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -414,9 +414,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void GetInfo()
+    public async Task GetInfo()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = GetAnyPrimary(conn);
         var info1 = server.Info();
@@ -444,9 +444,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void GetInfoRaw()
+    public async Task GetInfoRaw()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = GetAnyPrimary(conn);
         var info = server.InfoRaw();
@@ -455,10 +455,10 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void GetClients()
+    public async Task GetClients()
     {
         var name = Guid.NewGuid().ToString();
-        using var conn = Create(clientName: name, allowAdmin: true, shared: false);
+        await using var conn = Create(clientName: name, allowAdmin: true, shared: false);
 
         var server = GetAnyPrimary(conn);
         var clients = server.ClientList();
@@ -487,9 +487,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void SlowLog()
+    public async Task SlowLog()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = GetAnyPrimary(conn);
         server.SlowlogGet();
@@ -499,9 +499,13 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestAutomaticHeartbeat()
     {
-        RedisValue oldTimeout = RedisValue.Null;
-        using var configConn = Create(allowAdmin: true);
+        var options = ConfigurationOptions.Parse(GetConfiguration());
+        options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
+        options.HeartbeatConsistencyChecks = true;
+        options.AllowAdmin = true;
+        using var configConn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
+        RedisValue oldTimeout = RedisValue.Null;
         try
         {
             configConn.GetDatabase();
@@ -511,7 +515,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
             using var innerConn = Create();
             var innerDb = innerConn.GetDatabase();
-            innerDb.Ping(); // need to wait to pick up configuration etc
+            await innerDb.PingAsync(); // need to wait to pick up configuration etc
 
             var before = innerConn.OperationCount;
 
@@ -550,7 +554,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void ThreadPoolManagerIsDetected()
+    public async Task ThreadPoolManagerIsDetected()
     {
         var config = new ConfigurationOptions
         {
@@ -558,20 +562,20 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             SocketManager = SocketManager.ThreadPool,
         };
 
-        using var conn = ConnectionMultiplexer.Connect(config);
+        await using var conn = ConnectionMultiplexer.Connect(config);
 
         Assert.Same(PipeScheduler.ThreadPool, conn.SocketManager?.Scheduler);
     }
 
     [Fact]
-    public void DefaultThreadPoolManagerIsDetected()
+    public async Task DefaultThreadPoolManagerIsDetected()
     {
         var config = new ConfigurationOptions
         {
             EndPoints = { { IPAddress.Loopback, 6379 } },
         };
 
-        using var conn = ConnectionMultiplexer.Connect(config);
+        await using var conn = ConnectionMultiplexer.Connect(config);
 
         Assert.Same(SocketManager.Shared.Scheduler, conn.SocketManager?.Scheduler);
     }
@@ -638,7 +642,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void BeforeSocketConnect()
+    public async Task BeforeSocketConnect()
     {
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
         int count = 0;
@@ -649,7 +653,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             socket.DontFragment = true;
             socket.Ttl = (short)(connType == ConnectionType.Interactive ? 12 : 123);
         };
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = ConnectionMultiplexer.Connect(options);
         Assert.True(conn.IsConnected);
         Assert.Equal(2, count);
 

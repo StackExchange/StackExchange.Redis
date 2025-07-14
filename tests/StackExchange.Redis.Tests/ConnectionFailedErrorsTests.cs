@@ -24,7 +24,7 @@ public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(ou
         options.CertificateValidation += (sender, cert, chain, errors) => isCertValidationSucceeded;
         options.AbortOnConnectFail = false;
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
 
@@ -68,7 +68,7 @@ public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(ou
         options.AbortOnConnectFail = false;
         options.CertificateValidation += SSLTests.ShowCertFailures(Writer);
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
         void InnerScenario()
@@ -173,7 +173,7 @@ public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(ou
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false);
 
             await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
             void InnerScenario()

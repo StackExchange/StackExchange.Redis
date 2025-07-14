@@ -11,9 +11,9 @@ namespace StackExchange.Redis.Tests;
 public class PubSubCommandTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
-    public void SubscriberCount()
+    public async Task SubscriberCount()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
 #pragma warning disable CS0618
         RedisChannel channel = Me() + Guid.NewGuid();
@@ -39,7 +39,7 @@ public class PubSubCommandTests(ITestOutputHelper output, SharedConnectionFixtur
     [Fact]
     public async Task SubscriberCountAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
 #pragma warning disable CS0618
         RedisChannel channel = Me() + Guid.NewGuid();

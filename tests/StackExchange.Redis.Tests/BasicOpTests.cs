@@ -18,7 +18,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task PingOnce()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         var duration = await db.PingAsync().ForAwait();
@@ -47,7 +47,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task PingMany()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var tasks = new Task<TimeSpan>[100];
         for (int i = 0; i < tasks.Length; i++)
@@ -60,9 +60,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void GetWithNullKey()
+    public async Task GetWithNullKey()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         const string? key = null;
         var ex = Assert.Throws<ArgumentException>(() => db.StringGet(key));
@@ -70,9 +70,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void SetWithNullKey()
+    public async Task SetWithNullKey()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         const string? key = null, value = "abc";
         var ex = Assert.Throws<ArgumentException>(() => db.StringSet(key!, value));
@@ -80,9 +80,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void SetWithNullValue()
+    public async Task SetWithNullValue()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         string key = Me();
         const string? value = null;
@@ -98,9 +98,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void SetWithDefaultValue()
+    public async Task SetWithDefaultValue()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         string key = Me();
         var value = default(RedisValue); // this is kinda 0... ish
@@ -116,9 +116,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void SetWithZeroValue()
+    public async Task SetWithZeroValue()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         string key = Me();
         const long value = 0;
@@ -136,7 +136,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task GetSetAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
@@ -159,9 +159,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void GetSetSync()
+    public async Task GetSetSync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
@@ -188,7 +188,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [InlineData(true, false)]
     public async Task GetWithExpiry(bool exists, bool hasExpiry)
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -224,7 +224,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task GetWithExpiryWrongTypeAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         _ = db.KeyDeleteAsync(key);
@@ -245,12 +245,12 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void GetWithExpiryWrongTypeSync()
+    public async Task GetWithExpiryWrongTypeSync()
     {
         RedisKey key = Me();
-        var ex = Assert.Throws<RedisServerException>(() =>
+        var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
         {
-            using var conn = Create();
+            await using var conn = Create();
             var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);
             db.SetAdd(key, "abc", CommandFlags.FireAndForget);
@@ -264,7 +264,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     public async Task TestSevered()
     {
         SetExpectedAmbientFailureCount(2);
-        using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, shared: false);
         var db = conn.GetDatabase();
         string key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -284,7 +284,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task IncrAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -310,9 +310,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void IncrSync()
+    public async Task IncrSync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -338,9 +338,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void IncrDifferentSizes()
+    public async Task IncrDifferentSizes()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -393,7 +393,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task Delete()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
         _ = db.StringSetAsync(key, "Heyyyyy");
@@ -408,7 +408,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task DeleteAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
         _ = db.StringSetAsync(key, "Heyyyyy");
@@ -423,7 +423,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task DeleteMany()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key1 = Me();
         var key2 = Me() + "2";
@@ -442,7 +442,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task DeleteManyAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key1 = Me();
         var key2 = Me() + "2";
@@ -459,10 +459,10 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void WrappedDatabasePrefixIntegration()
+    public async Task WrappedDatabasePrefixIntegration()
     {
         var key = Me();
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase().WithKeyPrefix("abc");
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringIncrement(key, flags: CommandFlags.FireAndForget);
@@ -474,9 +474,9 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     }
 
     [Fact]
-    public void TransactionSync()
+    public async Task TransactionSync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();

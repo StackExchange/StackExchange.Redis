@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -11,9 +12,9 @@ public class Roles(ITestOutputHelper output, SharedConnectionFixture fixture) : 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void PrimaryRole(bool allowAdmin) // should work with or without admin now
+    public async Task PrimaryRole(bool allowAdmin) // should work with or without admin now
     {
-        using var conn = Create(allowAdmin: allowAdmin);
+        await using var conn = Create(allowAdmin: allowAdmin);
         var servers = conn.GetServers();
         Log("Server list:");
         foreach (var s in servers)
@@ -66,9 +67,9 @@ public class Roles(ITestOutputHelper output, SharedConnectionFixture fixture) : 
     }
 
     [Fact]
-    public void ReplicaRole()
+    public async Task ReplicaRole()
     {
-        using var conn = ConnectionMultiplexer.Connect($"{TestConfig.Current.ReplicaServerAndPort},allowAdmin=true");
+        await using var conn = await ConnectionMultiplexer.ConnectAsync($"{TestConfig.Current.ReplicaServerAndPort},allowAdmin=true");
         var server = conn.GetServers().First(conn => conn.IsReplica);
 
         var role = server.Role();

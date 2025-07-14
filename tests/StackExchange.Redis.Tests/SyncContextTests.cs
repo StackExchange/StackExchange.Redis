@@ -41,10 +41,10 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SyncPing()
+        public async Task SyncPing()
         {
             using var ctx = new MySyncContext(Writer);
-            using var conn = Create();
+            await using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
             db.Ping();
@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Tests
         public async Task AsyncPing(bool continueOnCapturedContext)
         {
             using var ctx = new MySyncContext(Writer);
-            using var conn = Create();
+            await using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
             Log($"Context before await: {ctx}");
@@ -67,10 +67,10 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SyncConfigure()
+        public async Task SyncConfigure()
         {
             using var ctx = new MySyncContext(Writer);
-            using var conn = Create();
+            await using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             Assert.True(conn.Configure());
             Assert.Equal(0, ctx.OpCount);
@@ -82,7 +82,7 @@ namespace StackExchange.Redis.Tests
         public async Task AsyncConfigure(bool continueOnCapturedContext)
         {
             using var ctx = new MySyncContext(Writer);
-            using var conn = Create();
+            await using var conn = Create();
 
             Log($"Context initial: {ctx}");
             await Task.Delay(500);

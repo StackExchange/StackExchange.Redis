@@ -12,11 +12,11 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
     [Fact]
-    public void AsyncTasksReportFailureIfServerUnavailable()
+    public async Task AsyncTasksReportFailureIfServerUnavailable()
     {
         SetExpectedAmbientFailureCount(-1); // this will get messy
 
-        using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var server = conn.GetServer(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
 
         RedisKey key = Me();
@@ -42,7 +42,7 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task AsyncTimeoutIsNoticed()
     {
-        using var conn = Create(syncTimeout: 1000, asyncTimeout: 1000);
+        await using var conn = Create(syncTimeout: 1000, asyncTimeout: 1000);
         using var pauseConn = Create();
         var opt = ConfigurationOptions.Parse(conn.Configuration);
         if (!Debugger.IsAttached)

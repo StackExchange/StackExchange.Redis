@@ -65,9 +65,9 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void TestOpCountByVersionLocal_UpLevel()
+    public async Task TestOpCountByVersionLocal_UpLevel()
     {
-        using var conn = Create(shared: false);
+        await using var conn = Create(shared: false);
 
         TestLockOpCountByVersion(conn, 1, false);
         TestLockOpCountByVersion(conn, 1, true);
@@ -111,7 +111,7 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
     [Theory, MemberData(nameof(TestModes))]
     public async Task TakeLockAndExtend(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         RedisValue right = Guid.NewGuid().ToString(),
             wrong = Guid.NewGuid().ToString();
@@ -163,7 +163,7 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
     [Theory, MemberData(nameof(TestModes))]
     public async Task TestBasicLockNotTaken(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         int errorCount = 0;
         conn.ErrorMessage += (sender, e) => Interlocked.Increment(ref errorCount);
@@ -192,7 +192,7 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
     [Theory, MemberData(nameof(TestModes))]
     public async Task TestBasicLockTaken(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         var db = conn.GetDatabase();
         var key = Me() + testMode;

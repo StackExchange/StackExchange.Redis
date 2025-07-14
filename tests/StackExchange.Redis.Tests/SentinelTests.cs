@@ -17,7 +17,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         var conn = ConnectionMultiplexer.Connect(connectionString);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         var endpoints = conn.GetEndPoints();
         Assert.Equal(2, endpoints.Length);
@@ -84,19 +84,19 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
 
     [Fact]
     [RunPerProtocol]
-    public void SentinelConnectTest()
+    public async Task SentinelConnectTest()
     {
         var options = ServiceOptions.Clone();
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
         using var conn = ConnectionMultiplexer.SentinelConnect(options);
 
         var db = conn.GetDatabase();
-        var test = db.Ping();
+        var test = await db.PingAsync();
         Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
     }
 
     [Fact]
-    public void SentinelRepeatConnectTest()
+    public async Task SentinelRepeatConnectTest()
     {
         var options = ConfigurationOptions.Parse($"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA}");
         options.ServiceName = ServiceName;
@@ -108,10 +108,10 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
             Log("  Endpoint: " + ep);
         }
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         var db = conn.GetDatabase();
-        var test = db.Ping();
+        var test = await db.PingAsync();
         Log("ping to 1st sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
 
         Log("Service Name: " + options.ServiceName);
@@ -123,7 +123,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         using var conn2 = ConnectionMultiplexer.Connect(options);
 
         var db2 = conn2.GetDatabase();
-        var test2 = db2.Ping();
+        var test2 = await db2.PingAsync();
         Log("ping to 2nd sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test2.TotalMilliseconds);
     }
 
@@ -153,13 +153,13 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     }
 
     [Fact]
-    public void PingTest()
+    public async Task PingTest()
     {
-        var test = SentinelServerA.Ping();
+        var test = await SentinelServerA.PingAsync();
         Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
-        test = SentinelServerB.Ping();
+        test = await SentinelServerB.PingAsync();
         Log("ping to sentinel {0}:{1} took {1} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB, test.TotalMilliseconds);
-        test = SentinelServerC.Ping();
+        test = await SentinelServerC.PingAsync();
         Log("ping to sentinel {0}:{1} took {1} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC, test.TotalMilliseconds);
     }
 

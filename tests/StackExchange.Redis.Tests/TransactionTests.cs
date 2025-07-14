@@ -9,9 +9,9 @@ namespace StackExchange.Redis.Tests;
 public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
-    public void BasicEmptyTran()
+    public async Task BasicEmptyTran()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -25,9 +25,9 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     }
 
     [Fact]
-    public void NestedTransactionThrows()
+    public async Task NestedTransactionThrows()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var tran = db.CreateTransaction();
@@ -42,7 +42,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(true, true, true)]
     public async Task BasicTranWithExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: new[] { "info", "config" });
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -89,7 +89,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(null, null, false, false)]
     public async Task BasicTranWithEqualsCondition(string? expected, string? value, bool expectEqual, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -130,7 +130,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(true, true, true)]
     public async Task BasicTranWithHashExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: new[] { "info", "config" });
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -178,7 +178,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(null, null, false, false)]
     public async Task BasicTranWithHashEqualsCondition(string? expected, string? value, bool expectEqual, bool expectedTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -242,7 +242,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(true, true, true)]
     public async Task BasicTranWithListExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: new[] { "info", "config" });
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -289,7 +289,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(null, null, false, false)]
     public async Task BasicTranWithListEqualsCondition(string? expected, string? value, bool expectEqual, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -356,7 +356,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(null, ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithStringLengthCondition(string? value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -435,7 +435,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithHashLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -514,7 +514,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithSetCardinalityCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -580,7 +580,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(true, true, true)]
     public async Task BasicTranWithSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: new[] { "info", "config" });
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -634,7 +634,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithSortedSetCardinalityCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -713,7 +713,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(0, 0, ComparisonType.GreaterThan, 0L, true)]
     public async Task BasicTranWithSortedSetRangeCountCondition(double min, double max, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -779,7 +779,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(true, true, true)]
     public async Task BasicTranWithSortedSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: new[] { "info", "config" });
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -827,7 +827,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(null, null, false, false)]
     public async Task BasicTranWithSortedSetEqualCondition(double? expected, double? value, bool expectEqual, bool expectedTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -873,7 +873,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(false, false, false, true)]
     public async Task BasicTranWithSortedSetScoreExistsCondition(bool member1HasScore, bool member2HasScore, bool demandScoreExists, bool expectedTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -939,7 +939,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData(false, false, 1L, false, true)]
     public async Task BasicTranWithSortedSetScoreCountExistsCondition(bool member1HasScore, bool member2HasScore, long expectedLength, bool expectEqual, bool expectedTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -1008,7 +1008,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithListLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -1087,7 +1087,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithStreamLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -1149,7 +1149,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [Fact]
     public async Task BasicTran()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -1193,7 +1193,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [Fact]
     public async Task CombineFireAndForgetAndRegularAsyncInTransaction()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -1219,7 +1219,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     [Fact]
     public async Task TransactionWithAdHocCommandsAndSelectDisabled()
     {
-        using var conn = Create(disabledCommands: new string[] { "SELECT" });
+        await using var conn = Create(disabledCommands: new string[] { "SELECT" });
         RedisKey key = Me();
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);

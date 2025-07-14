@@ -10,7 +10,7 @@ public class ConnectFailTimeoutTests(ITestOutputHelper output) : TestBase(output
     public async Task NoticesConnectFail()
     {
         SetExpectedAmbientFailureCount(-1);
-        using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
@@ -38,7 +38,7 @@ public class ConnectFailTimeoutTests(ITestOutputHelper output) : TestBase(output
         await UntilConditionAsync(TimeSpan.FromSeconds(10), () => server.IsConnected);
 
         Log("pinging - expect success");
-        var time = server.Ping();
+        var time = await server.PingAsync();
         Log("pinged");
         Log(time.ToString());
     }

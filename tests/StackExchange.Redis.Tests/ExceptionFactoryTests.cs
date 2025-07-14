@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -6,9 +7,9 @@ namespace StackExchange.Redis.Tests;
 public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact]
-    public void NullLastException()
+    public async Task NullLastException()
     {
-        using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true);
+        await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true);
 
         conn.GetDatabase();
         Assert.Null(conn.GetServerSnapshot()[0].LastException);
@@ -25,11 +26,11 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
 
 #if DEBUG
     [Fact]
-    public void MultipleEndpointsThrowConnectionException()
+    public async Task MultipleEndpointsThrowConnectionException()
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
 
             conn.GetDatabase();
             conn.AllowConnect = false;
@@ -54,11 +55,11 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
 #endif
 
     [Fact]
-    public void ServerTakesPrecendenceOverSnapshot()
+    public async Task ServerTakesPrecendenceOverSnapshot()
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
 
             conn.GetDatabase();
             conn.AllowConnect = false;
@@ -77,11 +78,11 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void NullInnerExceptionForMultipleEndpointsWithNoLastException()
+    public async Task NullInnerExceptionForMultipleEndpointsWithNoLastException()
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true);
 
             conn.GetDatabase();
             conn.AllowConnect = false;
@@ -96,11 +97,11 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void TimeoutException()
+    public async Task TimeoutException()
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
 
             var server = GetServer(conn);
             conn.AllowConnect = false;
@@ -215,9 +216,9 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void NoConnectionPrimaryOnlyException()
+    public async Task NoConnectionPrimaryOnlyException()
     {
-        using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.ReplicaServerAndPort, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(TestConfig.Current.ReplicaServerAndPort, Writer);
 
         var msg = Message.Create(0, CommandFlags.None, RedisCommand.SET, (RedisKey)Me(), (RedisValue)"test");
         Assert.True(msg.IsPrimaryOnly());
@@ -234,9 +235,9 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
     [InlineData(true, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET myKey (StringProcessor), my annotation")]
     [InlineData(false, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET (StringProcessor), my annotation")]
     [InlineData(false, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET (StringProcessor), my annotation")]
-    public void MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
+    public async Task MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
     {
-        using var conn = Create(shared: false);
+        await using var conn = Create(shared: false);
 
         conn.RawConfig.IncludeDetailInExceptions = includeDetail;
 

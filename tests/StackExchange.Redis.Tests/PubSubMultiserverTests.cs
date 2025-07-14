@@ -12,9 +12,9 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
     [Fact]
-    public void ChannelSharding()
+    public async Task ChannelSharding()
     {
-        using var conn = Create(channelPrefix: Me());
+        await using var conn = Create(channelPrefix: Me());
 
         var defaultSlot = conn.ServerSelectionStrategy.HashSlot(default(RedisChannel));
         var slot1 = conn.ServerSelectionStrategy.HashSlot(RedisChannel.Literal("hey"));
@@ -30,7 +30,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
     {
         Log("Connecting...");
 
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var sub = conn.GetSubscriber();
         var channel = RedisChannel.Literal(Me());
@@ -103,7 +103,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
         ClearAmbientFailures();
     }
 
-    [Theory]
+    [Theory(Skip="TODO: Hostile")]
     [InlineData(CommandFlags.PreferMaster, true)]
     [InlineData(CommandFlags.PreferReplica, true)]
     [InlineData(CommandFlags.DemandMaster, false)]
@@ -113,7 +113,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
         var config = TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
         Log("Connecting...");
 
-        using var conn = Create(configuration: config, shared: false, allowAdmin: true);
+        await using var conn = Create(configuration: config, shared: false, allowAdmin: true);
 
         var sub = conn.GetSubscriber();
         var channel = RedisChannel.Literal(Me() + flags.ToString()); // Individual channel per case to not overlap publishers

@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -28,36 +29,36 @@ public class ConnectByIPTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
-    public void IPv4Connection()
+    public async Task IPv4Connection()
     {
         var config = new ConfigurationOptions
         {
             EndPoints = { { TestConfig.Current.IPv4Server, TestConfig.Current.IPv4Port } },
         };
-        using var conn = ConnectionMultiplexer.Connect(config);
+        await using var conn = ConnectionMultiplexer.Connect(config);
 
         var server = conn.GetServer(config.EndPoints[0]);
         Assert.Equal(AddressFamily.InterNetwork, server.EndPoint.AddressFamily);
-        server.Ping();
+        await server.PingAsync();
     }
 
     [Fact]
-    public void IPv6Connection()
+    public async Task IPv6Connection()
     {
         var config = new ConfigurationOptions
         {
             EndPoints = { { TestConfig.Current.IPv6Server, TestConfig.Current.IPv6Port } },
         };
-        using var conn = ConnectionMultiplexer.Connect(config);
+        await using var conn = ConnectionMultiplexer.Connect(config);
 
         var server = conn.GetServer(config.EndPoints[0]);
         Assert.Equal(AddressFamily.InterNetworkV6, server.EndPoint.AddressFamily);
-        server.Ping();
+        await server.PingAsync();
     }
 
     [Theory]
     [MemberData(nameof(ConnectByVariousEndpointsData))]
-    public void ConnectByVariousEndpoints(EndPoint ep, AddressFamily expectedFamily)
+    public async Task ConnectByVariousEndpoints(EndPoint ep, AddressFamily expectedFamily)
     {
         Assert.Equal(expectedFamily, ep.AddressFamily);
         var config = new ConfigurationOptions
@@ -70,7 +71,7 @@ public class ConnectByIPTests(ITestOutputHelper output) : TestBase(output)
             {
                 var actual = conn.GetEndPoints().Single();
                 var server = conn.GetServer(actual);
-                server.Ping();
+                await server.PingAsync();
             }
         }
     }

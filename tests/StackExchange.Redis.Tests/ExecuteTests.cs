@@ -10,7 +10,7 @@ public class ExecuteTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task DBExecute()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase(4);
         RedisKey key = Me();
@@ -26,7 +26,7 @@ public class ExecuteTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task ServerExecute()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = conn.GetServer(conn.GetEndPoints().First());
         var actual = (string?)server.Execute("echo", "some value");

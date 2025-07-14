@@ -13,7 +13,7 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
     [RunPerProtocol]
     public async Task ConnectWithTiming()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
         await conn.GetDatabase().PingAsync();
     }
 

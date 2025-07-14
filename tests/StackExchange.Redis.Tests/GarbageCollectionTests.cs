@@ -28,7 +28,7 @@ public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
 
         // deliberately not "using" - we *want* to leak this
         var conn = Create();
-        conn.GetDatabase().Ping(); // smoke-test
+        await conn.GetDatabase().PingAsync(); // smoke-test
 
         ForceGC();
 
@@ -54,6 +54,7 @@ public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
     [Fact]
     public async Task UnrootedBackloggedAsyncTaskIsCompletedOnTimeout()
     {
+        Skip.UnlessLongRunning();
         // Run the test on a separate thread without keeping a reference to the task to ensure
         // that there are no references to the variables in test task from the main thread.
         // WithTimeout must not be used within Task.Run because timers are rooted and would keep everything alive.

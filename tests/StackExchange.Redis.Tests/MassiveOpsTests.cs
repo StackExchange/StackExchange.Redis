@@ -12,7 +12,7 @@ public class MassiveOpsTests(ITestOutputHelper output) : TestBase(output)
     public async Task LongRunning()
     {
         Skip.UnlessLongRunning();
-        using var conn = Create();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -31,7 +31,7 @@ public class MassiveOpsTests(ITestOutputHelper output) : TestBase(output)
     [InlineData(false)]
     public async Task MassiveBulkOpsAsync(bool withContinuation)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -60,10 +60,10 @@ public class MassiveOpsTests(ITestOutputHelper output) : TestBase(output)
     [InlineData(5)]
     [InlineData(10)]
     [InlineData(50)]
-    public void MassiveBulkOpsSync(int threads)
+    public async Task MassiveBulkOpsSync(int threads)
     {
         Skip.UnlessLongRunning();
-        using var conn = Create(syncTimeout: 30000);
+        await using var conn = Create(syncTimeout: 30000);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -87,13 +87,13 @@ public class MassiveOpsTests(ITestOutputHelper output) : TestBase(output)
     [Theory]
     [InlineData(1)]
     [InlineData(5)]
-    public void MassiveBulkOpsFireAndForget(int threads)
+    public async Task MassiveBulkOpsFireAndForget(int threads)
     {
-        using var conn = Create(syncTimeout: 30000);
+        await using var conn = Create(syncTimeout: 30000);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         int perThread = AsyncOpsQty / threads;
