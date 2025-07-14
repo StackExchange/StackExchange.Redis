@@ -83,6 +83,9 @@ namespace StackExchange.Redis
 
         private ResultProcessor? resultProcessor;
 
+        // Cancellation token for this specific message
+        private CancellationToken _cancellationToken;
+
         // All for profiling purposes
         private ProfiledCommand? performance;
         internal DateTime CreatedDateTime;
@@ -115,6 +118,9 @@ namespace StackExchange.Redis
             this.command = command;
             Flags = flags & UserSelectableFlags;
             if (primaryOnly) SetPrimaryOnly();
+
+            // Get ambient cancellation token when the message is created
+            _cancellationToken = RedisCancellationExtensions.GetEffectiveCancellationToken();
 
             CreatedDateTime = DateTime.UtcNow;
             CreatedTimestamp = Stopwatch.GetTimestamp();
@@ -216,6 +222,12 @@ namespace StackExchange.Redis
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
 
         public IResultBox? ResultBox => resultBox;
+
+        /// <summary>
+        /// Gets the cancellation token associated with this message.
+        /// This token is captured when the message is created and preserved across resends.
+        /// </summary>
+        internal CancellationToken CancellationToken => _cancellationToken;
 
         public abstract int ArgCount { get; } // note: over-estimate if necessary
 

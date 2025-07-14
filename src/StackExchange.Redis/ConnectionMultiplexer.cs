@@ -2132,7 +2132,9 @@ namespace StackExchange.Redis
             IResultBox<T>? source = null;
             if (!message.IsFireAndForget)
             {
-                source = TaskResultBox<T>.Create(out tcs, state);
+                // Use the message's cancellation token, which preserves the ambient context from when the message was created
+                // This ensures that resent messages (due to MOVED, failover, etc.) still respect the original cancellation
+                source = TaskResultBox<T>.Create(out tcs, state, message.CancellationToken);
             }
             var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
             if (!write.IsCompletedSuccessfully)
@@ -2183,7 +2185,9 @@ namespace StackExchange.Redis
             IResultBox<T?>? source = null;
             if (!message.IsFireAndForget)
             {
-                source = TaskResultBox<T?>.Create(out tcs, state);
+                // Use the message's cancellation token, which preserves the ambient context from when the message was created
+                // This ensures that resent messages (due to MOVED, failover, etc.) still respect the original cancellation
+                source = TaskResultBox<T?>.Create(out tcs, state, message.CancellationToken);
             }
             var write = TryPushMessageToBridgeAsync(message, processor, source!, ref server);
             if (!write.IsCompletedSuccessfully)

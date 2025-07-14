@@ -44,6 +44,9 @@ namespace StackExchange.Redis
         {
             if (message is null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
             multiplexer.CheckMessage(message);
+
+            // The message already captures the ambient cancellation token when it was created,
+            // so we don't need to pass it again. This ensures resent messages preserve their original cancellation context.
             return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue);
         }
 
@@ -51,6 +54,9 @@ namespace StackExchange.Redis
         {
             if (message is null) return CompletedTask<T>.Default(asyncState);
             multiplexer.CheckMessage(message);
+
+            // The message already captures the ambient cancellation token when it was created,
+            // so we don't need to pass it again. This ensures resent messages preserve their original cancellation context.
             return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server);
         }
 

@@ -88,6 +88,7 @@ namespace StackExchange.Redis
         // the fun TryComplete indirection - so we need somewhere to buffer them
         private volatile Exception? _exception;
         private T _value = default!;
+        private CancellationTokenRegistration _cancellationRegistration;
 
         private TaskResultBox(object? asyncState, TaskCreationOptions creationOptions) : base(asyncState, creationOptions)
         { }
@@ -124,13 +125,23 @@ namespace StackExchange.Redis
             var val = _value;
             var ex = _exception;
 
+            // Clean up cancellation registration
+            try
+            {
+                _cancellationRegistration.Dispose();
+            }
+            catch
+            {
+                // Ignore disposal errors
+            }
+
             if (ex == null)
             {
                 TrySetResult(val);
             }
             else
             {
-                if (ex is TaskCanceledException) TrySetCanceled();
+                if (ex is TaskCanceledException or OperationCanceledException) TrySetCanceled();
                 else TrySetException(ex);
                 var task = Task;
                 GC.KeepAlive(task.Exception); // mark any exception as observed
@@ -139,6 +150,11 @@ namespace StackExchange.Redis
         }
 
         public static IResultBox<T> Create(out TaskCompletionSource<T> source, object? asyncState)
+        {
+            return Create(out source, asyncState, default);
+        }
+
+        public static IResultBox<T> Create(out TaskCompletionSource<T> source, object? asyncState, CancellationToken cancellationToken)
         {
             // it might look a little odd to return the same object as two different things,
             // but that's because it is serving two purposes, and I want to make it clear
@@ -149,6 +165,17 @@ namespace StackExchange.Redis
                 asyncState,
                 // if we don't trust the TPL/sync-context, avoid a double QUWI dispatch
                 ConnectionMultiplexer.PreventThreadTheft ? TaskCreationOptions.None : TaskCreationOptions.RunContinuationsAsynchronously);
+
+            // Register for cancellation if the token can be cancelled
+            if (cancellationToken.CanBeCanceled)
+            {
+                obj._cancellationRegistration = cancellationToken.Register(() =>
+                {
+                    obj._exception = new OperationCanceledException("The Redis operation was cancelled.", cancellationToken);
+                    obj.TrySetCanceled(cancellationToken);
+                });
+            }
+
             source = obj;
             return obj;
         }
