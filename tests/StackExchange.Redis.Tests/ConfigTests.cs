@@ -499,13 +499,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestAutomaticHeartbeat()
     {
-        var options = ConfigurationOptions.Parse(GetConfiguration());
-        options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
-        options.HeartbeatConsistencyChecks = true;
-        options.AllowAdmin = true;
-        using var configConn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
-
         RedisValue oldTimeout = RedisValue.Null;
+        await using var configConn = Create(allowAdmin: true);
+
         try
         {
             configConn.GetDatabase();
