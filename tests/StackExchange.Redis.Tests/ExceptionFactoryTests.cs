@@ -151,7 +151,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
     [InlineData(true, 0, 0, true, "No connection is active/available to service this operation: PING")]
     [InlineData(true, 1, 0, true, "No connection is active/available to service this operation: PING")]
     [InlineData(true, 12, 0, true, "No connection is active/available to service this operation: PING")]
-    public void NoConnectionException(bool abortOnConnect, int connCount, int completeCount, bool hasDetail, string messageStart)
+    public async Task NoConnectionException(bool abortOnConnect, int connCount, int completeCount, bool hasDetail, string messageStart)
     {
         try
         {
@@ -176,7 +176,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
                 conn = ConnectionMultiplexer.Connect(options, Writer);
             }
 
-            using (conn)
+            await using (conn)
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 conn.AllowConnect = false;

@@ -21,7 +21,7 @@ public class ConnectToUnexistingHostTests(ITestOutputHelper output) : TestBase(o
                 ConnectTimeout = timeout,
             };
 
-            using (ConnectionMultiplexer.Connect(config, Writer))
+            await using (ConnectionMultiplexer.Connect(config, Writer))
             {
                 await Task.Delay(10000).ForAwait();
             }
