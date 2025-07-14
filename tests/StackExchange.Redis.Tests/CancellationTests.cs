@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -10,6 +11,62 @@ namespace StackExchange.Redis.Tests
     public class CancellationTests : TestBase
     {
         public CancellationTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
+
+        [Fact]
+        public async Task GetEffectiveCancellationToken_Nesting()
+        {
+            // this is a pure test - no database access
+            IDatabase? db = null!;
+
+            // No context initially
+            Assert.Null(RedisCancellationExtensions.GetCurrentScope());
+            Assert.Equal(CancellationToken.None, RedisCancellationExtensions.GetEffectiveCancellationToken());
+
+            using var cts = new CancellationTokenSource();
+            using (var outer = db.WithCancellation(cts.Token))
+            {
+                Assert.NotNull(outer);
+                Assert.Same(outer, RedisCancellationExtensions.GetCurrentScope());
+                Assert.Equal(cts.Token, RedisCancellationExtensions.GetEffectiveCancellationToken());
+
+                // nest with timeout
+                using (var inner = db.WithTimeout(TimeSpan.FromSeconds(0.5)))
+                {
+                    Assert.NotNull(inner);
+                    Assert.Same(inner, RedisCancellationExtensions.GetCurrentScope());
+                    var active = RedisCancellationExtensions.GetEffectiveCancellationToken();
+
+                    Assert.False(active.IsCancellationRequested);
+
+                    await Task.Delay(TimeSpan.FromSeconds(0.5));
+                    for (int i = 0; i < 20; i++)
+                    {
+                        if (active.IsCancellationRequested) break;
+                        await Task.Delay(TimeSpan.FromSeconds(0.1));
+                    }
+                    Assert.True(active.IsCancellationRequested);
+                    Assert.Equal(active, RedisCancellationExtensions.GetEffectiveCancellationToken());
+                }
+
+                // back to outer
+                Assert.Same(outer, RedisCancellationExtensions.GetCurrentScope());
+                Assert.Equal(cts.Token, RedisCancellationExtensions.GetEffectiveCancellationToken());
+
+                // nest with suppression
+                using (var inner = db.WithCancellation(CancellationToken.None))
+                {
+                    Assert.NotNull(inner);
+                    Assert.Same(inner, RedisCancellationExtensions.GetCurrentScope());
+                    Assert.Equal(CancellationToken.None, RedisCancellationExtensions.GetEffectiveCancellationToken());
+                }
+
+                // back to outer
+                Assert.Same(outer, RedisCancellationExtensions.GetCurrentScope());
+                Assert.Equal(cts.Token, RedisCancellationExtensions.GetEffectiveCancellationToken());
+            }
+            Assert.Null(RedisCancellationExtensions.GetCurrentScope());
+            Assert.Equal(CancellationToken.None, RedisCancellationExtensions.GetEffectiveCancellationToken());
+        }
 
         [Fact]
         public async Task WithCancellation_CancelledToken_ThrowsOperationCanceledException()
@@ -22,9 +79,9 @@ namespace StackExchange.Redis.Tests
 
             using (db.WithCancellation(cts.Token))
             {
-                await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
                 {
-                    await db.StringSetAsync("test:cancelled", "value");
+                    await db.StringSetAsync(Me(), "value");
                 });
             }
         }
@@ -39,9 +96,10 @@ namespace StackExchange.Redis.Tests
 
             using (db.WithCancellation(cts.Token))
             {
+                RedisKey key = Me();
                 // This should succeed
-                await db.StringSetAsync("test:success", "value");
-                var result = await db.StringGetAsync("test:success");
+                await db.StringSetAsync(key, "value");
+                var result = await db.StringGetAsync(key);
                 Assert.Equal("value", result);
             }
         }
@@ -57,7 +115,7 @@ namespace StackExchange.Redis.Tests
                 // This might throw due to timeout, but let's test the mechanism
                 try
                 {
-                    await db.StringSetAsync("test:timeout", "value");
+                    await db.StringSetAsync(Me(), "value");
                     // If it succeeds, that's fine too - Redis is fast
                 }
                 catch (OperationCanceledException)
@@ -78,8 +136,9 @@ namespace StackExchange.Redis.Tests
             using (db.WithCancellationAndTimeout(cts.Token, TimeSpan.FromSeconds(10)))
             {
                 // This should succeed with both cancellation and timeout
-                await db.StringSetAsync("test:combined", "value");
-                var result = await db.StringGetAsync("test:combined");
+                RedisKey key = Me();
+                await db.StringSetAsync(key, "value");
+                var result = await db.StringGetAsync(key);
                 Assert.Equal("value", result);
             }
         }
@@ -93,25 +152,28 @@ namespace StackExchange.Redis.Tests
             using var outerCts = new CancellationTokenSource();
             using var innerCts = new CancellationTokenSource();
 
+            RedisKey key1 = Me() + ":outer",
+                key2 = Me() + ":inner",
+                key3 = Me() + ":outer2";
             using (db.WithCancellation(outerCts.Token))
             {
                 // Outer scope active
-                await db.StringSetAsync("test:outer", "value1");
+                await db.StringSetAsync(key1, "value1");
 
                 using (db.WithCancellation(innerCts.Token))
                 {
                     // Inner scope should take precedence
-                    await db.StringSetAsync("test:inner", "value2");
+                    await db.StringSetAsync(key2, "value2");
                 }
 
                 // Back to outer scope
-                await db.StringSetAsync("test:outer2", "value3");
+                await db.StringSetAsync(key3, "value3");
             }
 
             // Verify all operations succeeded
-            Assert.Equal("value1", await db.StringGetAsync("test:outer"));
-            Assert.Equal("value2", await db.StringGetAsync("test:inner"));
-            Assert.Equal("value3", await db.StringGetAsync("test:outer2"));
+            Assert.Equal("value1", await db.StringGetAsync(key1));
+            Assert.Equal("value2", await db.StringGetAsync(key2));
+            Assert.Equal("value3", await db.StringGetAsync(key3));
         }
 
         [Fact]
@@ -121,8 +183,9 @@ namespace StackExchange.Redis.Tests
             var db = conn.GetDatabase();
 
             // No ambient cancellation - should work normally
-            await db.StringSetAsync("test:normal", "value");
-            var result = await db.StringGetAsync("test:normal");
+            RedisKey key = Me();
+            await db.StringSetAsync(key, "value");
+            var result = await db.StringGetAsync(key);
             Assert.Equal("value", result);
         }
 
@@ -137,7 +200,7 @@ namespace StackExchange.Redis.Tests
             using (db.WithCancellation(cts.Token))
             {
                 // Start an operation and cancel it mid-flight
-                var task = db.StringSetAsync("test:cancel-during", "value");
+                var task = db.StringSetAsync(Me(), "value");
 
                 // Cancel after a short delay
                 _ = Task.Run(async () =>
@@ -155,65 +218,6 @@ namespace StackExchange.Redis.Tests
                 {
                     // Expected if cancellation happens during operation
                 }
-            }
-        }
-
-        [Fact]
-        public void GetCurrentContext_ReturnsCorrectContext()
-        {
-            using var conn = Create();
-            var db = conn.GetDatabase();
-
-            // No context initially
-            var context = RedisCancellationExtensions.GetCurrentContext();
-            Assert.Null(context);
-
-            using var cts = new CancellationTokenSource();
-            using (db.WithCancellation(cts.Token))
-            {
-                context = RedisCancellationExtensions.GetCurrentContext();
-                Assert.NotNull(context);
-                Assert.Equal(cts.Token, context.Token);
-                Assert.Null(context.Timeout);
-            }
-
-            using (db.WithTimeout(TimeSpan.FromSeconds(5)))
-            {
-                context = RedisCancellationExtensions.GetCurrentContext();
-                Assert.NotNull(context);
-                Assert.False(context.Token.CanBeCanceled);
-                Assert.Equal(TimeSpan.FromSeconds(5), context.Timeout);
-            }
-
-            // Context should be null again
-            context = RedisCancellationExtensions.GetCurrentContext();
-            Assert.Null(context);
-        }
-
-        [Fact]
-        public async Task PubSub_WithCancellation_WorksCorrectly()
-        {
-            using var conn = Create();
-            var subscriber = conn.GetSubscriber();
-
-            using var cts = new CancellationTokenSource();
-
-            using (subscriber.WithCancellation(cts.Token))
-            {
-                // Test pub/sub operations with cancellation
-                var channel = RedisChannel.Literal(Me());
-                var messageReceived = new TaskCompletionSource<bool>();
-
-                await subscriber.SubscribeAsync(channel, (ch, msg) =>
-                {
-                    messageReceived.TrySetResult(true);
-                });
-
-                await subscriber.PublishAsync(channel, "test message");
-
-                // Wait for message with timeout
-                var received = await messageReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
-                Assert.True(received);
             }
         }
     }

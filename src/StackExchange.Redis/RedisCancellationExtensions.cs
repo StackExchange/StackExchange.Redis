@@ -8,8 +8,6 @@ namespace StackExchange.Redis
     /// </summary>
     public static class RedisCancellationExtensions
     {
-        private static readonly AsyncLocal<CancellationContext?> _context = new();
-
         /// <summary>
         /// Sets an ambient cancellation token that will be used for all Redis operations
         /// in the current async context until the returned scope is disposed.
@@ -27,9 +25,7 @@ namespace StackExchange.Redis
         /// </code>
         /// </example>
         public static IDisposable WithCancellation(this IRedisAsync redis, CancellationToken cancellationToken)
-        {
-            return new CancellationScope(cancellationToken, null);
-        }
+            => new CancellationScope(cancellationToken, null);
 
         /// <summary>
         /// Sets an ambient timeout that will be used for all Redis operations
@@ -47,9 +43,7 @@ namespace StackExchange.Redis
         /// </code>
         /// </example>
         public static IDisposable WithTimeout(this IRedisAsync redis, TimeSpan timeout)
-        {
-            return new CancellationScope(default, timeout);
-        }
+            => new CancellationScope(CancellationToken.None, timeout);
 
         /// <summary>
         /// Sets both an ambient cancellation token and timeout that will be used for all Redis operations
@@ -71,9 +65,7 @@ namespace StackExchange.Redis
             this IRedisAsync redis,
             CancellationToken cancellationToken,
             TimeSpan timeout)
-        {
-            return new CancellationScope(cancellationToken, timeout);
-        }
+            => new CancellationScope(cancellationToken, timeout);
 
         /// <summary>
         /// Gets the effective cancellation token for the current async context,
@@ -81,55 +73,26 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>The effective cancellation token, or CancellationToken.None if no ambient context is set.</returns>
         internal static CancellationToken GetEffectiveCancellationToken()
-        {
-            var context = _context.Value;
-            return context?.GetEffectiveToken() ?? default;
-        }
+            => _context.Value?.Token ?? CancellationToken.None;
 
         /// <summary>
         /// Gets the current cancellation context for diagnostic purposes.
         /// </summary>
         /// <returns>The current context, or null if no ambient context is set.</returns>
-        internal static CancellationContext? GetCurrentContext() => _context.Value;
+        internal static object? GetCurrentScope() => _context.Value;
 
-        /// <summary>
-        /// Represents the cancellation context for Redis operations.
-        /// </summary>
-        internal record CancellationContext(CancellationToken Token, TimeSpan? Timeout)
-        {
-            /// <summary>
-            /// Gets the effective cancellation token, combining the explicit token with any timeout.
-            /// </summary>
-            /// <returns>A cancellation token that will be cancelled when either the explicit token is cancelled or the timeout expires.</returns>
-            public CancellationToken GetEffectiveToken()
-            {
-                if (!Timeout.HasValue) return Token;
-
-                var timeoutSource = new CancellationTokenSource(Timeout.Value);
-                return Token.CanBeCanceled
-                    ? CancellationTokenSource.CreateLinkedTokenSource(Token, timeoutSource.Token).Token
-                    : timeoutSource.Token;
-            }
-
-            /// <summary>
-            /// Gets a string representation of this context for debugging.
-            /// </summary>
-            public override string ToString()
-            {
-                var parts = new System.Collections.Generic.List<string>();
-                if (Token.CanBeCanceled) parts.Add($"Token: {(Token.IsCancellationRequested ? "Cancelled" : "Active")}");
-                if (Timeout.HasValue) parts.Add($"Timeout: {Timeout.Value.TotalMilliseconds}ms");
-                return parts.Count > 0 ? string.Join(", ", parts) : "None";
-            }
-        }
+        private static readonly AsyncLocal<CancellationScope?> _context = new();
 
         /// <summary>
         /// A disposable scope that manages the ambient cancellation context.
         /// </summary>
         private sealed class CancellationScope : IDisposable
         {
-            private readonly CancellationContext? _previous;
+            private readonly CancellationTokenSource? _ownedSource;
+            private readonly CancellationScope? _previous;
             private bool _disposed;
+
+            public CancellationToken Token { get; }
 
             /// <summary>
             /// Creates a new cancellation scope with the specified token and timeout.
@@ -139,7 +102,42 @@ namespace StackExchange.Redis
             public CancellationScope(CancellationToken cancellationToken, TimeSpan? timeout)
             {
                 _previous = _context.Value;
-                _context.Value = new CancellationContext(cancellationToken, timeout);
+                if (timeout.HasValue)
+                {
+                    // has a timeout
+                    if (cancellationToken.CanBeCanceled)
+                    {
+                        // need both timeout and cancellation; but we can avoid some layers if
+                        // we're already doomed
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            Token = cancellationToken;
+                        }
+                        else
+                        {
+                            _ownedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                            _ownedSource.CancelAfter(timeout.GetValueOrDefault());
+                            Token = _ownedSource.Token;
+                        }
+                    }
+                    else
+                    {
+                        // just a timeout
+                        _ownedSource = new CancellationTokenSource(timeout.GetValueOrDefault());
+                        Token = _ownedSource.Token;
+                    }
+                }
+                else if (cancellationToken.CanBeCanceled)
+                {
+                    // nice and simple, just a CT
+                    Token = cancellationToken;
+                }
+                else
+                {
+                    Token = CancellationToken.None;
+                }
+
+                _context.Value = this;
             }
 
             /// <summary>
@@ -149,8 +147,13 @@ namespace StackExchange.Redis
             {
                 if (!_disposed)
                 {
-                    _context.Value = _previous;
                     _disposed = true;
+                    if (ReferenceEquals(_context.Value, this))
+                    {
+                        // reinstate the previous context
+                        _context.Value = _previous;
+                    }
+                    _ownedSource?.Dispose();
                 }
             }
         }
