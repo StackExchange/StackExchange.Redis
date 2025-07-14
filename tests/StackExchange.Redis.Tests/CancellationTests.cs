@@ -117,6 +117,7 @@ namespace StackExchange.Redis.Tests
                 {
                     await db.StringSetAsync(Me(), "value");
                     // If it succeeds, that's fine too - Redis is fast
+                    Skip.Inconclusive("Redis is too fast for this test.");
                 }
                 catch (OperationCanceledException)
                 {
