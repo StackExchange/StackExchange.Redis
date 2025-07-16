@@ -64,14 +64,14 @@ namespace StackExchange.Redis
             }
         }
 
-        private protected abstract Message? CreateMessage(in RedisValue cursor);
+        private protected abstract Message? CreateMessage(in RedisValue cursor, CancellationToken cancellationToken);
 
         private protected abstract ResultProcessor<ScanResult>? Processor { get; }
 
-        private protected virtual Task<ScanResult> GetNextPageAsync(IScanningCursor obj, RedisValue cursor, out Message? message)
+        private protected virtual Task<ScanResult> GetNextPageAsync(IScanningCursor obj, RedisValue cursor, out Message? message, CancellationToken cancellationToken)
         {
             activeCursor = obj;
-            message = CreateMessage(cursor);
+            message = CreateMessage(cursor, cancellationToken);
             return redis.ExecuteAsync(message, Processor, server);
         }
 
@@ -181,7 +181,7 @@ namespace StackExchange.Redis
                 else
                 {
                     // start the next page right away
-                    _pending = parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage);
+                    _pending = parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage, cancellationToken);
                 }
             }
 
@@ -219,7 +219,7 @@ namespace StackExchange.Redis
                 switch (_state)
                 {
                     case State.Initial:
-                        _pending = parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage);
+                        _pending = parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage, cancellationToken);
                         isInitial = true;
                         _state = State.Running;
                         goto case State.Running;
@@ -352,7 +352,7 @@ namespace StackExchange.Redis
                 _pending = pending;
             }
 
-            private protected override Task<ScanResult> GetNextPageAsync(IScanningCursor obj, RedisValue cursor, out Message? message)
+            private protected override Task<ScanResult> GetNextPageAsync(IScanningCursor obj, RedisValue cursor, out Message? message, CancellationToken cancellationToken)
             {
                 message = null;
                 return AwaitedGetNextPageAsync();
@@ -363,7 +363,7 @@ namespace StackExchange.Redis
                 return new ScanResult(RedisBase.CursorUtils.Origin, arr, arr.Length, false);
             }
             private protected override ResultProcessor<ScanResult>? Processor => null;
-            private protected override Message? CreateMessage(in RedisValue cursor) => null;
+            private protected override Message? CreateMessage(in RedisValue cursor, CancellationToken cancellationToken) => null;
         }
     }
 }

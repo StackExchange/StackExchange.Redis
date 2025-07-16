@@ -23,14 +23,14 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(CancellationToken.None, RedisCancellationExtensions.GetEffectiveCancellationToken());
 
             using var cts = new CancellationTokenSource();
-            using (var outer = db.WithCancellation(cts.Token))
+            using (var outer = db.Multiplexer.WithCancellation(cts.Token))
             {
                 Assert.NotNull(outer);
                 Assert.Same(outer, RedisCancellationExtensions.GetCurrentScope());
                 Assert.Equal(cts.Token, RedisCancellationExtensions.GetEffectiveCancellationToken());
 
                 // nest with timeout
-                using (var inner = db.WithTimeout(TimeSpan.FromSeconds(0.5)))
+                using (var inner = db.Multiplexer.WithTimeout(TimeSpan.FromSeconds(0.5)))
                 {
                     Assert.NotNull(inner);
                     Assert.Same(inner, RedisCancellationExtensions.GetCurrentScope());
@@ -53,7 +53,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(cts.Token, RedisCancellationExtensions.GetEffectiveCancellationToken());
 
                 // nest with suppression
-                using (var inner = db.WithCancellation(CancellationToken.None))
+                using (var inner = db.Multiplexer.WithCancellation(CancellationToken.None))
                 {
                     Assert.NotNull(inner);
                     Assert.Same(inner, RedisCancellationExtensions.GetCurrentScope());
@@ -77,7 +77,7 @@ namespace StackExchange.Redis.Tests
             using var cts = new CancellationTokenSource();
             cts.Cancel(); // Cancel immediately
 
-            using (db.WithCancellation(cts.Token))
+            using (db.Multiplexer.WithCancellation(cts.Token))
             {
                 await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
                 {
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Tests
 
             using var cts = new CancellationTokenSource();
 
-            using (db.WithCancellation(cts.Token))
+            using (db.Multiplexer.WithCancellation(cts.Token))
             {
                 RedisKey key = Me();
                 // This should succeed
@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Tests
             using var conn = Create();
             var db = conn.GetDatabase();
 
-            using (db.WithTimeout(TimeSpan.FromMilliseconds(1)))
+            using (db.Multiplexer.WithTimeout(TimeSpan.FromMilliseconds(1)))
             {
                 // This might throw due to timeout, but let's test the mechanism
                 try
@@ -134,7 +134,7 @@ namespace StackExchange.Redis.Tests
 
             using var cts = new CancellationTokenSource();
 
-            using (db.WithCancellationAndTimeout(cts.Token, TimeSpan.FromSeconds(10)))
+            using (db.Multiplexer.WithCancellationAndTimeout(cts.Token, TimeSpan.FromSeconds(10)))
             {
                 // This should succeed with both cancellation and timeout
                 RedisKey key = Me();
@@ -156,12 +156,12 @@ namespace StackExchange.Redis.Tests
             RedisKey key1 = Me() + ":outer",
                 key2 = Me() + ":inner",
                 key3 = Me() + ":outer2";
-            using (db.WithCancellation(outerCts.Token))
+            using (db.Multiplexer.WithCancellation(outerCts.Token))
             {
                 // Outer scope active
                 await db.StringSetAsync(key1, "value1");
 
-                using (db.WithCancellation(innerCts.Token))
+                using (db.Multiplexer.WithCancellation(innerCts.Token))
                 {
                     // Inner scope should take precedence
                     await db.StringSetAsync(key2, "value2");
@@ -198,7 +198,7 @@ namespace StackExchange.Redis.Tests
 
             using var cts = new CancellationTokenSource();
 
-            using (db.WithCancellation(cts.Token))
+            using (db.Multiplexer.WithCancellation(cts.Token))
             {
                 // Start an operation and cancel it mid-flight
                 var task = db.StringSetAsync(Me(), "value");

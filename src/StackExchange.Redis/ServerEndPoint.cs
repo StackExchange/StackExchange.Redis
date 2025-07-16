@@ -392,24 +392,25 @@ namespace StackExchange.Redis
 
             var autoConfigProcessor = ResultProcessor.AutoConfigureProcessor.Create(log);
 
+            var cancellationToken = CancellationToken.None; // suppress cancellation for configure
             if (commandMap.IsAvailable(RedisCommand.CONFIG))
             {
                 if (Multiplexer.RawConfig.KeepAlive <= 0)
                 {
-                    msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout);
+                    msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout, cancellationToken);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
-                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
+                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only, cancellationToken);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.databases);
+                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.databases, cancellationToken);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
             if (commandMap.IsAvailable(RedisCommand.SENTINEL))
             {
-                msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+                msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS, cancellationToken);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
@@ -422,17 +423,17 @@ namespace StackExchange.Redis
                     // the server version at this point; we *could* use the optional
                     // value on the config, but let's keep things simple: these
                     // commands are suitably cheap
-                    msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.replication);
+                    msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.replication, cancellationToken);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
 
-                    msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.server);
+                    msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.server, cancellationToken);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
                 else
                 {
-                    msg = Message.Create(-1, flags, RedisCommand.INFO);
+                    msg = Message.Create(-1, flags, RedisCommand.INFO, cancellationToken);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
@@ -444,13 +445,13 @@ namespace StackExchange.Redis
                 // The actual value here doesn't matter (we detect the error code if it fails).
                 // The value here is to at least give some indication to anyone watching via "monitor",
                 // but we could send two GUIDs (key/value) and it would work the same.
-                msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.replica_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
+                msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.replica_read_only, RedisLiterals.PX, 1, RedisLiterals.NX, cancellationToken);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
             if (commandMap.IsAvailable(RedisCommand.CLUSTER))
             {
-                msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
+                msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES, cancellationToken);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
             }
@@ -459,7 +460,7 @@ namespace StackExchange.Redis
             if (Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey) && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
             {
                 log?.LogInformation($"{Format.ToString(EndPoint)}: Requesting tie-break (Key=\"{tieBreakerKey}\")...");
-                msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
+                msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey, cancellationToken);
                 msg.SetInternalCall();
                 msg = LoggingMessage.Create(log, msg);
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TieBreaker).ForAwait();
@@ -485,7 +486,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    return WriteDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT), ResultProcessor.DemandOK, bridge: tmp);
+                    return WriteDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT, CancellationToken.None), ResultProcessor.DemandOK, bridge: tmp);
                 }
             }
             catch (Exception ex)
@@ -581,27 +582,28 @@ namespace StackExchange.Redis
             var map = Multiplexer.CommandMap;
             Message msg;
             const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
+            var cancellationToken = CancellationToken.None; // do not cancel tracers
             if (checkResponse && map.IsAvailable(RedisCommand.ECHO))
             {
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
+                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId, cancellationToken);
             }
             else if (map.IsAvailable(RedisCommand.PING))
             {
-                msg = Message.Create(-1, flags, RedisCommand.PING);
+                msg = Message.Create(-1, flags, RedisCommand.PING, cancellationToken);
             }
             else if (map.IsAvailable(RedisCommand.TIME))
             {
-                msg = Message.Create(-1, flags, RedisCommand.TIME);
+                msg = Message.Create(-1, flags, RedisCommand.TIME, cancellationToken);
             }
             else if (!checkResponse && map.IsAvailable(RedisCommand.ECHO))
             {
                 // We'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
+                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId, cancellationToken);
             }
             else
             {
                 map.AssertAvailable(RedisCommand.EXISTS);
-                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)Multiplexer.UniqueId);
+                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)Multiplexer.UniqueId, cancellationToken);
             }
             msg.SetInternalCall();
             return msg;
@@ -735,7 +737,7 @@ namespace StackExchange.Redis
             if (version.IsAtLeast(RedisFeatures.v2_8_0) && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
                 && GetBridge(ConnectionType.Interactive, false) is PhysicalBridge bridge)
             {
-                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
+                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication, CancellationToken.None);
                 msg.SetInternalCall();
                 msg.SetSource(ResultProcessor.AutoConfigure, null);
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -805,7 +807,7 @@ namespace StackExchange.Redis
                 return await tcs.Task.ForAwait();
             }
 
-            var source = TaskResultBox<T?>.Create(out var tcs, null);
+            var source = TaskResultBox<T?>.Create(message.CancellationToken, out var tcs, null);
             message.SetSource(processor, source);
             bridge ??= GetBridge(message);
 
@@ -977,10 +979,11 @@ namespace StackExchange.Redis
             // the various tasks and just `return connection.FlushAsync();` - however, since handshake is low
             // volume, we can afford to optimize for a good stack-trace rather than avoiding state machines.
             ResultProcessor<bool>? autoConfig = null;
+            var cancellationToken = CancellationToken.None; // do not cancel handshakes
             if (Multiplexer.RawConfig.TryResp3()) // note this includes an availability check on HELLO
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating via HELLO");
-                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.FireAndForget);
+                var hello = Message.CreateHello(3, user, password, clientName, CommandFlags.FireAndForget, cancellationToken);
                 hello.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, hello, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
 
@@ -998,14 +1001,14 @@ namespace StackExchange.Redis
             if (!string.IsNullOrWhiteSpace(user) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating (user/password)");
-                msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
+                msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password, cancellationToken);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
             else if (!string.IsNullOrWhiteSpace(password) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
             {
                 log?.LogInformation($"{Format.ToString(this)}: Authenticating (password)");
-                msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
+                msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password, cancellationToken);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
@@ -1015,7 +1018,7 @@ namespace StackExchange.Redis
                 if (!string.IsNullOrWhiteSpace(clientName))
                 {
                     log?.LogInformation($"{Format.ToString(this)}: Setting client name: {clientName}");
-                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETNAME, (RedisValue)clientName);
+                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETNAME, (RedisValue)clientName, cancellationToken);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                 }
@@ -1029,7 +1032,7 @@ namespace StackExchange.Redis
                     var libName = Multiplexer.GetFullLibraryName();
                     if (!string.IsNullOrWhiteSpace(libName))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_name, libName);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_name, libName, cancellationToken);
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
@@ -1037,13 +1040,13 @@ namespace StackExchange.Redis
                     var version = ClientInfoSanitize(Utils.GetLibVersion());
                     if (!string.IsNullOrWhiteSpace(version))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version, cancellationToken);
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
                 }
 
-                msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.ID);
+                msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.ID, cancellationToken);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
             }
@@ -1072,7 +1075,7 @@ namespace StackExchange.Redis
                 var configChannel = Multiplexer.ConfigurationChangedChannel;
                 if (configChannel != null)
                 {
-                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, RedisChannel.Literal(configChannel));
+                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, RedisChannel.Literal(configChannel), cancellationToken);
                     // Note: this is NOT internal, we want it to queue in a backlog for sending when ready if necessary
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
                 }

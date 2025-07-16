@@ -204,7 +204,7 @@ namespace StackExchange.Redis
                 };
 
                 // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
-                var msg = Message.Create(-1, Flags | flags, command, channel);
+                var msg = Message.Create(-1, Flags | flags, command, channel, this.GetEffectiveCancellationToken());
                 msg.SetForSubscriptionBridge();
                 if (internalCall)
                 {
@@ -313,14 +313,14 @@ namespace StackExchange.Redis
 
         public EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, this.GetEffectiveCancellationToken());
             msg.SetInternalCall();
             return ExecuteSync(msg, ResultProcessor.ConnectionIdentity);
         }
 
         public Task<EndPoint?> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, this.GetEffectiveCancellationToken());
             msg.SetInternalCall();
             return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
         }
@@ -359,13 +359,13 @@ namespace StackExchange.Redis
             Message msg;
             if (usePing)
             {
-                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING, default, GetEffectiveCancellationToken());
             }
             else
             {
                 // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
                 RedisValue channel = multiplexer.UniqueId;
-                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel, GetEffectiveCancellationToken());
             }
             // Ensure the ping is sent over the intended subscriber connection, which wouldn't happen in GetBridge() by default with PING;
             msg.SetForSubscriptionBridge();
@@ -383,14 +383,14 @@ namespace StackExchange.Redis
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
+            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
+            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -17,6 +18,8 @@ namespace StackExchange.Redis
         }
 
         IConnectionMultiplexer IRedisAsync.Multiplexer => multiplexer;
+
+        internal CancellationToken GetEffectiveCancellationToken() => multiplexer.GetEffectiveCancellationToken();
 
         public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
@@ -116,15 +119,16 @@ namespace StackExchange.Redis
         {
             // do the best we can with available commands
             var map = multiplexer.CommandMap;
+            var cancellationToken = GetEffectiveCancellationToken();
             if (map.IsAvailable(RedisCommand.PING))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING, default, cancellationToken);
             if (map.IsAvailable(RedisCommand.TIME))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME, default, cancellationToken);
             if (map.IsAvailable(RedisCommand.ECHO))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING, cancellationToken);
             // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
             // note: this usually means: twemproxy/envoyproxy - in which case we're fine anyway, since the proxy does the routing
-            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
+            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId, cancellationToken);
         }
 
         internal static class CursorUtils

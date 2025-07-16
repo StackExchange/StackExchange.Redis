@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
 
@@ -53,13 +54,13 @@ namespace StackExchange.Redis
 
         public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint));
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint), this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint));
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint), this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
@@ -77,132 +78,132 @@ namespace StackExchange.Redis
 
         public long ClientKill(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands));
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands), this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> ClientKillAsync(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands));
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands), this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool? skipMe, CommandFlags flags)
         {
             var args = new ClientKillFilter().WithId(id).WithClientType(clientType).WithEndpoint(endpoint).WithSkipMe(skipMe).ToList(Features.ReplicaCommands);
-            return Message.Create(-1, flags, RedisCommand.CLIENT, args);
+            return Message.Create(-1, flags, RedisCommand.CLIENT, args, GetEffectiveCancellationToken());
         }
 
         public ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST);
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ClientInfo.Processor, defaultValue: Array.Empty<ClientInfo>());
         }
 
         public Task<ClientInfo[]> ClientListAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST);
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ClientInfo.Processor, defaultValue: Array.Empty<ClientInfo>());
         }
 
         public ClusterConfiguration? ClusterNodes(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            var msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.ClusterNodes);
         }
 
         public Task<ClusterConfiguration?> ClusterNodesAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            var msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.ClusterNodes);
         }
 
         public string? ClusterNodesRaw(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            var msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.ClusterNodesRaw);
         }
 
         public Task<string?> ClusterNodesRawAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            var msg = Message.Create(-1, flags, RedisCommand.CLUSTER, RedisLiterals.NODES, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.ClusterNodesRaw);
         }
 
         public KeyValuePair<string, string>[] ConfigGet(RedisValue pattern = default, CommandFlags flags = CommandFlags.None)
         {
             if (pattern.IsNullOrEmpty) pattern = RedisLiterals.Wildcard;
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, pattern);
+            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, pattern, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
         }
 
         public Task<KeyValuePair<string, string>[]> ConfigGetAsync(RedisValue pattern = default, CommandFlags flags = CommandFlags.None)
         {
             if (pattern.IsNullOrEmpty) pattern = RedisLiterals.Wildcard;
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, pattern);
+            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, pattern, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
         }
 
         public void ConfigResetStatistics(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.RESETSTAT);
+            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.RESETSTAT, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ConfigResetStatisticsAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.RESETSTAT);
+            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.RESETSTAT, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public void ConfigRewrite(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.REWRITE);
+            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.REWRITE, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ConfigRewriteAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.REWRITE);
+            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.REWRITE, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public void ConfigSet(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.SET, setting, value);
+            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.SET, setting, value, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
-            ExecuteSync(Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting), ResultProcessor.AutoConfigure);
+            ExecuteSync(Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting, this.GetEffectiveCancellationToken()), ResultProcessor.AutoConfigure);
         }
 
         public Task ConfigSetAsync(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.SET, setting, value);
+            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.SET, setting, value, this.GetEffectiveCancellationToken());
             var task = ExecuteAsync(msg, ResultProcessor.DemandOK);
-            ExecuteSync(Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting), ResultProcessor.AutoConfigure);
+            ExecuteSync(Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting, this.GetEffectiveCancellationToken()), ResultProcessor.AutoConfigure);
             return task;
         }
 
         public long CommandCount(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT);
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> CommandCountAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT);
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.COUNT, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public RedisKey[] CommandGetKeys(RedisValue[] command, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command));
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command), this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>());
         }
 
         public Task<RedisKey[]> CommandGetKeysAsync(RedisValue[] command, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command));
+            var msg = Message.Create(-1, flags, RedisCommand.COMMAND, AddValueToArray(RedisLiterals.GETKEYS, command), this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>());
         }
 
@@ -220,21 +221,22 @@ namespace StackExchange.Redis
 
         private Message GetCommandListMessage(RedisValue? moduleName = null, RedisValue? category = null, RedisValue? pattern = null, CommandFlags flags = CommandFlags.None)
         {
+            var cancellationToken = GetEffectiveCancellationToken();
             if (moduleName == null && category == null && pattern == null)
             {
-                return Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST);
+                return Message.Create(-1, flags, RedisCommand.COMMAND, RedisLiterals.LIST, cancellationToken);
             }
             else if (moduleName != null && category == null && pattern == null)
             {
-                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, (RedisValue)moduleName));
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.MODULE, (RedisValue)moduleName), cancellationToken);
             }
             else if (moduleName == null && category != null && pattern == null)
             {
-                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, (RedisValue)category));
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.ACLCAT, (RedisValue)category), cancellationToken);
             }
             else if (moduleName == null && category == null && pattern != null)
             {
-                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, (RedisValue)pattern));
+                return Message.Create(-1, flags, RedisCommand.COMMAND, MakeArray(RedisLiterals.LIST, RedisLiterals.FILTERBY, RedisLiterals.PATTERN, (RedisValue)pattern), cancellationToken);
             }
             else
             {
@@ -255,49 +257,49 @@ namespace StackExchange.Redis
 
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);
+            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> DatabaseSizeAsync(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);
+            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public RedisValue Echo(RedisValue message, CommandFlags flags)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
+            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
         public Task<RedisValue> EchoAsync(RedisValue message, CommandFlags flags)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
+            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
         public void FlushAllDatabases(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
+            var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task FlushAllDatabasesAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
+            var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public void FlushDatabase(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB);
+            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task FlushDatabaseAsync(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB);
+            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
@@ -309,8 +311,8 @@ namespace StackExchange.Redis
         public IGrouping<string, KeyValuePair<string, string>>[] Info(RedisValue section = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = section.IsNullOrEmpty
-                ? Message.Create(-1, flags, RedisCommand.INFO)
-                : Message.Create(-1, flags, RedisCommand.INFO, section);
+                ? Message.Create(-1, flags, RedisCommand.INFO, this.GetEffectiveCancellationToken())
+                : Message.Create(-1, flags, RedisCommand.INFO, section, this.GetEffectiveCancellationToken());
 
             return ExecuteSync(msg, ResultProcessor.Info, defaultValue: InfoDefault);
         }
@@ -318,8 +320,8 @@ namespace StackExchange.Redis
         public Task<IGrouping<string, KeyValuePair<string, string>>[]> InfoAsync(RedisValue section = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = section.IsNullOrEmpty
-                ? Message.Create(-1, flags, RedisCommand.INFO)
-                : Message.Create(-1, flags, RedisCommand.INFO, section);
+                ? Message.Create(-1, flags, RedisCommand.INFO, this.GetEffectiveCancellationToken())
+                : Message.Create(-1, flags, RedisCommand.INFO, section, this.GetEffectiveCancellationToken());
 
             return ExecuteAsync(msg, ResultProcessor.Info, defaultValue: InfoDefault);
         }
@@ -327,8 +329,8 @@ namespace StackExchange.Redis
         public string? InfoRaw(RedisValue section = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = section.IsNullOrEmpty
-                ? Message.Create(-1, flags, RedisCommand.INFO)
-                : Message.Create(-1, flags, RedisCommand.INFO, section);
+                ? Message.Create(-1, flags, RedisCommand.INFO, this.GetEffectiveCancellationToken())
+                : Message.Create(-1, flags, RedisCommand.INFO, section, this.GetEffectiveCancellationToken());
 
             return ExecuteSync(msg, ResultProcessor.String);
         }
@@ -336,8 +338,8 @@ namespace StackExchange.Redis
         public Task<string?> InfoRawAsync(RedisValue section = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = section.IsNullOrEmpty
-                ? Message.Create(-1, flags, RedisCommand.INFO)
-                : Message.Create(-1, flags, RedisCommand.INFO, section);
+                ? Message.Create(-1, flags, RedisCommand.INFO, this.GetEffectiveCancellationToken())
+                : Message.Create(-1, flags, RedisCommand.INFO, section, this.GetEffectiveCancellationToken());
 
             return ExecuteAsync(msg, ResultProcessor.String);
         }
@@ -365,19 +367,19 @@ namespace StackExchange.Redis
             }
 
             if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
-            Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern);
+            Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern, GetEffectiveCancellationToken());
             return CursorEnumerable<RedisKey>.From(this, server, ExecuteAsync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>()), pageOffset);
         }
 
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LASTSAVE);
+            var msg = Message.Create(-1, flags, RedisCommand.LASTSAVE, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.DateTime);
         }
 
         public Task<DateTime> LastSaveAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LASTSAVE);
+            var msg = Message.Create(-1, flags, RedisCommand.LASTSAVE, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DateTime);
         }
 
@@ -394,13 +396,13 @@ namespace StackExchange.Redis
 
         public Role Role(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.ROLE);
+            var msg = Message.Create(-1, flags, RedisCommand.ROLE, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Role, defaultValue: Redis.Role.Null);
         }
 
         public Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.ROLE);
+            var msg = Message.Create(-1, flags, RedisCommand.ROLE, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Role, defaultValue: Redis.Role.Null);
         }
 
@@ -418,51 +420,51 @@ namespace StackExchange.Redis
 
         public bool ScriptExists(string script, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Hash(script));
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Hash(script), this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Encode(sha1));
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Encode(sha1), this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Hash(script));
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Hash(script), this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
         public Task<bool> ScriptExistsAsync(byte[] sha1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Encode(sha1));
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Encode(sha1), this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
         public void ScriptFlush(CommandFlags flags = CommandFlags.None)
         {
             if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
-            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None)
         {
             if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
-            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
+            var msg = new RedisDatabase.ScriptLoadMessage(flags, script, CancellationToken.None);
             return ExecuteSync(msg, ResultProcessor.ScriptLoad, defaultValue: Array.Empty<byte>()); // Note: default isn't used on failure - we'll throw
         }
 
         public Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
+            var msg = new RedisDatabase.ScriptLoadMessage(flags, script, CancellationToken.None);
             return ExecuteAsync(msg, ResultProcessor.ScriptLoad, defaultValue: Array.Empty<byte>()); // Note: default isn't used on failure - we'll throw
         }
 
@@ -478,11 +480,12 @@ namespace StackExchange.Redis
 
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)
         {
+            var cancellationToken = GetEffectiveCancellationToken();
             Message msg = shutdownMode switch
             {
-                ShutdownMode.Default => Message.Create(-1, flags, RedisCommand.SHUTDOWN),
-                ShutdownMode.Always => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.SAVE),
-                ShutdownMode.Never => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE),
+                ShutdownMode.Default => Message.Create(-1, flags, RedisCommand.SHUTDOWN, cancellationToken),
+                ShutdownMode.Always => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.SAVE, cancellationToken),
+                ShutdownMode.Never => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE, cancellationToken),
                 _ => throw new ArgumentOutOfRangeException(nameof(shutdownMode)),
             };
             try
@@ -499,8 +502,8 @@ namespace StackExchange.Redis
         public CommandTrace[] SlowlogGet(int count = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = count > 0
-                ? Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.GET, count)
-                : Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.GET);
+                ? Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.GET, count, this.GetEffectiveCancellationToken())
+                : Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.GET, this.GetEffectiveCancellationToken());
 
             return ExecuteSync(msg, CommandTrace.Processor, defaultValue: Array.Empty<CommandTrace>());
         }
@@ -508,99 +511,99 @@ namespace StackExchange.Redis
         public Task<CommandTrace[]> SlowlogGetAsync(int count = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = count > 0
-                ? Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.GET, count)
-                : Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.GET);
+                ? Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.GET, count, this.GetEffectiveCancellationToken())
+                : Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.GET, this.GetEffectiveCancellationToken());
 
             return ExecuteAsync(msg, CommandTrace.Processor, defaultValue: Array.Empty<CommandTrace>());
         }
 
         public void SlowlogReset(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.RESET);
+            var msg = Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.RESET, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.RESET);
+            var msg = Message.Create(-1, flags, RedisCommand.SLOWLOG, RedisLiterals.RESET, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public RedisValue StringGet(int db, RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(db, flags, RedisCommand.GET, key);
+            var msg = Message.Create(db, flags, RedisCommand.GET, key, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
         public Task<RedisValue> StringGetAsync(int db, RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(db, flags, RedisCommand.GET, key);
+            var msg = Message.Create(db, flags, RedisCommand.GET, key, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
         public RedisChannel[] SubscriptionChannels(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None)
         {
-            var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
-                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
+            var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, this.GetEffectiveCancellationToken())
+                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.RedisChannelArrayLiteral, defaultValue: Array.Empty<RedisChannel>());
         }
 
         public Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None)
         {
-            var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
-                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
+            var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, this.GetEffectiveCancellationToken())
+                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.RedisChannelArrayLiteral, defaultValue: Array.Empty<RedisChannel>());
         }
 
         public long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMPAT);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMPAT, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> SubscriptionPatternCountAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMPAT);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMPAT, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.PubSubNumSub);
         }
 
         public Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.PubSubNumSub);
         }
 
         public void SwapDatabases(int first, int second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second);
+            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task SwapDatabasesAsync(int first, int second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second);
+            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public DateTime Time(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.TIME);
+            var msg = Message.Create(-1, flags, RedisCommand.TIME, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.DateTime);
         }
 
         public Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.TIME);
+            var msg = Message.Create(-1, flags, RedisCommand.TIME, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DateTime);
         }
 
-        internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint? primaryEndpoint, CommandFlags flags = CommandFlags.None)
+        internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint? primaryEndpoint, CommandFlags flags, CancellationToken cancellationToken)
         {
             RedisValue host, port;
             if (primaryEndpoint == null)
@@ -620,7 +623,7 @@ namespace StackExchange.Redis
                     throw new NotSupportedException("Unknown endpoint type: " + primaryEndpoint.GetType().Name);
                 }
             }
-            return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
+            return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port, cancellationToken);
         }
 
         private Message? GetTiebreakerRemovalMessage()
@@ -629,7 +632,7 @@ namespace StackExchange.Redis
 
             if (configuration.TryGetTieBreaker(out var tieBreakerKey) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
             {
-                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, tieBreakerKey);
+                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, tieBreakerKey, GetEffectiveCancellationToken());
                 msg.SetInternalCall();
                 return msg;
             }
@@ -642,7 +645,7 @@ namespace StackExchange.Redis
             var channel = multiplexer.ConfigurationChangedChannel;
             if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
             {
-                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
+                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard, GetEffectiveCancellationToken());
                 msg.SetInternalCall();
                 return msg;
             }
@@ -736,7 +739,7 @@ namespace StackExchange.Redis
                 server.GetBridge(tieBreakerRemoval)?.TryWriteSync(tieBreakerRemoval, server.IsReplica);
             }
 
-            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags);
+            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags, GetEffectiveCancellationToken());
             ExecuteSync(replicaOfMsg, ResultProcessor.DemandOK);
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
@@ -768,7 +771,7 @@ namespace StackExchange.Redis
                 catch { }
             }
 
-            var msg = CreateReplicaOfMessage(server, master, flags);
+            var msg = CreateReplicaOfMessage(server, master, flags, GetEffectiveCancellationToken());
             await ExecuteAsync(msg, ResultProcessor.DemandOK).ForAwait();
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
@@ -799,15 +802,19 @@ namespace StackExchange.Redis
             }
         }
 
-        private static Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None) => type switch
+        private Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None)
         {
-            SaveType.BackgroundRewriteAppendOnlyFile => Message.Create(-1, flags, RedisCommand.BGREWRITEAOF),
-            SaveType.BackgroundSave => Message.Create(-1, flags, RedisCommand.BGSAVE),
+            var cmd = type switch
+            {
+                SaveType.BackgroundRewriteAppendOnlyFile => RedisCommand.BGREWRITEAOF,
+                SaveType.BackgroundSave => RedisCommand.BGSAVE,
 #pragma warning disable CS0618 // Type or member is obsolete
-            SaveType.ForegroundSave => Message.Create(-1, flags, RedisCommand.SAVE),
+                SaveType.ForegroundSave => RedisCommand.SAVE,
 #pragma warning restore CS0618
-            _ => throw new ArgumentOutOfRangeException(nameof(type)),
-        };
+                _ => throw new ArgumentOutOfRangeException(nameof(type)),
+            };
+            return Message.Create(-1, flags, cmd, GetEffectiveCancellationToken());
+        }
 
         private static ResultProcessor<bool> GetSaveResultProcessor(SaveType type) => type switch
         {
@@ -860,28 +867,28 @@ namespace StackExchange.Redis
                 this.pattern = pattern;
             }
 
-            private protected override Message CreateMessage(in RedisValue cursor)
+            private protected override Message CreateMessage(in RedisValue cursor, CancellationToken cancellationToken)
             {
                 if (CursorUtils.IsNil(pattern))
                 {
                     if (pageSize == CursorUtils.DefaultRedisPageSize)
                     {
-                        return Message.Create(db, flags, RedisCommand.SCAN, cursor);
+                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, cancellationToken);
                     }
                     else
                     {
-                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.COUNT, pageSize);
+                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.COUNT, pageSize, cancellationToken);
                     }
                 }
                 else
                 {
                     if (pageSize == CursorUtils.DefaultRedisPageSize)
                     {
-                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern);
+                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern, cancellationToken);
                     }
                     else
                     {
-                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize);
+                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize, cancellationToken);
                     }
                 }
             }
@@ -927,73 +934,73 @@ namespace StackExchange.Redis
 
         public EndPoint? SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.SentinelPrimaryEndpoint);
         }
 
         public Task<EndPoint?> SentinelGetMasterAddressByNameAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.SentinelPrimaryEndpoint);
         }
 
         public EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
         }
 
         public Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
         }
 
         public EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
         }
 
         public Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
         }
 
         public KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, (RedisValue)serviceName, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
         }
 
         public Task<KeyValuePair<string, string>[]> SentinelMasterAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, (RedisValue)serviceName, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
         }
 
         public void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, (RedisValue)serviceName, GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, (RedisValue)serviceName, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public KeyValuePair<string, string>[][] SentinelMasters(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
         public Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
@@ -1003,7 +1010,7 @@ namespace StackExchange.Redis
 
         public KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
@@ -1013,19 +1020,19 @@ namespace StackExchange.Redis
 
         public Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
         public KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
         public Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
@@ -1033,7 +1040,7 @@ namespace StackExchange.Redis
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
+            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -1041,7 +1048,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
+            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -1052,31 +1059,32 @@ namespace StackExchange.Redis
 
         public Task<string> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.DOCTOR);
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.DOCTOR, GetEffectiveCancellationToken());
             return ExecuteAsync<string>(msg, ResultProcessor.String!, defaultValue: string.Empty);
         }
 
         public string LatencyDoctor(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.DOCTOR);
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.DOCTOR, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.String, defaultValue: string.Empty);
         }
 
-        private static Message LatencyResetCommand(string[]? eventNames, CommandFlags flags)
+        private Message LatencyResetCommand(string[]? eventNames, CommandFlags flags)
         {
             if (eventNames == null) eventNames = Array.Empty<string>();
+            var cancellationToken = GetEffectiveCancellationToken();
             switch (eventNames.Length)
             {
                 case 0:
-                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET);
+                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET, cancellationToken);
                 case 1:
-                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET, (RedisValue)eventNames[0]);
+                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET, (RedisValue)eventNames[0], cancellationToken);
                 default:
                     var arr = new RedisValue[eventNames.Length + 1];
                     arr[0] = RedisLiterals.RESET;
                     for (int i = 0; i < eventNames.Length; i++)
                         arr[i + 1] = eventNames[i];
-                    return Message.Create(-1, flags, RedisCommand.LATENCY, arr);
+                    return Message.Create(-1, flags, RedisCommand.LATENCY, arr, cancellationToken);
             }
         }
         public Task<long> LatencyResetAsync(string[]? eventNames = null, CommandFlags flags = CommandFlags.None)
@@ -1093,73 +1101,73 @@ namespace StackExchange.Redis
 
         public Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, (RedisValue)eventName);
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, (RedisValue)eventName, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, LatencyHistoryEntry.ToArray, defaultValue: Array.Empty<LatencyHistoryEntry>());
         }
 
         public LatencyHistoryEntry[] LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, (RedisValue)eventName);
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, (RedisValue)eventName, GetEffectiveCancellationToken());
             return ExecuteSync(msg, LatencyHistoryEntry.ToArray, defaultValue: Array.Empty<LatencyHistoryEntry>());
         }
 
         public Task<LatencyLatestEntry[]> LatencyLatestAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.LATEST);
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.LATEST, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, LatencyLatestEntry.ToArray, defaultValue: Array.Empty<LatencyLatestEntry>());
         }
 
         public LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.LATEST);
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.LATEST, GetEffectiveCancellationToken());
             return ExecuteSync(msg, LatencyLatestEntry.ToArray, defaultValue: Array.Empty<LatencyLatestEntry>());
         }
 
         public Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR);
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR, GetEffectiveCancellationToken());
             return ExecuteAsync<string>(msg, ResultProcessor.String!, defaultValue: string.Empty);
         }
 
         public string MemoryDoctor(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR);
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.String, defaultValue: string.Empty);
         }
 
         public Task MemoryPurgeAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.PURGE);
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.PURGE, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public void MemoryPurge(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.PURGE);
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.PURGE, GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task<string?> MemoryAllocatorStatsAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS);
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.String);
         }
 
         public string? MemoryAllocatorStats(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS);
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.String);
         }
 
         public Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS);
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullArray);
         }
 
         public RedisResult MemoryStats(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS);
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullArray);
         }
     }

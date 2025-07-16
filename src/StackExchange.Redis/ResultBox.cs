@@ -8,9 +8,10 @@ namespace StackExchange.Redis
     {
         bool IsAsync { get; }
         bool IsFaulted { get; }
+        CancellationToken CancellationToken { get; } // as explicitly specified by the caller
         void SetException(Exception ex);
         void ActivateContinuations();
-        void Cancel();
+        void Cancel(CancellationToken cancellationToken);
     }
     internal interface IResultBox<T> : IResultBox
     {
@@ -20,12 +21,16 @@ namespace StackExchange.Redis
 
     internal abstract class SimpleResultBox : IResultBox
     {
+        public CancellationToken CancellationToken { get; protected set; }
+
         private volatile Exception? _exception;
 
         bool IResultBox.IsAsync => false;
         bool IResultBox.IsFaulted => _exception != null;
         void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
-        void IResultBox.Cancel() => _exception = CancelledException;
+
+        void IResultBox.Cancel(CancellationToken cancellationToken) =>
+            _exception = GetCancelledException(CancellationToken, cancellationToken);
 
         void IResultBox.ActivateContinuations()
         {
@@ -40,7 +45,14 @@ namespace StackExchange.Redis
         // that call Cancel are transactions etc - TCS-based, and we detect
         // that and use TrySetCanceled instead
         // about any confusion in stack-trace
-        internal static readonly Exception CancelledException = new TaskCanceledException();
+        private static readonly Exception CancelledException = new TaskCanceledException();
+
+        internal static Exception GetCancelledException(CancellationToken message, CancellationToken specified)
+        {
+            if (message == specified) return CancelledException; // indicates to assume message-based
+            if (specified.IsCancellationRequested) return new OperationCanceledException(specified);
+            return CancelledException; // indicates to assume message-based
+        }
 
         protected Exception? Exception
         {
@@ -57,11 +69,12 @@ namespace StackExchange.Redis
         [ThreadStatic]
         private static SimpleResultBox<T>? _perThreadInstance;
 
-        public static IResultBox<T> Create() => new SimpleResultBox<T>();
-        public static IResultBox<T> Get() // includes recycled boxes; used from sync, so makes re-use easy
+        public static IResultBox<T> Create(CancellationToken cancellationToken) => new SimpleResultBox<T> { CancellationToken = cancellationToken };
+        public static IResultBox<T> Get(CancellationToken cancellationToken) // includes recycled boxes; used from sync, so makes re-use easy
         {
             var obj = _perThreadInstance ?? new SimpleResultBox<T>();
             _perThreadInstance = null; // in case of oddness; only set back when recycled
+            obj.CancellationToken = cancellationToken;
             return obj;
         }
 
@@ -76,6 +89,7 @@ namespace StackExchange.Redis
                 Exception = null;
                 _value = default!;
                 _perThreadInstance = this;
+                CancellationToken = CancellationToken.None;
             }
             return value;
         }
@@ -87,19 +101,25 @@ namespace StackExchange.Redis
         // I say: no; we can't set *immediately* due to thread-theft etc, hence
         // the fun TryComplete indirection - so we need somewhere to buffer them
         private volatile Exception? _exception;
+        private readonly CancellationToken _cancellationToken;
         private T _value = default!;
-        private CancellationTokenRegistration _cancellationRegistration;
 
-        private TaskResultBox(object? asyncState, TaskCreationOptions creationOptions) : base(asyncState, creationOptions)
-        { }
+        private TaskResultBox(CancellationToken cancellationToken, object? asyncState, TaskCreationOptions creationOptions) : base(
+            asyncState, creationOptions)
+        {
+            _cancellationToken = cancellationToken;
+        }
+
+        CancellationToken IResultBox.CancellationToken => _cancellationToken;
 
         bool IResultBox.IsAsync => true;
 
         bool IResultBox.IsFaulted => _exception != null;
 
-        void IResultBox.Cancel() => _exception = SimpleResultBox.CancelledException;
+        void IResultBox.Cancel(CancellationToken cancellationToken) =>
+            _exception = SimpleResultBox.GetCancelledException(_cancellationToken, cancellationToken);
 
-        void IResultBox.SetException(Exception ex) => _exception = ex ?? SimpleResultBox.CancelledException;
+        void IResultBox.SetException(Exception ex) => _exception = ex ?? SimpleResultBox.GetCancelledException(_cancellationToken, CancellationToken.None);
 
         void IResultBox<T>.SetResult(T value) => _value = value;
 
@@ -125,36 +145,39 @@ namespace StackExchange.Redis
             var val = _value;
             var ex = _exception;
 
-            // Clean up cancellation registration
-            try
-            {
-                _cancellationRegistration.Dispose();
-            }
-            catch
-            {
-                // Ignore disposal errors
-            }
-
-            if (ex == null)
+            if (ex is null)
             {
                 TrySetResult(val);
             }
             else
             {
-                if (ex is TaskCanceledException or OperationCanceledException) TrySetCanceled();
-                else TrySetException(ex);
+                switch (ex)
+                {
+                    case OperationCanceledException { CancellationToken.IsCancellationRequested: true } oc:
+                        TrySetCanceled(oc.CancellationToken);
+                        break;
+                    case OperationCanceledException: // includes TaskCanceledException without token
+                        if (_cancellationToken.IsCancellationRequested)
+                        {
+                            TrySetCanceled(_cancellationToken);
+                        }
+                        else
+                        {
+                            TrySetCanceled();
+                        }
+
+                        break;
+                    default:
+                        TrySetException(ex);
+                        break;
+                }
                 var task = Task;
                 GC.KeepAlive(task.Exception); // mark any exception as observed
                 GC.SuppressFinalize(task); // finalizer only exists for unobserved-exception purposes
             }
         }
 
-        public static IResultBox<T> Create(out TaskCompletionSource<T> source, object? asyncState)
-        {
-            return Create(out source, asyncState, default);
-        }
-
-        public static IResultBox<T> Create(out TaskCompletionSource<T> source, object? asyncState, CancellationToken cancellationToken)
+        public static IResultBox<T> Create(CancellationToken cancellationToken, out TaskCompletionSource<T> source, object? asyncState)
         {
             // it might look a little odd to return the same object as two different things,
             // but that's because it is serving two purposes, and I want to make it clear
@@ -162,20 +185,10 @@ namespace StackExchange.Redis
             // are the same underlying object is an implementation detail that the rest of
             // the code doesn't need to know about
             var obj = new TaskResultBox<T>(
+                cancellationToken,
                 asyncState,
                 // if we don't trust the TPL/sync-context, avoid a double QUWI dispatch
                 ConnectionMultiplexer.PreventThreadTheft ? TaskCreationOptions.None : TaskCreationOptions.RunContinuationsAsynchronously);
-
-            // Register for cancellation if the token can be cancelled
-            if (cancellationToken.CanBeCanceled)
-            {
-                obj._cancellationRegistration = cancellationToken.Register(() =>
-                {
-                    obj._exception = new OperationCanceledException("The Redis operation was cancelled.", cancellationToken);
-                    obj.TrySetCanceled(cancellationToken);
-                });
-            }
-
             source = obj;
             return obj;
         }

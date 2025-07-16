@@ -23,7 +23,7 @@ namespace StackExchange.Redis
 
         private const double ProfileLogSeconds = (1000 /* ms */ * ProfileLogSamples) / 1000.0;
 
-        private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
+        private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING, CancellationToken.None);
 
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
@@ -394,13 +394,13 @@ namespace StackExchange.Redis
                 case ConnectionType.Subscription:
                     if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING, CancellationToken.None);
                         msg.SetForSubscriptionBridge();
                         msg.SetSource(ResultProcessor.Tracer, null);
                     }
                     else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE, RedisChannel.Literal(Multiplexer.UniqueId));
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE, RedisChannel.Literal(Multiplexer.UniqueId), CancellationToken.None);
                         msg.SetSource(ResultProcessor.TrackSubscriptions, null);
                     }
                     break;

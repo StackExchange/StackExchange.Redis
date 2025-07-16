@@ -36,7 +36,7 @@ namespace StackExchange.Redis
                     _conditions = new List<ConditionResult>();
                 }
                 condition.CheckCommands(commandMap);
-                var result = new ConditionResult(condition);
+                var result = new ConditionResult(condition, GetEffectiveCancellationToken());
                 _conditions.Add(result);
                 return result;
             }
@@ -70,7 +70,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
+                var source = TaskResultBox<T>.Create(message.CancellationToken, out var tcs, asyncState);
                 message.SetSource(source, processor);
                 task = tcs.Task;
             }
@@ -94,7 +94,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T?>.Create(out var tcs, asyncState);
+                var source = TaskResultBox<T?>.Create(message.CancellationToken, out var tcs, asyncState);
                 message.SetSource(source!, processor);
                 task = tcs.Task;
             }
@@ -108,7 +108,7 @@ namespace StackExchange.Redis
         {
             // prepare an outer-command that decorates that, but expects QUEUED
             var queued = new QueuedMessage(message);
-            var wasQueued = SimpleResultBox<bool>.Create();
+            var wasQueued = SimpleResultBox<bool>.Create(message.CancellationToken);
             queued.SetSource(wasQueued, QueuedProcessor.Default);
 
             // store it, and return the task of the *outer* command
@@ -129,7 +129,7 @@ namespace StackExchange.Redis
                             // think it should be!
                             var sel = PhysicalConnection.GetSelectDatabaseCommand(message.Db);
                             queued = new QueuedMessage(sel);
-                            wasQueued = SimpleResultBox<bool>.Create();
+                            wasQueued = SimpleResultBox<bool>.Create(message.CancellationToken);
                             queued.SetSource(wasQueued, QueuedProcessor.Default);
                             _pending.Add(queued);
                         }
@@ -163,10 +163,10 @@ namespace StackExchange.Redis
                     return null; // they won't notice if we don't do anything...
                 }
                 processor = ResultProcessor.DemandPONG;
-                return Message.Create(-1, flags, RedisCommand.PING);
+                return Message.Create(-1, flags, RedisCommand.PING, GetEffectiveCancellationToken());
             }
             processor = TransactionProcessor.Default;
-            return new TransactionMessage(Database, flags, cond, work);
+            return new TransactionMessage(Database, flags, cond, work, multiplexer.GetEffectiveCancellationToken());
         }
 
         private class QueuedMessage : Message
@@ -174,7 +174,7 @@ namespace StackExchange.Redis
             public Message Wrapped { get; }
             private volatile bool wasQueued;
 
-            public QueuedMessage(Message message) : base(message.Db, message.Flags | CommandFlags.NoRedirect, message.Command)
+            public QueuedMessage(Message message) : base(message.Db, message.Flags | CommandFlags.NoRedirect, message.Command, message.CancellationToken)
             {
                 message.SetNoRedirect();
                 Wrapped = message;
@@ -222,8 +222,8 @@ namespace StackExchange.Redis
 
             public QueuedMessage[] InnerOperations { get; }
 
-            public TransactionMessage(int db, CommandFlags flags, List<ConditionResult>? conditions, List<QueuedMessage>? operations)
-                : base(db, flags, RedisCommand.EXEC)
+            public TransactionMessage(int db, CommandFlags flags, List<ConditionResult>? conditions, List<QueuedMessage>? operations, CancellationToken cancellationToken)
+                : base(db, flags, RedisCommand.EXEC, cancellationToken)
             {
                 InnerOperations = (operations?.Count > 0) ? operations.ToArray() : Array.Empty<QueuedMessage>();
                 this.conditions = (conditions?.Count > 0) ? conditions.ToArray() : Array.Empty<ConditionResult>();
@@ -347,7 +347,7 @@ namespace StackExchange.Redis
                         if (!IsAborted)
                         {
                             multiplexer.Trace("Beginning transaction");
-                            yield return Message.Create(-1, CommandFlags.None, RedisCommand.MULTI);
+                            yield return Message.Create(-1, CommandFlags.None, RedisCommand.MULTI, multiplexer.GetEffectiveCancellationToken());
                             sb.AppendLine("issued MULTI");
                         }
 

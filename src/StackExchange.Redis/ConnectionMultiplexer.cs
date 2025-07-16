@@ -206,6 +206,8 @@ namespace StackExchange.Redis
             var cmd = server.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF;
             CommandMap.AssertAvailable(cmd);
 
+            var cancellationToken = this.GetEffectiveCancellationToken();
+
             if (!RawConfig.AllowAdmin)
             {
                 throw ExceptionFactory.AdminModeNotEnabled(RawConfig.IncludeDetailInExceptions, cmd, null, server);
@@ -242,7 +244,7 @@ namespace StackExchange.Redis
                 {
                     if (!node.IsConnected || node.IsReplica) continue;
                     log?.LogInformation($"Attempting to set tie-breaker on {Format.ToString(node.EndPoint)}...");
-                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
+                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary, cancellationToken);
                     try
                     {
                         await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
@@ -267,7 +269,7 @@ namespace StackExchange.Redis
             if (!tieBreakerKey.IsNull && !server.IsReplica)
             {
                 log?.LogInformation($"Resending tie-breaker to {Format.ToString(server.EndPoint)}...");
-                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
+                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary, cancellationToken);
                 try
                 {
                     await server.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
@@ -298,7 +300,7 @@ namespace StackExchange.Redis
                     {
                         if (!node.IsConnected) continue;
                         log?.LogInformation($"Broadcasting via {Format.ToString(node.EndPoint)}...");
-                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary);
+                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary, cancellationToken);
                         await node.WriteDirectAsync(msg, ResultProcessor.Int64).ForAwait();
                     }
                 }
@@ -314,7 +316,7 @@ namespace StackExchange.Redis
                     if (node == server || node.ServerType != ServerType.Standalone) continue;
 
                     log?.LogInformation($"Replicating to {Format.ToString(node.EndPoint)}...");
-                    msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
+                    msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags, cancellationToken);
                     await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
                 }
             }
@@ -1738,7 +1740,7 @@ namespace StackExchange.Redis
 
         private async Task<EndPointCollection?> GetEndpointsFromClusterNodes(ServerEndPoint server, ILogger? log)
         {
-            var message = Message.Create(-1, CommandFlags.None, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            var message = Message.Create(-1, CommandFlags.None, RedisCommand.CLUSTER, RedisLiterals.NODES, this.GetEffectiveCancellationToken());
             try
             {
                 var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server).ForAwait();
@@ -2041,6 +2043,18 @@ namespace StackExchange.Redis
             }
         }
 
+        private static CancellationTokenRegistration ObserveCancellation(IResultBox box)
+        {
+            return box.CancellationToken.Register(
+                static state =>
+                {
+                    var typed = Unsafe.As<IResultBox>(state!);
+                    typed.Cancel(typed.CancellationToken);
+                    typed.ActivateContinuations();
+                },
+                box);
+        }
+
         [return: NotNullIfNotNull(nameof(defaultValue))]
         internal T? ExecuteSyncImpl<T>(Message message, ResultProcessor<T>? processor, ServerEndPoint? server, T? defaultValue = default)
         {
@@ -2063,7 +2077,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = SimpleResultBox<T>.Get();
+                var source = SimpleResultBox<T>.Get(message.CancellationToken);
 
                 bool timeout = false;
                 WriteResult result;
@@ -2078,6 +2092,8 @@ namespace StackExchange.Redis
                         {
                             throw GetException(result, message, server);
                         }
+
+                        using var reg = ObserveCancellation(source);
 
                         if (Monitor.Wait(source, TimeoutMilliseconds))
                         {
@@ -2098,6 +2114,7 @@ namespace StackExchange.Redis
                     // Also note we return "success" when queueing a messages to the backlog, so we need to manually fake it back here when timing out in the backlog
                     throw ExceptionFactory.Timeout(this, null, message, server, message.IsBacklogged ? WriteResult.TimeoutBeforeWrite : result, server?.GetBridge(message.Command, create: false));
                 }
+
                 // Snapshot these so that we can recycle the box
                 var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
                 if (ex != null) throw ex;
@@ -2134,7 +2151,7 @@ namespace StackExchange.Redis
             {
                 // Use the message's cancellation token, which preserves the ambient context from when the message was created
                 // This ensures that resent messages (due to MOVED, failover, etc.) still respect the original cancellation
-                source = TaskResultBox<T>.Create(out tcs, state, message.CancellationToken);
+                source = TaskResultBox<T>.Create(message.CancellationToken, out tcs, state);
             }
             var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
             if (!write.IsCompletedSuccessfully)
@@ -2187,7 +2204,7 @@ namespace StackExchange.Redis
             {
                 // Use the message's cancellation token, which preserves the ambient context from when the message was created
                 // This ensures that resent messages (due to MOVED, failover, etc.) still respect the original cancellation
-                source = TaskResultBox<T?>.Create(out tcs, state, message.CancellationToken);
+                source = TaskResultBox<T?>.Create(message.CancellationToken, out tcs, state);
             }
             var write = TryPushMessageToBridgeAsync(message, processor, source!, ref server);
             if (!write.IsCompletedSuccessfully)

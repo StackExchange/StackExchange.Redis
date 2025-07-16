@@ -76,7 +76,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
+                var source = TaskResultBox<T>.Create(GetEffectiveCancellationToken(), out var tcs, asyncState);
                 task = tcs.Task;
                 message.SetSource(source, processor);
             }
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T?>.Create(out var tcs, asyncState);
+                var source = TaskResultBox<T?>.Create(message.CancellationToken, out var tcs, asyncState);
                 task = tcs.Task;
                 message.SetSource(source!, processor);
             }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace StackExchange.Redis
 {
@@ -391,7 +392,7 @@ namespace StackExchange.Redis
                 private readonly RedisValue value1;
 
                 public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value)
-                    : base(db, flags, command, key)
+                    : base(db, flags, command, key, CancellationToken.None) // once we're inside a transaction: just issue the commands
                 {
                     Condition = condition;
                     this.value = value; // note no assert here
@@ -468,7 +469,7 @@ namespace StackExchange.Redis
 
             internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key, CancellationToken.None);
 
                 var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key, expectedValue);
                 message.SetSource(ConditionProcessor.Default, resultBox);
@@ -537,7 +538,7 @@ namespace StackExchange.Redis
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key, CancellationToken.None);
 
                 var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key, memberName);
                 message.SetSource(ConditionProcessor.Default, resultBox);
@@ -608,7 +609,7 @@ namespace StackExchange.Redis
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key, CancellationToken.None);
 
                 var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.LINDEX, key, index);
                 message.SetSource(ConditionProcessor.Default, resultBox);
@@ -681,7 +682,7 @@ namespace StackExchange.Redis
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key, CancellationToken.None);
 
                 var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key);
                 message.SetSource(ConditionProcessor.Default, resultBox);
@@ -738,7 +739,7 @@ namespace StackExchange.Redis
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key, CancellationToken.None); // inside a tran: just issue the command
 
                 var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZCOUNT, key, min, max);
                 message.SetSource(ConditionProcessor.Default, resultBox);
@@ -794,7 +795,7 @@ namespace StackExchange.Redis
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key, resultBox?.CancellationToken ?? CancellationToken.None);
 
                 var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZCOUNT, key, sortedSetScore, sortedSetScore);
                 message.SetSource(ConditionProcessor.Default, resultBox);
@@ -832,10 +833,12 @@ namespace StackExchange.Redis
 
         private volatile bool wasSatisfied;
 
-        internal ConditionResult(Condition condition)
+        internal CancellationToken CancellationToken => resultBox?.CancellationToken ?? CancellationToken.None;
+
+        internal ConditionResult(Condition condition, CancellationToken cancellationToken)
         {
             Condition = condition;
-            resultBox = SimpleResultBox<bool>.Create();
+            resultBox = SimpleResultBox<bool>.Create(cancellationToken);
         }
 
         /// <summary>

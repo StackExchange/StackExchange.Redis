@@ -32,11 +32,11 @@ namespace StackExchange.Redis
         private static readonly CommandBytes message = "message", pmessage = "pmessage", smessage = "smessage";
 
         private static readonly Message[] ReusableChangeDatabaseCommands = Enumerable.Range(0, DefaultRedisDatabaseCount).Select(
-            i => Message.Create(i, CommandFlags.FireAndForget, RedisCommand.SELECT)).ToArray();
+            i => Message.Create(i, CommandFlags.FireAndForget, RedisCommand.SELECT, CancellationToken.None)).ToArray();
 
         private static readonly Message
-            ReusableReadOnlyCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.READONLY),
-            ReusableReadWriteCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.READWRITE);
+            ReusableReadOnlyCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.READONLY, CancellationToken.None),
+            ReusableReadWriteCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.READWRITE, CancellationToken.None);
 
         private static int totalCount;
 
@@ -716,7 +716,7 @@ namespace StackExchange.Redis
         {
             return targetDatabase < DefaultRedisDatabaseCount
                    ? ReusableChangeDatabaseCommands[targetDatabase] // 0-15 by default
-                   : Message.Create(targetDatabase, CommandFlags.FireAndForget, RedisCommand.SELECT);
+                   : Message.Create(targetDatabase, CommandFlags.FireAndForget, RedisCommand.SELECT, CancellationToken.None);
         }
 
         internal int GetSentAwaitingResponseCount()

@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using Pipelines.Sockets.Unofficial.Arenas;
 
@@ -395,8 +396,8 @@ namespace StackExchange.Redis
         {
             private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
 
-            public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default) =>
-                new TimerMessage(db, flags, command, value);
+            public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value, CancellationToken cancellationToken) =>
+                new TimerMessage(db, flags, command, value, cancellationToken);
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -428,8 +429,8 @@ namespace StackExchange.Redis
             {
                 public long StartedWritingTimestamp;
                 private readonly RedisValue value;
-                public TimerMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value)
-                    : base(db, flags, command)
+                public TimerMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value, CancellationToken cancellationToken)
+                    : base(db, flags, command, cancellationToken)
                 {
                     this.value = value;
                 }
