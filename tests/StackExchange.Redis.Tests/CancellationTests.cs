@@ -52,6 +52,7 @@ namespace StackExchange.Redis.Tests
                         if (active.IsCancellationRequested) break;
                         await Task.Delay(TimeSpan.FromSeconds(0.1));
                     }
+
                     Assert.True(active.IsCancellationRequested);
                     Assert.Equal(active, muxerA.GetEffectiveCancellationToken(checkForCancellation: false));
                 }
@@ -76,6 +77,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Null(muxerB.GetCurrentScope()); // B unaffected
                 Assert.Equal(CancellationToken.None, muxerB.GetEffectiveCancellationToken());
             }
+
             Assert.Null(muxerA.GetCurrentScope());
             Assert.Equal(CancellationToken.None, muxerA.GetEffectiveCancellationToken());
             Assert.Null(muxerB.GetCurrentScope()); // B unaffected
@@ -120,7 +122,8 @@ namespace StackExchange.Redis.Tests
                 set { }
             }
 
-            void IConnectionMultiplexer.RegisterProfiler(Func<ProfilingSession?> profilingSessionProvider) => throw new NotImplementedException();
+            void IConnectionMultiplexer.RegisterProfiler(Func<ProfilingSession?> profilingSessionProvider) =>
+                throw new NotImplementedException();
 
             ServerCounters IConnectionMultiplexer.GetCounters() => throw new NotImplementedException();
 
@@ -184,15 +187,19 @@ namespace StackExchange.Redis.Tests
 
             ISubscriber IConnectionMultiplexer.GetSubscriber(object? asyncState) => throw new NotImplementedException();
 
-            IDatabase IConnectionMultiplexer.GetDatabase(int db, object? asyncState) => throw new NotImplementedException();
+            IDatabase IConnectionMultiplexer.GetDatabase(int db, object? asyncState) =>
+                throw new NotImplementedException();
 
-            IServer IConnectionMultiplexer.GetServer(string host, int port, object? asyncState) => throw new NotImplementedException();
+            IServer IConnectionMultiplexer.GetServer(string host, int port, object? asyncState) =>
+                throw new NotImplementedException();
 
-            IServer IConnectionMultiplexer.GetServer(string hostAndPort, object? asyncState) => throw new NotImplementedException();
+            IServer IConnectionMultiplexer.GetServer(string hostAndPort, object? asyncState) =>
+                throw new NotImplementedException();
 
             IServer IConnectionMultiplexer.GetServer(IPAddress host, int port) => throw new NotImplementedException();
 
-            IServer IConnectionMultiplexer.GetServer(EndPoint endpoint, object? asyncState) => throw new NotImplementedException();
+            IServer IConnectionMultiplexer.GetServer(EndPoint endpoint, object? asyncState) =>
+                throw new NotImplementedException();
 
             IServer[] IConnectionMultiplexer.GetServers() => throw new NotImplementedException();
 
@@ -214,11 +221,13 @@ namespace StackExchange.Redis.Tests
 
             long IConnectionMultiplexer.PublishReconfigure(CommandFlags flags) => throw new NotImplementedException();
 
-            Task<long> IConnectionMultiplexer.PublishReconfigureAsync(CommandFlags flags) => throw new NotImplementedException();
+            Task<long> IConnectionMultiplexer.PublishReconfigureAsync(CommandFlags flags) =>
+                throw new NotImplementedException();
 
             int IConnectionMultiplexer.GetHashSlot(RedisKey key) => throw new NotImplementedException();
 
-            void IConnectionMultiplexer.ExportConfiguration(Stream destination, ExportOptions options) => throw new NotImplementedException();
+            void IConnectionMultiplexer.ExportConfiguration(Stream destination, ExportOptions options) =>
+                throw new NotImplementedException();
 
             void IConnectionMultiplexer.AddLibraryNameSuffix(string suffix) => throw new NotImplementedException();
         }
@@ -247,6 +256,8 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        private IInternalConnectionMultiplexer Create() => Create(syncTimeout: 10_000);
+
         [Fact]
         public async Task WithCancellation_ValidToken_OperationSucceeds()
         {
@@ -267,10 +278,19 @@ namespace StackExchange.Redis.Tests
 
         private void Pause(IDatabase db)
         {
-            db.Execute("client", "pause", ConnectionPauseMilliseconds, CommandFlags.FireAndForget);
+            db.Execute("client", new object[] { "pause", ConnectionPauseMilliseconds }, CommandFlags.FireAndForget);
         }
 
-        private ConnectionMultiplexer Create() => ConnectionMultiplexer.Connect("127.0.0.1:4000");
+        /*
+         private ConnectionMultiplexer Create([CallerMemberName] string caller = "")
+         {
+             var options = ConfigurationOptions.Parse("127.0.0.1:4000");
+ #pragma warning disable CS0618
+             LoggingTunnel.LogToDirectory(options, @"/home/marc/logs/");
+ #pragma warning restore CS0618
+             return ConnectionMultiplexer.Connect(options);
+         }
+        */
 
         [Fact]
         public async Task WithTimeout_ShortTimeout_Async_ThrowsOperationCanceledException()
@@ -289,11 +309,12 @@ namespace StackExchange.Redis.Tests
                 {
                     await pending;
                     // If it succeeds, that's fine too - Redis is fast
-                    Skip.Inconclusive(TooFast + ": " + watch.ElapsedMilliseconds + "ms");
+                    Assert.Fail(ExpectedCancel + ": " + watch.ElapsedMilliseconds + "ms");
                 }
                 catch (OperationCanceledException)
                 {
                     // Expected for very short timeouts
+                    Log($"Cancelled after {watch.ElapsedMilliseconds}ms");
                 }
             }
         }
@@ -314,16 +335,17 @@ namespace StackExchange.Redis.Tests
                 {
                     db.StringSet(Me(), "value"); // check we get past this
                     // If it succeeds, that's fine too - Redis is fast
-                    Skip.Inconclusive(TooFast + ": " + watch.ElapsedMilliseconds + "ms");
+                    Assert.Fail(ExpectedCancel + ": " + watch.ElapsedMilliseconds + "ms");
                 }
                 catch (OperationCanceledException)
                 {
                     // Expected for very short timeouts
+                    Log($"Cancelled after {watch.ElapsedMilliseconds}ms");
                 }
             }
         }
 
-        private const string TooFast = "This operation completed too quickly to verify this behaviour.";
+        private const string ExpectedCancel = "This operation should have been cancelled";
 
         [Fact]
         public async Task WithoutAmbientCancellation_OperationsWorkNormally()
@@ -347,38 +369,38 @@ namespace StackExchange.Redis.Tests
 
         private const int ConnectionPauseMilliseconds = 50, ShortDelayMilliseconds = 5;
 
+        private static CancellationTokenSource CreateCts(CancelStrategy strategy)
+        {
+            switch (strategy)
+            {
+                case CancelStrategy.Constructor:
+                    return new CancellationTokenSource(TimeSpan.FromMilliseconds(ShortDelayMilliseconds));
+                case CancelStrategy.Method:
+                    var cts = new CancellationTokenSource();
+                    cts.CancelAfter(TimeSpan.FromMilliseconds(ShortDelayMilliseconds));
+                    return cts;
+                case CancelStrategy.Manual:
+                    cts = new();
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(ShortDelayMilliseconds);
+                        // ReSharper disable once MethodHasAsyncOverload - TFM-dependent
+                        cts.Cancel();
+                    });
+                    return cts;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(strategy));
+            }
+        }
+
         [Theory]
         [InlineData(CancelStrategy.Constructor)]
         [InlineData(CancelStrategy.Method)]
         [InlineData(CancelStrategy.Manual)]
-        public async Task CancellationDuringOperation_CancelsGracefully(CancelStrategy strategy)
+        public async Task CancellationDuringOperation_Async_CancelsGracefully(CancelStrategy strategy)
         {
             using var conn = Create();
             var db = conn.GetDatabase();
-
-            static CancellationTokenSource CreateCts(CancelStrategy strategy)
-            {
-                switch (strategy)
-                {
-                    case CancelStrategy.Constructor:
-                        return new CancellationTokenSource(TimeSpan.FromMilliseconds(ShortDelayMilliseconds));
-                    case CancelStrategy.Method:
-                        var cts = new CancellationTokenSource();
-                        cts.CancelAfter(TimeSpan.FromMilliseconds(ShortDelayMilliseconds));
-                        return cts;
-                    case CancelStrategy.Manual:
-                        cts = new();
-                        _ = Task.Run(async () =>
-                        {
-                            await Task.Delay(ShortDelayMilliseconds);
-                            // ReSharper disable once MethodHasAsyncOverload - TFM-dependent
-                            cts.Cancel();
-                        });
-                        return cts;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(strategy));
-                }
-            }
 
             var watch = Stopwatch.StartNew();
             Pause(db);
@@ -394,11 +416,45 @@ namespace StackExchange.Redis.Tests
                 try
                 {
                     await pending;
-                    Skip.Inconclusive(TooFast + ": " + watch.ElapsedMilliseconds + "ms");
+                    Assert.Fail(ExpectedCancel + ": " + watch.ElapsedMilliseconds + "ms");
                 }
-                catch (OperationCanceledException oce) when (oce.CancellationToken == cts.Token)
+                catch (OperationCanceledException oce)
                 {
                     // Expected if cancellation happens during operation
+                    Log($"Cancelled after {watch.ElapsedMilliseconds}ms");
+                    Assert.Equal(cts.Token, oce.CancellationToken);
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(CancelStrategy.Constructor)]
+        [InlineData(CancelStrategy.Method)]
+        [InlineData(CancelStrategy.Manual)]
+        public void CancellationDuringOperation_Sync_CancelsGracefully(CancelStrategy strategy)
+        {
+            using var conn = Create();
+            var db = conn.GetDatabase();
+
+            var watch = Stopwatch.StartNew();
+            Pause(db);
+
+            using var cts = CreateCts(strategy);
+
+            // Cancel after a short delay
+            using (db.Multiplexer.WithCancellation(cts.Token))
+            {
+                // Start an operation and cancel it mid-flight
+                try
+                {
+                    db.StringSet($"{Me()}:{strategy}", "value");
+                    Assert.Fail(ExpectedCancel + ": " + watch.ElapsedMilliseconds + "ms");
+                }
+                catch (OperationCanceledException oce)
+                {
+                    // Expected if cancellation happens during operation
+                    Log($"Cancelled after {watch.ElapsedMilliseconds}ms");
+                    Assert.Equal(cts.Token, oce.CancellationToken);
                 }
             }
         }

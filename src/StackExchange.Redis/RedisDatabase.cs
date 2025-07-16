@@ -4973,7 +4973,8 @@ namespace StackExchange.Redis
                         physical.Write(channel);
                     }
                     else
-                    { // recognises well-known types
+                    {
+                        // recognises well-known types
                         var val = RedisValue.TryParse(arg, out var valid);
                         if (!valid) throw new InvalidCastException($"Unable to parse value: '{arg}'");
                         physical.WriteBulkString(val);

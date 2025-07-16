@@ -30,7 +30,9 @@ namespace StackExchange.Redis
         void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
 
         void IResultBox.Cancel(CancellationToken cancellationToken) =>
-            _exception = GetCancelledException(CancellationToken, cancellationToken);
+            _exception = cancellationToken.IsCancellationRequested
+                ? new OperationCanceledException(cancellationToken) // for sync, need to capture this eagerly
+                : GetCancelledException(CancellationToken, cancellationToken);
 
         void IResultBox.ActivateContinuations()
         {
