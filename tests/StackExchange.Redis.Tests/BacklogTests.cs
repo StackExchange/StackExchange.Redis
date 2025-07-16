@@ -91,7 +91,7 @@ public class BacklogTests : TestBase
             // For debug, print out the snapshot and server states
             PrintSnapshot(conn);
 
-            Assert.NotNull(conn.SelectServer(Message.Create(-1, CommandFlags.None, RedisCommand.PING)));
+            Assert.NotNull(conn.SelectServer(Message.Create(-1, CommandFlags.None, RedisCommand.PING, conn.GetEffectiveCancellationToken())));
 
             // We should see none queued
             Assert.Equal(0, stats.BacklogMessagesPending);
@@ -322,7 +322,7 @@ public class BacklogTests : TestBase
             await db.PingAsync();
 
             RedisKey meKey = Me();
-            var getMsg = Message.Create(0, CommandFlags.None, RedisCommand.GET, meKey);
+            var getMsg = Message.Create(0, CommandFlags.None, RedisCommand.GET, meKey, conn.GetEffectiveCancellationToken());
 
             ServerEndPoint? server = null; // Get the server specifically for this message's hash slot
             await UntilConditionAsync(TimeSpan.FromSeconds(10), () => (server = conn.SelectServer(getMsg)) != null);
@@ -333,7 +333,7 @@ public class BacklogTests : TestBase
 
             static Task<TimeSpan> PingAsync(ServerEndPoint server, CommandFlags flags = CommandFlags.None)
             {
-                var message = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+                var message = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING, default, server.Multiplexer.GetEffectiveCancellationToken());
 
                 server.Multiplexer.CheckMessage(message);
                 return server.Multiplexer.ExecuteAsyncImpl(message, ResultProcessor.ResponseTimer, null, server);

@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     {
         private List<Message>? pending;
 
-        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState) { }
+        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.Multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState) { }
 
         public void Execute()
         {
@@ -24,17 +24,17 @@ namespace StackExchange.Redis
             List<Message>? lastList = null;
             foreach (var message in snapshot)
             {
-                var server = multiplexer.SelectServer(message);
+                var server = Multiplexer.SelectServer(message);
                 if (server == null)
                 {
-                    FailNoServer(multiplexer, snapshot);
-                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+                    FailNoServer(Multiplexer, snapshot);
+                    throw ExceptionFactory.NoConnectionAvailable(Multiplexer, message, server);
                 }
                 var bridge = server.GetBridge(message);
                 if (bridge == null)
                 {
-                    FailNoServer(multiplexer, snapshot);
-                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+                    FailNoServer(Multiplexer, snapshot);
+                    throw ExceptionFactory.NoConnectionAvailable(Multiplexer, message, server);
                 }
 
                 // identity a list
@@ -58,15 +58,15 @@ namespace StackExchange.Redis
             {
                 if (!pair.Key.TryEnqueue(pair.Value, pair.Key.ServerEndPoint.IsReplica))
                 {
-                    FailNoServer(multiplexer, pair.Value);
+                    FailNoServer(Multiplexer, pair.Value);
                 }
             }
         }
 
         internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
         {
-            if (message == null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
-            multiplexer.CheckMessage(message);
+            if (message == null) return CompletedTask<T>.FromDefault(defaultValue, ((RedisBase)this).AsyncState);
+            Multiplexer.CheckMessage(message);
 
             // prepare the inner command as a task
             Task<T> task;
@@ -76,7 +76,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T>.Create(GetEffectiveCancellationToken(), out var tcs, asyncState);
+                var source = TaskResultBox<T>.Create(GetEffectiveCancellationToken(), out var tcs, ((RedisBase)this).AsyncState);
                 task = tcs.Task;
                 message.SetSource(source, processor);
             }
@@ -88,8 +88,8 @@ namespace StackExchange.Redis
 
         internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
         {
-            if (message == null) return CompletedTask<T>.Default(asyncState);
-            multiplexer.CheckMessage(message);
+            if (message == null) return CompletedTask<T>.Default(((RedisBase)this).AsyncState);
+            Multiplexer.CheckMessage(message);
 
             // prepare the inner command as a task
             Task<T?> task;
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T?>.Create(message.CancellationToken, out var tcs, asyncState);
+                var source = TaskResultBox<T?>.Create(message.CancellationToken, out var tcs, ((RedisBase)this).AsyncState);
                 task = tcs.Task;
                 message.SetSource(source!, processor);
             }

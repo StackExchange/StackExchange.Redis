@@ -35,7 +35,7 @@ namespace StackExchange.Redis
         bool IServer.IsSlave => IsReplica;
         public bool IsReplica => server.IsReplica;
 
-        public RedisProtocol Protocol => server.Protocol ?? (multiplexer.RawConfig.TryResp3() ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
+        public RedisProtocol Protocol => server.Protocol ?? (Multiplexer.RawConfig.TryResp3() ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
 
         bool IServer.AllowSlaveWrites
         {
@@ -257,13 +257,13 @@ namespace StackExchange.Redis
 
         public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE, this.GetEffectiveCancellationToken());
+            var msg = Message.Create(Multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE, this.GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> DatabaseSizeAsync(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE, this.GetEffectiveCancellationToken());
+            var msg = Message.Create(Multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -293,13 +293,13 @@ namespace StackExchange.Redis
 
         public void FlushDatabase(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB, this.GetEffectiveCancellationToken());
+            var msg = Message.Create(Multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task FlushDatabaseAsync(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB, this.GetEffectiveCancellationToken());
+            var msg = Message.Create(Multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
@@ -355,11 +355,11 @@ namespace StackExchange.Redis
 
         private CursorEnumerable<RedisKey> KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
-            database = multiplexer.ApplyDefaultDatabase(database);
+            database = Multiplexer.ApplyDefaultDatabase(database);
             if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
 
-            if (multiplexer.CommandMap.IsAvailable(RedisCommand.SCAN))
+            if (Multiplexer.CommandMap.IsAvailable(RedisCommand.SCAN))
             {
                 var features = server.GetFeatures();
 
@@ -386,12 +386,12 @@ namespace StackExchange.Redis
         public void MakeMaster(ReplicationChangeOptions options, TextWriter? log = null)
         {
             // Do you believe in magic?
-            multiplexer.MakePrimaryAsync(server, options, log).Wait(60000);
+            Multiplexer.MakePrimaryAsync(server, options, log).Wait(60000);
         }
 
         public async Task MakePrimaryAsync(ReplicationChangeOptions options, TextWriter? log = null)
         {
-            await multiplexer.MakePrimaryAsync(server, options, log).ForAwait();
+            await Multiplexer.MakePrimaryAsync(server, options, log).ForAwait();
         }
 
         public Role Role(CommandFlags flags = CommandFlags.None)
@@ -444,14 +444,14 @@ namespace StackExchange.Redis
 
         public void ScriptFlush(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
+            if (!Multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
             var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH, this.GetEffectiveCancellationToken());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
+            if (!Multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
             var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH, this.GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
@@ -628,9 +628,9 @@ namespace StackExchange.Redis
 
         private Message? GetTiebreakerRemovalMessage()
         {
-            var configuration = multiplexer.RawConfig;
+            var configuration = Multiplexer.RawConfig;
 
-            if (configuration.TryGetTieBreaker(out var tieBreakerKey) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            if (configuration.TryGetTieBreaker(out var tieBreakerKey) && Multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
             {
                 var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, tieBreakerKey, GetEffectiveCancellationToken());
                 msg.SetInternalCall();
@@ -642,8 +642,8 @@ namespace StackExchange.Redis
         private Message? GetConfigChangeMessage()
         {
             // attempt to broadcast a reconfigure message to anybody listening to this server
-            var channel = multiplexer.ConfigurationChangedChannel;
-            if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            var channel = Multiplexer.ConfigurationChangedChannel;
+            if (channel != null && Multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
             {
                 var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard, GetEffectiveCancellationToken());
                 msg.SetInternalCall();
@@ -659,15 +659,15 @@ namespace StackExchange.Redis
             FixFlags(message, server);
             if (!server.IsConnected)
             {
-                if (message == null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
+                if (message == null) return CompletedTask<T>.FromDefault(defaultValue, AsyncState);
                 if (message.IsFireAndForget) return CompletedTask<T>.FromDefault(defaultValue, null); // F+F explicitly does not get async-state
 
                 // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queuing.
-                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                if (!Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
                 {
                     // no need to deny exec-sync here; will be complete before they see if
-                    var tcs = TaskSource.Create<T>(asyncState);
-                    ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
+                    var tcs = TaskSource.Create<T>(AsyncState);
+                    ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(Multiplexer, message, server));
                     return tcs.Task;
                 }
             }
@@ -681,15 +681,15 @@ namespace StackExchange.Redis
             FixFlags(message, server);
             if (!server.IsConnected)
             {
-                if (message == null) return CompletedTask<T>.Default(asyncState);
+                if (message == null) return CompletedTask<T>.Default(AsyncState);
                 if (message.IsFireAndForget) return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
 
                 // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queuing.
-                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                if (!Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
                 {
                     // no need to deny exec-sync here; will be complete before they see if
-                    var tcs = TaskSource.Create<T?>(asyncState);
-                    ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
+                    var tcs = TaskSource.Create<T?>(AsyncState);
+                    ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(Multiplexer, message, server));
                     return tcs.Task;
                 }
             }
@@ -707,9 +707,9 @@ namespace StackExchange.Redis
                 if (message == null || message.IsFireAndForget) return defaultValue;
 
                 // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queuing.
-                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                if (!Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
                 {
-                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+                    throw ExceptionFactory.NoConnectionAvailable(Multiplexer, message, server);
                 }
             }
             return base.ExecuteSync<T>(message, processor, server, defaultValue);
@@ -1040,7 +1040,7 @@ namespace StackExchange.Redis
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args, GetEffectiveCancellationToken());
+            var msg = new RedisDatabase.ExecuteMessage(Multiplexer?.CommandMap, -1, flags, command, args, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -1048,7 +1048,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args, GetEffectiveCancellationToken());
+            var msg = new RedisDatabase.ExecuteMessage(Multiplexer?.CommandMap, -1, flags, command, args, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 

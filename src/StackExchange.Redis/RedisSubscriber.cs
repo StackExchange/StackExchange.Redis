@@ -180,10 +180,8 @@ namespace StackExchange.Redis
             /// <summary>
             /// Gets the configured (P)SUBSCRIBE or (P)UNSUBSCRIBE <see cref="Message"/> for an action.
             /// </summary>
-            internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
+            internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall, CancellationToken cancellationToken)
             {
-                var isPattern = channel.IsPattern;
-                var isSharded = channel.IsSharded;
                 var command = action switch
                 {
                     SubscriptionAction.Subscribe => channel.Options switch
@@ -204,7 +202,7 @@ namespace StackExchange.Redis
                 };
 
                 // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
-                var msg = Message.Create(-1, Flags | flags, command, channel, this.GetEffectiveCancellationToken());
+                var msg = Message.Create(-1, Flags | flags, command, channel, cancellationToken);
                 msg.SetForSubscriptionBridge();
                 if (internalCall)
                 {
@@ -278,7 +276,12 @@ namespace StackExchange.Redis
                 else
                 {
                     handlers = 0;
-                    foreach (var sub in tmp.AsEnumerable()) { handlers++; }
+                    // ReSharper disable once GenericEnumeratorNotDisposed // no-op
+                    var iter = tmp.AsEnumerable().GetEnumerator();
+                    while (iter.MoveNext())
+                    {
+                        handlers++;
+                    }
                 }
             }
 
@@ -313,14 +316,14 @@ namespace StackExchange.Redis
 
         public EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, this.GetEffectiveCancellationToken());
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, GetEffectiveCancellationToken());
             msg.SetInternalCall();
             return ExecuteSync(msg, ResultProcessor.ConnectionIdentity);
         }
 
         public Task<EndPoint?> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, this.GetEffectiveCancellationToken());
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, GetEffectiveCancellationToken());
             msg.SetInternalCall();
             return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
         }
@@ -331,8 +334,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool IsConnected(RedisChannel channel = default)
         {
-            var server = multiplexer.GetSubscribedServer(channel) ?? multiplexer.SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, channel);
-            return server?.IsConnected == true && server.IsSubscriberConnected;
+            var server = Multiplexer.GetSubscribedServer(channel) ?? Multiplexer.SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, channel);
+            return server is { IsConnected: true, IsSubscriberConnected: true };
         }
 
         public override TimeSpan Ping(CommandFlags flags = CommandFlags.None)
@@ -350,9 +353,10 @@ namespace StackExchange.Redis
         private Message CreatePingMessage(CommandFlags flags)
         {
             bool usePing = false;
-            if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
+            if (Multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
             {
                 try { usePing = GetFeatures(default, flags, RedisCommand.PING, out _).PingOnSubscriber; }
+                // ReSharper disable once EmptyGeneralCatchClause - best efforts
                 catch { }
             }
 
@@ -364,7 +368,7 @@ namespace StackExchange.Redis
             else
             {
                 // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-                RedisValue channel = multiplexer.UniqueId;
+                RedisValue channel = Multiplexer.UniqueId;
                 msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel, GetEffectiveCancellationToken());
             }
             // Ensure the ping is sent over the intended subscriber connection, which wouldn't happen in GetBridge() by default with PING;
@@ -383,14 +387,14 @@ namespace StackExchange.Redis
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message, this.GetEffectiveCancellationToken());
+            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message, GetEffectiveCancellationToken());
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message, this.GetEffectiveCancellationToken());
+            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message, GetEffectiveCancellationToken());
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -409,7 +413,7 @@ namespace StackExchange.Redis
             ThrowIfNull(channel);
             if (handler == null && queue == null) { return true; }
 
-            var sub = multiplexer.GetOrAddSubscription(channel, flags);
+            var sub = Multiplexer.GetOrAddSubscription(channel, flags);
             sub.Add(handler, queue);
             return EnsureSubscribedToServer(sub, channel, flags, false);
         }
@@ -420,8 +424,8 @@ namespace StackExchange.Redis
 
             // TODO: Cleanup old hangers here?
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
-            var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-            var selected = multiplexer.SelectServer(message);
+            var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, GetEffectiveCancellationToken());
+            var selected = Multiplexer.SelectServer(message);
             return ExecuteSync(message, sub.Processor, selected);
         }
 
@@ -440,7 +444,7 @@ namespace StackExchange.Redis
             ThrowIfNull(channel);
             if (handler == null && queue == null) { return CompletedTask<bool>.Default(null); }
 
-            var sub = multiplexer.GetOrAddSubscription(channel, flags);
+            var sub = Multiplexer.GetOrAddSubscription(channel, flags);
             sub.Add(handler, queue);
             return EnsureSubscribedToServerAsync(sub, channel, flags, false);
         }
@@ -451,12 +455,12 @@ namespace StackExchange.Redis
 
             // TODO: Cleanup old hangers here?
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
-            var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-            var selected = multiplexer.SelectServer(message);
+            var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, GetEffectiveCancellationToken());
+            var selected = Multiplexer.SelectServer(message);
             return ExecuteAsync(message, sub.Processor, selected);
         }
 
-        public EndPoint? SubscribedEndpoint(RedisChannel channel) => multiplexer.GetSubscribedServer(channel)?.EndPoint;
+        public EndPoint? SubscribedEndpoint(RedisChannel channel) => Multiplexer.GetSubscribedServer(channel)?.EndPoint;
 
         void ISubscriber.Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue>? handler, CommandFlags flags)
             => Unsubscribe(channel, handler, null, flags);
@@ -465,6 +469,7 @@ namespace StackExchange.Redis
         {
             ThrowIfNull(channel);
             // Unregister the subscription handler/queue, and if that returns true (last handler removed), also disconnect from the server
+            // ReSharper disable once SimplifyConditionalTernaryExpression - readability
             return UnregisterSubscription(channel, handler, queue, out var sub)
                 ? UnsubscribeFromServer(sub, channel, flags, false)
                 : true;
@@ -472,10 +477,10 @@ namespace StackExchange.Redis
 
         private bool UnsubscribeFromServer(Subscription sub, RedisChannel channel, CommandFlags flags, bool internalCall)
         {
-            if (sub.GetCurrentServer() is ServerEndPoint oldOwner)
+            if (sub.GetCurrentServer() is { } oldOwner)
             {
-                var message = sub.GetMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
-                return multiplexer.ExecuteSyncImpl(message, sub.Processor, oldOwner);
+                var message = sub.GetMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall, GetEffectiveCancellationToken());
+                return Multiplexer.ExecuteSyncImpl(message, sub.Processor, oldOwner);
             }
             return false;
         }
@@ -488,16 +493,16 @@ namespace StackExchange.Redis
             ThrowIfNull(channel);
             // Unregister the subscription handler/queue, and if that returns true (last handler removed), also disconnect from the server
             return UnregisterSubscription(channel, handler, queue, out var sub)
-                ? UnsubscribeFromServerAsync(sub, channel, flags, asyncState, false)
-                : CompletedTask<bool>.Default(asyncState);
+                ? UnsubscribeFromServerAsync(sub, channel, flags, AsyncState, false)
+                : CompletedTask<bool>.Default(AsyncState);
         }
 
         private Task<bool> UnsubscribeFromServerAsync(Subscription sub, RedisChannel channel, CommandFlags flags, object? asyncState, bool internalCall)
         {
-            if (sub.GetCurrentServer() is ServerEndPoint oldOwner)
+            if (sub.GetCurrentServer() is { } oldOwner)
             {
-                var message = sub.GetMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
-                return multiplexer.ExecuteAsyncImpl(message, sub.Processor, asyncState, oldOwner);
+                var message = sub.GetMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall, GetEffectiveCancellationToken());
+                return Multiplexer.ExecuteAsyncImpl(message, sub.Processor, asyncState, oldOwner);
             }
             return CompletedTask<bool>.FromResult(true, asyncState);
         }
@@ -509,19 +514,19 @@ namespace StackExchange.Redis
         private bool UnregisterSubscription(in RedisChannel channel, Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue, [NotNullWhen(true)] out Subscription? sub)
         {
             ThrowIfNull(channel);
-            if (multiplexer.TryGetSubscription(channel, out sub))
+            if (Multiplexer.TryGetSubscription(channel, out sub))
             {
                 if (handler == null & queue == null)
                 {
                     // This was a blanket wipe, so clear it completely
                     sub.MarkCompleted();
-                    multiplexer.TryRemoveSubscription(channel, out _);
+                    Multiplexer.TryRemoveSubscription(channel, out _);
                     return true;
                 }
                 else if (sub.Remove(handler, queue))
                 {
                     // Or this was the last handler and/or queue, which also means unsubscribe
-                    multiplexer.TryRemoveSubscription(channel, out _);
+                    Multiplexer.TryRemoveSubscription(channel, out _);
                     return true;
                 }
             }
@@ -532,7 +537,7 @@ namespace StackExchange.Redis
         public void UnsubscribeAll(CommandFlags flags = CommandFlags.None)
         {
             // TODO: Unsubscribe variadic commands to reduce round trips
-            var subs = multiplexer.GetSubscriptions();
+            var subs = Multiplexer.GetSubscriptions();
             foreach (var pair in subs)
             {
                 if (subs.TryRemove(pair.Key, out var sub))
@@ -547,16 +552,16 @@ namespace StackExchange.Redis
         {
             // TODO: Unsubscribe variadic commands to reduce round trips
             Task? last = null;
-            var subs = multiplexer.GetSubscriptions();
+            var subs = Multiplexer.GetSubscriptions();
             foreach (var pair in subs)
             {
                 if (subs.TryRemove(pair.Key, out var sub))
                 {
                     sub.MarkCompleted();
-                    last = UnsubscribeFromServerAsync(sub, pair.Key, flags, asyncState, false);
+                    last = UnsubscribeFromServerAsync(sub, pair.Key, flags, AsyncState, false);
                 }
             }
-            return last ?? CompletedTask<bool>.Default(asyncState);
+            return last ?? CompletedTask<bool>.Default(AsyncState);
         }
     }
 }

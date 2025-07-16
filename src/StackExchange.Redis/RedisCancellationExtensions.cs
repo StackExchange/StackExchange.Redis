@@ -112,7 +112,7 @@ namespace StackExchange.Redis
         /// combining any ambient cancellation token and timeout.
         /// </summary>
         /// <returns>The effective cancellation token, or CancellationToken.None if no ambient context is set.</returns>
-        public static CancellationToken GetEffectiveCancellationToken(this IConnectionMultiplexer redis)
+        internal static CancellationToken GetEffectiveCancellationToken(this IConnectionMultiplexer redis, bool checkForCancellation = true)
         {
             var scope = _context.Value;
 
@@ -126,7 +126,11 @@ namespace StackExchange.Redis
                     if (fromScope is not null && fromScope.Equals(redis))
                     {
                         var token = scope.Token;
-                        token.ThrowIfCancellationRequested();
+                        if (checkForCancellation)
+                        {
+                            token.ThrowIfCancellationRequested();
+                        }
+
                         return token;
                     }
                     scope = scope.Previous;
@@ -137,10 +141,30 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets the current cancellation context for diagnostic purposes.
+        /// Gets the current cancellation scope for diagnostic purposes.
         /// </summary>
-        /// <returns>The current context, or null if no ambient context is set.</returns>
-        internal static object? GetCurrentScope() => _context.Value;
+        /// <returns>The current scope, or null if no ambient context is set.</returns>
+        internal static object? GetCurrentScope(this IConnectionMultiplexer redis)
+        {
+            var scope = _context.Value;
+
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract - trust no-one
+            if (redis is not null)
+            {
+                // check for the top scope *that relates to this redis instance*
+                while (scope is not null)
+                {
+                    var scopeMuxer = scope.Target; // need to null-check because weak-ref / GC
+                    if (scopeMuxer is not null && scopeMuxer.Equals(redis))
+                    {
+                        return scope;
+                    }
+                    scope = scope.Previous;
+                }
+            }
+
+            return null;
+        }
 
         private static readonly AsyncLocal<CancellationScope?> _context = new();
 

@@ -184,7 +184,7 @@ namespace StackExchange.Redis
                 catch (ChannelClosedException) { break; } // expected
                 catch (Exception ex)
                 {
-                    _parent?.multiplexer?.OnInternalError(ex);
+                    _parent?.Multiplexer?.OnInternalError(ex);
                     break;
                 }
 
@@ -305,7 +305,7 @@ namespace StackExchange.Redis
                 catch (ChannelClosedException) { break; } // expected
                 catch (Exception ex)
                 {
-                    _parent?.multiplexer?.OnInternalError(ex);
+                    _parent?.Multiplexer?.OnInternalError(ex);
                     break;
                 }
 

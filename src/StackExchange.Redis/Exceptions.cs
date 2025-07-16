@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.Serialization;
 
 namespace StackExchange.Redis
@@ -106,6 +107,7 @@ namespace StackExchange.Redis
         /// <param name="commandStatus">The status of the command.</param>
         public RedisConnectionException(ConnectionFailureType failureType, string message, Exception? innerException, CommandStatus commandStatus) : base(message, innerException)
         {
+            Debug.WriteLine($"{failureType}: {message}");
             FailureType = failureType;
             CommandStatus = commandStatus;
         }

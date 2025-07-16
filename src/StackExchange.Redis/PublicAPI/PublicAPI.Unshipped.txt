@@ -1,6 +1,5 @@
 ﻿#nullable enable
 StackExchange.Redis.RedisCancellationExtensions
-static StackExchange.Redis.RedisCancellationExtensions.GetEffectiveCancellationToken(this StackExchange.Redis.IConnectionMultiplexer! redis) -> System.Threading.CancellationToken
 static StackExchange.Redis.RedisCancellationExtensions.WithCancellation(this StackExchange.Redis.IConnectionMultiplexer! redis, System.Threading.CancellationToken cancellationToken) -> System.IDisposable!
 static StackExchange.Redis.RedisCancellationExtensions.WithCancellationAndTimeout(this StackExchange.Redis.IConnectionMultiplexer! redis, System.Threading.CancellationToken cancellationToken, int milliseconds) -> System.IDisposable!
 static StackExchange.Redis.RedisCancellationExtensions.WithCancellationAndTimeout(this StackExchange.Redis.IConnectionMultiplexer! redis, System.Threading.CancellationToken cancellationToken, System.TimeSpan timeout) -> System.IDisposable!

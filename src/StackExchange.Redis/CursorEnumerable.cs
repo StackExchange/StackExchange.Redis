@@ -246,7 +246,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    throw ExceptionFactory.Timeout(parent.redis.multiplexer, null, message, parent.server);
+                    throw ExceptionFactory.Timeout(parent.redis.Multiplexer, null, message, parent.server);
                 }
                 catch (Exception ex)
                 {

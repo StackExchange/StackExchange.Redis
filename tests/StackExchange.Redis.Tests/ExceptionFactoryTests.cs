@@ -107,7 +107,7 @@ public class ExceptionFactoryTests : TestBase
 
             var server = GetServer(conn);
             conn.AllowConnect = false;
-            var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+            var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING, conn.GetEffectiveCancellationToken());
             var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint));
             var ex = Assert.IsType<RedisTimeoutException>(rawEx);
             Log("Exception: " + ex.Message);
@@ -187,7 +187,7 @@ public class ExceptionFactoryTests : TestBase
                 options.IncludeDetailInExceptions = hasDetail;
                 options.IncludePerformanceCountersInExceptions = hasDetail;
 
-                var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+                var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING, conn.GetEffectiveCancellationToken());
                 var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint));
                 var ex = Assert.IsType<RedisConnectionException>(rawEx);
                 Log("Exception: " + ex.Message);
@@ -222,7 +222,7 @@ public class ExceptionFactoryTests : TestBase
     {
         using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.ReplicaServerAndPort, Writer);
 
-        var msg = Message.Create(0, CommandFlags.None, RedisCommand.SET, (RedisKey)Me(), (RedisValue)"test");
+        var msg = Message.Create(0, CommandFlags.None, RedisCommand.SET, (RedisKey)Me(), (RedisValue)"test", conn.GetEffectiveCancellationToken());
         Assert.True(msg.IsPrimaryOnly());
         var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, null);
         var ex = Assert.IsType<RedisConnectionException>(rawEx);
@@ -243,8 +243,8 @@ public class ExceptionFactoryTests : TestBase
 
         conn.RawConfig.IncludeDetailInExceptions = includeDetail;
 
-        var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey");
-        var resultBox = SimpleResultBox<string>.Create();
+        var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey", conn.GetEffectiveCancellationToken());
+        var resultBox = SimpleResultBox<string>.Create(message.CancellationToken);
         message.SetSource(ResultProcessor.String, resultBox);
 
         message.Fail(failType, null, "my annotation", conn.UnderlyingMultiplexer);

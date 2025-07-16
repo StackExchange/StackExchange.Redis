@@ -10,8 +10,8 @@ public class ResultBoxTests
     [Fact]
     public void SyncResultBox()
     {
-        var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-        var box = SimpleResultBox<string>.Get();
+        var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING, CancellationToken.None);
+        var box = SimpleResultBox<string>.Get(msg.CancellationToken);
         Assert.False(box.IsAsync);
 
         int activated = 0;
@@ -62,8 +62,8 @@ public class ResultBoxTests
         // TaskResultBox currently uses a stating field for values before activations are
         // signalled; High Integrity Mode *demands* this behaviour, so: validate that it
         // works correctly
-        var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-        var box = TaskResultBox<string>.Create(out var tcs, null);
+        var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING, CancellationToken.None);
+        var box = TaskResultBox<string>.Create(msg.CancellationToken, out var tcs, null);
         Assert.True(box.IsAsync);
 
         msg.SetSource(ResultProcessor.DemandOK, box);
