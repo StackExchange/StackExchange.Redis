@@ -12,25 +12,6 @@ internal static class TaskExtensions
 {
     // suboptimal polyfill version of the .NET 6+ API; I'm not recommending this for production use,
     // but it's good enough for tests
-    public static Task<T> WaitAsync<T>(this Task<T> task, CancellationToken cancellationToken)
-    {
-        if (task.IsCompleted || !cancellationToken.CanBeCanceled) return task;
-        return Wrap(task, cancellationToken);
-
-        static async Task<T> Wrap(Task<T> task, CancellationToken cancellationToken)
-        {
-            var tcs = new TaskCompletionSource<T>();
-            using var reg = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
-            _ = task.ContinueWith(t =>
-            {
-                if (t.IsCanceled) tcs.TrySetCanceled();
-                else if (t.IsFaulted) tcs.TrySetException(t.Exception!);
-                else tcs.TrySetResult(t.Result);
-            });
-            return await tcs.Task;
-        }
-    }
-
     public static Task<T> WaitAsync<T>(this Task<T> task, TimeSpan timeout)
     {
         if (task.IsCompleted) return task;
@@ -90,6 +71,11 @@ public class CancellationTests : TestBase
     private void Pause(IDatabase db)
     {
         db.Execute("client", new object[] { "pause", ConnectionPauseMilliseconds }, CommandFlags.FireAndForget);
+    }
+
+    private void Pause(IServer server)
+    {
+        server.Execute("client", new object[] { "pause", ConnectionPauseMilliseconds }, CommandFlags.FireAndForget);
     }
 
     [Fact]
@@ -192,6 +178,40 @@ public class CancellationTests : TestBase
         {
             // Expected if cancellation happens during operation
             Log($"Cancelled after {watch.ElapsedMilliseconds}ms");
+            Assert.Equal(cts.Token, oce.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task ScanCancellable()
+    {
+        using var conn = Create();
+        var db = conn.GetDatabase();
+        var server = conn.GetServer(conn.GetEndPoints()[0]);
+
+        using var cts = new CancellationTokenSource();
+
+        var watch = Stopwatch.StartNew();
+        Pause(server);
+        try
+        {
+            db.StringSet(Me(), "value", TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
+            await using var iter = server.KeysAsync(pageSize: 1000).WithCancellation(cts.Token).GetAsyncEnumerator();
+            var pending = iter.MoveNextAsync();
+            Assert.False(cts.Token.IsCancellationRequested);
+            cts.CancelAfter(ShortDelayMilliseconds); // start this *after* we've got past the initial check
+            while (await pending)
+            {
+                pending = iter.MoveNextAsync();
+            }
+            Assert.Fail($"{ExpectedCancel}: {watch.ElapsedMilliseconds}ms");
+        }
+        catch (OperationCanceledException oce)
+        {
+            var taken = watch.ElapsedMilliseconds;
+            // Expected if cancellation happens during operation
+            Log($"Cancelled after {taken}ms");
+            Assert.True(taken < ConnectionPauseMilliseconds / 2, "Should have cancelled much sooner");
             Assert.Equal(cts.Token, oce.CancellationToken);
         }
     }
