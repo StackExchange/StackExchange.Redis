@@ -14,7 +14,7 @@ Timeouts are probably the most common cancellation scenario, so is exposed direc
 
 ```csharp
 using (database.Multiplexer.WithTimeout(TimeSpan.FromSeconds(5)))
-// using (database.WithTimeout(5000)) // identical
+// using (database.Multiplexer.WithTimeout(5_000)) // identical
 {
     await database.StringSetAsync("key", "value");
     var value = await database.StringGetAsync("key");
@@ -40,9 +40,9 @@ using (database.Multiplexer.WithCancellation(token))
 These two concepts can be combined:
 
 ```csharp
-
-
-using (database.Multiplexer.WithCancellationAndTimeout(yourToken, TimeSpan.FromSeconds(10)))
+CancellationToken token = ...; // for example, from HttpContext.RequestAborted
+using (database.Multiplexer.WithCancellationAndTimeout(token, TimeSpan.FromSeconds(10)))
+// using (database.Multiplexer.WithCancellationAndTimeout(token, 10_000)) // identical
 {
     await database.StringSetAsync("key", "value");
     var value = await database.StringGetAsync("key");

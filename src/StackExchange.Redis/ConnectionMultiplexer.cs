@@ -34,7 +34,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
         internal long syncOps, asyncOps;
-        private long syncTimeouts, fireAndForgets, asyncTimeouts;
+        private long syncTimeouts, fireAndForgets, asyncTimeouts, cancelledPreSend;
         private string? failureMessage, activeConfigCause;
         private TimerToken? pulse;
 
@@ -2043,9 +2043,9 @@ namespace StackExchange.Redis
             }
         }
 
-        private static CancellationTokenRegistration ObserveCancellation(IResultBox box)
+        private static CancellationTokenRegistration ObserveCancellation(IResultBox? box)
         {
-            return box.CancellationToken.Register(
+            return box is null ? default : box.CancellationToken.Register(
                 static state =>
                 {
                     var typed = Unsafe.As<IResultBox>(state!);
@@ -2066,6 +2066,14 @@ namespace StackExchange.Redis
             }
 
             Interlocked.Increment(ref syncOps);
+
+            var ct = message.CancellationToken;
+            if (ct.IsCancellationRequested)
+            {
+                Interlocked.Increment(ref cancelledPreSend);
+                if (message.IsFireAndForget) return defaultValue;
+                ct.ThrowIfCancellationRequested();
+            }
 
             if (message.IsFireAndForget)
             {
@@ -2125,15 +2133,26 @@ namespace StackExchange.Redis
 
         internal Task<T> ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server, T defaultValue)
         {
-            static async Task<T> ExecuteAsyncImpl_Awaited(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T>? tcs, Message message, ServerEndPoint? server, T defaultValue)
+            static async Task<T> ExecuteAsyncImpl_Awaited(
+                ConnectionMultiplexer @this,
+                ValueTask<WriteResult> write,
+                TaskCompletionSource<T>? tcs,
+                Message message,
+                ServerEndPoint? server,
+                T defaultValue,
+                IResultBox? source)
             {
-                var result = await write.ForAwait();
-                if (result != WriteResult.Success)
+                using (ObserveCancellation(source))
                 {
-                    var ex = @this.GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
+                    var result = await write.ForAwait();
+                    if (result != WriteResult.Success)
+                    {
+                        var ex = @this.GetException(result, message, server);
+                        ThrowFailed(tcs, ex);
+                    }
+
+                    return tcs == null ? defaultValue : await tcs.Task.ForAwait();
                 }
-                return tcs == null ? defaultValue : await tcs.Task.ForAwait();
             }
 
             if (_isDisposed) throw new ObjectDisposedException(ToString());
@@ -2145,9 +2164,21 @@ namespace StackExchange.Redis
 
             Interlocked.Increment(ref asyncOps);
 
+            var ct = message.CancellationToken;
+            if (ct.IsCancellationRequested)
+            {
+                // pre-doomed?
+                Interlocked.Increment(ref cancelledPreSend);
+                return message.IsFireAndForget ? CompletedTask<T>.Default(null)! : PreCancelled<T>(ct, state);
+            }
+
             TaskCompletionSource<T>? tcs = null;
             IResultBox<T>? source = null;
-            if (!message.IsFireAndForget)
+            if (message.IsFireAndForget)
+            {
+                Interlocked.Increment(ref fireAndForgets);
+            }
+            else
             {
                 // Use the message's cancellation token, which preserves the ambient context from when the message was created
                 // This ensures that resent messages (due to MOVED, failover, etc.) still respect the original cancellation
@@ -2156,7 +2187,7 @@ namespace StackExchange.Redis
             var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
             if (!write.IsCompletedSuccessfully)
             {
-                return ExecuteAsyncImpl_Awaited(this, write, tcs, message, server, defaultValue);
+                return ExecuteAsyncImpl_Awaited(this, write, tcs, message, server, defaultValue, source);
             }
 
             if (tcs == null)
@@ -2171,22 +2202,33 @@ namespace StackExchange.Redis
                     var ex = GetException(result, message, server);
                     ThrowFailed(tcs, ex);
                 }
-                return tcs.Task;
+
+                return WithCancellation(tcs.Task, source);
             }
         }
 
         internal Task<T?> ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server)
         {
             [return: NotNullIfNotNull(nameof(tcs))]
-            static async Task<T?> ExecuteAsyncImpl_Awaited(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T?>? tcs, Message message, ServerEndPoint? server)
+            static async Task<T?> ExecuteAsyncImpl_Awaited(
+                ConnectionMultiplexer @this,
+                ValueTask<WriteResult> write,
+                TaskCompletionSource<T?>? tcs,
+                Message message,
+                ServerEndPoint? server,
+                IResultBox? source)
             {
-                var result = await write.ForAwait();
-                if (result != WriteResult.Success)
+                using (ObserveCancellation(source))
                 {
-                    var ex = @this.GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
+                    var result = await write.ForAwait();
+                    if (result != WriteResult.Success)
+                    {
+                        var ex = @this.GetException(result, message, server);
+                        ThrowFailed(tcs, ex);
+                    }
+
+                    return tcs == null ? default : await tcs.Task.ForAwait();
                 }
-                return tcs == null ? default : await tcs.Task.ForAwait();
             }
 
             if (_isDisposed) throw new ObjectDisposedException(ToString());
@@ -2200,16 +2242,30 @@ namespace StackExchange.Redis
 
             TaskCompletionSource<T?>? tcs = null;
             IResultBox<T?>? source = null;
-            if (!message.IsFireAndForget)
+
+            var ct = message.CancellationToken;
+            if (ct.IsCancellationRequested)
+            {
+                // pre-doomed?
+                Interlocked.Increment(ref cancelledPreSend);
+                return message.IsFireAndForget ? CompletedTask<T?>.Default(null) : PreCancelled<T?>(ct, state);
+            }
+
+            if (message.IsFireAndForget)
+            {
+                Interlocked.Increment(ref fireAndForgets);
+            }
+            else
             {
                 // Use the message's cancellation token, which preserves the ambient context from when the message was created
                 // This ensures that resent messages (due to MOVED, failover, etc.) still respect the original cancellation
-                source = TaskResultBox<T?>.Create(message.CancellationToken, out tcs, state);
+                source = TaskResultBox<T?>.Create(ct, out tcs, state);
             }
+
             var write = TryPushMessageToBridgeAsync(message, processor, source!, ref server);
             if (!write.IsCompletedSuccessfully)
             {
-                return ExecuteAsyncImpl_Awaited(this, write, tcs, message, server);
+                return ExecuteAsyncImpl_Awaited(this, write, tcs, message, server, source);
             }
 
             if (tcs == null)
@@ -2224,8 +2280,29 @@ namespace StackExchange.Redis
                     var ex = GetException(result, message, server);
                     ThrowFailed(tcs, ex);
                 }
-                return tcs.Task;
+
+                return WithCancellation(tcs.Task, source);
             }
+        }
+
+        private static Task<T> WithCancellation<T>(Task<T> raw, IResultBox? source)
+        {
+            return source is { CancellationToken.CanBeCanceled: true } ? Wrap(raw, source) : raw;
+
+            static async Task<T> Wrap(Task<T> raw, IResultBox source)
+            {
+                using (ObserveCancellation(source))
+                {
+                    return await raw.ForAwait();
+                }
+            }
+        }
+
+        private static Task<T> PreCancelled<T>(CancellationToken ct, object? asyncState)
+        {
+            var tcs = TaskSource.Create<T>(asyncState);
+            tcs.TrySetCanceled(ct);
+            return tcs.Task;
         }
 
         internal void OnAsyncTimeout() => Interlocked.Increment(ref asyncTimeouts);
