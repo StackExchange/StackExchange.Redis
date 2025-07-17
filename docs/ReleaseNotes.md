@@ -9,8 +9,8 @@ Current package versions:
 ## Unreleased
 
 - Add support for new `BITOP` operations in CE 8.2 ([#2900 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2900))
-- Package updates ([#2906 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2906))
-- Fix handshake error connecting to RESP2 servers
+- Package updates ([#2906 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2906))~~~~
+- Fix handshake error with `CLIENT ID` ([#2909 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2909))
 
 ## 2.8.41
 
