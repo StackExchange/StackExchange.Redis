@@ -11,8 +11,8 @@ Current package versions:
 - Add support for new `BITOP` operations in CE 8.2 ([#2900 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2900))
 - Package updates ([#2906 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2906))
 - Fix handshake error with `CLIENT ID` ([#2909 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2909))
-- Add `xack minid` support ([#2842 by kijanawoodard](https://github.com/StackExchange/StackExchange.Redis/pull/2842))
-- Add new 8.2 stream support - `xdelex`, `xackdel`, `xtrim [keepref|delref|acked]` ([#2912 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2912))
+- Add `XTRIM MINID` support ([#2842 by kijanawoodard](https://github.com/StackExchange/StackExchange.Redis/pull/2842))
+- Add new CE 8.2 stream support - `XDELEX`, `XACKDEL`, `XTRIM [KEEPREF|DELREF|ACKED]` ([#2912 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2912))
 
 ## 2.8.41
 

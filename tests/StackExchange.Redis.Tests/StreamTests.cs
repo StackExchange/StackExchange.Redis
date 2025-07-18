@@ -2023,10 +2023,17 @@ public class StreamTests : TestBase
         }
 
         var numRemoved = db.StreamTrimByMinId(key, 1111111110 + maxLength, useApproximateMaxLength: true, limit: limit, mode: mode);
+        var expectRemoved = mode switch
+        {
+            StreamDeleteMode.KeepReferences => limit,
+            StreamDeleteMode.DeleteReferences => 0,
+            StreamDeleteMode.Acknowledged => 0,
+            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+        };
         var len = db.StreamLength(key);
 
-        Assert.Equal(limit, numRemoved);
-        Assert.Equal(maxLength - limit, len);
+        Assert.Equal(expectRemoved, numRemoved);
+        Assert.Equal(maxLength - expectRemoved, len);
     }
 
     [Fact]

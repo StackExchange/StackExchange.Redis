@@ -3020,27 +3020,33 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
         }
 
-        public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
+            => StreamTrim(key, maxLength, useApproximateMaxLength, null, StreamDeleteMode.KeepReferences, flags);
+
+        public long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStreamTrimMessage(key, maxLength, useApproximateMaxLength, flags);
+            var msg = GetStreamTrimMessage(true, key, maxLength, useApproximateMaxLength, limit, mode, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
+            => StreamTrimAsync(key, maxLength, useApproximateMaxLength, null, StreamDeleteMode.KeepReferences, flags);
+
+        public Task<long> StreamTrimAsync(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStreamTrimMessage(key, maxLength, useApproximateMaxLength, flags);
+            var msg = GetStreamTrimMessage(true, key, maxLength, useApproximateMaxLength, limit, mode, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStreamTrimByMinIdMessage(key, minId, useApproximateMaxLength, limit, mode, flags);
+            var msg = GetStreamTrimMessage(false, key, minId, useApproximateMaxLength, limit, mode, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetStreamTrimByMinIdMessage(key, minId, useApproximateMaxLength, limit, mode, flags);
+            var msg = GetStreamTrimMessage(false, key, minId, useApproximateMaxLength, limit, mode, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -4512,59 +4518,36 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private Message GetStreamTrimMessage(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
+        private Message GetStreamTrimMessage(bool maxLen, RedisKey key, RedisValue threshold, bool useApproximateMaxLength, long? limit, StreamDeleteMode mode, CommandFlags flags)
         {
-            if (maxLength < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(maxLength), "maxLength must be equal to or greater than 0.");
-            }
-
-            var values = new RedisValue[2 + (useApproximateMaxLength ? 1 : 0)];
-
-            values[0] = StreamConstants.MaxLen;
-
-            if (useApproximateMaxLength)
-            {
-                values[1] = StreamConstants.ApproximateMaxLen;
-                values[2] = maxLength;
-            }
-            else
-            {
-                values[1] = maxLength;
-            }
-
-            return Message.Create(
-                Database,
-                flags,
-                RedisCommand.XTRIM,
-                key,
-                values);
-        }
-
-        private Message GetStreamTrimByMinIdMessage(RedisKey key, RedisValue minId, bool useApproximateMaxLength, int? limit, StreamDeleteMode mode, CommandFlags flags)
-        {
-            if (limit.HasValue && limit.Value <= 0)
+            if (limit.HasValue && limit.GetValueOrDefault() <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(limit), "limit must be greater than 0 when specified.");
             }
 
-            var values = new RedisValue[2 + (useApproximateMaxLength ? 1 : 0) + (useApproximateMaxLength && limit.HasValue ? 2 : 0) + (mode == StreamDeleteMode.KeepReferences ? 0 : 1)];
+            if (limit is null && !useApproximateMaxLength && mode == StreamDeleteMode.KeepReferences)
+            {
+                // avoid array alloc in simple case
+                return Message.Create(Database, flags, RedisCommand.XTRIM, key, maxLen ? StreamConstants.MaxLen : StreamConstants.MinId, threshold);
+            }
+
+            var values = new RedisValue[2 + (useApproximateMaxLength ? 1 : 0) + (limit.HasValue ? 2 : 0) + (mode == StreamDeleteMode.KeepReferences ? 0 : 1)];
 
             var offset = 0;
 
-            values[offset++] = StreamConstants.MinId;
+            values[offset++] = maxLen ? StreamConstants.MaxLen : StreamConstants.MinId;
 
             if (useApproximateMaxLength)
             {
                 values[offset++] = StreamConstants.ApproximateMaxLen;
             }
 
-            values[offset++] = minId;
+            values[offset++] = threshold;
 
-            if (useApproximateMaxLength && limit.HasValue)
+            if (limit.HasValue)
             {
                 values[offset++] = RedisLiterals.LIMIT;
-                values[offset] = limit.Value;
+                values[offset++] = limit.GetValueOrDefault();
             }
 
             if (mode != StreamDeleteMode.KeepReferences) // omit when not needed, for back-compat

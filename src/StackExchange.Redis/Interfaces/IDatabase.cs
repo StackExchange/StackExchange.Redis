@@ -2801,7 +2801,20 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages removed from the stream.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags);
+
+        /// <summary>
+        /// Trim the stream to a specified maximum length.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="limit">Specifies the maximal count of entries that will be evicted.</param>
+        /// <param name="mode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of messages removed from the stream.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+        long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified minimum timestamp.
@@ -2814,7 +2827,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages removed from the stream.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+        long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// If key already exists and is a string, this command appends the value at the end of the string.
