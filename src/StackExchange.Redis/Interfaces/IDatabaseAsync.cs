@@ -640,8 +640,13 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StreamCreateConsumerGroup(RedisKey, RedisValue, RedisValue?, bool, CommandFlags)"/>
         Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None);
 
+#pragma warning disable RS0026
         /// <inheritdoc cref="IDatabase.StreamDelete(RedisKey, RedisValue[], CommandFlags)"/>
         Task<long> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.StreamDelete(RedisKey, RedisValue[], StreamTrimMode, CommandFlags)"/>
+        Task<StreamTrimResult[]> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <inheritdoc cref="IDatabase.StreamDeleteConsumer(RedisKey, RedisValue, RedisValue, CommandFlags)"/>
         Task<long> StreamDeleteConsumerAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, CommandFlags flags = CommandFlags.None);

@@ -600,6 +600,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamDelete(ToInner(key), messageIds, flags);
 
+        public StreamTrimResult[] StreamDelete(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamDelete(ToInner(key), messageIds, mode, flags);
+
         public long StreamDeleteConsumer(RedisKey key, RedisValue groupName, RedisValue consumerName, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamDeleteConsumer(ToInner(key), groupName, consumerName, flags);
 

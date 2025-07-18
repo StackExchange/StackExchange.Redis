@@ -2427,25 +2427,25 @@ namespace StackExchange.Redis
         public StreamTrimResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeAndDeleteMessage(key, groupName, mode, messageId, flags);
-            return ExecuteSync(msg, ResultProcessor.StreamDeleteResult);
+            return ExecuteSync(msg, ResultProcessor.StreamTrimResult);
         }
 
         public Task<StreamTrimResult> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeAndDeleteMessage(key, groupName, mode, messageId, flags);
-            return ExecuteAsync(msg, ResultProcessor.StreamDeleteResult);
+            return ExecuteAsync(msg, ResultProcessor.StreamTrimResult);
         }
 
         public StreamTrimResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeAndDeleteMessage(key, groupName, mode, messageIds, flags);
-            return ExecuteSync(msg, ResultProcessor.StreamDeleteResultArray)!;
+            return ExecuteSync(msg, ResultProcessor.StreamTrimResultArray)!;
         }
 
         public Task<StreamTrimResult[]> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeAndDeleteMessage(key, groupName, mode, messageIds, flags);
-            return ExecuteAsync(msg, ResultProcessor.StreamDeleteResultArray)!;
+            return ExecuteAsync(msg, ResultProcessor.StreamTrimResultArray)!;
         }
 
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
@@ -2748,26 +2748,48 @@ namespace StackExchange.Redis
 
         public long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(
-                Database,
-                flags,
-                RedisCommand.XDEL,
-                key,
-                messageIds);
-
+            var msg = Message.Create(Database, flags, RedisCommand.XDEL, key, messageIds);
             return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public StreamTrimResult[] StreamDelete(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags)
+        {
+            var msg = GetStreamDeleteExMessage(key, messageIds, mode, flags);
+            return ExecuteSync(msg, ResultProcessor.StreamTrimResultArray)!;
+        }
+
+        private Message GetStreamDeleteExMessage(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags)
+        {
+            if (messageIds == null) throw new ArgumentNullException(nameof(messageIds));
+            if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
+
+            // avoid array for single message case
+            if (messageIds.Length == 1)
+            {
+                return Message.Create(Database, flags, RedisCommand.XDELEX, key, StreamConstants.GetMode(mode), StreamConstants.Ids, 1, messageIds[0]);
+            }
+
+            var values = new RedisValue[messageIds.Length + 3];
+
+            var offset = 0;
+            values[offset++] = StreamConstants.GetMode(mode);
+            values[offset++] = StreamConstants.Ids;
+            values[offset++] = messageIds.Length;
+            messageIds.AsSpan().CopyTo(values.AsSpan(offset));
+            Debug.Assert(offset + messageIds.Length == values.Length);
+            return Message.Create(Database, flags, RedisCommand.XDELEX, key, values);
         }
 
         public Task<long> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(
-                Database,
-                flags,
-                RedisCommand.XDEL,
-                key,
-                messageIds);
-
+            var msg = Message.Create(Database, flags, RedisCommand.XDEL, key, messageIds);
             return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<StreamTrimResult[]> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamDeleteExMessage(key, messageIds, mode, flags);
+            return ExecuteAsync(msg, ResultProcessor.StreamTrimResultArray)!;
         }
 
         public long StreamDeleteConsumer(RedisKey key, RedisValue groupName, RedisValue consumerName, CommandFlags flags = CommandFlags.None)

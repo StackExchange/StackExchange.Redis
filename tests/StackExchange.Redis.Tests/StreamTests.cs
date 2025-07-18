@@ -1287,6 +1287,54 @@ public class StreamTests : TestBase
         Assert.Equal(2, messages.Length);
     }
 
+    [Theory]
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamDeleteExMessage(StreamTrimMode mode)
+    {
+        using var conn = Create(require: ForMode(mode));
+
+        var db = conn.GetDatabase();
+        var key = Me() + ":" + mode;
+
+        db.StreamAdd(key, "field1", "value1");
+        db.StreamAdd(key, "field2", "value2");
+        var id3 = db.StreamAdd(key, "field3", "value3");
+        db.StreamAdd(key, "field4", "value4");
+
+        var deleted = db.StreamDelete(key, new[] { id3 }, mode: mode);
+        var messages = db.StreamRange(key);
+
+        Assert.Equal(StreamTrimResult.Deleted, Assert.Single(deleted));
+        Assert.Equal(3, messages.Length);
+    }
+
+    [Theory]
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamDeleteExMessages(StreamTrimMode mode)
+    {
+        using var conn = Create(require: ForMode(mode));
+
+        var db = conn.GetDatabase();
+        var key = Me() + ":" + mode;
+
+        db.StreamAdd(key, "field1", "value1");
+        var id2 = db.StreamAdd(key, "field2", "value2");
+        var id3 = db.StreamAdd(key, "field3", "value3");
+        db.StreamAdd(key, "field4", "value4");
+
+        var deleted = db.StreamDelete(key, new[] { id2, id3 }, mode: mode);
+        var messages = db.StreamRange(key);
+
+        Assert.Equal(2, deleted.Length);
+        Assert.Equal(StreamTrimResult.Deleted, deleted[0]);
+        Assert.Equal(StreamTrimResult.Deleted, deleted[1]);
+        Assert.Equal(2, messages.Length);
+    }
+
     [Fact]
     public void StreamGroupInfoGet()
     {

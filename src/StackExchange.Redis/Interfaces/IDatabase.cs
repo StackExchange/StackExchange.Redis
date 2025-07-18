@@ -2650,7 +2650,22 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns the number of messages successfully deleted from the stream.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+#pragma warning disable RS0026 // similar overloads
         long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
+        /// Delete messages in the stream. This method does not delete the stream.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="messageIds">The IDs of the messages to delete.</param>
+        /// <param name="mode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns the number of messages successfully deleted from the stream.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+#pragma warning disable RS0026 // similar overloads
+        StreamTrimResult[] StreamDelete(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <summary>
         /// Delete a consumer from a consumer group.

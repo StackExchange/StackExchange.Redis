@@ -618,6 +618,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamDeleteAsync(ToInner(key), messageIds, flags);
 
+        public Task<StreamTrimResult[]> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamDeleteAsync(ToInner(key), messageIds, mode, flags);
+
         public Task<long> StreamDeleteConsumerAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamDeleteConsumerAsync(ToInner(key), groupName, consumerName, flags);
 
