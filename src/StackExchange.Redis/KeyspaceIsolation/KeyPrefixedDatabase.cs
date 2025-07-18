@@ -546,6 +546,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledge(ToInner(key), groupName, messageIds, flags);
 
+        public StreamDeleteResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamAcknowledgeAndDelete(ToInner(key), groupName, mode, messageId, flags);
+
+        public StreamDeleteResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamAcknowledgeAndDelete(ToInner(key), groupName, mode, messageIds, flags);
+
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAdd(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, flags);
 
@@ -624,8 +630,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamTrim(ToInner(key), maxLength, useApproximateMaxLength, flags);
 
-        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, CommandFlags flags = CommandFlags.None) =>
-            Inner.StreamTrimByMinId(ToInner(key), minId, useApproximateMaxLength, limit, flags);
+        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamTrimByMinId(ToInner(key), minId, useApproximateMaxLength, limit, mode, flags);
 
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringAppend(ToInner(key), value, flags);

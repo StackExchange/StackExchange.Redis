@@ -1,3 +1,15 @@
 ﻿#nullable enable
-StackExchange.Redis.IDatabase.StreamTrimByMinId(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
-StackExchange.Redis.IDatabaseAsync.StreamTrimByMinIdAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabase.StreamAcknowledgeAndDelete(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.StreamDeleteMode mode, StackExchange.Redis.RedisValue messageId, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StreamDeleteResult
+StackExchange.Redis.IDatabase.StreamAcknowledgeAndDelete(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.StreamDeleteMode mode, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StreamDeleteResult[]!
+StackExchange.Redis.IDatabase.StreamTrimByMinId(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StackExchange.Redis.StreamDeleteMode mode = StackExchange.Redis.StreamDeleteMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabaseAsync.StreamAcknowledgeAndDeleteAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.StreamDeleteMode mode, StackExchange.Redis.RedisValue messageId, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StreamDeleteResult>!
+StackExchange.Redis.IDatabaseAsync.StreamAcknowledgeAndDeleteAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.StreamDeleteMode mode, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StreamDeleteResult[]!>!
+StackExchange.Redis.IDatabaseAsync.StreamTrimByMinIdAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StackExchange.Redis.StreamDeleteMode mode = StackExchange.Redis.StreamDeleteMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.StreamDeleteMode
+StackExchange.Redis.StreamDeleteMode.Acknowledged = 2 -> StackExchange.Redis.StreamDeleteMode
+StackExchange.Redis.StreamDeleteMode.DeleteReferences = 1 -> StackExchange.Redis.StreamDeleteMode
+StackExchange.Redis.StreamDeleteMode.KeepReferences = 0 -> StackExchange.Redis.StreamDeleteMode
+StackExchange.Redis.StreamDeleteResult
+StackExchange.Redis.StreamDeleteResult.Deleted = 1 -> StackExchange.Redis.StreamDeleteResult
+StackExchange.Redis.StreamDeleteResult.NotDeleted = 2 -> StackExchange.Redis.StreamDeleteResult
+StackExchange.Redis.StreamDeleteResult.NotFound = -1 -> StackExchange.Redis.StreamDeleteResult

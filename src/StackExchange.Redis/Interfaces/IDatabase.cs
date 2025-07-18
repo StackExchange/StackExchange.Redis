@@ -2441,6 +2441,34 @@ namespace StackExchange.Redis
         long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group that received the message.</param>
+        /// <param name="mode">The delete mode to use when acknowledging the message.</param>
+        /// <param name="messageId">The ID of the message to acknowledge.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The outcome of the delete operation.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+#pragma warning disable RS0026 // similar overloads
+        StreamDeleteResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
+        /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group that received the message.</param>
+        /// /// <param name="mode">The delete mode to use when acknowledging the message.</param>
+        /// <param name="messageIds">The IDs of the messages to acknowledge.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The outcome of each delete operation.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+#pragma warning disable RS0026 // similar overloads
+        StreamDeleteResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
         /// Adds an entry using the specified values to the given stream key.
         /// If key does not exist, a new key holding a stream is created.
         /// The command returns the ID of the newly created stream entry.
@@ -2782,10 +2810,11 @@ namespace StackExchange.Redis
         /// <param name="minId">All entries with an id (timestamp) earlier minId will be removed.</param>
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed minId by a small number. This improves performance when removing messages.</param>
         /// <param name="limit">The maximum number of entries to remove per call when useApproximateMaxLength = true. If 0, the limiting mechanism is disabled entirely.</param>
+        /// <param name="mode">Determines how stream trimming should be performed.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages removed from the stream.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, CommandFlags flags = CommandFlags.None);
+        long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, int? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// If key already exists and is a string, this command appends the value at the end of the string.
