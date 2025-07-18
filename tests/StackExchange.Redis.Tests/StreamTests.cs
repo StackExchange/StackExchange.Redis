@@ -732,10 +732,10 @@ public class StreamTests : TestBase
     }
 
     [Theory]
-    [InlineData(StreamDeleteMode.KeepReferences)]
-    [InlineData(StreamDeleteMode.DeleteReferences)]
-    [InlineData(StreamDeleteMode.Acknowledged)]
-    public void StreamConsumerGroupAcknowledgeAndDeleteMessage(StreamDeleteMode mode)
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamConsumerGroupAcknowledgeAndDeleteMessage(StreamTrimMode mode)
     {
         using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
 
@@ -760,10 +760,10 @@ public class StreamTests : TestBase
 
         // Single message Id overload.
         var oneAck = db.StreamAcknowledgeAndDelete(key, groupName, mode, id1);
-        Assert.Equal(StreamDeleteResult.Deleted, oneAck);
+        Assert.Equal(StreamTrimResult.Deleted, oneAck);
 
-        StreamDeleteResult nack = db.StreamAcknowledgeAndDelete(key, groupName, mode, notexist);
-        Assert.Equal(StreamDeleteResult.NotFound, nack);
+        StreamTrimResult nack = db.StreamAcknowledgeAndDelete(key, groupName, mode, notexist);
+        Assert.Equal(StreamTrimResult.NotFound, nack);
 
         // Multiple message Id overload.
         RedisValue[] ids = new[] { id3, notexist, id4 };
@@ -773,9 +773,9 @@ public class StreamTests : TestBase
         var notAcknowledged = db.StreamReadGroup(key, groupName, consumer, "0-0");
 
         Assert.Equal(3, twoAck.Length);
-        Assert.Equal(StreamDeleteResult.Deleted, twoAck[0]);
-        Assert.Equal(StreamDeleteResult.NotFound, twoAck[1]);
-        Assert.Equal(StreamDeleteResult.Deleted, twoAck[2]);
+        Assert.Equal(StreamTrimResult.Deleted, twoAck[0]);
+        Assert.Equal(StreamTrimResult.NotFound, twoAck[1]);
+        Assert.Equal(StreamTrimResult.Deleted, twoAck[2]);
 
         Assert.Single(notAcknowledged);
         Assert.Equal(id2, notAcknowledged[0].Id);
@@ -1972,19 +1972,19 @@ public class StreamTests : TestBase
         Assert.Equal(1, len);
     }
 
-    private static Version ForMode(StreamDeleteMode mode, Version? defaultVersion = null) => mode switch
+    private static Version ForMode(StreamTrimMode mode, Version? defaultVersion = null) => mode switch
     {
-        StreamDeleteMode.KeepReferences => defaultVersion ?? RedisFeatures.v5_0_0,
-        StreamDeleteMode.Acknowledged => RedisFeatures.v8_2_0_rc1,
-        StreamDeleteMode.DeleteReferences => RedisFeatures.v8_2_0_rc1,
+        StreamTrimMode.KeepReferences => defaultVersion ?? RedisFeatures.v5_0_0,
+        StreamTrimMode.Acknowledged => RedisFeatures.v8_2_0_rc1,
+        StreamTrimMode.DeleteReferences => RedisFeatures.v8_2_0_rc1,
         _ => throw new ArgumentOutOfRangeException(nameof(mode)),
     };
 
     [Theory]
-    [InlineData(StreamDeleteMode.KeepReferences)]
-    [InlineData(StreamDeleteMode.DeleteReferences)]
-    [InlineData(StreamDeleteMode.Acknowledged)]
-    public void StreamTrimByMinId(StreamDeleteMode mode)
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamTrimByMinId(StreamTrimMode mode)
     {
         using var conn = Create(require: ForMode(mode, RedisFeatures.v6_2_0));
 
@@ -2004,10 +2004,10 @@ public class StreamTests : TestBase
     }
 
     [Theory]
-    [InlineData(StreamDeleteMode.KeepReferences)]
-    [InlineData(StreamDeleteMode.DeleteReferences)]
-    [InlineData(StreamDeleteMode.Acknowledged)]
-    public void StreamTrimByMinIdWithApproximateAndLimit(StreamDeleteMode mode)
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamTrimByMinIdWithApproximateAndLimit(StreamTrimMode mode)
     {
         using var conn = Create(require: ForMode(mode, RedisFeatures.v6_2_0));
 
@@ -2025,9 +2025,9 @@ public class StreamTests : TestBase
         var numRemoved = db.StreamTrimByMinId(key, 1111111110 + maxLength, useApproximateMaxLength: true, limit: limit, mode: mode);
         var expectRemoved = mode switch
         {
-            StreamDeleteMode.KeepReferences => limit,
-            StreamDeleteMode.DeleteReferences => 0,
-            StreamDeleteMode.Acknowledged => 0,
+            StreamTrimMode.KeepReferences => limit,
+            StreamTrimMode.DeleteReferences => 0,
+            StreamTrimMode.Acknowledged => 0,
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
         var len = db.StreamLength(key);
@@ -2064,16 +2064,16 @@ public class StreamTests : TestBase
     }
 
     [Theory]
-    [InlineData(StreamDeleteMode.KeepReferences)]
-    [InlineData(StreamDeleteMode.DeleteReferences)]
-    [InlineData(StreamDeleteMode.Acknowledged)]
-    public void AddWithApproxCount(StreamDeleteMode mode)
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void AddWithApproxCount(StreamTrimMode mode)
     {
         using var conn = Create(require: ForMode(mode));
 
         var db = conn.GetDatabase();
         var key = Me() + ":" + mode;
-        db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, deleteMode: mode, flags: CommandFlags.None);
+        db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, trimMode: mode, flags: CommandFlags.None);
     }
 
     [Fact]

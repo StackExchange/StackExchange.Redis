@@ -3,7 +3,7 @@
 /// <summary>
 /// Determines how stream trimming works.
 /// </summary>
-public enum StreamDeleteResult
+public enum StreamTrimResult
 {
     /// <summary>
     /// No such id exists in the provided stream key.
@@ -18,6 +18,6 @@ public enum StreamDeleteResult
     /// <summary>
     /// Entry was not deleted, but there are still dangling references.
     /// </summary>
-    /// <remarks>This response relates to the <see cref="StreamDeleteMode.Acknowledged"/> mode.</remarks>
+    /// <remarks>This response relates to the <see cref="StreamTrimMode.Acknowledged"/> mode.</remarks>
     NotDeleted = 2,
 }

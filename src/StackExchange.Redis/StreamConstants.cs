@@ -75,11 +75,11 @@ namespace StackExchange.Redis
 
         internal static readonly RedisValue Ids = "IDS";
 
-        internal static RedisValue GetMode(StreamDeleteMode mode) => mode switch
+        internal static RedisValue GetMode(StreamTrimMode mode) => mode switch
             {
-                StreamDeleteMode.KeepReferences => KeepRef,
-                StreamDeleteMode.DeleteReferences => DelRef,
-                StreamDeleteMode.Acknowledged => Acked,
+                StreamTrimMode.KeepReferences => KeepRef,
+                StreamTrimMode.DeleteReferences => DelRef,
+                StreamTrimMode.Acknowledged => Acked,
                 _ => throw new ArgumentOutOfRangeException(nameof(mode)),
             };
     }

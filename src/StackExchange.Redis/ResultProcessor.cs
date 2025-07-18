@@ -1378,11 +1378,11 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static ResultProcessor<StreamDeleteResult> StreamDeleteResult =>
-            Int32EnumProcessor<StreamDeleteResult>.Instance;
+        internal static ResultProcessor<StreamTrimResult> StreamDeleteResult =>
+            Int32EnumProcessor<StreamTrimResult>.Instance;
 
-        internal static ResultProcessor<StreamDeleteResult[]> StreamDeleteResultArray =>
-            Int32EnumArrayProcessor<StreamDeleteResult>.Instance;
+        internal static ResultProcessor<StreamTrimResult[]> StreamDeleteResultArray =>
+            Int32EnumArrayProcessor<StreamTrimResult>.Instance;
 
         private class Int32EnumProcessor<T> : ResultProcessor<T> where T : unmanaged, Enum
         {

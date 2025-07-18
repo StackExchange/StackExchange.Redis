@@ -2424,34 +2424,34 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public StreamDeleteResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
+        public StreamTrimResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeAndDeleteMessage(key, groupName, mode, messageId, flags);
             return ExecuteSync(msg, ResultProcessor.StreamDeleteResult);
         }
 
-        public Task<StreamDeleteResult> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
+        public Task<StreamTrimResult> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeAndDeleteMessage(key, groupName, mode, messageId, flags);
             return ExecuteAsync(msg, ResultProcessor.StreamDeleteResult);
         }
 
-        public StreamDeleteResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public StreamTrimResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeAndDeleteMessage(key, groupName, mode, messageIds, flags);
             return ExecuteSync(msg, ResultProcessor.StreamDeleteResultArray)!;
         }
 
-        public Task<StreamDeleteResult[]> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public Task<StreamTrimResult[]> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeAndDeleteMessage(key, groupName, mode, messageIds, flags);
             return ExecuteAsync(msg, ResultProcessor.StreamDeleteResultArray)!;
         }
 
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => StreamAdd(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, null, StreamDeleteMode.KeepReferences, flags);
+            => StreamAdd(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAddMessage(
                 key,
@@ -2467,9 +2467,9 @@ namespace StackExchange.Redis
         }
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
-                => StreamAddAsync(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, null, StreamDeleteMode.KeepReferences, flags);
+                => StreamAddAsync(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAddMessage(
                 key,
@@ -2485,9 +2485,9 @@ namespace StackExchange.Redis
         }
 
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => StreamAdd(key, streamPairs, messageId, maxLength, useApproximateMaxLength, null, StreamDeleteMode.KeepReferences, flags);
+            => StreamAdd(key, streamPairs, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAddMessage(
                 key,
@@ -2503,9 +2503,9 @@ namespace StackExchange.Redis
         }
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => StreamAddAsync(key, streamPairs, messageId, maxLength, useApproximateMaxLength, null, StreamDeleteMode.KeepReferences, flags);
+            => StreamAddAsync(key, streamPairs, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAddMessage(
                 key,
@@ -3041,30 +3041,30 @@ namespace StackExchange.Redis
         }
 
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => StreamTrim(key, maxLength, useApproximateMaxLength, null, StreamDeleteMode.KeepReferences, flags);
+            => StreamTrim(key, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamTrimMessage(true, key, maxLength, useApproximateMaxLength, limit, mode, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => StreamTrimAsync(key, maxLength, useApproximateMaxLength, null, StreamDeleteMode.KeepReferences, flags);
+            => StreamTrimAsync(key, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public Task<long> StreamTrimAsync(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamTrimAsync(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamTrimMessage(true, key, maxLength, useApproximateMaxLength, limit, mode, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamTrimMessage(false, key, minId, useApproximateMaxLength, limit, mode, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamTrimMessage(false, key, minId, useApproximateMaxLength, limit, mode, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
@@ -4187,12 +4187,12 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XACK, key, values);
         }
 
-        private Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue messageId, CommandFlags flags)
+        private Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags)
         {
             return Message.Create(Database, flags, RedisCommand.XACKDEL, key, groupName, StreamConstants.GetMode(mode), StreamConstants.Ids, 1, messageId);
         }
 
-        private Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue[] messageIds, CommandFlags flags)
+        private Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags)
         {
             if (messageIds == null) throw new ArgumentNullException(nameof(messageIds));
             if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
@@ -4210,7 +4210,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XACKDEL, key, values);
         }
 
-        private Message GetStreamAddMessage(RedisKey key, RedisValue messageId, long? maxLength, bool useApproximateMaxLength, NameValueEntry streamPair, long? limit, StreamDeleteMode mode, CommandFlags flags)
+        private Message GetStreamAddMessage(RedisKey key, RedisValue messageId, long? maxLength, bool useApproximateMaxLength, NameValueEntry streamPair, long? limit, StreamTrimMode mode, CommandFlags flags)
         {
             // Calculate the correct number of arguments:
             //  3 array elements for Entry ID & NameValueEntry.Name & NameValueEntry.Value.
@@ -4219,7 +4219,7 @@ namespace StackExchange.Redis
             var totalLength = 3 + (maxLength.HasValue ? 2 : 0)
                                 + (maxLength.HasValue && useApproximateMaxLength ? 1 : 0)
                                 + (limit.HasValue ? 2 : 0)
-                                + (mode != StreamDeleteMode.KeepReferences ? 1 : 0);
+                                + (mode != StreamTrimMode.KeepReferences ? 1 : 0);
 
             var values = new RedisValue[totalLength];
             var offset = 0;
@@ -4242,7 +4242,7 @@ namespace StackExchange.Redis
                 values[offset++] = limit.Value;
             }
 
-            if (mode != StreamDeleteMode.KeepReferences)
+            if (mode != StreamTrimMode.KeepReferences)
             {
                 values[offset++] = StreamConstants.GetMode(mode);
             }
@@ -4259,7 +4259,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets message for <see href="https://redis.io/commands/xadd"/>.
         /// </summary>
-        private Message GetStreamAddMessage(RedisKey key, RedisValue entryId, long? maxLength, bool useApproximateMaxLength, NameValueEntry[] streamPairs, long? limit, StreamDeleteMode mode, CommandFlags flags)
+        private Message GetStreamAddMessage(RedisKey key, RedisValue entryId, long? maxLength, bool useApproximateMaxLength, NameValueEntry[] streamPairs, long? limit, StreamTrimMode mode, CommandFlags flags)
         {
             if (streamPairs == null) throw new ArgumentNullException(nameof(streamPairs));
             if (streamPairs.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPairs), "streamPairs must contain at least one item.");
@@ -4299,7 +4299,7 @@ namespace StackExchange.Redis
                 values[offset++] = limit.Value;
             }
 
-            if (mode != StreamDeleteMode.KeepReferences)
+            if (mode != StreamTrimMode.KeepReferences)
             {
                 values[offset++] = StreamConstants.GetMode(mode);
             }
@@ -4561,20 +4561,20 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private Message GetStreamTrimMessage(bool maxLen, RedisKey key, RedisValue threshold, bool useApproximateMaxLength, long? limit, StreamDeleteMode mode, CommandFlags flags)
+        private Message GetStreamTrimMessage(bool maxLen, RedisKey key, RedisValue threshold, bool useApproximateMaxLength, long? limit, StreamTrimMode mode, CommandFlags flags)
         {
             if (limit.HasValue && limit.GetValueOrDefault() <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(limit), "limit must be greater than 0 when specified.");
             }
 
-            if (limit is null && !useApproximateMaxLength && mode == StreamDeleteMode.KeepReferences)
+            if (limit is null && !useApproximateMaxLength && mode == StreamTrimMode.KeepReferences)
             {
                 // avoid array alloc in simple case
                 return Message.Create(Database, flags, RedisCommand.XTRIM, key, maxLen ? StreamConstants.MaxLen : StreamConstants.MinId, threshold);
             }
 
-            var values = new RedisValue[2 + (useApproximateMaxLength ? 1 : 0) + (limit.HasValue ? 2 : 0) + (mode == StreamDeleteMode.KeepReferences ? 0 : 1)];
+            var values = new RedisValue[2 + (useApproximateMaxLength ? 1 : 0) + (limit.HasValue ? 2 : 0) + (mode == StreamTrimMode.KeepReferences ? 0 : 1)];
 
             var offset = 0;
 
@@ -4593,7 +4593,7 @@ namespace StackExchange.Redis
                 values[offset++] = limit.GetValueOrDefault();
             }
 
-            if (mode != StreamDeleteMode.KeepReferences) // omit when not needed, for back-compat
+            if (mode != StreamTrimMode.KeepReferences) // omit when not needed, for back-compat
             {
                 values[offset++] = StreamConstants.GetMode(mode);
             }

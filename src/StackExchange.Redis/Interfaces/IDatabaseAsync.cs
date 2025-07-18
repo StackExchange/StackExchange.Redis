@@ -595,11 +595,11 @@ namespace StackExchange.Redis
         Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
 #pragma warning disable RS0026 // similar overloads
-        /// <inheritdoc cref="IDatabase.StreamAcknowledgeAndDelete(RedisKey, RedisValue, StreamDeleteMode, RedisValue, CommandFlags)"/>
-        Task<StreamDeleteResult> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.StreamAcknowledgeAndDelete(RedisKey, RedisValue, StreamTrimMode, RedisValue, CommandFlags)"/>
+        Task<StreamTrimResult> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.StreamAcknowledgeAndDelete(RedisKey, RedisValue, StreamDeleteMode, RedisValue[], CommandFlags)"/>
-        Task<StreamDeleteResult[]> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.StreamAcknowledgeAndDelete(RedisKey, RedisValue, StreamTrimMode, RedisValue[], CommandFlags)"/>
+        Task<StreamTrimResult[]> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, RedisValue, RedisValue, RedisValue?, int?, bool, CommandFlags)"/>
@@ -609,11 +609,11 @@ namespace StackExchange.Redis
         Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags);
 
 #pragma warning disable RS0026 // similar overloads
-        /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, RedisValue, RedisValue, RedisValue?, long?, bool, long?, StreamDeleteMode, CommandFlags)"/>
-        Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode deleteMode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, RedisValue, RedisValue, RedisValue?, long?, bool, long?, StreamTrimMode, CommandFlags)"/>
+        Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, NameValueEntry[], RedisValue?, long?, bool, long?, StreamDeleteMode, CommandFlags)"/>
-        Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode deleteMode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, NameValueEntry[], RedisValue?, long?, bool, long?, StreamTrimMode, CommandFlags)"/>
+        Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <inheritdoc cref="IDatabase.StreamAutoClaim(RedisKey, RedisValue, RedisValue, long, RedisValue, int?, CommandFlags)"/>
@@ -688,11 +688,11 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StreamTrim(RedisKey, int, bool, CommandFlags)"/>
         Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags);
 
-        /// <inheritdoc cref="IDatabase.StreamTrim(RedisKey, long, bool, long?, StreamDeleteMode, CommandFlags)"/>
-        Task<long> StreamTrimAsync(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.StreamTrim(RedisKey, long, bool, long?, StreamTrimMode, CommandFlags)"/>
+        Task<long> StreamTrimAsync(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.StreamTrimByMinId(RedisKey, RedisValue, bool, long?, StreamDeleteMode, CommandFlags)"/>
-        Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+        /// <inheritdoc cref="IDatabase.StreamTrimByMinId(RedisKey, RedisValue, bool, long?, StreamTrimMode, CommandFlags)"/>
+        Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringAppend(RedisKey, RedisValue, CommandFlags)"/>
         Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);

@@ -546,10 +546,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledge(ToInner(key), groupName, messageIds, flags);
 
-        public StreamDeleteResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
+        public StreamTrimResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledgeAndDelete(ToInner(key), groupName, mode, messageId, flags);
 
-        public StreamDeleteResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamDeleteMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
+        public StreamTrimResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledgeAndDelete(ToInner(key), groupName, mode, messageIds, flags);
 
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
@@ -558,10 +558,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
             Inner.StreamAdd(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, flags);
 
-        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAdd(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, limit, mode, flags);
 
-        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAdd(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, limit, mode, flags);
 
         public StreamAutoClaimResult StreamAutoClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None) =>
@@ -636,10 +636,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
             Inner.StreamTrim(ToInner(key), maxLength, useApproximateMaxLength, flags);
 
-        public long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+        public long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamTrim(ToInner(key), maxLength, useApproximateMaxLength, limit, mode, flags);
 
-        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamDeleteMode mode = StreamDeleteMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
+        public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamTrimByMinId(ToInner(key), minId, useApproximateMaxLength, limit, mode, flags);
 
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
