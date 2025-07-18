@@ -1972,17 +1972,21 @@ public class StreamTests : TestBase
         Assert.Equal(1, len);
     }
 
+    private static Version ForMode(StreamDeleteMode mode, Version? defaultVersion = null) => mode switch
+    {
+        StreamDeleteMode.KeepReferences => defaultVersion ?? RedisFeatures.v5_0_0,
+        StreamDeleteMode.Acknowledged => RedisFeatures.v8_2_0_rc1,
+        StreamDeleteMode.DeleteReferences => RedisFeatures.v8_2_0_rc1,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+    };
+
     [Theory]
     [InlineData(StreamDeleteMode.KeepReferences)]
     [InlineData(StreamDeleteMode.DeleteReferences)]
     [InlineData(StreamDeleteMode.Acknowledged)]
     public void StreamTrimByMinId(StreamDeleteMode mode)
     {
-        using var conn = Create(require: mode switch
-        {
-            StreamDeleteMode.KeepReferences => RedisFeatures.v6_2_0,
-            _ => RedisFeatures.v8_2_0_rc1,
-        });
+        using var conn = Create(require: ForMode(mode, RedisFeatures.v6_2_0));
 
         var db = conn.GetDatabase();
         var key = Me() + ":" + mode;
@@ -2005,11 +2009,7 @@ public class StreamTests : TestBase
     [InlineData(StreamDeleteMode.Acknowledged)]
     public void StreamTrimByMinIdWithApproximateAndLimit(StreamDeleteMode mode)
     {
-        using var conn = Create(require: mode switch
-        {
-            StreamDeleteMode.KeepReferences => RedisFeatures.v6_2_0,
-            _ => RedisFeatures.v8_2_0_rc1,
-        });
+        using var conn = Create(require: ForMode(mode, RedisFeatures.v6_2_0));
 
         var db = conn.GetDatabase();
         var key = Me() + ":" + mode;
@@ -2063,14 +2063,17 @@ public class StreamTests : TestBase
         await db.StreamAddAsync(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None).ConfigureAwait(false);
     }
 
-    [Fact]
-    public void AddWithApproxCount()
+    [Theory]
+    [InlineData(StreamDeleteMode.KeepReferences)]
+    [InlineData(StreamDeleteMode.DeleteReferences)]
+    [InlineData(StreamDeleteMode.Acknowledged)]
+    public void AddWithApproxCount(StreamDeleteMode mode)
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        using var conn = Create(require: ForMode(mode));
 
         var db = conn.GetDatabase();
-        var key = Me();
-        db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None);
+        var key = Me() + ":" + mode;
+        db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, deleteMode: mode, flags: CommandFlags.None);
     }
 
     [Fact]
