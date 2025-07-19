@@ -252,6 +252,7 @@ public abstract class TestBase : IDisposable
         bool highIntegrity = HighIntegrity;
         if (shared && expectedFailCount == 0
             && _fixture != null && _fixture.IsEnabled
+            && GetConfiguration() == GetDefaultConfiguration()
             && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, highIntegrity))
         {
             configuration = GetConfiguration();
