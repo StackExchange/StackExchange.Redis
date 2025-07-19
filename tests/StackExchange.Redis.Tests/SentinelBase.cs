@@ -105,7 +105,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
         var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
         if (replicas?.Length > 0)
         {
-            await Task.Delay(1000).ForAwait();
+            await Task.Delay(100).ForAwait();
             replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             await WaitForRoleAsync(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
         }
@@ -137,7 +137,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
                 // ignore
             }
 
-            await Task.Delay(500).ForAwait();
+            await Task.Delay(100).ForAwait();
         }
 
         throw new RedisException($"Timeout waiting for server ({server.EndPoint}) to have expected role (\"{role}\") assigned");
