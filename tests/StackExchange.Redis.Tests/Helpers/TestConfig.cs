@@ -13,7 +13,11 @@ public static class TestConfig
 
     public static Config Current { get; }
 
+#if NET
     private static int _db = 17;
+#else
+    private static int _db = 77;
+#endif
     public static int GetDedicatedDB(IConnectionMultiplexer? conn = null)
     {
         int db = Interlocked.Increment(ref _db);

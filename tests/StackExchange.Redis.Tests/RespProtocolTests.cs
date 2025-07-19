@@ -127,8 +127,8 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
     [InlineData("return 'abc'", RedisProtocol.Resp2, ResultType.BulkString, ResultType.BulkString, "abc")]
     [InlineData(@"return {1,2,3}", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, ARR_123)]
     [InlineData("return nil", RedisProtocol.Resp2, ResultType.BulkString, ResultType.Null, null)]
-    [InlineData(@"return redis.pcall('hgetall', 'key')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
-    [InlineData(@"redis.setresp(3) return redis.pcall('hgetall', 'key')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
+    [InlineData(@"return redis.pcall('hgetall', '{key}')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
+    [InlineData(@"redis.setresp(3) return redis.pcall('hgetall', '{key}')", RedisProtocol.Resp2, ResultType.Array, ResultType.Array, MAP_ABC)]
     [InlineData("return true", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 1)]
     [InlineData("return false", RedisProtocol.Resp2, ResultType.BulkString, ResultType.Null, null)]
     [InlineData("redis.setresp(3) return true", RedisProtocol.Resp2, ResultType.Integer, ResultType.Integer, 1)]
@@ -142,8 +142,8 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
     [InlineData("return 'abc'", RedisProtocol.Resp3, ResultType.BulkString, ResultType.BulkString, "abc")]
     [InlineData("return {1,2,3}", RedisProtocol.Resp3, ResultType.Array, ResultType.Array, ARR_123)]
     [InlineData("return nil", RedisProtocol.Resp3, ResultType.BulkString, ResultType.Null, null)]
-    [InlineData(@"return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, ResultType.Array, MAP_ABC)]
-    [InlineData(@"redis.setresp(3) return redis.pcall('hgetall', 'key')", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, MAP_ABC)]
+    [InlineData(@"return redis.pcall('hgetall', '{key}')", RedisProtocol.Resp3, ResultType.Array, ResultType.Array, MAP_ABC)]
+    [InlineData(@"redis.setresp(3) return redis.pcall('hgetall', '{key}')", RedisProtocol.Resp3, ResultType.Array, ResultType.Map, MAP_ABC)]
     [InlineData("return true", RedisProtocol.Resp3, ResultType.Integer, ResultType.Integer, 1)]
     [InlineData("return false", RedisProtocol.Resp3, ResultType.BulkString, ResultType.Null, null)]
     [InlineData("redis.setresp(3) return true", RedisProtocol.Resp3, ResultType.Integer, ResultType.Boolean, true)]
@@ -167,14 +167,16 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
         }
         if (ep.Protocol is null) throw new InvalidOperationException($"No protocol! {ep.InteractiveConnectionState}");
         Assert.Equal(protocol, ep.Protocol);
+        var key = Me();
+        script = script.Replace("{key}", key);
 
         var db = muxer.GetDatabase();
         if (expected is MAP_ABC)
         {
-            db.KeyDelete("key");
-            db.HashSet("key", "a", 1);
-            db.HashSet("key", "b", 2);
-            db.HashSet("key", "c", 3);
+            db.KeyDelete(key);
+            db.HashSet(key, "a", 1);
+            db.HashSet(key, "b", 2);
+            db.HashSet(key, "c", 3);
         }
         var result = await db.ScriptEvaluateAsync(script: script, flags: CommandFlags.NoScriptCache);
         Assert.Equal(resp2, result.Resp2Type);

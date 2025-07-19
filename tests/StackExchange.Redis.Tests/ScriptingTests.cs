@@ -395,19 +395,20 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         // the flush to drop the local cache - assume it is a surprise!)
         var server = conn0.GetServer(TestConfig.Current.PrimaryServerAndPort);
         var db = conn1.GetDatabase();
-        const string Script = "return 1;";
+        var key = Me();
+        var Script = $"return '{key}';";
 
         // start empty
         server.ScriptFlush();
         Assert.False(server.ScriptExists(Script));
 
         // run once, causes to be cached
-        Assert.True(await EvaluateScript());
+        Assert.Equal(key, await EvaluateScript());
 
         Assert.True(server.ScriptExists(Script));
 
         // can run again
-        Assert.True(await EvaluateScript());
+        Assert.Equal(key, await EvaluateScript());
 
         // ditch the scripts; should no longer exist
         await db.PingAsync();
@@ -416,19 +417,19 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         await db.PingAsync();
 
         // just works; magic
-        Assert.True(await EvaluateScript());
+        Assert.Equal(key, await EvaluateScript());
 
         // but gets marked as unloaded, so we can use it again...
-        Assert.True(await EvaluateScript());
+        Assert.Equal(key, await EvaluateScript());
 
         // which will cause it to be cached
         Assert.True(server.ScriptExists(Script));
 
-        async Task<bool> EvaluateScript()
+        async Task<string?> EvaluateScript()
         {
             return async ?
-            (bool)await db.ScriptEvaluateAsync(script: Script) :
-            (bool)db.ScriptEvaluate(script: Script);
+            (string?)await db.ScriptEvaluateAsync(script: Script) :
+            (string?)db.ScriptEvaluate(script: Script);
         }
     }
 
@@ -1083,12 +1084,14 @@ return arr;
     {
         await using var conn = GetScriptConn();
         var db = conn.GetDatabase();
-        db.StringSet("foo", "bar");
-        db.ScriptEvaluate(script: "return redis.call('get','foo')");
-        // Create a SHA1 hash of the script: 6b1bf486c81ceb7edf3c093f4c48582e38c0e791
-        SHA1 sha1Hash = SHA1.Create();
+        var key = Me();
+        var script = $"return redis.call('get','{key}')";
+        db.StringSet(key, "bar");
+        db.ScriptEvaluate(script: script);
 
-        byte[] hash = sha1Hash.ComputeHash(Encoding.UTF8.GetBytes("return redis.call('get','foo')"));
+        SHA1 sha1Hash = SHA1.Create();
+        byte[] hash = sha1Hash.ComputeHash(Encoding.UTF8.GetBytes(script));
+        Log("Hash: " + Convert.ToBase64String(hash));
         var result = db.ScriptEvaluateReadOnly(hash);
 
         Assert.Equal("bar", result.ToString());
@@ -1099,12 +1102,14 @@ return arr;
     {
         await using var conn = GetScriptConn();
         var db = conn.GetDatabase();
-        db.StringSet("foo", "bar");
-        db.ScriptEvaluate(script: "return redis.call('get','foo')");
-        // Create a SHA1 hash of the script: 6b1bf486c81ceb7edf3c093f4c48582e38c0e791
-        SHA1 sha1Hash = SHA1.Create();
+        var key = Me();
+        var script = $"return redis.call('get','{key}')";
+        db.StringSet(key, "bar");
+        db.ScriptEvaluate(script: script);
 
-        byte[] hash = sha1Hash.ComputeHash(Encoding.UTF8.GetBytes("return redis.call('get','foo')"));
+        SHA1 sha1Hash = SHA1.Create();
+        byte[] hash = sha1Hash.ComputeHash(Encoding.UTF8.GetBytes(script));
+        Log("Hash: " + Convert.ToBase64String(hash));
         var result = await db.ScriptEvaluateReadOnlyAsync(hash);
 
         Assert.Equal("bar", result.ToString());

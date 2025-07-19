@@ -507,7 +507,8 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             configConn.GetDatabase();
             var srv = GetAnyPrimary(configConn);
             oldTimeout = srv.ConfigGet("timeout")[0].Value;
-            srv.ConfigSet("timeout", 5);
+            Log("Old Timeout: " + oldTimeout);
+            srv.ConfigSet("timeout", 2);
 
             await using var innerConn = Create();
             var innerDb = innerConn.GetDatabase();
@@ -516,7 +517,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             var before = innerConn.OperationCount;
 
             Log("sleeping to test heartbeat...");
-            await Task.Delay(8000).ForAwait();
+            await Task.Delay(3000).ForAwait();
 
             var after = innerConn.OperationCount;
             Assert.True(after >= before + 1, $"after: {after}, before: {before}");
@@ -525,6 +526,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         {
             if (!oldTimeout.IsNull)
             {
+                Log("Resetting old timeout: " + oldTimeout);
                 var srv = GetAnyPrimary(configConn);
                 srv.ConfigSet("timeout", oldTimeout);
             }

@@ -3,6 +3,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+[Collection(NonParallelCollection.Name)]
 public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
