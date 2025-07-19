@@ -141,6 +141,7 @@ namespace StackExchange.Redis
             {
                 if (_pageOffset + 1 < _pageCount)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     _pageOffset++;
                     return true;
                 }
@@ -274,7 +275,7 @@ namespace StackExchange.Redis
                     ScanResult scanResult;
                     try
                     {
-                        scanResult = await pending.ForAwait();
+                        scanResult = await pending.WaitAsync(cancellationToken).ForAwait();
                     }
                     catch (Exception ex)
                     {

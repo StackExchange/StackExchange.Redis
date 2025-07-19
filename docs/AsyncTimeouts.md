@@ -62,4 +62,18 @@ using var cts = CancellationTokenSource.CreateLinkedTokenSource(token); // or mu
 cts.CancelAfter(timeout);
 await database.StringSetAsync("key", "value").WaitAsync(cts.Token);
 var value = await database.StringGetAsync("key").WaitAsync(cts.Token);
-``````
+```
+
+### Cancelling keys enumeration
+
+Keys being enumerated (via `SCAN`) can *also* be cancelled, using the inbuilt `.WithCancellation(...)` method:
+
+```csharp
+CancellationToken token = ...; // for example, from HttpContext.RequestAborted
+await foreach (var key in server.KeysAsync(pattern: "*foo*").WithCancellation(token))
+{
+    ...
+}
+```
+
+To use a timeout instead, you can use the `CancellationTokenSource` approach shown above.
