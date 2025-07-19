@@ -10,8 +10,6 @@ namespace StackExchange.Redis.Tests;
 
 public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-
     [Fact]
     public async Task ClientKill()
     {

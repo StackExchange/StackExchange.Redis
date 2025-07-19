@@ -6,8 +6,6 @@ namespace StackExchange.Redis.Tests;
 
 public class SocketTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-
     [Fact]
     public async Task CheckForSocketLeaks()
     {

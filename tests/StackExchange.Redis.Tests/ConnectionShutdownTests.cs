@@ -7,8 +7,6 @@ namespace StackExchange.Redis.Tests;
 
 public class ConnectionShutdownTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-
     [Fact(Skip = "Unfriendly")]
     public async Task ShutdownRaisesConnectionFailedAndRestore()
     {

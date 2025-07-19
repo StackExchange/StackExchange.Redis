@@ -9,8 +9,6 @@ namespace StackExchange.Redis.Tests;
 [Collection(NonParallelCollection.Name)]
 public class LockingTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-
     public enum TestMode
     {
         MultiExec,

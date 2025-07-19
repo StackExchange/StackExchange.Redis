@@ -6,8 +6,6 @@ namespace StackExchange.Redis.Tests.Issues;
 
 public class SO25567566Tests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-
     [Fact]
     public async Task Execute()
     {

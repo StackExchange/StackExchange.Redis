@@ -9,8 +9,6 @@ namespace StackExchange.Redis.Tests;
 [Collection(NonParallelCollection.Name)]
 public class AsyncTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-
     [Fact]
     public async Task AsyncTasksReportFailureIfServerUnavailable()
     {

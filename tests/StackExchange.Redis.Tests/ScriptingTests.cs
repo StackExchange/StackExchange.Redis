@@ -435,6 +435,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task CompareScriptToDirect()
     {
+        Skip.UnlessLongRunning();
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return redis.call('incr', KEYS[1])";
@@ -448,7 +449,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         // we're using a pipeline here, so send 1000 messages, but for timing: only care about the last
         const int Loop = 5000;
         RedisKey key = Me();
-        RedisKey[] keys = new[] { key }; // script takes an array
+        RedisKey[] keys = [key]; // script takes an array
 
         // run via script
         db.KeyDelete(key, CommandFlags.FireAndForget);
