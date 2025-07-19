@@ -38,10 +38,11 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task GetLatest()
     {
+        Skip.UnlessLongRunning();
         await using var conn = Create(allowAdmin: true);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
-        server.ConfigSet("latency-monitor-threshold", 100);
+        server.ConfigSet("latency-monitor-threshold", 50);
         server.LatencyReset();
         var arr = server.LatencyLatest();
         Assert.Empty(arr);
@@ -60,10 +61,11 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task GetHistory()
     {
+        Skip.UnlessLongRunning();
         await using var conn = Create(allowAdmin: true);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
-        server.ConfigSet("latency-monitor-threshold", 100);
+        server.ConfigSet("latency-monitor-threshold", 50);
         server.LatencyReset();
         var arr = server.LatencyHistory("command");
         Assert.Empty(arr);

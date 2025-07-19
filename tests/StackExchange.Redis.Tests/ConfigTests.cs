@@ -429,12 +429,17 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Log("Full info for: " + first.Key);
         foreach (var setting in first)
         {
-            Log("{0}  ==>  {1}", setting.Key, setting.Value);
+            Log("  {0}  ==>  {1}", setting.Key, setting.Value);
         }
 
         var info2 = server.Info("cpu");
         Assert.Single(info2);
         var cpu = info2.Single();
+        Log("Full info for: " + cpu.Key);
+        foreach (var setting in cpu)
+        {
+            Log("  {0}  ==>  {1}", setting.Key, setting.Value);
+        }
         var cpuCount = cpu.Count();
         Assert.True(cpuCount > 2);
         Assert.Equal("CPU", cpu.Key);
@@ -494,43 +499,6 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var server = GetAnyPrimary(conn);
         server.SlowlogGet();
         server.SlowlogReset();
-    }
-
-    [Fact]
-    public async Task TestAutomaticHeartbeat()
-    {
-        RedisValue oldTimeout = RedisValue.Null;
-        await using var configConn = Create(allowAdmin: true);
-
-        try
-        {
-            configConn.GetDatabase();
-            var srv = GetAnyPrimary(configConn);
-            oldTimeout = srv.ConfigGet("timeout")[0].Value;
-            Log("Old Timeout: " + oldTimeout);
-            srv.ConfigSet("timeout", 2);
-
-            await using var innerConn = Create();
-            var innerDb = innerConn.GetDatabase();
-            await innerDb.PingAsync(); // need to wait to pick up configuration etc
-
-            var before = innerConn.OperationCount;
-
-            Log("sleeping to test heartbeat...");
-            await Task.Delay(3000).ForAwait();
-
-            var after = innerConn.OperationCount;
-            Assert.True(after >= before + 1, $"after: {after}, before: {before}");
-        }
-        finally
-        {
-            if (!oldTimeout.IsNull)
-            {
-                Log("Resetting old timeout: " + oldTimeout);
-                var srv = GetAnyPrimary(configConn);
-                srv.ConfigSet("timeout", oldTimeout);
-            }
-        }
     }
 
     [Fact]

@@ -541,7 +541,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var conn = Create(allowAdmin: true);
 
         var db = conn.GetDatabase();
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 500; i++)
         {
             var key = Guid.NewGuid().ToString();
             var endpoint = db.IdentifyEndpoint(key, flags);

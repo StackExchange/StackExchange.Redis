@@ -180,7 +180,7 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
+        await Task.Delay(1000).ForAwait();
         var idleTime = db.KeyIdleTime(key);
         Assert.True(idleTime > TimeSpan.Zero);
 
@@ -202,13 +202,13 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
+        await Task.Delay(1000).ForAwait();
         var idleTime = db.KeyIdleTime(key);
-        Assert.True(idleTime > TimeSpan.Zero);
+        Assert.True(idleTime > TimeSpan.Zero, "First check");
 
-        Assert.True(db.KeyTouch(key));
+        Assert.True(db.KeyTouch(key), "Second check");
         var idleTime1 = db.KeyIdleTime(key);
-        Assert.True(idleTime1 < idleTime);
+        Assert.True(idleTime1 < idleTime, "Third check");
     }
 
     [Fact]
@@ -220,13 +220,13 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
+        await Task.Delay(1000).ForAwait();
         var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime > TimeSpan.Zero);
+        Assert.True(idleTime > TimeSpan.Zero, "First check");
 
         db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
         var idleTime2 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime2 < idleTime);
+        Assert.True(idleTime2 < idleTime, "Second check");
 
         db.KeyDelete(key);
         var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
@@ -242,13 +242,13 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
+        await Task.Delay(1000).ForAwait();
         var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime > TimeSpan.Zero);
+        Assert.True(idleTime > TimeSpan.Zero, "First check");
 
-        Assert.True(await db.KeyTouchAsync(key).ForAwait());
+        Assert.True(await db.KeyTouchAsync(key).ForAwait(), "Second check");
         var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime1 < idleTime);
+        Assert.True(idleTime1 < idleTime, "Third check");
     }
 
     [Fact]

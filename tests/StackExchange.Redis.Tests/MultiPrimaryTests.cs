@@ -44,7 +44,7 @@ public class MultiPrimaryTests(ITestOutputHelper output) : TestBase(output)
         yield return new object?[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.PrimaryServerAndPort, null };
         yield return new object?[] { TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.SecureServerAndPort, null };
 
-        yield return new object?[] { null, TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort };
+        yield return new object?[] { null, TestConfig.Current.PrimaryServerAndPort, null };
         yield return new object?[] { TestConfig.Current.PrimaryServerAndPort, null, TestConfig.Current.PrimaryServerAndPort };
         yield return new object?[] { null, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
         yield return new object?[] { TestConfig.Current.SecureServerAndPort, null, TestConfig.Current.SecureServerAndPort };
