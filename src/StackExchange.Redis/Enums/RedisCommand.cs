@@ -206,10 +206,12 @@ internal enum RedisCommand
     WATCH,
 
     XACK,
+    XACKDEL,
     XADD,
     XAUTOCLAIM,
     XCLAIM,
     XDEL,
+    XDELEX,
     XGROUP,
     XINFO,
     XLEN,
@@ -496,9 +498,11 @@ internal static class RedisCommandExtensions
             case RedisCommand.GEOADD:
             case RedisCommand.SORT:
             case RedisCommand.XACK:
+            case RedisCommand.XACKDEL:
             case RedisCommand.XADD:
             case RedisCommand.XCLAIM:
             case RedisCommand.XDEL:
+            case RedisCommand.XDELEX:
             case RedisCommand.XGROUP:
             case RedisCommand.XREADGROUP:
             case RedisCommand.XTRIM:

@@ -19,6 +19,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		docs\ReleaseNotes.md = docs\ReleaseNotes.md
 		Shared.ruleset = Shared.ruleset
 		version.json = version.json
+		tests\RedisConfigs\docker-compose.yml = tests\RedisConfigs\docker-compose.yml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfigs", "{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}"

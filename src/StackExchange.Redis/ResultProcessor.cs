@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
@@ -1372,6 +1373,77 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
+                }
+                return false;
+            }
+        }
+
+        internal static ResultProcessor<StreamTrimResult> StreamTrimResult =>
+            Int32EnumProcessor<StreamTrimResult>.Instance;
+
+        internal static ResultProcessor<StreamTrimResult[]> StreamTrimResultArray =>
+            Int32EnumArrayProcessor<StreamTrimResult>.Instance;
+
+        private class Int32EnumProcessor<T> : ResultProcessor<T> where T : unmanaged, Enum
+        {
+            private Int32EnumProcessor() { }
+            public static readonly Int32EnumProcessor<T> Instance = new();
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeBulkString)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        if (result.TryGetInt64(out long i64))
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            int i32 = (int)i64;
+                            SetResult(message, Unsafe.As<int, T>(ref i32));
+                            return true;
+                        }
+                        break;
+                    case ResultType.Array when result.ItemsCount == 1: // pick a single element from a unit vector
+                        if (result.GetItems()[0].TryGetInt64(out i64))
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            int i32 = (int)i64;
+                            SetResult(message, Unsafe.As<int, T>(ref i32));
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
+
+        private class Int32EnumArrayProcessor<T> : ResultProcessor<T[]> where T : unmanaged, Enum
+        {
+            private Int32EnumArrayProcessor() { }
+            public static readonly Int32EnumArrayProcessor<T> Instance = new();
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeArray)
+                {
+                    case ResultType.Array:
+                        T[] arr;
+                        if (result.IsNull)
+                        {
+                            arr = null!;
+                        }
+                        else
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            arr = result.ToArray(static (in RawResult x) =>
+                            {
+                                int i32 = (int)x.AsRedisValue();
+                                return Unsafe.As<int, T>(ref i32);
+                            })!;
+                        }
+                        SetResult(message, arr);
+                        return true;
                 }
                 return false;
             }
