@@ -30,7 +30,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
     {
         Log("Connecting...");
 
-        await using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true, shared: false);
 
         var sub = conn.GetSubscriber();
         var channel = RedisChannel.Literal(Me());
