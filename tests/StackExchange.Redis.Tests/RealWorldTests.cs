@@ -1,13 +1,10 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class RealWorldTests : TestBase
+public class RealWorldTests(ITestOutputHelper output) : TestBase(output)
 {
-    public RealWorldTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task WhyDoesThisNotWork()
     {

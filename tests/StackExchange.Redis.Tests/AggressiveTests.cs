@@ -1,18 +1,16 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class AggressiveTests : TestBase
+public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
 {
-    public AggressiveTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task ParallelTransactionsWithConditions()
     {
+        Skip.UnlessLongRunning();
         const int Muxers = 4, Workers = 20, PerThread = 250;
 
         var muxers = new IConnectionMultiplexer[Muxers];
@@ -73,10 +71,11 @@ public class AggressiveTests : TestBase
 
     private const int IterationCount = 5000, InnerCount = 20;
 
-    [FactLongRunning]
-    public void RunCompetingBatchesOnSameMuxer()
+    [Fact]
+    public async Task RunCompetingBatchesOnSameMuxer()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         Thread x = new Thread(state => BatchRunPings((IDatabase)state!))
@@ -132,10 +131,11 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task RunCompetingBatchesOnSameMuxerAsync()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         var x = Task.Run(() => BatchRunPingsAsync(db));
@@ -189,10 +189,11 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
-    public void RunCompetingTransactionsOnSameMuxer()
+    [Fact]
+    public async Task RunCompetingTransactionsOnSameMuxer()
     {
-        using var conn = Create(logTransactionData: false);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(logTransactionData: false);
         var db = conn.GetDatabase();
 
         Thread x = new Thread(state => TranRunPings((IDatabase)state!))
@@ -252,10 +253,11 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task RunCompetingTransactionsOnSameMuxerAsync()
     {
-        using var conn = Create(logTransactionData: false);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(logTransactionData: false);
         var db = conn.GetDatabase();
 
         var x = Task.Run(() => TranRunPingsAsync(db));

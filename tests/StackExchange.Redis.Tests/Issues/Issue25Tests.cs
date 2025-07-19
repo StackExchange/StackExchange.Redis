@@ -1,13 +1,10 @@
 ﻿using System;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue25Tests : TestBase
+public class Issue25Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public Issue25Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void CaseInsensitive()
     {

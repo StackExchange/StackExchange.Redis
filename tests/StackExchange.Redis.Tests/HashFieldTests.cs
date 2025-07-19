@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -9,8 +9,7 @@ namespace StackExchange.Redis.Tests;
 /// Tests for <see href="https://redis.io/commands#hash"/>.
 /// </summary>
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class HashFieldTests : TestBase
+public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     private readonly DateTime nextCentury = new DateTime(2101, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private readonly TimeSpan oneYearInMs = TimeSpan.FromMilliseconds(31536000000);
@@ -18,10 +17,6 @@ public class HashFieldTests : TestBase
     private readonly HashEntry[] entries = new HashEntry[] { new("f1", 1), new("f2", 2) };
 
     private readonly RedisValue[] fields = new RedisValue[] { "f1", "f2" };
-
-    public HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture)
-    {
-    }
 
     [Fact]
     public void HashFieldExpire()
@@ -51,7 +46,7 @@ public class HashFieldTests : TestBase
     }
 
     [Fact]
-    public async void HashFieldExpireAsync()
+    public async Task HashFieldExpireAsync()
     {
         var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
         var hashKey = Me();
@@ -65,7 +60,7 @@ public class HashFieldTests : TestBase
     }
 
     [Fact]
-    public async void HashFieldExpireAsyncNoKey()
+    public async Task HashFieldExpireAsyncNoKey()
     {
         var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
         var hashKey = Me();

@@ -1,18 +1,14 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class MemoryTests : TestBase
+public class MemoryTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public MemoryTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task CanCallDoctor()
     {
-        using var conn = Create(require: RedisFeatures.v4_0_0);
+        await using var conn = Create(require: RedisFeatures.v4_0_0);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         string? doctor = server.MemoryDoctor();
@@ -27,7 +23,7 @@ public class MemoryTests : TestBase
     [Fact]
     public async Task CanPurge()
     {
-        using var conn = Create(require: RedisFeatures.v4_0_0);
+        await using var conn = Create(require: RedisFeatures.v4_0_0);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         server.MemoryPurge();
@@ -39,7 +35,7 @@ public class MemoryTests : TestBase
     [Fact]
     public async Task GetAllocatorStats()
     {
-        using var conn = Create(require: RedisFeatures.v4_0_0);
+        await using var conn = Create(require: RedisFeatures.v4_0_0);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
@@ -53,7 +49,7 @@ public class MemoryTests : TestBase
     [Fact]
     public async Task GetStats()
     {
-        using var conn = Create(require: RedisFeatures.v4_0_0);
+        await using var conn = Create(require: RedisFeatures.v4_0_0);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         var stats = server.MemoryStats();

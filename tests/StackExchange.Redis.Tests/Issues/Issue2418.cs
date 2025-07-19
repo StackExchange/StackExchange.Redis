@@ -1,19 +1,15 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue2418 : TestBase
+public class Issue2418(ITestOutputHelper output, SharedConnectionFixture? fixture = null) : TestBase(output, fixture)
 {
-    public Issue2418(ITestOutputHelper output, SharedConnectionFixture? fixture = null)
-        : base(output, fixture) { }
-
     [Fact]
     public async Task Execute()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();

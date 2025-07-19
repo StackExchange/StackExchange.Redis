@@ -4,14 +4,11 @@ using System.Collections.Generic;
 using System.Text;
 using Pipelines.Sockets.Unofficial.Arenas;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ParseTests : TestBase
+public class ParseTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ParseTests(ITestOutputHelper output) : base(output) { }
-
     public static IEnumerable<object[]> GetTestData()
     {
         yield return new object[] { "$4\r\nPING\r\n$4\r\nPON", 1 };

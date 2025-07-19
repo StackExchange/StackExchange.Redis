@@ -1,17 +1,14 @@
-﻿using Xunit;
-using Xunit.Abstractions;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class LexTests : TestBase
+public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public LexTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void QueryRangeAndLengthByLex()
+    public async Task QueryRangeAndLengthByLex()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -58,9 +55,9 @@ public class LexTests : TestBase
     }
 
     [Fact]
-    public void RemoveRangeByLex()
+    public async Task RemoveRangeByLex()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();

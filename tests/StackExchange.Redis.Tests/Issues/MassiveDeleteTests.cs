@@ -2,17 +2,15 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class MassiveDeleteTests : TestBase
+public class MassiveDeleteTests(ITestOutputHelper output) : TestBase(output)
 {
-    public MassiveDeleteTests(ITestOutputHelper output) : base(output) { }
-
-    private void Prep(int dbId, string key)
+    private async Task Prep(int dbId, string key)
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var prefix = Me();
         Skip.IfMissingDatabase(conn, dbId);
@@ -22,20 +20,21 @@ public class MassiveDeleteTests : TestBase
         for (int i = 0; i < 10000; i++)
         {
             string iKey = prefix + i;
-            db.StringSetAsync(iKey, iKey);
+            _ = db.StringSetAsync(iKey, iKey);
             last = db.SetAddAsync(key, iKey);
         }
-        db.Wait(last!);
+        await last!;
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task ExecuteMassiveDelete()
     {
+        Skip.UnlessLongRunning();
         var dbId = TestConfig.GetDedicatedDB();
         var key = Me();
-        Prep(dbId, key);
+        await Prep(dbId, key);
         var watch = Stopwatch.StartNew();
-        using var conn = Create();
+        await using var conn = Create();
         using var throttle = new SemaphoreSlim(1);
         var db = conn.GetDatabase(dbId);
         var originally = await db.SetLengthAsync(key).ForAwait();

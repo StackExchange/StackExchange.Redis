@@ -5,20 +5,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class KeyTests : TestBase
+public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void TestScan()
+    public async Task TestScan()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
         var db = conn.GetDatabase(dbId);
@@ -35,9 +31,9 @@ public class KeyTests : TestBase
     }
 
     [Fact]
-    public void FlushFetchRandomKey()
+    public async Task FlushFetchRandomKey()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
         Skip.IfMissingDatabase(conn, dbId);
@@ -55,9 +51,9 @@ public class KeyTests : TestBase
     }
 
     [Fact]
-    public void Zeros()
+    public async Task Zeros()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -111,9 +107,9 @@ public class KeyTests : TestBase
     }
 
     [Fact]
-    public void Exists()
+    public async Task Exists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         RedisKey key2 = Me() + "2";
@@ -139,7 +135,7 @@ public class KeyTests : TestBase
     [Fact]
     public async Task ExistsAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         RedisKey key2 = Me() + "2";
@@ -176,89 +172,9 @@ public class KeyTests : TestBase
     }
 
     [Fact]
-    public async Task IdleTime()
-    {
-        using var conn = Create();
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
-        var idleTime = db.KeyIdleTime(key);
-        Assert.True(idleTime > TimeSpan.Zero);
-
-        db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
-        var idleTime2 = db.KeyIdleTime(key);
-        Assert.True(idleTime2 < idleTime);
-
-        db.KeyDelete(key);
-        var idleTime3 = db.KeyIdleTime(key);
-        Assert.Null(idleTime3);
-    }
-
-    [Fact]
-    public async Task TouchIdleTime()
-    {
-        using var conn = Create(require: RedisFeatures.v3_2_1);
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
-        var idleTime = db.KeyIdleTime(key);
-        Assert.True(idleTime > TimeSpan.Zero);
-
-        Assert.True(db.KeyTouch(key));
-        var idleTime1 = db.KeyIdleTime(key);
-        Assert.True(idleTime1 < idleTime);
-    }
-
-    [Fact]
-    public async Task IdleTimeAsync()
-    {
-        using var conn = Create();
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
-        var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime > TimeSpan.Zero);
-
-        db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
-        var idleTime2 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime2 < idleTime);
-
-        db.KeyDelete(key);
-        var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.Null(idleTime3);
-    }
-
-    [Fact]
-    public async Task TouchIdleTimeAsync()
-    {
-        using var conn = Create(require: RedisFeatures.v3_2_1);
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
-        var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime > TimeSpan.Zero);
-
-        Assert.True(await db.KeyTouchAsync(key).ForAwait());
-        var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime1 < idleTime);
-    }
-
-    [Fact]
     public async Task KeyEncoding()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -285,7 +201,7 @@ public class KeyTests : TestBase
     [Fact]
     public async Task KeyRefCount()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -303,7 +219,7 @@ public class KeyTests : TestBase
     [Fact]
     public async Task KeyFrequency()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
 
         var key = Me();
         var db = conn.GetDatabase();

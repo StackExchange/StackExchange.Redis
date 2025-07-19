@@ -2,14 +2,12 @@
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class HttpTunnelConnectTests
+    public class HttpTunnelConnectTests(ITestOutputHelper log)
     {
-        private ITestOutputHelper Log { get; }
-        public HttpTunnelConnectTests(ITestOutputHelper log) => Log = log;
+        private ITestOutputHelper Log { get; } = log;
 
         [Theory]
         [InlineData("")]
@@ -19,7 +17,7 @@ namespace StackExchange.Redis.Tests
             var cs = Environment.GetEnvironmentVariable("HACK_TUNNEL_ENDPOINT");
             if (string.IsNullOrWhiteSpace(cs))
             {
-                Skip.Inconclusive("Need HACK_TUNNEL_ENDPOINT environment variable");
+                Assert.Skip("Need HACK_TUNNEL_ENDPOINT environment variable");
             }
             var config = ConfigurationOptions.Parse(cs + suffix);
             if (!string.IsNullOrWhiteSpace(suffix))

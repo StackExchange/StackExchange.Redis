@@ -1,36 +1,34 @@
-﻿using Xunit;
-using Xunit.Abstractions;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO11766033Tests : TestBase
+public class SO11766033Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public SO11766033Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
-    public void TestNullString()
+    public async Task TestNullString()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         const string? expectedTestValue = null;
         var uid = Me();
-        db.StringSetAsync(uid, "abc");
-        db.StringSetAsync(uid, expectedTestValue);
+        _ = db.StringSetAsync(uid, "abc");
+        _ = db.StringSetAsync(uid, expectedTestValue);
         string? testValue = db.StringGet(uid);
         Assert.Null(testValue);
     }
 
     [Fact]
-    public void TestEmptyString()
+    public async Task TestEmptyString()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         const string expectedTestValue = "";
         var uid = Me();
 
-        db.StringSetAsync(uid, expectedTestValue);
+        _ = db.StringSetAsync(uid, expectedTestValue);
         string? testValue = db.StringGet(uid);
 
         Assert.Equal(expectedTestValue, testValue);

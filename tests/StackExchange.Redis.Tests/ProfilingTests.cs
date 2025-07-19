@@ -6,19 +6,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class ProfilingTests : TestBase
+public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ProfilingTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
-    public void Simple()
+    public async Task Simple()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
         var script = LuaScript.Prepare("return redis.call('get', @key)");
@@ -49,7 +46,7 @@ public class ProfilingTests : TestBase
         var i = 0;
         foreach (var cmd in cmds)
         {
-            Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd?.ToString()?.Replace("\n", ", "));
+            Log($"Command {i++} (DB: {cmd.Db}): {cmd?.ToString()?.Replace("\n", ", ")}");
         }
 
         var all = string.Join(",", cmds.Select(x => x.Command));
@@ -98,10 +95,11 @@ public class ProfilingTests : TestBase
         Assert.True(command.RetransmissionReason == null, nameof(command.RetransmissionReason));
     }
 
-    [FactLongRunning]
-    public void ManyThreads()
+    [Fact]
+    public async Task ManyThreads()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var session = new ProfilingSession();
         var prefix = Me();
@@ -156,10 +154,11 @@ public class ProfilingTests : TestBase
         }
     }
 
-    [FactLongRunning]
-    public void ManyContexts()
+    [Fact]
+    public async Task ManyContexts()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var profiler = new AsyncLocalProfiler();
         var prefix = Me();
@@ -228,9 +227,9 @@ public class ProfilingTests : TestBase
     }
 
     [Fact]
-    public void LowAllocationEnumerable()
+    public async Task LowAllocationEnumerable()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         const int OuterLoop = 1000;
         var session = new ProfilingSession();
@@ -273,10 +272,11 @@ public class ProfilingTests : TestBase
         Assert.Equal(OuterLoop * 2, res.Count(r => r.Db > 0));
     }
 
-    [FactLongRunning]
-    public void ProfilingMD_Ex1()
+    [Fact]
+    public async Task ProfilingMD_Ex1()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var session = new ProfilingSession();
         var prefix = Me();
@@ -313,10 +313,11 @@ public class ProfilingTests : TestBase
         Assert.Equal(16000, timings.Count());
     }
 
-    [FactLongRunning]
-    public void ProfilingMD_Ex2()
+    [Fact]
+    public async Task ProfilingMD_Ex2()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var profiler = new PerThreadProfiler();
         var prefix = Me();
@@ -356,10 +357,11 @@ public class ProfilingTests : TestBase
         Assert.True(perThreadTimings.All(kv => kv.Value.Count == 1000));
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task ProfilingMD_Ex2_Async()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var profiler = new AsyncLocalProfiler();
         var prefix = Me();

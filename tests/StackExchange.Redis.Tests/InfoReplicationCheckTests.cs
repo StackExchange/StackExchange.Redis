@@ -1,20 +1,18 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class InfoReplicationCheckTests : TestBase
+public class InfoReplicationCheckTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() => base.GetConfiguration() + ",configCheckSeconds=2";
-    public InfoReplicationCheckTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     public async Task Exec()
     {
-        Skip.Inconclusive("need to think about CompletedSynchronously");
+        Assert.Skip("need to think about CompletedSynchronously");
 
-        using var conn = Create();
+        await using var conn = Create();
 
         var parsed = ConfigurationOptions.Parse(conn.Configuration);
         Assert.Equal(2, parsed.ConfigCheckSeconds);

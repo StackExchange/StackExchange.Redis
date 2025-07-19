@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -18,16 +17,8 @@ public abstract class TestBase : IDisposable
 {
     private ITestOutputHelper Output { get; }
     protected TextWriterOutputHelper Writer { get; }
-    protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
     protected virtual string GetConfiguration() => GetDefaultConfiguration();
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-
-    /// <summary>
-    /// Gives the current TestContext, propulated by the runner (this type of thing will be built-in in xUnit 3.x).
-    /// </summary>
-    protected TestContext Context => _context.Value!;
-    private static readonly AsyncLocal<TestContext> _context = new();
-    public static void SetContext(TestContext context) => _context.Value = context;
 
     private readonly SharedConnectionFixture? _fixture;
 
@@ -37,8 +28,7 @@ public abstract class TestBase : IDisposable
     {
         Output = output;
         Output.WriteFrameworkVersion();
-        Output.WriteLine("  Context: " + Context.ToString());
-        Writer = new TextWriterOutputHelper(output, TestConfig.Current.LogToConsole);
+        Writer = new TextWriterOutputHelper(output);
         _fixture = fixture;
         ClearAmbientFailures();
     }
@@ -60,22 +50,8 @@ public abstract class TestBase : IDisposable
         {
             output?.WriteLine(Time() + ": " + message);
         }
-        if (TestConfig.Current.LogToConsole)
-        {
-            Console.WriteLine(message);
-        }
     }
-    protected void Log(string? message, params object?[] args)
-    {
-        lock (Output)
-        {
-            Output.WriteLine(Time() + ": " + message, args);
-        }
-        if (TestConfig.Current.LogToConsole)
-        {
-            Console.WriteLine(message ?? "", args);
-        }
-    }
+    protected void Log(string? message, params object[] args) => Output.WriteLine(Time() + ": " + message, args);
 
     protected ProfiledCommandEnumerable Log(ProfilingSession session)
     {
@@ -207,7 +183,7 @@ public abstract class TestBase : IDisposable
                     Log(item);
                 }
             }
-            Skip.Inconclusive($"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
+            Assert.Skip($"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
         }
         var pool = SocketManager.Shared?.SchedulerPool;
         Log($"Service Counts: (Scheduler) Queue: {pool?.TotalServicedByQueue.ToString()}, Pool: {pool?.TotalServicedByPool.ToString()}, Workers: {pool?.WorkerCount.ToString()}, Available: {pool?.AvailableCount.ToString()}");
@@ -270,12 +246,13 @@ public abstract class TestBase : IDisposable
         }
 
         // Default to protocol context if not explicitly passed in
-        protocol ??= Context.Test.Protocol;
+        protocol ??= TestContext.Current.GetProtocol();
 
         // Share a connection if instructed to and we can - many specifics mean no sharing
         bool highIntegrity = HighIntegrity;
         if (shared && expectedFailCount == 0
             && _fixture != null && _fixture.IsEnabled
+            && GetConfiguration() == GetDefaultConfiguration()
             && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, highIntegrity))
         {
             configuration = GetConfiguration();
@@ -361,10 +338,7 @@ public abstract class TestBase : IDisposable
         var serverProtocol = conn.GetServerEndPoint(conn.GetEndPoints()[0]).Protocol ?? RedisProtocol.Resp2;
         if (serverProtocol != requiredProtocol)
         {
-            throw new SkipTestException($"Requires protocol {requiredProtocol}, but connection is {serverProtocol}.")
-            {
-                MissingFeatures = $"Protocol {requiredProtocol}.",
-            };
+            Assert.Skip($"Requires protocol {requiredProtocol}, but connection is {serverProtocol}.");
         }
     }
 
@@ -378,10 +352,7 @@ public abstract class TestBase : IDisposable
         var serverVersion = conn.GetServerEndPoint(conn.GetEndPoints()[0]).Version;
         if (!serverVersion.IsAtLeast(requiredVersion))
         {
-            throw new SkipTestException($"Requires server version {requiredVersion}, but server is only {serverVersion}.")
-            {
-                MissingFeatures = $"Server version >= {requiredVersion}.",
-            };
+            Assert.Skip($"Requires server version {requiredVersion}, but server is only {serverVersion}.");
         }
     }
 
@@ -471,7 +442,7 @@ public abstract class TestBase : IDisposable
             {
                 // If fail is true, we throw.
                 Assert.False(fail, failMessage + "Server is not available");
-                Skip.Inconclusive(failMessage + "Server is not available");
+                Assert.Skip(failMessage + "Server is not available");
             }
             if (output != null)
             {
@@ -502,7 +473,7 @@ public abstract class TestBase : IDisposable
     }
 
     public virtual string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
-        Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller + Context.KeySuffix;
+        Environment.Version.ToString() + "-" + GetType().Name + "-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller + TestContext.Current.KeySuffix();
 
     protected TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
     {

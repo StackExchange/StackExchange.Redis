@@ -2,20 +2,16 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class SetTests : TestBase
+public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public SetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void SetContains()
+    public async Task SetContains()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -47,7 +43,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetContainsAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -77,9 +73,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SetIntersectionLength()
+    public async Task SetIntersectionLength()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
 
@@ -105,7 +101,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetIntersectionLengthAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
 
@@ -129,9 +125,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SScan()
+    public async Task SScan()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = GetAnyPrimary(conn);
 
@@ -157,7 +153,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetRemoveArgTests()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -172,9 +168,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SetPopMulti_Multi()
+    public async Task SetPopMulti_Multi()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -182,7 +178,7 @@ public class SetTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
         for (int i = 1; i < 11; i++)
         {
-            db.SetAddAsync(key, i, CommandFlags.FireAndForget);
+            _ = db.SetAddAsync(key, i, CommandFlags.FireAndForget);
         }
 
         var random = db.SetPop(key);
@@ -198,9 +194,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SetPopMulti_Single()
+    public async Task SetPopMulti_Single()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -226,7 +222,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetPopMulti_Multi_Async()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -252,7 +248,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetPopMulti_Single_Async()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -278,7 +274,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetPopMulti_Zero_Async()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -298,9 +294,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SetAdd_Zero()
+    public async Task SetAdd_Zero()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -316,7 +312,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetAdd_Zero_Async()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -332,9 +328,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SetPopMulti_Nil()
+    public async Task SetPopMulti_Nil()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -348,7 +344,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task TestSortReadonlyPrimary()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -369,7 +365,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task TestSortReadonlyReplica()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -379,7 +375,7 @@ public class SetTests : TestBase
         var items = Enumerable.Repeat(0, 200).Select(_ => random.Next()).ToList();
         await db.SetAddAsync(key, items.Select(x => (RedisValue)x).ToArray());
 
-        using var readonlyConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v7_0_0_rc1);
+        await using var readonlyConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v7_0_0_rc1);
         var readonlyDb = conn.GetDatabase();
 
         items.Sort();

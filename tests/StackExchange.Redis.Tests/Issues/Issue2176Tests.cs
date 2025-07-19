@@ -2,18 +2,15 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    public class Issue2176Tests : TestBase
+    public class Issue2176Tests(ITestOutputHelper output) : TestBase(output)
     {
-        public Issue2176Tests(ITestOutputHelper output) : base(output) { }
-
         [Fact]
-        public void Execute_Batch()
+        public async Task Execute_Batch()
         {
-            using var conn = Create();
+            await using var conn = Create();
             var db = conn.GetDatabase();
 
             var me = Me();
@@ -34,7 +31,7 @@ namespace StackExchange.Redis.Tests.Issues
             tasks.Add(rangeByRankTask);
             batch.Execute();
 
-            Task.WhenAll(tasks.ToArray());
+            await Task.WhenAll(tasks.ToArray());
 
             var rangeByRankSortedSetValues = rangeByRankTask.Result;
 
@@ -45,9 +42,9 @@ namespace StackExchange.Redis.Tests.Issues
         }
 
         [Fact]
-        public void Execute_Transaction()
+        public async Task Execute_Transaction()
         {
-            using var conn = Create();
+            await using var conn = Create();
             var db = conn.GetDatabase();
 
             var me = Me();
@@ -68,7 +65,7 @@ namespace StackExchange.Redis.Tests.Issues
             tasks.Add(rangeByRankTask);
             batch.Execute();
 
-            Task.WhenAll(tasks.ToArray());
+            await Task.WhenAll(tasks.ToArray());
 
             var rangeByRankSortedSetValues = rangeByRankTask.Result;
 

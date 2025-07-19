@@ -3,14 +3,11 @@ using System.IO;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class CertValidationTests : TestBase
+public class CertValidationTests(ITestOutputHelper output) : TestBase(output)
 {
-    public CertValidationTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void CheckIssuerValidity()
     {

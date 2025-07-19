@@ -2,18 +2,15 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    public class Issue2763Tests : TestBase
+    public class Issue2763Tests(ITestOutputHelper output) : TestBase(output)
     {
-        public Issue2763Tests(ITestOutputHelper output) : base(output) { }
-
         [Fact]
-        public void Execute()
+        public async Task Execute()
         {
-            using var conn = Create();
+            await using var conn = Create();
             var subscriber = conn.GetSubscriber();
 
             static void Handler(RedisChannel c, RedisValue v) { }

@@ -4,14 +4,11 @@ using System.Security.Authentication;
 using System.Threading.Tasks;
 using StackExchange.Redis.Configuration;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectionFailedErrorsTests : TestBase
+public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectionFailedErrorsTests(ITestOutputHelper output) : base(output) { }
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -27,7 +24,7 @@ public class ConnectionFailedErrorsTests : TestBase
         options.CertificateValidation += (sender, cert, chain, errors) => isCertValidationSucceeded;
         options.AbortOnConnectFail = false;
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
 
@@ -71,14 +68,14 @@ public class ConnectionFailedErrorsTests : TestBase
         options.AbortOnConnectFail = false;
         options.CertificateValidation += SSLTests.ShowCertFailures(Writer);
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
         void InnerScenario()
         {
             conn.ConnectionFailed += (sender, e) =>
             {
-                if (e.FailureType == ConnectionFailureType.SocketFailure) Skip.Inconclusive("socket fail"); // this is OK too
+                if (e.FailureType == ConnectionFailureType.SocketFailure) Assert.Skip("socket fail"); // this is OK too
                 Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
             };
             var ex = Assert.Throws<RedisConnectionException>(() => conn.GetDatabase().Ping());
@@ -176,7 +173,7 @@ public class ConnectionFailedErrorsTests : TestBase
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false);
 
             await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
             void InnerScenario()

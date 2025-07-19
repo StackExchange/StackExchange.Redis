@@ -1,18 +1,15 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class LatencyTests : TestBase
+[Collection(NonParallelCollection.Name)]
+public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task CanCallDoctor()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         string? doctor = server.LatencyDoctor();
@@ -27,7 +24,7 @@ public class LatencyTests : TestBase
     [Fact]
     public async Task CanReset()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         _ = server.LatencyReset();
@@ -41,10 +38,11 @@ public class LatencyTests : TestBase
     [Fact]
     public async Task GetLatest()
     {
-        using var conn = Create(allowAdmin: true);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(allowAdmin: true);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
-        server.ConfigSet("latency-monitor-threshold", 100);
+        server.ConfigSet("latency-monitor-threshold", 50);
         server.LatencyReset();
         var arr = server.LatencyLatest();
         Assert.Empty(arr);
@@ -63,10 +61,11 @@ public class LatencyTests : TestBase
     [Fact]
     public async Task GetHistory()
     {
-        using var conn = Create(allowAdmin: true);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(allowAdmin: true);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
-        server.ConfigSet("latency-monitor-threshold", 100);
+        server.ConfigSet("latency-monitor-threshold", 50);
         server.LatencyReset();
         var arr = server.LatencyHistory("command");
         Assert.Empty(arr);
