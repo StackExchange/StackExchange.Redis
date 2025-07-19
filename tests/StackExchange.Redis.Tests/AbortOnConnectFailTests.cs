@@ -51,7 +51,7 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
         var ex = Assert.ThrowsAny<Exception>(() => db.Ping());
         Log("Exception: " + ex.Message);
         Assert.True(ex is RedisConnectionException or RedisTimeoutException);
-        Assert.StartsWith("The message timed out in the backlog attempting to send because no connection became available (400ms) - Last Connection Exception: ", ex.Message);
+        Assert.StartsWith("The message timed out in the backlog attempting to send because no connection became available (1000ms) - Last Connection Exception: ", ex.Message);
         Assert.NotNull(ex.InnerException);
         var iex = Assert.IsType<RedisConnectionException>(ex.InnerException);
         Assert.Contains(iex.Message, ex.Message);
@@ -74,7 +74,7 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
         // Exception: The message timed out in the backlog attempting to send because no connection became available (400ms) - Last Connection Exception: SocketFailure (InputReaderCompleted, last-recv: 7) on 127.0.0.1:6379/Interactive, Idle/ReadAsync, last: PING, origin: SimulateConnectionFailure, outstanding: 0, last-read: 0s ago, last-write: 0s ago, keep-alive: 100s, state: ConnectedEstablished, mgr: 8 of 10 available, in: 0, in-pipe: 0, out-pipe: 0, last-heartbeat: never, last-mbeat: 0s ago, global: 0s ago, v: 2.6.120.51136, command=PING, timeout: 100, inst: 0, qu: 0, qs: 0, aw: False, bw: CheckingForTimeout, last-in: 0, cur-in: 0, sync-ops: 1, async-ops: 1, serverEndpoint: 127.0.0.1:6379, conn-sec: n/a, aoc: 0, mc: 1/1/0, mgr: 8 of 10 available, clientName: CRAVERTOP7(SE.Redis-v2.6.120.51136), IOCP: (Busy=0,Free=1000,Min=16,Max=1000), WORKER: (Busy=6,Free=32761,Min=16,Max=32767), POOL: (Threads=33,QueuedItems=0,CompletedItems=5547,Timers=60), v: 2.6.120.51136 (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)
         var ex = await Assert.ThrowsAsync<RedisConnectionException>(() => db.PingAsync());
         Log("Exception: " + ex.Message);
-        Assert.StartsWith("The message timed out in the backlog attempting to send because no connection became available (400ms) - Last Connection Exception: ", ex.Message);
+        Assert.StartsWith("The message timed out in the backlog attempting to send because no connection became available (1000ms) - Last Connection Exception: ", ex.Message);
         Assert.NotNull(ex.InnerException);
         var iex = Assert.IsType<RedisConnectionException>(ex.InnerException);
         Assert.Contains(iex.Message, ex.Message);
