@@ -67,7 +67,7 @@ nuget:
   disable_publish_on_pr: true
 
 build_script:
-- ps: .\build.ps1 -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages ($env:OS -eq "Windows_NT")
+- ps: .\build.ps1 -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages ($env:OS -eq "Windows_NT") -NetCoreOnlyTests
 
 test: off
 artifacts:
