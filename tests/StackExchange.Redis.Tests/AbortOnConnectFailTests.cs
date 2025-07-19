@@ -40,7 +40,7 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
 
         var db = conn.GetDatabase();
         var key = Me();
-        _ = db.Ping(); // Doesn't throw - we're connected
+        await db.PingAsync(); // Doesn't throw - we're connected
 
         // Disconnect and don't allow re-connection
         conn.AllowConnect = false;
