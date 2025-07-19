@@ -6,6 +6,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+[Collection(NonParallelCollection.Name)]
 public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
