@@ -11,7 +11,6 @@ namespace StackExchange.Redis.Tests;
 /// Tests for <see href="https://redis.io/commands#string"/>.
 /// </summary>
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
 public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]

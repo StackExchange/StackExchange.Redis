@@ -9,7 +9,6 @@ namespace StackExchange.Redis.Tests;
 /// Tests for <see href="https://redis.io/commands#hash"/>.
 /// </summary>
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
 public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     private readonly DateTime nextCentury = new DateTime(2101, 1, 1, 0, 0, 0, DateTimeKind.Utc);

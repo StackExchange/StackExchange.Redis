@@ -4,7 +4,6 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
 public class Roles(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;

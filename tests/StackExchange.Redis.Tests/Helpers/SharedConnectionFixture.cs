@@ -11,13 +11,14 @@ using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 using Xunit;
 
+[assembly: AssemblyFixture(typeof(StackExchange.Redis.Tests.SharedConnectionFixture))]
+
 namespace StackExchange.Redis.Tests;
 
 public class SharedConnectionFixture : IDisposable
 {
     public bool IsEnabled { get; }
 
-    public const string Key = "Shared Muxer";
     private readonly ConnectionMultiplexer _actualConnection;
     public string Configuration { get; }
 
@@ -286,15 +287,4 @@ public class SharedConnectionFixture : IDisposable
             }
         }
     }
-}
-
-/// <summary>
-/// See <see href="https://stackoverflow.com/questions/13829737/xunit-net-run-code-once-before-and-after-all-tests"/>.
-/// </summary>
-[CollectionDefinition(SharedConnectionFixture.Key)]
-public class ConnectionCollection : ICollectionFixture<SharedConnectionFixture>
-{
-    // This class has no code, and is never created. Its purpose is simply
-    // to be the place to apply [CollectionDefinition] and all the
-    // ICollectionFixture<> interfaces.
 }

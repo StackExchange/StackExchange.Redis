@@ -8,7 +8,6 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
 public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     public override string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>

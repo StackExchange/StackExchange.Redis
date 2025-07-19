@@ -7,7 +7,6 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
 public class PubSubCommandTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
@@ -76,7 +75,7 @@ internal static class Util
         }
         else
         {
-            throw new TimeoutException($"timout from {caller} line {line}");
+            throw new TimeoutException($"timeout from {caller} line {line}");
         }
     }
     public static async Task<T> WithTimeout<T>(this Task<T> task, int timeoutMs, [CallerMemberName] string? caller = null, [CallerLineNumber] int line = 0)

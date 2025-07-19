@@ -6,13 +6,11 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
 public class HighIntegrityBasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : BasicOpsTests(output, fixture)
 {
     internal override bool HighIntegrity => true;
 }
 
-[Collection(SharedConnectionFixture.Key)]
 public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
@@ -315,6 +313,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
         await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
+        Log(key);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var nix = db.KeyExists(key);
         var a = db.StringGet(key);

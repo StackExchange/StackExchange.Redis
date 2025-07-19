@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -26,7 +27,7 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 [XunitTestCaseDiscoverer(typeof(FactDiscoverer))]
-public class FactAttribute : Xunit.FactAttribute { }
+public class FactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1) : Xunit.FactAttribute(sourceFilePath, sourceLineNumber) { }
 
 /// <summary>
 /// <para>Override for <see cref="Xunit.TheoryAttribute"/> that truncates our DisplayName down.</para>
@@ -40,7 +41,7 @@ public class FactAttribute : Xunit.FactAttribute { }
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 [XunitTestCaseDiscoverer(typeof(TheoryDiscoverer))]
-public class TheoryAttribute : Xunit.TheoryAttribute { }
+public class TheoryAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1) : Xunit.TheoryAttribute(sourceFilePath, sourceLineNumber) { }
 
 public class FactDiscoverer : Xunit.v3.FactDiscoverer
 {
@@ -59,6 +60,13 @@ public class TheoryDiscoverer : Xunit.v3.TheoryDiscoverer
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
 public class RunPerProtocol() : Attribute { }
+
+public enum RedisTestProtocols
+{
+    None = 0,
+    RESP2 = 1 << 0,
+    RESP3 = 1 << 1,
+}
 
 public interface IProtocolTestCase
 {
@@ -87,20 +95,18 @@ public class ProtocolTestCase : XunitTestCase, IProtocolTestCase
         sourceFilePath: testCase.SourceFilePath,
         sourceLineNumber: testCase.SourceLineNumber,
         timeout: testCase.Timeout)
-    {
-        Protocol = protocol;
-    }
+    => Protocol = protocol;
 
     protected override void Serialize(IXunitSerializationInfo data)
     {
-        data.AddValue(nameof(Protocol), (int)Protocol);
         base.Serialize(data);
+        data.AddValue("resp", (int)Protocol);
     }
 
     protected override void Deserialize(IXunitSerializationInfo data)
     {
-        Protocol = (RedisProtocol)data.GetValue<int>(nameof(Protocol));
         base.Deserialize(data);
+        Protocol = (RedisProtocol)data.GetValue<int>("resp");
     }
 }
 
@@ -126,20 +132,18 @@ public class ProtocolDelayEnumeratedTestCase : XunitDelayEnumeratedTheoryTestCas
         sourceFilePath: testCase.SourceFilePath,
         sourceLineNumber: testCase.SourceLineNumber,
         timeout: testCase.Timeout)
-    {
-        Protocol = protocol;
-    }
+    => Protocol = protocol;
 
     protected override void Serialize(IXunitSerializationInfo data)
     {
-        data.AddValue(nameof(Protocol), (int)Protocol);
         base.Serialize(data);
+        data.AddValue("resp", (int)Protocol);
     }
 
     protected override void Deserialize(IXunitSerializationInfo data)
     {
-        Protocol = (RedisProtocol)data.GetValue<int>(nameof(Protocol));
         base.Deserialize(data);
+        Protocol = (RedisProtocol)data.GetValue<int>("resp");
     }
 }
 
@@ -152,9 +156,8 @@ internal static class XUnitExtensions
             XunitDelayEnumeratedTheoryTestCase delayed => new ProtocolDelayEnumeratedTestCase(delayed, protocol),
             _ => new ProtocolTestCase(tc, protocol),
         };
-
         var testCases = await discovery;
-        var result = new List<IXunitTestCase>();
+        List<IXunitTestCase> result = [];
         foreach (var testCase in testCases.OfType<XunitTestCase>())
         {
             var testMethod = testCase.TestMethod;

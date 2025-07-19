@@ -4,7 +4,6 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
 public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     private static bool Within(double x, double y, double delta) => Math.Abs(x - y) <= delta;

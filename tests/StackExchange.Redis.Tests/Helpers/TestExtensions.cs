@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using StackExchange.Redis.Profiling;
+﻿using StackExchange.Redis.Profiling;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -14,7 +13,7 @@ public static class TestExtensions
     }
 
     public static RedisProtocol GetProtocol(this ITestContext context) =>
-        context.Test?.TestCase is ProtocolTestCase protocolTestCase
+        context.Test?.TestCase is IProtocolTestCase protocolTestCase
         ? protocolTestCase.Protocol : RedisProtocol.Resp2;
 
     public static bool IsResp2(this ITestContext context) => GetProtocol(context) == RedisProtocol.Resp2;

@@ -8,7 +8,6 @@ namespace StackExchange.Redis.Tests;
 /// This test set is for when we add an overload, to making sure all
 /// past versions work correctly and aren't source breaking.
 /// </summary>
-[Collection(SharedConnectionFixture.Key)]
 public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]

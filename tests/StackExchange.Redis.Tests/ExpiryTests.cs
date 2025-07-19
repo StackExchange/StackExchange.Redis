@@ -4,7 +4,6 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
 public class ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     private static string[]? GetMap(bool disablePTimes) => disablePTimes ? new[] { "pexpire", "pexpireat", "pttl" } : null;

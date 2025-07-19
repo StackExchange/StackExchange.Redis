@@ -28,7 +28,6 @@ public abstract class TestBase : IDisposable
     {
         Output = output;
         Output.WriteFrameworkVersion();
-        Output.WriteLine($"  Context: Protocol: {TestContext.Current.GetProtocol()}");
         Writer = new TextWriterOutputHelper(output);
         _fixture = fixture;
         ClearAmbientFailures();
@@ -473,7 +472,7 @@ public abstract class TestBase : IDisposable
     }
 
     public virtual string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
-        Environment.Version.ToString() + Path.GetFileNameWithoutExtension(filePath) + "-" + caller + TestContext.Current.KeySuffix();
+        Environment.Version.ToString() + "-" + GetType().Name + "-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller + TestContext.Current.KeySuffix();
 
     protected TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
     {
