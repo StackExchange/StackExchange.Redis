@@ -468,6 +468,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         if (server.Features.ClientId)
         {
             var id = conn.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+            Log("client id: " + id);
             Assert.NotNull(id);
             Assert.True(clients.Any(x => x.Id == id), "expected: " + id);
             id = conn.GetConnectionId(server.EndPoint, ConnectionType.Subscription);

@@ -831,6 +831,9 @@ namespace StackExchange.Redis
                             {
                                 connection.ConnectionId = clientId;
                                 Log?.LogInformation($"{Format.ToString(server)}: Auto-configured (CLIENT) connection-id: {clientId}");
+
+                                SetResult(message, true);
+                                return true;
                             }
                         }
                         break;
