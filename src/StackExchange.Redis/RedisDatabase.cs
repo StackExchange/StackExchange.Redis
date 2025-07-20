@@ -4795,7 +4795,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        internal class ScanEnumerable<T> : CursorEnumerable<T>
+        internal sealed class ScanEnumerable<T> : CursorEnumerable<T>
         {
             private readonly RedisKey key;
             private readonly RedisValue pattern;
@@ -5188,7 +5188,7 @@ namespace StackExchange.Redis
                 => SortedSetWithScores.TryParse(result, out SortedSetEntry[]? pairs, true, out count) ? pairs : null;
         }
 
-        private class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
+        private sealed class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
         {
             private readonly RedisCommand ttlCommand;
             private IResultBox<TimeSpan?>? box;
@@ -5232,7 +5232,7 @@ namespace StackExchange.Redis
             public override int ArgCount => 1;
         }
 
-        private class StringGetWithExpiryProcessor : ResultProcessor<RedisValueWithExpiry>
+        private sealed class StringGetWithExpiryProcessor : ResultProcessor<RedisValueWithExpiry>
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }

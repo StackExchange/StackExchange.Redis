@@ -277,7 +277,7 @@ public abstract class LoggingTunnel : Tunnel
         options.Tunnel = tunnel;
     }
 
-    private class DirectoryLoggingTunnel : LoggingTunnel
+    private sealed class DirectoryLoggingTunnel : LoggingTunnel
     {
         private readonly string path;
         private int _nextIndex = -1;

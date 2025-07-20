@@ -287,7 +287,7 @@ namespace StackExchange.Redis
             if (raw.IndexOf(token) >= 0) value |= toAdd;
         }
 
-        private class ClientInfoProcessor : ResultProcessor<ClientInfo[]>
+        private sealed class ClientInfoProcessor : ResultProcessor<ClientInfo[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {

@@ -46,12 +46,12 @@ public class GeoSearchCircle : GeoSearchShape
         _radius = radius;
     }
 
-    internal override int ArgCount => 3;
+    internal sealed override int ArgCount => 3;
 
     /// <summary>
     /// Gets the <see cref="RedisValue"/>s for this shape.
     /// </summary>
-    internal override void AddArgs(List<RedisValue> args)
+    internal sealed override void AddArgs(List<RedisValue> args)
     {
         args.Add(RedisLiterals.BYRADIUS);
         args.Add(_radius);
@@ -80,9 +80,9 @@ public class GeoSearchBox : GeoSearchShape
         _width = width;
     }
 
-    internal override int ArgCount => 4;
+    internal sealed override int ArgCount => 4;
 
-    internal override void AddArgs(List<RedisValue> args)
+    internal sealed override void AddArgs(List<RedisValue> args)
     {
         args.Add(RedisLiterals.BYBOX);
         args.Add(_width);
