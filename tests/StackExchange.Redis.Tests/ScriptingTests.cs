@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if NET // Since we're flushing and reloading scripts, only run this in once suite
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
@@ -1152,3 +1153,4 @@ return arr;
         Assert.Null((byte[]?)value);
     }
 }
+#endif

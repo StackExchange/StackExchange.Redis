@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -8,7 +7,7 @@ namespace StackExchange.Redis.Tests.Issues;
 [Collection(NonParallelCollection.Name)]
 public class Issue2507(ITestOutputHelper output, SharedConnectionFixture? fixture = null) : TestBase(output, fixture)
 {
-    [Fact]
+    [Fact(Explicit = true)]
     public async Task Execute()
     {
         await using var conn = Create(shared: false);
@@ -36,7 +35,6 @@ public class Issue2507(ITestOutputHelper output, SharedConnectionFixture? fixtur
         Assert.Equal(key2, message.Message);
         Assert.True(queue.TryRead(out message), "Queue 3 Read failed");
         Assert.Equal(key3, message.Message);
-        // Paralle test suites can be invalidating at the same time, so this is not guaranteed to be empty
-        // Assert.False(queue.TryRead(out message), "Queue 4 Read succeeded");
+        Assert.False(queue.TryRead(out message), "Queue 4 Read succeeded");
     }
 }
