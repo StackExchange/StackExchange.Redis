@@ -27,6 +27,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
     [Fact]
     public async Task ClusterNodeSubscriptionFailover()
     {
+        Skip.UnlessLongRunning();
         Log("Connecting...");
 
         await using var conn = Create(allowAdmin: true, shared: false);
