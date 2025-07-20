@@ -16,13 +16,12 @@ public class SO23949477Tests(ITestOutputHelper output) : TestBase(output)
         db.SortedSetAdd(key, "c", 3, When.Always, CommandFlags.FireAndForget);
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                 new SortedSetEntry("a", 1),
                 new SortedSetEntry("b", 2),
                 new SortedSetEntry("d", 4),
                 new SortedSetEntry("e", 5),
-            },
+            ],
             When.Always,
             CommandFlags.FireAndForget);
         var pairs = db.SortedSetRangeByScoreWithScores(

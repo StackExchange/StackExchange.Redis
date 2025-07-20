@@ -61,13 +61,6 @@ public class TheoryDiscoverer : Xunit.v3.TheoryDiscoverer
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
 public class RunPerProtocol() : Attribute { }
 
-public enum RedisTestProtocols
-{
-    None = 0,
-    RESP2 = 1 << 0,
-    RESP3 = 1 << 1,
-}
-
 public interface IProtocolTestCase
 {
     RedisProtocol Protocol { get; }

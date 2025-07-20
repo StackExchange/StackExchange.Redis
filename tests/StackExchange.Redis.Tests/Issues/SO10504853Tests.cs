@@ -12,7 +12,7 @@ public class SO10504853Tests(ITestOutputHelper output) : TestBase(output)
     {
         var key = Me();
         Trace.WriteLine("### init");
-        using (var conn = Create())
+        await using (var conn = Create())
         {
             var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -26,7 +26,7 @@ public class SO10504853Tests(ITestOutputHelper output) : TestBase(output)
             Assert.Equal(i + 1, db.StringIncrement(key));
         }
         Trace.WriteLine("### close");
-        using (var conn = Create())
+        await using (var conn = Create())
         {
             var db = conn.GetDatabase();
             Assert.Equal(COUNT, (long)db.StringGet(key));

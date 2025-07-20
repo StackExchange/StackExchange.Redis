@@ -17,7 +17,7 @@ public class SO24807536Tests(ITestOutputHelper output) : TestBase(output)
         // setup some data
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.HashSet(key, "full", "some value", flags: CommandFlags.FireAndForget);
-        db.KeyExpire(key, TimeSpan.FromSeconds(4), CommandFlags.FireAndForget);
+        db.KeyExpire(key, TimeSpan.FromSeconds(2), CommandFlags.FireAndForget);
 
         // test while exists
         var keyExists = db.KeyExists(key);
@@ -25,7 +25,7 @@ public class SO24807536Tests(ITestOutputHelper output) : TestBase(output)
         var fullWait = db.HashGetAsync(key, "full", flags: CommandFlags.None);
         Assert.True(keyExists, "key exists");
         Assert.NotNull(ttl);
-        Assert.Equal("some value", fullWait.Result);
+        Assert.Equal("some value", await fullWait);
 
         // wait for expiry
         await UntilConditionAsync(TimeSpan.FromSeconds(10), () => !db.KeyExists(key)).ForAwait();

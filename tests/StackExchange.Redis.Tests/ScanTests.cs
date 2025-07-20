@@ -14,7 +14,7 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [InlineData(false)]
     public async Task KeysScan(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "scan" };
+        string[]? disabledCommands = supported ? null : ["scan"];
         await using var conn = Create(disabledCommands: disabledCommands, allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
@@ -183,7 +183,7 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [InlineData(false)]
     public async Task SetScan(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "sscan" };
+        string[]? disabledCommands = supported ? null : ["sscan"];
 
         await using var conn = Create(disabledCommands: disabledCommands);
 
@@ -206,7 +206,7 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [InlineData(false)]
     public async Task SortedSetScan(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "zscan" };
+        string[]? disabledCommands = supported ? null : ["zscan"];
 
         await using var conn = Create(disabledCommands: disabledCommands);
 
@@ -274,7 +274,7 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [InlineData(false)]
     public async Task HashScan(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "hscan" };
+        string[]? disabledCommands = supported ? null : ["hscan"];
 
         await using var conn = Create(disabledCommands: disabledCommands);
 
@@ -334,7 +334,7 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [InlineData(false)]
     public async Task HashScanNoValues(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "hscan" };
+        string[]? disabledCommands = supported ? null : ["hscan"];
 
         await using var conn = Create(require: RedisFeatures.v7_4_0_rc1, disabledCommands: disabledCommands);
 

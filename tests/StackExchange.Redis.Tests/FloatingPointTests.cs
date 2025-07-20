@@ -17,18 +17,18 @@ public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixtur
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         double[] incr =
-        {
+        [
             12.134,
             -14561.0000002,
             125.3421,
             -2.49892498,
-        },
+        ],
         decr =
-        {
+        [
             99.312,
             12,
             -35,
-        };
+        ];
         double sum = 0;
         foreach (var value in incr)
         {
@@ -54,18 +54,18 @@ public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixtur
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         double[] incr =
-        {
+        [
             12.134,
             -14561.0000002,
             125.3421,
             -2.49892498,
-        },
+        ],
         decr =
-        {
+        [
             99.312,
             12,
             -35,
-        };
+        ];
         double sum = 0;
         foreach (var value in incr)
         {
@@ -92,18 +92,18 @@ public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixtur
         RedisValue field = "foo";
         db.KeyDelete(key, CommandFlags.FireAndForget);
         double[] incr =
-        {
+        [
             12.134,
             -14561.0000002,
             125.3421,
             -2.49892498,
-        },
+        ],
         decr =
-        {
+        [
             99.312,
             12,
             -35,
-        };
+        ];
         double sum = 0;
         foreach (var value in incr)
         {
@@ -130,18 +130,18 @@ public class FloatingPointTests(ITestOutputHelper output, SharedConnectionFixtur
         RedisValue field = "bar";
         db.KeyDelete(key, CommandFlags.FireAndForget);
         double[] incr =
-        {
+        [
             12.134,
             -14561.0000002,
             125.3421,
             -2.49892498,
-        },
+        ],
         decr =
-        {
+        [
             99.312,
             12,
             -35,
-        };
+        ];
         double sum = 0;
         foreach (var value in incr)
         {

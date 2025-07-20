@@ -14,7 +14,7 @@ public class RealWorldTests(ITestOutputHelper output) : TestBase(output)
         Log("Endpoint 0: {0} (AddressFamily: {1})", config.EndPoints[0], config.EndPoints[0].AddressFamily);
         Log("Endpoint 1: {0} (AddressFamily: {1})", config.EndPoints[1], config.EndPoints[1].AddressFamily);
 
-        using (var conn = ConnectionMultiplexer.Connect("localhost:6379,localhost:6380,name=Core (Q&A),tiebreaker=:RedisPrimary,abortConnect=False", Writer))
+        await using (var conn = ConnectionMultiplexer.Connect("localhost:6379,localhost:6380,name=Core (Q&A),tiebreaker=:RedisPrimary,abortConnect=False", Writer))
         {
             Log("");
             Log("pausing...");

@@ -16,11 +16,11 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
         Twemproxy,
     }
 
-    public static IEnumerable<object[]> TestModes()
+    public static IEnumerable<TheoryDataRow<TestMode>> TestModes()
     {
-        yield return new object[] { TestMode.MultiExec };
-        yield return new object[] { TestMode.NoMultiExec };
-        yield return new object[] { TestMode.Twemproxy };
+        yield return new(TestMode.MultiExec);
+        yield return new(TestMode.NoMultiExec);
+        yield return new(TestMode.Twemproxy);
     }
 
     [Theory, MemberData(nameof(TestModes))]
@@ -101,7 +101,7 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
     private IConnectionMultiplexer Create(TestMode mode) => mode switch
     {
         TestMode.MultiExec => Create(),
-        TestMode.NoMultiExec => Create(disabledCommands: new[] { "multi", "exec" }),
+        TestMode.NoMultiExec => Create(disabledCommands: ["multi", "exec"]),
         TestMode.Twemproxy => Create(proxy: Proxy.Twemproxy),
         _ => throw new NotSupportedException(mode.ToString()),
     };

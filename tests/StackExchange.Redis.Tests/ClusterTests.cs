@@ -16,11 +16,11 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
     [Fact]
-    public void ExportConfiguration()
+    public async Task ExportConfiguration()
     {
         if (File.Exists("cluster.zip")) File.Delete("cluster.zip");
         Assert.False(File.Exists("cluster.zip"));
-        using (var conn = Create(allowAdmin: true))
+        await using (var conn = Create(allowAdmin: true))
         using (var file = File.Create("cluster.zip"))
         {
             conn.ExportConfiguration(file);
@@ -137,7 +137,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     public async Task IntentionalWrongServer()
     {
         static string? StringGet(IServer server, RedisKey key, CommandFlags flags = CommandFlags.None)
-            => (string?)server.Execute("GET", new object[] { key }, flags);
+            => (string?)server.Execute("GET", [key], flags);
 
         await using var conn = Create();
 
@@ -355,8 +355,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.True(cluster.Wait(existsY), "y exists");
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1004:Test methods should not be skipped", Justification = "Because.")]
-    [Theory(Skip = "FlushAllDatabases")]
+    [Theory]
     [InlineData(null, 10)]
     [InlineData(null, 100)]
     [InlineData("abc", 10)]
@@ -365,12 +364,12 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create(allowAdmin: true);
 
-        _ = conn.GetDatabase();
+        var dbId = TestConfig.GetDedicatedDB(conn);
         var server = conn.GetEndPoints().Select(x => conn.GetServer(x)).First(x => !x.IsReplica);
-        server.FlushAllDatabases();
+        await server.FlushDatabaseAsync(dbId);
         try
         {
-            Assert.False(server.Keys(pattern: pattern, pageSize: pageSize).Any());
+            Assert.False(server.Keys(dbId, pattern: pattern, pageSize: pageSize).Any());
             Log($"Complete: '{pattern}' / {pageSize}");
         }
         catch
@@ -754,7 +753,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.True(conn.IsConnected);
 
         var pubsub = conn.GetSubscriber();
-        List<(RedisChannel, RedisValue)> received = new();
+        List<(RedisChannel, RedisValue)> received = [];
         var queue = await pubsub.SubscribeAsync(channel);
         _ = Task.Run(async () =>
         {

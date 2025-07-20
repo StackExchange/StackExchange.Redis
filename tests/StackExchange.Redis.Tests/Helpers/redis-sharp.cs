@@ -227,7 +227,7 @@ namespace RedisSharp
                 SendExpectSuccess("AUTH {0}\r\n", Password);
         }
 
-        private readonly byte[] endData = new byte[] { (byte)'\r', (byte)'\n' };
+        private readonly byte[] endData = [(byte)'\r', (byte)'\n'];
 
         private bool SendDataCommand(byte[] data, string cmd, params object[] args)
         {

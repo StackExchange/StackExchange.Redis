@@ -144,7 +144,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 2);
+        Assert.Equal(2, result.ClaimedEntries.Length);
         Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
         Assert.Equal("value2", result.ClaimedEntries[1].Values[0].Value);
     }
@@ -169,7 +169,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 2);
+        Assert.Equal(2, result.ClaimedEntries.Length);
         Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
         Assert.Equal("value2", result.ClaimedEntries[1].Values[0].Value);
     }
@@ -195,7 +195,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(messageIds[1], result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 1);
+        Assert.Single(result.ClaimedEntries);
         Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
     }
 
@@ -219,7 +219,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // Should be the second message ID from the call to prepare.
         Assert.Equal(messageIds[1], result.NextStartId);
         Assert.NotEmpty(result.ClaimedIds);
-        Assert.True(result.ClaimedIds.Length == 1);
+        Assert.Single(result.ClaimedIds);
         Assert.Equal(messageIds[0], result.ClaimedIds[0]);
         Assert.Empty(result.DeletedIds);
     }
@@ -245,7 +245,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(messageIds[1], result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 1);
+        Assert.Single(result.ClaimedEntries);
         Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
     }
 
@@ -269,7 +269,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // Should be the second message ID from the call to prepare.
         Assert.Equal(messageIds[1], result.NextStartId);
         Assert.NotEmpty(result.ClaimedIds);
-        Assert.True(result.ClaimedIds.Length == 1);
+        Assert.Single(result.ClaimedIds);
         Assert.Equal(messageIds[0], result.ClaimedIds[0]);
         Assert.Empty(result.DeletedIds);
     }
@@ -289,7 +289,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
 
         // Delete one of the messages, it should be included in the deleted message ID array.
-        db.StreamDelete(key, new RedisValue[] { messageIds[0] });
+        db.StreamDelete(key, [messageIds[0]]);
 
         // Claim a single pending message and reassign it to consumer2.
         var result = db.StreamAutoClaim(key, group, consumer2, 0, "0-0", count: 2);
@@ -297,8 +297,8 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.NotEmpty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 1);
-        Assert.True(result.DeletedIds.Length == 1);
+        Assert.Single(result.ClaimedEntries);
+        Assert.Single(result.DeletedIds);
         Assert.Equal(messageIds[0], result.DeletedIds[0]);
     }
 
@@ -317,7 +317,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
 
         // Delete one of the messages, it should be included in the deleted message ID array.
-        db.StreamDelete(key, new RedisValue[] { messageIds[0] });
+        db.StreamDelete(key, [messageIds[0]]);
 
         // Claim a single pending message and reassign it to consumer2.
         var result = await db.StreamAutoClaimAsync(key, group, consumer2, 0, "0-0", count: 2);
@@ -325,8 +325,8 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.NotEmpty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 1);
-        Assert.True(result.DeletedIds.Length == 1);
+        Assert.Single(result.ClaimedEntries);
+        Assert.Single(result.DeletedIds);
         Assert.Equal(messageIds[0], result.DeletedIds[0]);
     }
 
@@ -442,7 +442,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedIds);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedIds.Length == 2);
+        Assert.Equal(2, result.ClaimedIds.Length);
         Assert.Equal(messageIds[0], result.ClaimedIds[0]);
         Assert.Equal(messageIds[1], result.ClaimedIds[1]);
     }
@@ -467,12 +467,12 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedIds);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedIds.Length == 2);
+        Assert.Equal(2, result.ClaimedIds.Length);
         Assert.Equal(messageIds[0], result.ClaimedIds[0]);
         Assert.Equal(messageIds[1], result.ClaimedIds[1]);
     }
 
-    private RedisValue[] StreamAutoClaim_PrepareTestData(IDatabase db, RedisKey key, RedisValue group, RedisValue consumer)
+    private static RedisValue[] StreamAutoClaim_PrepareTestData(IDatabase db, RedisKey key, RedisValue group, RedisValue consumer)
     {
         // Create the group.
         db.KeyDelete(key);
@@ -485,7 +485,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // Read the messages into the "c1"
         db.StreamReadGroup(key, group, consumer);
 
-        return new RedisValue[2] { id1, id2 };
+        return [id1, id2];
     }
 
     [Fact]
@@ -711,7 +711,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var oneAck = db.StreamAcknowledge(key, groupName, id1);
 
         // Multiple message Id overload.
-        var twoAck = db.StreamAcknowledge(key, groupName, new[] { id3, id4 });
+        var twoAck = db.StreamAcknowledge(key, groupName, [id3, id4]);
 
         // Read the group again, it should only return the unacknowledged message.
         var notAcknowledged = db.StreamReadGroup(key, groupName, consumer, "0-0");
@@ -1048,7 +1048,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(4, pendingInfo.PendingMessageCount);
         Assert.Equal(id1, pendingInfo.LowestPendingMessageId);
         Assert.Equal(id4, pendingInfo.HighestPendingMessageId);
-        Assert.True(pendingInfo.Consumers.Length == 2);
+        Assert.Equal(2, pendingInfo.Consumers.Length);
 
         var consumer1Count = pendingInfo.Consumers.First(c => c.Name == consumer1).PendingMessageCount;
         var consumer2Count = pendingInfo.Consumers.First(c => c.Name == consumer2).PendingMessageCount;
@@ -1202,7 +1202,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var id3 = db.StreamAdd(key, "field3", "value3");
         db.StreamAdd(key, "field4", "value4");
 
-        var deletedCount = db.StreamDelete(key, new[] { id3 });
+        var deletedCount = db.StreamDelete(key, [id3]);
         var messages = db.StreamRange(key);
 
         Assert.Equal(1, deletedCount);
@@ -1222,7 +1222,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var id3 = db.StreamAdd(key, "field3", "value3");
         db.StreamAdd(key, "field4", "value4");
 
-        var deletedCount = db.StreamDelete(key, new[] { id2, id3 }, CommandFlags.None);
+        var deletedCount = db.StreamDelete(key, [id2, id3], CommandFlags.None);
         var messages = db.StreamRange(key);
 
         Assert.Equal(2, deletedCount);
@@ -1230,7 +1230,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void StreamGroupInfoGet()
+    public async Task StreamGroupInfoGet()
     {
         var key = Me();
         const string group1 = "test_group_1",
@@ -1238,7 +1238,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                      consumer1 = "test_consumer_1",
                      consumer2 = "test_consumer_2";
 
-        using (var conn = Create(require: RedisFeatures.v5_0_0))
+        await using (var conn = Create(require: RedisFeatures.v5_0_0))
         {
             var db = conn.GetDatabase();
             db.KeyDelete(key);
@@ -1354,7 +1354,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // to ensure it functions properly on an empty stream. Namely, the first-entry
         // and last-entry messages should be null.
         var id = db.StreamAdd(key, "field1", "value1");
-        db.StreamDelete(key, new[] { id });
+        db.StreamDelete(key, [id]);
 
         Assert.Equal(0, db.StreamLength(key));
 
@@ -1390,7 +1390,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         const string groupName = "test_group";
 
         var id = db.StreamAdd(key, "field1", "value1");
-        db.StreamDelete(key, new[] { id });
+        db.StreamDelete(key, [id]);
 
         db.StreamCreateConsumerGroup(key, groupName, "0-0");
 
@@ -1472,7 +1472,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var id1 = db.StreamAdd(key, "field1", "value1");
 
         // Delete the key to empty the stream.
-        db.StreamDelete(key, new[] { id1 });
+        db.StreamDelete(key, [id1]);
         var len = db.StreamLength(key);
 
         // Read the entire stream from the beginning.
@@ -1496,8 +1496,8 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var id2 = db.StreamAdd(key2, "field2", "value2");
 
         // Delete the key to empty the stream.
-        db.StreamDelete(key1, new[] { id1 });
-        db.StreamDelete(key2, new[] { id2 });
+        db.StreamDelete(key1, [id1]);
+        db.StreamDelete(key2, [id2]);
 
         var len1 = db.StreamLength(key1);
         var len2 = db.StreamLength(key2);
@@ -1597,7 +1597,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var streams = db.StreamRead(streamList);
 
-        Assert.True(streams.Length == 2);
+        Assert.Equal(2, streams.Length);
 
         Assert.Equal(key1, streams[0].Key);
         Assert.Equal(2, streams[0].Entries.Length);
@@ -1634,12 +1634,12 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         db.StreamAdd(key2, "field7", "value7");
         db.StreamAdd(key2, "field8", "value8");
 
-        streamList = new[] { new StreamPosition(key1, "+"), new StreamPosition(key2, "+") };
+        streamList = [new StreamPosition(key1, "+"), new StreamPosition(key2, "+")];
 
         streams = db.StreamRead(streamList);
 
         Assert.NotNull(streams);
-        Assert.True(streams.Length == 2);
+        Assert.Equal(2, streams.Length);
 
         var stream1 = streams.Where(e => e.Key == key1).First();
         Assert.NotNull(stream1.Entries);
@@ -1790,7 +1790,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
 
-        var deleted = db.StreamDelete(key, new[] { id1, id2 });
+        var deleted = db.StreamDelete(key, [id1, id2]);
 
         var entries = db.StreamRange(key);
 
@@ -1997,11 +1997,10 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         db.StreamCreateConsumerGroup(key2, groupName, StreamPosition.NewMessages);
 
         db.StreamReadGroup(
-            new[]
-            {
+            [
                 new StreamPosition(key1, StreamPosition.NewMessages),
                 new StreamPosition(key2, StreamPosition.NewMessages),
-            },
+            ],
             groupName,
             consumer,
             noAck: true);
@@ -2023,12 +2022,11 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         await db.StreamAddAsync(
             streamName,
-            new[]
-            {
+            [
                 new NameValueEntry("x", "blah"),
                 new NameValueEntry("msg", /*lang=json,strict*/ @"{""name"":""test"",""id"":123}"),
                 new NameValueEntry("y", "more blah"),
-            });
+            ]);
 
         var streamResult = await db.StreamRangeAsync(streamName, count: 1000);
         var evntJson = streamResult

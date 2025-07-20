@@ -264,7 +264,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         }
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerA.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
         sentinels = SentinelServerB.SentinelSentinels(ServiceName);
@@ -274,14 +274,14 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
             actual.Add(data["ip"] + ":" + data["port"]);
         }
 
-        expected = new List<string?>
-        {
+        expected =
+        [
             SentinelServerA.EndPoint.ToString(),
             SentinelServerC.EndPoint.ToString(),
-        };
+        ];
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerB.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
         sentinels = SentinelServerC.SentinelSentinels(ServiceName);
@@ -291,14 +291,14 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
             actual.Add(data["ip"] + ":" + data["port"]);
         }
 
-        expected = new List<string?>
-        {
+        expected =
+        [
             SentinelServerA.EndPoint.ToString(),
             SentinelServerB.EndPoint.ToString(),
-        };
+        ];
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerC.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
     }
 
@@ -320,18 +320,18 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         }
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerA.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
         sentinels = await SentinelServerB.SentinelSentinelsAsync(ServiceName).ForAwait();
 
-        expected = new List<string?>
-        {
+        expected =
+        [
             SentinelServerA.EndPoint.ToString(),
             SentinelServerC.EndPoint.ToString(),
-        };
+        ];
 
-        actual = new List<string>();
+        actual = [];
         foreach (var kv in sentinels)
         {
             var data = kv.ToDictionary();
@@ -339,16 +339,16 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         }
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerB.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
         sentinels = await SentinelServerC.SentinelSentinelsAsync(ServiceName).ForAwait();
-        expected = new List<string?>
-        {
+        expected =
+        [
             SentinelServerA.EndPoint.ToString(),
             SentinelServerB.EndPoint.ToString(),
-        };
-        actual = new List<string>();
+        ];
+        actual = [];
         foreach (var kv in sentinels)
         {
             var data = kv.ToDictionary();
@@ -356,7 +356,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         }
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerC.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
     }
 

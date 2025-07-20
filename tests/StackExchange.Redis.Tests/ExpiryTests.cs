@@ -6,7 +6,7 @@ namespace StackExchange.Redis.Tests;
 
 public class ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    private static string[]? GetMap(bool disablePTimes) => disablePTimes ? new[] { "pexpire", "pexpireat", "pttl" } : null;
+    private static string[]? GetMap(bool disablePTimes) => disablePTimes ? ["pexpire", "pexpireat", "pttl"] : null;
 
     [Theory]
     [InlineData(true)]

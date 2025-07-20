@@ -7,8 +7,8 @@ namespace StackExchange.Redis.Tests;
 [RunPerProtocol]
 public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    private static readonly SortedSetEntry[] entries = new SortedSetEntry[]
-    {
+    private static readonly SortedSetEntry[] entries =
+    [
         new SortedSetEntry("a", 1),
         new SortedSetEntry("b", 2),
         new SortedSetEntry("c", 3),
@@ -19,10 +19,10 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         new SortedSetEntry("h", 8),
         new SortedSetEntry("i", 9),
         new SortedSetEntry("j", 10),
-    };
+    ];
 
-    private static readonly SortedSetEntry[] entriesPow2 = new SortedSetEntry[]
-    {
+    private static readonly SortedSetEntry[] entriesPow2 =
+    [
         new SortedSetEntry("a", 1),
         new SortedSetEntry("b", 2),
         new SortedSetEntry("c", 4),
@@ -33,19 +33,19 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         new SortedSetEntry("h", 128),
         new SortedSetEntry("i", 256),
         new SortedSetEntry("j", 512),
-    };
+    ];
 
-    private static readonly SortedSetEntry[] entriesPow3 = new SortedSetEntry[]
-    {
+    private static readonly SortedSetEntry[] entriesPow3 =
+    [
         new SortedSetEntry("a", 1),
         new SortedSetEntry("c", 4),
         new SortedSetEntry("e", 16),
         new SortedSetEntry("g", 64),
         new SortedSetEntry("i", 256),
-    };
+    ];
 
-    private static readonly SortedSetEntry[] lexEntries = new SortedSetEntry[]
-    {
+    private static readonly SortedSetEntry[] lexEntries =
+    [
         new SortedSetEntry("a", 0),
         new SortedSetEntry("b", 0),
         new SortedSetEntry("c", 0),
@@ -56,7 +56,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         new SortedSetEntry("h", 0),
         new SortedSetEntry("i", 0),
         new SortedSetEntry("j", 0),
-    };
+    ];
 
     [Fact]
     public async Task SortedSetCombine()
@@ -72,15 +72,15 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key1, entries);
         db.SortedSetAdd(key2, entriesPow3);
 
-        var diff = db.SortedSetCombine(SetOperation.Difference, new RedisKey[] { key1, key2 });
+        var diff = db.SortedSetCombine(SetOperation.Difference, [key1, key2]);
         Assert.Equal(5, diff.Length);
         Assert.Equal("b", diff[0]);
 
-        var inter = db.SortedSetCombine(SetOperation.Intersect, new RedisKey[] { key1, key2 });
+        var inter = db.SortedSetCombine(SetOperation.Intersect, [key1, key2]);
         Assert.Equal(5, inter.Length);
         Assert.Equal("a", inter[0]);
 
-        var union = db.SortedSetCombine(SetOperation.Union, new RedisKey[] { key1, key2 });
+        var union = db.SortedSetCombine(SetOperation.Union, [key1, key2]);
         Assert.Equal(10, union.Length);
         Assert.Equal("a", union[0]);
     }
@@ -99,15 +99,15 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key1, entries);
         db.SortedSetAdd(key2, entriesPow3);
 
-        var diff = await db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 });
+        var diff = await db.SortedSetCombineAsync(SetOperation.Difference, [key1, key2]);
         Assert.Equal(5, diff.Length);
         Assert.Equal("b", diff[0]);
 
-        var inter = await db.SortedSetCombineAsync(SetOperation.Intersect, new RedisKey[] { key1, key2 });
+        var inter = await db.SortedSetCombineAsync(SetOperation.Intersect, [key1, key2]);
         Assert.Equal(5, inter.Length);
         Assert.Equal("a", inter[0]);
 
-        var union = await db.SortedSetCombineAsync(SetOperation.Union, new RedisKey[] { key1, key2 });
+        var union = await db.SortedSetCombineAsync(SetOperation.Union, [key1, key2]);
         Assert.Equal(10, union.Length);
         Assert.Equal("a", union[0]);
     }
@@ -126,15 +126,15 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key1, entries);
         db.SortedSetAdd(key2, entriesPow3);
 
-        var diff = db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[] { key1, key2 });
+        var diff = db.SortedSetCombineWithScores(SetOperation.Difference, [key1, key2]);
         Assert.Equal(5, diff.Length);
         Assert.Equal(new SortedSetEntry("b", 2), diff[0]);
 
-        var inter = db.SortedSetCombineWithScores(SetOperation.Intersect, new RedisKey[] { key1, key2 });
+        var inter = db.SortedSetCombineWithScores(SetOperation.Intersect, [key1, key2]);
         Assert.Equal(5, inter.Length);
         Assert.Equal(new SortedSetEntry("a", 2), inter[0]);
 
-        var union = db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[] { key1, key2 });
+        var union = db.SortedSetCombineWithScores(SetOperation.Union, [key1, key2]);
         Assert.Equal(10, union.Length);
         Assert.Equal(new SortedSetEntry("a", 2), union[0]);
     }
@@ -153,15 +153,15 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key1, entries);
         db.SortedSetAdd(key2, entriesPow3);
 
-        var diff = await db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 });
+        var diff = await db.SortedSetCombineWithScoresAsync(SetOperation.Difference, [key1, key2]);
         Assert.Equal(5, diff.Length);
         Assert.Equal(new SortedSetEntry("b", 2), diff[0]);
 
-        var inter = await db.SortedSetCombineWithScoresAsync(SetOperation.Intersect, new RedisKey[] { key1, key2 });
+        var inter = await db.SortedSetCombineWithScoresAsync(SetOperation.Intersect, [key1, key2]);
         Assert.Equal(5, inter.Length);
         Assert.Equal(new SortedSetEntry("a", 2), inter[0]);
 
-        var union = await db.SortedSetCombineWithScoresAsync(SetOperation.Union, new RedisKey[] { key1, key2 });
+        var union = await db.SortedSetCombineWithScoresAsync(SetOperation.Union, [key1, key2]);
         Assert.Equal(10, union.Length);
         Assert.Equal(new SortedSetEntry("a", 2), union[0]);
     }
@@ -182,13 +182,13 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key1, entries);
         db.SortedSetAdd(key2, entriesPow3);
 
-        var diff = db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 });
+        var diff = db.SortedSetCombineAndStore(SetOperation.Difference, destination, [key1, key2]);
         Assert.Equal(5, diff);
 
-        var inter = db.SortedSetCombineAndStore(SetOperation.Intersect, destination, new RedisKey[] { key1, key2 });
+        var inter = db.SortedSetCombineAndStore(SetOperation.Intersect, destination, [key1, key2]);
         Assert.Equal(5, inter);
 
-        var union = db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[] { key1, key2 });
+        var union = db.SortedSetCombineAndStore(SetOperation.Union, destination, [key1, key2]);
         Assert.Equal(10, union);
     }
 
@@ -208,13 +208,13 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key1, entries);
         db.SortedSetAdd(key2, entriesPow3);
 
-        var diff = await db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 });
+        var diff = await db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, [key1, key2]);
         Assert.Equal(5, diff);
 
-        var inter = await db.SortedSetCombineAndStoreAsync(SetOperation.Intersect, destination, new RedisKey[] { key1, key2 });
+        var inter = await db.SortedSetCombineAndStoreAsync(SetOperation.Intersect, destination, [key1, key2]);
         Assert.Equal(5, inter);
 
-        var union = await db.SortedSetCombineAndStoreAsync(SetOperation.Union, destination, new RedisKey[] { key1, key2 });
+        var union = await db.SortedSetCombineAndStoreAsync(SetOperation.Union, destination, [key1, key2]);
         Assert.Equal(10, union);
     }
 
@@ -235,48 +235,48 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key2, entriesPow3);
 
         // ZDIFF can't be used with weights
-        var ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+        var ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, [key1, key2], [1, 2]));
         Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
-        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, [key1, key2], [1, 2]));
         Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
-        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, [key1, key2], [1, 2]));
         Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
         // and Async...
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Difference, [key1, key2], [1, 2]));
         Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Difference, [key1, key2], [1, 2]));
         Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2 }));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, [key1, key2], [1, 2]));
         Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
 
         // ZDIFF can't be used with aggregation
-        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Difference, [key1, key2], aggregate: Aggregate.Max));
         Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
-        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Difference, [key1, key2], aggregate: Aggregate.Max));
         Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
-        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Difference, destination, [key1, key2], aggregate: Aggregate.Max));
         Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
         // and Async...
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Difference, [key1, key2], aggregate: Aggregate.Max));
         Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Difference, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Difference, [key1, key2], aggregate: Aggregate.Max));
         Assert.Equal("ZDIFF cannot be used with weights or aggregation.", ex.Message);
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, new RedisKey[] { key1, key2 }, aggregate: Aggregate.Max));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Difference, destination, [key1, key2], aggregate: Aggregate.Max));
         Assert.Equal("ZDIFFSTORE cannot be used with weights or aggregation.", ex.Message);
 
         // Too many weights
-        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombine(SetOperation.Union, [key1, key2], [1, 2, 3]));
         Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
-        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineWithScores(SetOperation.Union, [key1, key2], [1, 2, 3]));
         Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
-        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Union, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+        ex = Assert.Throws<ArgumentException>(() => db.SortedSetCombineAndStore(SetOperation.Union, destination, [key1, key2], [1, 2, 3]));
         Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
         // and Async...
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAsync(SetOperation.Union, [key1, key2], [1, 2, 3]));
         Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Union, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineWithScoresAsync(SetOperation.Union, [key1, key2], [1, 2, 3]));
         Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
-        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Union, destination, new RedisKey[] { key1, key2 }, new double[] { 1, 2, 3 }));
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => db.SortedSetCombineAndStoreAsync(SetOperation.Union, destination, [key1, key2], [1, 2, 3]));
         Assert.StartsWith("Keys and weights should have the same number of elements.", ex.Message);
     }
 
@@ -294,11 +294,11 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key1, entries);
         db.SortedSetAdd(key2, entriesPow3);
 
-        var inter = db.SortedSetIntersectionLength(new RedisKey[] { key1, key2 });
+        var inter = db.SortedSetIntersectionLength([key1, key2]);
         Assert.Equal(5, inter);
 
         // with limit
-        inter = db.SortedSetIntersectionLength(new RedisKey[] { key1, key2 }, 3);
+        inter = db.SortedSetIntersectionLength([key1, key2], 3);
         Assert.Equal(3, inter);
     }
 
@@ -316,11 +316,11 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key1, entries);
         db.SortedSetAdd(key2, entriesPow3);
 
-        var inter = await db.SortedSetIntersectionLengthAsync(new RedisKey[] { key1, key2 });
+        var inter = await db.SortedSetIntersectionLengthAsync([key1, key2]);
         Assert.Equal(5, inter);
 
         // with limit
-        inter = await db.SortedSetIntersectionLengthAsync(new RedisKey[] { key1, key2 }, 3);
+        inter = await db.SortedSetIntersectionLengthAsync([key1, key2], 3);
         Assert.Equal(3, inter);
     }
 
@@ -334,7 +334,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
 
-        var result = db.ScriptEvaluate(script: "return redis.call('ZRANGE', KEYS[1], 0, -1, 'WITHSCORES')", keys: new RedisKey[] { key });
+        var result = db.ScriptEvaluate(script: "return redis.call('ZRANGE', KEYS[1], 0, -1, 'WITHSCORES')", keys: [key]);
         AssertFlatArrayEntries(result);
     }
 
@@ -348,7 +348,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SortedSetAdd(key, entries, CommandFlags.FireAndForget);
 
-        var result = db.Execute("ZRANGE", new object[] { key, 0, -1, "WITHSCORES" });
+        var result = db.Execute("ZRANGE", [key, 0, -1, "WITHSCORES"]);
 
         if (TestContext.Current.IsResp3())
         {
@@ -606,7 +606,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, entries, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, 0, -1);
         Assert.Equal(entries.Length, res);
@@ -622,7 +622,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, entries, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, 1, 4);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -643,7 +643,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, 64, 128, SortedSetOrder.ByScore);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -664,7 +664,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -685,7 +685,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore, skip: 1, take: 6);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -706,7 +706,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, 32, 256, SortedSetOrder.ByScore, exclude: Exclude.Both);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -727,7 +727,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, start: double.PositiveInfinity, double.NegativeInfinity, SortedSetOrder.ByScore, order: Order.Descending);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -748,7 +748,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, "a", "j", SortedSetOrder.ByLex);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -769,7 +769,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, "a", "j", SortedSetOrder.ByLex, Exclude.Both);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -790,7 +790,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         await db.SortedSetAddAsync(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var res = await db.SortedSetRangeAndStoreAsync(sourceKey, destinationKey, "j", "a", SortedSetOrder.ByLex, exclude: Exclude.None, order: Order.Descending);
         var range = await db.SortedSetRangeByRankWithScoresAsync(destinationKey);
@@ -811,7 +811,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, entries, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1);
         Assert.Equal(entries.Length, res);
@@ -827,7 +827,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, entries, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, 1, 4);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -848,7 +848,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, 64, 128, SortedSetOrder.ByScore);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -869,7 +869,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -890,7 +890,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, double.NegativeInfinity, double.PositiveInfinity, SortedSetOrder.ByScore, skip: 1, take: 6);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -911,7 +911,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, 32, 256, SortedSetOrder.ByScore, exclude: Exclude.Both);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -932,7 +932,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, entriesPow2, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, start: double.PositiveInfinity, double.NegativeInfinity, SortedSetOrder.ByScore, order: Order.Descending);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -953,7 +953,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, "a", "j", SortedSetOrder.ByLex);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -974,7 +974,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, "a", "j", SortedSetOrder.ByLex, Exclude.Both);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -995,7 +995,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var res = db.SortedSetRangeAndStore(sourceKey, destinationKey, "j", "a", SortedSetOrder.ByLex, Exclude.None, Order.Descending);
         var range = db.SortedSetRangeByRankWithScores(destinationKey);
@@ -1016,7 +1016,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var exception = Assert.Throws<ArgumentException>(() => db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1, take: 5));
         Assert.Equal("take", exception.ParamName);
@@ -1032,7 +1032,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var exception = Assert.Throws<ArgumentException>(() => db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1, exclude: Exclude.Both));
         Assert.Equal("exclude", exception.ParamName);
@@ -1049,23 +1049,22 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         db.SortedSetAdd(
             key,
-            new SortedSetEntry[]
-            {
+            [
                 new SortedSetEntry("rays", 100),
                 new SortedSetEntry("yankees", 92),
                 new SortedSetEntry("red sox", 92),
                 new SortedSetEntry("blue jays", 91),
                 new SortedSetEntry("orioles", 52),
-            });
+            ]);
 
-        var highest = db.SortedSetPop(new RedisKey[] { key }, 1, order: Order.Descending);
+        var highest = db.SortedSetPop([key], 1, order: Order.Descending);
         Assert.False(highest.IsNull);
         Assert.Equal(key, highest.Key);
         var entry = Assert.Single(highest.Entries);
         Assert.Equal("rays", entry.Element);
         Assert.Equal(100, entry.Score);
 
-        var bottom2 = db.SortedSetPop(new RedisKey[] { key }, 2);
+        var bottom2 = db.SortedSetPop([key], 2);
         Assert.False(bottom2.IsNull);
         Assert.Equal(key, bottom2.Key);
         Assert.Equal(2, bottom2.Entries.Length);
@@ -1086,23 +1085,22 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         db.SortedSetAdd(
             key,
-            new SortedSetEntry[]
-            {
+            [
                 new SortedSetEntry("rays", 100),
                 new SortedSetEntry("yankees", 92),
                 new SortedSetEntry("red sox", 92),
                 new SortedSetEntry("blue jays", 91),
                 new SortedSetEntry("orioles", 52),
-            });
+            ]);
 
-        var highest = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
+        var highest = db.SortedSetPop(["not a real key", key, "yet another not a real key"], 1, order: Order.Descending);
         Assert.False(highest.IsNull);
         Assert.Equal(key, highest.Key);
         var entry = Assert.Single(highest.Entries);
         Assert.Equal("rays", entry.Element);
         Assert.Equal(100, entry.Score);
 
-        var bottom2 = db.SortedSetPop(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 2);
+        var bottom2 = db.SortedSetPop(["not a real key", key, "yet another not a real key"], 2);
         Assert.False(bottom2.IsNull);
         Assert.Equal(key, bottom2.Key);
         Assert.Equal(2, bottom2.Entries.Length);
@@ -1120,7 +1118,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key);
-        var res = db.SortedSetPop(new RedisKey[] { key }, 1);
+        var res = db.SortedSetPop([key], 1);
         Assert.True(res.IsNull);
     }
 
@@ -1132,7 +1130,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key);
-        var exception = Assert.Throws<RedisServerException>(() => db.SortedSetPop(new RedisKey[] { key }, 0));
+        var exception = Assert.Throws<RedisServerException>(() => db.SortedSetPop([key], 0));
         Assert.Contains("ERR count should be greater than 0", exception.Message);
     }
 
@@ -1147,24 +1145,23 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         db.SortedSetAdd(
             key,
-            new SortedSetEntry[]
-            {
+            [
                 new SortedSetEntry("rays", 100),
                 new SortedSetEntry("yankees", 92),
                 new SortedSetEntry("red sox", 92),
                 new SortedSetEntry("blue jays", 91),
                 new SortedSetEntry("orioles", 52),
-            });
+            ]);
 
         var highest = await db.SortedSetPopAsync(
-            new RedisKey[] { "not a real key", key, "yet another not a real key" }, 1, order: Order.Descending);
+            ["not a real key", key, "yet another not a real key"], 1, order: Order.Descending);
         Assert.False(highest.IsNull);
         Assert.Equal(key, highest.Key);
         var entry = Assert.Single(highest.Entries);
         Assert.Equal("rays", entry.Element);
         Assert.Equal(100, entry.Score);
 
-        var bottom2 = await db.SortedSetPopAsync(new RedisKey[] { "not a real key", key, "yet another not a real key" }, 2);
+        var bottom2 = await db.SortedSetPopAsync(["not a real key", key, "yet another not a real key"], 2);
         Assert.False(bottom2.IsNull);
         Assert.Equal(key, bottom2.Key);
         Assert.Equal(2, bottom2.Entries.Length);
@@ -1194,7 +1191,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         var sourceKey = $"{me}:ZSetSource";
         var destinationKey = $"{me}:ZSetDestination";
 
-        db.KeyDelete(new RedisKey[] { sourceKey, destinationKey }, CommandFlags.FireAndForget);
+        db.KeyDelete([sourceKey, destinationKey], CommandFlags.FireAndForget);
         db.SortedSetAdd(sourceKey, lexEntries, CommandFlags.FireAndForget);
         var exception = Assert.Throws<RedisCommandException>(() => db.SortedSetRangeAndStore(sourceKey, destinationKey, 0, -1, flags: CommandFlags.DemandReplica));
         Assert.Contains("Command cannot be issued to a replica", exception.Message);
@@ -1318,7 +1315,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key, member2, 1.75);
         db.SortedSetAdd(key, member3, 2);
 
-        var scores = db.SortedSetScores(key, new RedisValue[] { member1, member2, member3 });
+        var scores = db.SortedSetScores(key, [member1, member2, member3]);
 
         Assert.NotNull(scores);
         Assert.Equal(3, scores.Length);
@@ -1343,7 +1340,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         await db.SortedSetAddAsync(key, member2, 1.75);
         await db.SortedSetAddAsync(key, member3, 2);
 
-        var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { member1, member2, member3 });
+        var scores = await db.SortedSetScoresAsync(key, [member1, member2, member3]);
 
         Assert.NotNull(scores);
         Assert.Equal(3, scores.Length);
@@ -1363,7 +1360,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.KeyDelete(key);
 
         // Missing set but should still return an array of nulls.
-        var scores = db.SortedSetScores(key, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
+        var scores = db.SortedSetScores(key, ["bogus1", "bogus2", "bogus3"]);
 
         Assert.NotNull(scores);
         Assert.Equal(3, scores.Length);
@@ -1383,7 +1380,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         await db.KeyDeleteAsync(key);
 
         // Missing set but should still return an array of nulls.
-        var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { "bogus1", "bogus2", "bogus3" });
+        var scores = await db.SortedSetScoresAsync(key, ["bogus1", "bogus2", "bogus3"]);
 
         Assert.NotNull(scores);
         Assert.Equal(3, scores.Length);
@@ -1410,7 +1407,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.SortedSetAdd(key, member2, 1.75);
         db.SortedSetAdd(key, member3, 2);
 
-        var scores = db.SortedSetScores(key, new RedisValue[] { member1, bogusMember, member2, member3 });
+        var scores = db.SortedSetScores(key, [member1, bogusMember, member2, member3]);
 
         Assert.NotNull(scores);
         Assert.Equal(4, scores.Length);
@@ -1438,7 +1435,7 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
         await db.SortedSetAddAsync(key, member2, 1.75);
         await db.SortedSetAddAsync(key, member3, 2);
 
-        var scores = await db.SortedSetScoresAsync(key, new RedisValue[] { member1, bogusMember, member2, member3 });
+        var scores = await db.SortedSetScoresAsync(key, [member1, bogusMember, member2, member3]);
 
         Assert.NotNull(scores);
         Assert.Equal(4, scores.Length);

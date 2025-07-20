@@ -211,7 +211,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
-    public void TalkToNonsenseServer()
+    public async Task TalkToNonsenseServer()
     {
         var config = new ConfigurationOptions
         {
@@ -223,7 +223,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             ConnectTimeout = 200,
         };
         var log = new StringWriter();
-        using (var conn = ConnectionMultiplexer.Connect(config, log))
+        await using (var conn = ConnectionMultiplexer.Connect(config, log))
         {
             Log(log.ToString());
             Assert.False(conn.IsConnected);
@@ -340,7 +340,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task ReadConfigWithConfigDisabled()
     {
-        await using var conn = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" });
+        await using var conn = Create(allowAdmin: true, disabledCommands: ["config", "info"]);
 
         var server = GetAnyPrimary(conn);
         var ex = Assert.Throws<RedisCommandException>(() => server.ConfigGet());
@@ -350,7 +350,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task ConnectWithSubscribeDisabled()
     {
-        await using var conn = Create(allowAdmin: true, disabledCommands: new[] { "subscribe" });
+        await using var conn = Create(allowAdmin: true, disabledCommands: ["subscribe"]);
 
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();

@@ -22,7 +22,7 @@ public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
             RedisKey hits = Me(), trigger = Me() + "3";
             int expectedSuccess = 0;
 
-            await muxers[0].GetDatabase().KeyDeleteAsync(new[] { hits, trigger }).ForAwait();
+            await muxers[0].GetDatabase().KeyDeleteAsync([hits, trigger]).ForAwait();
 
             Task[] tasks = new Task[Workers];
             for (int i = 0; i < tasks.Length; i++)

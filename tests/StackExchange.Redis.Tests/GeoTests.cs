@@ -13,7 +13,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         Agrigento = new GeoEntry(13.5765, 37.311, "Agrigento"),
         Cefalù = new GeoEntry(14.0188, 38.0084, "Cefalù");
 
-    private static readonly GeoEntry[] All = { Palermo, Catania, Agrigento, Cefalù };
+    private static readonly GeoEntry[] All = [Palermo, Catania, Agrigento, Cefalù];
 
     [Fact]
     public async Task GeoAdd()
@@ -26,12 +26,12 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
 
         // add while not there
         Assert.True(db.GeoAdd(key, Cefalù.Longitude, Cefalù.Latitude, Cefalù.Member));
-        Assert.Equal(2, db.GeoAdd(key, new[] { Palermo, Catania }));
+        Assert.Equal(2, db.GeoAdd(key, [Palermo, Catania]));
         Assert.True(db.GeoAdd(key, Agrigento));
 
         // now add again
         Assert.False(db.GeoAdd(key, Cefalù.Longitude, Cefalù.Latitude, Cefalù.Member));
-        Assert.Equal(0, db.GeoAdd(key, new[] { Palermo, Catania }));
+        Assert.Equal(0, db.GeoAdd(key, [Palermo, Catania]));
         Assert.False(db.GeoAdd(key, Agrigento));
 
         // Validate
@@ -68,7 +68,7 @@ public class GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.GeoAdd(key, All, CommandFlags.FireAndForget);
 
-        var hashes = db.GeoHash(key, new RedisValue[] { Palermo.Member, "Nowhere", Agrigento.Member });
+        var hashes = db.GeoHash(key, [Palermo.Member, "Nowhere", Agrigento.Member]);
         Assert.NotNull(hashes);
         Assert.Equal(3, hashes.Length);
         Assert.Equal("sqc8b49rny0", hashes[0]);

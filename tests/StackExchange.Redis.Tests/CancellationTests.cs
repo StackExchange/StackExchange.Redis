@@ -38,10 +38,7 @@ public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.Equal("value", result);
     }
 
-    private void Pause(IDatabase db)
-    {
-        db.Execute("client", ["pause", ConnectionPauseMilliseconds], CommandFlags.FireAndForget);
-    }
+    private static void Pause(IDatabase db) => db.Execute("client", ["pause", ConnectionPauseMilliseconds], CommandFlags.FireAndForget);
 
     [Fact]
     public async Task WithTimeout_ShortTimeout_Async_ThrowsOperationCanceledException()

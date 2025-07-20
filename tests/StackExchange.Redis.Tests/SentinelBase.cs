@@ -53,7 +53,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
         SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA)!;
         SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB)!;
         SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC)!;
-        SentinelsServers = new[] { SentinelServerA, SentinelServerB, SentinelServerC };
+        SentinelsServers = [SentinelServerA, SentinelServerB, SentinelServerC];
 
         SentinelServerA.AllowReplicaWrites = true;
         // Wait until we are in a state of a single primary and replica

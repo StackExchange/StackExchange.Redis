@@ -16,8 +16,7 @@ public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
 
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                     new SortedSetEntry("a", 0),
                     new SortedSetEntry("b", 0),
                     new SortedSetEntry("c", 0),
@@ -25,7 +24,7 @@ public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
                     new SortedSetEntry("e", 0),
                     new SortedSetEntry("f", 0),
                     new SortedSetEntry("g", 0),
-            },
+            ],
             CommandFlags.FireAndForget);
 
         var set = db.SortedSetRangeByValue(key, default(RedisValue), "c");
@@ -65,25 +64,23 @@ public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
 
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                     new SortedSetEntry("aaaa", 0),
                     new SortedSetEntry("b", 0),
                     new SortedSetEntry("c", 0),
                     new SortedSetEntry("d", 0),
                     new SortedSetEntry("e", 0),
-            },
+            ],
             CommandFlags.FireAndForget);
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                     new SortedSetEntry("foo", 0),
                     new SortedSetEntry("zap", 0),
                     new SortedSetEntry("zip", 0),
                     new SortedSetEntry("ALPHA", 0),
                     new SortedSetEntry("alpha", 0),
-            },
+            ],
             CommandFlags.FireAndForget);
 
         var set = db.SortedSetRangeByRank(key);

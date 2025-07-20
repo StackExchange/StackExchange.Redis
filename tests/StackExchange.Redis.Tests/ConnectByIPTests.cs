@@ -67,7 +67,7 @@ public class ConnectByIPTests(ITestOutputHelper output) : TestBase(output)
         };
         if (ep.AddressFamily != AddressFamily.InterNetworkV6) // I don't have IPv6 servers
         {
-            using (var conn = ConnectionMultiplexer.Connect(config))
+            await using (var conn = ConnectionMultiplexer.Connect(config))
             {
                 var actual = conn.GetEndPoints().Single();
                 var server = conn.GetServer(actual);

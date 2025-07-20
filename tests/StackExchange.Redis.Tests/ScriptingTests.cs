@@ -37,12 +37,12 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var noCache = db.ScriptEvaluateAsync(
             script: "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
-            keys: new RedisKey[] { "key1", "key2" },
-            values: new RedisValue[] { "first", "second" });
+            keys: ["key1", "key2"],
+            values: ["first", "second"]);
         var cache = db.ScriptEvaluateAsync(
             script: "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
-            keys: new RedisKey[] { "key1", "key2" },
-            values: new RedisValue[] { "first", "second" });
+            keys: ["key1", "key2"],
+            values: ["first", "second"]);
         var results = (string[]?)(await noCache)!;
         Assert.NotNull(results);
         Assert.Equal(4, results.Length);
@@ -68,7 +68,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-        var result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key }, values: null);
+        var result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: [key], values: null);
         Assert.Equal("bar", result);
     }
 
@@ -89,11 +89,11 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         db.StringSet(prefix + "B", "5", flags: CommandFlags.FireAndForget);
         db.StringSet(prefix + "C", "10", flags: CommandFlags.FireAndForget);
 
-        var a = db.ScriptEvaluateAsync(script: Script, keys: new RedisKey[] { prefix + "A" }, values: new RedisValue[] { 6 }).ForAwait();
-        var b = db.ScriptEvaluateAsync(script: Script, keys: new RedisKey[] { prefix + "B" }, values: new RedisValue[] { 6 }).ForAwait();
-        var c = db.ScriptEvaluateAsync(script: Script, keys: new RedisKey[] { prefix + "C" }, values: new RedisValue[] { 6 }).ForAwait();
+        var a = db.ScriptEvaluateAsync(script: Script, keys: [prefix + "A"], values: [6]).ForAwait();
+        var b = db.ScriptEvaluateAsync(script: Script, keys: [prefix + "B"], values: [6]).ForAwait();
+        var c = db.ScriptEvaluateAsync(script: Script, keys: [prefix + "C"], values: [6]).ForAwait();
 
-        var values = await db.StringGetAsync(new RedisKey[] { prefix + "A", prefix + "B", prefix + "C" }).ForAwait();
+        var values = await db.StringGetAsync([prefix + "A", prefix + "B", prefix + "C"]).ForAwait();
 
         Assert.Equal(1, (long)await a); // exit code when current val is non-positive
         Assert.Equal(0, (long)await b); // exit code when result would be negative
@@ -111,7 +111,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var prefix = Me();
         // prime some initial values
-        db.KeyDelete(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, CommandFlags.FireAndForget);
+        db.KeyDelete([prefix + "a", prefix + "b", prefix + "c"], CommandFlags.FireAndForget);
         db.StringIncrement(prefix + "b", flags: CommandFlags.FireAndForget);
         db.StringIncrement(prefix + "c", flags: CommandFlags.FireAndForget);
         db.StringIncrement(prefix + "c", flags: CommandFlags.FireAndForget);
@@ -120,7 +120,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         // increment a & b by 1, c twice
         var result = db.ScriptEvaluateAsync(
             script: "for i,key in ipairs(KEYS) do redis.call('incr', key) end",
-            keys: new RedisKey[] { prefix + "a", prefix + "b", prefix + "c", prefix + "c" }, // <== aka "KEYS" in the script
+            keys: [prefix + "a", prefix + "b", prefix + "c", prefix + "c"], // <== aka "KEYS" in the script
             values: null).ForAwait(); // <== aka "ARGV" in the script
 
         // check the incremented values
@@ -144,7 +144,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var prefix = Me();
         // prime some initial values
-        db.KeyDelete(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, CommandFlags.FireAndForget);
+        db.KeyDelete([prefix + "a", prefix + "b", prefix + "c"], CommandFlags.FireAndForget);
         db.StringIncrement(prefix + "b", flags: CommandFlags.FireAndForget);
         db.StringIncrement(prefix + "c", flags: CommandFlags.FireAndForget);
         db.StringIncrement(prefix + "c", flags: CommandFlags.FireAndForget);
@@ -153,8 +153,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         // increment a & b by 1, c twice
         var result = db.ScriptEvaluateAsync(
             script: "for i,key in ipairs(KEYS) do redis.call('incrby', key, ARGV[i]) end",
-            keys: new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, // <== aka "KEYS" in the script
-            values: new RedisValue[] { 1, 1, 2 }).ForAwait(); // <== aka "ARGV" in the script
+            keys: [prefix + "a", prefix + "b", prefix + "c"], // <== aka "KEYS" in the script
+            values: [1, 1, 2]).ForAwait(); // <== aka "ARGV" in the script
 
         // check the incremented values
         var a = db.StringGetAsync(prefix + "a").ForAwait();
@@ -175,7 +175,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-        var result = (byte[]?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key });
+        var result = (byte[]?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: [key]);
         Assert.NotNull(result);
         Assert.Equal("bar", Encoding.UTF8.GetString(result));
     }
@@ -189,24 +189,24 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var key = Me();
         db.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
-        var result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key }, values: null);
+        var result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: [key], values: null);
         Assert.Equal("bar", result);
 
         // now cause all kinds of problems
         GetServer(conn).ScriptFlush();
 
         // expect this one to <strike>fail</strike> just work fine (self-fix)
-        db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key }, values: null);
+        db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: [key], values: null);
 
-        result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: new RedisKey[] { key }, values: null);
+        result = (string?)db.ScriptEvaluate(script: "return redis.call('get', KEYS[1])", keys: [key], values: null);
         Assert.Equal("bar", result);
     }
 
     [Fact]
-    public void PrepareScript()
+    public async Task PrepareScript()
     {
-        string[] scripts = { "return redis.call('get', KEYS[1])", "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" };
-        using (var conn = GetScriptConn(allowAdmin: true))
+        string[] scripts = ["return redis.call('get', KEYS[1])", "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}"];
+        await using (var conn = GetScriptConn(allowAdmin: true))
         {
             var server = GetServer(conn);
             server.ScriptFlush();
@@ -219,7 +219,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
             server.ScriptLoad(scripts[0]);
             server.ScriptLoad(scripts[1]);
         }
-        using (var conn = GetScriptConn())
+        await using (var conn = GetScriptConn())
         {
             var server = GetServer(conn);
 
@@ -371,15 +371,15 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         var wasSet = (bool)db.ScriptEvaluate(
             script: "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-            keys: new[] { key },
-            values: new[] { newId });
+            keys: [key],
+            values: [newId]);
 
         Assert.True(wasSet);
 
         wasSet = (bool)db.ScriptEvaluate(
             script: "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-            keys: new[] { key },
-            values: new[] { newId });
+            keys: [key],
+            values: [newId]);
         Assert.False(wasSet);
     }
 
@@ -495,7 +495,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        RedisKey[] keys = { key };
+        RedisKey[] keys = [key];
 
         string hexHash = string.Concat(hash.Select(x => x.ToString("X2")));
         Assert.Equal("2BAB3B661081DB58BD2341920E0BA7CF5DC77B25", hexHash);
@@ -554,7 +554,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         }
 
         {
-            var val = prepared.Evaluate(db, new { ident = new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
+            var val = prepared.Evaluate(db, new { ident = new ReadOnlyMemory<byte>([4, 5, 6]) });
             var valArray = (byte[]?)val;
             Assert.NotNull(valArray);
             Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
@@ -574,39 +574,39 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         // Scopes for repeated use
         {
-            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { "hello" });
+            var val = db.ScriptEvaluate(script: Script, values: ["hello"]);
             Assert.Equal("hello", (string?)val);
         }
 
         {
-            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { 123 });
+            var val = db.ScriptEvaluate(script: Script, values: [123]);
             Assert.Equal(123, (int)val);
         }
 
         {
-            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { 123L });
+            var val = db.ScriptEvaluate(script: Script, values: [123L]);
             Assert.Equal(123L, (long)val);
         }
 
         {
-            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { 1.1 });
+            var val = db.ScriptEvaluate(script: Script, values: [1.1]);
             Assert.Equal(1.1, (double)val);
         }
 
         {
-            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { true });
+            var val = db.ScriptEvaluate(script: Script, values: [true]);
             Assert.True((bool)val);
         }
 
         {
-            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { new byte[] { 4, 5, 6 } });
+            var val = db.ScriptEvaluate(script: Script, values: [new byte[] { 4, 5, 6 }]);
             var valArray = (byte[]?)val;
             Assert.NotNull(valArray);
             Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
         }
 
         {
-            var val = db.ScriptEvaluate(script: Script, values: new RedisValue[] { new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
+            var val = db.ScriptEvaluate(script: Script, values: [new ReadOnlyMemory<byte>([4, 5, 6])]);
             var valArray = (byte[]?)val;
             Assert.NotNull(valArray);
             Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
@@ -722,7 +722,7 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         }
 
         {
-            var val = loaded.Evaluate(db, new { ident = new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
+            var val = loaded.Evaluate(db, new { ident = new ReadOnlyMemory<byte>([4, 5, 6]) });
             var valArray = (byte[]?)val;
             Assert.NotNull(valArray);
             Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual(valArray));
@@ -989,7 +989,7 @@ arr[2] = KEYS[1];
 arr[3] = ARGV[2];
 return arr;
 ";
-        var result = (RedisValue[]?)p.ScriptEvaluate(script: Script, keys: new RedisKey[] { "def" }, values: new RedisValue[] { "abc", 123 });
+        var result = (RedisValue[]?)p.ScriptEvaluate(script: Script, keys: ["def"], values: ["abc", 123]);
         Assert.NotNull(result);
         Assert.Equal("abc", result[0]);
         Assert.Equal("prefix/def", result[1]);
@@ -1006,7 +1006,7 @@ return arr;
         LuaScript lua = LuaScript.Prepare("return {@k, @s, @v}");
         var viaArgs = (RedisValue[]?)p.ScriptEvaluate(lua, args);
 
-        var viaArr = (RedisValue[]?)p.ScriptEvaluate(script: "return {KEYS[1], ARGV[1], ARGV[2]}", keys: new[] { args.k }, values: new RedisValue[] { args.s, args.v });
+        var viaArr = (RedisValue[]?)p.ScriptEvaluate(script: "return {KEYS[1], ARGV[1], ARGV[2]}", keys: [args.k], values: [args.s, args.v]);
         Assert.NotNull(viaArr);
         Assert.NotNull(viaArgs);
         Assert.Equal(string.Join(",", viaArr), string.Join(",", viaArgs));
@@ -1058,8 +1058,8 @@ return arr;
         var db = conn.GetDatabase();
 
         string script = "return KEYS[1]";
-        RedisKey[] keys = { "key1" };
-        RedisValue[] values = { "first" };
+        RedisKey[] keys = ["key1"];
+        RedisValue[] values = ["first"];
 
         var result = db.ScriptEvaluateReadOnly(script, keys, values);
         Assert.Equal("key1", result.ToString());
@@ -1072,8 +1072,8 @@ return arr;
         var db = conn.GetDatabase();
 
         string script = "return KEYS[1]";
-        RedisKey[] keys = { "key1" };
-        RedisValue[] values = { "first" };
+        RedisKey[] keys = ["key1"];
+        RedisValue[] values = ["first"];
 
         var result = await db.ScriptEvaluateReadOnlyAsync(script, keys, values);
         Assert.Equal("key1", result.ToString());

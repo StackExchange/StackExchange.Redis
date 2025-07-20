@@ -233,10 +233,12 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             // Queue up some commands
             Log("Test: Disconnected pings");
 
-            Task[] pings = new Task[3];
-            pings[0] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(1));
-            pings[1] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(2));
-            pings[2] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(3));
+            Task[] pings =
+            [
+                RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(1)),
+                RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(2)),
+                RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(3)),
+            ];
             void DisconnectedPings(int id)
             {
                 // No need to delay, we're going to try a disconnected connection immediately so it'll fail...

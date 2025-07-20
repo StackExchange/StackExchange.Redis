@@ -421,7 +421,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var s2 = db.HashExistsAsync(hashkey, "key2");
         var s3 = db.HashExistsAsync(hashkey, "key3");
 
-        var removed = db.HashDeleteAsync(hashkey, new RedisValue[] { "key1", "key3" });
+        var removed = db.HashDeleteAsync(hashkey, ["key1", "key3"]);
 
         var d1 = db.HashExistsAsync(hashkey, "key1");
         var d2 = db.HashExistsAsync(hashkey, "key2");
@@ -437,7 +437,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
         Assert.True(await d2);
         Assert.False(await d3);
 
-        var removeFinal = db.HashDeleteAsync(hashkey, new RedisValue[] { "key2" });
+        var removeFinal = db.HashDeleteAsync(hashkey, ["key2"]);
 
         Assert.Equal(0, await db.HashLengthAsync(hashkey).ForAwait());
         Assert.Equal(1, await removeFinal);
@@ -462,7 +462,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
             var s2 = tran.HashExistsAsync(hashkey, "key2");
             var s3 = tran.HashExistsAsync(hashkey, "key3");
 
-            var removed = tran.HashDeleteAsync(hashkey, new RedisValue[] { "key1", "key3" });
+            var removed = tran.HashDeleteAsync(hashkey, ["key1", "key3"]);
 
             var d1 = tran.HashExistsAsync(hashkey, "key1");
             var d2 = tran.HashExistsAsync(hashkey, "key2");
@@ -592,7 +592,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var hashkey = Me();
         db.KeyDelete(hashkey, CommandFlags.FireAndForget);
 
-        RedisValue[] fields = { "foo", "bar", "blop" };
+        RedisValue[] fields = ["foo", "bar", "blop"];
         var arr0 = await db.HashGetAsync(hashkey, fields).ForAwait();
 
         db.HashSet(hashkey, "foo", "abc", flags: CommandFlags.FireAndForget);

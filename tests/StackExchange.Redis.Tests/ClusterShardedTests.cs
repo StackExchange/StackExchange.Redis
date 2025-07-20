@@ -22,7 +22,7 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
         await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
 
         var pubsub = conn.GetSubscriber();
-        List<(RedisChannel, RedisValue)> received = new();
+        List<(RedisChannel, RedisValue)> received = [];
         var queue = await pubsub.SubscribeAsync(channel);
         _ = Task.Run(async () =>
         {
@@ -77,7 +77,7 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
         await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
 
         var pubsub = conn.GetSubscriber();
-        List<(RedisChannel, RedisValue)> received = new();
+        List<(RedisChannel, RedisValue)> received = [];
         var queue = await pubsub.SubscribeAsync(channel);
         _ = Task.Run(async () =>
         {

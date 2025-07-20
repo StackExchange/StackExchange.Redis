@@ -26,7 +26,7 @@ namespace StackExchange.Redis.Tests.Issues
             var tasks = new List<Task>();
             var batch = db.CreateBatch();
             tasks.Add(batch.SortedSetAddAsync(key2, "a", 4567));
-            tasks.Add(batch.SortedSetCombineAndStoreAsync(SetOperation.Intersect, keyIntersect, new RedisKey[] { key, key2 }));
+            tasks.Add(batch.SortedSetCombineAndStoreAsync(SetOperation.Intersect, keyIntersect, [key, key2]));
             var rangeByRankTask = batch.SortedSetRangeByRankAsync(keyIntersect);
             tasks.Add(rangeByRankTask);
             batch.Execute();
@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Tests.Issues
             var tasks = new List<Task>();
             var batch = db.CreateTransaction();
             tasks.Add(batch.SortedSetAddAsync(key2, "a", 4567));
-            tasks.Add(batch.SortedSetCombineAndStoreAsync(SetOperation.Intersect, keyIntersect, new RedisKey[] { key, key2 }));
+            tasks.Add(batch.SortedSetCombineAndStoreAsync(SetOperation.Intersect, keyIntersect, [key, key2]));
             var rangeByRankTask = batch.SortedSetRangeByRankAsync(keyIntersect);
             tasks.Add(rangeByRankTask);
             batch.Execute();

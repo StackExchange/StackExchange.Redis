@@ -9,17 +9,17 @@ namespace StackExchange.Redis.Tests;
 public class PerformanceTests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact]
-    public void VerifyPerformanceImprovement()
+    public async Task VerifyPerformanceImprovement()
     {
         Skip.UnlessLongRunning();
         int asyncTimer, sync, op = 0, asyncFaF, syncFaF;
         var key = Me();
-        using (var conn = Create())
+        await using (var conn = Create())
         {
             // do these outside the timings, just to ensure the core methods are JITted etc
             for (int dbId = 0; dbId < 5; dbId++)
             {
-                conn.GetDatabase(dbId).KeyDeleteAsync(key);
+                _ = conn.GetDatabase(dbId).KeyDeleteAsync(key);
             }
 
             var timer = Stopwatch.StartNew();
@@ -31,7 +31,9 @@ public class PerformanceTests(ITestOutputHelper output) : TestBase(output)
                 {
                     var db = conn.GetDatabase(dbId);
                     for (int j = 0; j < 10; j++)
-                        db.StringIncrementAsync(key);
+                    {
+                        _ = db.StringIncrementAsync(key);
+                    }
                 }
             }
             asyncFaF = (int)timer.ElapsedMilliseconds;

@@ -27,7 +27,7 @@ public class HyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         var db = conn.GetDatabase();
-        RedisKey[] keys = { "hll1", "hll2", "hll3" };
+        RedisKey[] keys = ["hll1", "hll2", "hll3"];
 
         db.HyperLogLogAdd(keys[0], "a");
         db.HyperLogLogAdd(keys[1], "b");

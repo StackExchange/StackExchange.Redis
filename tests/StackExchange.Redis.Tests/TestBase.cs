@@ -133,8 +133,8 @@ public abstract class TestBase : IDisposable
     private static readonly AsyncLocal<int> sharedFailCount = new AsyncLocal<int>();
     private volatile int expectedFailCount;
 
-    private readonly List<string> privateExceptions = new List<string>();
-    private static readonly List<string> backgroundExceptions = new List<string>();
+    private readonly List<string> privateExceptions = [];
+    private static readonly List<string> backgroundExceptions = [];
 
     public void ClearAmbientFailures()
     {
@@ -258,11 +258,11 @@ public abstract class TestBase : IDisposable
             configuration = GetConfiguration();
             var fixtureConn = _fixture.GetConnection(this, protocol.Value, caller: caller);
             // Only return if we match
-            ThrowIfIncorrectProtocol(fixtureConn, protocol);
+            TestBase.ThrowIfIncorrectProtocol(fixtureConn, protocol);
 
             if (configuration == _fixture.Configuration)
             {
-                ThrowIfBelowMinVersion(fixtureConn, require);
+                TestBase.ThrowIfBelowMinVersion(fixtureConn, require);
                 return fixtureConn;
             }
         }
@@ -293,8 +293,8 @@ public abstract class TestBase : IDisposable
             highIntegrity,
             caller);
 
-        ThrowIfIncorrectProtocol(conn, protocol);
-        ThrowIfBelowMinVersion(conn, require);
+        TestBase.ThrowIfIncorrectProtocol(conn, protocol);
+        TestBase.ThrowIfBelowMinVersion(conn, require);
 
         conn.InternalError += OnInternalError;
         conn.ConnectionFailed += OnConnectionFailed;
@@ -328,7 +328,7 @@ public abstract class TestBase : IDisposable
             && backlogPolicy == null
             && !highIntegrity;
 
-    internal void ThrowIfIncorrectProtocol(IInternalConnectionMultiplexer conn, RedisProtocol? requiredProtocol)
+    internal static void ThrowIfIncorrectProtocol(IInternalConnectionMultiplexer conn, RedisProtocol? requiredProtocol)
     {
         if (requiredProtocol is null)
         {
@@ -342,7 +342,7 @@ public abstract class TestBase : IDisposable
         }
     }
 
-    internal void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
+    internal static void ThrowIfBelowMinVersion(IInternalConnectionMultiplexer conn, Version? requiredVersion)
     {
         if (requiredVersion is null)
         {
@@ -389,11 +389,11 @@ public abstract class TestBase : IDisposable
             var config = ConfigurationOptions.Parse(configuration);
             if (disabledCommands != null && disabledCommands.Length != 0)
             {
-                config.CommandMap = CommandMap.Create(new HashSet<string>(disabledCommands), false);
+                config.CommandMap = CommandMap.Create([.. disabledCommands], false);
             }
             else if (enabledCommands != null && enabledCommands.Length != 0)
             {
-                config.CommandMap = CommandMap.Create(new HashSet<string>(enabledCommands), true);
+                config.CommandMap = CommandMap.Create([.. enabledCommands], true);
             }
 
             if (Debugger.IsAttached)
@@ -477,9 +477,19 @@ public abstract class TestBase : IDisposable
 
     protected TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string? caller = null)
     {
-        if (work == null) throw new ArgumentNullException(nameof(work));
-        if (threads < 1) throw new ArgumentOutOfRangeException(nameof(threads));
-        if (string.IsNullOrWhiteSpace(caller)) caller = Me();
+        if (work == null)
+        {
+            throw new ArgumentNullException(nameof(work));
+        }
+        if (threads < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(threads));
+        }
+        if (string.IsNullOrWhiteSpace(caller))
+        {
+            caller = Me();
+        }
+
         Stopwatch? watch = null;
         ManualResetEvent allDone = new ManualResetEvent(false);
         object token = new object();

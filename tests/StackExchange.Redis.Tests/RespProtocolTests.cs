@@ -331,10 +331,10 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
                     await db.StringSetAsync("ikey", "40");
                     break;
                 case "skey":
-                    await db.SetAddAsync("skey", new RedisValue[] { "a", "b", "c" });
+                    await db.SetAddAsync("skey", ["a", "b", "c"]);
                     break;
                 case "hkey":
-                    await db.HashSetAsync("hkey", new HashEntry[] { new("a", 1), new("b", 2), new("c", 3) });
+                    await db.HashSetAsync("hkey", [new("a", 1), new("b", 2), new("c", 3)]);
                     break;
             }
         }

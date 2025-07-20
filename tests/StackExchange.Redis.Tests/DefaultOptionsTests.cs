@@ -196,7 +196,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
         // CLIENT SETINFO is in 7.2.0+
-        ThrowIfBelowMinVersion(conn, RedisFeatures.v7_2_0_rc1);
+        TestBase.ThrowIfBelowMinVersion(conn, RedisFeatures.v7_2_0_rc1);
 
         var clients = await GetServer(conn).ClientListAsync();
         foreach (var client in clients)

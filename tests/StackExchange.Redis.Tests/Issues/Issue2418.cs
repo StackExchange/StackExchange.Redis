@@ -16,11 +16,7 @@ public class Issue2418(ITestOutputHelper output, SharedConnectionFixture? fixtur
         RedisValue someInt = 12;
         Assert.False(someInt.IsNullOrEmpty, nameof(someInt.IsNullOrEmpty) + " before");
         Assert.True(someInt.IsInteger, nameof(someInt.IsInteger) + " before");
-        await db.HashSetAsync(key, new[]
-        {
-            new HashEntry("some_int", someInt),
-            // ...
-        });
+        await db.HashSetAsync(key, [new HashEntry("some_int", someInt)]);
 
         // check we can fetch it
         var entry = await db.HashGetAllAsync(key);

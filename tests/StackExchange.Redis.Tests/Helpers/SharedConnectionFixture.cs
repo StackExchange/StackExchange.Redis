@@ -255,7 +255,7 @@ public class SharedConnectionFixture : IDisposable
             privateExceptions.Add($"{TestBase.Time()}: Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
         }
     }
-    private readonly List<string> privateExceptions = new List<string>();
+    private readonly List<string> privateExceptions = [];
     private int privateFailCount;
 
     public void Teardown(TextWriter output)

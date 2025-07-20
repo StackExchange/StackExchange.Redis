@@ -1,15 +1,9 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
-
-public class HighIntegrityBasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : BasicOpsTests(output, fixture)
-{
-    internal override bool HighIntegrity => true;
-}
 
 public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
@@ -430,7 +424,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
         _ = db.StringSetAsync(key1, "Heyyyyy");
         _ = db.StringSetAsync(key2, "Heyyyyy");
         // key 3 not set
-        var ku1 = db.KeyDelete(new RedisKey[] { key1, key2, key3 });
+        var ku1 = db.KeyDelete([key1, key2, key3]);
         var ke1 = db.KeyExistsAsync(key1).ForAwait();
         var ke2 = db.KeyExistsAsync(key2).ForAwait();
         Assert.Equal(2, ku1);
@@ -449,7 +443,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
         _ = db.StringSetAsync(key1, "Heyyyyy");
         _ = db.StringSetAsync(key2, "Heyyyyy");
         // key 3 not set
-        var ku1 = db.KeyDeleteAsync(new RedisKey[] { key1, key2, key3 }).ForAwait();
+        var ku1 = db.KeyDeleteAsync([key1, key2, key3]).ForAwait();
         var ke1 = db.KeyExistsAsync(key1).ForAwait();
         var ke2 = db.KeyExistsAsync(key2).ForAwait();
         Assert.Equal(2, await ku1);

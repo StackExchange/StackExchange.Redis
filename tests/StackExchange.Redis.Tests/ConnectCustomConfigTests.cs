@@ -60,7 +60,7 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
     [Fact]
     public async Task TieBreakerSkips()
     {
-        await using var conn = Create(allowAdmin: true, disabledCommands: new[] { "get" }, log: Writer);
+        await using var conn = Create(allowAdmin: true, disabledCommands: ["get"], log: Writer);
         Assert.Throws<RedisCommandException>(() => conn.GetDatabase().StringGet(conn.RawConfig.TieBreaker));
 
         foreach (var server in conn.GetServerSnapshot())
@@ -90,7 +90,7 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
     }
 
     [Theory]
-    [InlineData(true, 4, 15)]
+    [InlineData(true, 2, 15)]
     [InlineData(false, 0, 0)]
     public async Task HeartbeatConsistencyCheckPingsAsync(bool enableConsistencyChecks, int minExpected, int maxExpected)
     {

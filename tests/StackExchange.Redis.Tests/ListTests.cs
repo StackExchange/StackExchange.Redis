@@ -50,7 +50,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        var result = db.ListLeftPush(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
+        var result = db.ListLeftPush(key, ["testvalue"], When.Exists, CommandFlags.None);
         Assert.Equal(0, result);
     }
 
@@ -63,9 +63,9 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = db.ListLeftPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = db.ListLeftPush(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = db.ListLeftPush(key, new RedisValue[] { "testvalue2" }, When.Exists, CommandFlags.None);
+        var pushXResult = db.ListLeftPush(key, ["testvalue2"], When.Exists, CommandFlags.None);
         Assert.Equal(2, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -83,9 +83,9 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = db.ListLeftPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = db.ListLeftPush(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = db.ListLeftPush(key, new RedisValue[] { "testvalue2", "testvalue3" }, When.Exists, CommandFlags.None);
+        var pushXResult = db.ListLeftPush(key, ["testvalue2", "testvalue3"], When.Exists, CommandFlags.None);
         Assert.Equal(3, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -115,7 +115,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        var result = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
+        var result = await db.ListLeftPushAsync(key, ["testvalue"], When.Exists, CommandFlags.None);
         Assert.Equal(0, result);
     }
 
@@ -128,9 +128,9 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = await db.ListLeftPushAsync(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue2" }, When.Exists, CommandFlags.None);
+        var pushXResult = await db.ListLeftPushAsync(key, ["testvalue2"], When.Exists, CommandFlags.None);
         Assert.Equal(2, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -148,9 +148,9 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = await db.ListLeftPushAsync(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue2", "testvalue3" }, When.Exists, CommandFlags.None);
+        var pushXResult = await db.ListLeftPushAsync(key, ["testvalue2", "testvalue3"], When.Exists, CommandFlags.None);
         Assert.Equal(3, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -180,7 +180,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        var result = db.ListRightPush(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
+        var result = db.ListRightPush(key, ["testvalue"], When.Exists, CommandFlags.None);
         Assert.Equal(0, result);
     }
 
@@ -193,9 +193,9 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = db.ListRightPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = db.ListRightPush(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = db.ListRightPush(key, new RedisValue[] { "testvalue2" }, When.Exists, CommandFlags.None);
+        var pushXResult = db.ListRightPush(key, ["testvalue2"], When.Exists, CommandFlags.None);
         Assert.Equal(2, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -213,9 +213,9 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = db.ListRightPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = db.ListRightPush(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = db.ListRightPush(key, new RedisValue[] { "testvalue2", "testvalue3" }, When.Exists, CommandFlags.None);
+        var pushXResult = db.ListRightPush(key, ["testvalue2", "testvalue3"], When.Exists, CommandFlags.None);
         Assert.Equal(3, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -245,7 +245,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        var result = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
+        var result = await db.ListRightPushAsync(key, ["testvalue"], When.Exists, CommandFlags.None);
         Assert.Equal(0, result);
     }
 
@@ -258,9 +258,9 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = await db.ListRightPushAsync(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue2" }, When.Exists, CommandFlags.None);
+        var pushXResult = await db.ListRightPushAsync(key, ["testvalue2"], When.Exists, CommandFlags.None);
         Assert.Equal(2, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -278,9 +278,9 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = await db.ListRightPushAsync(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue2", "testvalue3" }, When.Exists, CommandFlags.None);
+        var pushXResult = await db.ListRightPushAsync(key, ["testvalue2", "testvalue3"], When.Exists, CommandFlags.None);
         Assert.Equal(3, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -300,7 +300,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         RedisKey dest = Me() + "dest";
         db.KeyDelete(src, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListRightPushAsync(src, new RedisValue[] { "testvalue1", "testvalue2" });
+        var pushResult = await db.ListRightPushAsync(src, ["testvalue1", "testvalue2"]);
         Assert.Equal(2, pushResult);
 
         var rangeResult1 = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
@@ -844,13 +844,13 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         db.ListLeftPush(key, "red sox");
         db.ListLeftPush(key, "rays");
 
-        var res = await db.ListLeftPopAsync(new RedisKey[] { key }, 1);
+        var res = await db.ListLeftPopAsync([key], 1);
 
         Assert.False(res.IsNull);
         Assert.Single(res.Values);
         Assert.Equal("rays", res.Values[0]);
 
-        res = await db.ListRightPopAsync(new RedisKey[] { key }, 2);
+        res = await db.ListRightPopAsync([key], 2);
 
         Assert.False(res.IsNull);
         Assert.Equal(2, res.Values.Length);
@@ -873,14 +873,14 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         db.ListLeftPush(key, "red sox");
         db.ListLeftPush(key, "rays");
 
-        var res = await db.ListLeftPopAsync(new RedisKey[] { "empty-key", key, "also-empty" }, 2);
+        var res = await db.ListLeftPopAsync(["empty-key", key, "also-empty"], 2);
 
         Assert.False(res.IsNull);
         Assert.Equal(2, res.Values.Length);
         Assert.Equal("rays", res.Values[0]);
         Assert.Equal("red sox", res.Values[1]);
 
-        res = await db.ListRightPopAsync(new RedisKey[] { "empty-key", key, "also-empty" }, 1);
+        res = await db.ListRightPopAsync(["empty-key", key, "also-empty"], 1);
 
         Assert.False(res.IsNull);
         Assert.Single(res.Values);
@@ -902,13 +902,13 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         db.ListLeftPush(key, "red sox");
         db.ListLeftPush(key, "rays");
 
-        var res = db.ListLeftPop(new RedisKey[] { key }, 1);
+        var res = db.ListLeftPop([key], 1);
 
         Assert.False(res.IsNull);
         Assert.Single(res.Values);
         Assert.Equal("rays", res.Values[0]);
 
-        res = db.ListRightPop(new RedisKey[] { key }, 2);
+        res = db.ListRightPop([key], 2);
 
         Assert.False(res.IsNull);
         Assert.Equal(2, res.Values.Length);
@@ -925,7 +925,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var key = Me();
         db.KeyDelete(key);
 
-        var exception = await Assert.ThrowsAsync<RedisServerException>(() => db.ListLeftPopAsync(new RedisKey[] { key }, 0));
+        var exception = await Assert.ThrowsAsync<RedisServerException>(() => db.ListLeftPopAsync([key], 0));
         Assert.Contains("ERR count should be greater than 0", exception.Message);
     }
 
@@ -938,7 +938,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var key = Me();
         db.KeyDelete(key);
 
-        var res = await db.ListLeftPopAsync(new RedisKey[] { key }, 1);
+        var res = await db.ListLeftPopAsync([key], 1);
         Assert.True(res.IsNull);
     }
 

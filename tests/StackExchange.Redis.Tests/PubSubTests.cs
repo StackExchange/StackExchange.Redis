@@ -59,7 +59,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
         await PingAsync(pub, sub).ForAwait();
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
         string subChannel = (wildCard ? "a*c" : "abc") + breaker;
         string pubChannel = "abc" + breaker;
@@ -146,7 +146,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var sub = conn.GetSubscriber();
 
         RedisChannel key = RedisChannel.Literal(Me() + Guid.NewGuid());
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
         await PingAsync(pub, sub).ForAwait();
         sub.Subscribe(
@@ -219,7 +219,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
 
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
 #pragma warning disable CS0618
         sub.Subscribe("a*c", (channel, payload) =>
@@ -418,7 +418,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task PubSubGetAllCorrectOrder()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -488,7 +488,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Sync()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -554,7 +554,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Async()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -797,7 +797,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         using (var connection = await ConnectionMultiplexer.ConnectAsync(options))
         {
-            connection.ServerMaintenanceEvent += (object? _, ServerMaintenanceEvent e) =>
+            connection.ServerMaintenanceEvent += (_, e) =>
             {
                 if (e is AzureMaintenanceEvent)
                 {

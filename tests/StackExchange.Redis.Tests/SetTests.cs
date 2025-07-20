@@ -26,7 +26,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         Assert.True(isMemeber);
 
         // Multi members
-        var areMemebers = db.SetContains(key, new RedisValue[] { 0, 1, 2 });
+        var areMemebers = db.SetContains(key, [0, 1, 2]);
         Assert.Equal(3, areMemebers.Length);
         Assert.False(areMemebers[0]);
         Assert.True(areMemebers[1]);
@@ -35,7 +35,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         db.KeyDelete(key);
         isMemeber = db.SetContains(key, 1);
         Assert.False(isMemeber);
-        areMemebers = db.SetContains(key, new RedisValue[] { 0, 1, 2 });
+        areMemebers = db.SetContains(key, [0, 1, 2]);
         Assert.Equal(3, areMemebers.Length);
         Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
     }
@@ -58,7 +58,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         Assert.True(isMemeber);
 
         // Multi members
-        var areMemebers = await db.SetContainsAsync(key, new RedisValue[] { 0, 1, 2 });
+        var areMemebers = await db.SetContainsAsync(key, [0, 1, 2]);
         Assert.Equal(3, areMemebers.Length);
         Assert.False(areMemebers[0]);
         Assert.True(areMemebers[1]);
@@ -67,7 +67,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         await db.KeyDeleteAsync(key);
         isMemeber = await db.SetContainsAsync(key, 1);
         Assert.False(isMemeber);
-        areMemebers = await db.SetContainsAsync(key, new RedisValue[] { 0, 1, 2 });
+        areMemebers = await db.SetContainsAsync(key, [0, 1, 2]);
         Assert.Equal(3, areMemebers.Length);
         Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
     }
@@ -81,21 +81,21 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
-        db.SetAdd(key1, new RedisValue[] { 0, 1, 2, 3, 4 }, CommandFlags.FireAndForget);
+        db.SetAdd(key1, [0, 1, 2, 3, 4], CommandFlags.FireAndForget);
         var key2 = Me() + "2";
         db.KeyDelete(key2, CommandFlags.FireAndForget);
-        db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
+        db.SetAdd(key2, [1, 2, 3, 4, 5], CommandFlags.FireAndForget);
 
-        Assert.Equal(4, db.SetIntersectionLength(new RedisKey[] { key1, key2 }));
+        Assert.Equal(4, db.SetIntersectionLength([key1, key2]));
         // with limit
-        Assert.Equal(3, db.SetIntersectionLength(new RedisKey[] { key1, key2 }, 3));
+        Assert.Equal(3, db.SetIntersectionLength([key1, key2], 3));
 
         // Missing keys should be 0
         var key3 = Me() + "3";
         var key4 = Me() + "4";
         db.KeyDelete(key3, CommandFlags.FireAndForget);
-        Assert.Equal(0, db.SetIntersectionLength(new RedisKey[] { key1, key3 }));
-        Assert.Equal(0, db.SetIntersectionLength(new RedisKey[] { key3, key4 }));
+        Assert.Equal(0, db.SetIntersectionLength([key1, key3]));
+        Assert.Equal(0, db.SetIntersectionLength([key3, key4]));
     }
 
     [Fact]
@@ -107,21 +107,21 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
-        db.SetAdd(key1, new RedisValue[] { 0, 1, 2, 3, 4 }, CommandFlags.FireAndForget);
+        db.SetAdd(key1, [0, 1, 2, 3, 4], CommandFlags.FireAndForget);
         var key2 = Me() + "2";
         db.KeyDelete(key2, CommandFlags.FireAndForget);
-        db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
+        db.SetAdd(key2, [1, 2, 3, 4, 5], CommandFlags.FireAndForget);
 
-        Assert.Equal(4, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key2 }));
+        Assert.Equal(4, await db.SetIntersectionLengthAsync([key1, key2]));
         // with limit
-        Assert.Equal(3, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key2 }, 3));
+        Assert.Equal(3, await db.SetIntersectionLengthAsync([key1, key2], 3));
 
         // Missing keys should be 0
         var key3 = Me() + "3";
         var key4 = Me() + "4";
         db.KeyDelete(key3, CommandFlags.FireAndForget);
-        Assert.Equal(0, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key3 }));
-        Assert.Equal(0, await db.SetIntersectionLengthAsync(new RedisKey[] { key3, key4 }));
+        Assert.Equal(0, await db.SetIntersectionLengthAsync([key1, key3]));
+        Assert.Equal(0, await db.SetIntersectionLengthAsync([key3, key4]));
     }
 
     [Fact]

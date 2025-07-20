@@ -28,10 +28,10 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
         _ = server.LatencyReset();
-        var count = await server.LatencyResetAsync(new[] { "command" });
+        var count = await server.LatencyResetAsync(["command"]);
         Assert.Equal(0, count);
 
-        count = await server.LatencyResetAsync(new[] { "command", "fast-command" });
+        count = await server.LatencyResetAsync(["command", "fast-command"]);
         Assert.Equal(0, count);
     }
 

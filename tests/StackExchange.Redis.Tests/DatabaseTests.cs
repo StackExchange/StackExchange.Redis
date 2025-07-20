@@ -24,10 +24,10 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
         await using var conn = Create();
         var server = GetAnyPrimary(conn);
 
-        RedisValue[] command = { "MSET", "a", "b", "c", "d", "e", "f" };
+        RedisValue[] command = ["MSET", "a", "b", "c", "d", "e", "f"];
 
         RedisKey[] keys = server.CommandGetKeys(command);
-        RedisKey[] expected = { "a", "c", "e" };
+        RedisKey[] expected = ["a", "c", "e"];
         Assert.Equal(keys, expected);
 
         keys = await server.CommandGetKeysAsync(command);
@@ -69,7 +69,7 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
     {
         var db1Id = TestConfig.GetDedicatedDB();
         var db2Id = TestConfig.GetDedicatedDB();
-        using (var conn = Create(allowAdmin: true))
+        await using (var conn = Create(allowAdmin: true))
         {
             Skip.IfMissingDatabase(conn, db1Id);
             Skip.IfMissingDatabase(conn, db2Id);
@@ -77,7 +77,7 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
             server.FlushDatabase(db1Id, CommandFlags.FireAndForget);
             server.FlushDatabase(db2Id, CommandFlags.FireAndForget);
         }
-        using (var conn = Create(defaultDatabase: db2Id))
+        await using (var conn = Create(defaultDatabase: db2Id))
         {
             Skip.IfMissingDatabase(conn, db1Id);
             Skip.IfMissingDatabase(conn, db2Id);
