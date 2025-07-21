@@ -4,23 +4,19 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class StreamTests : TestBase
+public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public StreamTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     public override string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
         base.Me(filePath, caller) + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     [Fact]
-    public void IsStreamType()
+    public async Task IsStreamType()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -32,9 +28,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamAddSinglePairWithAutoId()
+    public async Task StreamAddSinglePairWithAutoId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -44,9 +40,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamAddMultipleValuePairsWithAutoId()
+    public async Task StreamAddMultipleValuePairsWithAutoId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -72,9 +68,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamAddWithManualId()
+    public async Task StreamAddWithManualId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string id = "42-0";
@@ -86,9 +82,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamAddMultipleValuePairsWithManualId()
+    public async Task StreamAddMultipleValuePairsWithManualId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string id = "42-0";
@@ -112,7 +108,7 @@ public class StreamTests : TestBase
     [Fact]
     public async Task StreamAutoClaim_MissingKey()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -129,9 +125,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamAutoClaim_ClaimsPendingMessages()
+    public async Task StreamAutoClaim_ClaimsPendingMessages()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -148,7 +144,7 @@ public class StreamTests : TestBase
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 2);
+        Assert.Equal(2, result.ClaimedEntries.Length);
         Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
         Assert.Equal("value2", result.ClaimedEntries[1].Values[0].Value);
     }
@@ -156,7 +152,7 @@ public class StreamTests : TestBase
     [Fact]
     public async Task StreamAutoClaim_ClaimsPendingMessagesAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -173,15 +169,15 @@ public class StreamTests : TestBase
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 2);
+        Assert.Equal(2, result.ClaimedEntries.Length);
         Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
         Assert.Equal("value2", result.ClaimedEntries[1].Values[0].Value);
     }
 
     [Fact]
-    public void StreamAutoClaim_ClaimsSingleMessageWithCountOption()
+    public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOption()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -199,14 +195,14 @@ public class StreamTests : TestBase
         Assert.Equal(messageIds[1], result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 1);
+        Assert.Single(result.ClaimedEntries);
         Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
     }
 
     [Fact]
-    public void StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnly()
+    public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnly()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -223,7 +219,7 @@ public class StreamTests : TestBase
         // Should be the second message ID from the call to prepare.
         Assert.Equal(messageIds[1], result.NextStartId);
         Assert.NotEmpty(result.ClaimedIds);
-        Assert.True(result.ClaimedIds.Length == 1);
+        Assert.Single(result.ClaimedIds);
         Assert.Equal(messageIds[0], result.ClaimedIds[0]);
         Assert.Empty(result.DeletedIds);
     }
@@ -231,7 +227,7 @@ public class StreamTests : TestBase
     [Fact]
     public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -249,14 +245,14 @@ public class StreamTests : TestBase
         Assert.Equal(messageIds[1], result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 1);
+        Assert.Single(result.ClaimedEntries);
         Assert.Equal("value1", result.ClaimedEntries[0].Values[0].Value);
     }
 
     [Fact]
     public async Task StreamAutoClaim_ClaimsSingleMessageWithCountOptionIdsOnlyAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -273,15 +269,15 @@ public class StreamTests : TestBase
         // Should be the second message ID from the call to prepare.
         Assert.Equal(messageIds[1], result.NextStartId);
         Assert.NotEmpty(result.ClaimedIds);
-        Assert.True(result.ClaimedIds.Length == 1);
+        Assert.Single(result.ClaimedIds);
         Assert.Equal(messageIds[0], result.ClaimedIds[0]);
         Assert.Empty(result.DeletedIds);
     }
 
     [Fact]
-    public void StreamAutoClaim_IncludesDeletedMessageId()
+    public async Task StreamAutoClaim_IncludesDeletedMessageId()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -293,7 +289,7 @@ public class StreamTests : TestBase
         var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
 
         // Delete one of the messages, it should be included in the deleted message ID array.
-        db.StreamDelete(key, new RedisValue[] { messageIds[0] });
+        db.StreamDelete(key, [messageIds[0]]);
 
         // Claim a single pending message and reassign it to consumer2.
         var result = db.StreamAutoClaim(key, group, consumer2, 0, "0-0", count: 2);
@@ -301,15 +297,15 @@ public class StreamTests : TestBase
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.NotEmpty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 1);
-        Assert.True(result.DeletedIds.Length == 1);
+        Assert.Single(result.ClaimedEntries);
+        Assert.Single(result.DeletedIds);
         Assert.Equal(messageIds[0], result.DeletedIds[0]);
     }
 
     [Fact]
     public async Task StreamAutoClaim_IncludesDeletedMessageIdAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -321,7 +317,7 @@ public class StreamTests : TestBase
         var messageIds = StreamAutoClaim_PrepareTestData(db, key, group, consumer1);
 
         // Delete one of the messages, it should be included in the deleted message ID array.
-        db.StreamDelete(key, new RedisValue[] { messageIds[0] });
+        db.StreamDelete(key, [messageIds[0]]);
 
         // Claim a single pending message and reassign it to consumer2.
         var result = await db.StreamAutoClaimAsync(key, group, consumer2, 0, "0-0", count: 2);
@@ -329,15 +325,15 @@ public class StreamTests : TestBase
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedEntries);
         Assert.NotEmpty(result.DeletedIds);
-        Assert.True(result.ClaimedEntries.Length == 1);
-        Assert.True(result.DeletedIds.Length == 1);
+        Assert.Single(result.ClaimedEntries);
+        Assert.Single(result.DeletedIds);
         Assert.Equal(messageIds[0], result.DeletedIds[0]);
     }
 
     [Fact]
-    public void StreamAutoClaim_NoMessagesToClaim()
+    public async Task StreamAutoClaim_NoMessagesToClaim()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -361,7 +357,7 @@ public class StreamTests : TestBase
     [Fact]
     public async Task StreamAutoClaim_NoMessagesToClaimAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -383,9 +379,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamAutoClaim_NoMessageMeetsMinIdleTime()
+    public async Task StreamAutoClaim_NoMessageMeetsMinIdleTime()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -407,7 +403,7 @@ public class StreamTests : TestBase
     [Fact]
     public async Task StreamAutoClaim_NoMessageMeetsMinIdleTimeAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -427,9 +423,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamAutoClaim_ReturnsMessageIdOnly()
+    public async Task StreamAutoClaim_ReturnsMessageIdOnly()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -446,7 +442,7 @@ public class StreamTests : TestBase
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedIds);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedIds.Length == 2);
+        Assert.Equal(2, result.ClaimedIds.Length);
         Assert.Equal(messageIds[0], result.ClaimedIds[0]);
         Assert.Equal(messageIds[1], result.ClaimedIds[1]);
     }
@@ -454,7 +450,7 @@ public class StreamTests : TestBase
     [Fact]
     public async Task StreamAutoClaim_ReturnsMessageIdOnlyAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -471,12 +467,12 @@ public class StreamTests : TestBase
         Assert.Equal("0-0", result.NextStartId);
         Assert.NotEmpty(result.ClaimedIds);
         Assert.Empty(result.DeletedIds);
-        Assert.True(result.ClaimedIds.Length == 2);
+        Assert.Equal(2, result.ClaimedIds.Length);
         Assert.Equal(messageIds[0], result.ClaimedIds[0]);
         Assert.Equal(messageIds[1], result.ClaimedIds[1]);
     }
 
-    private RedisValue[] StreamAutoClaim_PrepareTestData(IDatabase db, RedisKey key, RedisValue group, RedisValue consumer)
+    private static RedisValue[] StreamAutoClaim_PrepareTestData(IDatabase db, RedisKey key, RedisValue group, RedisValue consumer)
     {
         // Create the group.
         db.KeyDelete(key);
@@ -489,13 +485,13 @@ public class StreamTests : TestBase
         // Read the messages into the "c1"
         db.StreamReadGroup(key, group, consumer);
 
-        return new RedisValue[2] { id1, id2 };
+        return [id1, id2];
     }
 
     [Fact]
-    public void StreamConsumerGroupSetId()
+    public async Task StreamConsumerGroupSetId()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -524,9 +520,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupWithNoConsumers()
+    public async Task StreamConsumerGroupWithNoConsumers()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -545,9 +541,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamCreateConsumerGroup()
+    public async Task StreamCreateConsumerGroup()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -563,9 +559,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamCreateConsumerGroupBeforeCreatingStream()
+    public async Task StreamCreateConsumerGroupBeforeCreatingStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -584,9 +580,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamCreateConsumerGroupFailsIfKeyDoesntExist()
+    public async Task StreamCreateConsumerGroupFailsIfKeyDoesntExist()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -601,9 +597,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamCreateConsumerGroupSucceedsWhenKeyExists()
+    public async Task StreamCreateConsumerGroupSucceedsWhenKeyExists()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -622,9 +618,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupReadOnlyNewMessagesWithEmptyResponse()
+    public async Task StreamConsumerGroupReadOnlyNewMessagesWithEmptyResponse()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -644,9 +640,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupReadFromStreamBeginning()
+    public async Task StreamConsumerGroupReadFromStreamBeginning()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -665,9 +661,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupReadFromStreamBeginningWithCount()
+    public async Task StreamConsumerGroupReadFromStreamBeginningWithCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -690,9 +686,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupAcknowledgeMessage()
+    public async Task StreamConsumerGroupAcknowledgeMessage()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -715,7 +711,7 @@ public class StreamTests : TestBase
         var oneAck = db.StreamAcknowledge(key, groupName, id1);
 
         // Multiple message Id overload.
-        var twoAck = db.StreamAcknowledge(key, groupName, new[] { id3, id4 });
+        var twoAck = db.StreamAcknowledge(key, groupName, [id3, id4]);
 
         // Read the group again, it should only return the unacknowledged message.
         var notAcknowledged = db.StreamReadGroup(key, groupName, consumer, "0-0");
@@ -728,9 +724,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupClaimMessages()
+    public async Task StreamConsumerGroupClaimMessages()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -778,9 +774,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupClaimMessagesReturningIds()
+    public async Task StreamConsumerGroupClaimMessagesReturningIds()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -826,14 +822,14 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupReadMultipleOneReadBeginningOneReadNew()
+    public async Task StreamConsumerGroupReadMultipleOneReadBeginningOneReadNew()
     {
         // Create a group for each stream. One set to read from the beginning of the
         // stream and the other to begin reading only new messages.
 
         // Ask redis to read from the beginning of both stream, expect messages
         // for only the stream set to read from the beginning.
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
@@ -870,9 +866,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpectNoResult()
+    public async Task StreamConsumerGroupReadMultipleOnlyNewMessagesExpectNoResult()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
@@ -902,9 +898,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpect1Result()
+    public async Task StreamConsumerGroupReadMultipleOnlyNewMessagesExpect1Result()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
@@ -941,9 +937,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupReadMultipleRestrictCount()
+    public async Task StreamConsumerGroupReadMultipleRestrictCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";
@@ -979,9 +975,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupViewPendingInfoNoConsumers()
+    public async Task StreamConsumerGroupViewPendingInfoNoConsumers()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1001,9 +997,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupViewPendingInfoWhenNothingPending()
+    public async Task StreamConsumerGroupViewPendingInfoWhenNothingPending()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1024,9 +1020,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupViewPendingInfoSummary()
+    public async Task StreamConsumerGroupViewPendingInfoSummary()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1052,7 +1048,7 @@ public class StreamTests : TestBase
         Assert.Equal(4, pendingInfo.PendingMessageCount);
         Assert.Equal(id1, pendingInfo.LowestPendingMessageId);
         Assert.Equal(id4, pendingInfo.HighestPendingMessageId);
-        Assert.True(pendingInfo.Consumers.Length == 2);
+        Assert.Equal(2, pendingInfo.Consumers.Length);
 
         var consumer1Count = pendingInfo.Consumers.First(c => c.Name == consumer1).PendingMessageCount;
         var consumer2Count = pendingInfo.Consumers.First(c => c.Name == consumer2).PendingMessageCount;
@@ -1064,7 +1060,7 @@ public class StreamTests : TestBase
     [Fact]
     public async Task StreamConsumerGroupViewPendingMessageInfo()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1099,9 +1095,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupViewPendingMessageInfoForConsumer()
+    public async Task StreamConsumerGroupViewPendingMessageInfoForConsumer()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1134,9 +1130,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamDeleteConsumer()
+    public async Task StreamDeleteConsumer()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1165,9 +1161,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamDeleteConsumerGroup()
+    public async Task StreamDeleteConsumerGroup()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1194,9 +1190,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamDeleteMessage()
+    public async Task StreamDeleteMessage()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1206,7 +1202,7 @@ public class StreamTests : TestBase
         var id3 = db.StreamAdd(key, "field3", "value3");
         db.StreamAdd(key, "field4", "value4");
 
-        var deletedCount = db.StreamDelete(key, new[] { id3 });
+        var deletedCount = db.StreamDelete(key, [id3]);
         var messages = db.StreamRange(key);
 
         Assert.Equal(1, deletedCount);
@@ -1214,9 +1210,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamDeleteMessages()
+    public async Task StreamDeleteMessages()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1226,7 +1222,7 @@ public class StreamTests : TestBase
         var id3 = db.StreamAdd(key, "field3", "value3");
         db.StreamAdd(key, "field4", "value4");
 
-        var deletedCount = db.StreamDelete(key, new[] { id2, id3 }, CommandFlags.None);
+        var deletedCount = db.StreamDelete(key, [id2, id3], CommandFlags.None);
         var messages = db.StreamRange(key);
 
         Assert.Equal(2, deletedCount);
@@ -1234,7 +1230,7 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamGroupInfoGet()
+    public async Task StreamGroupInfoGet()
     {
         var key = Me();
         const string group1 = "test_group_1",
@@ -1242,7 +1238,7 @@ public class StreamTests : TestBase
                      consumer1 = "test_consumer_1",
                      consumer2 = "test_consumer_2";
 
-        using (var conn = Create(require: RedisFeatures.v5_0_0))
+        await using (var conn = Create(require: RedisFeatures.v5_0_0))
         {
             var db = conn.GetDatabase();
             db.KeyDelete(key);
@@ -1293,9 +1289,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamGroupConsumerInfoGet()
+    public async Task StreamGroupConsumerInfoGet()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1325,9 +1321,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamInfoGet()
+    public async Task StreamInfoGet()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1347,9 +1343,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamInfoGetWithEmptyStream()
+    public async Task StreamInfoGetWithEmptyStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1358,7 +1354,7 @@ public class StreamTests : TestBase
         // to ensure it functions properly on an empty stream. Namely, the first-entry
         // and last-entry messages should be null.
         var id = db.StreamAdd(key, "field1", "value1");
-        db.StreamDelete(key, new[] { id });
+        db.StreamDelete(key, [id]);
 
         Assert.Equal(0, db.StreamLength(key));
 
@@ -1369,9 +1365,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamNoConsumerGroups()
+    public async Task StreamNoConsumerGroups()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1385,16 +1381,16 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamPendingNoMessagesOrConsumers()
+    public async Task StreamPendingNoMessagesOrConsumers()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
         const string groupName = "test_group";
 
         var id = db.StreamAdd(key, "field1", "value1");
-        db.StreamDelete(key, new[] { id });
+        db.StreamDelete(key, [id]);
 
         db.StreamCreateConsumerGroup(key, groupName, "0-0");
 
@@ -1444,9 +1440,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamRead()
+    public async Task StreamRead()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1465,9 +1461,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadEmptyStream()
+    public async Task StreamReadEmptyStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1476,7 +1472,7 @@ public class StreamTests : TestBase
         var id1 = db.StreamAdd(key, "field1", "value1");
 
         // Delete the key to empty the stream.
-        db.StreamDelete(key, new[] { id1 });
+        db.StreamDelete(key, [id1]);
         var len = db.StreamLength(key);
 
         // Read the entire stream from the beginning.
@@ -1487,9 +1483,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadEmptyStreams()
+    public async Task StreamReadEmptyStreams()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1500,8 +1496,8 @@ public class StreamTests : TestBase
         var id2 = db.StreamAdd(key2, "field2", "value2");
 
         // Delete the key to empty the stream.
-        db.StreamDelete(key1, new[] { id1 });
-        db.StreamDelete(key2, new[] { id2 });
+        db.StreamDelete(key1, [id1]);
+        db.StreamDelete(key2, [id2]);
 
         var len1 = db.StreamLength(key1);
         var len2 = db.StreamLength(key2);
@@ -1518,9 +1514,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadLastMessage()
+    public async Task StreamReadLastMessage()
     {
-        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
         var db = conn.GetDatabase();
         var key1 = Me();
 
@@ -1536,9 +1532,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadExpectedExceptionInvalidCountMultipleStream()
+    public async Task StreamReadExpectedExceptionInvalidCountMultipleStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var streamPositions = new[]
@@ -1550,9 +1546,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadExpectedExceptionInvalidCountSingleStream()
+    public async Task StreamReadExpectedExceptionInvalidCountSingleStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1560,18 +1556,18 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadExpectedExceptionNullStreamList()
+    public async Task StreamReadExpectedExceptionNullStreamList()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         Assert.Throws<ArgumentNullException>(() => db.StreamRead(null!));
     }
 
     [Fact]
-    public void StreamReadExpectedExceptionEmptyStreamList()
+    public async Task StreamReadExpectedExceptionEmptyStreamList()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var emptyList = Array.Empty<StreamPosition>();
@@ -1579,9 +1575,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadMultipleStreams()
+    public async Task StreamReadMultipleStreams()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1601,7 +1597,7 @@ public class StreamTests : TestBase
 
         var streams = db.StreamRead(streamList);
 
-        Assert.True(streams.Length == 2);
+        Assert.Equal(2, streams.Length);
 
         Assert.Equal(key1, streams[0].Key);
         Assert.Equal(2, streams[0].Entries.Length);
@@ -1615,9 +1611,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadMultipleStreamsLastMessage()
+    public async Task StreamReadMultipleStreamsLastMessage()
     {
-        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1638,12 +1634,12 @@ public class StreamTests : TestBase
         db.StreamAdd(key2, "field7", "value7");
         db.StreamAdd(key2, "field8", "value8");
 
-        streamList = new[] { new StreamPosition(key1, "+"), new StreamPosition(key2, "+") };
+        streamList = [new StreamPosition(key1, "+"), new StreamPosition(key2, "+")];
 
         streams = db.StreamRead(streamList);
 
         Assert.NotNull(streams);
-        Assert.True(streams.Length == 2);
+        Assert.Equal(2, streams.Length);
 
         var stream1 = streams.Where(e => e.Key == key1).First();
         Assert.NotNull(stream1.Entries);
@@ -1657,9 +1653,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadMultipleStreamsWithCount()
+    public async Task StreamReadMultipleStreamsWithCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1691,9 +1687,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadMultipleStreamsWithReadPastSecondStream()
+    public async Task StreamReadMultipleStreamsWithReadPastSecondStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1722,9 +1718,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadMultipleStreamsWithEmptyResponse()
+    public async Task StreamReadMultipleStreamsWithEmptyResponse()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -1749,9 +1745,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadPastEndOfStream()
+    public async Task StreamReadPastEndOfStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1766,9 +1762,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadRange()
+    public async Task StreamReadRange()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1784,9 +1780,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadRangeOfEmptyStream()
+    public async Task StreamReadRangeOfEmptyStream()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1794,7 +1790,7 @@ public class StreamTests : TestBase
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
 
-        var deleted = db.StreamDelete(key, new[] { id1, id2 });
+        var deleted = db.StreamDelete(key, [id1, id2]);
 
         var entries = db.StreamRange(key);
 
@@ -1804,9 +1800,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadRangeWithCount()
+    public async Task StreamReadRangeWithCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1821,9 +1817,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadRangeReverse()
+    public async Task StreamReadRangeReverse()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1839,9 +1835,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadRangeReverseWithCount()
+    public async Task StreamReadRangeReverseWithCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1856,9 +1852,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadWithAfterIdAndCount_1()
+    public async Task StreamReadWithAfterIdAndCount_1()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1875,9 +1871,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadWithAfterIdAndCount_2()
+    public async Task StreamReadWithAfterIdAndCount_2()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1896,9 +1892,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamTrimLength()
+    public async Task StreamTrimLength()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1917,9 +1913,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamVerifyLength()
+    public async Task StreamVerifyLength()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1936,7 +1932,7 @@ public class StreamTests : TestBase
     [Fact]
     public async Task AddWithApproxCountAsync()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1944,9 +1940,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void AddWithApproxCount()
+    public async Task AddWithApproxCount()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1954,9 +1950,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadGroupWithNoAckShowsNoPendingMessages()
+    public async Task StreamReadGroupWithNoAckShowsNoPendingMessages()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -1981,9 +1977,9 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamReadGroupMultiStreamWithNoAckShowsNoPendingMessages()
+    public async Task StreamReadGroupMultiStreamWithNoAckShowsNoPendingMessages()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "a";
@@ -2001,11 +1997,10 @@ public class StreamTests : TestBase
         db.StreamCreateConsumerGroup(key2, groupName, StreamPosition.NewMessages);
 
         db.StreamReadGroup(
-            new[]
-            {
+            [
                 new StreamPosition(key1, StreamPosition.NewMessages),
                 new StreamPosition(key2, StreamPosition.NewMessages),
-            },
+            ],
             groupName,
             consumer,
             noAck: true);
@@ -2020,19 +2015,18 @@ public class StreamTests : TestBase
     [Fact]
     public async Task StreamReadIndexerUsage()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var streamName = Me();
 
         await db.StreamAddAsync(
             streamName,
-            new[]
-            {
+            [
                 new NameValueEntry("x", "blah"),
                 new NameValueEntry("msg", /*lang=json,strict*/ @"{""name"":""test"",""id"":123}"),
                 new NameValueEntry("y", "more blah"),
-            });
+            ]);
 
         var streamResult = await db.StreamRangeAsync(streamName, count: 1000);
         var evntJson = streamResult

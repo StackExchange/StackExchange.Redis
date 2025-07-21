@@ -3,7 +3,8 @@ param(
     [bool] $CreatePackages,
     [switch] $StartServers,
     [bool] $RunTests = $true,
-    [string] $PullRequestNumber
+    [string] $PullRequestNumber,
+    [switch] $NetCoreOnlyTests
 )
 
 Write-Host "Run Parameters:" -ForegroundColor Cyan
@@ -29,7 +30,11 @@ if ($RunTests) {
         Write-Host "Servers Started." -ForegroundColor "Green"
     }
     Write-Host "Running tests: Build.csproj traversal (all frameworks)" -ForegroundColor "Magenta"
-    dotnet test ".\Build.csproj" -c Release --no-build --logger trx
+    if ($NetCoreOnlyTests) {
+        dotnet test ".\Build.csproj" -c Release -f net8.0 --no-build --logger trx
+    } else {
+        dotnet test ".\Build.csproj" -c Release --no-build --logger trx
+    }
     if ($LastExitCode -ne 0) {
         Write-Host "Error with tests, aborting build." -Foreground "Red"
         Exit 1

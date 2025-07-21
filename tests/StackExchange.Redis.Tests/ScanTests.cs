@@ -1,30 +1,27 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class ScanTests : TestBase
+public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void KeysScan(bool supported)
+    public async Task KeysScan(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "scan" };
-        using var conn = Create(disabledCommands: disabledCommands, allowAdmin: true);
+        string[]? disabledCommands = supported ? null : ["scan"];
+        await using var conn = Create(disabledCommands: disabledCommands, allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
         var db = conn.GetDatabase(dbId);
         var prefix = Me() + ":";
         var server = GetServer(conn);
-        Assert.Equal(Context.Test.Protocol, server.Protocol);
+        Assert.Equal(TestContext.Current.GetProtocol(), server.Protocol);
         server.FlushDatabase(dbId);
         for (int i = 0; i < 100; i++)
         {
@@ -52,9 +49,9 @@ public class ScanTests : TestBase
     }
 
     [Fact]
-    public void ScansIScanning()
+    public async Task ScansIScanning()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var prefix = Me() + Guid.NewGuid();
         var dbId = TestConfig.GetDedicatedDB(conn);
@@ -99,9 +96,9 @@ public class ScanTests : TestBase
     }
 
     [Fact]
-    public void ScanResume()
+    public async Task ScanResume()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_8_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_8_0);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
         var db = conn.GetDatabase(dbId);
@@ -184,11 +181,11 @@ public class ScanTests : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void SetScan(bool supported)
+    public async Task SetScan(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "sscan" };
+        string[]? disabledCommands = supported ? null : ["sscan"];
 
-        using var conn = Create(disabledCommands: disabledCommands);
+        await using var conn = Create(disabledCommands: disabledCommands);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -207,11 +204,11 @@ public class ScanTests : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void SortedSetScan(bool supported)
+    public async Task SortedSetScan(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "zscan" };
+        string[]? disabledCommands = supported ? null : ["zscan"];
 
-        using var conn = Create(disabledCommands: disabledCommands);
+        await using var conn = Create(disabledCommands: disabledCommands);
 
         RedisKey key = Me() + supported;
         var db = conn.GetDatabase();
@@ -275,11 +272,11 @@ public class ScanTests : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void HashScan(bool supported)
+    public async Task HashScan(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "hscan" };
+        string[]? disabledCommands = supported ? null : ["hscan"];
 
-        using var conn = Create(disabledCommands: disabledCommands);
+        await using var conn = Create(disabledCommands: disabledCommands);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -317,9 +314,9 @@ public class ScanTests : TestBase
     [InlineData(100)]
     [InlineData(1000)]
     [InlineData(10000)]
-    public void HashScanLarge(int pageSize)
+    public async Task HashScanLarge(int pageSize)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me() + pageSize;
         var db = conn.GetDatabase();
@@ -335,11 +332,11 @@ public class ScanTests : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void HashScanNoValues(bool supported)
+    public async Task HashScanNoValues(bool supported)
     {
-        string[]? disabledCommands = supported ? null : new[] { "hscan" };
+        string[]? disabledCommands = supported ? null : ["hscan"];
 
-        using var conn = Create(require: RedisFeatures.v7_4_0_rc1, disabledCommands: disabledCommands);
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1, disabledCommands: disabledCommands);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -367,9 +364,9 @@ public class ScanTests : TestBase
     [InlineData(100)]
     [InlineData(1000)]
     [InlineData(10000)]
-    public void HashScanNoValuesLarge(int pageSize)
+    public async Task HashScanNoValuesLarge(int pageSize)
     {
-        using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         RedisKey key = Me() + pageSize;
         var db = conn.GetDatabase();
@@ -388,9 +385,9 @@ public class ScanTests : TestBase
     /// See <see href="https://github.com/StackExchange/StackExchange.Redis/issues/729"/>.
     /// </summary>
     [Fact]
-    public void HashScanThresholds()
+    public async Task HashScanThresholds()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var config = conn.GetServer(conn.GetEndPoints(true)[0]).ConfigGet("hash-max-ziplist-entries").First();
         var threshold = int.Parse(config.Value);
@@ -430,9 +427,9 @@ public class ScanTests : TestBase
     [InlineData(100)]
     [InlineData(1000)]
     [InlineData(10000)]
-    public void SetScanLarge(int pageSize)
+    public async Task SetScanLarge(int pageSize)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me() + pageSize;
         var db = conn.GetDatabase();
@@ -450,9 +447,9 @@ public class ScanTests : TestBase
     [InlineData(100)]
     [InlineData(1000)]
     [InlineData(10000)]
-    public void SortedSetScanLarge(int pageSize)
+    public async Task SortedSetScanLarge(int pageSize)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me() + pageSize;
         var db = conn.GetDatabase();

@@ -1,20 +1,19 @@
 ﻿using System.Diagnostics;
-using Xunit.Abstractions;
+using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class SocketTests : TestBase
+public class SocketTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public SocketTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
-    public void CheckForSocketLeaks()
+    [Fact]
+    public async Task CheckForSocketLeaks()
     {
+        Skip.UnlessLongRunning();
         const int count = 2000;
         for (var i = 0; i < count; i++)
         {
-            using var _ = Create(clientName: "Test: " + i);
+            await using var _ = Create(clientName: "Test: " + i);
             // Intentionally just creating and disposing to leak sockets here
             // ...so we can figure out what's happening.
         }

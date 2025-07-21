@@ -2,20 +2,16 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class ListTests : TestBase
+public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ListTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void Ranges()
+    public async Task Ranges()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -35,9 +31,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListLeftPushEmptyValues()
+    public async Task ListLeftPushEmptyValues()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -47,29 +43,29 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListLeftPushKeyDoesNotExists()
+    public async Task ListLeftPushKeyDoesNotExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        var result = db.ListLeftPush(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
+        var result = db.ListLeftPush(key, ["testvalue"], When.Exists, CommandFlags.None);
         Assert.Equal(0, result);
     }
 
     [Fact]
-    public void ListLeftPushToExisitingKey()
+    public async Task ListLeftPushToExisitingKey()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = db.ListLeftPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = db.ListLeftPush(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = db.ListLeftPush(key, new RedisValue[] { "testvalue2" }, When.Exists, CommandFlags.None);
+        var pushXResult = db.ListLeftPush(key, ["testvalue2"], When.Exists, CommandFlags.None);
         Assert.Equal(2, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -79,17 +75,17 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListLeftPushMultipleToExisitingKey()
+    public async Task ListLeftPushMultipleToExisitingKey()
     {
-        using var conn = Create(require: RedisFeatures.v4_0_0);
+        await using var conn = Create(require: RedisFeatures.v4_0_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = db.ListLeftPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = db.ListLeftPush(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = db.ListLeftPush(key, new RedisValue[] { "testvalue2", "testvalue3" }, When.Exists, CommandFlags.None);
+        var pushXResult = db.ListLeftPush(key, ["testvalue2", "testvalue3"], When.Exists, CommandFlags.None);
         Assert.Equal(3, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -102,7 +98,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListLeftPushAsyncEmptyValues()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -114,27 +110,27 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListLeftPushAsyncKeyDoesNotExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        var result = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
+        var result = await db.ListLeftPushAsync(key, ["testvalue"], When.Exists, CommandFlags.None);
         Assert.Equal(0, result);
     }
 
     [Fact]
     public async Task ListLeftPushAsyncToExisitingKey()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = await db.ListLeftPushAsync(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue2" }, When.Exists, CommandFlags.None);
+        var pushXResult = await db.ListLeftPushAsync(key, ["testvalue2"], When.Exists, CommandFlags.None);
         Assert.Equal(2, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -146,15 +142,15 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListLeftPushAsyncMultipleToExisitingKey()
     {
-        using var conn = Create(require: RedisFeatures.v4_0_0);
+        await using var conn = Create(require: RedisFeatures.v4_0_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = await db.ListLeftPushAsync(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = await db.ListLeftPushAsync(key, new RedisValue[] { "testvalue2", "testvalue3" }, When.Exists, CommandFlags.None);
+        var pushXResult = await db.ListLeftPushAsync(key, ["testvalue2", "testvalue3"], When.Exists, CommandFlags.None);
         Assert.Equal(3, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -165,9 +161,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListRightPushEmptyValues()
+    public async Task ListRightPushEmptyValues()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -177,29 +173,29 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListRightPushKeyDoesNotExists()
+    public async Task ListRightPushKeyDoesNotExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        var result = db.ListRightPush(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
+        var result = db.ListRightPush(key, ["testvalue"], When.Exists, CommandFlags.None);
         Assert.Equal(0, result);
     }
 
     [Fact]
-    public void ListRightPushToExisitingKey()
+    public async Task ListRightPushToExisitingKey()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = db.ListRightPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = db.ListRightPush(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = db.ListRightPush(key, new RedisValue[] { "testvalue2" }, When.Exists, CommandFlags.None);
+        var pushXResult = db.ListRightPush(key, ["testvalue2"], When.Exists, CommandFlags.None);
         Assert.Equal(2, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -209,17 +205,17 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListRightPushMultipleToExisitingKey()
+    public async Task ListRightPushMultipleToExisitingKey()
     {
-        using var conn = Create(require: RedisFeatures.v4_0_0);
+        await using var conn = Create(require: RedisFeatures.v4_0_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = db.ListRightPush(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = db.ListRightPush(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = db.ListRightPush(key, new RedisValue[] { "testvalue2", "testvalue3" }, When.Exists, CommandFlags.None);
+        var pushXResult = db.ListRightPush(key, ["testvalue2", "testvalue3"], When.Exists, CommandFlags.None);
         Assert.Equal(3, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -232,7 +228,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListRightPushAsyncEmptyValues()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -244,27 +240,27 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListRightPushAsyncKeyDoesNotExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        var result = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue" }, When.Exists, CommandFlags.None);
+        var result = await db.ListRightPushAsync(key, ["testvalue"], When.Exists, CommandFlags.None);
         Assert.Equal(0, result);
     }
 
     [Fact]
     public async Task ListRightPushAsyncToExisitingKey()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = await db.ListRightPushAsync(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue2" }, When.Exists, CommandFlags.None);
+        var pushXResult = await db.ListRightPushAsync(key, ["testvalue2"], When.Exists, CommandFlags.None);
         Assert.Equal(2, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -276,15 +272,15 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListRightPushAsyncMultipleToExisitingKey()
     {
-        using var conn = Create(require: RedisFeatures.v4_0_0);
+        await using var conn = Create(require: RedisFeatures.v4_0_0);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue1" }, CommandFlags.None);
+        var pushResult = await db.ListRightPushAsync(key, ["testvalue1"], CommandFlags.None);
         Assert.Equal(1, pushResult);
-        var pushXResult = await db.ListRightPushAsync(key, new RedisValue[] { "testvalue2", "testvalue3" }, When.Exists, CommandFlags.None);
+        var pushXResult = await db.ListRightPushAsync(key, ["testvalue2", "testvalue3"], When.Exists, CommandFlags.None);
         Assert.Equal(3, pushXResult);
 
         var rangeResult = db.ListRange(key, 0, -1);
@@ -297,14 +293,14 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListMove()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         RedisKey src = Me();
         RedisKey dest = Me() + "dest";
         db.KeyDelete(src, CommandFlags.FireAndForget);
 
-        var pushResult = await db.ListRightPushAsync(src, new RedisValue[] { "testvalue1", "testvalue2" });
+        var pushResult = await db.ListRightPushAsync(src, ["testvalue1", "testvalue2"]);
         Assert.Equal(2, pushResult);
 
         var rangeResult1 = db.ListMove(src, dest, ListSide.Left, ListSide.Right);
@@ -318,9 +314,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListMoveKeyDoesNotExist()
+    public async Task ListMoveKeyDoesNotExist()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         RedisKey src = Me();
@@ -332,9 +328,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionHappyPath()
+    public async Task ListPositionHappyPath()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -348,9 +344,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionEmpty()
+    public async Task ListPositionEmpty()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -363,9 +359,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionsHappyPath()
+    public async Task ListPositionsHappyPath()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -393,9 +389,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionsTooFew()
+    public async Task ListPositionsTooFew()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -419,9 +415,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionsAll()
+    public async Task ListPositionsAll()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -449,9 +445,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionsAllLimitLength()
+    public async Task ListPositionsAllLimitLength()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -479,9 +475,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionsEmpty()
+    public async Task ListPositionsEmpty()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -503,9 +499,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionByRank()
+    public async Task ListPositionByRank()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -530,9 +526,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionLimitSoNull()
+    public async Task ListPositionLimitSoNull()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -558,7 +554,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionHappyPathAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -574,7 +570,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionEmptyAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -589,7 +585,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionsHappyPathAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -619,7 +615,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionsTooFewAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -645,7 +641,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionsAllAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -675,7 +671,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionsAllLimitLengthAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -705,7 +701,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionsEmptyAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -729,7 +725,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionByRankAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -756,7 +752,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionLimitSoNullAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -782,7 +778,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListPositionFireAndForgetAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -807,9 +803,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListPositionFireAndForget()
+    public async Task ListPositionFireAndForget()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_6);
+        await using var conn = Create(require: RedisFeatures.v6_0_6);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -836,7 +832,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListMultiPopSingleKeyAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -848,13 +844,13 @@ public class ListTests : TestBase
         db.ListLeftPush(key, "red sox");
         db.ListLeftPush(key, "rays");
 
-        var res = await db.ListLeftPopAsync(new RedisKey[] { key }, 1);
+        var res = await db.ListLeftPopAsync([key], 1);
 
         Assert.False(res.IsNull);
         Assert.Single(res.Values);
         Assert.Equal("rays", res.Values[0]);
 
-        res = await db.ListRightPopAsync(new RedisKey[] { key }, 2);
+        res = await db.ListRightPopAsync([key], 2);
 
         Assert.False(res.IsNull);
         Assert.Equal(2, res.Values.Length);
@@ -865,7 +861,7 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListMultiPopMultipleKeysAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -877,14 +873,14 @@ public class ListTests : TestBase
         db.ListLeftPush(key, "red sox");
         db.ListLeftPush(key, "rays");
 
-        var res = await db.ListLeftPopAsync(new RedisKey[] { "empty-key", key, "also-empty" }, 2);
+        var res = await db.ListLeftPopAsync(["empty-key", key, "also-empty"], 2);
 
         Assert.False(res.IsNull);
         Assert.Equal(2, res.Values.Length);
         Assert.Equal("rays", res.Values[0]);
         Assert.Equal("red sox", res.Values[1]);
 
-        res = await db.ListRightPopAsync(new RedisKey[] { "empty-key", key, "also-empty" }, 1);
+        res = await db.ListRightPopAsync(["empty-key", key, "also-empty"], 1);
 
         Assert.False(res.IsNull);
         Assert.Single(res.Values);
@@ -892,9 +888,9 @@ public class ListTests : TestBase
     }
 
     [Fact]
-    public void ListMultiPopSingleKey()
+    public async Task ListMultiPopSingleKey()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -906,13 +902,13 @@ public class ListTests : TestBase
         db.ListLeftPush(key, "red sox");
         db.ListLeftPush(key, "rays");
 
-        var res = db.ListLeftPop(new RedisKey[] { key }, 1);
+        var res = db.ListLeftPop([key], 1);
 
         Assert.False(res.IsNull);
         Assert.Single(res.Values);
         Assert.Equal("rays", res.Values[0]);
 
-        res = db.ListRightPop(new RedisKey[] { key }, 2);
+        res = db.ListRightPop([key], 2);
 
         Assert.False(res.IsNull);
         Assert.Equal(2, res.Values.Length);
@@ -923,33 +919,33 @@ public class ListTests : TestBase
     [Fact]
     public async Task ListMultiPopZeroCount()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key);
 
-        var exception = await Assert.ThrowsAsync<RedisServerException>(() => db.ListLeftPopAsync(new RedisKey[] { key }, 0));
+        var exception = await Assert.ThrowsAsync<RedisServerException>(() => db.ListLeftPopAsync([key], 0));
         Assert.Contains("ERR count should be greater than 0", exception.Message);
     }
 
     [Fact]
     public async Task ListMultiPopEmpty()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key);
 
-        var res = await db.ListLeftPopAsync(new RedisKey[] { key }, 1);
+        var res = await db.ListLeftPopAsync([key], 1);
         Assert.True(res.IsNull);
     }
 
     [Fact]
-    public void ListMultiPopEmptyKeys()
+    public async Task ListMultiPopEmptyKeys()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.ListRightPop(Array.Empty<RedisKey>(), 5));
