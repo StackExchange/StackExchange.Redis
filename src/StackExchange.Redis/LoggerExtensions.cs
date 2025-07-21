@@ -32,15 +32,33 @@ internal static partial class LoggerExtensions
             return;
         }
 
-        var sb = new StringBuilder();
-        sb.Append(message);
         _ = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string? workItems);
-        sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
+
+#if NET6_0_OR_GREATER
+        // use DISH when possible
+        // similar to: var composed = $"{message}, IOCP: {iocp}, WORKER: {worker}, ..."; on net6+
+        var dish = new System.Runtime.CompilerServices.DefaultInterpolatedStringHandler(26, 4);
+        dish.AppendFormatted(message);
+        dish.AppendLiteral(", IOCP: ");
+        dish.AppendFormatted(iocp);
+        dish.AppendLiteral(", WORKER: ");
+        dish.AppendFormatted(worker);
+        if (workItems is not null)
+        {
+            dish.AppendLiteral(", POOL: ");
+            dish.AppendFormatted(workItems);
+        }
+        var composed = dish.ToStringAndClear();
+#else
+        var sb = new StringBuilder();
+        sb.Append(message).Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
         if (workItems is not null)
         {
             sb.Append(", POOL: ").Append(workItems);
         }
-        log.LogInformationThreadPoolStats(sb.ToString());
+        var composed = sb.ToString();
+#endif
+        log.LogInformationThreadPoolStats(composed);
     }
 
     // Generated LoggerMessage methods

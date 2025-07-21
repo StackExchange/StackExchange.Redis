@@ -484,7 +484,7 @@ namespace StackExchange.Redis
             }
 
             var watch = ValueStopwatch.StartNew();
-            log.LogWithThreadPoolStats($"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms");
+            log?.LogWithThreadPoolStats($"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms");
             try
             {
                 // if none error, great
@@ -497,7 +497,7 @@ namespace StackExchange.Redis
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 bool all = await allTasks.TimeoutAfter(timeoutMs: remaining).ObserveErrors().ForAwait();
-                log.LogWithThreadPoolStats(all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)");
+                log?.LogWithThreadPoolStats(all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)");
                 return all;
             }
             catch
