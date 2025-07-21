@@ -2,15 +2,12 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)] // because I need to measure some things that could get confused
-public class GarbageCollectionTests : TestBase
+public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
 {
-    public GarbageCollectionTests(ITestOutputHelper helper) : base(helper) { }
-
     private static void ForceGC()
     {
         for (int i = 0; i < 3; i++)
@@ -24,14 +21,14 @@ public class GarbageCollectionTests : TestBase
     public async Task MuxerIsCollected()
     {
 #if DEBUG
-        Skip.Inconclusive("Only predictable in release builds");
+        Assert.Skip("Only predictable in release builds");
 #endif
         // this is more nuanced than it looks; multiple sockets with
         // async callbacks, plus a heartbeat on a timer
 
         // deliberately not "using" - we *want* to leak this
         var conn = Create();
-        conn.GetDatabase().Ping(); // smoke-test
+        await conn.GetDatabase().PingAsync(); // smoke-test
 
         ForceGC();
 
@@ -57,6 +54,7 @@ public class GarbageCollectionTests : TestBase
     [Fact]
     public async Task UnrootedBackloggedAsyncTaskIsCompletedOnTimeout()
     {
+        Skip.UnlessLongRunning();
         // Run the test on a separate thread without keeping a reference to the task to ensure
         // that there are no references to the variables in test task from the main thread.
         // WithTimeout must not be used within Task.Run because timers are rooted and would keep everything alive.
@@ -64,7 +62,7 @@ public class GarbageCollectionTests : TestBase
         Task? completedTestTask = null;
         _ = Task.Run(async () =>
         {
-            using var conn = await ConnectionMultiplexer.ConnectAsync(
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(
                 new ConfigurationOptions()
                 {
                     BacklogPolicy = BacklogPolicy.Default,

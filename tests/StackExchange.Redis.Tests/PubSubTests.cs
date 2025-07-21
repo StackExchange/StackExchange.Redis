@@ -7,20 +7,16 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class PubSubTests : TestBase
+public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task ExplicitPublishMode()
     {
-        using var conn = Create(channelPrefix: "foo:", log: Writer);
+        await using var conn = Create(channelPrefix: "foo:", log: Writer);
 
         var pub = conn.GetSubscriber();
         int a = 0, b = 0, c = 0, d = 0;
@@ -58,12 +54,12 @@ public class PubSubTests : TestBase
     [InlineData("Foo:", true, "f")]
     public async Task TestBasicPubSub(string? channelPrefix, bool wildCard, string breaker)
     {
-        using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
+        await using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
 
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
         await PingAsync(pub, sub).ForAwait();
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
         string subChannel = (wildCard ? "a*c" : "abc") + breaker;
         string pubChannel = "abc" + breaker;
@@ -143,14 +139,14 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestBasicPubSubFireAndForget()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
 
         var profiler = conn.AddProfiler();
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
 
         RedisChannel key = RedisChannel.Literal(Me() + Guid.NewGuid());
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
         await PingAsync(pub, sub).ForAwait();
         sub.Subscribe(
@@ -218,12 +214,12 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestPatternPubSub()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
 
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
 
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
 #pragma warning disable CS0618
         sub.Subscribe("a*c", (channel, payload) =>
@@ -275,9 +271,9 @@ public class PubSubTests : TestBase
     }
 
     [Fact]
-    public void TestPublishWithNoSubscribers()
+    public async Task TestPublishWithNoSubscribers()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var sub = conn.GetSubscriber();
 #pragma warning disable CS0618
@@ -285,19 +281,21 @@ public class PubSubTests : TestBase
 #pragma warning restore CS0618
     }
 
-    [FactLongRunning]
-    public void TestMassivePublishWithWithoutFlush_Local()
+    [Fact]
+    public async Task TestMassivePublishWithWithoutFlush_Local()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var sub = conn.GetSubscriber();
         TestMassivePublish(sub, Me(), "local");
     }
 
-    [FactLongRunning]
-    public void TestMassivePublishWithWithoutFlush_Remote()
+    [Fact]
+    public async Task TestMassivePublishWithWithoutFlush_Remote()
     {
-        using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
 
         var sub = conn.GetSubscriber();
         TestMassivePublish(sub, Me(), "remote");
@@ -337,7 +335,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task SubscribeAsyncEnumerable()
     {
-        using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
+        await using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
 
         var sub = conn.GetSubscriber();
         RedisChannel channel = RedisChannel.Literal(Me());
@@ -372,9 +370,9 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task PubSubGetAllAnyOrder()
     {
-        using var sonn = Create(syncTimeout: 20000, shared: false, log: Writer);
+        await using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
 
-        var sub = sonn.GetSubscriber();
+        var sub = conn.GetSubscriber();
         RedisChannel channel = RedisChannel.Literal(Me());
         const int count = 1000;
         var syncLock = new object();
@@ -420,7 +418,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task PubSubGetAllCorrectOrder()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -490,7 +488,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Sync()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -556,7 +554,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Async()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -627,9 +625,9 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestPublishWithSubscribers()
     {
-        using var connA = Create(shared: false, log: Writer);
-        using var connB = Create(shared: false, log: Writer);
-        using var connPub = Create();
+        await using var connA = Create(shared: false, log: Writer);
+        await using var connB = Create(shared: false, log: Writer);
+        await using var connPub = Create();
 
         var channel = Me();
         var listenA = connA.GetSubscriber();
@@ -654,14 +652,14 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestMultipleSubscribersGetMessage()
     {
-        using var connA = Create(shared: false, log: Writer);
-        using var connB = Create(shared: false, log: Writer);
-        using var connPub = Create();
+        await using var connA = Create(shared: false, log: Writer);
+        await using var connB = Create(shared: false, log: Writer);
+        await using var connPub = Create();
 
         var channel = RedisChannel.Literal(Me());
         var listenA = connA.GetSubscriber();
         var listenB = connB.GetSubscriber();
-        connPub.GetDatabase().Ping();
+        await connPub.GetDatabase().PingAsync();
         var pub = connPub.GetSubscriber();
         int gotA = 0, gotB = 0;
         var tA = listenA.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
@@ -684,7 +682,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task Issue38()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         var sub = conn.GetSubscriber();
         int count = 0;
@@ -719,9 +717,9 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestPartialSubscriberGetMessage()
     {
-        using var connA = Create();
-        using var connB = Create();
-        using var connPub = Create();
+        await using var connA = Create();
+        await using var connB = Create();
+        await using var connPub = Create();
 
         int gotA = 0, gotB = 0;
         var listenA = connA.GetSubscriber();
@@ -752,8 +750,8 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestSubscribeUnsubscribeAndSubscribeAgain()
     {
-        using var connPub = Create();
-        using var connSub = Create();
+        await using var connPub = Create();
+        await using var connSub = Create();
 
         var prefix = Me();
         var pub = connPub.GetSubscriber();
@@ -799,7 +797,7 @@ public class PubSubTests : TestBase
 
         using (var connection = await ConnectionMultiplexer.ConnectAsync(options))
         {
-            connection.ServerMaintenanceEvent += (object? _, ServerMaintenanceEvent e) =>
+            connection.ServerMaintenanceEvent += (_, e) =>
             {
                 if (e is AzureMaintenanceEvent)
                 {

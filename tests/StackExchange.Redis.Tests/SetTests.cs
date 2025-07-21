@@ -2,20 +2,16 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class SetTests : TestBase
+public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public SetTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void SetContains()
+    public async Task SetContains()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -30,7 +26,7 @@ public class SetTests : TestBase
         Assert.True(isMemeber);
 
         // Multi members
-        var areMemebers = db.SetContains(key, new RedisValue[] { 0, 1, 2 });
+        var areMemebers = db.SetContains(key, [0, 1, 2]);
         Assert.Equal(3, areMemebers.Length);
         Assert.False(areMemebers[0]);
         Assert.True(areMemebers[1]);
@@ -39,7 +35,7 @@ public class SetTests : TestBase
         db.KeyDelete(key);
         isMemeber = db.SetContains(key, 1);
         Assert.False(isMemeber);
-        areMemebers = db.SetContains(key, new RedisValue[] { 0, 1, 2 });
+        areMemebers = db.SetContains(key, [0, 1, 2]);
         Assert.Equal(3, areMemebers.Length);
         Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
     }
@@ -47,7 +43,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetContainsAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -62,7 +58,7 @@ public class SetTests : TestBase
         Assert.True(isMemeber);
 
         // Multi members
-        var areMemebers = await db.SetContainsAsync(key, new RedisValue[] { 0, 1, 2 });
+        var areMemebers = await db.SetContainsAsync(key, [0, 1, 2]);
         Assert.Equal(3, areMemebers.Length);
         Assert.False(areMemebers[0]);
         Assert.True(areMemebers[1]);
@@ -71,67 +67,67 @@ public class SetTests : TestBase
         await db.KeyDeleteAsync(key);
         isMemeber = await db.SetContainsAsync(key, 1);
         Assert.False(isMemeber);
-        areMemebers = await db.SetContainsAsync(key, new RedisValue[] { 0, 1, 2 });
+        areMemebers = await db.SetContainsAsync(key, [0, 1, 2]);
         Assert.Equal(3, areMemebers.Length);
         Assert.True(areMemebers.All(i => !i)); // Check that all the elements are False
     }
 
     [Fact]
-    public void SetIntersectionLength()
+    public async Task SetIntersectionLength()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
-        db.SetAdd(key1, new RedisValue[] { 0, 1, 2, 3, 4 }, CommandFlags.FireAndForget);
+        db.SetAdd(key1, [0, 1, 2, 3, 4], CommandFlags.FireAndForget);
         var key2 = Me() + "2";
         db.KeyDelete(key2, CommandFlags.FireAndForget);
-        db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
+        db.SetAdd(key2, [1, 2, 3, 4, 5], CommandFlags.FireAndForget);
 
-        Assert.Equal(4, db.SetIntersectionLength(new RedisKey[] { key1, key2 }));
+        Assert.Equal(4, db.SetIntersectionLength([key1, key2]));
         // with limit
-        Assert.Equal(3, db.SetIntersectionLength(new RedisKey[] { key1, key2 }, 3));
+        Assert.Equal(3, db.SetIntersectionLength([key1, key2], 3));
 
         // Missing keys should be 0
         var key3 = Me() + "3";
         var key4 = Me() + "4";
         db.KeyDelete(key3, CommandFlags.FireAndForget);
-        Assert.Equal(0, db.SetIntersectionLength(new RedisKey[] { key1, key3 }));
-        Assert.Equal(0, db.SetIntersectionLength(new RedisKey[] { key3, key4 }));
+        Assert.Equal(0, db.SetIntersectionLength([key1, key3]));
+        Assert.Equal(0, db.SetIntersectionLength([key3, key4]));
     }
 
     [Fact]
     public async Task SetIntersectionLengthAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
 
         var key1 = Me() + "1";
         db.KeyDelete(key1, CommandFlags.FireAndForget);
-        db.SetAdd(key1, new RedisValue[] { 0, 1, 2, 3, 4 }, CommandFlags.FireAndForget);
+        db.SetAdd(key1, [0, 1, 2, 3, 4], CommandFlags.FireAndForget);
         var key2 = Me() + "2";
         db.KeyDelete(key2, CommandFlags.FireAndForget);
-        db.SetAdd(key2, new RedisValue[] { 1, 2, 3, 4, 5 }, CommandFlags.FireAndForget);
+        db.SetAdd(key2, [1, 2, 3, 4, 5], CommandFlags.FireAndForget);
 
-        Assert.Equal(4, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key2 }));
+        Assert.Equal(4, await db.SetIntersectionLengthAsync([key1, key2]));
         // with limit
-        Assert.Equal(3, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key2 }, 3));
+        Assert.Equal(3, await db.SetIntersectionLengthAsync([key1, key2], 3));
 
         // Missing keys should be 0
         var key3 = Me() + "3";
         var key4 = Me() + "4";
         db.KeyDelete(key3, CommandFlags.FireAndForget);
-        Assert.Equal(0, await db.SetIntersectionLengthAsync(new RedisKey[] { key1, key3 }));
-        Assert.Equal(0, await db.SetIntersectionLengthAsync(new RedisKey[] { key3, key4 }));
+        Assert.Equal(0, await db.SetIntersectionLengthAsync([key1, key3]));
+        Assert.Equal(0, await db.SetIntersectionLengthAsync([key3, key4]));
     }
 
     [Fact]
-    public void SScan()
+    public async Task SScan()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = GetAnyPrimary(conn);
 
@@ -157,7 +153,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetRemoveArgTests()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -166,15 +162,15 @@ public class SetTests : TestBase
         Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values!));
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values!).ForAwait()).ForAwait();
 
-        values = Array.Empty<RedisValue>();
+        values = [];
         Assert.Equal(0, db.SetRemove(key, values));
         Assert.Equal(0, await db.SetRemoveAsync(key, values).ForAwait());
     }
 
     [Fact]
-    public void SetPopMulti_Multi()
+    public async Task SetPopMulti_Multi()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -182,7 +178,7 @@ public class SetTests : TestBase
         db.KeyDelete(key, CommandFlags.FireAndForget);
         for (int i = 1; i < 11; i++)
         {
-            db.SetAddAsync(key, i, CommandFlags.FireAndForget);
+            _ = db.SetAddAsync(key, i, CommandFlags.FireAndForget);
         }
 
         var random = db.SetPop(key);
@@ -198,9 +194,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SetPopMulti_Single()
+    public async Task SetPopMulti_Single()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -226,7 +222,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetPopMulti_Multi_Async()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -252,7 +248,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetPopMulti_Single_Async()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -278,7 +274,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetPopMulti_Zero_Async()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -298,9 +294,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SetAdd_Zero()
+    public async Task SetAdd_Zero()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -316,7 +312,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task SetAdd_Zero_Async()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -332,9 +328,9 @@ public class SetTests : TestBase
     }
 
     [Fact]
-    public void SetPopMulti_Nil()
+    public async Task SetPopMulti_Nil()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -348,7 +344,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task TestSortReadonlyPrimary()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -369,7 +365,7 @@ public class SetTests : TestBase
     [Fact]
     public async Task TestSortReadonlyReplica()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -379,7 +375,7 @@ public class SetTests : TestBase
         var items = Enumerable.Repeat(0, 200).Select(_ => random.Next()).ToList();
         await db.SetAddAsync(key, items.Select(x => (RedisValue)x).ToArray());
 
-        using var readonlyConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v7_0_0_rc1);
+        await using var readonlyConn = Create(configuration: TestConfig.Current.ReplicaServerAndPort, require: RedisFeatures.v7_0_0_rc1);
         var readonlyDb = conn.GetDatabase();
 
         items.Sort();

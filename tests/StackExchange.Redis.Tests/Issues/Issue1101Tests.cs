@@ -4,14 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue1101Tests : TestBase
+public class Issue1101Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public Issue1101Tests(ITestOutputHelper output) : base(output) { }
-
     private static void AssertCounts(ISubscriber pubsub, in RedisChannel channel, bool has, int handlers, int queues)
     {
         if (pubsub.Multiplexer is ConnectionMultiplexer muxer)
@@ -26,7 +23,7 @@ public class Issue1101Tests : TestBase
     [Fact]
     public async Task ExecuteWithUnsubscribeViaChannel()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();
@@ -91,7 +88,7 @@ public class Issue1101Tests : TestBase
     [Fact]
     public async Task ExecuteWithUnsubscribeViaSubscriber()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
 
         RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();
@@ -142,7 +139,7 @@ public class Issue1101Tests : TestBase
     [Fact]
     public async Task ExecuteWithUnsubscribeViaClearAll()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         RedisChannel name = RedisChannel.Literal(Me());
         var pubsub = conn.GetSubscriber();

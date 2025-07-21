@@ -3,71 +3,22 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-#if !NET6_0_OR_GREATER
-internal static class TaskExtensions
+[Collection(NonParallelCollection.Name)]
+public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    // suboptimal polyfill version of the .NET 6+ API; I'm not recommending this for production use,
-    // but it's good enough for tests
-    public static Task<T> WaitAsync<T>(this Task<T> task, CancellationToken cancellationToken)
-    {
-        if (task.IsCompleted || !cancellationToken.CanBeCanceled) return task;
-        return Wrap(task, cancellationToken);
-
-        static async Task<T> Wrap(Task<T> task, CancellationToken cancellationToken)
-        {
-            var tcs = new TaskCompletionSource<T>();
-            using var reg = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
-            _ = task.ContinueWith(t =>
-            {
-                if (t.IsCanceled) tcs.TrySetCanceled();
-                else if (t.IsFaulted) tcs.TrySetException(t.Exception!);
-                else tcs.TrySetResult(t.Result);
-            });
-            return await tcs.Task;
-        }
-    }
-
-    public static Task<T> WaitAsync<T>(this Task<T> task, TimeSpan timeout)
-    {
-        if (task.IsCompleted) return task;
-        return Wrap(task, timeout);
-
-        static async Task<T> Wrap(Task<T> task, TimeSpan timeout)
-        {
-            Task other = Task.Delay(timeout);
-            var first = await Task.WhenAny(task, other);
-            if (ReferenceEquals(first, other))
-            {
-                throw new TimeoutException();
-            }
-            return await task;
-        }
-    }
-}
-#endif
-
-[Collection(SharedConnectionFixture.Key)]
-public class CancellationTests : TestBase
-{
-    public CancellationTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task WithCancellation_CancelledToken_ThrowsOperationCanceledException()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel(); // Cancel immediately
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-        {
-            await db.StringSetAsync(Me(), "value").WaitAsync(cts.Token);
-        });
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await db.StringSetAsync(Me(), "value").WaitAsync(cts.Token));
     }
 
     private IInternalConnectionMultiplexer Create() => Create(syncTimeout: 10_000);
@@ -75,7 +26,7 @@ public class CancellationTests : TestBase
     [Fact]
     public async Task WithCancellation_ValidToken_OperationSucceeds()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         using var cts = new CancellationTokenSource();
@@ -87,15 +38,12 @@ public class CancellationTests : TestBase
         Assert.Equal("value", result);
     }
 
-    private void Pause(IDatabase db)
-    {
-        db.Execute("client", new object[] { "pause", ConnectionPauseMilliseconds }, CommandFlags.FireAndForget);
-    }
+    private static void Pause(IDatabase db) => db.Execute("client", ["pause", ConnectionPauseMilliseconds], CommandFlags.FireAndForget);
 
     [Fact]
     public async Task WithTimeout_ShortTimeout_Async_ThrowsOperationCanceledException()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         var watch = Stopwatch.StartNew();
@@ -122,7 +70,7 @@ public class CancellationTests : TestBase
     [Fact]
     public async Task WithoutCancellation_OperationsWorkNormally()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         // No cancellation - should work normally
@@ -171,7 +119,7 @@ public class CancellationTests : TestBase
     [InlineData(CancelStrategy.Manual)]
     public async Task CancellationDuringOperation_Async_CancelsGracefully(CancelStrategy strategy)
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         var watch = Stopwatch.StartNew();

@@ -2,18 +2,15 @@
 using System.Threading.Tasks;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class AbortOnConnectFailTests : TestBase
+public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output)
 {
-    public AbortOnConnectFailTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
-    public void NeverEverConnectedNoBacklogThrowsConnectionNotAvailableSync()
+    public async Task NeverEverConnectedNoBacklogThrowsConnectionNotAvailableSync()
     {
-        using var conn = GetFailFastConn();
+        await using var conn = GetFailFastConn();
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -26,7 +23,7 @@ public class AbortOnConnectFailTests : TestBase
     [Fact]
     public async Task NeverEverConnectedNoBacklogThrowsConnectionNotAvailableAsync()
     {
-        using var conn = GetFailFastConn();
+        await using var conn = GetFailFastConn();
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -37,13 +34,13 @@ public class AbortOnConnectFailTests : TestBase
     }
 
     [Fact]
-    public void DisconnectAndReconnectThrowsConnectionExceptionSync()
+    public async Task DisconnectAndReconnectThrowsConnectionExceptionSync()
     {
-        using var conn = GetWorkingBacklogConn();
+        await using var conn = GetWorkingBacklogConn();
 
         var db = conn.GetDatabase();
         var key = Me();
-        _ = db.Ping(); // Doesn't throw - we're connected
+        await db.PingAsync(); // Doesn't throw - we're connected
 
         // Disconnect and don't allow re-connection
         conn.AllowConnect = false;
@@ -54,7 +51,7 @@ public class AbortOnConnectFailTests : TestBase
         var ex = Assert.ThrowsAny<Exception>(() => db.Ping());
         Log("Exception: " + ex.Message);
         Assert.True(ex is RedisConnectionException or RedisTimeoutException);
-        Assert.StartsWith("The message timed out in the backlog attempting to send because no connection became available (400ms) - Last Connection Exception: ", ex.Message);
+        Assert.StartsWith("The message timed out in the backlog attempting to send because no connection became available (1000ms) - Last Connection Exception: ", ex.Message);
         Assert.NotNull(ex.InnerException);
         var iex = Assert.IsType<RedisConnectionException>(ex.InnerException);
         Assert.Contains(iex.Message, ex.Message);
@@ -63,11 +60,11 @@ public class AbortOnConnectFailTests : TestBase
     [Fact]
     public async Task DisconnectAndNoReconnectThrowsConnectionExceptionAsync()
     {
-        using var conn = GetWorkingBacklogConn();
+        await using var conn = GetWorkingBacklogConn();
 
         var db = conn.GetDatabase();
         var key = Me();
-        _ = db.Ping(); // Doesn't throw - we're connected
+        await db.PingAsync(); // Doesn't throw - we're connected
 
         // Disconnect and don't allow re-connection
         conn.AllowConnect = false;
@@ -77,25 +74,25 @@ public class AbortOnConnectFailTests : TestBase
         // Exception: The message timed out in the backlog attempting to send because no connection became available (400ms) - Last Connection Exception: SocketFailure (InputReaderCompleted, last-recv: 7) on 127.0.0.1:6379/Interactive, Idle/ReadAsync, last: PING, origin: SimulateConnectionFailure, outstanding: 0, last-read: 0s ago, last-write: 0s ago, keep-alive: 100s, state: ConnectedEstablished, mgr: 8 of 10 available, in: 0, in-pipe: 0, out-pipe: 0, last-heartbeat: never, last-mbeat: 0s ago, global: 0s ago, v: 2.6.120.51136, command=PING, timeout: 100, inst: 0, qu: 0, qs: 0, aw: False, bw: CheckingForTimeout, last-in: 0, cur-in: 0, sync-ops: 1, async-ops: 1, serverEndpoint: 127.0.0.1:6379, conn-sec: n/a, aoc: 0, mc: 1/1/0, mgr: 8 of 10 available, clientName: CRAVERTOP7(SE.Redis-v2.6.120.51136), IOCP: (Busy=0,Free=1000,Min=16,Max=1000), WORKER: (Busy=6,Free=32761,Min=16,Max=32767), POOL: (Threads=33,QueuedItems=0,CompletedItems=5547,Timers=60), v: 2.6.120.51136 (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)
         var ex = await Assert.ThrowsAsync<RedisConnectionException>(() => db.PingAsync());
         Log("Exception: " + ex.Message);
-        Assert.StartsWith("The message timed out in the backlog attempting to send because no connection became available (400ms) - Last Connection Exception: ", ex.Message);
+        Assert.StartsWith("The message timed out in the backlog attempting to send because no connection became available (1000ms) - Last Connection Exception: ", ex.Message);
         Assert.NotNull(ex.InnerException);
         var iex = Assert.IsType<RedisConnectionException>(ex.InnerException);
         Assert.Contains(iex.Message, ex.Message);
     }
 
     private ConnectionMultiplexer GetFailFastConn() =>
-        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.FailFast).Apply(o => o.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379")), Writer);
+        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.FailFast, 400).Apply(o => o.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379")), Writer);
 
     private ConnectionMultiplexer GetWorkingBacklogConn() =>
-        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.Default).Apply(o => o.EndPoints.Add(GetConfiguration())), Writer);
+        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.Default, 1000).Apply(o => o.EndPoints.Add(GetConfiguration())), Writer);
 
-    private ConfigurationOptions GetOptions(BacklogPolicy policy) => new ConfigurationOptions()
+    private static ConfigurationOptions GetOptions(BacklogPolicy policy, int duration) => new ConfigurationOptions()
     {
         AbortOnConnectFail = false,
         BacklogPolicy = policy,
         ConnectTimeout = 500,
-        SyncTimeout = 400,
-        KeepAlive = 400,
+        SyncTimeout = duration,
+        KeepAlive = duration,
         AllowAdmin = true,
     }.WithoutSubscriptions();
 }

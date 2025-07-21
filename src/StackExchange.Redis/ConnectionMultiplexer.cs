@@ -535,7 +535,7 @@ namespace StackExchange.Redis
                     }
                     try
                     {
-                        await Task.WhenAny(task, Task.Delay(remaining)).ObserveErrors().ForAwait();
+                        await task.TimeoutAfter(remaining).ObserveErrors().ForAwait();
                     }
                     catch
                     { }
