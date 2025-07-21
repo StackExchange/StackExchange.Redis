@@ -390,8 +390,18 @@ namespace StackExchange.Redis
             try
             {
                 // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
-                // self-signed or partial chained vertificates
-                var chainIsVerified = chain.Build(certificateToValidate);
+                // self-signed or partial chained certificates
+                bool chainIsVerified;
+                try
+                {
+                    chainIsVerified = chain.Build(certificateToValidate);
+                }
+                catch (ArgumentException ex) when ((ex.ParamName ?? ex.Message) == "certificate" && Runtime.IsMono)
+                {
+                    // work around Mono cert limitation; report as rejected rather than fault
+                    // (note also the likely .ctor mixup re param-name vs message)
+                    chainIsVerified = false;
+                }
                 if (chainIsVerified)
                 {
                     // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust

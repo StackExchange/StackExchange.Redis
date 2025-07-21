@@ -68,7 +68,10 @@ public class FormatTests(ITestOutputHelper output) : TestBase(output)
     [InlineData(CommandFlags.DemandReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, DemandReplica")] // 2-bit flag is hit-and-miss
 #endif
     public void CommandFlagsFormatting(CommandFlags value, string expected)
-        => Assert.Equal(expected, value.ToString());
+    {
+        Assert.SkipWhen(Runtime.IsMono, "Mono has different enum flag behavior");
+        Assert.Equal(expected, value.ToString());
+    }
 
     [Theory]
     [InlineData(ClientType.Normal, "Normal")]
