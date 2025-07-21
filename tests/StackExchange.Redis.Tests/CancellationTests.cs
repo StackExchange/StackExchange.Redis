@@ -40,6 +40,11 @@ public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture
 
     private static void Pause(IDatabase db) => db.Execute("client", ["pause", ConnectionPauseMilliseconds], CommandFlags.FireAndForget);
 
+    private void Pause(IServer server)
+    {
+        server.Execute("client", new object[] { "pause", ConnectionPauseMilliseconds }, CommandFlags.FireAndForget);
+    }
+
     [Fact]
     public async Task WithTimeout_ShortTimeout_Async_ThrowsOperationCanceledException()
     {
@@ -144,6 +149,40 @@ public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture
         {
             // Expected if cancellation happens during operation
             Log($"Cancelled after {watch.ElapsedMilliseconds}ms");
+            Assert.Equal(cts.Token, oce.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task ScanCancellable()
+    {
+        using var conn = Create();
+        var db = conn.GetDatabase();
+        var server = conn.GetServer(conn.GetEndPoints()[0]);
+
+        using var cts = new CancellationTokenSource();
+
+        var watch = Stopwatch.StartNew();
+        Pause(server);
+        try
+        {
+            db.StringSet(Me(), "value", TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
+            await using var iter = server.KeysAsync(pageSize: 1000).WithCancellation(cts.Token).GetAsyncEnumerator();
+            var pending = iter.MoveNextAsync();
+            Assert.False(cts.Token.IsCancellationRequested);
+            cts.CancelAfter(ShortDelayMilliseconds); // start this *after* we've got past the initial check
+            while (await pending)
+            {
+                pending = iter.MoveNextAsync();
+            }
+            Assert.Fail($"{ExpectedCancel}: {watch.ElapsedMilliseconds}ms");
+        }
+        catch (OperationCanceledException oce)
+        {
+            var taken = watch.ElapsedMilliseconds;
+            // Expected if cancellation happens during operation
+            Log($"Cancelled after {taken}ms");
+            Assert.True(taken < ConnectionPauseMilliseconds / 2, "Should have cancelled much sooner");
             Assert.Equal(cts.Token, oce.CancellationToken);
         }
     }
