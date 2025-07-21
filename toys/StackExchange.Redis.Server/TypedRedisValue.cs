@@ -27,6 +27,7 @@ namespace StackExchange.Redis
         /// An invalid empty value that has no type.
         /// </summary>
         public static TypedRedisValue Nil => default;
+
         /// <summary>
         /// Returns whether this value is an invalid empty value.
         /// </summary>
@@ -70,7 +71,7 @@ namespace StackExchange.Redis
             => new TypedRedisValue(value, ResultType.SimpleString);
 
         /// <summary>
-        /// The simple string OK
+        /// The simple string OK.
         /// </summary>
         public static TypedRedisValue OK { get; } = SimpleString("OK");
         internal static TypedRedisValue Zero { get; } = Integer(0);
@@ -79,7 +80,7 @@ namespace StackExchange.Redis
         internal static TypedRedisValue EmptyArray { get; } = new TypedRedisValue(Array.Empty<TypedRedisValue>(), 0);
 
         /// <summary>
-        /// Gets the array elements as a span
+        /// Gets the array elements as a span.
         /// </summary>
         public ReadOnlySpan<TypedRedisValue> Span
         {
@@ -175,7 +176,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the underlying <see cref="RedisValue"/> assuming that it is a valid type with a meaningful value.
         /// </summary>
-        internal RedisValue AsRedisValue() => Type == ResultType.Array ? default :_value;
+        internal RedisValue AsRedisValue() => Type == ResultType.Array ? default : _value;
 
         /// <summary>
         /// Obtain the value as a string.

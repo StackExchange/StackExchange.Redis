@@ -1,8 +1,8 @@
-﻿using Pipelines.Sockets.Unofficial.Arenas;
-using System;
+﻿using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -92,7 +92,7 @@ namespace StackExchange.Redis
         // if null, assume array
         public ResultType Resp2TypeArray => _resultType == ResultType.Null ? ResultType.Array : _resultType.ToResp2();
 
-        internal bool IsNull => (_flags &  ResultFlags.NonNull) == 0;
+        internal bool IsNull => (_flags & ResultFlags.NonNull) == 0;
 
         public bool HasValue => (_flags & ResultFlags.HasValue) != 0;
 
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
             }
             public ReadOnlySequence<byte> Current { get; private set; }
         }
-        internal RedisChannel AsRedisChannel(byte[]? channelPrefix, RedisChannel.PatternMode mode)
+        internal RedisChannel AsRedisChannel(byte[]? channelPrefix, RedisChannel.RedisChannelOptions options)
         {
             switch (Resp2TypeBulkString)
             {
@@ -169,12 +169,13 @@ namespace StackExchange.Redis
                 case ResultType.BulkString:
                     if (channelPrefix == null)
                     {
-                        return new RedisChannel(GetBlob(), mode);
+                        return new RedisChannel(GetBlob(), options);
                     }
                     if (StartsWith(channelPrefix))
                     {
                         byte[] copy = Payload.Slice(channelPrefix.Length).ToArray();
-                        return new RedisChannel(copy, mode);
+
+                        return new RedisChannel(copy, options);
                     }
                     return default;
                 default:
@@ -274,7 +275,7 @@ namespace StackExchange.Redis
             if (rangeToCheck.IsSingleSegment) return rangeToCheck.First.Span.SequenceEqual(expected);
 
             int offset = 0;
-            foreach(var segment in rangeToCheck)
+            foreach (var segment in rangeToCheck)
             {
                 var from = segment.Span;
                 var to = new Span<byte>(expected, offset, from.Length);
@@ -406,12 +407,12 @@ namespace StackExchange.Redis
 #else
             var decoder = Encoding.UTF8.GetDecoder();
             int charCount = 0;
-            foreach(var segment in Payload)
+            foreach (var segment in Payload)
             {
                 var span = segment.Span;
                 if (span.IsEmpty) continue;
 
-                fixed(byte* bPtr = span)
+                fixed (byte* bPtr = span)
                 {
                     charCount += decoder.GetCharCount(bPtr, span.Length, false);
                 }
@@ -444,9 +445,9 @@ namespace StackExchange.Redis
 #endif
             static string? GetVerbatimString(string? value, out ReadOnlySpan<char> type)
             {
-                //  the first three bytes provide information about the format of the following string, which
-                //  can be txt for plain text, or mkd for markdown. The fourth byte is always `:`
-                //  Then the real string follows.
+                // The first three bytes provide information about the format of the following string, which
+                // can be txt for plain text, or mkd for markdown. The fourth byte is always `:`.
+                // Then the real string follows.
                 if (value is not null
                     && value.Length >= 4 && value[3] == ':')
                 {

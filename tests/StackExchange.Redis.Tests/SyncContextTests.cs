@@ -3,14 +3,11 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class SyncContextTests : TestBase
+    public class SyncContextTests(ITestOutputHelper testOutput) : TestBase(testOutput)
     {
-        public SyncContextTests(ITestOutputHelper testOutput) : base(testOutput) { }
-
         /* Note A (referenced below)
          *
          * When sync-context is *enabled*, we don't validate OpCount > 0 - this is because *with the additional checks*,
@@ -44,10 +41,10 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SyncPing()
+        public async Task SyncPing()
         {
             using var ctx = new MySyncContext(Writer);
-            using var conn = Create();
+            await using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
             db.Ping();
@@ -60,7 +57,7 @@ namespace StackExchange.Redis.Tests
         public async Task AsyncPing(bool continueOnCapturedContext)
         {
             using var ctx = new MySyncContext(Writer);
-            using var conn = Create();
+            await using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             var db = conn.GetDatabase();
             Log($"Context before await: {ctx}");
@@ -70,10 +67,10 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SyncConfigure()
+        public async Task SyncConfigure()
         {
             using var ctx = new MySyncContext(Writer);
-            using var conn = Create();
+            await using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
             Assert.True(conn.Configure());
             Assert.Equal(0, ctx.OpCount);
@@ -85,7 +82,7 @@ namespace StackExchange.Redis.Tests
         public async Task AsyncConfigure(bool continueOnCapturedContext)
         {
             using var ctx = new MySyncContext(Writer);
-            using var conn = Create();
+            await using var conn = Create();
 
             Log($"Context initial: {ctx}");
             await Task.Delay(500);
@@ -135,11 +132,13 @@ namespace StackExchange.Redis.Tests
             {
                 Log(_log, "sync-ctx: Post");
                 Incr();
-                ThreadPool.QueueUserWorkItem(static state =>
-                {
-                    var tuple = (Tuple<MySyncContext, SendOrPostCallback, object?>)state!;
-                    tuple.Item1.Invoke(tuple.Item2, tuple.Item3);
-                }, Tuple.Create<MySyncContext, SendOrPostCallback, object?>(this, d, state));
+                ThreadPool.QueueUserWorkItem(
+                    static state =>
+                    {
+                        var tuple = (Tuple<MySyncContext, SendOrPostCallback, object?>)state!;
+                        tuple.Item1.Invoke(tuple.Item2, tuple.Item3);
+                    },
+                    Tuple.Create<MySyncContext, SendOrPostCallback, object?>(this, d, state));
             }
 
             private void Invoke(SendOrPostCallback d, object? state)

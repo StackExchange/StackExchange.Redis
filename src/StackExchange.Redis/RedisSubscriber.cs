@@ -148,7 +148,7 @@ namespace StackExchange.Redis
         internal enum SubscriptionAction
         {
             Subscribe,
-            Unsubscribe
+            Unsubscribe,
         }
 
         /// <summary>
@@ -159,6 +159,7 @@ namespace StackExchange.Redis
         internal sealed class Subscription
         {
             private Action<RedisChannel, RedisValue>? _handlers;
+            private readonly object _handlersLock = new object();
             private ChannelMessageQueue? _queues;
             private ServerEndPoint? CurrentServer;
             public CommandFlags Flags { get; }
@@ -181,15 +182,25 @@ namespace StackExchange.Redis
             /// </summary>
             internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
             {
-                var isPattern = channel._isPatternBased;
+                var isPattern = channel.IsPattern;
+                var isSharded = channel.IsSharded;
                 var command = action switch
                 {
-                    SubscriptionAction.Subscribe when isPattern => RedisCommand.PSUBSCRIBE,
-                    SubscriptionAction.Unsubscribe when isPattern => RedisCommand.PUNSUBSCRIBE,
-
-                    SubscriptionAction.Subscribe when !isPattern => RedisCommand.SUBSCRIBE,
-                    SubscriptionAction.Unsubscribe when !isPattern => RedisCommand.UNSUBSCRIBE,
-                    _ => throw new ArgumentOutOfRangeException(nameof(action), "This would be an impressive boolean feat"),
+                    SubscriptionAction.Subscribe => channel.Options switch
+                    {
+                        RedisChannel.RedisChannelOptions.None => RedisCommand.SUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SSUBSCRIBE,
+                        _ => Unknown(action, channel.Options),
+                    },
+                    SubscriptionAction.Unsubscribe => channel.Options switch
+                    {
+                        RedisChannel.RedisChannelOptions.None => RedisCommand.UNSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PUNSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SUNSUBSCRIBE,
+                        _ => Unknown(action, channel.Options),
+                    },
+                    _ => Unknown(action, channel.Options),
                 };
 
                 // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
@@ -202,11 +213,17 @@ namespace StackExchange.Redis
                 return msg;
             }
 
+            private RedisCommand Unknown(SubscriptionAction action, RedisChannel.RedisChannelOptions options)
+                => throw new ArgumentException($"Unable to determine pub/sub operation for '{action}' against '{options}'");
+
             public void Add(Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue)
             {
                 if (handler != null)
                 {
-                    _handlers += handler;
+                    lock (_handlersLock)
+                    {
+                        _handlers += handler;
+                    }
                 }
                 if (queue != null)
                 {
@@ -218,7 +235,10 @@ namespace StackExchange.Redis
             {
                 if (handler != null)
                 {
-                    _handlers -= handler;
+                    lock (_handlersLock)
+                    {
+                        _handlers -= handler;
+                    }
                 }
                 if (queue != null)
                 {
@@ -236,7 +256,10 @@ namespace StackExchange.Redis
 
             internal void MarkCompleted()
             {
-                _handlers = null;
+                lock (_handlersLock)
+                {
+                    _handlers = null;
+                }
                 ChannelMessageQueue.MarkAllCompleted(ref _queues);
             }
 
@@ -360,14 +383,14 @@ namespace StackExchange.Redis
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
+            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
+            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -396,7 +419,6 @@ namespace StackExchange.Redis
             if (sub.IsConnected) { return true; }
 
             // TODO: Cleanup old hangers here?
-
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
             var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = multiplexer.SelectServer(message);
@@ -428,7 +450,6 @@ namespace StackExchange.Redis
             if (sub.IsConnected) { return CompletedTask<bool>.Default(null); }
 
             // TODO: Cleanup old hangers here?
-
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
             var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = multiplexer.SelectServer(message);
@@ -507,6 +528,7 @@ namespace StackExchange.Redis
             return false;
         }
 
+        // TODO: We need a new api to support SUNSUBSCRIBE all. Calling this now would unsubscribe both sharded and unsharded channels.
         public void UnsubscribeAll(CommandFlags flags = CommandFlags.None)
         {
             // TODO: Unsubscribe variadic commands to reduce round trips

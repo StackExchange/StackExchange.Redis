@@ -3,14 +3,11 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectToUnexistingHostTests : TestBase
+public class ConnectToUnexistingHostTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectToUnexistingHostTests(ITestOutputHelper output) : base (output) { }
-
     [Fact]
     public async Task FailsWithinTimeout()
     {
@@ -21,10 +18,10 @@ public class ConnectToUnexistingHostTests : TestBase
             var config = new ConfigurationOptions
             {
                 EndPoints = { { "invalid", 1234 } },
-                ConnectTimeout = timeout
+                ConnectTimeout = timeout,
             };
 
-            using (ConnectionMultiplexer.Connect(config, Writer))
+            await using (ConnectionMultiplexer.Connect(config, Writer))
             {
                 await Task.Delay(10000).ForAwait();
             }
@@ -43,8 +40,8 @@ public class ConnectToUnexistingHostTests : TestBase
     [Fact]
     public async Task CanNotOpenNonsenseConnection_IP()
     {
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+        void InnerScenario()
         {
             var ex = Assert.Throws<RedisConnectionException>(() =>
             {
@@ -67,8 +64,8 @@ public class ConnectToUnexistingHostTests : TestBase
     [Fact]
     public async Task CreateDisconnectedNonsenseConnection_IP()
     {
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+        void InnerScenario()
         {
             using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServer + ":6500,abortConnect=false,connectTimeout=1000,connectRetry=0", Writer))
             {
@@ -81,8 +78,8 @@ public class ConnectToUnexistingHostTests : TestBase
     [Fact]
     public async Task CreateDisconnectedNonsenseConnection_DNS()
     {
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+        void InnerScenario()
         {
             using (var conn = ConnectionMultiplexer.Connect($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500,abortConnect=false,connectTimeout=1000,connectRetry=0", Writer))
             {

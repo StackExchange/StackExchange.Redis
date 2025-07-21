@@ -129,9 +129,14 @@ namespace StackExchange.Redis
         public string? Name { get; private set; }
 
         /// <summary>
-        /// Number of pattern matching subscriptions.
+        /// Number of pattern-matching subscriptions.
         /// </summary>
         public int PatternSubscriptionCount { get; private set; }
+
+        /// <summary>
+        /// Number of sharded subscriptions.
+        /// </summary>
+        public int ShardedSubscriptionCount { get; private set; }
 
         /// <summary>
         /// The port of the client.
@@ -156,7 +161,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// A unique 64-bit client ID (introduced in Redis 2.8.12).
         /// </summary>
-        public long Id { get;private set; }
+        public long Id { get; private set; }
 
         /// <summary>
         /// Format the object as a string.
@@ -217,7 +222,7 @@ namespace StackExchange.Redis
                 {
                     var client = new ClientInfo
                     {
-                        Raw = line
+                        Raw = line,
                     };
                     string[] tokens = line.Split(StringSplits.Space);
                     for (int i = 0; i < tokens.Length; i++)
@@ -236,6 +241,7 @@ namespace StackExchange.Redis
                             case "name": client.Name = value; break;
                             case "sub": client.SubscriptionCount = Format.ParseInt32(value); break;
                             case "psub": client.PatternSubscriptionCount = Format.ParseInt32(value); break;
+                            case "ssub": client.ShardedSubscriptionCount = Format.ParseInt32(value); break;
                             case "multi": client.TransactionCommandLength = Format.ParseInt32(value); break;
                             case "cmd": client.LastCommand = value; break;
                             case "flags":
@@ -285,7 +291,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                switch(result.Resp2TypeBulkString)
+                switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.BulkString:
                         var raw = result.GetString();

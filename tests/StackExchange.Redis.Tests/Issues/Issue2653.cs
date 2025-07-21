@@ -11,6 +11,6 @@ public class Issue2653
     [InlineData("abc.def", "abc.def")]
     [InlineData("abc d \t  ef", "abc-d-ef")]
     [InlineData("  abc\r\ndef\n", "abc-def")]
-    public void CheckLibraySanitization(string input, string expected)
+    public void CheckLibraySanitization(string? input, string expected)
         => Assert.Equal(expected, ServerEndPoint.ClientInfoSanitize(input));
 }

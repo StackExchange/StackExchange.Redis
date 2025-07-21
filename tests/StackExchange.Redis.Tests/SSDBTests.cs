@@ -1,21 +1,19 @@
-﻿using Xunit;
-using Xunit.Abstractions;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class SSDBTests : TestBase
+public class SSDBTests(ITestOutputHelper output) : TestBase(output)
 {
-    public SSDBTests(ITestOutputHelper output) : base (output) { }
-
     [Fact]
-    public void ConnectToSSDB()
+    public async Task ConnectToSSDB()
     {
         Skip.IfNoConfig(nameof(TestConfig.Config.SSDBServer), TestConfig.Current.SSDBServer);
 
-        using var conn = ConnectionMultiplexer.Connect(new ConfigurationOptions
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions
         {
             EndPoints = { { TestConfig.Current.SSDBServer, TestConfig.Current.SSDBPort } },
-            CommandMap = CommandMap.SSDB
+            CommandMap = CommandMap.SSDB,
         });
 
         RedisKey key = Me();

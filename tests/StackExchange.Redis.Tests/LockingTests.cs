@@ -3,28 +3,24 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class LockingTests : TestBase
+public class LockingTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public LockingTests(ITestOutputHelper output) : base (output) { }
-
     public enum TestMode
     {
         MultiExec,
         NoMultiExec,
-        Twemproxy
+        Twemproxy,
     }
 
-    public static IEnumerable<object[]> TestModes()
+    public static IEnumerable<TheoryDataRow<TestMode>> TestModes()
     {
-        yield return new object[] { TestMode.MultiExec };
-        yield return new object[] { TestMode.NoMultiExec };
-        yield return new object[] { TestMode.Twemproxy };
+        yield return new(TestMode.MultiExec);
+        yield return new(TestMode.NoMultiExec);
+        yield return new(TestMode.Twemproxy);
     }
 
     [Theory, MemberData(nameof(TestModes))]
@@ -38,12 +34,12 @@ public class LockingTests : TestBase
         using (var conn1 = Create(testMode))
         using (var conn2 = Create(testMode))
         {
-            void cb(object? obj)
+            void Inner(object? obj)
             {
                 try
                 {
                     var conn = (IDatabase?)obj!;
-                    conn.Multiplexer.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
+                    conn.Multiplexer.ErrorMessage += (sender, e) => Interlocked.Increment(ref errorCount);
 
                     for (int i = 0; i < 1000; i++)
                     {
@@ -58,8 +54,8 @@ public class LockingTests : TestBase
                 }
             }
             int db = testMode == TestMode.Twemproxy ? 0 : 2;
-            ThreadPool.QueueUserWorkItem(cb, conn1.GetDatabase(db));
-            ThreadPool.QueueUserWorkItem(cb, conn2.GetDatabase(db));
+            ThreadPool.QueueUserWorkItem(Inner, conn1.GetDatabase(db));
+            ThreadPool.QueueUserWorkItem(Inner, conn2.GetDatabase(db));
             evt.WaitOne(8000);
         }
         Assert.Equal(0, Interlocked.CompareExchange(ref errorCount, 0, 0));
@@ -67,9 +63,9 @@ public class LockingTests : TestBase
     }
 
     [Fact]
-    public void TestOpCountByVersionLocal_UpLevel()
+    public async Task TestOpCountByVersionLocal_UpLevel()
     {
-        using var conn = Create(shared: false);
+        await using var conn = Create(shared: false);
 
         TestLockOpCountByVersion(conn, 1, false);
         TestLockOpCountByVersion(conn, 1, true);
@@ -78,23 +74,23 @@ public class LockingTests : TestBase
     private void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
     {
         const int LockDuration = 30;
-        RedisKey Key = Me();
+        RedisKey key = Me();
 
         var db = conn.GetDatabase();
-        db.KeyDelete(Key, CommandFlags.FireAndForget);
+        db.KeyDelete(key, CommandFlags.FireAndForget);
         RedisValue newVal = "us:" + Guid.NewGuid().ToString();
         RedisValue expectedVal = newVal;
         if (existFirst)
         {
             expectedVal = "other:" + Guid.NewGuid().ToString();
-            db.StringSet(Key, expectedVal, TimeSpan.FromSeconds(LockDuration), flags: CommandFlags.FireAndForget);
+            db.StringSet(key, expectedVal, TimeSpan.FromSeconds(LockDuration), flags: CommandFlags.FireAndForget);
         }
         long countBefore = GetServer(conn).GetCounters().Interactive.OperationCount;
 
-        var taken = db.LockTake(Key, newVal, TimeSpan.FromSeconds(LockDuration));
+        var taken = db.LockTake(key, newVal, TimeSpan.FromSeconds(LockDuration));
 
         long countAfter = GetServer(conn).GetCounters().Interactive.OperationCount;
-        var valAfter = db.StringGet(Key);
+        var valAfter = db.StringGet(key);
 
         Assert.Equal(!existFirst, taken);
         Assert.Equal(expectedVal, valAfter);
@@ -105,7 +101,7 @@ public class LockingTests : TestBase
     private IConnectionMultiplexer Create(TestMode mode) => mode switch
     {
         TestMode.MultiExec => Create(),
-        TestMode.NoMultiExec => Create(disabledCommands: new[] { "multi", "exec" }),
+        TestMode.NoMultiExec => Create(disabledCommands: ["multi", "exec"]),
         TestMode.Twemproxy => Create(proxy: Proxy.Twemproxy),
         _ => throw new NotSupportedException(mode.ToString()),
     };
@@ -113,33 +109,33 @@ public class LockingTests : TestBase
     [Theory, MemberData(nameof(TestModes))]
     public async Task TakeLockAndExtend(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         RedisValue right = Guid.NewGuid().ToString(),
             wrong = Guid.NewGuid().ToString();
 
-        int DB = testMode == TestMode.Twemproxy ? 0 : 7;
-        RedisKey Key = Me() + testMode;
+        int dbId = testMode == TestMode.Twemproxy ? 0 : 7;
+        RedisKey key = Me() + testMode;
 
-        var db = conn.GetDatabase(DB);
+        var db = conn.GetDatabase(dbId);
 
-        db.KeyDelete(Key, CommandFlags.FireAndForget);
+        db.KeyDelete(key, CommandFlags.FireAndForget);
 
         bool withTran = testMode == TestMode.MultiExec;
-        var t1 = db.LockTakeAsync(Key, right, TimeSpan.FromSeconds(20));
-        var t1b = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
-        var t2 = db.LockQueryAsync(Key);
-        var t3 = withTran ? db.LockReleaseAsync(Key, wrong) : null;
-        var t4 = db.LockQueryAsync(Key);
-        var t5 = withTran ? db.LockExtendAsync(Key, wrong, TimeSpan.FromSeconds(60)) : null;
-        var t6 = db.LockQueryAsync(Key);
-        var t7 = db.KeyTimeToLiveAsync(Key);
-        var t8 = db.LockExtendAsync(Key, right, TimeSpan.FromSeconds(60));
-        var t9 = db.LockQueryAsync(Key);
-        var t10 = db.KeyTimeToLiveAsync(Key);
-        var t11 = db.LockReleaseAsync(Key, right);
-        var t12 = db.LockQueryAsync(Key);
-        var t13 = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
+        var t1 = db.LockTakeAsync(key, right, TimeSpan.FromSeconds(20));
+        var t1b = db.LockTakeAsync(key, wrong, TimeSpan.FromSeconds(10));
+        var t2 = db.LockQueryAsync(key);
+        var t3 = withTran ? db.LockReleaseAsync(key, wrong) : null;
+        var t4 = db.LockQueryAsync(key);
+        var t5 = withTran ? db.LockExtendAsync(key, wrong, TimeSpan.FromSeconds(60)) : null;
+        var t6 = db.LockQueryAsync(key);
+        var t7 = db.KeyTimeToLiveAsync(key);
+        var t8 = db.LockExtendAsync(key, right, TimeSpan.FromSeconds(60));
+        var t9 = db.LockQueryAsync(key);
+        var t10 = db.KeyTimeToLiveAsync(key);
+        var t11 = db.LockReleaseAsync(key, right);
+        var t12 = db.LockQueryAsync(key);
+        var t13 = db.LockTakeAsync(key, wrong, TimeSpan.FromSeconds(10));
 
         Assert.NotEqual(default(RedisValue), right);
         Assert.NotEqual(default(RedisValue), wrong);
@@ -151,11 +147,11 @@ public class LockingTests : TestBase
         Assert.Equal(right, await t4);
         if (withTran) Assert.False(await t5!, "5");
         Assert.Equal(right, await t6);
-        var ttl = (await t7).Value.TotalSeconds;
+        var ttl = (await t7)!.Value.TotalSeconds;
         Assert.True(ttl > 0 && ttl <= 20, "7");
         Assert.True(await t8, "8");
         Assert.Equal(right, await t9);
-        ttl = (await t10).Value.TotalSeconds;
+        ttl = (await t10)!.Value.TotalSeconds;
         Assert.True(ttl > 50 && ttl <= 60, "10");
         Assert.True(await t11, "11");
         Assert.Null((string?)await t12);
@@ -165,10 +161,10 @@ public class LockingTests : TestBase
     [Theory, MemberData(nameof(TestModes))]
     public async Task TestBasicLockNotTaken(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         int errorCount = 0;
-        conn.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
+        conn.ErrorMessage += (sender, e) => Interlocked.Increment(ref errorCount);
         Task<bool>? taken = null;
         Task<RedisValue>? newValue = null;
         Task<TimeSpan?>? ttl = null;
@@ -185,7 +181,7 @@ public class LockingTests : TestBase
         }
         Assert.True(await taken!, "taken");
         Assert.Equal("new-value", await newValue!);
-        var ttlValue = (await ttl!).Value.TotalSeconds;
+        var ttlValue = (await ttl!)!.Value.TotalSeconds;
         Assert.True(ttlValue >= 8 && ttlValue <= 10, "ttl");
 
         Assert.Equal(0, errorCount);
@@ -194,7 +190,7 @@ public class LockingTests : TestBase
     [Theory, MemberData(nameof(TestModes))]
     public async Task TestBasicLockTaken(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         var db = conn.GetDatabase();
         var key = Me() + testMode;
@@ -206,7 +202,7 @@ public class LockingTests : TestBase
 
         Assert.False(await taken, "taken");
         Assert.Equal("old-value", await newValue);
-        var ttlValue = (await ttl).Value.TotalSeconds;
+        var ttlValue = (await ttl)!.Value.TotalSeconds;
         Assert.True(ttlValue >= 18 && ttlValue <= 20, "ttl");
     }
 }

@@ -11,6 +11,8 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct RedisFeatures : IEquatable<RedisFeatures>
     {
+#pragma warning disable SA1310 // Field names should not contain underscore
+#pragma warning disable SA1311 // Static readonly fields should begin with upper-case letter
         internal static readonly Version v2_0_0 = new Version(2, 0, 0),
                                          v2_1_0 = new Version(2, 1, 0),
                                          v2_1_1 = new Version(2, 1, 1),
@@ -40,7 +42,12 @@ namespace StackExchange.Redis
                                          v6_0_6 = new Version(6, 0, 6),
                                          v6_2_0 = new Version(6, 2, 0),
                                          v7_0_0_rc1 = new Version(6, 9, 240), // 7.0 RC1 is version 6.9.240
-                                         v7_2_0_rc1 = new Version(7, 1, 240); // 7.2 RC1 is version 7.1.240
+                                         v7_2_0_rc1 = new Version(7, 1, 240), // 7.2 RC1 is version 7.1.240
+                                         v7_4_0_rc1 = new Version(7, 3, 240), // 7.4 RC1 is version 7.3.240
+                                         v7_4_0_rc2 = new Version(7, 3, 241), // 7.4 RC2 is version 7.3.241
+                                         v8_2_0_rc1 = new Version(8, 1, 240); // 8.2 RC1 is version 8.1.240
+#pragma warning restore SA1310 // Field names should not contain underscore
+#pragma warning restore SA1311 // Static readonly fields should begin with upper-case letter
 
         private readonly Version version;
 
@@ -52,6 +59,8 @@ namespace StackExchange.Redis
         {
             this.version = version ?? throw new ArgumentNullException(nameof(version));
         }
+
+#pragma warning disable SA1629 // Documentation should end with a period
 
         /// <summary>
         /// Are <see href="https://redis.io/commands/bitop/">BITOP</see> and <see href="https://redis.io/commands/bitcount/">BITCOUNT</see> available?
@@ -179,6 +188,11 @@ namespace StackExchange.Redis
         public bool SetVaradicAddRemove => Version.IsAtLeast(v2_4_0);
 
         /// <summary>
+        /// Are <see href="https://redis.io/commands/ssubscribe/">SSUBSCRIBE</see> and <see href="https://redis.io/commands/spublish/">SPUBLISH</see> available?
+        /// </summary>
+        public bool ShardedPubSub => Version.IsAtLeast(v7_0_0_rc1);
+
+        /// <summary>
         /// Are <see href="https://redis.io/commands/zpopmin/">ZPOPMIN</see> and <see href="https://redis.io/commands/zpopmax/">ZPOPMAX</see> available?
         /// </summary>
         public bool SortedSetPop => Version.IsAtLeast(v5_0_0);
@@ -263,14 +277,15 @@ namespace StackExchange.Redis
         /// </summary>
         public bool PushMultiple => Version.IsAtLeast(v4_0_0);
 
-
         /// <summary>
         /// Is the RESP3 protocol available?
         /// </summary>
         public bool Resp3 => Version.IsAtLeast(v6_0_0);
 
+#pragma warning restore 1629 // Documentation text should end with a period.
+
         /// <summary>
-        /// The Redis version of the server
+        /// The Redis version of the server.
         /// </summary>
         public Version Version => version ?? v2_0_0;
 
@@ -338,7 +353,6 @@ internal static class VersionExtensions
 {
     // normalize two version parts and smash them together into a long; if either part is -ve,
     // zero is used instead; this gives us consistent ordering following "long" rules
-
     private static long ComposeMajorMinor(Version version) // always specified
         => (((long)version.Major) << 32) | (long)version.Minor;
 

@@ -1,23 +1,22 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class MultiPrimaryTests : TestBase
+public class MultiPrimaryTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() =>
         TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword;
-    public MultiPrimaryTests(ITestOutputHelper output) : base (output) { }
 
     [Fact]
-    public void CannotFlushReplica()
+    public async Task CannotFlushReplica()
     {
-        var ex = Assert.Throws<RedisCommandException>(() =>
+        var ex = await Assert.ThrowsAsync<RedisCommandException>(async () =>
         {
-            using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.ReplicaServerAndPort + ",allowAdmin=true");
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(TestConfig.Current.ReplicaServerAndPort + ",allowAdmin=true");
 
             var servers = conn.GetEndPoints().Select(e => conn.GetServer(e));
             var replica = servers.FirstOrDefault(x => x.IsReplica);
@@ -45,7 +44,7 @@ public class MultiPrimaryTests : TestBase
         yield return new object?[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.PrimaryServerAndPort, null };
         yield return new object?[] { TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.SecureServerAndPort, null };
 
-        yield return new object?[] { null, TestConfig.Current.PrimaryServerAndPort, TestConfig.Current.PrimaryServerAndPort };
+        yield return new object?[] { null, TestConfig.Current.PrimaryServerAndPort, null };
         yield return new object?[] { TestConfig.Current.PrimaryServerAndPort, null, TestConfig.Current.PrimaryServerAndPort };
         yield return new object?[] { null, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
         yield return new object?[] { TestConfig.Current.SecureServerAndPort, null, TestConfig.Current.SecureServerAndPort };

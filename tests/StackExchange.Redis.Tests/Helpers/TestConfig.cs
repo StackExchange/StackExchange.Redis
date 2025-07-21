@@ -1,19 +1,23 @@
-﻿using System.IO;
-using System;
-using Newtonsoft.Json;
-using System.Threading;
+﻿using System;
+using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Threading;
+using Newtonsoft.Json;
 
 namespace StackExchange.Redis.Tests;
 
 public static class TestConfig
 {
-    private const string FileName = "TestConfig.json";
+    private const string FileName = "RedisTestConfig.json";
 
     public static Config Current { get; }
 
+#if NET
     private static int _db = 17;
+#else
+    private static int _db = 77;
+#endif
     public static int GetDedicatedDB(IConnectionMultiplexer? conn = null)
     {
         int db = Interlocked.Increment(ref _db);
@@ -65,7 +69,6 @@ public static class TestConfig
     {
         public bool UseSharedConnection { get; set; } = true;
         public bool RunLongRunning { get; set; }
-        public bool LogToConsole { get; set; }
 
         public string PrimaryServer { get; set; } = "127.0.0.1";
         public int PrimaryPort { get; set; } = 6379;

@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
-using StackExchange.Redis.Configuration;
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
@@ -13,63 +11,91 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
+using StackExchange.Redis.Configuration;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class ConfigTests : TestBase
+public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
-    public Version DefaultVersion = new (3, 0, 0);
-    public Version DefaultAzureVersion = new (4, 0, 0);
+    public Version DefaultVersion = new(3, 0, 0);
 
     [Fact]
     public void ExpectedFields()
     {
         // if this test fails, check that you've updated ConfigurationOptions.Clone(), then: fix the test!
         // this is a simple but pragmatic "have you considered?" check
-
-        var fields = Array.ConvertAll(typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
+        var fields = Array.ConvertAll(
+            typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
             x => Regex.Replace(x.Name, """^<(\w+)>k__BackingField$""", "$1"));
         Array.Sort(fields);
-        Assert.Equal(new[] {
-            "abortOnConnectFail", "allowAdmin", "asyncTimeout", "backlogPolicy", "BeforeSocketConnect",
-            "CertificateSelection", "CertificateValidation", "ChannelPrefix",
-            "checkCertificateRevocation", "ClientName", "commandMap",
-            "configChannel", "configCheckSeconds", "connectRetry",
-            "connectTimeout", "DefaultDatabase", "defaultOptions",
-            "defaultVersion", "EndPoints", "heartbeatConsistencyChecks",
-            "heartbeatInterval", "includeDetailInExceptions", "includePerformanceCountersInExceptions",
-            "keepAlive", "LibraryName", "loggerFactory",
-            "password", "Protocol", "proxy",
-            "reconnectRetryPolicy", "resolveDns", "responseTimeout",
-            "ServiceName", "setClientLibrary", "SocketManager",
-            "ssl",
-#if !NETFRAMEWORK
-            "SslClientAuthenticationOptions",
-#endif
-            "sslHost", "SslProtocols",
-            "syncTimeout", "tieBreaker", "Tunnel",
-            "user"
-            }, fields);
+        Assert.Equal(
+            new[]
+            {
+                "abortOnConnectFail",
+                "allowAdmin",
+                "asyncTimeout",
+                "backlogPolicy",
+                "BeforeSocketConnect",
+                "CertificateSelection",
+                "CertificateValidation",
+                "ChannelPrefix",
+                "checkCertificateRevocation",
+                "ClientName",
+                "commandMap",
+                "configChannel",
+                "configCheckSeconds",
+                "connectRetry",
+                "connectTimeout",
+                "DefaultDatabase",
+                "defaultOptions",
+                "defaultVersion",
+                "EndPoints",
+                "heartbeatConsistencyChecks",
+                "heartbeatInterval",
+                "highIntegrity",
+                "includeDetailInExceptions",
+                "includePerformanceCountersInExceptions",
+                "keepAlive",
+                "LibraryName",
+                "loggerFactory",
+                "password",
+                "Protocol",
+                "proxy",
+                "reconnectRetryPolicy",
+                "resolveDns",
+                "responseTimeout",
+                "ServiceName",
+                "setClientLibrary",
+                "SocketManager",
+                "ssl",
+    #if !NETFRAMEWORK
+                "SslClientAuthenticationOptions",
+    #endif
+                "sslHost",
+                "SslProtocols",
+                "syncTimeout",
+                "tieBreaker",
+                "Tunnel",
+                "user",
+            },
+            fields);
     }
 
     [Fact]
     public void SslProtocols_SingleValue()
     {
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
-        Assert.Equal(SslProtocols.Tls11, options.SslProtocols.GetValueOrDefault());
+        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12");
+        Assert.Equal(SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
     }
 
     [Fact]
     public void SslProtocols_MultipleValues()
     {
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
-        Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
+        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12|Tls13");
+        Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, options.SslProtocols.GetValueOrDefault());
     }
 
     [Theory]
@@ -90,9 +116,9 @@ public class ConfigTests : TestBase
         // The below scenario is for cases where the *targeted*
         // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
         // but the OS has been patched with support
-        const int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
+        const int integerValue = (int)(SslProtocols.Tls12 | SslProtocols.Tls13);
         var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
-        Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
+        Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, options.SslProtocols.GetValueOrDefault());
     }
 
     [Fact]
@@ -101,12 +127,21 @@ public class ConfigTests : TestBase
         Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
     }
 
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzure()
+    [Theory]
+    [InlineData("contoso.redis.cache.windows.net:6380", true)]
+    [InlineData("contoso.REDIS.CACHE.chinacloudapi.cn:6380", true)] // added a few upper case chars to validate comparison
+    [InlineData("contoso.redis.cache.usgovcloudapi.net:6380", true)]
+    [InlineData("contoso.redisenterprise.cache.azure.net:10000", false)]
+    [InlineData("contoso.redis.azure.net:10000", true)]
+    [InlineData("contoso.redis.chinacloudapi.cn:10000", true)]
+    [InlineData("contoso.redis.usgovcloudapi.net:10000", true)]
+    public void ConfigurationOptionsDefaultForAzure(string hostAndPort, bool sslShouldBeEnabled)
     {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
+        Version defaultAzureVersion = new(6, 0, 0);
+        var options = ConfigurationOptions.Parse(hostAndPort);
+        Assert.True(options.DefaultVersion.Equals(defaultAzureVersion));
         Assert.False(options.AbortOnConnectFail);
+        Assert.Equal(sslShouldBeEnabled, options.Ssl);
     }
 
     [Fact]
@@ -115,31 +150,6 @@ public class ConfigTests : TestBase
         var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
         Assert.True(options.DefaultVersion.Equals(new Version(2, 1, 1)));
         Assert.True(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureChina()
-    {
-        // added a few upper case chars to validate comparison
-        var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureGermany()
-    {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
-    }
-
-    [Fact]
-    public void ConfigurationOptionsDefaultForAzureUSGov()
-    {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
-        Assert.True(options.DefaultVersion.Equals(DefaultAzureVersion));
-        Assert.False(options.AbortOnConnectFail);
     }
 
     [Fact]
@@ -188,7 +198,7 @@ public class ConfigTests : TestBase
     public void CanParseAndFormatUnixDomainSocket()
     {
         const string ConfigString = "!/some/path,allowAdmin=True";
-#if NET472
+#if NETFRAMEWORK
         var ex = Assert.Throws<PlatformNotSupportedException>(() => ConfigurationOptions.Parse(ConfigString));
         Assert.Equal("Unix domain sockets require .NET Core 3 or above", ex.Message);
 #else
@@ -201,19 +211,19 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void TalkToNonsenseServer()
+    public async Task TalkToNonsenseServer()
     {
         var config = new ConfigurationOptions
         {
             AbortOnConnectFail = false,
             EndPoints =
             {
-                { "127.0.0.1:1234" }
+                { "127.0.0.1:1234" },
             },
-            ConnectTimeout = 200
+            ConnectTimeout = 200,
         };
         var log = new StringWriter();
-        using (var conn = ConnectionMultiplexer.Connect(config, log))
+        await using (var conn = ConnectionMultiplexer.Connect(config, log))
         {
             Log(log.ToString());
             Assert.False(conn.IsConnected);
@@ -225,7 +235,7 @@ public class ConfigTests : TestBase
     {
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         foreach (var ep in conn.GetServerSnapshot().ToArray())
         {
@@ -233,7 +243,7 @@ public class ConfigTests : TestBase
         }
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         var before = conn.OperationCount;
 
@@ -249,40 +259,40 @@ public class ConfigTests : TestBase
     [InlineData(10)]
     [InlineData(100)]
     [InlineData(200)]
-    public void GetSlowlog(int count)
+    public async Task GetSlowlog(int count)
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var rows = GetAnyPrimary(conn).SlowlogGet(count);
         Assert.NotNull(rows);
     }
 
     [Fact]
-    public void ClearSlowlog()
+    public async Task ClearSlowlog()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         GetAnyPrimary(conn).SlowlogReset();
     }
 
     [Fact]
-    public void ClientName()
+    public async Task ClientName()
     {
-        using var conn = Create(clientName: "Test Rig", allowAdmin: true, shared: false);
+        await using var conn = Create(clientName: "Test Rig", allowAdmin: true, shared: false);
 
         Assert.Equal("Test Rig", conn.ClientName);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
-        var name = (string?)GetAnyPrimary(conn).Execute("CLIENT", "GETNAME");
+        var name = (string?)(await GetAnyPrimary(conn).ExecuteAsync("CLIENT", "GETNAME"));
         Assert.Equal("TestRig", name);
     }
 
     [Fact]
     public async Task ClientLibraryName()
     {
-        using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, shared: false);
         var server = GetAnyPrimary(conn);
 
         await server.PingAsync();
@@ -305,7 +315,7 @@ public class ConfigTests : TestBase
             conn.AddLibraryNameSuffix("foo");
 
             libName = (await server.ClientListAsync()).Single(x => x.Id == id).LibraryName;
-            Log("library name: {0}", libName);
+            Log($"library name: {libName}");
             Assert.Equal("SE.Redis-bar-foo", libName);
         }
         else
@@ -315,22 +325,22 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void DefaultClientName()
+    public async Task DefaultClientName()
     {
-        using var conn = Create(allowAdmin: true, caller: "", shared: false); // force default naming to kick in
+        await using var conn = Create(allowAdmin: true, caller: "", shared: false); // force default naming to kick in
 
         Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", conn.ClientName);
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         var name = (string?)GetAnyPrimary(conn).Execute("CLIENT", "GETNAME");
         Assert.Equal($"{Environment.MachineName}(SE.Redis-v{Utils.GetLibVersion()})", name);
     }
 
     [Fact]
-    public void ReadConfigWithConfigDisabled()
+    public async Task ReadConfigWithConfigDisabled()
     {
-        using var conn = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" });
+        await using var conn = Create(allowAdmin: true, disabledCommands: ["config", "info"]);
 
         var server = GetAnyPrimary(conn);
         var ex = Assert.Throws<RedisCommandException>(() => server.ConfigGet());
@@ -338,14 +348,14 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void ConnectWithSubscribeDisabled()
+    public async Task ConnectWithSubscribeDisabled()
     {
-        using var conn = Create(allowAdmin: true, disabledCommands: new[] { "subscribe" });
+        await using var conn = Create(allowAdmin: true, disabledCommands: ["subscribe"]);
 
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();
         Assert.True(servers[0].IsConnected);
-        if (!Context.IsResp3)
+        if (!TestContext.Current.IsResp3())
         {
             Assert.False(servers[0].IsSubscriberConnected);
         }
@@ -355,9 +365,9 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void ReadConfig()
+    public async Task ReadConfig()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         Log("about to get config");
         var server = GetAnyPrimary(conn);
@@ -376,9 +386,9 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void GetTime()
+    public async Task GetTime()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = GetAnyPrimary(conn);
         var serverTime = server.Time();
@@ -389,9 +399,9 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void DebugObject()
+    public async Task DebugObject()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -403,9 +413,9 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void GetInfo()
+    public async Task GetInfo()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = GetAnyPrimary(conn);
         var info1 = server.Info();
@@ -419,12 +429,17 @@ public class ConfigTests : TestBase
         Log("Full info for: " + first.Key);
         foreach (var setting in first)
         {
-            Log("{0}  ==>  {1}", setting.Key, setting.Value);
+            Log("  {0}  ==>  {1}", setting.Key, setting.Value);
         }
 
         var info2 = server.Info("cpu");
         Assert.Single(info2);
         var cpu = info2.Single();
+        Log("Full info for: " + cpu.Key);
+        foreach (var setting in cpu)
+        {
+            Log("  {0}  ==>  {1}", setting.Key, setting.Value);
+        }
         var cpuCount = cpu.Count();
         Assert.True(cpuCount > 2);
         Assert.Equal("CPU", cpu.Key);
@@ -433,9 +448,9 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void GetInfoRaw()
+    public async Task GetInfoRaw()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = GetAnyPrimary(conn);
         var info = server.InfoRaw();
@@ -444,10 +459,10 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void GetClients()
+    public async Task GetClients()
     {
         var name = Guid.NewGuid().ToString();
-        using var conn = Create(clientName: name, allowAdmin: true, shared: false);
+        await using var conn = Create(clientName: name, allowAdmin: true, shared: false);
 
         var server = GetAnyPrimary(conn);
         var clients = server.ClientList();
@@ -457,6 +472,7 @@ public class ConfigTests : TestBase
         if (server.Features.ClientId)
         {
             var id = conn.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+            Log("client id: " + id);
             Assert.NotNull(id);
             Assert.True(clients.Any(x => x.Id == id), "expected: " + id);
             id = conn.GetConnectionId(server.EndPoint, ConnectionType.Subscription);
@@ -466,7 +482,7 @@ public class ConfigTests : TestBase
             var self = clients.First(x => x.Id == id);
             if (server.Version.Major >= 7)
             {
-                Assert.Equal(Context.Test.Protocol, self.Protocol);
+                Assert.Equal(TestContext.Current.GetProtocol(), self.Protocol);
             }
             else
             {
@@ -476,48 +492,13 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void SlowLog()
+    public async Task SlowLog()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = GetAnyPrimary(conn);
         server.SlowlogGet();
         server.SlowlogReset();
-    }
-
-    [Fact]
-    public async Task TestAutomaticHeartbeat()
-    {
-        RedisValue oldTimeout = RedisValue.Null;
-        using var configConn = Create(allowAdmin: true);
-
-        try
-        {
-            configConn.GetDatabase();
-            var srv = GetAnyPrimary(configConn);
-            oldTimeout = srv.ConfigGet("timeout")[0].Value;
-            srv.ConfigSet("timeout", 5);
-
-            using var innerConn = Create();
-            var innerDb = innerConn.GetDatabase();
-            innerDb.Ping(); // need to wait to pick up configuration etc
-
-            var before = innerConn.OperationCount;
-
-            Log("sleeping to test heartbeat...");
-            await Task.Delay(8000).ForAwait();
-
-            var after = innerConn.OperationCount;
-            Assert.True(after >= before + 1, $"after: {after}, before: {before}");
-        }
-        finally
-        {
-            if (!oldTimeout.IsNull)
-            {
-                var srv = GetAnyPrimary(configConn);
-                srv.ConfigSet("timeout", oldTimeout);
-            }
-        }
     }
 
     [Fact]
@@ -539,28 +520,28 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void ThreadPoolManagerIsDetected()
+    public async Task ThreadPoolManagerIsDetected()
     {
         var config = new ConfigurationOptions
         {
             EndPoints = { { IPAddress.Loopback, 6379 } },
-            SocketManager = SocketManager.ThreadPool
+            SocketManager = SocketManager.ThreadPool,
         };
 
-        using var conn = ConnectionMultiplexer.Connect(config);
+        await using var conn = ConnectionMultiplexer.Connect(config);
 
         Assert.Same(PipeScheduler.ThreadPool, conn.SocketManager?.Scheduler);
     }
 
     [Fact]
-    public void DefaultThreadPoolManagerIsDetected()
+    public async Task DefaultThreadPoolManagerIsDetected()
     {
         var config = new ConfigurationOptions
         {
             EndPoints = { { IPAddress.Loopback, 6379 } },
         };
 
-        using var conn = ConnectionMultiplexer.Connect(config);
+        await using var conn = ConnectionMultiplexer.Connect(config);
 
         Assert.Same(SocketManager.Shared.Scheduler, conn.SocketManager?.Scheduler);
     }
@@ -627,7 +608,7 @@ public class ConfigTests : TestBase
     }
 
     [Fact]
-    public void BeforeSocketConnect()
+    public async Task BeforeSocketConnect()
     {
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
         int count = 0;
@@ -638,7 +619,7 @@ public class ConfigTests : TestBase
             socket.DontFragment = true;
             socket.Ttl = (short)(connType == ConnectionType.Interactive ? 12 : 123);
         };
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = ConnectionMultiplexer.Connect(options);
         Assert.True(conn.IsConnected);
         Assert.Equal(2, count);
 
@@ -668,7 +649,7 @@ public class ConfigTests : TestBase
         var originalUser = options.User = "originalUser";
         var originalPassword = options.Password = "originalPassword";
         Assert.Equal("Details", options.ClientName);
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         // Same instance
         Assert.Same(options, conn.RawConfig);
@@ -759,5 +740,25 @@ public class ConfigTests : TestBase
         options = options.Clone();
         Assert.Equal(setlib, options.SetClientLibrary);
         Assert.Equal(configurationString, options.ToString());
+    }
+
+    [Theory]
+    [InlineData(null, false, "dummy")]
+    [InlineData(false, false, "dummy,highIntegrity=False")]
+    [InlineData(true, true, "dummy,highIntegrity=True")]
+    public void CheckHighIntegrity(bool? assigned, bool expected, string cs)
+    {
+        var options = ConfigurationOptions.Parse("dummy");
+        if (assigned.HasValue) options.HighIntegrity = assigned.Value;
+
+        Assert.Equal(expected, options.HighIntegrity);
+        Assert.Equal(cs, options.ToString());
+
+        var clone = options.Clone();
+        Assert.Equal(expected, clone.HighIntegrity);
+        Assert.Equal(cs, clone.ToString());
+
+        var parsed = ConfigurationOptions.Parse(cs);
+        Assert.Equal(expected, parsed.HighIntegrity);
     }
 }

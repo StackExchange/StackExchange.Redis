@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Linq;
-using Xunit;
-using Xunit.Abstractions;
+using System.Text;
 using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
@@ -12,15 +11,12 @@ namespace StackExchange.Redis.Tests;
 /// Tests for <see href="https://redis.io/commands#hash"/>.
 /// </summary>
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class HashTests : TestBase
+public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public HashTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task TestIncrBy()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -45,7 +41,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task ScanAsync()
     {
-        using var conn = Create(require: RedisFeatures.v2_8_0);
+        await using var conn = Create(require: RedisFeatures.v2_8_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -89,17 +85,17 @@ public class HashTests : TestBase
     }
 
     [Fact]
-    public void Scan()
+    public async Task Scan()
     {
-        using var conn = Create(require: RedisFeatures.v2_8_0);
+        await using var conn = Create(require: RedisFeatures.v2_8_0);
 
         var db = conn.GetDatabase();
 
         var key = Me();
-        db.KeyDeleteAsync(key);
-        db.HashSetAsync(key, "abc", "def");
-        db.HashSetAsync(key, "ghi", "jkl");
-        db.HashSetAsync(key, "mno", "pqr");
+        _ = db.KeyDeleteAsync(key);
+        _ = db.HashSetAsync(key, "abc", "def");
+        _ = db.HashSetAsync(key, "ghi", "jkl");
+        _ = db.HashSetAsync(key, "mno", "pqr");
 
         var t1 = db.HashScan(key);
         var t2 = db.HashScan(key, "*h*");
@@ -127,12 +123,97 @@ public class HashTests : TestBase
     }
 
     [Fact]
-    public void TestIncrementOnHashThatDoesntExist()
+    public async Task ScanNoValuesAsync()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
 
         var db = conn.GetDatabase();
-        db.KeyDeleteAsync("keynotexist");
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+        for (int i = 0; i < 200; i++)
+        {
+            await db.HashSetAsync(key, "key" + i, "value " + i);
+        }
+
+        int count = 0;
+        // works for async
+        await foreach (var _ in db.HashScanNoValuesAsync(key, pageSize: 20))
+        {
+            count++;
+        }
+        Assert.Equal(200, count);
+
+        // and sync=>async (via cast)
+        count = 0;
+        await foreach (var _ in (IAsyncEnumerable<RedisValue>)db.HashScanNoValues(key, pageSize: 20))
+        {
+            count++;
+        }
+        Assert.Equal(200, count);
+
+        // and sync (native)
+        count = 0;
+        foreach (var _ in db.HashScanNoValues(key, pageSize: 20))
+        {
+            count++;
+        }
+        Assert.Equal(200, count);
+
+        // and async=>sync (via cast)
+        count = 0;
+        foreach (var _ in (IEnumerable<RedisValue>)db.HashScanNoValuesAsync(key, pageSize: 20))
+        {
+            count++;
+        }
+        Assert.Equal(200, count);
+    }
+
+    [Fact]
+    public async Task ScanNoValues()
+    {
+        await using var conn = Create(require: RedisFeatures.v7_4_0_rc1);
+
+        var db = conn.GetDatabase();
+
+        var key = Me();
+        _ = db.KeyDeleteAsync(key);
+        _ = db.HashSetAsync(key, "abc", "def");
+        _ = db.HashSetAsync(key, "ghi", "jkl");
+        _ = db.HashSetAsync(key, "mno", "pqr");
+
+        var t1 = db.HashScanNoValues(key);
+        var t2 = db.HashScanNoValues(key, "*h*");
+        var t3 = db.HashScanNoValues(key);
+        var t4 = db.HashScanNoValues(key, "*h*");
+
+        var v1 = t1.ToArray();
+        var v2 = t2.ToArray();
+        var v3 = t3.ToArray();
+        var v4 = t4.ToArray();
+
+        Assert.Equal(3, v1.Length);
+        Assert.Single(v2);
+        Assert.Equal(3, v3.Length);
+        Assert.Single(v4);
+
+        Array.Sort(v1);
+        Array.Sort(v2);
+        Array.Sort(v3);
+        Array.Sort(v4);
+
+        Assert.Equal(new RedisValue[] { "abc", "ghi", "mno" }, v1);
+        Assert.Equal(new RedisValue[] { "ghi" }, v2);
+        Assert.Equal(new RedisValue[] { "abc", "ghi", "mno" }, v3);
+        Assert.Equal(new RedisValue[] { "ghi" }, v4);
+    }
+
+    [Fact]
+    public async Task TestIncrementOnHashThatDoesntExist()
+    {
+        await using var conn = Create();
+
+        var db = conn.GetDatabase();
+        _ = db.KeyDeleteAsync("keynotexist");
         var result1 = db.Wait(db.HashIncrementAsync("keynotexist", "fieldnotexist", 1));
         var result2 = db.Wait(db.HashIncrementAsync("keynotexist", "anotherfieldnotexist", 1));
         Assert.Equal(1, result1);
@@ -142,7 +223,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestIncrByFloat()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -165,7 +246,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestGetAll()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -197,7 +278,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestGet()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -229,7 +310,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestSet()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -271,7 +352,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestSetNotExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -305,7 +386,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestDelSingle()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -328,7 +409,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestDelMulti()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -340,7 +421,7 @@ public class HashTests : TestBase
         var s2 = db.HashExistsAsync(hashkey, "key2");
         var s3 = db.HashExistsAsync(hashkey, "key3");
 
-        var removed = db.HashDeleteAsync(hashkey, new RedisValue[] { "key1", "key3" });
+        var removed = db.HashDeleteAsync(hashkey, ["key1", "key3"]);
 
         var d1 = db.HashExistsAsync(hashkey, "key1");
         var d2 = db.HashExistsAsync(hashkey, "key2");
@@ -356,7 +437,7 @@ public class HashTests : TestBase
         Assert.True(await d2);
         Assert.False(await d3);
 
-        var removeFinal = db.HashDeleteAsync(hashkey, new RedisValue[] { "key2" });
+        var removeFinal = db.HashDeleteAsync(hashkey, ["key2"]);
 
         Assert.Equal(0, await db.HashLengthAsync(hashkey).ForAwait());
         Assert.Equal(1, await removeFinal);
@@ -368,7 +449,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestDelMultiInsideTransaction()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var tran = conn.GetDatabase().CreateTransaction();
         {
@@ -381,7 +462,7 @@ public class HashTests : TestBase
             var s2 = tran.HashExistsAsync(hashkey, "key2");
             var s3 = tran.HashExistsAsync(hashkey, "key3");
 
-            var removed = tran.HashDeleteAsync(hashkey, new RedisValue[] { "key1", "key3" });
+            var removed = tran.HashDeleteAsync(hashkey, ["key1", "key3"]);
 
             var d1 = tran.HashExistsAsync(hashkey, "key1");
             var d2 = tran.HashExistsAsync(hashkey, "key2");
@@ -407,7 +488,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -429,7 +510,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestHashKeys()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashKey = Me();
@@ -455,7 +536,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestHashValues()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -482,7 +563,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestHashLength()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -505,13 +586,13 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestGetMulti()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
         db.KeyDelete(hashkey, CommandFlags.FireAndForget);
 
-        RedisValue[] fields = { "foo", "bar", "blop" };
+        RedisValue[] fields = ["foo", "bar", "blop"];
         var arr0 = await db.HashGetAsync(hashkey, fields).ForAwait();
 
         db.HashSet(hashkey, "foo", "abc", flags: CommandFlags.FireAndForget);
@@ -540,18 +621,18 @@ public class HashTests : TestBase
     /// Tests for <see href="https://redis.io/commands/hgetall"/>.
     /// </summary>
     [Fact]
-    public void TestGetPairs()
+    public async Task TestGetPairs()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
-        db.KeyDeleteAsync(hashkey);
+        _ = db.KeyDeleteAsync(hashkey);
 
         var result0 = db.HashGetAllAsync(hashkey);
 
-        db.HashSetAsync(hashkey, "foo", "abc");
-        db.HashSetAsync(hashkey, "bar", "def");
+        _ = db.HashSetAsync(hashkey, "foo", "abc");
+        _ = db.HashSetAsync(hashkey, "bar", "def");
 
         var result1 = db.HashGetAllAsync(hashkey);
 
@@ -566,21 +647,22 @@ public class HashTests : TestBase
     /// Tests for <see href="https://redis.io/commands/hmset"/>.
     /// </summary>
     [Fact]
-    public void TestSetPairs()
+    public async Task TestSetPairs()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
-        db.KeyDeleteAsync(hashkey).ForAwait();
+        _ = db.KeyDeleteAsync(hashkey).ForAwait();
 
         var result0 = db.HashGetAllAsync(hashkey);
 
-        var data = new[] {
-                new HashEntry("foo", Encoding.UTF8.GetBytes("abc")),
-                new HashEntry("bar", Encoding.UTF8.GetBytes("def"))
-            };
-        db.HashSetAsync(hashkey, data).ForAwait();
+        var data = new[]
+        {
+            new HashEntry("foo", Encoding.UTF8.GetBytes("abc")),
+            new HashEntry("bar", Encoding.UTF8.GetBytes("def")),
+        };
+        _ = db.HashSetAsync(hashkey, data).ForAwait();
 
         var result1 = db.Wait(db.HashGetAllAsync(hashkey));
 
@@ -594,7 +676,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task TestWhenAlwaysAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var hashkey = Me();
@@ -615,7 +697,7 @@ public class HashTests : TestBase
     [Fact]
     public async Task HashRandomFieldAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var hashKey = Me();
@@ -641,9 +723,9 @@ public class HashTests : TestBase
     }
 
     [Fact]
-    public void HashRandomField()
+    public async Task HashRandomField()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var hashKey = Me();
@@ -669,9 +751,9 @@ public class HashTests : TestBase
     }
 
     [Fact]
-    public void HashRandomFieldEmptyHash()
+    public async Task HashRandomFieldEmptyHash()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var hashKey = Me();

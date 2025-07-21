@@ -23,7 +23,7 @@ public readonly struct GeoRadiusResult
     /// <summary>
     /// The hash value of the matched member as an integer. (The key in the sorted set).
     /// </summary>
-    /// <remarks>Note that this is not the same as the hash returned from GeoHash</remarks>
+    /// <remarks>Note that this is not the same as the hash returned from GeoHash.</remarks>
     public long? Hash { get; }
 
     /// <summary>

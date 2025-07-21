@@ -2,14 +2,11 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectingFailDetectionTests : TestBase
+public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectingFailDetectionTests(ITestOutputHelper output) : base (output) { }
-
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
     [Fact]
@@ -17,10 +14,11 @@ public class ConnectingFailDetectionTests : TestBase
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            conn.RawConfig.ReconnectRetryPolicy = new LinearRetry(200);
 
             var db = conn.GetDatabase();
-            db.Ping();
+            await db.PingAsync();
 
             var server = conn.GetServer(conn.GetEndPoints()[0]);
             var server2 = conn.GetServer(conn.GetEndPoints()[1]);
@@ -56,10 +54,11 @@ public class ConnectingFailDetectionTests : TestBase
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            conn.RawConfig.ReconnectRetryPolicy = new LinearRetry(200);
 
             var db = conn.GetDatabase();
-            db.Ping();
+            await db.PingAsync();
 
             var server = conn.GetServer(conn.GetEndPoints()[0]);
             var server2 = conn.GetServer(conn.GetEndPoints()[1]);
@@ -104,7 +103,7 @@ public class ConnectingFailDetectionTests : TestBase
 
         int failCount = 0, restoreCount = 0;
 
-        using var conn = ConnectionMultiplexer.Connect(config);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
 
         conn.ConnectionFailed += (s, e) =>
         {
@@ -135,14 +134,14 @@ public class ConnectingFailDetectionTests : TestBase
     }
 
     [Fact]
-    public void ConnectsWhenBeginConnectCompletesSynchronously()
+    public async Task ConnectsWhenBeginConnectCompletesSynchronously()
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 3000);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 3000);
 
             var db = conn.GetDatabase();
-            db.Ping();
+            await db.PingAsync();
 
             Assert.True(conn.IsConnected);
         }
@@ -153,12 +152,12 @@ public class ConnectingFailDetectionTests : TestBase
     }
 
     [Fact]
-    public void ConnectIncludesSubscriber()
+    public async Task ConnectIncludesSubscriber()
     {
-        using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false);
+        await using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
         Assert.True(conn.IsConnected);
 
         foreach (var server in conn.GetServerSnapshot())

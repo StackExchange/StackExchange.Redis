@@ -1,19 +1,15 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class ExecuteTests : TestBase
+public class ExecuteTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ExecuteTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task DBExecute()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase(4);
         RedisKey key = Me();
@@ -29,7 +25,7 @@ public class ExecuteTests : TestBase
     [Fact]
     public async Task ServerExecute()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var server = conn.GetServer(conn.GetEndPoints().First());
         var actual = (string?)server.Execute("echo", "some value");

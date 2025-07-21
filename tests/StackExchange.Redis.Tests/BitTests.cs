@@ -1,18 +1,15 @@
-﻿using Xunit;
-using Xunit.Abstractions;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class BitTests : TestBase
+public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public BitTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
-
     [Fact]
-    public void BasicOps()
+    public async Task BasicOps()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
 

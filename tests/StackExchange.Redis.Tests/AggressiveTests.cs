@@ -1,18 +1,16 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class AggressiveTests : TestBase
+public class AggressiveTests(ITestOutputHelper output) : TestBase(output)
 {
-    public AggressiveTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task ParallelTransactionsWithConditions()
     {
+        Skip.UnlessLongRunning();
         const int Muxers = 4, Workers = 20, PerThread = 250;
 
         var muxers = new IConnectionMultiplexer[Muxers];
@@ -24,7 +22,7 @@ public class AggressiveTests : TestBase
             RedisKey hits = Me(), trigger = Me() + "3";
             int expectedSuccess = 0;
 
-            await muxers[0].GetDatabase().KeyDeleteAsync(new[] { hits, trigger }).ForAwait();
+            await muxers[0].GetDatabase().KeyDeleteAsync([hits, trigger]).ForAwait();
 
             Task[] tasks = new Task[Workers];
             for (int i = 0; i < tasks.Length; i++)
@@ -73,19 +71,20 @@ public class AggressiveTests : TestBase
 
     private const int IterationCount = 5000, InnerCount = 20;
 
-    [FactLongRunning]
-    public void RunCompetingBatchesOnSameMuxer()
+    [Fact]
+    public async Task RunCompetingBatchesOnSameMuxer()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         Thread x = new Thread(state => BatchRunPings((IDatabase)state!))
         {
-            Name = nameof(BatchRunPings)
+            Name = nameof(BatchRunPings),
         };
         Thread y = new Thread(state => BatchRunIntegers((IDatabase)state!))
         {
-            Name = nameof(BatchRunIntegers)
+            Name = nameof(BatchRunIntegers),
         };
 
         x.Start(db);
@@ -102,7 +101,7 @@ public class AggressiveTests : TestBase
         db.KeyDelete(key);
         db.StringSet(key, 1);
         Task[] tasks = new Task[InnerCount];
-        for(int i = 0; i < IterationCount; i++)
+        for (int i = 0; i < IterationCount; i++)
         {
             var batch = db.CreateBatch();
             for (int j = 0; j < tasks.Length; j++)
@@ -132,10 +131,11 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task RunCompetingBatchesOnSameMuxerAsync()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         var x = Task.Run(() => BatchRunPingsAsync(db));
@@ -161,7 +161,7 @@ public class AggressiveTests : TestBase
                 tasks[j] = batch.StringIncrementAsync(key);
             }
             batch.Execute();
-            for(int j = tasks.Length - 1; j >= 0;j--)
+            for (int j = tasks.Length - 1; j >= 0; j--)
             {
                 await tasks[j];
             }
@@ -189,19 +189,20 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
-    public void RunCompetingTransactionsOnSameMuxer()
+    [Fact]
+    public async Task RunCompetingTransactionsOnSameMuxer()
     {
-        using var conn = Create(logTransactionData: false);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(logTransactionData: false);
         var db = conn.GetDatabase();
 
         Thread x = new Thread(state => TranRunPings((IDatabase)state!))
         {
-            Name = nameof(BatchRunPings)
+            Name = nameof(BatchRunPings),
         };
         Thread y = new Thread(state => TranRunIntegers((IDatabase)state!))
         {
-            Name = nameof(BatchRunIntegers)
+            Name = nameof(BatchRunIntegers),
         };
 
         x.Start(db);
@@ -252,10 +253,11 @@ public class AggressiveTests : TestBase
         }
     }
 
-    [FactLongRunning]
+    [Fact]
     public async Task RunCompetingTransactionsOnSameMuxerAsync()
     {
-        using var conn = Create(logTransactionData: false);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(logTransactionData: false);
         var db = conn.GetDatabase();
 
         var x = Task.Run(() => TranRunPingsAsync(db));

@@ -163,6 +163,20 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void HashScanNoValues()
+    {
+        prefixed.HashScanNoValues("key", "pattern", 123, flags: CommandFlags.None);
+        mock.Received().HashScanNoValues("prefix:key", "pattern", 123, flags: CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashScanNoValues_Full()
+    {
+        prefixed.HashScanNoValues("key", "pattern", 123, 42, 64, flags: CommandFlags.None);
+        mock.Received().HashScanNoValues("prefix:key", "pattern", 123, 42, 64, CommandFlags.None);
+    }
+
+    [Fact]
     public void HashSet_1()
     {
         HashEntry[] hashFields = Array.Empty<HashEntry>();
@@ -223,7 +237,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void HyperLogLogMerge_2()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         prefixed.HyperLogLogMerge("destination", keys, CommandFlags.None);
         mock.Received().HyperLogLogMerge("prefix:destination", Arg.Is(valid), CommandFlags.None);
@@ -253,7 +267,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void KeyDelete_2()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         prefixed.KeyDelete(keys, CommandFlags.None);
         mock.Received().KeyDelete(Arg.Is(valid), CommandFlags.None);
@@ -444,7 +458,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void ListLeftPush_3()
     {
-        RedisValue[] values = new RedisValue[] { "value1", "value2" };
+        RedisValue[] values = ["value1", "value2"];
         prefixed.ListLeftPush("key", values, When.Exists, CommandFlags.None);
         mock.Received().ListLeftPush("prefix:key", values, When.Exists, CommandFlags.None);
     }
@@ -516,7 +530,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void ListRightPush_3()
     {
-        RedisValue[] values = new RedisValue[] { "value1", "value2" };
+        RedisValue[] values = ["value1", "value2"];
         prefixed.ListRightPush("key", values, When.Exists, CommandFlags.None);
         mock.Received().ListRightPush("prefix:key", values, When.Exists, CommandFlags.None);
     }
@@ -579,7 +593,7 @@ public sealed class KeyPrefixedDatabaseTests
     {
         byte[] hash = Array.Empty<byte>();
         RedisValue[] values = Array.Empty<RedisValue>();
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         prefixed.ScriptEvaluate(hash, keys, values, CommandFlags.None);
         mock.Received().ScriptEvaluate(hash, Arg.Is(valid), values, CommandFlags.None);
@@ -589,10 +603,10 @@ public sealed class KeyPrefixedDatabaseTests
     public void ScriptEvaluate_2()
     {
         RedisValue[] values = Array.Empty<RedisValue>();
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-        prefixed.ScriptEvaluate("script", keys, values, CommandFlags.None);
-        mock.Received().ScriptEvaluate("script", Arg.Is(valid), values, CommandFlags.None);
+        prefixed.ScriptEvaluate(script: "script", keys: keys, values: values, flags: CommandFlags.None);
+        mock.Received().ScriptEvaluate(script: "script", keys: Arg.Is(valid), values: values, flags: CommandFlags.None);
     }
 
     [Fact]
@@ -620,7 +634,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void SetCombine_2()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         prefixed.SetCombine(SetOperation.Intersect, keys, CommandFlags.None);
         mock.Received().SetCombine(SetOperation.Intersect, Arg.Is(valid), CommandFlags.None);
@@ -636,7 +650,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void SetCombineAndStore_2()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         prefixed.SetCombineAndStore(SetOperation.Intersect, "destination", keys, CommandFlags.None);
         mock.Received().SetCombineAndStore(SetOperation.Intersect, "prefix:destination", Arg.Is(valid), CommandFlags.None);
@@ -652,7 +666,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void SetContains_2()
     {
-        RedisValue[] values = new RedisValue[] { "value1", "value2" };
+        RedisValue[] values = ["value1", "value2"];
         prefixed.SetContains("key", values, CommandFlags.None);
         mock.Received().SetContains("prefix:key", values, CommandFlags.None);
     }
@@ -749,7 +763,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void Sort()
     {
-        RedisValue[] get = new RedisValue[] { "a", "#" };
+        RedisValue[] get = ["a", "#"];
         Expression<Predicate<RedisValue[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
 
         prefixed.Sort("key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
@@ -762,7 +776,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void SortAndStore()
     {
-        RedisValue[] get = new RedisValue[] { "a", "#" };
+        RedisValue[] get = ["a", "#"];
         Expression<Predicate<RedisValue[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
 
         prefixed.SortAndStore("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
@@ -798,7 +812,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void SortedSetCombine()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         prefixed.SortedSetCombine(SetOperation.Intersect, keys);
         mock.Received().SortedSetCombine(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None);
     }
@@ -806,7 +820,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void SortedSetCombineWithScores()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         prefixed.SortedSetCombineWithScores(SetOperation.Intersect, keys);
         mock.Received().SortedSetCombineWithScores(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None);
     }
@@ -821,7 +835,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void SortedSetCombineAndStore_2()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         prefixed.SetCombineAndStore(SetOperation.Intersect, "destination", keys, CommandFlags.None);
         mock.Received().SetCombineAndStore(SetOperation.Intersect, "prefix:destination", Arg.Is(valid), CommandFlags.None);
@@ -844,7 +858,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void SortedSetIntersectionLength()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         prefixed.SortedSetIntersectionLength(keys, 1, CommandFlags.None);
         mock.Received().SortedSetIntersectionLength(keys, 1, CommandFlags.None);
     }
@@ -1189,6 +1203,27 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void StreamTrimByMinId()
+    {
+        prefixed.StreamTrimByMinId("key", 1111111111);
+        mock.Received().StreamTrimByMinId("prefix:key", 1111111111);
+    }
+
+    [Fact]
+    public void StreamTrimByMinIdWithApproximate()
+    {
+        prefixed.StreamTrimByMinId("key", 1111111111, useApproximateMaxLength: true);
+        mock.Received().StreamTrimByMinId("prefix:key", 1111111111, useApproximateMaxLength: true);
+    }
+
+    [Fact]
+    public void StreamTrimByMinIdWithApproximateAndLimit()
+    {
+        prefixed.StreamTrimByMinId("key", 1111111111, useApproximateMaxLength: true, limit: 100);
+        mock.Received().StreamTrimByMinId("prefix:key", 1111111111, useApproximateMaxLength: true, limit: 100);
+    }
+
+    [Fact]
     public void StringAppend()
     {
         prefixed.StringAppend("key", "value", CommandFlags.None);
@@ -1219,10 +1254,46 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void StringBitOperation_2()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         prefixed.StringBitOperation(Bitwise.Xor, "destination", keys, CommandFlags.None);
         mock.Received().StringBitOperation(Bitwise.Xor, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringBitOperation_Diff()
+    {
+        RedisKey[] keys = ["x", "y1", "y2"];
+        Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+        prefixed.StringBitOperation(Bitwise.Diff, "destination", keys, CommandFlags.None);
+        mock.Received().StringBitOperation(Bitwise.Diff, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringBitOperation_Diff1()
+    {
+        RedisKey[] keys = ["x", "y1", "y2"];
+        Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+        prefixed.StringBitOperation(Bitwise.Diff1, "destination", keys, CommandFlags.None);
+        mock.Received().StringBitOperation(Bitwise.Diff1, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringBitOperation_AndOr()
+    {
+        RedisKey[] keys = ["x", "y1", "y2"];
+        Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
+        prefixed.StringBitOperation(Bitwise.AndOr, "destination", keys, CommandFlags.None);
+        mock.Received().StringBitOperation(Bitwise.AndOr, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringBitOperation_One()
+    {
+        RedisKey[] keys = ["a", "b", "c"];
+        Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:a" && _[1] == "prefix:b" && _[2] == "prefix:c";
+        prefixed.StringBitOperation(Bitwise.One, "destination", keys, CommandFlags.None);
+        mock.Received().StringBitOperation(Bitwise.One, "prefix:destination", Arg.Is(valid), CommandFlags.None);
     }
 
     [Fact]
@@ -1263,7 +1334,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void StringGet_2()
     {
-        RedisKey[] keys = new RedisKey[] { "a", "b" };
+        RedisKey[] keys = ["a", "b"];
         Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
         prefixed.StringGet(keys, CommandFlags.None);
         mock.Received().StringGet(Arg.Is(valid), CommandFlags.None);
@@ -1344,7 +1415,7 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void StringSet_3()
     {
-        KeyValuePair<RedisKey, RedisValue>[] values = new KeyValuePair<RedisKey, RedisValue>[] { new KeyValuePair<RedisKey, RedisValue>("a", "x"), new KeyValuePair<RedisKey, RedisValue>("b", "y") };
+        KeyValuePair<RedisKey, RedisValue>[] values = [new KeyValuePair<RedisKey, RedisValue>("a", "x"), new KeyValuePair<RedisKey, RedisValue>("b", "y")];
         Expression<Predicate<KeyValuePair<RedisKey, RedisValue>[]>> valid = _ => _.Length == 2 && _[0].Key == "prefix:a" && _[0].Value == "x" && _[1].Key == "prefix:b" && _[1].Value == "y";
         prefixed.StringSet(values, When.Exists, CommandFlags.None);
         mock.Received().StringSet(Arg.Is(valid), When.Exists, CommandFlags.None);

@@ -1,14 +1,10 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class ConstraintsTests : TestBase
+public class ConstraintsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ConstraintsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public void ValueEquals()
     {
@@ -20,7 +16,7 @@ public class ConstraintsTests : TestBase
     [Fact]
     public async Task TestManualIncr()
     {
-        using var conn = Create(syncTimeout: 120000); // big timeout while debugging
+        await using var conn = Create(syncTimeout: 120000); // big timeout while debugging
 
         var key = Me();
         var db = conn.GetDatabase();

@@ -1,24 +1,22 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class CommandTimeoutTests : TestBase
+public class CommandTimeoutTests(ITestOutputHelper output) : TestBase(output)
 {
-    public CommandTimeoutTests(ITestOutputHelper output) : base (output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task DefaultHeartbeatTimeout()
     {
+        Skip.UnlessLongRunning();
         var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
         options.AllowAdmin = true;
         options.AsyncTimeout = 1000;
 
-        using var pauseConn = ConnectionMultiplexer.Connect(options);
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var pauseConn = ConnectionMultiplexer.Connect(options);
+        await using var conn = ConnectionMultiplexer.Connect(options);
 
         var pauseServer = GetServer(pauseConn);
         var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 5000);
@@ -44,8 +42,8 @@ public class CommandTimeoutTests : TestBase
         options.AsyncTimeout = 50;
         options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
 
-        using var pauseConn = ConnectionMultiplexer.Connect(options);
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var pauseConn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         var pauseServer = GetServer(pauseConn);
         var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 2000);

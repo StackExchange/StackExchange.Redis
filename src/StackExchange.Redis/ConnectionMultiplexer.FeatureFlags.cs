@@ -19,7 +19,8 @@ public partial class ConnectionMultiplexer
     {
         bool value = false;
         try
-        {   // attempt to detect a known problem scenario
+        {
+            // attempt to detect a known problem scenario
             value = SynchronizationContext.Current?.GetType()?.Name
                 == "LegacyAspNetSynchronizationContext";
         }

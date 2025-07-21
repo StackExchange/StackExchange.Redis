@@ -11,13 +11,14 @@ using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 using Xunit;
 
+[assembly: AssemblyFixture(typeof(StackExchange.Redis.Tests.SharedConnectionFixture))]
+
 namespace StackExchange.Redis.Tests;
 
 public class SharedConnectionFixture : IDisposable
 {
     public bool IsEnabled { get; }
 
-    public const string Key = "Shared Muxer";
     private readonly ConnectionMultiplexer _actualConnection;
     public string Configuration { get; }
 
@@ -29,8 +30,7 @@ public class SharedConnectionFixture : IDisposable
             output: null,
             clientName: nameof(SharedConnectionFixture),
             configuration: Configuration,
-            allowAdmin: true
-        );
+            allowAdmin: true);
         _actualConnection.InternalError += OnInternalError;
         _actualConnection.ConnectionFailed += OnConnectionFailed;
     }
@@ -43,7 +43,8 @@ public class SharedConnectionFixture : IDisposable
         {
             ref NonDisposingConnection? field = ref protocol == RedisProtocol.Resp3 ? ref resp3 : ref resp2;
             if (field is { IsConnected: false })
-            {   // abandon memoized connection if disconnected
+            {
+                // abandon memoized connection if disconnected
                 var muxer = field.UnderlyingMultiplexer;
                 field = null;
                 muxer.Dispose();
@@ -68,7 +69,7 @@ public class SharedConnectionFixture : IDisposable
         }
     }
 
-    internal sealed class NonDisposingConnection : IInternalConnectionMultiplexer
+    internal sealed class NonDisposingConnection(IInternalConnectionMultiplexer inner) : IInternalConnectionMultiplexer
     {
         public IInternalConnectionMultiplexer UnderlyingConnection => _inner;
 
@@ -92,8 +93,7 @@ public class SharedConnectionFixture : IDisposable
 
         public ConnectionMultiplexer UnderlyingMultiplexer => _inner.UnderlyingMultiplexer;
 
-        private readonly IInternalConnectionMultiplexer _inner;
-        public NonDisposingConnection(IInternalConnectionMultiplexer inner) => _inner = inner;
+        private readonly IInternalConnectionMultiplexer _inner = inner;
 
         public int GetSubscriptionsCount() => _inner.GetSubscriptionsCount();
         public ConcurrentDictionary<RedisChannel, ConnectionMultiplexer.Subscription> GetSubscriptions() => _inner.GetSubscriptions();
@@ -255,7 +255,7 @@ public class SharedConnectionFixture : IDisposable
             privateExceptions.Add($"{TestBase.Time()}: Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
         }
     }
-    private readonly List<string> privateExceptions = new List<string>();
+    private readonly List<string> privateExceptions = [];
     private int privateFailCount;
 
     public void Teardown(TextWriter output)
@@ -271,7 +271,7 @@ public class SharedConnectionFixture : IDisposable
                 }
                 privateExceptions.Clear();
             }
-            //Assert.True(false, $"There were {privateFailCount} private ambient exceptions.");
+            // Assert.True(false, $"There were {privateFailCount} private ambient exceptions.");
         }
 
         if (_actualConnection != null)
@@ -287,15 +287,4 @@ public class SharedConnectionFixture : IDisposable
             }
         }
     }
-}
-
-/// <summary>
-/// See <see href="https://stackoverflow.com/questions/13829737/xunit-net-run-code-once-before-and-after-all-tests"/>.
-/// </summary>
-[CollectionDefinition(SharedConnectionFixture.Key)]
-public class ConnectionCollection : ICollectionFixture<SharedConnectionFixture>
-{
-    // This class has no code, and is never created. Its purpose is simply
-    // to be the place to apply [CollectionDefinition] and all the
-    // ICollectionFixture<> interfaces.
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.Serialization;
 using Xunit;
@@ -9,8 +10,11 @@ namespace StackExchange.Redis.Tests;
 public class ServerSnapshotTests
 {
     [Fact]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Assertions", "xUnit2012:Do not use boolean check to check if a value exists in a collection", Justification = "Explicit testing")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Assertions", "xUnit2013:Do not use equality check to check for collection size.", Justification = "Explicit testing")]
+    [SuppressMessage("Assertions", "xUnit2012:Do not use boolean check to check if a value exists in a collection", Justification = "Explicit testing")]
+    [SuppressMessage("Assertions", "xUnit2013:Do not use equality check to check for collection size.", Justification = "Explicit testing")]
+    [SuppressMessage("Assertions", "xUnit2029:Do not use Empty() to check if a value does not exist in a collection", Justification = "Explicit testing")]
+    [SuppressMessage("Performance", "CA1829:Use Length/Count property instead of Count() when available", Justification = "Explicit testing")]
+    [SuppressMessage("Performance", "CA1860:Avoid using 'Enumerable.Any()' extension method", Justification = "Explicit testing")]
     public void EmptyBehaviour()
     {
         var snapshot = ServerSnapshot.Empty;
@@ -51,13 +55,19 @@ public class ServerSnapshotTests
     [InlineData(5, 0)]
     [InlineData(5, 3)]
     [InlineData(5, 5)]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Assertions", "xUnit2012:Do not use boolean check to check if a value exists in a collection", Justification = "Explicit testing")]
+    [SuppressMessage("Assertions", "xUnit2012:Do not use boolean check to check if a value exists in a collection", Justification = "Explicit testing")]
+    [SuppressMessage("Assertions", "xUnit2029:Do not use Empty() to check if a value does not exist in a collection", Justification = "Explicit testing")]
+    [SuppressMessage("Assertions", "xUnit2030:Do not use Assert.NotEmpty to check if a value exists in a collection", Justification = "Explicit testing")]
+    [SuppressMessage("Performance", "CA1829:Use Length/Count property instead of Count() when available", Justification = "Explicit testing")]
+    [SuppressMessage("Performance", "CA1860:Avoid using 'Enumerable.Any()' extension method", Justification = "Explicit testing")]
     public void NonEmptyBehaviour(int count, int replicaCount)
     {
         var snapshot = ServerSnapshot.Empty;
         for (int i = 0; i < count; i++)
         {
+#pragma warning disable SYSLIB0050 // Type or member is obsolete
             var dummy = (ServerEndPoint)FormatterServices.GetSafeUninitializedObject(typeof(ServerEndPoint));
+#pragma warning restore SYSLIB0050 // Type or member is obsolete
             dummy.IsReplica = i < replicaCount;
             snapshot = snapshot.Add(dummy);
         }

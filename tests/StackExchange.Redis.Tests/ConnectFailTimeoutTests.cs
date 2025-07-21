@@ -1,24 +1,22 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectFailTimeoutTests : TestBase
+public class ConnectFailTimeoutTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectFailTimeoutTests(ITestOutputHelper output) : base (output) { }
-
     [Fact]
     public async Task NoticesConnectFail()
     {
         SetExpectedAmbientFailureCount(-1);
-        using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+
+        void InnerScenario()
         {
             conn.ConnectionFailed += (s, a) =>
                 Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
@@ -40,7 +38,7 @@ public class ConnectFailTimeoutTests : TestBase
         await UntilConditionAsync(TimeSpan.FromSeconds(10), () => server.IsConnected);
 
         Log("pinging - expect success");
-        var time = server.Ping();
+        var time = await server.PingAsync();
         Log("pinged");
         Log(time.ToString());
     }
