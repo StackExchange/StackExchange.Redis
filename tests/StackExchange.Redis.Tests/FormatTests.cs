@@ -3,14 +3,11 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class FormatTests : TestBase
+public class FormatTests(ITestOutputHelper output) : TestBase(output)
 {
-    public FormatTests(ITestOutputHelper output) : base(output) { }
-
     public static IEnumerable<object?[]> EndpointData()
     {
         // note: the 3rd arg is for formatting; null means "expect the original string"

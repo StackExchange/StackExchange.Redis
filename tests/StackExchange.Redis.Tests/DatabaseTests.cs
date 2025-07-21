@@ -1,19 +1,15 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class DatabaseTests : TestBase
+public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task CommandCount()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var server = GetAnyPrimary(conn);
         var count = server.CommandCount();
         Assert.True(count > 100);
@@ -25,13 +21,13 @@ public class DatabaseTests : TestBase
     [Fact]
     public async Task CommandGetKeys()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var server = GetAnyPrimary(conn);
 
-        RedisValue[] command = { "MSET", "a", "b", "c", "d", "e", "f" };
+        RedisValue[] command = ["MSET", "a", "b", "c", "d", "e", "f"];
 
         RedisKey[] keys = server.CommandGetKeys(command);
-        RedisKey[] expected = { "a", "c", "e" };
+        RedisKey[] expected = ["a", "c", "e"];
         Assert.Equal(keys, expected);
 
         keys = await server.CommandGetKeysAsync(command);
@@ -41,7 +37,7 @@ public class DatabaseTests : TestBase
     [Fact]
     public async Task CommandList()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
         var server = GetAnyPrimary(conn);
 
         var commands = server.CommandList();
@@ -73,7 +69,7 @@ public class DatabaseTests : TestBase
     {
         var db1Id = TestConfig.GetDedicatedDB();
         var db2Id = TestConfig.GetDedicatedDB();
-        using (var conn = Create(allowAdmin: true))
+        await using (var conn = Create(allowAdmin: true))
         {
             Skip.IfMissingDatabase(conn, db1Id);
             Skip.IfMissingDatabase(conn, db2Id);
@@ -81,7 +77,7 @@ public class DatabaseTests : TestBase
             server.FlushDatabase(db1Id, CommandFlags.FireAndForget);
             server.FlushDatabase(db2Id, CommandFlags.FireAndForget);
         }
-        using (var conn = Create(defaultDatabase: db2Id))
+        await using (var conn = Create(defaultDatabase: db2Id))
         {
             Skip.IfMissingDatabase(conn, db1Id);
             Skip.IfMissingDatabase(conn, db2Id);
@@ -104,9 +100,9 @@ public class DatabaseTests : TestBase
     }
 
     [Fact]
-    public void DatabaseCount()
+    public async Task DatabaseCount()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var server = GetAnyPrimary(conn);
         var count = server.DatabaseCount;
@@ -119,7 +115,7 @@ public class DatabaseTests : TestBase
     [Fact]
     public async Task MultiDatabases()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db0 = conn.GetDatabase(TestConfig.GetDedicatedDB(conn));
@@ -146,7 +142,7 @@ public class DatabaseTests : TestBase
     [Fact]
     public async Task SwapDatabases()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
 
         RedisKey key = Me();
         var db0id = TestConfig.GetDedicatedDB(conn);
@@ -179,7 +175,7 @@ public class DatabaseTests : TestBase
     [Fact]
     public async Task SwapDatabasesAsync()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
 
         RedisKey key = Me();
         var db0id = TestConfig.GetDedicatedDB(conn);

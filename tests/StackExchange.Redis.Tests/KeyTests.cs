@@ -5,20 +5,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class KeyTests : TestBase
+public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void TestScan()
+    public async Task TestScan()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
         var db = conn.GetDatabase(dbId);
@@ -35,9 +31,9 @@ public class KeyTests : TestBase
     }
 
     [Fact]
-    public void FlushFetchRandomKey()
+    public async Task FlushFetchRandomKey()
     {
-        using var conn = Create(allowAdmin: true);
+        await using var conn = Create(allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
         Skip.IfMissingDatabase(conn, dbId);
@@ -55,9 +51,9 @@ public class KeyTests : TestBase
     }
 
     [Fact]
-    public void Zeros()
+    public async Task Zeros()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -111,9 +107,9 @@ public class KeyTests : TestBase
     }
 
     [Fact]
-    public void Exists()
+    public async Task Exists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         RedisKey key2 = Me() + "2";
@@ -123,23 +119,23 @@ public class KeyTests : TestBase
 
         Assert.False(db.KeyExists(key));
         Assert.False(db.KeyExists(key2));
-        Assert.Equal(0, db.KeyExists(new[] { key, key2 }));
+        Assert.Equal(0, db.KeyExists([key, key2]));
 
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
         Assert.True(db.KeyExists(key));
         Assert.False(db.KeyExists(key2));
-        Assert.Equal(1, db.KeyExists(new[] { key, key2 }));
+        Assert.Equal(1, db.KeyExists([key, key2]));
 
         db.StringSet(key2, "new value", flags: CommandFlags.FireAndForget);
         Assert.True(db.KeyExists(key));
         Assert.True(db.KeyExists(key2));
-        Assert.Equal(2, db.KeyExists(new[] { key, key2 }));
+        Assert.Equal(2, db.KeyExists([key, key2]));
     }
 
     [Fact]
     public async Task ExistsAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         RedisKey key2 = Me() + "2";
@@ -148,19 +144,19 @@ public class KeyTests : TestBase
         db.KeyDelete(key2, CommandFlags.FireAndForget);
         var a1 = db.KeyExistsAsync(key).ForAwait();
         var a2 = db.KeyExistsAsync(key2).ForAwait();
-        var a3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+        var a3 = db.KeyExistsAsync([key, key2]).ForAwait();
 
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
 
         var b1 = db.KeyExistsAsync(key).ForAwait();
         var b2 = db.KeyExistsAsync(key2).ForAwait();
-        var b3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+        var b3 = db.KeyExistsAsync([key, key2]).ForAwait();
 
         db.StringSet(key2, "new value", flags: CommandFlags.FireAndForget);
 
         var c1 = db.KeyExistsAsync(key).ForAwait();
         var c2 = db.KeyExistsAsync(key2).ForAwait();
-        var c3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+        var c3 = db.KeyExistsAsync([key, key2]).ForAwait();
 
         Assert.False(await a1);
         Assert.False(await a2);
@@ -176,89 +172,9 @@ public class KeyTests : TestBase
     }
 
     [Fact]
-    public async Task IdleTime()
-    {
-        using var conn = Create();
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
-        var idleTime = db.KeyIdleTime(key);
-        Assert.True(idleTime > TimeSpan.Zero);
-
-        db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
-        var idleTime2 = db.KeyIdleTime(key);
-        Assert.True(idleTime2 < idleTime);
-
-        db.KeyDelete(key);
-        var idleTime3 = db.KeyIdleTime(key);
-        Assert.Null(idleTime3);
-    }
-
-    [Fact]
-    public async Task TouchIdleTime()
-    {
-        using var conn = Create(require: RedisFeatures.v3_2_1);
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
-        var idleTime = db.KeyIdleTime(key);
-        Assert.True(idleTime > TimeSpan.Zero);
-
-        Assert.True(db.KeyTouch(key));
-        var idleTime1 = db.KeyIdleTime(key);
-        Assert.True(idleTime1 < idleTime);
-    }
-
-    [Fact]
-    public async Task IdleTimeAsync()
-    {
-        using var conn = Create();
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
-        var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime > TimeSpan.Zero);
-
-        db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
-        var idleTime2 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime2 < idleTime);
-
-        db.KeyDelete(key);
-        var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.Null(idleTime3);
-    }
-
-    [Fact]
-    public async Task TouchIdleTimeAsync()
-    {
-        using var conn = Create(require: RedisFeatures.v3_2_1);
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
-        await Task.Delay(2000).ForAwait();
-        var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime > TimeSpan.Zero);
-
-        Assert.True(await db.KeyTouchAsync(key).ForAwait());
-        var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime1 < idleTime);
-    }
-
-    [Fact]
     public async Task KeyEncoding()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -285,7 +201,7 @@ public class KeyTests : TestBase
     [Fact]
     public async Task KeyRefCount()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -303,7 +219,7 @@ public class KeyTests : TestBase
     [Fact]
     public async Task KeyFrequency()
     {
-        using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v4_0_0);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -492,49 +408,50 @@ public class KeyTests : TestBase
         }
     }
 
-    public static IEnumerable<object[]> KeyEqualityData()
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1046:Avoid using TheoryDataRow arguments that are not serializable", Justification = "No options at the moment.")]
+    public static IEnumerable<TheoryDataRow<RedisKey, RedisKey, bool>> KeyEqualityData()
     {
         RedisKey abcString = "abc", abcBytes = Encoding.UTF8.GetBytes("abc");
         RedisKey abcdefString = "abcdef", abcdefBytes = Encoding.UTF8.GetBytes("abcdef");
 
-        yield return new object[] { RedisKey.Null, abcString, false };
-        yield return new object[] { RedisKey.Null, abcBytes, false };
-        yield return new object[] { abcString, RedisKey.Null, false };
-        yield return new object[] { abcBytes, RedisKey.Null, false };
-        yield return new object[] { RedisKey.Null, RedisKey.Null, true };
-        yield return new object[] { new RedisKey((string?)null), RedisKey.Null, true };
-        yield return new object[] { new RedisKey(null, (byte[]?)null), RedisKey.Null, true };
-        yield return new object[] { new RedisKey(""), RedisKey.Null, false };
-        yield return new object[] { new RedisKey(null, Array.Empty<byte>()), RedisKey.Null, false };
+        yield return new(RedisKey.Null, abcString, false);
+        yield return new(RedisKey.Null, abcBytes, false);
+        yield return new(abcString, RedisKey.Null, false);
+        yield return new(abcBytes, RedisKey.Null, false);
+        yield return new(RedisKey.Null, RedisKey.Null, true);
+        yield return new(new RedisKey((string?)null), RedisKey.Null, true);
+        yield return new(new RedisKey(null, (byte[]?)null), RedisKey.Null, true);
+        yield return new(new RedisKey(""), RedisKey.Null, false);
+        yield return new(new RedisKey(null, Array.Empty<byte>()), RedisKey.Null, false);
 
-        yield return new object[] { abcString, abcString, true };
-        yield return new object[] { abcBytes, abcBytes, true };
-        yield return new object[] { abcString, abcBytes, true };
-        yield return new object[] { abcBytes, abcString, true };
+        yield return new(abcString, abcString, true);
+        yield return new(abcBytes, abcBytes, true);
+        yield return new(abcString, abcBytes, true);
+        yield return new(abcBytes, abcString, true);
 
-        yield return new object[] { abcdefString, abcdefString, true };
-        yield return new object[] { abcdefBytes, abcdefBytes, true };
-        yield return new object[] { abcdefString, abcdefBytes, true };
-        yield return new object[] { abcdefBytes, abcdefString, true };
+        yield return new(abcdefString, abcdefString, true);
+        yield return new(abcdefBytes, abcdefBytes, true);
+        yield return new(abcdefString, abcdefBytes, true);
+        yield return new(abcdefBytes, abcdefString, true);
 
-        yield return new object[] { abcString, abcdefString, false };
-        yield return new object[] { abcBytes, abcdefBytes, false };
-        yield return new object[] { abcString, abcdefBytes, false };
-        yield return new object[] { abcBytes, abcdefString, false };
+        yield return new(abcString, abcdefString, false);
+        yield return new(abcBytes, abcdefBytes, false);
+        yield return new(abcString, abcdefBytes, false);
+        yield return new(abcBytes, abcdefString, false);
 
-        yield return new object[] { abcdefString, abcString, false };
-        yield return new object[] { abcdefBytes, abcBytes, false };
-        yield return new object[] { abcdefString, abcBytes, false };
-        yield return new object[] { abcdefBytes, abcString, false };
+        yield return new(abcdefString, abcString, false);
+        yield return new(abcdefBytes, abcBytes, false);
+        yield return new(abcdefString, abcBytes, false);
+        yield return new(abcdefBytes, abcString, false);
 
         var x = abcString.Append("def");
-        yield return new object[] { abcdefString, x, true };
-        yield return new object[] { abcdefBytes, x, true };
-        yield return new object[] { x, abcdefBytes, true };
-        yield return new object[] { x, abcdefString, true };
-        yield return new object[] { abcString, x, false };
-        yield return new object[] { abcString, x, false };
-        yield return new object[] { x, abcString, false };
-        yield return new object[] { x, abcString, false };
+        yield return new(abcdefString, x, true);
+        yield return new(abcdefBytes, x, true);
+        yield return new(x, abcdefBytes, true);
+        yield return new(x, abcdefString, true);
+        yield return new(abcString, x, false);
+        yield return new(abcString, x, false);
+        yield return new(x, abcString, false);
+        yield return new(x, abcString, false);
     }
 }

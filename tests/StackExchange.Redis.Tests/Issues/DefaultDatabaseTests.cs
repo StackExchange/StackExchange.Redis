@@ -1,13 +1,11 @@
 ﻿using System.IO;
+using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class DefaultDatabaseTests : TestBase
+public class DefaultDatabaseTests(ITestOutputHelper output) : TestBase(output)
 {
-    public DefaultDatabaseTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public void UnspecifiedDbId_ReturnsNull()
     {
@@ -23,12 +21,12 @@ public class DefaultDatabaseTests : TestBase
     }
 
     [Fact]
-    public void ConfigurationOptions_UnspecifiedDefaultDb()
+    public async Task ConfigurationOptions_UnspecifiedDefaultDb()
     {
         var log = new StringWriter();
         try
         {
-            using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServerAndPort, log);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(TestConfig.Current.PrimaryServerAndPort, log);
             var db = conn.GetDatabase();
             Assert.Equal(0, db.Database);
         }
@@ -39,12 +37,12 @@ public class DefaultDatabaseTests : TestBase
     }
 
     [Fact]
-    public void ConfigurationOptions_SpecifiedDefaultDb()
+    public async Task ConfigurationOptions_SpecifiedDefaultDb()
     {
         var log = new StringWriter();
         try
         {
-            using var conn = ConnectionMultiplexer.Connect($"{TestConfig.Current.PrimaryServerAndPort},defaultDatabase=3", log);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync($"{TestConfig.Current.PrimaryServerAndPort},defaultDatabase=3", log);
             var db = conn.GetDatabase();
             Assert.Equal(3, db.Database);
         }

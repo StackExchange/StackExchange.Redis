@@ -2,19 +2,17 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class MassiveOpsTests : TestBase
+public class MassiveOpsTests(ITestOutputHelper output) : TestBase(output)
 {
-    public MassiveOpsTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task LongRunning()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -33,7 +31,7 @@ public class MassiveOpsTests : TestBase
     [InlineData(false)]
     public async Task MassiveBulkOpsAsync(bool withContinuation)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -57,14 +55,15 @@ public class MassiveOpsTests : TestBase
         Log($"{Me()}: Time for {AsyncOpsQty} ops: {watch.ElapsedMilliseconds}ms ({(withContinuation ? "with continuation" : "no continuation")}, any order); ops/s: {AsyncOpsQty / watch.Elapsed.TotalSeconds}");
     }
 
-    [TheoryLongRunning]
+    [Theory]
     [InlineData(1)]
     [InlineData(5)]
     [InlineData(10)]
     [InlineData(50)]
-    public void MassiveBulkOpsSync(int threads)
+    public async Task MassiveBulkOpsSync(int threads)
     {
-        using var conn = Create(syncTimeout: 30000);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(syncTimeout: 30000);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -88,13 +87,13 @@ public class MassiveOpsTests : TestBase
     [Theory]
     [InlineData(1)]
     [InlineData(5)]
-    public void MassiveBulkOpsFireAndForget(int threads)
+    public async Task MassiveBulkOpsFireAndForget(int threads)
     {
-        using var conn = Create(syncTimeout: 30000);
+        await using var conn = Create(syncTimeout: 30000);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         int perThread = AsyncOpsQty / threads;

@@ -34,7 +34,7 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static ConfiguredValueTaskAwaitable<T> ForAwait<T>(this in ValueTask<T> task) => task.ConfigureAwait(false);
 
-        internal static void RedisFireAndForget(this Task task) => task?.ContinueWith(t => GC.KeepAlive(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
+        internal static void RedisFireAndForget(this Task task) => task?.ContinueWith(static t => GC.KeepAlive(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
 
         /// <summary>
         /// Licensed to the .NET Foundation under one or more agreements.

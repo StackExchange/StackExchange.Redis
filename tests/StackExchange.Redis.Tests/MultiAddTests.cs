@@ -1,18 +1,15 @@
 ﻿using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class MultiAddTests : TestBase
+public class MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public MultiAddTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void AddSortedSetEveryWay()
+    public async Task AddSortedSetEveryWay()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -21,37 +18,33 @@ public class MultiAddTests : TestBase
         db.SortedSetAdd(key, "a", 1, CommandFlags.FireAndForget);
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                 new SortedSetEntry("b", 2),
-            },
+            ],
             CommandFlags.FireAndForget);
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                 new SortedSetEntry("c", 3),
                 new SortedSetEntry("d", 4),
-            },
+            ],
             CommandFlags.FireAndForget);
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                 new SortedSetEntry("e", 5),
                 new SortedSetEntry("f", 6),
                 new SortedSetEntry("g", 7),
-            },
+            ],
             CommandFlags.FireAndForget);
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                 new SortedSetEntry("h", 8),
                 new SortedSetEntry("i", 9),
                 new SortedSetEntry("j", 10),
                 new SortedSetEntry("k", 11),
-            },
+            ],
             CommandFlags.FireAndForget);
         var vals = db.SortedSetRangeByScoreWithScores(key);
         string s = string.Join(",", vals.OrderByDescending(x => x.Score).Select(x => x.Element));
@@ -61,9 +54,9 @@ public class MultiAddTests : TestBase
     }
 
     [Fact]
-    public void AddHashEveryWay()
+    public async Task AddHashEveryWay()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -72,37 +65,33 @@ public class MultiAddTests : TestBase
         db.HashSet(key, "a", 1, flags: CommandFlags.FireAndForget);
         db.HashSet(
             key,
-            new[]
-            {
+            [
                 new HashEntry("b", 2),
-            },
+            ],
             CommandFlags.FireAndForget);
         db.HashSet(
             key,
-            new[]
-            {
+            [
                 new HashEntry("c", 3),
                 new HashEntry("d", 4),
-            },
+            ],
             CommandFlags.FireAndForget);
         db.HashSet(
             key,
-            new[]
-            {
+            [
                 new HashEntry("e", 5),
                 new HashEntry("f", 6),
                 new HashEntry("g", 7),
-            },
+            ],
             CommandFlags.FireAndForget);
         db.HashSet(
             key,
-            new[]
-            {
+            [
                 new HashEntry("h", 8),
                 new HashEntry("i", 9),
                 new HashEntry("j", 10),
                 new HashEntry("k", 11),
-            },
+            ],
             CommandFlags.FireAndForget);
         var vals = db.HashGetAll(key);
         string s = string.Join(",", vals.OrderByDescending(x => (double)x.Value).Select(x => x.Name));
@@ -112,19 +101,19 @@ public class MultiAddTests : TestBase
     }
 
     [Fact]
-    public void AddSetEveryWay()
+    public async Task AddSetEveryWay()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, "a", CommandFlags.FireAndForget);
-        db.SetAdd(key, new RedisValue[] { "b" }, CommandFlags.FireAndForget);
-        db.SetAdd(key, new RedisValue[] { "c", "d" }, CommandFlags.FireAndForget);
-        db.SetAdd(key, new RedisValue[] { "e", "f", "g" }, CommandFlags.FireAndForget);
-        db.SetAdd(key, new RedisValue[] { "h", "i", "j", "k" }, CommandFlags.FireAndForget);
+        db.SetAdd(key, ["b"], CommandFlags.FireAndForget);
+        db.SetAdd(key, ["c", "d"], CommandFlags.FireAndForget);
+        db.SetAdd(key, ["e", "f", "g"], CommandFlags.FireAndForget);
+        db.SetAdd(key, ["h", "i", "j", "k"], CommandFlags.FireAndForget);
 
         var vals = db.SetMembers(key);
         string s = string.Join(",", vals.OrderByDescending(x => x));
@@ -132,18 +121,18 @@ public class MultiAddTests : TestBase
     }
 
     [Fact]
-    public void AddSetEveryWayNumbers()
+    public async Task AddSetEveryWayNumbers()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, "a", CommandFlags.FireAndForget);
-        db.SetAdd(key, new RedisValue[] { "1" }, CommandFlags.FireAndForget);
-        db.SetAdd(key, new RedisValue[] { "11", "2" }, CommandFlags.FireAndForget);
-        db.SetAdd(key, new RedisValue[] { "10", "3", "1.5" }, CommandFlags.FireAndForget);
-        db.SetAdd(key, new RedisValue[] { "2.2", "-1", "s", "t" }, CommandFlags.FireAndForget);
+        db.SetAdd(key, ["1"], CommandFlags.FireAndForget);
+        db.SetAdd(key, ["11", "2"], CommandFlags.FireAndForget);
+        db.SetAdd(key, ["10", "3", "1.5"], CommandFlags.FireAndForget);
+        db.SetAdd(key, ["2.2", "-1", "s", "t"], CommandFlags.FireAndForget);
 
         var vals = db.SetMembers(key);
         string s = string.Join(",", vals.OrderByDescending(x => x));
