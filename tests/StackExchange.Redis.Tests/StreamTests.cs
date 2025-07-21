@@ -2061,7 +2061,7 @@ public class StreamTests : TestBase
         var streamInfo = await db.StreamInfoAsync(key);
         await db.StreamDeleteAsync(key, new[] { streamInfo.LastEntry.Id });
 
-        Assert.Null((await db.StreamGroupInfoAsync(key)[0]).Lag);
+        Assert.Null((await db.StreamGroupInfoAsync(key))[0].Lag);
     }
 
     [Fact]
@@ -2079,6 +2079,6 @@ public class StreamTests : TestBase
         await db.StreamAddAsync(key, "field1", "value1");
         await db.StreamAddAsync(key, "field1", "value1");
 
-        Assert.Equal(2, (await db.StreamGroupInfoAsync(key)[0]).Lag);
+        Assert.Equal(2, (await db.StreamGroupInfoAsync(key))[0].Lag);
     }
 }
