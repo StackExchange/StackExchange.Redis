@@ -246,6 +246,7 @@ StackExchange.Redis.ConfigurationOptions.Defaults.get -> StackExchange.Redis.Con
 StackExchange.Redis.ConfigurationOptions.Defaults.set -> void
 StackExchange.Redis.ConfigurationOptions.DefaultVersion.get -> System.Version!
 StackExchange.Redis.ConfigurationOptions.DefaultVersion.set -> void
+StackExchange.Redis.ConfigurationOptions.Dispose() -> void
 StackExchange.Redis.ConfigurationOptions.EndPoints.get -> StackExchange.Redis.EndPointCollection!
 StackExchange.Redis.ConfigurationOptions.EndPoints.init -> void
 StackExchange.Redis.ConfigurationOptions.HeartbeatConsistencyChecks.get -> bool

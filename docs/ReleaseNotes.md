@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- nothing yet
+- Make ConfigurationOptions IDisposable ([#2922 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2922))
 
 ## 2.8.58
 

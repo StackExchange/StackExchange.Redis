@@ -34,6 +34,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(
             new[]
             {
+                "_isDisposed",
                 "abortOnConnectFail",
                 "allowAdmin",
                 "asyncTimeout",
@@ -760,5 +761,21 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var parsed = ConfigurationOptions.Parse(cs);
         Assert.Equal(expected, parsed.HighIntegrity);
+    }
+
+    [Fact]
+    public void DisposedThrows()
+    {
+        var options = ConfigurationOptions.Parse("myhost");
+        Assert.IsType<DefaultOptionsProvider>(options.Defaults);
+
+        options.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => options.Defaults);
+        Assert.Throws<ObjectDisposedException>(() => options.BacklogPolicy);
+        Assert.Throws<ObjectDisposedException>(() => options.CommandMap);
+        Assert.Throws<ObjectDisposedException>(() => options.LoggerFactory);
+        Assert.Throws<ObjectDisposedException>(() => options.ReconnectRetryPolicy);
+        Assert.Throws<ObjectDisposedException>(() => options.Clone());
     }
 }

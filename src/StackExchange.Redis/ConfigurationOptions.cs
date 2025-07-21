@@ -28,7 +28,7 @@ namespace StackExchange.Redis
     ///     <item><see cref="SocketManager"/></item>
     /// </list>
     /// </remarks>
-    public sealed class ConfigurationOptions : ICloneable
+    public sealed class ConfigurationOptions : ICloneable, IDisposable
     {
         private static class OptionKeys
         {
@@ -178,6 +178,8 @@ namespace StackExchange.Redis
 
         private ILoggerFactory? loggerFactory;
 
+        private bool _isDisposed = false;
+
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
@@ -197,8 +199,16 @@ namespace StackExchange.Redis
         /// </summary>
         public DefaultOptionsProvider Defaults
         {
-            get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
-            set => defaultOptions = value;
+            get
+            {
+                ThrowIfDisposed();
+                return defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
+            }
+            set
+            {
+                ThrowIfDisposed();
+                defaultOptions = value;
+            }
         }
 
         /// <summary>
@@ -305,8 +315,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Supply a user certificate from a PEM file pair and enable TLS.
         /// </summary>
-        /// <param name="userCertificatePath">The path for the the user certificate (commonly a .crt file).</param>
-        /// <param name="userKeyPath">The path for the the user key (commonly a .key file).</param>
+        /// <param name="userCertificatePath">The path for the user certificate (commonly a .crt file).</param>
+        /// <param name="userKeyPath">The path for the user key (commonly a .key file).</param>
         public void SetUserPemCertificate(string userCertificatePath, string? userKeyPath = null)
         {
             CertificateSelectionCallback = CreatePemUserCertificateCallback(userCertificatePath, userKeyPath);
@@ -317,7 +327,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Supply a user certificate from a PFX file and optional password and enable TLS.
         /// </summary>
-        /// <param name="userCertificatePath">The path for the the user certificate (commonly a .pfx file).</param>
+        /// <param name="userCertificatePath">The path for the user certificate (commonly a .pfx file).</param>
         /// <param name="password">The password for the certificate file.</param>
         public void SetUserPfxCertificate(string userCertificatePath, string? password = null)
         {
@@ -383,14 +393,14 @@ namespace StackExchange.Redis
             chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
             chain.ChainPolicy.VerificationTime = chainToValidate?.ChainPolicy?.VerificationTime ?? DateTime.Now;
             chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 0, 0);
-            // Ensure entended key usage checks are run and that we're observing a server TLS certificate
+            // Ensure intended key usage checks are run and that we're observing a server TLS certificate
             chain.ChainPolicy.ApplicationPolicy.Add(_serverAuthOid);
 
             chain.ChainPolicy.ExtraStore.Add(authority);
             try
             {
                 // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
-                // self-signed or partial chained vertificates
+                // self-signed or partial chained certificates
                 var chainIsVerified = chain.Build(certificateToValidate);
                 if (chainIsVerified)
                 {
@@ -787,53 +797,58 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a copy of the configuration.
         /// </summary>
-        public ConfigurationOptions Clone() => new ConfigurationOptions
+        public ConfigurationOptions Clone()
         {
-            defaultOptions = defaultOptions,
-            ClientName = ClientName,
-            ServiceName = ServiceName,
-            keepAlive = keepAlive,
-            syncTimeout = syncTimeout,
-            asyncTimeout = asyncTimeout,
-            allowAdmin = allowAdmin,
-            defaultVersion = defaultVersion,
-            connectTimeout = connectTimeout,
-            user = user,
-            password = password,
-            tieBreaker = tieBreaker,
-            ssl = ssl,
-            sslHost = sslHost,
-            configChannel = configChannel,
-            abortOnConnectFail = abortOnConnectFail,
-            resolveDns = resolveDns,
-            proxy = proxy,
-            commandMap = commandMap,
-            CertificateValidationCallback = CertificateValidationCallback,
-            CertificateSelectionCallback = CertificateSelectionCallback,
-            ChannelPrefix = ChannelPrefix.Clone(),
-            SocketManager = SocketManager,
-            connectRetry = connectRetry,
-            configCheckSeconds = configCheckSeconds,
-            responseTimeout = responseTimeout,
-            DefaultDatabase = DefaultDatabase,
-            reconnectRetryPolicy = reconnectRetryPolicy,
-            backlogPolicy = backlogPolicy,
-            SslProtocols = SslProtocols,
-            checkCertificateRevocation = checkCertificateRevocation,
-            BeforeSocketConnect = BeforeSocketConnect,
-            EndPoints = EndPoints.Clone(),
-            LoggerFactory = LoggerFactory,
+            ThrowIfDisposed();
+
+            return new ConfigurationOptions
+            {
+                defaultOptions = defaultOptions,
+                ClientName = ClientName,
+                ServiceName = ServiceName,
+                keepAlive = keepAlive,
+                syncTimeout = syncTimeout,
+                asyncTimeout = asyncTimeout,
+                allowAdmin = allowAdmin,
+                defaultVersion = defaultVersion,
+                connectTimeout = connectTimeout,
+                user = user,
+                password = password,
+                tieBreaker = tieBreaker,
+                ssl = ssl,
+                sslHost = sslHost,
+                configChannel = configChannel,
+                abortOnConnectFail = abortOnConnectFail,
+                resolveDns = resolveDns,
+                proxy = proxy,
+                commandMap = commandMap,
+                CertificateValidationCallback = CertificateValidationCallback,
+                CertificateSelectionCallback = CertificateSelectionCallback,
+                ChannelPrefix = ChannelPrefix.Clone(),
+                SocketManager = SocketManager,
+                connectRetry = connectRetry,
+                configCheckSeconds = configCheckSeconds,
+                responseTimeout = responseTimeout,
+                DefaultDatabase = DefaultDatabase,
+                reconnectRetryPolicy = reconnectRetryPolicy,
+                backlogPolicy = backlogPolicy,
+                SslProtocols = SslProtocols,
+                checkCertificateRevocation = checkCertificateRevocation,
+                BeforeSocketConnect = BeforeSocketConnect,
+                EndPoints = EndPoints.Clone(),
+                LoggerFactory = LoggerFactory,
 #if NETCOREAPP3_1_OR_GREATER
-            SslClientAuthenticationOptions = SslClientAuthenticationOptions,
+                SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
-            Tunnel = Tunnel,
-            setClientLibrary = setClientLibrary,
-            LibraryName = LibraryName,
-            Protocol = Protocol,
-            heartbeatInterval = heartbeatInterval,
-            heartbeatConsistencyChecks = heartbeatConsistencyChecks,
-            highIntegrity = highIntegrity,
-        };
+                Tunnel = Tunnel,
+                setClientLibrary = setClientLibrary,
+                LibraryName = LibraryName,
+                Protocol = Protocol,
+                heartbeatInterval = heartbeatInterval,
+                heartbeatConsistencyChecks = heartbeatConsistencyChecks,
+                highIntegrity = highIntegrity,
+            };
+        }
 
         /// <summary>
         /// Apply settings to configure this instance of <see cref="ConfigurationOptions"/>, e.g. for a specific scenario.
@@ -922,7 +937,8 @@ namespace StackExchange.Redis
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
 
-            static string? FormatProtocol(RedisProtocol? protocol) => protocol switch {
+            static string? FormatProtocol(RedisProtocol? protocol) => protocol switch
+            {
                 null => null,
                 RedisProtocol.Resp2 => "resp2",
                 RedisProtocol.Resp3 => "resp3",
@@ -1203,6 +1219,42 @@ namespace StackExchange.Redis
             }
             protocol = default;
             return false;
+        }
+
+        /// <summary>
+        /// Release all resources associated with this configuration.
+        /// </summary>
+        public void Dispose()
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            _isDisposed = true;
+            GC.SuppressFinalize(this);
+
+            BeforeSocketConnect = null;
+            CertificateSelection = null;
+            CertificateValidation = null;
+
+            backlogPolicy = null;
+            commandMap = null;
+            loggerFactory = null;
+            reconnectRetryPolicy = null;
+#if NETCOREAPP3_1_OR_GREATER
+            SslClientAuthenticationOptions = null;
+#endif
+
+            try { (defaultOptions as IDisposable)?.Dispose(); } catch { }
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (_isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(ConfigurationOptions));
+            }
         }
     }
 }
