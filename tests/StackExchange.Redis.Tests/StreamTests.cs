@@ -698,27 +698,81 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var id1 = db.StreamAdd(key, "field1", "value1");
         var id2 = db.StreamAdd(key, "field2", "value2");
         var id3 = db.StreamAdd(key, "field3", "value3");
+        RedisValue notexist = "0-0";
         var id4 = db.StreamAdd(key, "field4", "value4");
 
         db.StreamCreateConsumerGroup(key, groupName, StreamPosition.Beginning);
 
         // Read all 4 messages, they will be assigned to the consumer
         var entries = db.StreamReadGroup(key, groupName, consumer, StreamPosition.NewMessages);
+        Assert.Equal(4, entries.Length);
 
         // Send XACK for 3 of the messages
 
         // Single message Id overload.
         var oneAck = db.StreamAcknowledge(key, groupName, id1);
+        Assert.Equal(1, oneAck);
+
+        var nack = db.StreamAcknowledge(key, groupName, notexist);
+        Assert.Equal(0, nack);
 
         // Multiple message Id overload.
-        var twoAck = db.StreamAcknowledge(key, groupName, [id3, id4]);
+        var twoAck = db.StreamAcknowledge(key, groupName, [id3, notexist, id4]);
 
         // Read the group again, it should only return the unacknowledged message.
         var notAcknowledged = db.StreamReadGroup(key, groupName, consumer, "0-0");
 
-        Assert.Equal(4, entries.Length);
-        Assert.Equal(1, oneAck);
         Assert.Equal(2, twoAck);
+        Assert.Single(notAcknowledged);
+        Assert.Equal(id2, notAcknowledged[0].Id);
+    }
+
+    [Theory]
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamConsumerGroupAcknowledgeAndDeleteMessage(StreamTrimMode mode)
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me() + ":" + mode;
+        const string groupName = "test_group",
+            consumer = "test_consumer";
+
+        var id1 = db.StreamAdd(key, "field1", "value1");
+        var id2 = db.StreamAdd(key, "field2", "value2");
+        var id3 = db.StreamAdd(key, "field3", "value3");
+        RedisValue notexist = "0-0";
+        var id4 = db.StreamAdd(key, "field4", "value4");
+
+        db.StreamCreateConsumerGroup(key, groupName, StreamPosition.Beginning);
+
+        // Read all 4 messages, they will be assigned to the consumer
+        var entries = db.StreamReadGroup(key, groupName, consumer, StreamPosition.NewMessages);
+        Assert.Equal(4, entries.Length);
+
+        // Send XACK for 3 of the messages
+
+        // Single message Id overload.
+        var oneAck = db.StreamAcknowledgeAndDelete(key, groupName, mode, id1);
+        Assert.Equal(StreamTrimResult.Deleted, oneAck);
+
+        StreamTrimResult nack = db.StreamAcknowledgeAndDelete(key, groupName, mode, notexist);
+        Assert.Equal(StreamTrimResult.NotFound, nack);
+
+        // Multiple message Id overload.
+        RedisValue[] ids = new[] { id3, notexist, id4 };
+        var twoAck = db.StreamAcknowledgeAndDelete(key, groupName, mode, ids);
+
+        // Read the group again, it should only return the unacknowledged message.
+        var notAcknowledged = db.StreamReadGroup(key, groupName, consumer, "0-0");
+
+        Assert.Equal(3, twoAck.Length);
+        Assert.Equal(StreamTrimResult.Deleted, twoAck[0]);
+        Assert.Equal(StreamTrimResult.NotFound, twoAck[1]);
+        Assert.Equal(StreamTrimResult.Deleted, twoAck[2]);
+
         Assert.Single(notAcknowledged);
         Assert.Equal(id2, notAcknowledged[0].Id);
     }
@@ -1226,6 +1280,54 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var messages = db.StreamRange(key);
 
         Assert.Equal(2, deletedCount);
+        Assert.Equal(2, messages.Length);
+    }
+
+    [Theory]
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamDeleteExMessage(StreamTrimMode mode)
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1); // XDELEX
+
+        var db = conn.GetDatabase();
+        var key = Me() + ":" + mode;
+
+        db.StreamAdd(key, "field1", "value1");
+        db.StreamAdd(key, "field2", "value2");
+        var id3 = db.StreamAdd(key, "field3", "value3");
+        db.StreamAdd(key, "field4", "value4");
+
+        var deleted = db.StreamDelete(key, new[] { id3 }, mode: mode);
+        var messages = db.StreamRange(key);
+
+        Assert.Equal(StreamTrimResult.Deleted, Assert.Single(deleted));
+        Assert.Equal(3, messages.Length);
+    }
+
+    [Theory]
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamDeleteExMessages(StreamTrimMode mode)
+    {
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1); // XDELEX
+
+        var db = conn.GetDatabase();
+        var key = Me() + ":" + mode;
+
+        db.StreamAdd(key, "field1", "value1");
+        var id2 = db.StreamAdd(key, "field2", "value2");
+        var id3 = db.StreamAdd(key, "field3", "value3");
+        db.StreamAdd(key, "field4", "value4");
+
+        var deleted = db.StreamDelete(key, new[] { id2, id3 }, mode: mode);
+        var messages = db.StreamRange(key);
+
+        Assert.Equal(2, deleted.Length);
+        Assert.Equal(StreamTrimResult.Deleted, deleted[0]);
+        Assert.Equal(StreamTrimResult.Deleted, deleted[1]);
         Assert.Equal(2, messages.Length);
     }
 
@@ -1891,6 +1993,8 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(id3, entries[1].Id);
     }
 
+    protected override string GetConfiguration() => "127.0.0.1:6379";
+
     [Fact]
     public async Task StreamTrimLength()
     {
@@ -1910,6 +2014,70 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         Assert.Equal(3, numRemoved);
         Assert.Equal(1, len);
+    }
+
+    private static Version ForMode(StreamTrimMode mode, Version? defaultVersion = null) => mode switch
+    {
+        StreamTrimMode.KeepReferences => defaultVersion ?? RedisFeatures.v5_0_0,
+        StreamTrimMode.Acknowledged => RedisFeatures.v8_2_0_rc1,
+        StreamTrimMode.DeleteReferences => RedisFeatures.v8_2_0_rc1,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+    };
+
+    [Theory]
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamTrimByMinId(StreamTrimMode mode)
+    {
+        using var conn = Create(require: ForMode(mode, RedisFeatures.v6_2_0));
+
+        var db = conn.GetDatabase();
+        var key = Me() + ":" + mode;
+
+        // Add a couple items and check length.
+        db.StreamAdd(key, "field1", "value1", 1111111110);
+        db.StreamAdd(key, "field2", "value2", 1111111111);
+        db.StreamAdd(key, "field3", "value3", 1111111112);
+
+        var numRemoved = db.StreamTrimByMinId(key, 1111111111, mode: mode);
+        var len = db.StreamLength(key);
+
+        Assert.Equal(1, numRemoved);
+        Assert.Equal(2, len);
+    }
+
+    [Theory]
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public void StreamTrimByMinIdWithApproximateAndLimit(StreamTrimMode mode)
+    {
+        using var conn = Create(require: ForMode(mode, RedisFeatures.v6_2_0));
+
+        var db = conn.GetDatabase();
+        var key = Me() + ":" + mode;
+
+        const int maxLength = 1000;
+        const int limit = 100;
+
+        for (var i = 0; i < maxLength; i++)
+        {
+            db.StreamAdd(key, $"field", $"value", 1111111110 + i);
+        }
+
+        var numRemoved = db.StreamTrimByMinId(key, 1111111110 + maxLength, useApproximateMaxLength: true, limit: limit, mode: mode);
+        var expectRemoved = mode switch
+        {
+            StreamTrimMode.KeepReferences => limit,
+            StreamTrimMode.DeleteReferences => 0,
+            StreamTrimMode.Acknowledged => 0,
+            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+        };
+        var len = db.StreamLength(key);
+
+        Assert.Equal(expectRemoved, numRemoved);
+        Assert.Equal(maxLength - expectRemoved, len);
     }
 
     [Fact]
@@ -1939,14 +2107,17 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await db.StreamAddAsync(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None).ConfigureAwait(false);
     }
 
-    [Fact]
-    public async Task AddWithApproxCount()
+    [Theory]
+    [InlineData(StreamTrimMode.KeepReferences)]
+    [InlineData(StreamTrimMode.DeleteReferences)]
+    [InlineData(StreamTrimMode.Acknowledged)]
+    public async Task AddWithApproxCount(StreamTrimMode mode)
     {
-        await using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: ForMode(mode));
 
         var db = conn.GetDatabase();
-        var key = Me();
-        db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None);
+        var key = Me() + ":" + mode;
+        db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, trimMode: mode, flags: CommandFlags.None);
     }
 
     [Fact]
