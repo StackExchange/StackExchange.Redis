@@ -43,6 +43,8 @@ public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture
     [Fact]
     public async Task WithTimeout_ShortTimeout_Async_ThrowsOperationCanceledException()
     {
+        Skip.UnlessLongRunning(); // because of CLIENT PAUSE impact to unrelated tests
+
         await using var conn = Create();
         var db = conn.GetDatabase();
 
@@ -119,6 +121,8 @@ public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture
     [InlineData(CancelStrategy.Manual)]
     public async Task CancellationDuringOperation_Async_CancelsGracefully(CancelStrategy strategy)
     {
+        Skip.UnlessLongRunning(); // because of CLIENT PAUSE impact to unrelated tests
+
         await using var conn = Create();
         var db = conn.GetDatabase();
 
