@@ -2044,41 +2044,41 @@ public class StreamTests : TestBase
     }
 
     [Fact]
-    public void StreamConsumerGroupInfoLagIsNull()
+    public async Task StreamConsumerGroupInfoLagIsNull()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
         const string groupName = "test_group",
                      consumer = "consumer";
 
-        db.StreamCreateConsumerGroup(key, groupName);
-        db.StreamReadGroup(key, groupName, consumer, "0-0", 1);
-        db.StreamAdd(key, "field1", "value1");
-        db.StreamAdd(key, "field1", "value1");
+        await db.StreamCreateConsumerGroupAsync(key, groupName);
+        await db.StreamReadGroupAsync(key, groupName, consumer, "0-0", 1);
+        await db.StreamAddAsync(key, "field1", "value1");
+        await db.StreamAddAsync(key, "field1", "value1");
 
-        var streamInfo = db.StreamInfo(key);
-        db.StreamDelete(key, new[] { streamInfo.LastEntry.Id });
+        var streamInfo = await db.StreamInfoAsync(key);
+        await db.StreamDeleteAsync(key, new[] { streamInfo.LastEntry.Id });
 
-        Assert.Null(db.StreamGroupInfo(key)[0].Lag);
+        Assert.Null((await db.StreamGroupInfoAsync(key)[0]).Lag);
     }
 
     [Fact]
-    public void StreamConsumerGroupInfoLagIsTwo()
+    public async Task StreamConsumerGroupInfoLagIsTwo()
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         var db = conn.GetDatabase();
         var key = Me();
         const string groupName = "test_group",
                      consumer = "consumer";
 
-        db.StreamCreateConsumerGroup(key, groupName);
-        db.StreamReadGroup(key, groupName, consumer, "0-0", 1);
-        db.StreamAdd(key, "field1", "value1");
-        db.StreamAdd(key, "field1", "value1");
+        await db.StreamCreateConsumerGroupAsync(key, groupName);
+        await db.StreamReadGroupAsync(key, groupName, consumer, "0-0", 1);
+        await db.StreamAddAsync(key, "field1", "value1");
+        await db.StreamAddAsync(key, "field1", "value1");
 
-        Assert.Equal(2, db.StreamGroupInfo(key)[0].Lag);
+        Assert.Equal(2, (await db.StreamGroupInfoAsync(key)[0]).Lag);
     }
 }
