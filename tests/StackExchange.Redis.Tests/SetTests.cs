@@ -162,7 +162,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values!));
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values!).ForAwait()).ForAwait();
 
-        values = Array.Empty<RedisValue>();
+        values = [];
         Assert.Equal(0, db.SetRemove(key, values));
         Assert.Equal(0, await db.SetRemoveAsync(key, values).ForAwait());
     }

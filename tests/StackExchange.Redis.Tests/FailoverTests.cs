@@ -8,11 +8,9 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class FailoverTests : TestBase, IAsyncLifetime
+public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncLifetime
 {
     protected override string GetConfiguration() => GetPrimaryReplicaConfig().ToString();
-
-    public FailoverTests(ITestOutputHelper output) : base(output) { }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
