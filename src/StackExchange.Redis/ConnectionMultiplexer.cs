@@ -170,10 +170,10 @@ namespace StackExchange.Redis
                         lock (log) // Keep the outer and any inner errors contiguous
                         {
                             var ex = a.Exception;
-                            LogErrorConnectionFailed(log, ex, new(a.EndPoint), a.ConnectionType, a.FailureType, ex?.Message ?? "(unknown)");
+                            log?.LogErrorConnectionFailed(ex, new(a.EndPoint), a.ConnectionType, a.FailureType, ex?.Message ?? "(unknown)");
                             while ((ex = ex?.InnerException) != null)
                             {
-                                LogErrorInnerException(log, ex, ex.Message);
+                                log?.LogErrorInnerException(ex, ex.Message);
                             }
                         }
                     }
@@ -219,14 +219,14 @@ namespace StackExchange.Redis
             const CommandFlags flags = CommandFlags.NoRedirect;
             Message msg;
 
-            LogInformationCheckingServerAvailable(log, new(srv.EndPoint));
+            log?.LogInformationCheckingServerAvailable(new(srv.EndPoint));
             try
             {
                 await srv.PingAsync(flags).ForAwait(); // if it isn't happy, we're not happy
             }
             catch (Exception ex)
             {
-                LogErrorOperationFailedOnServer(log, ex, new(srv.EndPoint), ex.Message);
+                log?.LogErrorOperationFailedOnServer(ex, new(srv.EndPoint), ex.Message);
                 throw;
             }
 
@@ -241,7 +241,7 @@ namespace StackExchange.Redis
                 foreach (var node in nodes)
                 {
                     if (!node.IsConnected || node.IsReplica) continue;
-                    LogInformationAttemptingToSetTieBreaker(log, new(node.EndPoint));
+                    log?.LogInformationAttemptingToSetTieBreaker(new(node.EndPoint));
                     msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
                     try
                     {
@@ -252,21 +252,21 @@ namespace StackExchange.Redis
             }
 
             // stop replicating, promote to a standalone primary
-            LogInformationMakingServerPrimary(log, new(srv.EndPoint));
+            log?.LogInformationMakingServerPrimary(new(srv.EndPoint));
             try
             {
                 await srv.ReplicaOfAsync(null, flags).ForAwait();
             }
             catch (Exception ex)
             {
-                LogErrorOperationFailedOnServer(log, ex, new(srv.EndPoint), ex.Message);
+                log?.LogErrorOperationFailedOnServer(ex, new(srv.EndPoint), ex.Message);
                 throw;
             }
 
             // also, in case it was a replica a moment ago, and hasn't got the tie-breaker yet, we re-send the tie-breaker to this one
             if (!tieBreakerKey.IsNull && !server.IsReplica)
             {
-                LogInformationResendingTieBreaker(log, new(server.EndPoint));
+                log?.LogInformationResendingTieBreaker(new(server.EndPoint));
                 msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
                 try
                 {
@@ -297,7 +297,7 @@ namespace StackExchange.Redis
                     foreach (var node in serverNodes)
                     {
                         if (!node.IsConnected) continue;
-                        LogInformationBroadcastingViaNode(log, new(node.EndPoint));
+                        log?.LogInformationBroadcastingViaNode(new(node.EndPoint));
                         msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary);
                         await node.WriteDirectAsync(msg, ResultProcessor.Int64).ForAwait();
                     }
@@ -313,7 +313,7 @@ namespace StackExchange.Redis
                 {
                     if (node == server || node.ServerType != ServerType.Standalone) continue;
 
-                    LogInformationReplicatingToNode(log, new(node.EndPoint));
+                    log?.LogInformationReplicatingToNode(new(node.EndPoint));
                     msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
                     await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
                 }
@@ -325,7 +325,7 @@ namespace StackExchange.Redis
             await BroadcastAsync(nodes).ForAwait();
 
             // and reconfigure the muxer
-            LogInformationReconfiguringAllEndpoints(log);
+            log?.LogInformationReconfiguringAllEndpoints();
             // Yes, there is a tiny latency race possible between this code and the next call, but it's far more minute than before.
             // The effective gap between 0 and > 0 (likely off-box) latency is something that may never get hit here by anyone.
             if (blockingReconfig)
@@ -334,7 +334,7 @@ namespace StackExchange.Redis
             }
             if (!await ReconfigureAsync(first: false, reconfigureAll: true, log, srv.EndPoint, cause: nameof(MakePrimaryAsync)).ForAwait())
             {
-                LogInformationVerifyingConfigurationIncomplete(log);
+                log?.LogInformationVerifyingConfigurationIncomplete();
             }
         }
 
@@ -474,52 +474,30 @@ namespace StackExchange.Redis
             _ = tasks ?? throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0)
             {
-                LogInformationNoTasksToAwait(log);
+                log?.LogInformationNoTasksToAwait();
                 return true;
             }
             if (AllComplete(tasks))
             {
-                LogInformationAllTasksComplete(log);
+                log?.LogInformationAllTasksComplete();
                 return true;
             }
 
-            static void LogWithThreadPoolStats(ILogger? log, string message)
-            {
-                if (log?.IsEnabled(LogLevel.Information) != false)
-                {
-                    return;
-                }
-
-                var busyWorkerCount = 0;
-                if (log is not null)
-                {
-                    var sb = new StringBuilder();
-                    sb.Append(message);
-                    busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string? workItems);
-                    sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
-                    if (workItems is not null)
-                    {
-                        sb.Append(", POOL: ").Append(workItems);
-                    }
-                    LogInformationThreadPoolStats(log, sb.ToString());
-                }
-            }
-
             var watch = ValueStopwatch.StartNew();
-            LogWithThreadPoolStats(log, $"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms");
+            log?.LogWithThreadPoolStats($"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms");
             try
             {
                 // if none error, great
                 var remaining = timeoutMilliseconds - watch.ElapsedMilliseconds;
                 if (remaining <= 0)
                 {
-                    LogWithThreadPoolStats(log, "Timeout before awaiting for tasks");
+                    log.LogWithThreadPoolStats("Timeout before awaiting for tasks");
                     return false;
                 }
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 bool all = await allTasks.TimeoutAfter(timeoutMs: remaining).ObserveErrors().ForAwait();
-                LogWithThreadPoolStats(log, all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)");
+                log?.LogWithThreadPoolStats(all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)");
                 return all;
             }
             catch
@@ -535,7 +513,7 @@ namespace StackExchange.Redis
                     var remaining = timeoutMilliseconds - watch.ElapsedMilliseconds;
                     if (remaining <= 0)
                     {
-                        LogWithThreadPoolStats(log, "Timeout awaiting tasks");
+                        log.LogWithThreadPoolStats("Timeout awaiting tasks");
                         return false;
                     }
                     try
@@ -546,7 +524,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
-            LogWithThreadPoolStats(log, "Finished awaiting tasks");
+            log.LogWithThreadPoolStats("Finished awaiting tasks");
             return false;
         }
 
@@ -607,7 +585,7 @@ namespace StackExchange.Redis
             try
             {
                 var sw = ValueStopwatch.StartNew();
-                LogInformationConnectingAsync(log, RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
+                log?.LogInformationConnectingAsync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
 
                 muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler);
                 killMe = muxer;
@@ -626,9 +604,9 @@ namespace StackExchange.Redis
                     muxer.InitializeSentinel(log);
                 }
 
-                await configuration.AfterConnectAsync(muxer, s => LogInformationAfterConnect(log, s)).ForAwait();
+                await configuration.AfterConnectAsync(muxer, s => log?.LogInformationAfterConnect(s)).ForAwait();
 
-                LogInformationTotalConnectTime(log, sw.ElapsedMilliseconds);
+                log?.LogInformationTotalConnectTime(sw.ElapsedMilliseconds);
 
                 return muxer;
             }
@@ -695,7 +673,7 @@ namespace StackExchange.Redis
             try
             {
                 var sw = ValueStopwatch.StartNew();
-                LogInformationConnectingSync(log, RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
+                log?.LogInformationConnectingSync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
 
                 muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, endpoints);
                 killMe = muxer;
@@ -714,7 +692,7 @@ namespace StackExchange.Redis
                     {
                         var ex = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                         muxer.LastException = ex;
-                        LogErrorSyncConnectTimeout(muxer.Logger, ex, ex.Message);
+                        muxer.Logger?.LogErrorSyncConnectTimeout(ex, ex.Message);
                     }
                 }
 
@@ -728,9 +706,9 @@ namespace StackExchange.Redis
                     muxer.InitializeSentinel(log);
                 }
 
-                configuration.AfterConnectAsync(muxer, s => LogInformationAfterConnect(log, s)).Wait(muxer.SyncConnectTimeout(true));
+                configuration.AfterConnectAsync(muxer, s => log?.LogInformationAfterConnect(s)).Wait(muxer.SyncConnectTimeout(true));
 
-                LogInformationTotalConnectTime(log, sw.ElapsedMilliseconds);
+                log?.LogInformationTotalConnectTime(sw.ElapsedMilliseconds);
 
                 return muxer;
             }
@@ -1413,14 +1391,14 @@ namespace StackExchange.Redis
 
                 if (!ranThisCall)
                 {
-                    LogInformationReconfigurationInProgress(log, activeConfigCause, cause);
+                    log?.LogInformationReconfigurationInProgress(activeConfigCause, cause);
                     return false;
                 }
                 Trace("Starting reconfiguration...");
                 Trace(blame != null, "Blaming: " + Format.ToString(blame));
                 Interlocked.Exchange(ref lastReconfigiureTicks, Environment.TickCount);
 
-                LogInformationConfiguration(log, new(RawConfig));
+                log?.LogInformationConfiguration(new(RawConfig));
 
                 if (first)
                 {
@@ -1450,7 +1428,7 @@ namespace StackExchange.Redis
                     int standaloneCount = 0, clusterCount = 0, sentinelCount = 0;
                     var endpoints = EndPoints;
                     bool useTieBreakers = RawConfig.TryGetTieBreaker(out var tieBreakerKey);
-                    LogInformationUniqueNodesSpecified(log, endpoints.Count, useTieBreakers ? "with" : "without");
+                    log?.LogInformationUniqueNodesSpecified(endpoints.Count, useTieBreakers ? "with" : "without");
 
                     if (endpoints.Count == 0)
                     {
@@ -1492,7 +1470,7 @@ namespace StackExchange.Redis
 
                         watch ??= ValueStopwatch.StartNew();
                         var remaining = RawConfig.ConnectTimeout - watch.Value.ElapsedMilliseconds;
-                        LogInformationAllowingEndpointsToRespond(log, available.Length, TimeSpan.FromMilliseconds(remaining));
+                        log?.LogInformationAllowingEndpointsToRespond(available.Length, TimeSpan.FromMilliseconds(remaining));
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
                         var allConnected = await WaitAllIgnoreErrorsAsync("available", available, remaining, log).ForAwait();
 
@@ -1505,18 +1483,18 @@ namespace StackExchange.Redis
                                 var task = available[i];
                                 var bs = server.GetBridgeStatus(ConnectionType.Interactive);
 
-                                LogInformationServerStatus(log, i, new(server), task.Status, bs.MessagesSinceLastHeartbeat, bs.Connection.MessagesSentAwaitingResponse, bs.Connection.BytesAvailableOnSocket, bs.MessagesSinceLastHeartbeat, bs.IsWriterActive, bs.Connection.BytesInReadPipe, bs.Connection.BytesInWritePipe, bs.BacklogStatus, bs.Connection.ReadStatus, bs.Connection.WriteStatus);
+                                log?.LogInformationServerStatus(i, new(server), task.Status, bs.MessagesSinceLastHeartbeat, bs.Connection.MessagesSentAwaitingResponse, bs.Connection.BytesAvailableOnSocket, bs.MessagesSinceLastHeartbeat, bs.IsWriterActive, bs.Connection.BytesInReadPipe, bs.Connection.BytesInWritePipe, bs.BacklogStatus, bs.Connection.ReadStatus, bs.Connection.WriteStatus);
                             }
                         }
 
-                        LogInformationEndpointSummary(log);
+                        log?.LogInformationEndpointSummary();
                         // Log current state after await
                         foreach (var server in servers)
                         {
-                            LogInformationEndpointState(log, new(server.EndPoint), server.InteractiveConnectionState, server.SubscriptionConnectionState);
+                            log?.LogInformationEndpointState(new(server.EndPoint), server.InteractiveConnectionState, server.SubscriptionConnectionState);
                         }
 
-                        LogInformationTaskSummary(log);
+                        log?.LogInformationTaskSummary();
                         EndPointCollection? updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)
                         {
@@ -1529,21 +1507,21 @@ namespace StackExchange.Redis
                                 var aex = task.Exception!;
                                 foreach (var ex in aex.InnerExceptions)
                                 {
-                                    LogErrorServerFaulted(log, ex, new(server), ex.Message);
+                                    log?.LogErrorServerFaulted(ex, new(server), ex.Message);
                                     failureMessage = ex.Message;
                                 }
                             }
                             else if (task.IsCanceled)
                             {
                                 server.SetUnselectable(UnselectableFlags.DidNotRespond);
-                                LogInformationConnectTaskCanceled(log, new(server));
+                                log?.LogInformationConnectTaskCanceled(new(server));
                             }
                             else if (task.IsCompleted)
                             {
                                 if (task.Result != "Disconnected")
                                 {
                                     server.ClearUnselectable(UnselectableFlags.DidNotRespond);
-                                    LogInformationServerReturnedSuccess(log, new(server), server.ServerType, server.IsReplica ? "replica" : "primary", task.Result);
+                                    log?.LogInformationServerReturnedSuccess(new(server), server.ServerType, server.IsReplica ? "replica" : "primary", task.Result);
 
                                     // Count the server types
                                     switch (server.ServerType)
@@ -1596,13 +1574,13 @@ namespace StackExchange.Redis
                                 else
                                 {
                                     server.SetUnselectable(UnselectableFlags.DidNotRespond);
-                                    LogInformationServerReturnedIncorrectly(log, new(server));
+                                    log?.LogInformationServerReturnedIncorrectly(new(server));
                                 }
                             }
                             else
                             {
                                 server.SetUnselectable(UnselectableFlags.DidNotRespond);
-                                LogInformationServerDidNotRespond(log, new(server), task.Status);
+                                log?.LogInformationServerDidNotRespond(new(server), task.Status);
                             }
                         }
 
@@ -1646,11 +1624,11 @@ namespace StackExchange.Redis
                             {
                                 if (primary == preferred || primary.IsReplica)
                                 {
-                                    LogInformationClearingAsRedundantPrimary(log, new(primary));
+                                    log?.LogInformationClearingAsRedundantPrimary(new(primary));
                                 }
                                 else
                                 {
-                                    LogInformationSettingAsRedundantPrimary(log, new(primary));
+                                    log?.LogInformationSettingAsRedundantPrimary(new(primary));
                                     primary.SetUnselectable(UnselectableFlags.RedundantPrimary);
                                 }
                             }
@@ -1660,7 +1638,7 @@ namespace StackExchange.Redis
                     {
                         ServerSelectionStrategy.ServerType = ServerType.Cluster;
                         long coveredSlots = ServerSelectionStrategy.CountCoveredSlots();
-                        LogInformationClusterSlotsCovered(log, coveredSlots, ServerSelectionStrategy.TotalSlots);
+                        log?.LogInformationClusterSlotsCovered(coveredSlots, ServerSelectionStrategy.TotalSlots);
                     }
                     if (!first)
                     {
@@ -1668,11 +1646,11 @@ namespace StackExchange.Redis
                         long subscriptionChanges = EnsureSubscriptions(CommandFlags.FireAndForget);
                         if (subscriptionChanges == 0)
                         {
-                            LogInformationNoSubscriptionChanges(log);
+                            log?.LogInformationNoSubscriptionChanges();
                         }
                         else
                         {
-                            LogInformationSubscriptionsAttemptingReconnect(log, subscriptionChanges);
+                            log?.LogInformationSubscriptionsAttemptingReconnect(subscriptionChanges);
                         }
                     }
                     if (showStats)
@@ -1683,14 +1661,14 @@ namespace StackExchange.Redis
                     string? stormLog = GetStormLog();
                     if (!string.IsNullOrWhiteSpace(stormLog))
                     {
-                        LogInformationStormLog(log, stormLog!);
+                        log?.LogInformationStormLog(stormLog!);
                     }
                     healthy = standaloneCount != 0 || clusterCount != 0 || sentinelCount != 0;
                     if (first && !healthy && attemptsLeft > 0)
                     {
-                        LogInformationResettingFailingConnections(log);
+                        log?.LogInformationResettingFailingConnections();
                         ResetAllNonConnected();
-                        LogInformationRetryingAttempts(log, attemptsLeft);
+                        log?.LogInformationRetryingAttempts(attemptsLeft);
                     }
                     // WTF("?: " + attempts);
                 }
@@ -1702,14 +1680,14 @@ namespace StackExchange.Redis
                 }
                 if (first)
                 {
-                    LogInformationStartingHeartbeat(log);
+                    log?.LogInformationStartingHeartbeat();
                     pulse = TimerToken.Create(this);
                 }
                 if (publishReconfigure)
                 {
                     try
                     {
-                        LogInformationBroadcastingReconfigure(log);
+                        log?.LogInformationBroadcastingReconfigure();
                         PublishReconfigureImpl(publishReconfigureFlags);
                     }
                     catch
@@ -1762,7 +1740,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                LogErrorEncounteredErrorWhileUpdatingClusterConfig(log, ex, ex.Message);
+                log?.LogErrorEncounteredErrorWhileUpdatingClusterConfig(ex, ex.Message);
                 return null;
             }
         }
@@ -1778,7 +1756,7 @@ namespace StackExchange.Redis
 
         private static ServerEndPoint? NominatePreferredPrimary(ILogger? log, ServerEndPoint[] servers, bool useTieBreakers, List<ServerEndPoint> primaries)
         {
-            LogInformationElectionSummary(log);
+            log?.LogInformationElectionSummary();
 
             Dictionary<string, int>? uniques = null;
             if (useTieBreakers)
@@ -1792,11 +1770,11 @@ namespace StackExchange.Redis
 
                     if (serverResult.IsNullOrWhiteSpace())
                     {
-                        LogInformationElectionNoTiebreaker(log, new(server));
+                        log?.LogInformationElectionNoTiebreaker(new(server));
                     }
                     else
                     {
-                        LogInformationElectionNominates(log, new(server), serverResult);
+                        log?.LogInformationElectionNominates(new(server), serverResult);
                         if (!uniques.TryGetValue(serverResult, out int count)) count = 0;
                         uniques[serverResult] = count + 1;
                     }
@@ -1806,37 +1784,37 @@ namespace StackExchange.Redis
             switch (primaries.Count)
             {
                 case 0:
-                    LogInformationElectionNoPrimariesDetected(log);
+                    log?.LogInformationElectionNoPrimariesDetected();
                     return null;
                 case 1:
-                    LogInformationElectionSinglePrimaryDetected(log, new(primaries[0].EndPoint));
+                    log?.LogInformationElectionSinglePrimaryDetected(new(primaries[0].EndPoint));
                     return primaries[0];
                 default:
-                    LogInformationElectionMultiplePrimariesDetected(log);
+                    log?.LogInformationElectionMultiplePrimariesDetected();
                     if (useTieBreakers && uniques != null)
                     {
                         switch (uniques.Count)
                         {
                             case 0:
-                                LogInformationElectionNoNominationsByTieBreaker(log);
+                                log?.LogInformationElectionNoNominationsByTieBreaker();
                                 break;
                             case 1:
                                 string unanimous = uniques.Keys.Single();
-                                LogInformationElectionTieBreakerUnanimous(log, unanimous);
+                                log?.LogInformationElectionTieBreakerUnanimous(unanimous);
                                 var found = SelectServerByElection(servers, unanimous, log);
                                 if (found != null)
                                 {
-                                    LogInformationElectionElected(log, new(found.EndPoint));
+                                    log?.LogInformationElectionElected(new(found.EndPoint));
                                     return found;
                                 }
                                 break;
                             default:
-                                LogInformationElectionContested(log);
+                                log?.LogInformationElectionContested();
                                 ServerEndPoint? highest = null;
                                 bool arbitrary = false;
                                 foreach (var pair in uniques.OrderByDescending(x => x.Value))
                                 {
-                                    LogInformationElectionVotes(log, pair.Key, pair.Value);
+                                    log?.LogInformationElectionVotes(pair.Key, pair.Value);
                                     if (highest == null)
                                     {
                                         highest = SelectServerByElection(servers, pair.Key, log);
@@ -1851,11 +1829,11 @@ namespace StackExchange.Redis
                                 {
                                     if (arbitrary)
                                     {
-                                        LogInformationElectionChoosingPrimaryArbitrarily(log, new(highest.EndPoint));
+                                        log?.LogInformationElectionChoosingPrimaryArbitrarily(new(highest.EndPoint));
                                     }
                                     else
                                     {
-                                        LogInformationElectionElected(log, new(highest.EndPoint));
+                                        log?.LogInformationElectionElected(new(highest.EndPoint));
                                     }
                                     return highest;
                                 }
@@ -1865,7 +1843,7 @@ namespace StackExchange.Redis
                     break;
             }
 
-            LogInformationElectionChoosingPrimaryArbitrarily(log, new(primaries[0].EndPoint));
+            log?.LogInformationElectionChoosingPrimaryArbitrarily(new(primaries[0].EndPoint));
             return primaries[0];
         }
 
@@ -1877,13 +1855,13 @@ namespace StackExchange.Redis
                 if (string.Equals(Format.ToString(servers[i].EndPoint), endpoint, StringComparison.OrdinalIgnoreCase))
                     return servers[i];
             }
-            LogInformationCouldNotFindThatEndpoint(log);
+            log?.LogInformationCouldNotFindThatEndpoint();
             var deDottedEndpoint = DeDotifyHost(endpoint);
             for (int i = 0; i < servers.Length; i++)
             {
                 if (string.Equals(DeDotifyHost(Format.ToString(servers[i].EndPoint)), deDottedEndpoint, StringComparison.OrdinalIgnoreCase))
                 {
-                    LogInformationFoundAlternativeEndpoint(log, deDottedEndpoint);
+                    log?.LogInformationFoundAlternativeEndpoint(deDottedEndpoint);
                     return servers[i];
                 }
             }
@@ -2351,385 +2329,5 @@ namespace StackExchange.Redis
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
             => GetServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
-
-        // Helper structs for complex ToString() calls
-        private readonly struct EndPointLogValue
-        {
-            private readonly EndPoint? endPoint;
-
-            public EndPointLogValue(EndPoint? endPoint)
-            {
-                this.endPoint = endPoint;
-            }
-
-            public override string ToString() => Format.ToString(endPoint);
-        }
-
-        private readonly struct ServerEndPointLogValue
-        {
-            private readonly ServerEndPoint server;
-
-            public ServerEndPointLogValue(ServerEndPoint server)
-            {
-                this.server = server;
-            }
-
-            public override string ToString() => Format.ToString(server);
-        }
-
-        // Generated LoggerMessage methods
-        [LoggerMessage(
-            Level = LogLevel.Error,
-            Message = "Connection failed: {EndPoint} ({ConnectionType}, {FailureType}): {ErrorMessage}")]
-        private static partial void LogErrorConnectionFailed(ILogger? logger, Exception? exception, EndPointLogValue endPoint, ConnectionType connectionType, ConnectionFailureType failureType, string errorMessage);
-
-        [LoggerMessage(
-            Level = LogLevel.Error,
-            EventId = 1,
-            Message = "> {Message}")]
-        private static partial void LogErrorInnerException(ILogger? logger, Exception exception, string message);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 2,
-            Message = "Checking {EndPoint} is available...")]
-        private static partial void LogInformationCheckingServerAvailable(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Error,
-            EventId = 3,
-            Message = "Operation failed on {EndPoint}, aborting: {ErrorMessage}")]
-        private static partial void LogErrorOperationFailedOnServer(ILogger? logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 4,
-            Message = "Attempting to set tie-breaker on {EndPoint}...")]
-        private static partial void LogInformationAttemptingToSetTieBreaker(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 5,
-            Message = "Making {EndPoint} a primary...")]
-        private static partial void LogInformationMakingServerPrimary(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 6,
-            Message = "Resending tie-breaker to {EndPoint}...")]
-        private static partial void LogInformationResendingTieBreaker(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 7,
-            Message = "Broadcasting via {EndPoint}...")]
-        private static partial void LogInformationBroadcastingViaNode(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 8,
-            Message = "Replicating to {EndPoint}...")]
-        private static partial void LogInformationReplicatingToNode(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 9,
-            Message = "Reconfiguring all endpoints...")]
-        private static partial void LogInformationReconfiguringAllEndpoints(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 10,
-            Message = "Verifying the configuration was incomplete; please verify")]
-        private static partial void LogInformationVerifyingConfigurationIncomplete(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 11,
-            Message = "Connecting (async) on {Framework} (StackExchange.Redis: v{Version})")]
-        private static partial void LogInformationConnectingAsync(ILogger? logger, string framework, string version);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 12,
-            Message = "Connecting (sync) on {Framework} (StackExchange.Redis: v{Version})")]
-        private static partial void LogInformationConnectingSync(ILogger? logger, string framework, string version);
-
-        [LoggerMessage(
-            Level = LogLevel.Error,
-            EventId = 13,
-            Message = "{ErrorMessage}")]
-        private static partial void LogErrorSyncConnectTimeout(ILogger? logger, Exception exception, string errorMessage);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 14,
-            Message = "{Message}")]
-        private static partial void LogInformationAfterConnect(ILogger? logger, string message);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 15,
-            Message = "Total connect time: {ElapsedMs:n0} ms")]
-        private static partial void LogInformationTotalConnectTime(ILogger? logger, long elapsedMs);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 16,
-            Message = "No tasks to await")]
-        private static partial void LogInformationNoTasksToAwait(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 17,
-            Message = "All tasks are already complete")]
-        private static partial void LogInformationAllTasksComplete(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 18,
-            Message = "{Message}",
-            SkipEnabledCheck = true)]
-        private static partial void LogInformationThreadPoolStats(ILogger? logger, string message);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 19,
-            Message = "Reconfiguration was already in progress due to: {ActiveCause}, attempted to run for: {NewCause}")]
-        private static partial void LogInformationReconfigurationInProgress(ILogger? logger, string? activeCause, string newCause);
-
-        private readonly struct ConfigurationOptionsLogValue
-        {
-            private readonly ConfigurationOptions options;
-
-            public ConfigurationOptionsLogValue(ConfigurationOptions options)
-            {
-                this.options = options;
-            }
-
-            public override string ToString() => options.ToString(includePassword: false);
-        }
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 20,
-            Message = "{Configuration}")]
-        private static partial void LogInformationConfiguration(ILogger? logger, ConfigurationOptionsLogValue configuration);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 21,
-            Message = "{Count} unique nodes specified ({TieBreakerStatus} tiebreaker)")]
-        private static partial void LogInformationUniqueNodesSpecified(ILogger? logger, int count, string tieBreakerStatus);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 22,
-            Message = "Allowing {Count} endpoint(s) {TimeSpan} to respond...")]
-        private static partial void LogInformationAllowingEndpointsToRespond(ILogger? logger, int count, TimeSpan timeSpan);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 23,
-            Message = "  Server[{Index}] ({Server}) Status: {Status} (inst: {MessagesSinceLastHeartbeat}, qs: {MessagesSentAwaitingResponse}, in: {BytesAvailableOnSocket}, qu: {MessagesSinceLastHeartbeat2}, aw: {IsWriterActive}, in-pipe: {BytesInReadPipe}, out-pipe: {BytesInWritePipe}, bw: {BacklogStatus}, rs: {ReadStatus}. ws: {WriteStatus})")]
-        private static partial void LogInformationServerStatus(ILogger? logger, int index, ServerEndPointLogValue server, TaskStatus status, long messagesSinceLastHeartbeat, long messagesSentAwaitingResponse, long bytesAvailableOnSocket, long messagesSinceLastHeartbeat2, bool isWriterActive, long bytesInReadPipe, long bytesInWritePipe, PhysicalBridge.BacklogStatus backlogStatus, PhysicalConnection.ReadStatus readStatus, PhysicalConnection.WriteStatus writeStatus);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 24,
-            Message = "Endpoint summary:")]
-        private static partial void LogInformationEndpointSummary(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 25,
-            Message = "  {EndPoint}: Endpoint is (Interactive: {InteractiveState}, Subscription: {SubscriptionState})")]
-        private static partial void LogInformationEndpointState(ILogger? logger, EndPointLogValue endPoint, PhysicalBridge.State interactiveState, PhysicalBridge.State subscriptionState);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 26,
-            Message = "Task summary:")]
-        private static partial void LogInformationTaskSummary(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Error,
-            EventId = 27,
-            Message = "  {Server}: Faulted: {ErrorMessage}")]
-        private static partial void LogErrorServerFaulted(ILogger? logger, Exception exception, ServerEndPointLogValue server, string errorMessage);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 28,
-            Message = "  {Server}: Connect task canceled")]
-        private static partial void LogInformationConnectTaskCanceled(ILogger? logger, ServerEndPointLogValue server);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 29,
-            Message = "  {Server}: Returned with success as {ServerType} {Role} (Source: {Source})")]
-        private static partial void LogInformationServerReturnedSuccess(ILogger? logger, ServerEndPointLogValue server, ServerType serverType, string role, string source);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 30,
-            Message = "  {Server}: Returned, but incorrectly")]
-        private static partial void LogInformationServerReturnedIncorrectly(ILogger? logger, ServerEndPointLogValue server);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 31,
-            Message = "  {Server}: Did not respond (Task.Status: {TaskStatus})")]
-        private static partial void LogInformationServerDidNotRespond(ILogger? logger, ServerEndPointLogValue server, TaskStatus taskStatus);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 32,
-            Message = "{EndPoint}: Clearing as RedundantPrimary")]
-        private static partial void LogInformationClearingAsRedundantPrimary(ILogger? logger, ServerEndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 33,
-            Message = "{EndPoint}: Setting as RedundantPrimary")]
-        private static partial void LogInformationSettingAsRedundantPrimary(ILogger? logger, ServerEndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 34,
-            Message = "Cluster: {CoveredSlots} of {TotalSlots} slots covered")]
-        private static partial void LogInformationClusterSlotsCovered(ILogger? logger, long coveredSlots, int totalSlots);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 35,
-            Message = "No subscription changes necessary")]
-        private static partial void LogInformationNoSubscriptionChanges(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 36,
-            Message = "Subscriptions attempting reconnect: {SubscriptionChanges}")]
-        private static partial void LogInformationSubscriptionsAttemptingReconnect(ILogger? logger, long subscriptionChanges);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 37,
-            Message = "{StormLog}")]
-        private static partial void LogInformationStormLog(ILogger? logger, string stormLog);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 38,
-            Message = "Resetting failing connections to retry...")]
-        private static partial void LogInformationResettingFailingConnections(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 39,
-            Message = "  Retrying - attempts left: {AttemptsLeft}...")]
-        private static partial void LogInformationRetryingAttempts(ILogger? logger, int attemptsLeft);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 40,
-            Message = "Starting heartbeat...")]
-        private static partial void LogInformationStartingHeartbeat(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 41,
-            Message = "Broadcasting reconfigure...")]
-        private static partial void LogInformationBroadcastingReconfigure(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Error,
-            EventId = 42,
-            Message = "Encountered error while updating cluster config: {ErrorMessage}")]
-        private static partial void LogErrorEncounteredErrorWhileUpdatingClusterConfig(ILogger? logger, Exception exception, string errorMessage);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 43,
-            Message = "Election summary:")]
-        private static partial void LogInformationElectionSummary(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 44,
-            Message = "  Election: {Server} had no tiebreaker set")]
-        private static partial void LogInformationElectionNoTiebreaker(ILogger? logger, ServerEndPointLogValue server);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 45,
-            Message = "  Election: {Server} nominates: {ServerResult}")]
-        private static partial void LogInformationElectionNominates(ILogger? logger, ServerEndPointLogValue server, string serverResult);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 46,
-            Message = "  Election: No primaries detected")]
-        private static partial void LogInformationElectionNoPrimariesDetected(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 47,
-            Message = "  Election: Single primary detected: {EndPoint}")]
-        private static partial void LogInformationElectionSinglePrimaryDetected(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 48,
-            Message = "  Election: Multiple primaries detected...")]
-        private static partial void LogInformationElectionMultiplePrimariesDetected(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 49,
-            Message = "  Election: No nominations by tie-breaker")]
-        private static partial void LogInformationElectionNoNominationsByTieBreaker(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 50,
-            Message = "  Election: Tie-breaker unanimous: {Unanimous}")]
-        private static partial void LogInformationElectionTieBreakerUnanimous(ILogger? logger, string unanimous);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 51,
-            Message = "  Election: Elected: {EndPoint}")]
-        private static partial void LogInformationElectionElected(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 52,
-            Message = "  Election is contested:")]
-        private static partial void LogInformationElectionContested(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 53,
-            Message = "    Election: {Key} has {Value} votes")]
-        private static partial void LogInformationElectionVotes(ILogger? logger, string key, int value);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 54,
-            Message = "  Election: Choosing primary arbitrarily: {EndPoint}")]
-        private static partial void LogInformationElectionChoosingPrimaryArbitrarily(ILogger? logger, EndPointLogValue endPoint);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 55,
-            Message = "...but we couldn't find that")]
-        private static partial void LogInformationCouldNotFindThatEndpoint(ILogger? logger);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            EventId = 56,
-            Message = "...but we did find instead: {DeDottedEndpoint}")]
-        private static partial void LogInformationFoundAlternativeEndpoint(ILogger? logger, string deDottedEndpoint);
     }
 }
