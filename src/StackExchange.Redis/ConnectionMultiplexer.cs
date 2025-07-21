@@ -483,43 +483,21 @@ namespace StackExchange.Redis
                 return true;
             }
 
-            static void LogWithThreadPoolStats(ILogger? log, string message)
-            {
-                if (log?.IsEnabled(LogLevel.Information) != false)
-                {
-                    return;
-                }
-
-                var busyWorkerCount = 0;
-                if (log is not null)
-                {
-                    var sb = new StringBuilder();
-                    sb.Append(message);
-                    busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string? workItems);
-                    sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
-                    if (workItems is not null)
-                    {
-                        sb.Append(", POOL: ").Append(workItems);
-                    }
-                    log?.LogInformationThreadPoolStats(sb.ToString());
-                }
-            }
-
             var watch = ValueStopwatch.StartNew();
-            LogWithThreadPoolStats(log, $"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms");
+            log.LogWithThreadPoolStats($"Awaiting {tasks.Length} {name} task completion(s) for {timeoutMilliseconds}ms");
             try
             {
                 // if none error, great
                 var remaining = timeoutMilliseconds - watch.ElapsedMilliseconds;
                 if (remaining <= 0)
                 {
-                    LogWithThreadPoolStats(log, "Timeout before awaiting for tasks");
+                    log.LogWithThreadPoolStats("Timeout before awaiting for tasks");
                     return false;
                 }
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 bool all = await allTasks.TimeoutAfter(timeoutMs: remaining).ObserveErrors().ForAwait();
-                LogWithThreadPoolStats(log, all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)");
+                log.LogWithThreadPoolStats(all ? $"All {tasks.Length} {name} tasks completed cleanly" : $"Not all {name} tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)");
                 return all;
             }
             catch
@@ -535,7 +513,7 @@ namespace StackExchange.Redis
                     var remaining = timeoutMilliseconds - watch.ElapsedMilliseconds;
                     if (remaining <= 0)
                     {
-                        LogWithThreadPoolStats(log, "Timeout awaiting tasks");
+                        log.LogWithThreadPoolStats("Timeout awaiting tasks");
                         return false;
                     }
                     try
@@ -546,7 +524,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
-            LogWithThreadPoolStats(log, "Finished awaiting tasks");
+            log.LogWithThreadPoolStats("Finished awaiting tasks");
             return false;
         }
 

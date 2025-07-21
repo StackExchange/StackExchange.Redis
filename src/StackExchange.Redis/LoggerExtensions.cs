@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -21,6 +22,25 @@ internal static partial class LoggerExtensions
     internal readonly struct ConfigurationOptionsLogValue(ConfigurationOptions options)
     {
         public override string ToString() => options.ToString(includePassword: false);
+    }
+
+    // manual extensions
+    internal static void LogWithThreadPoolStats(this ILogger? log, string message)
+    {
+        if (log is null || !log.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+
+        var sb = new StringBuilder();
+        sb.Append(message);
+        _ = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string? workItems);
+        sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
+        if (workItems is not null)
+        {
+            sb.Append(", POOL: ").Append(workItems);
+        }
+        log.LogInformationThreadPoolStats(sb.ToString());
     }
 
     // Generated LoggerMessage methods
