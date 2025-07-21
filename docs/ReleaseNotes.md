@@ -12,6 +12,12 @@ Current package versions:
 - Support async cancellation of `SCAN` enumeration ([#2911 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2911)) 
 - Add `XTRIM MINID` support ([#2842 by kijanawoodard](https://github.com/StackExchange/StackExchange.Redis/pull/2842))
 - Add new CE 8.2 stream support - `XDELEX`, `XACKDEL`, `{XADD|XTRIM} [KEEPREF|DELREF|ACKED]` ([#2912 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2912))
+- Fix `ZREVRANGEBYLEX` open-ended commands ([#2636 by ArnoKoll](https://github.com/StackExchange/StackExchange.Redis/pull/2636))
+- Fix `StreamGroupInfo.Lag` when `null` ([#2902 by robhop](https://github.com/StackExchange/StackExchange.Redis/pull/2902))
+- Internals
+  - Logging improvements ([#2903 by Meir017](https://github.com/StackExchange/StackExchange.Redis/pull/2903) and [#2917 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2917))
+  - Update tests to xUnit v3 ([#2907 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2907))
+  - Avoid `CLIENT PAUSE` in CI tests ([#2916 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2916))
 
 ## 2.8.47
 
