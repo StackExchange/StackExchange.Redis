@@ -2289,6 +2289,19 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 return false;
             }
+            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref long? value)
+            {
+                var len = pairs.Length / 2;
+                for (int i = 0; i < len; i++)
+                {
+                    if (pairs[i * 2].IsEqual(key) && pairs[(i * 2) + 1].TryGetInt64(out var tmp))
+                    {
+                        value = tmp;
+                        return true;
+                    }
+                }
+                return false;
+            }
 
             internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
             {
@@ -2351,7 +2364,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var arr = result.GetItems();
                 string? name = default, lastDeliveredId = default;
                 int consumerCount = default, pendingMessageCount = default;
-                long entriesRead = default, lag = default;
+                long entriesRead = default;
+                long? lag = default;
 
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Consumers, ref consumerCount);

@@ -2036,4 +2036,43 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(123, (int)obj!.id);
         Assert.Equal("test", (string)obj.name);
     }
+
+    [Fact]
+    public async Task StreamConsumerGroupInfoLagIsNull()
+    {
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        const string groupName = "test_group",
+                     consumer = "consumer";
+
+        await db.StreamCreateConsumerGroupAsync(key, groupName);
+        await db.StreamReadGroupAsync(key, groupName, consumer, "0-0", 1);
+        await db.StreamAddAsync(key, "field1", "value1");
+        await db.StreamAddAsync(key, "field1", "value1");
+
+        var streamInfo = await db.StreamInfoAsync(key);
+        await db.StreamDeleteAsync(key, new[] { streamInfo.LastEntry.Id });
+
+        Assert.Null((await db.StreamGroupInfoAsync(key))[0].Lag);
+    }
+
+    [Fact]
+    public async Task StreamConsumerGroupInfoLagIsTwo()
+    {
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        const string groupName = "test_group",
+                     consumer = "consumer";
+
+        await db.StreamCreateConsumerGroupAsync(key, groupName);
+        await db.StreamReadGroupAsync(key, groupName, consumer, "0-0", 1);
+        await db.StreamAddAsync(key, "field1", "value1");
+        await db.StreamAddAsync(key, "field1", "value1");
+
+        Assert.Equal(2, (await db.StreamGroupInfoAsync(key))[0].Lag);
+    }
 }
