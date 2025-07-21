@@ -1289,7 +1289,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData(StreamTrimMode.Acknowledged)]
     public void StreamDeleteExMessage(StreamTrimMode mode)
     {
-        using var conn = Create(require: ForMode(mode));
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1); // XDELEX
 
         var db = conn.GetDatabase();
         var key = Me() + ":" + mode;
@@ -1312,7 +1312,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData(StreamTrimMode.Acknowledged)]
     public void StreamDeleteExMessages(StreamTrimMode mode)
     {
-        using var conn = Create(require: ForMode(mode));
+        using var conn = Create(require: RedisFeatures.v8_2_0_rc1); // XDELEX
 
         var db = conn.GetDatabase();
         var key = Me() + ":" + mode;
