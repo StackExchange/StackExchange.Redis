@@ -1,9 +1,8 @@
 ﻿{
   "methodDisplay": "classAndMethod",
-  "maxParallelThreads": 16,
   "parallelizeAssembly": true,
+  "maxParallelThreads": "2x",
   "parallelizeTestCollections": true,
-  "parallelAlgorithm": "aggressive",
   "diagnosticMessages": false,
   "longRunningTestSeconds": 60
 }

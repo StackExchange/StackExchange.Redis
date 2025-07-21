@@ -3,16 +3,12 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class LockingTests : TestBase
+public class LockingTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public LockingTests(ITestOutputHelper output) : base(output) { }
-
     public enum TestMode
     {
         MultiExec,
@@ -20,11 +16,11 @@ public class LockingTests : TestBase
         Twemproxy,
     }
 
-    public static IEnumerable<object[]> TestModes()
+    public static IEnumerable<TheoryDataRow<TestMode>> TestModes()
     {
-        yield return new object[] { TestMode.MultiExec };
-        yield return new object[] { TestMode.NoMultiExec };
-        yield return new object[] { TestMode.Twemproxy };
+        yield return new(TestMode.MultiExec);
+        yield return new(TestMode.NoMultiExec);
+        yield return new(TestMode.Twemproxy);
     }
 
     [Theory, MemberData(nameof(TestModes))]
@@ -67,9 +63,9 @@ public class LockingTests : TestBase
     }
 
     [Fact]
-    public void TestOpCountByVersionLocal_UpLevel()
+    public async Task TestOpCountByVersionLocal_UpLevel()
     {
-        using var conn = Create(shared: false);
+        await using var conn = Create(shared: false);
 
         TestLockOpCountByVersion(conn, 1, false);
         TestLockOpCountByVersion(conn, 1, true);
@@ -105,7 +101,7 @@ public class LockingTests : TestBase
     private IConnectionMultiplexer Create(TestMode mode) => mode switch
     {
         TestMode.MultiExec => Create(),
-        TestMode.NoMultiExec => Create(disabledCommands: new[] { "multi", "exec" }),
+        TestMode.NoMultiExec => Create(disabledCommands: ["multi", "exec"]),
         TestMode.Twemproxy => Create(proxy: Proxy.Twemproxy),
         _ => throw new NotSupportedException(mode.ToString()),
     };
@@ -113,7 +109,7 @@ public class LockingTests : TestBase
     [Theory, MemberData(nameof(TestModes))]
     public async Task TakeLockAndExtend(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         RedisValue right = Guid.NewGuid().ToString(),
             wrong = Guid.NewGuid().ToString();
@@ -165,7 +161,7 @@ public class LockingTests : TestBase
     [Theory, MemberData(nameof(TestModes))]
     public async Task TestBasicLockNotTaken(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         int errorCount = 0;
         conn.ErrorMessage += (sender, e) => Interlocked.Increment(ref errorCount);
@@ -194,7 +190,7 @@ public class LockingTests : TestBase
     [Theory, MemberData(nameof(TestModes))]
     public async Task TestBasicLockTaken(TestMode testMode)
     {
-        using var conn = Create(testMode);
+        await using var conn = Create(testMode);
 
         var db = conn.GetDatabase();
         var key = Me() + testMode;

@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class BacklogTests : TestBase
+public class BacklogTests(ITestOutputHelper output) : TestBase(output)
 {
-    public BacklogTests(ITestOutputHelper output) : base(output) { }
-
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
     [Fact]
@@ -49,7 +46,7 @@ public class BacklogTests : TestBase
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
             var db = conn.GetDatabase();
             Log("Test: Initial (connected) ping");
@@ -122,7 +119,7 @@ public class BacklogTests : TestBase
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
             conn.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
             conn.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
@@ -213,7 +210,7 @@ public class BacklogTests : TestBase
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
             conn.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
             conn.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
@@ -236,10 +233,12 @@ public class BacklogTests : TestBase
             // Queue up some commands
             Log("Test: Disconnected pings");
 
-            Task[] pings = new Task[3];
-            pings[0] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(1));
-            pings[1] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(2));
-            pings[2] = RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(3));
+            Task[] pings =
+            [
+                RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(1)),
+                RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(2)),
+                RunBlockingSynchronousWithExtraThreadAsync(() => DisconnectedPings(3)),
+            ];
             void DisconnectedPings(int id)
             {
                 // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
@@ -311,7 +310,7 @@ public class BacklogTests : TestBase
             options.AllowAdmin = true;
             options.SocketManager = SocketManager.ThreadPool;
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
             conn.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
             conn.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));

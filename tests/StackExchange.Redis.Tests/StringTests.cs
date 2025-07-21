@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -12,15 +11,12 @@ namespace StackExchange.Redis.Tests;
 /// Tests for <see href="https://redis.io/commands#string"/>.
 /// </summary>
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class StringTests : TestBase
+public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public StringTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task Append()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var server = GetServer(conn);
@@ -54,7 +50,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task Set()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -73,7 +69,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task SetEmpty()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -91,7 +87,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task StringGetSetExpiryNoValue()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -105,7 +101,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task StringGetSetExpiryRelative()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -124,7 +120,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task StringGetSetExpiryAbsolute()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -148,7 +144,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task StringGetSetExpiryPersist()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -165,7 +161,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task GetLease()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -182,7 +178,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task GetLeaseAsStream()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -202,9 +198,9 @@ public class StringTests : TestBase
     }
 
     [Fact]
-    public void GetDelete()
+    public async Task GetDelete()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -226,7 +222,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task GetDeleteAsync()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -248,7 +244,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task SetNotExists()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -284,7 +280,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task SetKeepTtl()
     {
-        using var conn = Create(require: RedisFeatures.v6_0_0);
+        await using var conn = Create(require: RedisFeatures.v6_0_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -322,7 +318,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task SetAndGet()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -390,7 +386,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task SetNotExistsAndGet()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -420,7 +416,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task Ranges()
     {
-        using var conn = Create(require: RedisFeatures.v2_1_8);
+        await using var conn = Create(require: RedisFeatures.v2_1_8);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -439,7 +435,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task IncrDecr()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -466,7 +462,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task IncrDecrFloat()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -494,7 +490,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task GetRange()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -511,7 +507,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task BitCount()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -539,7 +535,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task BitCountWithBitUnit()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -563,7 +559,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task BitOp()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var prefix = Me();
@@ -574,9 +570,9 @@ public class StringTests : TestBase
         db.StringSet(key2, new byte[] { 6 }, flags: CommandFlags.FireAndForget);
         db.StringSet(key3, new byte[] { 12 }, flags: CommandFlags.FireAndForget);
 
-        var len_and = db.StringBitOperationAsync(Bitwise.And, "and", new RedisKey[] { key1, key2, key3 });
-        var len_or = db.StringBitOperationAsync(Bitwise.Or, "or", new RedisKey[] { key1, key2, key3 });
-        var len_xor = db.StringBitOperationAsync(Bitwise.Xor, "xor", new RedisKey[] { key1, key2, key3 });
+        var len_and = db.StringBitOperationAsync(Bitwise.And, "and", [key1, key2, key3]);
+        var len_or = db.StringBitOperationAsync(Bitwise.Or, "or", [key1, key2, key3]);
+        var len_xor = db.StringBitOperationAsync(Bitwise.Xor, "xor", [key1, key2, key3]);
         var len_not = db.StringBitOperationAsync(Bitwise.Not, "not", key1);
 
         Assert.Equal(1, await len_and);
@@ -598,7 +594,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task BitOpExtended()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -607,7 +603,7 @@ public class StringTests : TestBase
         var keyY3 = prefix + "Y3";
 
         // Clean up keys
-        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyY2, keyY3 }, CommandFlags.FireAndForget);
+        db.KeyDelete([keyX, keyY1, keyY2, keyY3], CommandFlags.FireAndForget);
 
         // Set up test data with more complex patterns
         // X = 11110000 (240)
@@ -622,7 +618,7 @@ public class StringTests : TestBase
         // Test DIFF: X ∧ ¬(Y1 ∨ Y2 ∨ Y3)
         // Y1 ∨ Y2 ∨ Y3 = 170 | 85 | 204 = 255
         // X ∧ ¬(Y1 ∨ Y2 ∨ Y3) = 240 & ~255 = 240 & 0 = 0
-        var len_diff = await db.StringBitOperationAsync(Bitwise.Diff, "diff", new RedisKey[] { keyX, keyY1, keyY2, keyY3 });
+        var len_diff = await db.StringBitOperationAsync(Bitwise.Diff, "diff", [keyX, keyY1, keyY2, keyY3]);
         Assert.Equal(1, len_diff);
         var r_diff = ((byte[]?)(await db.StringGetAsync("diff")))?.Single();
         Assert.Equal((byte)0, r_diff);
@@ -631,7 +627,7 @@ public class StringTests : TestBase
         // ¬X = ~240 = 15
         // Y1 ∨ Y2 ∨ Y3 = 255
         // ¬X ∧ (Y1 ∨ Y2 ∨ Y3) = 15 & 255 = 15
-        var len_diff1 = await db.StringBitOperationAsync(Bitwise.Diff1, "diff1", new RedisKey[] { keyX, keyY1, keyY2, keyY3 });
+        var len_diff1 = await db.StringBitOperationAsync(Bitwise.Diff1, "diff1", [keyX, keyY1, keyY2, keyY3]);
         Assert.Equal(1, len_diff1);
         var r_diff1 = ((byte[]?)(await db.StringGetAsync("diff1")))?.Single();
         Assert.Equal((byte)15, r_diff1);
@@ -639,7 +635,7 @@ public class StringTests : TestBase
         // Test ANDOR: X ∧ (Y1 ∨ Y2 ∨ Y3)
         // Y1 ∨ Y2 ∨ Y3 = 255
         // X ∧ (Y1 ∨ Y2 ∨ Y3) = 240 & 255 = 240
-        var len_andor = await db.StringBitOperationAsync(Bitwise.AndOr, "andor", new RedisKey[] { keyX, keyY1, keyY2, keyY3 });
+        var len_andor = await db.StringBitOperationAsync(Bitwise.AndOr, "andor", [keyX, keyY1, keyY2, keyY3]);
         Assert.Equal(1, len_andor);
         var r_andor = ((byte[]?)(await db.StringGetAsync("andor")))?.Single();
         Assert.Equal((byte)240, r_andor);
@@ -647,7 +643,7 @@ public class StringTests : TestBase
         // Test ONE: bits set in exactly one bitmap
         // For X=240, Y1=170, Y2=85, Y3=204
         // We need to count bits that appear in exactly one of these values
-        var len_one = await db.StringBitOperationAsync(Bitwise.One, "one", new RedisKey[] { keyX, keyY1, keyY2, keyY3 });
+        var len_one = await db.StringBitOperationAsync(Bitwise.One, "one", [keyX, keyY1, keyY2, keyY3]);
         Assert.Equal(1, len_one);
         var r_one = ((byte[]?)(await db.StringGetAsync("one")))?.Single();
 
@@ -667,42 +663,42 @@ public class StringTests : TestBase
     [Fact]
     public async Task BitOpTwoOperands()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var key1 = prefix + "1";
         var key2 = prefix + "2";
 
         // Clean up keys
-        db.KeyDelete(new RedisKey[] { key1, key2 }, CommandFlags.FireAndForget);
+        db.KeyDelete([key1, key2], CommandFlags.FireAndForget);
 
         // Test with two operands: key1=10101010 (170), key2=11001100 (204)
         db.StringSet(key1, new byte[] { 170 }, flags: CommandFlags.FireAndForget);
         db.StringSet(key2, new byte[] { 204 }, flags: CommandFlags.FireAndForget);
 
         // Test DIFF: key1 ∧ ¬key2 = 170 & ~204 = 170 & 51 = 34
-        var len_diff = await db.StringBitOperationAsync(Bitwise.Diff, "diff2", new RedisKey[] { key1, key2 });
+        var len_diff = await db.StringBitOperationAsync(Bitwise.Diff, "diff2", [key1, key2]);
         Assert.Equal(1, len_diff);
         var r_diff = ((byte[]?)(await db.StringGetAsync("diff2")))?.Single();
         Assert.Equal((byte)(170 & ~204), r_diff);
 
         // Test ONE with two operands (should be equivalent to XOR)
-        var len_one = await db.StringBitOperationAsync(Bitwise.One, "one2", new RedisKey[] { key1, key2 });
+        var len_one = await db.StringBitOperationAsync(Bitwise.One, "one2", [key1, key2]);
         Assert.Equal(1, len_one);
         var r_one = ((byte[]?)(await db.StringGetAsync("one2")))?.Single();
         Assert.Equal((byte)(170 ^ 204), r_one);
 
         // Verify ONE equals XOR for two operands
-        var len_xor = await db.StringBitOperationAsync(Bitwise.Xor, "xor2", new RedisKey[] { key1, key2 });
+        var len_xor = await db.StringBitOperationAsync(Bitwise.Xor, "xor2", [key1, key2]);
         Assert.Equal(1, len_xor);
         var r_xor = ((byte[]?)(await db.StringGetAsync("xor2")))?.Single();
         Assert.Equal(r_one, r_xor);
     }
 
     [Fact]
-    public void BitOpDiff()
+    public async Task BitOpDiff()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -711,7 +707,7 @@ public class StringTests : TestBase
         var keyResult = prefix + "result";
 
         // Clean up keys
-        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyY2, keyResult }, CommandFlags.FireAndForget);
+        db.KeyDelete([keyX, keyY1, keyY2, keyResult], CommandFlags.FireAndForget);
 
         // Set up test data: X=11110000, Y1=10100000, Y2=01010000
         // Expected DIFF result: X ∧ ¬(Y1 ∨ Y2) = 11110000 ∧ ¬(11110000) = 00000000
@@ -719,7 +715,7 @@ public class StringTests : TestBase
         db.StringSet(keyY1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
         db.StringSet(keyY2, new byte[] { 0b01010000 }, flags: CommandFlags.FireAndForget);
 
-        var length = db.StringBitOperation(Bitwise.Diff, keyResult, new RedisKey[] { keyX, keyY1, keyY2 });
+        var length = db.StringBitOperation(Bitwise.Diff, keyResult, [keyX, keyY1, keyY2]);
         Assert.Equal(1, length);
 
         var result = ((byte[]?)db.StringGet(keyResult))?.Single();
@@ -728,9 +724,9 @@ public class StringTests : TestBase
     }
 
     [Fact]
-    public void BitOpDiff1()
+    public async Task BitOpDiff1()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -739,7 +735,7 @@ public class StringTests : TestBase
         var keyResult = prefix + "result";
 
         // Clean up keys
-        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyY2, keyResult }, CommandFlags.FireAndForget);
+        db.KeyDelete([keyX, keyY1, keyY2, keyResult], CommandFlags.FireAndForget);
 
         // Set up test data: X=11000000, Y1=10100000, Y2=01010000
         // Expected DIFF1 result: ¬X ∧ (Y1 ∨ Y2) = ¬11000000 ∧ (10100000 ∨ 01010000) = 00111111 ∧ 11110000 = 00110000
@@ -747,7 +743,7 @@ public class StringTests : TestBase
         db.StringSet(keyY1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
         db.StringSet(keyY2, new byte[] { 0b01010000 }, flags: CommandFlags.FireAndForget);
 
-        var length = db.StringBitOperation(Bitwise.Diff1, keyResult, new RedisKey[] { keyX, keyY1, keyY2 });
+        var length = db.StringBitOperation(Bitwise.Diff1, keyResult, [keyX, keyY1, keyY2]);
         Assert.Equal(1, length);
 
         var result = ((byte[]?)db.StringGet(keyResult))?.Single();
@@ -756,9 +752,9 @@ public class StringTests : TestBase
     }
 
     [Fact]
-    public void BitOpAndOr()
+    public async Task BitOpAndOr()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -767,7 +763,7 @@ public class StringTests : TestBase
         var keyResult = prefix + "result";
 
         // Clean up keys
-        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyY2, keyResult }, CommandFlags.FireAndForget);
+        db.KeyDelete([keyX, keyY1, keyY2, keyResult], CommandFlags.FireAndForget);
 
         // Set up test data: X=11110000, Y1=10100000, Y2=01010000
         // Expected ANDOR result: X ∧ (Y1 ∨ Y2) = 11110000 ∧ (10100000 ∨ 01010000) = 11110000 ∧ 11110000 = 11110000
@@ -775,7 +771,7 @@ public class StringTests : TestBase
         db.StringSet(keyY1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
         db.StringSet(keyY2, new byte[] { 0b01010000 }, flags: CommandFlags.FireAndForget);
 
-        var length = db.StringBitOperation(Bitwise.AndOr, keyResult, new RedisKey[] { keyX, keyY1, keyY2 });
+        var length = db.StringBitOperation(Bitwise.AndOr, keyResult, [keyX, keyY1, keyY2]);
         Assert.Equal(1, length);
 
         var result = ((byte[]?)db.StringGet(keyResult))?.Single();
@@ -784,9 +780,9 @@ public class StringTests : TestBase
     }
 
     [Fact]
-    public void BitOpOne()
+    public async Task BitOpOne()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var key1 = prefix + "1";
@@ -795,7 +791,7 @@ public class StringTests : TestBase
         var keyResult = prefix + "result";
 
         // Clean up keys
-        db.KeyDelete(new RedisKey[] { key1, key2, key3, keyResult }, CommandFlags.FireAndForget);
+        db.KeyDelete([key1, key2, key3, keyResult], CommandFlags.FireAndForget);
 
         // Set up test data: key1=10100000, key2=01010000, key3=00110000
         // Expected ONE result: bits set in exactly one bitmap = 11000000
@@ -803,7 +799,7 @@ public class StringTests : TestBase
         db.StringSet(key2, new byte[] { 0b01010000 }, flags: CommandFlags.FireAndForget);
         db.StringSet(key3, new byte[] { 0b00110000 }, flags: CommandFlags.FireAndForget);
 
-        var length = db.StringBitOperation(Bitwise.One, keyResult, new RedisKey[] { key1, key2, key3 });
+        var length = db.StringBitOperation(Bitwise.One, keyResult, [key1, key2, key3]);
         Assert.Equal(1, length);
 
         var result = ((byte[]?)db.StringGet(keyResult))?.Single();
@@ -814,7 +810,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task BitOpDiffAsync()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyX = prefix + "X";
@@ -822,14 +818,14 @@ public class StringTests : TestBase
         var keyResult = prefix + "result";
 
         // Clean up keys
-        db.KeyDelete(new RedisKey[] { keyX, keyY1, keyResult }, CommandFlags.FireAndForget);
+        db.KeyDelete([keyX, keyY1, keyResult], CommandFlags.FireAndForget);
 
         // Set up test data: X=11110000, Y1=10100000
         // Expected DIFF result: X ∧ ¬Y1 = 11110000 ∧ 01011111 = 01010000
         db.StringSet(keyX, new byte[] { 0b11110000 }, flags: CommandFlags.FireAndForget);
         db.StringSet(keyY1, new byte[] { 0b10100000 }, flags: CommandFlags.FireAndForget);
 
-        var length = await db.StringBitOperationAsync(Bitwise.Diff, keyResult, new RedisKey[] { keyX, keyY1 });
+        var length = await db.StringBitOperationAsync(Bitwise.Diff, keyResult, [keyX, keyY1]);
         Assert.Equal(1, length);
 
         var result = ((byte[]?)await db.StringGetAsync(keyResult))?.Single();
@@ -838,9 +834,9 @@ public class StringTests : TestBase
     }
 
     [Fact]
-    public void BitOpEdgeCases()
+    public async Task BitOpEdgeCases()
     {
-        using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
         var db = conn.GetDatabase();
         var prefix = Me();
         var keyEmpty = prefix + "empty";
@@ -848,20 +844,20 @@ public class StringTests : TestBase
         var keyResult = prefix + "result";
 
         // Clean up keys
-        db.KeyDelete(new RedisKey[] { keyEmpty, keyNonEmpty, keyResult }, CommandFlags.FireAndForget);
+        db.KeyDelete([keyEmpty, keyNonEmpty, keyResult], CommandFlags.FireAndForget);
 
         // Test with empty bitmap
         db.StringSet(keyNonEmpty, new byte[] { 0b11110000 }, flags: CommandFlags.FireAndForget);
 
         // DIFF with empty key should return the first key
-        var length = db.StringBitOperation(Bitwise.Diff, keyResult, new RedisKey[] { keyNonEmpty, keyEmpty });
+        var length = db.StringBitOperation(Bitwise.Diff, keyResult, [keyNonEmpty, keyEmpty]);
         Assert.Equal(1, length);
 
         var result = ((byte[]?)db.StringGet(keyResult))?.Single();
         Assert.Equal((byte)0b11110000, result);
 
         // ONE with single key should return that key
-        length = db.StringBitOperation(Bitwise.One, keyResult, new RedisKey[] { keyNonEmpty });
+        length = db.StringBitOperation(Bitwise.One, keyResult, [keyNonEmpty]);
         Assert.Equal(1, length);
 
         result = ((byte[]?)db.StringGet(keyResult))?.Single();
@@ -871,7 +867,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task BitPosition()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -899,7 +895,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task BitPositionWithBitUnit()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -916,7 +912,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task RangeString()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -928,7 +924,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task HashStringLengthAsync()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -941,9 +937,9 @@ public class StringTests : TestBase
     }
 
     [Fact]
-    public void HashStringLength()
+    public async Task HashStringLength()
     {
-        using var conn = Create(require: RedisFeatures.v3_2_0);
+        await using var conn = Create(require: RedisFeatures.v3_2_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -954,9 +950,9 @@ public class StringTests : TestBase
     }
 
     [Fact]
-    public void LongestCommonSubsequence()
+    public async Task LongestCommonSubsequence()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "1";
@@ -996,7 +992,7 @@ public class StringTests : TestBase
     [Fact]
     public async Task LongestCommonSubsequenceAsync()
     {
-        using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
         var db = conn.GetDatabase();
         var key1 = Me() + "1";

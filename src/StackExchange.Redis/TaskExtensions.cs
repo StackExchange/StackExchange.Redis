@@ -25,6 +25,44 @@ namespace StackExchange.Redis
             return task;
         }
 
+#if !NET6_0_OR_GREATER
+        // suboptimal polyfill version of the .NET 6+ API, but reasonable for light use
+        internal static Task<T> WaitAsync<T>(this Task<T> task, CancellationToken cancellationToken)
+        {
+            if (task.IsCompleted || !cancellationToken.CanBeCanceled) return task;
+            return Wrap(task, cancellationToken);
+
+            static async Task<T> Wrap(Task<T> task, CancellationToken cancellationToken)
+            {
+                var tcs = new TaskSourceWithToken<T>(cancellationToken);
+                using var reg = cancellationToken.Register(
+                    static state => ((TaskSourceWithToken<T>)state!).Cancel(), tcs);
+                _ = task.ContinueWith(
+                    static (t, state) =>
+                    {
+                        var tcs = (TaskSourceWithToken<T>)state!;
+                        if (t.IsCanceled) tcs.TrySetCanceled();
+                        else if (t.IsFaulted) tcs.TrySetException(t.Exception!);
+                        else tcs.TrySetResult(t.Result);
+                    },
+                    tcs);
+                return await tcs.Task;
+            }
+        }
+
+        // the point of this type is to combine TCS and CT so that we can use a static
+        // registration via Register
+        private sealed class TaskSourceWithToken<T> : TaskCompletionSource<T>
+        {
+            public TaskSourceWithToken(CancellationToken cancellationToken)
+                => _cancellationToken = cancellationToken;
+
+            private readonly CancellationToken _cancellationToken;
+
+            public void Cancel() => TrySetCanceled(_cancellationToken);
+        }
+#endif
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static ConfiguredTaskAwaitable ForAwait(this Task task) => task.ConfigureAwait(false);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -34,7 +72,7 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static ConfiguredValueTaskAwaitable<T> ForAwait<T>(this in ValueTask<T> task) => task.ConfigureAwait(false);
 
-        internal static void RedisFireAndForget(this Task task) => task?.ContinueWith(t => GC.KeepAlive(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
+        internal static void RedisFireAndForget(this Task task) => task?.ContinueWith(static t => GC.KeepAlive(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
 
         /// <summary>
         /// Licensed to the .NET Foundation under one or more agreements.

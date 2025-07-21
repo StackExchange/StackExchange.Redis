@@ -2,18 +2,15 @@
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO10825542Tests : TestBase
+public class SO10825542Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public SO10825542Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task Execute()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var key = Me();
 
         var db = conn.GetDatabase();

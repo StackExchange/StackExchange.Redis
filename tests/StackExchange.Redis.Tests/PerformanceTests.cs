@@ -2,26 +2,24 @@
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class PerformanceTests : TestBase
+public class PerformanceTests(ITestOutputHelper output) : TestBase(output)
 {
-    public PerformanceTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
-    public void VerifyPerformanceImprovement()
+    [Fact]
+    public async Task VerifyPerformanceImprovement()
     {
+        Skip.UnlessLongRunning();
         int asyncTimer, sync, op = 0, asyncFaF, syncFaF;
         var key = Me();
-        using (var conn = Create())
+        await using (var conn = Create())
         {
             // do these outside the timings, just to ensure the core methods are JITted etc
             for (int dbId = 0; dbId < 5; dbId++)
             {
-                conn.GetDatabase(dbId).KeyDeleteAsync(key);
+                _ = conn.GetDatabase(dbId).KeyDeleteAsync(key);
             }
 
             var timer = Stopwatch.StartNew();
@@ -33,7 +31,9 @@ public class PerformanceTests : TestBase
                 {
                     var db = conn.GetDatabase(dbId);
                     for (int j = 0; j < 10; j++)
-                        db.StringIncrementAsync(key);
+                    {
+                        _ = db.StringIncrementAsync(key);
+                    }
                 }
             }
             asyncFaF = (int)timer.ElapsedMilliseconds;
@@ -102,7 +102,7 @@ public class PerformanceTests : TestBase
     [Fact]
     public async Task BasicStringGetPerf()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();

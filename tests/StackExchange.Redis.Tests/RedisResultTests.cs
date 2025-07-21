@@ -16,7 +16,7 @@ public sealed class RedisResultTests
     public void ToDictionaryWorks()
     {
         var redisArrayResult = RedisResult.Create(
-            new RedisValue[] { "one", 1, "two", 2, "three", 3, "four", 4 });
+            ["one", 1, "two", 2, "three", 3, "four", 4]);
 
         var dict = redisArrayResult.ToDictionary();
 
@@ -35,14 +35,13 @@ public sealed class RedisResultTests
     public void ToDictionaryWorksWhenNested()
     {
         var redisArrayResult = RedisResult.Create(
-            new[]
-            {
+            [
                 RedisResult.Create((RedisValue)"one"),
-                RedisResult.Create(new RedisValue[] { "two", 2, "three", 3 }),
+                RedisResult.Create(["two", 2, "three", 3]),
 
                 RedisResult.Create((RedisValue)"four"),
-                RedisResult.Create(new RedisValue[] { "five", 5, "six", 6 }),
-            });
+                RedisResult.Create(["five", 5, "six", 6]),
+            ]);
 
         var dict = redisArrayResult.ToDictionary();
         var nestedDict = dict["one"].ToDictionary();
@@ -61,7 +60,7 @@ public sealed class RedisResultTests
     public void ToDictionaryFailsWithDuplicateKeys()
     {
         var redisArrayResult = RedisResult.Create(
-            new RedisValue[] { "banana", 1, "BANANA", 2, "orange", 3, "apple", 4 });
+            ["banana", 1, "BANANA", 2, "orange", 3, "apple", 4]);
 
         Assert.Throws<ArgumentException>(() => redisArrayResult.ToDictionary(/* Use default comparer, causes collision of banana */));
     }
@@ -73,7 +72,7 @@ public sealed class RedisResultTests
     public void ToDictionaryWorksWithCustomComparator()
     {
         var redisArrayResult = RedisResult.Create(
-            new RedisValue[] { "banana", 1, "BANANA", 2, "orange", 3, "apple", 4 });
+            ["banana", 1, "BANANA", 2, "orange", 3, "apple", 4]);
 
         var dict = redisArrayResult.ToDictionary(StringComparer.Ordinal);
 
@@ -90,7 +89,7 @@ public sealed class RedisResultTests
     public void ToDictionaryFailsOnMishapenResults()
     {
         var redisArrayResult = RedisResult.Create(
-            new RedisValue[] { "one", 1, "two", 2, "three", 3, "four" /* missing 4 */ });
+            ["one", 1, "two", 2, "three", 3, "four" /* missing 4 */]);
 
         Assert.Throws<IndexOutOfRangeException>(() => redisArrayResult.ToDictionary(StringComparer.Ordinal));
     }

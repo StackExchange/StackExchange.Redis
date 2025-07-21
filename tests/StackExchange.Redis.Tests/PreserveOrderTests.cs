@@ -2,20 +2,17 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class PreserveOrderTests : TestBase
+public class PreserveOrderTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public PreserveOrderTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void Execute()
+    public async Task Execute()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var sub = conn.GetSubscriber();
         var channel = Me();

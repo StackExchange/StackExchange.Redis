@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
@@ -1377,6 +1378,77 @@ namespace StackExchange.Redis
             }
         }
 
+        internal static ResultProcessor<StreamTrimResult> StreamTrimResult =>
+            Int32EnumProcessor<StreamTrimResult>.Instance;
+
+        internal static ResultProcessor<StreamTrimResult[]> StreamTrimResultArray =>
+            Int32EnumArrayProcessor<StreamTrimResult>.Instance;
+
+        private sealed class Int32EnumProcessor<T> : ResultProcessor<T> where T : unmanaged, Enum
+        {
+            private Int32EnumProcessor() { }
+            public static readonly Int32EnumProcessor<T> Instance = new();
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeBulkString)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        if (result.TryGetInt64(out long i64))
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            int i32 = (int)i64;
+                            SetResult(message, Unsafe.As<int, T>(ref i32));
+                            return true;
+                        }
+                        break;
+                    case ResultType.Array when result.ItemsCount == 1: // pick a single element from a unit vector
+                        if (result.GetItems()[0].TryGetInt64(out i64))
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            int i32 = (int)i64;
+                            SetResult(message, Unsafe.As<int, T>(ref i32));
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
+
+        private sealed class Int32EnumArrayProcessor<T> : ResultProcessor<T[]> where T : unmanaged, Enum
+        {
+            private Int32EnumArrayProcessor() { }
+            public static readonly Int32EnumArrayProcessor<T> Instance = new();
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeArray)
+                {
+                    case ResultType.Array:
+                        T[] arr;
+                        if (result.IsNull)
+                        {
+                            arr = null!;
+                        }
+                        else
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            arr = result.ToArray(static (in RawResult x) =>
+                            {
+                                int i32 = (int)x.AsRedisValue();
+                                return Unsafe.As<int, T>(ref i32);
+                            })!;
+                        }
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
         private sealed class PubSubNumSubProcessor : Int64Processor
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -2289,6 +2361,19 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 return false;
             }
+            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref long? value)
+            {
+                var len = pairs.Length / 2;
+                for (int i = 0; i < len; i++)
+                {
+                    if (pairs[i * 2].IsEqual(key) && pairs[(i * 2) + 1].TryGetInt64(out var tmp))
+                    {
+                        value = tmp;
+                        return true;
+                    }
+                }
+                return false;
+            }
 
             internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
             {
@@ -2351,7 +2436,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var arr = result.GetItems();
                 string? name = default, lastDeliveredId = default;
                 int consumerCount = default, pendingMessageCount = default;
-                long entriesRead = default, lag = default;
+                long entriesRead = default;
+                long? lag = default;
 
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Consumers, ref consumerCount);
