@@ -78,6 +78,184 @@ namespace StackExchange.Redis
         int DatabaseCount { get; }
 
         /// <summary>
+        /// Gets the categories of access control commands.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of Redis values representing the categories.</returns>
+        RedisValue[] AccessControlGetCategories(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously gets the categories of access control commands.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with an array of Redis values representing the categories.</returns>
+        Task<RedisValue[]> AccessControlGetCategoriesAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the access control commands for a specified category.
+        /// </summary>
+        /// <param name="category">The category to get commands for.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of Redis values representing the commands.</returns>
+        RedisValue[] AccessControlGetCommands(RedisValue category, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously gets the access control commands for a specified category.
+        /// </summary>
+        /// <param name="category">The category to get commands for.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with an array of Redis values representing the commands.</returns>
+        Task<RedisValue[]> AccessControlGetCommandsAsync(RedisValue category, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Deletes specified access control users.
+        /// </summary>
+        /// <param name="usernames">The usernames of the users to delete.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The number of users deleted.</returns>
+        long AccessControlDeleteUsers(RedisValue[] usernames, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously deletes specified access control users.
+        /// </summary>
+        /// <param name="usernames">The usernames of the users to delete.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with the number of users deleted.</returns>
+        Task<long> AccessControlDeleteUsersAsync(RedisValue[] usernames, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Generates a password for access control.
+        /// </summary>
+        /// <param name="bits">The number of bits for the password.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The generated password as a Redis value.</returns>
+        RedisValue AccessControlGeneratePassword(long bits, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously generates a password for access control.
+        /// </summary>
+        /// <param name="bits">The number of bits for the password.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with the generated password as a Redis value.</returns>
+        Task<RedisValue> AccessControlGeneratePasswordAsync(long bits, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the access control user for a specified username.
+        /// </summary>
+        /// <param name="username">The username to get the access control user for.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The access control user associated with the specified username, or null if not found.</returns>
+        ACLUser? AccessControlGetUser(RedisValue username, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the access control user for a specified username.
+        /// </summary>
+        /// <param name="username">The username to get the access control user for.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with the access control user associated with the specified username, or null if not found.</returns>
+        Task<ACLUser?> AccessControlGetUserAsync(RedisValue username, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Lists all access control rules.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of Redis values representing the access control rules.</returns>
+        RedisValue[]? AccessControlList(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously lists all access control rules.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with an array of Redis values representing the access control rules.</returns>
+        Task<RedisValue[]?> AccessControlListAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Loads access control rules.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        void AccessControlLoad(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously loads access control rules.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        Task AccessControlLoadAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Resets the access control log.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        void AccessControlLogReset(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously resets the access control log.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        Task AccessControlLogResetAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the access control log.
+        /// </summary>
+        /// <param name="count">The number of log entries to retrieve.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An array of key-value pairs representing the log entries.</returns>
+        KeyValuePair<string, RedisValue>[][] AccessControlLog(long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously gets the access control log.
+        /// </summary>
+        /// <param name="count">The number of log entries to retrieve.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with an array of key-value pairs representing the log entries.</returns>
+        Task<KeyValuePair<string, RedisValue>[][]> AccessControlLogAsync(long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Saves access control rules.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        void AccessControlSave(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously saves access control rules.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        Task AccessControlSaveAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the current access control user.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The current access control user as a Redis value.</returns>
+        RedisValue AccessControlWhoAmI(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously gets the current access control user.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation, with the current access control user as a Redis value.</returns>
+        Task<RedisValue> AccessControlWhoAmIAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets access control rules for a user.
+        /// </summary>
+        /// <param name="userName">The username to set rules for.</param>
+        /// <param name="rules">The access control rules to set.</param>
+        /// <param name="flags">The command flags to use.</param>
+        void AccessControlSetUser(RedisValue userName, ACLRules rules, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Asynchronously sets access control rules for a user.
+        /// </summary>
+        /// <param name="userName">The username to set rules for.</param>
+        /// <param name="rules">The access control rules to set.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        Task AccessControlSetUserAsync(RedisValue userName, ACLRules rules, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// The <c>CLIENT KILL</c> command closes a given client connection identified by <c>ip:port</c>.
         /// The <c>ip:port</c> should match a line returned by the <c>CLIENT LIST</c> command.
         /// Due to the single-threaded nature of Redis, it is not possible to kill a client connection while it is executing a command.

@@ -337,5 +337,20 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static TTo[]? ToArray<TTo, TState>(in this RawResult result, Projection<RawResult, TState, TTo> selector, in TState state)
             => result.IsNull ? null : result.GetItems().ToArray(selector, in state);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static List<T>? ToList<T>(this RawResult result, Func<RawResult, T> selector)
+        {
+            List<T>? list = null;
+            if (!result.IsNull)
+            {
+                list = new List<T>();
+                foreach (var item in result.GetItems())
+                {
+                    list.Add(selector(item));
+                }
+            }
+            return list;
+        }
     }
 }
