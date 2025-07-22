@@ -384,7 +384,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            private class ConditionMessage : Message.CommandKeyBase
+            private sealed class ConditionMessage : Message.CommandKeyBase
             {
                 public readonly Condition Condition;
                 private readonly RedisValue value;
@@ -425,7 +425,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal class ExistsCondition : Condition
+        internal sealed class ExistsCondition : Condition
         {
             private readonly bool expectedResult;
             private readonly RedisValue expectedValue;
@@ -501,7 +501,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal class EqualsCondition : Condition
+        internal sealed class EqualsCondition : Condition
         {
             internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
                 new EqualsCondition(map(key), type, memberName, expectedEqual, expectedValue);
@@ -535,7 +535,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -580,7 +580,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal class ListCondition : Condition
+        internal sealed class ListCondition : Condition
         {
             internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
                 new ListCondition(map(key), index, expectedResult, expectedValue);
@@ -606,7 +606,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.LINDEX);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -643,7 +643,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal class LengthCondition : Condition
+        internal sealed class LengthCondition : Condition
         {
             internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
                 new LengthCondition(map(key), type, compareToResult, expectedLength);
@@ -679,7 +679,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -708,7 +708,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal class SortedSetRangeLengthCondition : Condition
+        internal sealed class SortedSetRangeLengthCondition : Condition
         {
             internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
                 new SortedSetRangeLengthCondition(map(key), min, max, compareToResult, expectedLength);
@@ -736,7 +736,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -765,7 +765,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal class SortedSetScoreCondition : Condition
+        internal sealed class SortedSetScoreCondition : Condition
         {
             internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
                 new SortedSetScoreCondition(map(key), sortedSetScore, expectedEqual, expectedValue);
@@ -792,7 +792,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 

@@ -69,7 +69,7 @@ namespace StackExchange.Redis
             return BaseUrl + encoded0;
         }
 
-        private class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
+        private sealed class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {

@@ -889,7 +889,7 @@ namespace StackExchange.Redis
             private protected override ResultProcessor<ScanResult> Processor => processor;
 
             public static readonly ResultProcessor<ScanResult> processor = new ScanResultProcessor();
-            private class ScanResultProcessor : ResultProcessor<ScanResult>
+            private sealed class ScanResultProcessor : ResultProcessor<ScanResult>
             {
                 protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
                 {

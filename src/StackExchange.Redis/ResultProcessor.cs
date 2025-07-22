@@ -1336,7 +1336,7 @@ namespace StackExchange.Redis
                 category.IsNullOrWhiteSpace() ? "miscellaneous" : category.Trim();
         }
 
-        private class Int64DefaultValueProcessor : ResultProcessor<long>
+        private sealed class Int64DefaultValueProcessor : ResultProcessor<long>
         {
             private readonly long _defaultValue;
 
@@ -1384,7 +1384,7 @@ namespace StackExchange.Redis
         internal static ResultProcessor<StreamTrimResult[]> StreamTrimResultArray =>
             Int32EnumArrayProcessor<StreamTrimResult>.Instance;
 
-        private class Int32EnumProcessor<T> : ResultProcessor<T> where T : unmanaged, Enum
+        private sealed class Int32EnumProcessor<T> : ResultProcessor<T> where T : unmanaged, Enum
         {
             private Int32EnumProcessor() { }
             public static readonly Int32EnumProcessor<T> Instance = new();
@@ -1418,7 +1418,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private class Int32EnumArrayProcessor<T> : ResultProcessor<T[]> where T : unmanaged, Enum
+        private sealed class Int32EnumArrayProcessor<T> : ResultProcessor<T[]> where T : unmanaged, Enum
         {
             private Int32EnumArrayProcessor() { }
             public static readonly Int32EnumArrayProcessor<T> Instance = new();
@@ -1449,7 +1449,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private class PubSubNumSubProcessor : Int64Processor
+        private sealed class PubSubNumSubProcessor : Int64Processor
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -2049,7 +2049,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private class ScriptResultProcessor : ResultProcessor<RedisResult>
+        private sealed class ScriptResultProcessor : ResultProcessor<RedisResult>
         {
             public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -2632,7 +2632,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        internal class StreamNameValueEntryProcessor : ValuePairInterleavedProcessorBase<NameValueEntry>
+        internal sealed class StreamNameValueEntryProcessor : ValuePairInterleavedProcessorBase<NameValueEntry>
         {
             public static readonly StreamNameValueEntryProcessor Instance = new();
             private StreamNameValueEntryProcessor()
@@ -2747,7 +2747,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private class TracerProcessor : ResultProcessor<bool>
+        private sealed class TracerProcessor : ResultProcessor<bool>
         {
             private readonly bool establishConnection;
 
