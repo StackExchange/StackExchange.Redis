@@ -124,9 +124,12 @@ namespace StackExchange.Redis
         public RedisCommand LastCommand { get; private set; }
 
         /// <summary>
-        /// If we have a connection, report the protocol being used.
+        /// If we have (or had) a connection, report the protocol being used.
         /// </summary>
-        public RedisProtocol? Protocol => physical?.Protocol;
+        /// <remarks>The value remains after disconnect, so that appropriate follow-up actions (pub/sub etc) can work reliably.</remarks>
+        public RedisProtocol? Protocol => _protocol == 0 ? default(RedisProtocol?) : _protocol;
+        private RedisProtocol _protocol; // note starts at zero, not RESP2
+        internal void SetProtocol(RedisProtocol protocol) => _protocol = protocol;
 
         public void Dispose()
         {
@@ -584,7 +587,7 @@ namespace StackExchange.Redis
                         if (DueForConnectRetry())
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
-                            var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
+                            var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout", Name);
                             LastException = ex;
                             Multiplexer.Logger?.LogError(ex, ex.Message);
                             Trace("Aborting connect");

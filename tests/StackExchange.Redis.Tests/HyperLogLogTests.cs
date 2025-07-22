@@ -1,18 +1,15 @@
-﻿using Xunit;
-using Xunit.Abstractions;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class HyperLogLogTests : TestBase
+public class HyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public HyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void SingleKeyLength()
+    public async Task SingleKeyLength()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = "hll1";
@@ -25,12 +22,12 @@ public class HyperLogLogTests : TestBase
     }
 
     [Fact]
-    public void MultiKeyLength()
+    public async Task MultiKeyLength()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
-        RedisKey[] keys = { "hll1", "hll2", "hll3" };
+        RedisKey[] keys = ["hll1", "hll2", "hll3"];
 
         db.HyperLogLogAdd(keys[0], "a");
         db.HyperLogLogAdd(keys[1], "b");

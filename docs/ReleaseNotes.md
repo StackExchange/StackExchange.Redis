@@ -7,7 +7,38 @@ Current package versions:
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
 ## Unreleased
-No pending unreleased changes
+
+- nothing yet
+
+## 2.8.58
+
+- Fix [#2679](https://github.com/StackExchange/StackExchange.Redis/issues/2679) - blocking call in long-running connects ([#2680 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2680))
+- Support async cancellation of `SCAN` enumeration ([#2911 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2911)) 
+- Add `XTRIM MINID` support ([#2842 by kijanawoodard](https://github.com/StackExchange/StackExchange.Redis/pull/2842))
+- Add new CE 8.2 stream support - `XDELEX`, `XACKDEL`, `{XADD|XTRIM} [KEEPREF|DELREF|ACKED]` ([#2912 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2912))
+- Fix `ZREVRANGEBYLEX` open-ended commands ([#2636 by ArnoKoll](https://github.com/StackExchange/StackExchange.Redis/pull/2636))
+- Fix `StreamGroupInfo.Lag` when `null` ([#2902 by robhop](https://github.com/StackExchange/StackExchange.Redis/pull/2902))
+- Internals
+  - Logging improvements ([#2903 by Meir017](https://github.com/StackExchange/StackExchange.Redis/pull/2903) and [#2917 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2917))
+  - Update tests to xUnit v3 ([#2907 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2907))
+  - Avoid `CLIENT PAUSE` in CI tests ([#2916 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2916))
+
+## 2.8.47
+
+- Add support for new `BITOP` operations in CE 8.2 ([#2900 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2900))
+- Package updates ([#2906 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2906))
+- Docs: added [guidance on async timeouts](https://stackexchange.github.io/StackExchange.Redis/AsyncTimeouts) ([#2910 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2910))
+- Fix handshake error with `CLIENT ID` ([#2909 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2909))
+
+## 2.8.41
+
+- Add support for sharded pub/sub via `RedisChannel.Sharded` - ([#2887 by vandyvilla, atakavci and mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2887))
+
+## 2.8.37
+
+- Add `ConfigurationOptions.SetUserPemCertificate(...)` and `ConfigurationOptions.SetUserPfxCertificate(...)` methods to simplify using client certificates ([#2873 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2873))
+- Add logging for when a Multiplexer reconfigures ([#2864 by st-dev-gh](https://github.com/StackExchange/StackExchange.Redis/pull/2864))
+- Fix: Move `AuthenticateAsClient` to fully async after dropping older framework support, to help client thread starvation in cases TLS negotiation stalls server-side ([#2878 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2878))
 
 ## 2.8.31
 

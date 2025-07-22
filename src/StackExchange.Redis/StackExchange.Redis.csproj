@@ -12,11 +12,13 @@
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461' and '$(TargetFramework)' != 'net472' and '$(TargetFramework)' != 'netstandard2.0'">$(DefineConstants);UNIX_SOCKET</DefineConstants>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- needed everywhere -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- needed everywhere (with hack to override to LTS when possible) -->
+    <PackageReference Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="8.0"/>
+    <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
 
     <!-- built into .NET core now -->
@@ -28,6 +30,8 @@
     
     <!-- netfx needs this for ZipArchive -->
     <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' " />
+
+    <None Include="README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
   <ItemGroup>

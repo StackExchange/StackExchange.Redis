@@ -1,14 +1,12 @@
 ﻿using System.Globalization;
+using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 using static StackExchange.Redis.RedisValue;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class Issue1103Tests : TestBase
+public class Issue1103Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public Issue1103Tests(ITestOutputHelper output) : base(output) { }
-
     [Theory]
     [InlineData(142205255210238005UL, (int)StorageType.Int64)]
     [InlineData(ulong.MaxValue, (int)StorageType.UInt64)]
@@ -16,9 +14,9 @@ public class Issue1103Tests : TestBase
     [InlineData(0x8000000000000000UL, (int)StorageType.UInt64)]
     [InlineData(0x8000000000000001UL, (int)StorageType.UInt64)]
     [InlineData(0x7FFFFFFFFFFFFFFFUL, (int)StorageType.Int64)]
-    public void LargeUInt64StoredCorrectly(ulong value, int storageType)
+    public async Task LargeUInt64StoredCorrectly(ulong value, int storageType)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();

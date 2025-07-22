@@ -184,6 +184,7 @@ internal enum RedisCommand
     SORT,
     SORT_RO,
     SPOP,
+    SPUBLISH,
     SRANDMEMBER,
     SREM,
     STRLEN,
@@ -191,6 +192,8 @@ internal enum RedisCommand
     SUNION,
     SUNIONSTORE,
     SSCAN,
+    SSUBSCRIBE,
+    SUNSUBSCRIBE,
     SWAPDB,
     SYNC,
 
@@ -206,10 +209,12 @@ internal enum RedisCommand
     WATCH,
 
     XACK,
+    XACKDEL,
     XADD,
     XAUTOCLAIM,
     XCLAIM,
     XDEL,
+    XDELEX,
     XGROUP,
     XINFO,
     XLEN,
@@ -453,10 +458,13 @@ internal static class RedisCommandExtensions
             case RedisCommand.SMEMBERS:
             case RedisCommand.SMISMEMBER:
             case RedisCommand.SORT_RO:
+            case RedisCommand.SPUBLISH:
             case RedisCommand.SRANDMEMBER:
+            case RedisCommand.SSUBSCRIBE:
             case RedisCommand.STRLEN:
             case RedisCommand.SUBSCRIBE:
             case RedisCommand.SUNION:
+            case RedisCommand.SUNSUBSCRIBE:
             case RedisCommand.SSCAN:
             case RedisCommand.SYNC:
             case RedisCommand.TIME:
@@ -496,9 +504,11 @@ internal static class RedisCommandExtensions
             case RedisCommand.GEOADD:
             case RedisCommand.SORT:
             case RedisCommand.XACK:
+            case RedisCommand.XACKDEL:
             case RedisCommand.XADD:
             case RedisCommand.XCLAIM:
             case RedisCommand.XDEL:
+            case RedisCommand.XDELEX:
             case RedisCommand.XGROUP:
             case RedisCommand.XREADGROUP:
             case RedisCommand.XTRIM:

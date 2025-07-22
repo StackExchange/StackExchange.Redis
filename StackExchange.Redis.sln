@@ -19,6 +19,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		docs\ReleaseNotes.md = docs\ReleaseNotes.md
 		Shared.ruleset = Shared.ruleset
 		version.json = version.json
+		tests\RedisConfigs\docker-compose.yml = tests\RedisConfigs\docker-compose.yml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfigs", "{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}"
@@ -93,7 +94,6 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}"
 	ProjectSection(SolutionItems) = preProject
 		tests\.editorconfig = tests\.editorconfig
-		tests\Directory.Build.props = tests\Directory.Build.props
 		tests\Directory.Build.targets = tests\Directory.Build.targets
 	EndProjectSection
 EndProject
@@ -103,31 +103,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{00CA0876-DA9
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "toys", "toys", "{E25031D3-5C64-430D-B86F-697B66816FD8}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E668-41AD-9E0F-6785CE7EED66}"
-	ProjectSection(SolutionItems) = preProject
-		docs\Basics.md = docs\Basics.md
-		docs\Configuration.md = docs\Configuration.md
-		docs\Events.md = docs\Events.md
-		docs\ExecSync.md = docs\ExecSync.md
-		docs\index.md = docs\index.md
-		docs\KeysScan.md = docs\KeysScan.md
-		docs\KeysValues.md = docs\KeysValues.md
-		docs\PipelinesMultiplexers.md = docs\PipelinesMultiplexers.md
-		docs\Profiling.md = docs\Profiling.md
-		docs\Profiling_v1.md = docs\Profiling_v1.md
-		docs\Profiling_v2.md = docs\Profiling_v2.md
-		docs\PubSubOrder.md = docs\PubSubOrder.md
-		docs\ReleaseNotes.md = docs\ReleaseNotes.md
-		docs\Resp3.md = docs\Resp3.md
-		docs\RespLogging.md = docs\RespLogging.md
-		docs\Scripting.md = docs\Scripting.md
-		docs\Server.md = docs\Server.md
-		docs\Testing.md = docs\Testing.md
-		docs\ThreadTheft.md = docs\ThreadTheft.md
-		docs\Timeouts.md = docs\Timeouts.md
-		docs\Transactions.md = docs\Transactions.md
-	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleBaseline", "toys\TestConsoleBaseline\TestConsoleBaseline.csproj", "{D58114AE-4998-4647-AFCA-9353D20495AE}"
 EndProject
@@ -142,6 +117,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleTest", "tests\ConsoleTest\ConsoleTest.csproj", "{A0F89B8B-32A3-4C28-8F1B-ADE343F16137}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleTestBaseline", "tests\ConsoleTestBaseline\ConsoleTestBaseline.csproj", "{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "docs", "docs\docs.csproj", "{1DC43E76-5372-4C7F-A433-0602273E87FC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -193,6 +170,10 @@ Global
 		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1DC43E76-5372-4C7F-A433-0602273E87FC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1DC43E76-5372-4C7F-A433-0602273E87FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1DC43E76-5372-4C7F-A433-0602273E87FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1DC43E76-5372-4C7F-A433-0602273E87FC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -210,7 +191,6 @@ Global
 		{D082703F-1652-4C35-840D-7D377F6B9979} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{8375813E-FBAF-4DA3-A2C7-E4645B39B931} = {E25031D3-5C64-430D-B86F-697B66816FD8}
 		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A} = {E25031D3-5C64-430D-B86F-697B66816FD8}
-		{153A10E4-E668-41AD-9E0F-6785CE7EED66} = {3AD17044-6BFF-4750-9AC2-2CA466375F2A}
 		{D58114AE-4998-4647-AFCA-9353D20495AE} = {E25031D3-5C64-430D-B86F-697B66816FD8}
 		{A9F81DA3-DA82-423E-A5DD-B11C37548E06} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{A0F89B8B-32A3-4C28-8F1B-ADE343F16137} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}

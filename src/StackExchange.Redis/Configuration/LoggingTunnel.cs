@@ -367,10 +367,10 @@ public abstract class LoggingTunnel : Tunnel
         }
         else
         {
-            ssl.AuthenticateAsClient(host, _options.SslProtocols, _options.CheckCertificateRevocation);
+            await ssl.AuthenticateAsClientAsync(host, _options.SslProtocols, _options.CheckCertificateRevocation).ForAwait();
         }
 #else
-        ssl.AuthenticateAsClient(host, _options.SslProtocols, _options.CheckCertificateRevocation);
+        await ssl.AuthenticateAsClientAsync(host, _options.SslProtocols, _options.CheckCertificateRevocation).ForAwait();
 #endif
         return ssl;
     }

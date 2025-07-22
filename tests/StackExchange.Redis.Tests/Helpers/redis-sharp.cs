@@ -23,7 +23,7 @@ using System.Text;
 
 namespace RedisSharp
 {
-    public class Redis : IDisposable
+    public class Redis(string host, int port) : IDisposable
     {
         private Socket socket;
         private BufferedStream bstream;
@@ -36,27 +36,19 @@ namespace RedisSharp
             Set,
         }
 
-        public class ResponseException : Exception
+        public class ResponseException(string code) : Exception("Response error")
         {
-            public string Code { get; }
-            public ResponseException(string code) : base("Response error") => Code = code;
-        }
-
-        public Redis(string host, int port)
-        {
-            Host = host ?? throw new ArgumentNullException(nameof(host));
-            Port = port;
-            SendTimeout = -1;
+            public string Code { get; } = code;
         }
 
         public Redis(string host) : this(host, 6379) { }
         public Redis() : this("localhost", 6379) { }
 
-        public string Host { get; }
-        public int Port { get; }
+        public string Host { get; } = host ?? throw new ArgumentNullException(nameof(host));
+        public int Port { get; } = port;
         public int RetryTimeout { get; set; }
         public int RetryCount { get; set; }
-        public int SendTimeout { get; set; }
+        public int SendTimeout { get; set; } = -1;
         public string Password { get; set; }
 
         private int db;
@@ -235,7 +227,7 @@ namespace RedisSharp
                 SendExpectSuccess("AUTH {0}\r\n", Password);
         }
 
-        private readonly byte[] endData = new byte[] { (byte)'\r', (byte)'\n' };
+        private readonly byte[] endData = [(byte)'\r', (byte)'\n'];
 
         private bool SendDataCommand(byte[] data, string cmd, params object[] args)
         {

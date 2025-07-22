@@ -463,7 +463,7 @@ public partial class ConnectionMultiplexer
         if (hasNew)
         {
             // Reconfigure the sentinel multiplexer if we added new endpoints
-            ReconfigureAsync(first: false, reconfigureAll: true, null, EndPoints[0], "Updating Sentinel List", false).Wait();
+            ReconfigureAsync(first: false, reconfigureAll: true, Logger, EndPoints[0], "Updating Sentinel List", false).Wait();
         }
     }
 }

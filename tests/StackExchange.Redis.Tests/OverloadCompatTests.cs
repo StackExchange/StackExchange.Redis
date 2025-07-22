@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -9,15 +8,12 @@ namespace StackExchange.Redis.Tests;
 /// This test set is for when we add an overload, to making sure all
 /// past versions work correctly and aren't source breaking.
 /// </summary>
-[Collection(SharedConnectionFixture.Key)]
-public class OverloadCompatTests : TestBase
+public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task KeyExpire()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
         var expiresIn = TimeSpan.FromSeconds(10);
@@ -62,7 +58,7 @@ public class OverloadCompatTests : TestBase
     [Fact]
     public async Task StringBitCount()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -108,7 +104,7 @@ public class OverloadCompatTests : TestBase
     [Fact]
     public async Task StringBitPosition()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -158,7 +154,7 @@ public class OverloadCompatTests : TestBase
     [Fact]
     public async Task SortedSetAdd()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         RedisValue val = "myval";
@@ -212,7 +208,7 @@ public class OverloadCompatTests : TestBase
     [Fact]
     public async Task StringSet()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
         var val = "myval";

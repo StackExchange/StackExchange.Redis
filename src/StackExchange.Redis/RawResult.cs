@@ -161,7 +161,7 @@ namespace StackExchange.Redis
             }
             public ReadOnlySequence<byte> Current { get; private set; }
         }
-        internal RedisChannel AsRedisChannel(byte[]? channelPrefix, RedisChannel.PatternMode mode)
+        internal RedisChannel AsRedisChannel(byte[]? channelPrefix, RedisChannel.RedisChannelOptions options)
         {
             switch (Resp2TypeBulkString)
             {
@@ -169,12 +169,13 @@ namespace StackExchange.Redis
                 case ResultType.BulkString:
                     if (channelPrefix == null)
                     {
-                        return new RedisChannel(GetBlob(), mode);
+                        return new RedisChannel(GetBlob(), options);
                     }
                     if (StartsWith(channelPrefix))
                     {
                         byte[] copy = Payload.Slice(channelPrefix.Length).ToArray();
-                        return new RedisChannel(copy, mode);
+
+                        return new RedisChannel(copy, options);
                     }
                     return default;
                 default:

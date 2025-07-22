@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
@@ -73,7 +74,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<PersistResult[]> PersistResultArray = new PersistResultArrayProcessor();
 
         public static readonly ResultProcessor<RedisChannel[]>
-            RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.PatternMode.Literal);
+            RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.RedisChannelOptions.None);
 
         public static readonly ResultProcessor<RedisKey>
                     RedisKey = new RedisKeyProcessor();
@@ -240,11 +241,11 @@ namespace StackExchange.Redis
             {
                 if (result.StartsWith(CommonReplies.NOAUTH))
                 {
-                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
                 }
                 else if (result.StartsWith(CommonReplies.WRONGPASS))
                 {
-                    bridge?.Multiplexer?.SetAuthSuspect(new RedisServerException(result.ToString()));
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(result.ToString()));
                 }
 
                 var server = bridge?.ServerEndPoint;
@@ -265,7 +266,7 @@ namespace StackExchange.Redis
                         // no point sending back to same server, and no point sending to a dead server
                         if (!Equals(server?.EndPoint, endpoint))
                         {
-                            if (bridge == null)
+                            if (bridge is null)
                             {
                                 // already toast
                             }
@@ -314,7 +315,7 @@ namespace StackExchange.Redis
                 {
                     bridge?.Multiplexer.OnErrorMessage(server.EndPoint, err);
                 }
-                bridge?.Multiplexer?.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
+                bridge?.Multiplexer.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
                 if (unableToConnectError)
                 {
                     ConnectionFail(message, ConnectionFailureType.UnableToConnect, err);
@@ -329,7 +330,7 @@ namespace StackExchange.Redis
                 bool coreResult = SetResultCore(connection, message, result);
                 if (coreResult)
                 {
-                    bridge?.Multiplexer?.Trace("Completed with success: " + result.ToString() + " (" + GetType().Name + ")", ToString());
+                    bridge?.Multiplexer.Trace("Completed with success: " + result.ToString() + " (" + GetType().Name + ")", ToString());
                 }
                 else
                 {
@@ -360,8 +361,7 @@ namespace StackExchange.Redis
                 switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
-                        long time;
-                        if (result.TryGetInt64(out time))
+                        if (result.TryGetInt64(out long time))
                         {
                             if (time < 0)
                             {
@@ -475,7 +475,7 @@ namespace StackExchange.Redis
 
                         var newServer = message.Command switch
                         {
-                            RedisCommand.SUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
+                            RedisCommand.SUBSCRIBE or RedisCommand.SSUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
                             _ => null,
                         };
                         Subscription?.SetCurrentServer(newServer);
@@ -838,6 +838,9 @@ namespace StackExchange.Redis
                             {
                                 connection.ConnectionId = clientId;
                                 Log?.LogInformation($"{Format.ToString(server)}: Auto-configured (CLIENT) connection-id: {clientId}");
+
+                                SetResult(message, true);
+                                return true;
                             }
                         }
                         break;
@@ -1259,8 +1262,7 @@ namespace StackExchange.Redis
                 switch (result.Resp2TypeBulkString)
                 {
                     case ResultType.Integer:
-                        long i64;
-                        if (result.TryGetInt64(out i64))
+                        if (result.TryGetInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
@@ -1268,8 +1270,7 @@ namespace StackExchange.Redis
                         break;
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        double val;
-                        if (result.TryGetDouble(out val))
+                        if (result.TryGetDouble(out double val))
                         {
                             SetResult(message, val);
                             return true;
@@ -1372,13 +1373,83 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        long i64;
-                        if (result.TryGetInt64(out i64))
+                        if (result.TryGetInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
                         }
                         break;
+                }
+                return false;
+            }
+        }
+
+        internal static ResultProcessor<StreamTrimResult> StreamTrimResult =>
+            Int32EnumProcessor<StreamTrimResult>.Instance;
+
+        internal static ResultProcessor<StreamTrimResult[]> StreamTrimResultArray =>
+            Int32EnumArrayProcessor<StreamTrimResult>.Instance;
+
+        private class Int32EnumProcessor<T> : ResultProcessor<T> where T : unmanaged, Enum
+        {
+            private Int32EnumProcessor() { }
+            public static readonly Int32EnumProcessor<T> Instance = new();
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeBulkString)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        if (result.TryGetInt64(out long i64))
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            int i32 = (int)i64;
+                            SetResult(message, Unsafe.As<int, T>(ref i32));
+                            return true;
+                        }
+                        break;
+                    case ResultType.Array when result.ItemsCount == 1: // pick a single element from a unit vector
+                        if (result.GetItems()[0].TryGetInt64(out i64))
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            int i32 = (int)i64;
+                            SetResult(message, Unsafe.As<int, T>(ref i32));
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
+
+        private class Int32EnumArrayProcessor<T> : ResultProcessor<T[]> where T : unmanaged, Enum
+        {
+            private Int32EnumArrayProcessor() { }
+            public static readonly Int32EnumArrayProcessor<T> Instance = new();
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeArray)
+                {
+                    case ResultType.Array:
+                        T[] arr;
+                        if (result.IsNull)
+                        {
+                            arr = null!;
+                        }
+                        else
+                        {
+                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                            arr = result.ToArray(static (in RawResult x) =>
+                            {
+                                int i32 = (int)x.AsRedisValue();
+                                return Unsafe.As<int, T>(ref i32);
+                            })!;
+                        }
+                        SetResult(message, arr);
+                        return true;
                 }
                 return false;
             }
@@ -1429,8 +1500,7 @@ namespace StackExchange.Redis
                             SetResult(message, null);
                             return true;
                         }
-                        double val;
-                        if (result.TryGetDouble(out val))
+                        if (result.TryGetDouble(out double val))
                         {
                             SetResult(message, val);
                             return true;
@@ -1455,8 +1525,7 @@ namespace StackExchange.Redis
                             SetResult(message, null);
                             return true;
                         }
-                        long i64;
-                        if (result.TryGetInt64(out i64))
+                        if (result.TryGetInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
@@ -1510,20 +1579,20 @@ namespace StackExchange.Redis
 
         private sealed class RedisChannelArrayProcessor : ResultProcessor<RedisChannel[]>
         {
-            private readonly RedisChannel.PatternMode mode;
-            public RedisChannelArrayProcessor(RedisChannel.PatternMode mode)
+            private readonly RedisChannel.RedisChannelOptions options;
+            public RedisChannelArrayProcessor(RedisChannel.RedisChannelOptions options)
             {
-                this.mode = mode;
+                this.options = options;
             }
 
             private readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
             {
                 public readonly byte[]? Prefix;
-                public readonly RedisChannel.PatternMode Mode;
-                public ChannelState(byte[]? prefix, RedisChannel.PatternMode mode)
+                public readonly RedisChannel.RedisChannelOptions Options;
+                public ChannelState(byte[]? prefix, RedisChannel.RedisChannelOptions options)
                 {
                     Prefix = prefix;
-                    Mode = mode;
+                    Options = options;
                 }
             }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -1532,8 +1601,8 @@ namespace StackExchange.Redis
                 {
                     case ResultType.Array:
                         var final = result.ToArray(
-                                (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Mode),
-                                new ChannelState(connection.ChannelPrefix, mode))!;
+                                (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Options),
+                                new ChannelState(connection.ChannelPrefix, options))!;
 
                         SetResult(message, final);
                         return true;
@@ -2211,7 +2280,10 @@ The coordinates as a two items x,y array (longitude,latitude).
             protected override bool AllowJaggedPairs => false; // we only use this on a flattened map
 
             public static readonly RedisStreamInterleavedProcessor Instance = new();
-            private RedisStreamInterleavedProcessor() { }
+            private RedisStreamInterleavedProcessor()
+            {
+            }
+
             protected override RedisStream Parse(in RawResult first, in RawResult second, object? state)
                 => new(key: first.AsRedisKey(), entries: ((MultiStreamProcessor)state!).ParseRedisStreamEntries(second));
         }
@@ -2333,6 +2405,19 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 return false;
             }
+            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref long? value)
+            {
+                var len = pairs.Length / 2;
+                for (int i = 0; i < len; i++)
+                {
+                    if (pairs[i * 2].IsEqual(key) && pairs[(i * 2) + 1].TryGetInt64(out var tmp))
+                    {
+                        value = tmp;
+                        return true;
+                    }
+                }
+                return false;
+            }
 
             internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
             {
@@ -2395,7 +2480,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var arr = result.GetItems();
                 string? name = default, lastDeliveredId = default;
                 int consumerCount = default, pendingMessageCount = default;
-                long entriesRead = default, lag = default;
+                long entriesRead = default;
+                long? lag = default;
 
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Consumers, ref consumerCount);
@@ -2593,7 +2679,10 @@ The coordinates as a two items x,y array (longitude,latitude).
         internal class StreamNameValueEntryProcessor : ValuePairInterleavedProcessorBase<NameValueEntry>
         {
             public static readonly StreamNameValueEntryProcessor Instance = new();
-            private StreamNameValueEntryProcessor() { }
+            private StreamNameValueEntryProcessor()
+            {
+            }
+
             protected override NameValueEntry Parse(in RawResult first, in RawResult second, object? state)
                 => new NameValueEntry(first.AsRedisValue(), second.AsRedisValue());
         }

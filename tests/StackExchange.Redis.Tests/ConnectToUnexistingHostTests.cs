@@ -3,14 +3,11 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectToUnexistingHostTests : TestBase
+public class ConnectToUnexistingHostTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectToUnexistingHostTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task FailsWithinTimeout()
     {
@@ -24,7 +21,7 @@ public class ConnectToUnexistingHostTests : TestBase
                 ConnectTimeout = timeout,
             };
 
-            using (ConnectionMultiplexer.Connect(config, Writer))
+            await using (ConnectionMultiplexer.Connect(config, Writer))
             {
                 await Task.Delay(10000).ForAwait();
             }

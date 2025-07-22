@@ -6,16 +6,12 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class LoggerTests : TestBase
+public class LoggerTests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public LoggerTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task BasicLoggerConfig()
     {
@@ -29,7 +25,7 @@ public class LoggerTests : TestBase
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.LoggerFactory = new TestWrapperLoggerFactory(new TestMultiLogger(traceLogger, debugLogger, infoLogger, warningLogger, errorLogger, criticalLogger));
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         // We expect more at the trace level: GET, ECHO, PING on commands
         Assert.True(traceLogger.CallCount > debugLogger.CallCount);
         // Many calls for all log lines - don't set exact here since every addition would break the test
@@ -48,28 +44,29 @@ public class LoggerTests : TestBase
         var wrapped = new TestWrapperLoggerFactory(NullLogger.Instance);
         options.LoggerFactory = wrapped;
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         Assert.True(wrapped.Logger.LogCount > 0);
     }
 
-    public class TestWrapperLoggerFactory : ILoggerFactory
+    public class TestWrapperLoggerFactory(ILogger logger) : ILoggerFactory
     {
-        public TestWrapperLogger Logger { get; }
-        public TestWrapperLoggerFactory(ILogger logger) => Logger = new TestWrapperLogger(logger);
+        public TestWrapperLogger Logger { get; } = new TestWrapperLogger(logger);
 
         public void AddProvider(ILoggerProvider provider) => throw new NotImplementedException();
         public ILogger CreateLogger(string categoryName) => Logger;
         public void Dispose() { }
     }
 
-    public class TestWrapperLogger : ILogger
+    public class TestWrapperLogger(ILogger toWrap) : ILogger
     {
         public int LogCount = 0;
-        private ILogger Inner { get; }
+        private ILogger Inner { get; } = toWrap;
 
-        public TestWrapperLogger(ILogger toWrap) => Inner = toWrap;
-
+#if NET8_0_OR_GREATER
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => Inner.BeginScope(state);
+#else
         public IDisposable BeginScope<TState>(TState state) => Inner.BeginScope(state);
+#endif
         public bool IsEnabled(LogLevel logLevel) => Inner.IsEnabled(logLevel);
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
@@ -81,16 +78,17 @@ public class LoggerTests : TestBase
     /// <summary>
     /// To save on test time, no reason to spin up n connections just to test n logging implementations...
     /// </summary>
-    private class TestMultiLogger : ILogger
+    private class TestMultiLogger(params ILogger[] loggers) : ILogger
     {
-        private readonly ILogger[] _loggers;
-        public TestMultiLogger(params ILogger[] loggers) => _loggers = loggers;
-
+#if NET8_0_OR_GREATER
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => throw new NotImplementedException();
+#else
         public IDisposable BeginScope<TState>(TState state) => throw new NotImplementedException();
+#endif
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            foreach (var logger in _loggers)
+            foreach (var logger in loggers)
             {
                 logger.Log(logLevel, eventId, state, exception, formatter);
             }
@@ -106,7 +104,11 @@ public class LoggerTests : TestBase
         public TestLogger(LogLevel logLevel, TextWriter output) =>
             (_logLevel, _output) = (logLevel, output);
 
+#if NET8_0_OR_GREATER
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => throw new NotImplementedException();
+#else
         public IDisposable BeginScope<TState>(TState state) => throw new NotImplementedException();
+#endif
         public bool IsEnabled(LogLevel logLevel) => logLevel >= _logLevel;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
