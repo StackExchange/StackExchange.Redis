@@ -18,7 +18,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
 
     private readonly RedisValue[] fields = ["f1", "f2"];
   
-    private readonly RedisValue[] values = new [1, 2];
+    private readonly RedisValue[] values = [1, 2];
 
     [Fact]
     public void HashFieldExpire()
