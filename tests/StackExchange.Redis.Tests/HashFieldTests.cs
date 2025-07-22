@@ -303,7 +303,8 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetAndSetExpiry()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
+        using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
         var hashKey = Me();
 
         // testing with timespan
@@ -350,9 +351,10 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public async void HashFieldGetAndSetExpiryAsync()
+    public async Task HashFieldGetAndSetExpiryAsync()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
         var hashKey = Me();
 
         // testing with timespan
@@ -401,7 +403,8 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldSetAndSetExpiry()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
+        using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
         var hashKey = Me();
 
         // testing with timespan
@@ -464,7 +467,8 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task HashFieldSetAndSetExpiryAsync()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
         var hashKey = Me();
 
         // testing with timespan
@@ -526,7 +530,8 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetAndDelete()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
+        using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
         var hashKey = Me();
 
         // single field
@@ -544,9 +549,10 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
-    public async void HashFieldGetAndDeleteAsync()
+    public async Task HashFieldGetAndDeleteAsync()
     {
-        var db = Create(require: RedisFeatures.v8_0_0_M04).GetDatabase();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
         var hashKey = Me();
 
         // single field
