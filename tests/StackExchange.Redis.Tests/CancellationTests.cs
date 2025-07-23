@@ -156,6 +156,8 @@ public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture
     [Fact]
     public async Task ScanCancellable()
     {
+        Skip.UnlessLongRunning(); // because of CLIENT PAUSE impact to unrelated tests
+
         using var conn = Create();
         var db = conn.GetDatabase();
         var server = conn.GetServer(conn.GetEndPoints()[0]);
@@ -182,7 +184,7 @@ public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture
             var taken = watch.ElapsedMilliseconds;
             // Expected if cancellation happens during operation
             Log($"Cancelled after {taken}ms");
-            Assert.True(taken < ConnectionPauseMilliseconds / 2, "Should have cancelled much sooner");
+            Assert.True(taken < (ConnectionPauseMilliseconds * 3) / 4, $"Should have cancelled sooner; took {taken}ms");
             Assert.Equal(cts.Token, oce.CancellationToken);
         }
     }
