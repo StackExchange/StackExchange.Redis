@@ -85,43 +85,43 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.HashExistsAsync(ToInner(key), hashField, flags);
 
         public Task<RedisValue> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetAndDeleteAsync(key, hashField, flags);
+            Inner.HashFieldGetAndDeleteAsync(ToInner(key), hashField, flags);
 
         public Task<Lease<byte>?> HashFieldGetLeaseAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetLeaseAndDeleteAsync(key, hashField, flags);
+            Inner.HashFieldGetLeaseAndDeleteAsync(ToInner(key), hashField, flags);
 
         public Task<RedisValue[]> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetAndDeleteAsync(key, hashFields, flags);
+            Inner.HashFieldGetAndDeleteAsync(ToInner(key), hashFields, flags);
 
         public Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetAndSetExpiryAsync(key, hashField, expiry, persist, flags);
+            Inner.HashFieldGetAndSetExpiryAsync(ToInner(key), hashField, expiry, persist, flags);
 
         public Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetAndSetExpiryAsync(key, hashField, expiry, flags);
+            Inner.HashFieldGetAndSetExpiryAsync(ToInner(key), hashField, expiry, flags);
 
         public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetLeaseAndSetExpiryAsync(key, hashField, expiry, persist, flags);
+            Inner.HashFieldGetLeaseAndSetExpiryAsync(ToInner(key), hashField, expiry, persist, flags);
 
         public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetLeaseAndSetExpiryAsync(key, hashField, expiry, flags);
+            Inner.HashFieldGetLeaseAndSetExpiryAsync(ToInner(key), hashField, expiry, flags);
 
         public Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetAndSetExpiryAsync(key, hashFields, expiry, persist, flags);
+            Inner.HashFieldGetAndSetExpiryAsync(ToInner(key), hashFields, expiry, persist, flags);
 
         public Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldGetAndSetExpiryAsync(key, hashFields, expiry, flags);
+            Inner.HashFieldGetAndSetExpiryAsync(ToInner(key), hashFields, expiry, flags);
 
         public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue field, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldSetAndSetExpiryAsync(key, field, value, expiry, keepTtl, when, flags);
+            Inner.HashFieldSetAndSetExpiryAsync(ToInner(key), field, value, expiry, keepTtl, when, flags);
 
         public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue field, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldSetAndSetExpiryAsync(key, field, value, expiry, when, flags);
+            Inner.HashFieldSetAndSetExpiryAsync(ToInner(key), field, value, expiry, when, flags);
 
         public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldSetAndSetExpiryAsync(key, hashFields, expiry, keepTtl, when, flags);
+            Inner.HashFieldSetAndSetExpiryAsync(ToInner(key), hashFields, expiry, keepTtl, when, flags);
 
         public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashFieldSetAndSetExpiryAsync(key, hashFields, expiry, when, flags);
+            Inner.HashFieldSetAndSetExpiryAsync(ToInner(key), hashFields, expiry, when, flags);
 
         public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashFieldExpireAsync(ToInner(key), hashFields, expiry, when, flags);
@@ -433,7 +433,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.SetContainsAsync(ToInner(key), values, flags);
 
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
-            Inner.SetIntersectionLengthAsync(keys, limit, flags);
+            Inner.SetIntersectionLengthAsync(ToInner(keys), limit, flags);
 
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLengthAsync(ToInner(key), flags);
@@ -489,10 +489,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, SortedSetWhen updateWhen = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetAddAsync(ToInner(key), member, score, updateWhen, flags);
         public Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetCombineAsync(operation, keys, weights, aggregate, flags);
+            Inner.SortedSetCombineAsync(operation, ToInner(keys), weights, aggregate, flags);
 
         public Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetCombineWithScoresAsync(operation, keys, weights, aggregate, flags);
+            Inner.SortedSetCombineWithScoresAsync(operation, ToInner(keys), weights, aggregate, flags);
 
         public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetCombineAndStoreAsync(operation, ToInner(destination), ToInner(keys), weights, aggregate, flags);
@@ -507,7 +507,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.SortedSetIncrementAsync(ToInner(key), member, value, flags);
 
         public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetIntersectionLengthAsync(keys, limit, flags);
+            Inner.SortedSetIntersectionLengthAsync(ToInner(keys), limit, flags);
 
         public Task<long> SortedSetLengthAsync(RedisKey key, double min = -1.0 / 0.0, double max = 1.0 / 0.0, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLengthAsync(ToInner(key), min, max, exclude, flags);
