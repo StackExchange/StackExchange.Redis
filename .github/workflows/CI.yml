@@ -143,3 +143,41 @@ jobs:
         name: Tests Results - Windows Server 2022
         path: 'test-results/*.trx'
         reporter: dotnet-trx
+
+  macos:
+    name: StackExchange.Redis (macOS)
+    runs-on: macos-latest
+    env:
+      DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Enable color output, even though the console output is redirected in Actions
+      TERM: xterm # Enable color output in GitHub Actions
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch the full history
+    - name: Install Redis
+      run: |
+        brew install redis
+        brew services start redis
+        # Wait for Redis to start
+        sleep 3
+        # Verify Redis is running
+        redis-cli ping
+    - name: Install .NET SDK
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: | 
+          6.0.x
+          8.0.x
+          9.0.x
+    - name: .NET Build
+      run: dotnet build Build.csproj -c Release /p:CI=true
+    - name: StackExchange.Redis.Tests
+      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+    - uses: dorny/test-reporter@v1
+      continue-on-error: true
+      if: success() || failure()
+      with:
+        name: Test Results - macOS
+        path: 'test-results/*.trx'
+        reporter: dotnet-trx
