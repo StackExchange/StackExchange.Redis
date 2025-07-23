@@ -488,4 +488,101 @@ internal static partial class LoggerExtensions
         EventId = 70,
         Message = "{Server}: Flushing outbound buffer")]
     internal static partial void LogInformationFlushingOutboundBuffer(this ILogger logger, ServerEndPointLogValue server);
+
+    // ResultProcessor logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 71,
+        Message = "Response from {BridgeName} / {CommandAndKey}: {Result}")]
+    internal static partial void LogInformationResponse(this ILogger logger, string? bridgeName, string commandAndKey, RawResult result);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 72,
+        Message = "{Server}: Auto-configured role: replica")]
+    internal static partial void LogInformationAutoConfiguredRoleReplica(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 73,
+        Message = "{Server}: Auto-configured (CLIENT) connection-id: {ConnectionId}")]
+    internal static partial void LogInformationAutoConfiguredClientConnectionId(this ILogger logger, ServerEndPointLogValue server, long connectionId);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 74,
+        Message = "{Server}: Auto-configured (INFO) role: {Role}")]
+    internal static partial void LogInformationAutoConfiguredInfoRole(this ILogger logger, ServerEndPointLogValue server, string role);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 75,
+        Message = "{Server}: Auto-configured (INFO) version: {Version}")]
+    internal static partial void LogInformationAutoConfiguredInfoVersion(this ILogger logger, ServerEndPointLogValue server, Version version);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 76,
+        Message = "{Server}: Auto-configured (INFO) server-type: {ServerType}")]
+    internal static partial void LogInformationAutoConfiguredInfoServerType(this ILogger logger, ServerEndPointLogValue server, ServerType serverType);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 77,
+        Message = "{Server}: Auto-configured (SENTINEL) server-type: sentinel")]
+    internal static partial void LogInformationAutoConfiguredSentinelServerType(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 78,
+        Message = "{Server}: Auto-configured (CONFIG) timeout: {TimeoutSeconds}s")]
+    internal static partial void LogInformationAutoConfiguredConfigTimeout(this ILogger logger, ServerEndPointLogValue server, int timeoutSeconds);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 79,
+        Message = "{Server}: Auto-configured (CONFIG) databases: {DatabaseCount}")]
+    internal static partial void LogInformationAutoConfiguredConfigDatabases(this ILogger logger, ServerEndPointLogValue server, int databaseCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 80,
+        Message = "{Server}: Auto-configured (CONFIG) read-only replica: true")]
+    internal static partial void LogInformationAutoConfiguredConfigReadOnlyReplicaTrue(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 81,
+        Message = "{Server}: Auto-configured (CONFIG) read-only replica: false")]
+    internal static partial void LogInformationAutoConfiguredConfigReadOnlyReplicaFalse(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 82,
+        Message = "{Server}: Auto-configured (HELLO) server-version: {Version}")]
+    internal static partial void LogInformationAutoConfiguredHelloServerVersion(this ILogger logger, ServerEndPointLogValue server, Version version);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 83,
+        Message = "{Server}: Auto-configured (HELLO) protocol: {Protocol}")]
+    internal static partial void LogInformationAutoConfiguredHelloProtocol(this ILogger logger, ServerEndPointLogValue server, RedisProtocol protocol);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 84,
+        Message = "{Server}: Auto-configured (HELLO) connection-id: {ConnectionId}")]
+    internal static partial void LogInformationAutoConfiguredHelloConnectionId(this ILogger logger, ServerEndPointLogValue server, long connectionId);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 85,
+        Message = "{Server}: Auto-configured (HELLO) server-type: {ServerType}")]
+    internal static partial void LogInformationAutoConfiguredHelloServerType(this ILogger logger, ServerEndPointLogValue server, ServerType serverType);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 86,
+        Message = "{Server}: Auto-configured (HELLO) role: {Role}")]
+    internal static partial void LogInformationAutoConfiguredHelloRole(this ILogger logger, ServerEndPointLogValue server, string role);
 }
