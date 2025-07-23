@@ -155,14 +155,9 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Fetch the full history
-    - name: Install Redis
-      run: |
-        brew install redis
-        brew services start redis
-        # Wait for Redis to start
-        sleep 3
-        # Verify Redis is running
-        redis-cli ping
+    - name: Start Redis Services (docker-compose)
+      working-directory: ./tests/RedisConfigs
+      run: docker compose -f docker-compose.yml up -d --wait  
     - name: Install .NET SDK
       uses: actions/setup-dotnet@v3
       with:
