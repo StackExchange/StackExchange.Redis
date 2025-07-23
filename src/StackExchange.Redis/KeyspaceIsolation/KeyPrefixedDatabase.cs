@@ -81,6 +81,45 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool HashExists(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashExists(ToInner(key), hashField, flags);
 
+        public RedisValue HashFieldGetAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndDelete(ToInner(key), hashField, flags);
+
+        public Lease<byte>? HashFieldGetLeaseAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetLeaseAndDelete(ToInner(key), hashField, flags);
+
+        public RedisValue[] HashFieldGetAndDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndDelete(ToInner(key), hashFields, flags);
+
+        public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndSetExpiry(ToInner(key), hashField, expiry, persist, flags);
+
+        public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndSetExpiry(ToInner(key), hashField, expiry, flags);
+
+        public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetLeaseAndSetExpiry(ToInner(key), hashField, expiry, persist, flags);
+
+        public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetLeaseAndSetExpiry(ToInner(key), hashField, expiry, flags);
+
+        public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndSetExpiry(ToInner(key), hashFields, expiry, persist, flags);
+
+        public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime expiry, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldGetAndSetExpiry(ToInner(key), hashFields, expiry, flags);
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldSetAndSetExpiry(ToInner(key), field, value, expiry, keepTtl, when, flags);
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldSetAndSetExpiry(ToInner(key), field, value, expiry, when, flags);
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldSetAndSetExpiry(ToInner(key), hashFields, expiry, keepTtl, when, flags);
+
+        public RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashFieldSetAndSetExpiry(ToInner(key), hashFields, expiry, when, flags);
+
         public ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.HashFieldExpire(ToInner(key), hashFields, expiry, when, flags);
 
@@ -381,7 +420,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.SetContains(ToInner(key), values, flags);
 
         public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
-            Inner.SetIntersectionLength(keys, limit, flags);
+            Inner.SetIntersectionLength(ToInner(keys), limit, flags);
 
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLength(ToInner(key), flags);
@@ -435,10 +474,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
 
         public RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetCombine(operation, keys, weights, aggregate, flags);
+            Inner.SortedSetCombine(operation, ToInner(keys), weights, aggregate, flags);
 
         public SortedSetEntry[] SortedSetCombineWithScores(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetCombineWithScores(operation, keys, weights, aggregate, flags);
+            Inner.SortedSetCombineWithScores(operation, ToInner(keys), weights, aggregate, flags);
 
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetCombineAndStore(operation, ToInner(destination), ToInner(keys), weights, aggregate, flags);
@@ -453,7 +492,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.SortedSetIncrement(ToInner(key), member, value, flags);
 
         public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
-            Inner.SortedSetIntersectionLength(keys, limit, flags);
+            Inner.SortedSetIntersectionLength(ToInner(keys), limit, flags);
 
         public long SortedSetLength(RedisKey key, double min = -1.0 / 0.0, double max = 1.0 / 0.0, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetLength(ToInner(key), min, max, exclude, flags);

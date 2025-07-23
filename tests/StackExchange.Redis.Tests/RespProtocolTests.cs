@@ -324,17 +324,28 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
         var db = muxer.GetDatabase();
         if (args.Length > 0)
         {
-            await db.KeyDeleteAsync((string)args[0]);
-            switch (args[0])
+            var origKey = (string)args[0];
+            switch (origKey)
             {
                 case "ikey":
-                    await db.StringSetAsync("ikey", "40");
-                    break;
                 case "skey":
-                    await db.SetAddAsync("skey", ["a", "b", "c"]);
-                    break;
                 case "hkey":
-                    await db.HashSetAsync("hkey", [new("a", 1), new("b", 2), new("c", 3)]);
+                case "nkey":
+                    var newKey = Me() + "_" + origKey; // disambiguate
+                    args[0] = newKey;
+                    await db.KeyDeleteAsync(newKey); // remove
+                    switch (origKey) // initialize
+                    {
+                        case "ikey":
+                            await db.StringSetAsync(newKey, "40");
+                            break;
+                        case "skey":
+                            await db.SetAddAsync(newKey, ["a", "b", "c"]);
+                            break;
+                        case "hkey":
+                            await db.HashSetAsync(newKey, [new("a", 1), new("b", 2), new("c", 3)]);
+                            break;
+                    }
                     break;
             }
         }

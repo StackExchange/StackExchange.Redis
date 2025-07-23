@@ -84,6 +84,45 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.HashExists(RedisKey, RedisValue, CommandFlags)"/>
         Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.HashFieldGetAndDelete(RedisKey, RedisValue, CommandFlags)"/>
+        Task<RedisValue> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetLeaseAndDelete(RedisKey, RedisValue, CommandFlags)"/>
+        Task<Lease<byte>?> HashFieldGetLeaseAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetAndDelete(RedisKey, RedisValue[], CommandFlags)"/>
+        Task<RedisValue[]> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, CommandFlags)"/>
+        Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetAndSetExpiry(RedisKey, RedisValue, DateTime, CommandFlags)"/>
+        Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetLeaseAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, CommandFlags)"/>
+        Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetLeaseAndSetExpiry(RedisKey, RedisValue, DateTime, CommandFlags)"/>
+        Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetAndSetExpiry(RedisKey, RedisValue[], TimeSpan?, bool, CommandFlags)"/>
+        Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldGetAndSetExpiry(RedisKey, RedisValue[], DateTime, CommandFlags)"/>
+        Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldSetAndSetExpiry(RedisKey, RedisValue, RedisValue, TimeSpan?, bool, When, CommandFlags)"/>
+        Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue field, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldSetAndSetExpiry(RedisKey, RedisValue, RedisValue, DateTime, When, CommandFlags)"/>
+        Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue field, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldSetAndSetExpiry(RedisKey, HashEntry[], TimeSpan?, bool, When, CommandFlags)"/>
+        Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.HashFieldSetAndSetExpiry(RedisKey, HashEntry[], DateTime, When, CommandFlags)"/>
+        Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.HashFieldExpire(RedisKey, RedisValue[], TimeSpan, ExpireWhen, CommandFlags)"/>
         Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 

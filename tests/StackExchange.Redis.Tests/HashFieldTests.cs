@@ -18,6 +18,8 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
 
     private readonly RedisValue[] fields = ["f1", "f2"];
 
+    private readonly RedisValue[] values = [1, 2];
+
     [Fact]
     public void HashFieldExpire()
     {
@@ -296,5 +298,274 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         var fieldsResult = db.HashFieldPersist(hashKey, ["notExistingField1", "notExistingField2"]);
         Assert.Equal([PersistResult.NoSuchField, PersistResult.NoSuchField], fieldsResult);
+    }
+
+    [Fact]
+    public void HashFieldGetAndSetExpiry()
+    {
+        using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var hashKey = Me();
+
+        // testing with timespan
+        db.HashSet(hashKey, entries);
+        var fieldResult = db.HashFieldGetAndSetExpiry(hashKey, "f1", TimeSpan.FromHours(1));
+        Assert.Equal(1, fieldResult);
+        var fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing with datetime
+        db.HashSet(hashKey, entries);
+        fieldResult = db.HashFieldGetAndSetExpiry(hashKey, "f1", DateTime.Now.AddMinutes(120));
+        Assert.Equal(1, fieldResult);
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing persist
+        fieldResult = db.HashFieldGetAndSetExpiry(hashKey, "f1", persist: true);
+        Assert.Equal(1, fieldResult);
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.Equal(-1, fieldTtl);
+
+        // testing multiple fields with timespan
+        db.HashSet(hashKey, entries);
+        var fieldResults = db.HashFieldGetAndSetExpiry(hashKey, fields, TimeSpan.FromHours(1));
+        Assert.Equal(values, fieldResults);
+        var fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing multiple fields with datetime
+        db.HashSet(hashKey, entries);
+        fieldResults = db.HashFieldGetAndSetExpiry(hashKey, fields, DateTime.Now.AddMinutes(120));
+        Assert.Equal(values, fieldResults);
+        fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing multiple fields with persist
+        fieldResults = db.HashFieldGetAndSetExpiry(hashKey, fields, persist: true);
+        Assert.Equal(values, fieldResults);
+        fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.Equal(new long[] { -1, -1 }, fieldTtls);
+    }
+
+    [Fact]
+    public async Task HashFieldGetAndSetExpiryAsync()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var hashKey = Me();
+
+        // testing with timespan
+        db.HashSet(hashKey, entries);
+        var fieldResult = await db.HashFieldGetAndSetExpiryAsync(hashKey, "f1", TimeSpan.FromHours(1));
+        Assert.Equal(1, fieldResult);
+        var fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing with datetime
+        db.HashSet(hashKey, entries);
+        fieldResult = await db.HashFieldGetAndSetExpiryAsync(hashKey, "f1", DateTime.Now.AddMinutes(120));
+        Assert.Equal(1, fieldResult);
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing persist
+        fieldResult = await db.HashFieldGetAndSetExpiryAsync(hashKey, "f1", persist: true);
+        Assert.Equal(1, fieldResult);
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.Equal(-1, fieldTtl);
+
+        // testing multiple fields with timespan
+        db.HashSet(hashKey, entries);
+        var fieldResults = await db.HashFieldGetAndSetExpiryAsync(hashKey, fields, TimeSpan.FromHours(1));
+        Assert.Equal(values, fieldResults);
+        var fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing multiple fields with datetime
+        db.HashSet(hashKey, entries);
+        fieldResults = await db.HashFieldGetAndSetExpiryAsync(hashKey, fields, DateTime.Now.AddMinutes(120));
+        Assert.Equal(values, fieldResults);
+        fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing multiple fields with persist
+        fieldResults = await db.HashFieldGetAndSetExpiryAsync(hashKey, fields, persist: true);
+        Assert.Equal(values, fieldResults);
+        fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.Equal(new long[] { -1, -1 }, fieldTtls);
+    }
+
+    [Fact]
+    public void HashFieldSetAndSetExpiry()
+    {
+        using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var hashKey = Me();
+
+        // testing with timespan
+        var result = db.HashFieldSetAndSetExpiry(hashKey, "f1", 1, TimeSpan.FromHours(1));
+        Assert.Equal(1, result);
+        var fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing with datetime
+        result = db.HashFieldSetAndSetExpiry(hashKey, "f1", 1, DateTime.Now.AddMinutes(120));
+        Assert.Equal(1, result);
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing with keepttl
+        result = db.HashFieldSetAndSetExpiry(hashKey, "f1", 1, keepTtl: true);
+        Assert.Equal(1, result);
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing multiple fields with timespan
+        result = db.HashFieldSetAndSetExpiry(hashKey, entries, TimeSpan.FromHours(1));
+        Assert.Equal(1, result);
+        var fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing multiple fields with datetime
+        result = db.HashFieldSetAndSetExpiry(hashKey, entries, DateTime.Now.AddMinutes(120));
+        Assert.Equal(1, result);
+        fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing multiple fields with keepttl
+        result = db.HashFieldSetAndSetExpiry(hashKey, entries, keepTtl: true);
+        Assert.Equal(1, result);
+        fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing with ExpireWhen.Exists
+        db.KeyDelete(hashKey);
+        result = db.HashFieldSetAndSetExpiry(hashKey, "f1", 1, TimeSpan.FromHours(1), when: When.Exists);
+        Assert.Equal(0, result); // should not set because it doesnt exist
+
+        // testing with ExpireWhen.NotExists
+        result = db.HashFieldSetAndSetExpiry(hashKey, "f1", 1, TimeSpan.FromHours(1), when: When.NotExists);
+        Assert.Equal(1, result); // should set because it doesnt exist
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing with ExpireWhen.GreaterThanCurrentExpiry
+        result = db.HashFieldSetAndSetExpiry(hashKey, "f1", -1, keepTtl: true, when: When.Exists);
+        Assert.Equal(1, result); // should set because it exists
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+    }
+
+    [Fact]
+    public async Task HashFieldSetAndSetExpiryAsync()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var hashKey = Me();
+
+        // testing with timespan
+        var result = await db.HashFieldSetAndSetExpiryAsync(hashKey, "f1", 1, TimeSpan.FromHours(1));
+        Assert.Equal(1, result);
+        var fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing with datetime
+        result = await db.HashFieldSetAndSetExpiryAsync(hashKey, "f1", 1, DateTime.Now.AddMinutes(120));
+        Assert.Equal(1, result);
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing with keepttl
+        result = await db.HashFieldSetAndSetExpiryAsync(hashKey, "f1", 1, keepTtl: true);
+        Assert.Equal(1, result);
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing multiple fields with timespan
+        result = await db.HashFieldSetAndSetExpiryAsync(hashKey, entries, TimeSpan.FromHours(1));
+        Assert.Equal(1, result);
+        var fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing multiple fields with datetime
+        result = await db.HashFieldSetAndSetExpiryAsync(hashKey, entries, DateTime.Now.AddMinutes(120));
+        Assert.Equal(1, result);
+        fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing multiple fields with keepttl
+        result = await db.HashFieldSetAndSetExpiryAsync(hashKey, entries, keepTtl: true);
+        Assert.Equal(1, result);
+        fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+
+        // testing with ExpireWhen.Exists
+        db.KeyDelete(hashKey);
+        result = await db.HashFieldSetAndSetExpiryAsync(hashKey, "f1", 1, TimeSpan.FromHours(1), when: When.Exists);
+        Assert.Equal(0, result); // should not set because it doesnt exist
+
+        // testing with ExpireWhen.NotExists
+        result = await db.HashFieldSetAndSetExpiryAsync(hashKey, "f1", 1, TimeSpan.FromHours(1), when: When.NotExists);
+        Assert.Equal(1, result); // should set because it doesnt exist
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+
+        // testing with ExpireWhen.GreaterThanCurrentExpiry
+        result = await db.HashFieldSetAndSetExpiryAsync(hashKey, "f1", -1, keepTtl: true, when: When.Exists);
+        Assert.Equal(1, result); // should set because it exists
+        fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(59).TotalMilliseconds, TimeSpan.FromHours(1).TotalMilliseconds);
+    }
+    [Fact]
+    public void HashFieldGetAndDelete()
+    {
+        using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var hashKey = Me();
+
+        // single field
+        db.HashSet(hashKey, entries);
+        var fieldResult = db.HashFieldGetAndDelete(hashKey, "f1");
+        Assert.Equal(1, fieldResult);
+        Assert.False(db.HashExists(hashKey, "f1"));
+
+        // multiple fields
+        db.HashSet(hashKey, entries);
+        var fieldResults = db.HashFieldGetAndDelete(hashKey, fields);
+        Assert.Equal(values, fieldResults);
+        Assert.False(db.HashExists(hashKey, "f1"));
+        Assert.False(db.HashExists(hashKey, "f2"));
+    }
+
+    [Fact]
+    public async Task HashFieldGetAndDeleteAsync()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var hashKey = Me();
+
+        // single field
+        db.HashSet(hashKey, entries);
+        var fieldResult = await db.HashFieldGetAndDeleteAsync(hashKey, "f1");
+        Assert.Equal(1, fieldResult);
+        Assert.False(db.HashExists(hashKey, "f1"));
+
+        // multiple fields
+        db.HashSet(hashKey, entries);
+        var fieldResults = await db.HashFieldGetAndDeleteAsync(hashKey, fields);
+        Assert.Equal(values, fieldResults);
+        Assert.False(db.HashExists(hashKey, "f1"));
+        Assert.False(db.HashExists(hashKey, "f2"));
     }
 }
