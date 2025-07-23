@@ -1431,4 +1431,364 @@ public sealed class KeyPrefixedDatabaseTests
         prefixed.StringSetRange("key", 123, "value", CommandFlags.None);
         mock.Received().StringSetRange("prefix:key", 123, "value", CommandFlags.None);
     }
+
+    [Fact]
+    public void Execute_1()
+    {
+        prefixed.Execute("CUSTOM", "arg1", (RedisKey)"arg2");
+        mock.Received().Execute("CUSTOM", Arg.Is<object[]>(args => args.Length == 2 && args[0].Equals("arg1") && args[1].Equals((RedisKey)"prefix:arg2")), CommandFlags.None);
+    }
+
+    [Fact]
+    public void Execute_2()
+    {
+        var args = new List<object> { "arg1", (RedisKey)"arg2" };
+        prefixed.Execute("CUSTOM", args, CommandFlags.None);
+        mock.Received().Execute("CUSTOM", Arg.Is<ICollection<object>>(a => a.Count == 2 && a.ElementAt(0).Equals("arg1") && a.ElementAt(1).Equals((RedisKey)"prefix:arg2"))!, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoAdd_1()
+    {
+        prefixed.GeoAdd("key", 1.23, 4.56, "member", CommandFlags.None);
+        mock.Received().GeoAdd("prefix:key", 1.23, 4.56, "member", CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoAdd_2()
+    {
+        var geoEntry = new GeoEntry(1.23, 4.56, "member");
+        prefixed.GeoAdd("key", geoEntry, CommandFlags.None);
+        mock.Received().GeoAdd("prefix:key", geoEntry, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoAdd_3()
+    {
+        var geoEntries = new GeoEntry[] { new GeoEntry(1.23, 4.56, "member1") };
+        prefixed.GeoAdd("key", geoEntries, CommandFlags.None);
+        mock.Received().GeoAdd("prefix:key", geoEntries, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoRemove()
+    {
+        prefixed.GeoRemove("key", "member", CommandFlags.None);
+        mock.Received().GeoRemove("prefix:key", "member", CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoDistance()
+    {
+        prefixed.GeoDistance("key", "member1", "member2", GeoUnit.Meters, CommandFlags.None);
+        mock.Received().GeoDistance("prefix:key", "member1", "member2", GeoUnit.Meters, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoHash_1()
+    {
+        prefixed.GeoHash("key", "member", CommandFlags.None);
+        mock.Received().GeoHash("prefix:key", "member", CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoHash_2()
+    {
+        var members = new RedisValue[] { "member1", "member2" };
+        prefixed.GeoHash("key", members, CommandFlags.None);
+        mock.Received().GeoHash("prefix:key", members, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoPosition_1()
+    {
+        prefixed.GeoPosition("key", "member", CommandFlags.None);
+        mock.Received().GeoPosition("prefix:key", "member", CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoPosition_2()
+    {
+        var members = new RedisValue[] { "member1", "member2" };
+        prefixed.GeoPosition("key", members, CommandFlags.None);
+        mock.Received().GeoPosition("prefix:key", members, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoRadius_1()
+    {
+        prefixed.GeoRadius("key", "member", 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        mock.Received().GeoRadius("prefix:key", "member", 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoRadius_2()
+    {
+        prefixed.GeoRadius("key", 1.23, 4.56, 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        mock.Received().GeoRadius("prefix:key", 1.23, 4.56, 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoSearch_1()
+    {
+        var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+        prefixed.GeoSearch("key", "member", shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        mock.Received().GeoSearch("prefix:key", "member", shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoSearch_2()
+    {
+        var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+        prefixed.GeoSearch("key", 1.23, 4.56, shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        mock.Received().GeoSearch("prefix:key", 1.23, 4.56, shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoSearchAndStore_1()
+    {
+        var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+        prefixed.GeoSearchAndStore("source", "destination", "member", shape, 10, true, Order.Ascending, false, CommandFlags.None);
+        mock.Received().GeoSearchAndStore("prefix:source", "prefix:destination", "member", shape, 10, true, Order.Ascending, false, CommandFlags.None);
+    }
+
+    [Fact]
+    public void GeoSearchAndStore_2()
+    {
+        var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+        prefixed.GeoSearchAndStore("source", "destination", 1.23, 4.56, shape, 10, true, Order.Ascending, false, CommandFlags.None);
+        mock.Received().GeoSearchAndStore("prefix:source", "prefix:destination", 1.23, 4.56, shape, 10, true, Order.Ascending, false, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldExpire_1()
+    {
+        var hashFields = new RedisValue[] { "field1", "field2" };
+        var expiry = TimeSpan.FromSeconds(60);
+        prefixed.HashFieldExpire("key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+        mock.Received().HashFieldExpire("prefix:key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldExpire_2()
+    {
+        var hashFields = new RedisValue[] { "field1", "field2" };
+        var expiry = DateTime.Now.AddMinutes(1);
+        prefixed.HashFieldExpire("key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+        mock.Received().HashFieldExpire("prefix:key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetExpireDateTime()
+    {
+        var hashFields = new RedisValue[] { "field1", "field2" };
+        prefixed.HashFieldGetExpireDateTime("key", hashFields, CommandFlags.None);
+        mock.Received().HashFieldGetExpireDateTime("prefix:key", hashFields, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldPersist()
+    {
+        var hashFields = new RedisValue[] { "field1", "field2" };
+        prefixed.HashFieldPersist("key", hashFields, CommandFlags.None);
+        mock.Received().HashFieldPersist("prefix:key", hashFields, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetTimeToLive()
+    {
+        var hashFields = new RedisValue[] { "field1", "field2" };
+        prefixed.HashFieldGetTimeToLive("key", hashFields, CommandFlags.None);
+        mock.Received().HashFieldGetTimeToLive("prefix:key", hashFields, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashGetLease()
+    {
+        prefixed.HashGetLease("key", "field", CommandFlags.None);
+        mock.Received().HashGetLease("prefix:key", "field", CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetAndDelete_1()
+    {
+        prefixed.HashFieldGetAndDelete("key", "field", CommandFlags.None);
+        mock.Received().HashFieldGetAndDelete("prefix:key", "field", CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetAndDelete_2()
+    {
+        var hashFields = new RedisValue[] { "field1", "field2" };
+        prefixed.HashFieldGetAndDelete("key", hashFields, CommandFlags.None);
+        mock.Received().HashFieldGetAndDelete("prefix:key", hashFields, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetLeaseAndDelete()
+    {
+        prefixed.HashFieldGetLeaseAndDelete("key", "field", CommandFlags.None);
+        mock.Received().HashFieldGetLeaseAndDelete("prefix:key", "field", CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetAndSetExpiry_1()
+    {
+        var expiry = TimeSpan.FromMinutes(5);
+        prefixed.HashFieldGetAndSetExpiry("key", "field", expiry, false, CommandFlags.None);
+        mock.Received().HashFieldGetAndSetExpiry("prefix:key", "field", expiry, false, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetAndSetExpiry_2()
+    {
+        var expiry = DateTime.Now.AddMinutes(5);
+        prefixed.HashFieldGetAndSetExpiry("key", "field", expiry, CommandFlags.None);
+        mock.Received().HashFieldGetAndSetExpiry("prefix:key", "field", expiry, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetLeaseAndSetExpiry_1()
+    {
+        var expiry = TimeSpan.FromMinutes(5);
+        prefixed.HashFieldGetLeaseAndSetExpiry("key", "field", expiry, false, CommandFlags.None);
+        mock.Received().HashFieldGetLeaseAndSetExpiry("prefix:key", "field", expiry, false, CommandFlags.None);
+    }
+
+    [Fact]
+    public void HashFieldGetLeaseAndSetExpiry_2()
+    {
+        var expiry = DateTime.Now.AddMinutes(5);
+        prefixed.HashFieldGetLeaseAndSetExpiry("key", "field", expiry, CommandFlags.None);
+        mock.Received().HashFieldGetLeaseAndSetExpiry("prefix:key", "field", expiry, CommandFlags.None);
+    }
+    [Fact]
+    public void StringGetLease()
+    {
+        prefixed.StringGetLease("key", CommandFlags.None);
+        mock.Received().StringGetLease("prefix:key", CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringGetSetExpiry_1()
+    {
+        var expiry = TimeSpan.FromMinutes(5);
+        prefixed.StringGetSetExpiry("key", expiry, CommandFlags.None);
+        mock.Received().StringGetSetExpiry("prefix:key", expiry, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringGetSetExpiry_2()
+    {
+        var expiry = DateTime.Now.AddMinutes(5);
+        prefixed.StringGetSetExpiry("key", expiry, CommandFlags.None);
+        mock.Received().StringGetSetExpiry("prefix:key", expiry, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringSetAndGet_1()
+    {
+        var expiry = TimeSpan.FromMinutes(5);
+        prefixed.StringSetAndGet("key", "value", expiry, When.Always, CommandFlags.None);
+        mock.Received().StringSetAndGet("prefix:key", "value", expiry, When.Always, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringSetAndGet_2()
+    {
+        var expiry = TimeSpan.FromMinutes(5);
+        prefixed.StringSetAndGet("key", "value", expiry, false, When.Always, CommandFlags.None);
+        mock.Received().StringSetAndGet("prefix:key", "value", expiry, false, When.Always, CommandFlags.None);
+    }
+    [Fact]
+    public void StringLongestCommonSubsequence()
+    {
+        prefixed.StringLongestCommonSubsequence("key1", "key2", CommandFlags.None);
+        mock.Received().StringLongestCommonSubsequence("prefix:key1", "prefix:key2", CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringLongestCommonSubsequenceLength()
+    {
+        prefixed.StringLongestCommonSubsequenceLength("key1", "key2", CommandFlags.None);
+        mock.Received().StringLongestCommonSubsequenceLength("prefix:key1", "prefix:key2", CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringLongestCommonSubsequenceWithMatches()
+    {
+        prefixed.StringLongestCommonSubsequenceWithMatches("key1", "key2", 5, CommandFlags.None);
+        mock.Received().StringLongestCommonSubsequenceWithMatches("prefix:key1", "prefix:key2", 5, CommandFlags.None);
+    }
+    [Fact]
+    public void IsConnected()
+    {
+        prefixed.IsConnected("key", CommandFlags.None);
+        mock.Received().IsConnected("prefix:key", CommandFlags.None);
+    }
+    [Fact]
+    public void StreamAdd_WithTrimMode_1()
+    {
+        prefixed.StreamAdd("key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        mock.Received().StreamAdd("prefix:key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamAdd_WithTrimMode_2()
+    {
+        var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
+        prefixed.StreamAdd("key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        mock.Received().StreamAdd("prefix:key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamTrim_WithMode()
+    {
+        prefixed.StreamTrim("key", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        mock.Received().StreamTrim("prefix:key", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamTrimByMinId_WithMode()
+    {
+        prefixed.StreamTrimByMinId("key", "1111111111", false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        mock.Received().StreamTrimByMinId("prefix:key", "1111111111", false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamReadGroup_WithNoAck_1()
+    {
+        prefixed.StreamReadGroup("key", "group", "consumer", "0-0", 10, true, CommandFlags.None);
+        mock.Received().StreamReadGroup("prefix:key", "group", "consumer", "0-0", 10, true, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamReadGroup_WithNoAck_2()
+    {
+        var streamPositions = new StreamPosition[] { new StreamPosition("key", "0-0") };
+        prefixed.StreamReadGroup(streamPositions, "group", "consumer", 10, true, CommandFlags.None);
+        mock.Received().StreamReadGroup(streamPositions, "group", "consumer", 10, true, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamTrim_Simple()
+    {
+        prefixed.StreamTrim("key", 1000, true, CommandFlags.None);
+        mock.Received().StreamTrim("prefix:key", 1000, true, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamReadGroup_Simple_1()
+    {
+        prefixed.StreamReadGroup("key", "group", "consumer", "0-0", 10, CommandFlags.None);
+        mock.Received().StreamReadGroup("prefix:key", "group", "consumer", "0-0", 10, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamReadGroup_Simple_2()
+    {
+        var streamPositions = new StreamPosition[] { new StreamPosition("key", "0-0") };
+        prefixed.StreamReadGroup(streamPositions, "group", "consumer", 10, CommandFlags.None);
+        mock.Received().StreamReadGroup(streamPositions, "group", "consumer", 10, CommandFlags.None);
+    }
 }

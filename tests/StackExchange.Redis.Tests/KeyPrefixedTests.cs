@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Net;
 using System.Text;
@@ -1354,6 +1355,390 @@ namespace StackExchange.Redis.Tests
             RedisKey[] keys = ["a", "b"];
             await prefixed.KeyTouchAsync(keys, CommandFlags.None);
             await mock.Received().KeyTouchAsync(IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
+        }
+        [Fact]
+        public async Task ExecuteAsync_1()
+        {
+            await prefixed.ExecuteAsync("CUSTOM", "arg1", (RedisKey)"arg2");
+            await mock.Received().ExecuteAsync("CUSTOM", Arg.Is<object[]>(args => args.Length == 2 && args[0].Equals("arg1") && args[1].Equals((RedisKey)"prefix:arg2")), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_2()
+        {
+            var args = new List<object> { "arg1", (RedisKey)"arg2" };
+            await prefixed.ExecuteAsync("CUSTOM", args, CommandFlags.None);
+            await mock.Received().ExecuteAsync("CUSTOM", Arg.Is<ICollection<object>?>(a => a != null && a.Count == 2 && a.ElementAt(0).Equals("arg1") && a.ElementAt(1).Equals((RedisKey)"prefix:arg2")), CommandFlags.None);
+        }
+        [Fact]
+        public async Task GeoAddAsync_1()
+        {
+            await prefixed.GeoAddAsync("key", 1.23, 4.56, "member", CommandFlags.None);
+            await mock.Received().GeoAddAsync("prefix:key", 1.23, 4.56, "member", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoAddAsync_2()
+        {
+            var geoEntry = new GeoEntry(1.23, 4.56, "member");
+            await prefixed.GeoAddAsync("key", geoEntry, CommandFlags.None);
+            await mock.Received().GeoAddAsync("prefix:key", geoEntry, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoAddAsync_3()
+        {
+            var geoEntries = new GeoEntry[] { new GeoEntry(1.23, 4.56, "member1") };
+            await prefixed.GeoAddAsync("key", geoEntries, CommandFlags.None);
+            await mock.Received().GeoAddAsync("prefix:key", geoEntries, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoRemoveAsync()
+        {
+            await prefixed.GeoRemoveAsync("key", "member", CommandFlags.None);
+            await mock.Received().GeoRemoveAsync("prefix:key", "member", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoDistanceAsync()
+        {
+            await prefixed.GeoDistanceAsync("key", "member1", "member2", GeoUnit.Meters, CommandFlags.None);
+            await mock.Received().GeoDistanceAsync("prefix:key", "member1", "member2", GeoUnit.Meters, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoHashAsync_1()
+        {
+            await prefixed.GeoHashAsync("key", "member", CommandFlags.None);
+            await mock.Received().GeoHashAsync("prefix:key", "member", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoHashAsync_2()
+        {
+            var members = new RedisValue[] { "member1", "member2" };
+            await prefixed.GeoHashAsync("key", members, CommandFlags.None);
+            await mock.Received().GeoHashAsync("prefix:key", members, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoPositionAsync_1()
+        {
+            await prefixed.GeoPositionAsync("key", "member", CommandFlags.None);
+            await mock.Received().GeoPositionAsync("prefix:key", "member", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoPositionAsync_2()
+        {
+            var members = new RedisValue[] { "member1", "member2" };
+            await prefixed.GeoPositionAsync("key", members, CommandFlags.None);
+            await mock.Received().GeoPositionAsync("prefix:key", members, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoRadiusAsync_1()
+        {
+            await prefixed.GeoRadiusAsync("key", "member", 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+            await mock.Received().GeoRadiusAsync("prefix:key", "member", 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoRadiusAsync_2()
+        {
+            await prefixed.GeoRadiusAsync("key", 1.23, 4.56, 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+            await mock.Received().GeoRadiusAsync("prefix:key", 1.23, 4.56, 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoSearchAsync_1()
+        {
+            var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+            await prefixed.GeoSearchAsync("key", "member", shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+            await mock.Received().GeoSearchAsync("prefix:key", "member", shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoSearchAsync_2()
+        {
+            var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+            await prefixed.GeoSearchAsync("key", 1.23, 4.56, shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+            await mock.Received().GeoSearchAsync("prefix:key", 1.23, 4.56, shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoSearchAndStoreAsync_1()
+        {
+            var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+            await prefixed.GeoSearchAndStoreAsync("source", "destination", "member", shape, 10, true, Order.Ascending, false, CommandFlags.None);
+            await mock.Received().GeoSearchAndStoreAsync("prefix:source", "prefix:destination", "member", shape, 10, true, Order.Ascending, false, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoSearchAndStoreAsync_2()
+        {
+            var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+            await prefixed.GeoSearchAndStoreAsync("source", "destination", 1.23, 4.56, shape, 10, true, Order.Ascending, false, CommandFlags.None);
+            await mock.Received().GeoSearchAndStoreAsync("prefix:source", "prefix:destination", 1.23, 4.56, shape, 10, true, Order.Ascending, false, CommandFlags.None);
+        }
+        [Fact]
+        public async Task HashFieldExpireAsync_1()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            var expiry = TimeSpan.FromSeconds(60);
+            await prefixed.HashFieldExpireAsync("key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+            await mock.Received().HashFieldExpireAsync("prefix:key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldExpireAsync_2()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            var expiry = DateTime.Now.AddMinutes(1);
+            await prefixed.HashFieldExpireAsync("key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+            await mock.Received().HashFieldExpireAsync("prefix:key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetExpireDateTimeAsync()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            await prefixed.HashFieldGetExpireDateTimeAsync("key", hashFields, CommandFlags.None);
+            await mock.Received().HashFieldGetExpireDateTimeAsync("prefix:key", hashFields, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldPersistAsync()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            await prefixed.HashFieldPersistAsync("key", hashFields, CommandFlags.None);
+            await mock.Received().HashFieldPersistAsync("prefix:key", hashFields, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetTimeToLiveAsync()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            await prefixed.HashFieldGetTimeToLiveAsync("key", hashFields, CommandFlags.None);
+            await mock.Received().HashFieldGetTimeToLiveAsync("prefix:key", hashFields, CommandFlags.None);
+        }
+        [Fact]
+        public async Task HashGetLeaseAsync()
+        {
+            await prefixed.HashGetLeaseAsync("key", "field", CommandFlags.None);
+            await mock.Received().HashGetLeaseAsync("prefix:key", "field", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetAndDeleteAsync_1()
+        {
+            await prefixed.HashFieldGetAndDeleteAsync("key", "field", CommandFlags.None);
+            await mock.Received().HashFieldGetAndDeleteAsync("prefix:key", "field", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetAndDeleteAsync_2()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            await prefixed.HashFieldGetAndDeleteAsync("key", hashFields, CommandFlags.None);
+            await mock.Received().HashFieldGetAndDeleteAsync("prefix:key", hashFields, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetLeaseAndDeleteAsync()
+        {
+            await prefixed.HashFieldGetLeaseAndDeleteAsync("key", "field", CommandFlags.None);
+            await mock.Received().HashFieldGetLeaseAndDeleteAsync("prefix:key", "field", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetAndSetExpiryAsync_1()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.HashFieldGetAndSetExpiryAsync("key", "field", expiry, false, CommandFlags.None);
+            await mock.Received().HashFieldGetAndSetExpiryAsync("prefix:key", "field", expiry, false, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetAndSetExpiryAsync_2()
+        {
+            var expiry = DateTime.Now.AddMinutes(5);
+            await prefixed.HashFieldGetAndSetExpiryAsync("key", "field", expiry, CommandFlags.None);
+            await mock.Received().HashFieldGetAndSetExpiryAsync("prefix:key", "field", expiry, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetLeaseAndSetExpiryAsync_1()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.HashFieldGetLeaseAndSetExpiryAsync("key", "field", expiry, false, CommandFlags.None);
+            await mock.Received().HashFieldGetLeaseAndSetExpiryAsync("prefix:key", "field", expiry, false, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetLeaseAndSetExpiryAsync_2()
+        {
+            var expiry = DateTime.Now.AddMinutes(5);
+            await prefixed.HashFieldGetLeaseAndSetExpiryAsync("key", "field", expiry, CommandFlags.None);
+            await mock.Received().HashFieldGetLeaseAndSetExpiryAsync("prefix:key", "field", expiry, CommandFlags.None);
+        }
+        [Fact]
+        public async Task StringGetLeaseAsync()
+        {
+            await prefixed.StringGetLeaseAsync("key", CommandFlags.None);
+            await mock.Received().StringGetLeaseAsync("prefix:key", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringGetSetExpiryAsync_1()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.StringGetSetExpiryAsync("key", expiry, CommandFlags.None);
+            await mock.Received().StringGetSetExpiryAsync("prefix:key", expiry, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringGetSetExpiryAsync_2()
+        {
+            var expiry = DateTime.Now.AddMinutes(5);
+            await prefixed.StringGetSetExpiryAsync("key", expiry, CommandFlags.None);
+            await mock.Received().StringGetSetExpiryAsync("prefix:key", expiry, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringSetAndGetAsync_1()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.StringSetAndGetAsync("key", "value", expiry, When.Always, CommandFlags.None);
+            await mock.Received().StringSetAndGetAsync("prefix:key", "value", expiry, When.Always, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringSetAndGetAsync_2()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.StringSetAndGetAsync("key", "value", expiry, false, When.Always, CommandFlags.None);
+            await mock.Received().StringSetAndGetAsync("prefix:key", "value", expiry, false, When.Always, CommandFlags.None);
+        }
+        [Fact]
+        public async Task StringLongestCommonSubsequenceAsync()
+        {
+            await prefixed.StringLongestCommonSubsequenceAsync("key1", "key2", CommandFlags.None);
+            await mock.Received().StringLongestCommonSubsequenceAsync("prefix:key1", "prefix:key2", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringLongestCommonSubsequenceLengthAsync()
+        {
+            await prefixed.StringLongestCommonSubsequenceLengthAsync("key1", "key2", CommandFlags.None);
+            await mock.Received().StringLongestCommonSubsequenceLengthAsync("prefix:key1", "prefix:key2", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringLongestCommonSubsequenceWithMatchesAsync()
+        {
+            await prefixed.StringLongestCommonSubsequenceWithMatchesAsync("key1", "key2", 5, CommandFlags.None);
+            await mock.Received().StringLongestCommonSubsequenceWithMatchesAsync("prefix:key1", "prefix:key2", 5, CommandFlags.None);
+        }
+        [Fact]
+        public async Task KeyIdleTimeAsync()
+        {
+            await prefixed.KeyIdleTimeAsync("key", CommandFlags.None);
+            await mock.Received().KeyIdleTimeAsync("prefix:key", CommandFlags.None);
+        }
+        [Fact]
+        public async Task StreamAddAsync_WithTrimMode_1()
+        {
+            await prefixed.StreamAddAsync("key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamAddAsync("prefix:key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamAddAsync_WithTrimMode_2()
+        {
+            var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
+            await prefixed.StreamAddAsync("key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamAddAsync("prefix:key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamTrimAsync_WithMode()
+        {
+            await prefixed.StreamTrimAsync("key", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamTrimAsync("prefix:key", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamTrimByMinIdAsync_WithMode()
+        {
+            await prefixed.StreamTrimByMinIdAsync("key", "1111111111", false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamTrimByMinIdAsync("prefix:key", "1111111111", false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamReadGroupAsync_WithNoAck_1()
+        {
+            await prefixed.StreamReadGroupAsync("key", "group", "consumer", "0-0", 10, true, CommandFlags.None);
+            await mock.Received().StreamReadGroupAsync("prefix:key", "group", "consumer", "0-0", 10, true, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamReadGroupAsync_WithNoAck_2()
+        {
+            var streamPositions = new StreamPosition[] { new StreamPosition("key", "0-0") };
+            await prefixed.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, true, CommandFlags.None);
+            await mock.Received().StreamReadGroupAsync(streamPositions, "group", "consumer", 10, true, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamTrimAsync_Simple()
+        {
+            await prefixed.StreamTrimAsync("key", 1000, true, CommandFlags.None);
+            await mock.Received().StreamTrimAsync("prefix:key", 1000, true, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamReadGroupAsync_Simple_1()
+        {
+            await prefixed.StreamReadGroupAsync("key", "group", "consumer", "0-0", 10, CommandFlags.None);
+            await mock.Received().StreamReadGroupAsync("prefix:key", "group", "consumer", "0-0", 10, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamReadGroupAsync_Simple_2()
+        {
+            var streamPositions = new StreamPosition[] { new StreamPosition("key", "0-0") };
+            await prefixed.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.None);
+            await mock.Received().StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.None);
+        }
+
+        [Fact]
+        public void HashScanAsync()
+        {
+            var result = prefixed.HashScanAsync("key", "pattern*", 10, 1, 2, CommandFlags.None);
+            _ = mock.Received().HashScanAsync("prefix:key", "pattern*", 10, 1, 2, CommandFlags.None);
+        }
+
+        [Fact]
+        public void HashScanNoValuesAsync()
+        {
+            var result = prefixed.HashScanNoValuesAsync("key", "pattern*", 10, 1, 2, CommandFlags.None);
+            _ = mock.Received().HashScanNoValuesAsync("prefix:key", "pattern*", 10, 1, 2, CommandFlags.None);
+        }
+
+        [Fact]
+        public void SetScanAsync()
+        {
+            var result = prefixed.SetScanAsync("key", "pattern*", 10, 1, 2, CommandFlags.None);
+            _ = mock.Received().SetScanAsync("prefix:key", "pattern*", 10, 1, 2, CommandFlags.None);
+        }
+
+        [Fact]
+        public void SortedSetScanAsync()
+        {
+            var result = prefixed.SortedSetScanAsync("key", "pattern*", 10, 1, 2, CommandFlags.None);
+            _ = mock.Received().SortedSetScanAsync("prefix:key", "pattern*", 10, 1, 2, CommandFlags.None);
         }
     }
 }
