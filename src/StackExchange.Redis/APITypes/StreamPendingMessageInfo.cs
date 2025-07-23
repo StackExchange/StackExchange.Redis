@@ -1,5 +1,4 @@
-﻿
-namespace StackExchange.Redis;
+﻿namespace StackExchange.Redis;
 
 /// <summary>
 /// Describes properties of a pending message.

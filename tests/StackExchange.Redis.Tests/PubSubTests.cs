@@ -7,21 +7,16 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
 using Xunit;
-using Xunit.Abstractions;
-// ReSharper disable AccessToModifiedClosure
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class PubSubTests : TestBase
+public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
     public async Task ExplicitPublishMode()
     {
-        using var conn = Create(channelPrefix: "foo:", log: Writer);
+        await using var conn = Create(channelPrefix: "foo:", log: Writer);
 
         var pub = conn.GetSubscriber();
         int a = 0, b = 0, c = 0, d = 0;
@@ -33,7 +28,8 @@ public class PubSubTests : TestBase
 
         pub.Publish("abcd", "efg");
 #pragma warning restore CS0618
-        await UntilConditionAsync(TimeSpan.FromSeconds(10),
+        await UntilConditionAsync(
+            TimeSpan.FromSeconds(10),
             () => Thread.VolatileRead(ref b) == 1
                && Thread.VolatileRead(ref c) == 1
                && Thread.VolatileRead(ref d) == 1);
@@ -56,14 +52,14 @@ public class PubSubTests : TestBase
     [InlineData(null, true, "d")]
     [InlineData("", true, "e")]
     [InlineData("Foo:", true, "f")]
-    public async Task TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
+    public async Task TestBasicPubSub(string? channelPrefix, bool wildCard, string breaker)
     {
-        using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
+        await using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
 
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
         await PingAsync(pub, sub).ForAwait();
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
         string subChannel = (wildCard ? "a*c" : "abc") + breaker;
         string pubChannel = "abc" + breaker;
@@ -80,8 +76,7 @@ public class PubSubTests : TestBase
                     Log(channel);
                 }
             }
-        }
-        , handler2 = (_, __) => Interlocked.Increment(ref secondHandler);
+        }, handler2 = (_, __) => Interlocked.Increment(ref secondHandler);
 #pragma warning disable CS0618
         sub.Subscribe(subChannel, handler1);
         sub.Subscribe(subChannel, handler2);
@@ -144,26 +139,29 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestBasicPubSubFireAndForget()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
 
         var profiler = conn.AddProfiler();
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
 
         RedisChannel key = RedisChannel.Literal(Me() + Guid.NewGuid());
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
         await PingAsync(pub, sub).ForAwait();
-        sub.Subscribe(key, (channel, payload) =>
-        {
-            lock (received)
+        sub.Subscribe(
+            key,
+            (channel, payload) =>
             {
-                if (channel == key)
+                lock (received)
                 {
-                    received.Add(payload);
+                    if (channel == key)
+                    {
+                        received.Add(payload);
+                    }
                 }
-            }
-        }, CommandFlags.FireAndForget);
+            },
+            CommandFlags.FireAndForget);
 
         sub.Subscribe(key, (_, __) => Interlocked.Increment(ref secondHandler), CommandFlags.FireAndForget);
         Log(profiler);
@@ -216,12 +214,12 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestPatternPubSub()
     {
-        using var conn = Create(shared: false, log: Writer);
+        await using var conn = Create(shared: false, log: Writer);
 
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();
 
-        HashSet<string?> received = new();
+        HashSet<string?> received = [];
         int secondHandler = 0;
 #pragma warning disable CS0618
         sub.Subscribe("a*c", (channel, payload) =>
@@ -273,9 +271,9 @@ public class PubSubTests : TestBase
     }
 
     [Fact]
-    public void TestPublishWithNoSubscribers()
+    public async Task TestPublishWithNoSubscribers()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var sub = conn.GetSubscriber();
 #pragma warning disable CS0618
@@ -283,19 +281,21 @@ public class PubSubTests : TestBase
 #pragma warning restore CS0618
     }
 
-    [FactLongRunning]
-    public void TestMassivePublishWithWithoutFlush_Local()
+    [Fact]
+    public async Task TestMassivePublishWithWithoutFlush_Local()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var sub = conn.GetSubscriber();
         TestMassivePublish(sub, Me(), "local");
     }
 
-    [FactLongRunning]
-    public void TestMassivePublishWithWithoutFlush_Remote()
+    [Fact]
+    public async Task TestMassivePublishWithWithoutFlush_Remote()
     {
-        using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
 
         var sub = conn.GetSubscriber();
         TestMassivePublish(sub, Me(), "remote");
@@ -326,8 +326,7 @@ public class PubSubTests : TestBase
         sub.WaitAll(tasks);
         withAsync.Stop();
 
-        Log("{2}: {0}ms (F+F) vs {1}ms (async)",
-            withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
+        Log($"{caption}: {withFAF.ElapsedMilliseconds}ms (F+F) vs {withAsync.ElapsedMilliseconds}ms (async)");
         // We've made async so far, this test isn't really valid anymore
         // So let's check they're at least within a few seconds.
         Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds + 3000, caption);
@@ -336,7 +335,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task SubscribeAsyncEnumerable()
     {
-        using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
+        await using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
 
         var sub = conn.GetSubscriber();
         RedisChannel channel = RedisChannel.Literal(Me());
@@ -345,7 +344,8 @@ public class PubSubTests : TestBase
         var gotall = new TaskCompletionSource<int>();
 
         var source = await sub.SubscribeAsync(channel);
-        var op = Task.Run(async () => {
+        var op = Task.Run(async () =>
+        {
             int count = 0;
             await foreach (var item in source)
             {
@@ -370,9 +370,9 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task PubSubGetAllAnyOrder()
     {
-        using var sonn = Create(syncTimeout: 20000, shared: false, log: Writer);
+        await using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
 
-        var sub = sonn.GetSubscriber();
+        var sub = conn.GetSubscriber();
         RedisChannel channel = RedisChannel.Literal(Me());
         const int count = 1000;
         var syncLock = new object();
@@ -418,7 +418,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task PubSubGetAllCorrectOrder()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -479,10 +479,7 @@ public class PubSubTests : TestBase
             Log("Awaiting completion.");
             await subChannel.Completion;
             Log("Completion awaited.");
-            await Assert.ThrowsAsync<ChannelClosedException>(async delegate
-            {
-                await subChannel.ReadAsync().ForAwait();
-            }).ForAwait();
+            await Assert.ThrowsAsync<ChannelClosedException>(async () => await subChannel.ReadAsync().ForAwait()).ForAwait();
             Log("End of muxer.");
         }
         Log("End of test.");
@@ -491,7 +488,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Sync()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -548,10 +545,7 @@ public class PubSubTests : TestBase
             await subChannel.Completion;
             Log("Completion awaited.");
             Assert.True(subChannel.Completion.IsCompleted);
-            await Assert.ThrowsAsync<ChannelClosedException>(async delegate
-            {
-                await subChannel.ReadAsync().ForAwait();
-            }).ForAwait();
+            await Assert.ThrowsAsync<ChannelClosedException>(async () => await subChannel.ReadAsync().ForAwait()).ForAwait();
             Log("End of muxer.");
         }
         Log("End of test.");
@@ -560,7 +554,7 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Async()
     {
-        using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
+        await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
             RedisChannel channel = RedisChannel.Literal(Me());
@@ -622,10 +616,7 @@ public class PubSubTests : TestBase
             await subChannel.Completion;
             Log("Completion awaited.");
             Assert.True(subChannel.Completion.IsCompleted);
-            await Assert.ThrowsAsync<ChannelClosedException>(async delegate
-            {
-                await subChannel.ReadAsync().ForAwait();
-            }).ForAwait();
+            await Assert.ThrowsAsync<ChannelClosedException>(async () => await subChannel.ReadAsync().ForAwait()).ForAwait();
             Log("End of muxer.");
         }
         Log("End of test.");
@@ -634,16 +625,16 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestPublishWithSubscribers()
     {
-        using var connA = Create(shared: false, log: Writer);
-        using var connB = Create(shared: false, log: Writer);
-        using var connPub = Create();
+        await using var connA = Create(shared: false, log: Writer);
+        await using var connB = Create(shared: false, log: Writer);
+        await using var connPub = Create();
 
         var channel = Me();
         var listenA = connA.GetSubscriber();
         var listenB = connB.GetSubscriber();
 #pragma warning disable CS0618
-        var t1 = listenA.SubscribeAsync(channel, delegate { });
-        var t2 = listenB.SubscribeAsync(channel, delegate { });
+        var t1 = listenA.SubscribeAsync(channel, (arg1, arg2) => { });
+        var t2 = listenB.SubscribeAsync(channel, (arg1, arg2) => { });
 #pragma warning restore CS0618
 
         await Task.WhenAll(t1, t2).ForAwait();
@@ -661,14 +652,14 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestMultipleSubscribersGetMessage()
     {
-        using var connA = Create(shared: false, log: Writer);
-        using var connB = Create(shared: false, log: Writer);
-        using var connPub = Create();
+        await using var connA = Create(shared: false, log: Writer);
+        await using var connB = Create(shared: false, log: Writer);
+        await using var connPub = Create();
 
         var channel = RedisChannel.Literal(Me());
         var listenA = connA.GetSubscriber();
         var listenB = connB.GetSubscriber();
-        connPub.GetDatabase().Ping();
+        await connPub.GetDatabase().PingAsync();
         var pub = connPub.GetSubscriber();
         int gotA = 0, gotB = 0;
         var tA = listenA.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
@@ -691,17 +682,17 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task Issue38()
     {
-        using var conn = Create(log: Writer);
+        await using var conn = Create(log: Writer);
 
         var sub = conn.GetSubscriber();
         int count = 0;
         var prefix = Me();
-        void handler(RedisChannel _, RedisValue __) => Interlocked.Increment(ref count);
+        void Handler(RedisChannel unused, RedisValue unused2) => Interlocked.Increment(ref count);
 #pragma warning disable CS0618
-        var a0 = sub.SubscribeAsync(prefix + "foo", handler);
-        var a1 = sub.SubscribeAsync(prefix + "bar", handler);
-        var b0 = sub.SubscribeAsync(prefix + "f*o", handler);
-        var b1 = sub.SubscribeAsync(prefix + "b*r", handler);
+        var a0 = sub.SubscribeAsync(prefix + "foo", Handler);
+        var a1 = sub.SubscribeAsync(prefix + "bar", Handler);
+        var b0 = sub.SubscribeAsync(prefix + "f*o", Handler);
+        var b1 = sub.SubscribeAsync(prefix + "b*r", Handler);
 #pragma warning restore CS0618
         await Task.WhenAll(a0, a1, b0, b1).ForAwait();
 
@@ -726,9 +717,9 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestPartialSubscriberGetMessage()
     {
-        using var connA = Create();
-        using var connB = Create();
-        using var connPub = Create();
+        await using var connA = Create();
+        await using var connB = Create();
+        await using var connPub = Create();
 
         int gotA = 0, gotB = 0;
         var listenA = connA.GetSubscriber();
@@ -759,16 +750,16 @@ public class PubSubTests : TestBase
     [Fact]
     public async Task TestSubscribeUnsubscribeAndSubscribeAgain()
     {
-        using var connPub = Create();
-        using var connSub = Create();
+        await using var connPub = Create();
+        await using var connSub = Create();
 
         var prefix = Me();
         var pub = connPub.GetSubscriber();
         var sub = connSub.GetSubscriber();
         int x = 0, y = 0;
 #pragma warning disable CS0618
-        var t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
-        var t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
+        var t1 = sub.SubscribeAsync(prefix + "abc", (arg1, arg2) => Interlocked.Increment(ref x));
+        var t2 = sub.SubscribeAsync(prefix + "ab*", (arg1, arg2) => Interlocked.Increment(ref y));
         await Task.WhenAll(t1, t2).ForAwait();
         pub.Publish(prefix + "abc", "");
         await AllowReasonableTimeToPublishAndProcess().ForAwait();
@@ -780,8 +771,8 @@ public class PubSubTests : TestBase
         pub.Publish(prefix + "abc", "");
         Assert.Equal(1, Volatile.Read(ref x));
         Assert.Equal(1, Volatile.Read(ref y));
-        t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
-        t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
+        t1 = sub.SubscribeAsync(prefix + "abc", (arg1, arg2) => Interlocked.Increment(ref x));
+        t2 = sub.SubscribeAsync(prefix + "ab*", (arg1, arg2) => Interlocked.Increment(ref y));
         await Task.WhenAll(t1, t2).ForAwait();
         pub.Publish(prefix + "abc", "");
 #pragma warning restore CS0618
@@ -801,12 +792,12 @@ public class PubSubTests : TestBase
         {
             EndPoints = { TestConfig.Current.AzureCacheServer },
             Password = TestConfig.Current.AzureCachePassword,
-            Ssl = true
+            Ssl = true,
         };
 
         using (var connection = await ConnectionMultiplexer.ConnectAsync(options))
         {
-            connection.ServerMaintenanceEvent += (object? _, ServerMaintenanceEvent e) =>
+            connection.ServerMaintenanceEvent += (_, e) =>
             {
                 if (e is AzureMaintenanceEvent)
                 {

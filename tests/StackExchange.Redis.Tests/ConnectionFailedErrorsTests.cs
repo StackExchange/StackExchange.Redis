@@ -4,14 +4,11 @@ using System.Security.Authentication;
 using System.Threading.Tasks;
 using StackExchange.Redis.Configuration;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectionFailedErrorsTests : TestBase
+public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ConnectionFailedErrorsTests(ITestOutputHelper output) : base (output) { }
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -27,16 +24,17 @@ public class ConnectionFailedErrorsTests : TestBase
         options.CertificateValidation += (sender, cert, chain, errors) => isCertValidationSucceeded;
         options.AbortOnConnectFail = false;
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+
+        void InnerScenario()
         {
             conn.ConnectionFailed += (sender, e) =>
                 Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
             if (!isCertValidationSucceeded)
             {
-                //validate that in this case it throws an certificatevalidation exception
+                // Validate that in this case it throws an certificatevalidation exception
                 var outer = Assert.Throws<RedisConnectionException>(() => conn.GetDatabase().Ping());
                 Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
 
@@ -70,15 +68,15 @@ public class ConnectionFailedErrorsTests : TestBase
         options.AbortOnConnectFail = false;
         options.CertificateValidation += SSLTests.ShowCertFailures(Writer);
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+        void InnerScenario()
         {
             conn.ConnectionFailed += (sender, e) =>
             {
-                if (e.FailureType == ConnectionFailureType.SocketFailure) Skip.Inconclusive("socket fail"); // this is OK too
-                    Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
+                if (e.FailureType == ConnectionFailureType.SocketFailure) Assert.Skip("socket fail"); // this is OK too
+                Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
             };
             var ex = Assert.Throws<RedisConnectionException>(() => conn.GetDatabase().Ping());
 
@@ -90,15 +88,15 @@ public class ConnectionFailedErrorsTests : TestBase
             Assert.Equal("Error: NOAUTH Authentication required. Verify if the Redis password provided is correct.", rde.InnerException.Message);
         }
 
-        //wait for a second  for connectionfailed event to fire
+        // Wait for a second  for connectionfailed event to fire
         await Task.Delay(1000).ForAwait();
     }
 
     [Fact]
     public async Task SocketFailureError()
     {
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+        void InnerScenario()
         {
             var options = new ConfigurationOptions();
             options.EndPoints.Add($"{Guid.NewGuid():N}.redis.cache.windows.net");
@@ -144,8 +142,8 @@ public class ConnectionFailedErrorsTests : TestBase
     [Fact]
     public async Task AbortOnConnectFailFalseConnectTimeoutError()
     {
-        await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-        void innerScenario()
+        await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+        void InnerScenario()
         {
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
@@ -175,10 +173,10 @@ public class ConnectionFailedErrorsTests : TestBase
     {
         try
         {
-            using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false);
 
-            await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
-            void innerScenario()
+            await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
+            void InnerScenario()
             {
                 conn.GetDatabase();
                 var server = conn.GetServer(conn.GetEndPoints()[0]);

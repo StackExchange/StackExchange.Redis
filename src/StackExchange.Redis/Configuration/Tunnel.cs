@@ -52,8 +52,7 @@ namespace StackExchange.Redis.Configuration
                     const string Prefix = "CONNECT ", Suffix = " HTTP/1.1\r\n\r\n", ExpectedResponse1 = "HTTP/1.1 200 OK\r\n\r\n", ExpectedResponse2 = "HTTP/1.1 200 Connection established\r\n\r\n";
                     byte[] chunk = ArrayPool<byte>.Shared.Rent(Math.Max(
                         encoding.GetByteCount(Prefix) + encoding.GetByteCount(ep) + encoding.GetByteCount(Suffix),
-                        Math.Max(encoding.GetByteCount(ExpectedResponse1), encoding.GetByteCount(ExpectedResponse2))
-                    ));
+                        Math.Max(encoding.GetByteCount(ExpectedResponse1), encoding.GetByteCount(ExpectedResponse2))));
                     var offset = 0;
                     offset += encoding.GetBytes(Prefix, 0, Prefix.Length, chunk, offset);
                     offset += encoding.GetBytes(ep, 0, ep.Length, chunk, offset);

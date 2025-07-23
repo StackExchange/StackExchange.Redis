@@ -3,14 +3,11 @@ using System.Globalization;
 using System.Net;
 using StackExchange.Redis.Maintenance;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class AzureMaintenanceEventTests : TestBase
+public class AzureMaintenanceEventTests(ITestOutputHelper output) : TestBase(output)
 {
-    public AzureMaintenanceEventTests(ITestOutputHelper output) : base(output) { }
-
     [Theory]
     [InlineData("NotificationType|NodeMaintenanceStarting|StartTimeInUTC|2021-03-02T23:26:57|IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", AzureNotificationType.NodeMaintenanceStarting, "2021-03-02T23:26:57", false, null, 15001, 13001)]
     [InlineData("NotificationType|NodeMaintenanceFailover|StartTimeInUTC||IsReplica|False|IPAddress||SSLPort|15001|NonSSLPort|13001", AzureNotificationType.NodeMaintenanceFailoverComplete, null, false, null, 15001, 13001)]
@@ -29,7 +26,7 @@ public class AzureMaintenanceEventTests : TestBase
     [InlineData("NonSSLPort |", AzureNotificationType.Unknown, null, false, null, 0, 0)]
     [InlineData("StartTimeInUTC|thisisthestart", AzureNotificationType.Unknown, null, false, null, 0, 0)]
     [InlineData(null, AzureNotificationType.Unknown, null, false, null, 0, 0)]
-    public void TestAzureMaintenanceEventStrings(string message, AzureNotificationType expectedEventType, string expectedStart, bool expectedIsReplica, string expectedIP, int expectedSSLPort, int expectedNonSSLPort)
+    public void TestAzureMaintenanceEventStrings(string? message, AzureNotificationType expectedEventType, string? expectedStart, bool expectedIsReplica, string? expectedIP, int expectedSSLPort, int expectedNonSSLPort)
     {
         DateTime? expectedStartTimeUtc = null;
         if (expectedStart != null && DateTime.TryParseExact(expectedStart, "s", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime startTimeUtc))

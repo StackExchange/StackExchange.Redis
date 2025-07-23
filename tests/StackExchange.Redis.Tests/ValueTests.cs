@@ -2,14 +2,11 @@
 using System.IO;
 using System.Text;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class ValueTests : TestBase
+public class ValueTests(ITestOutputHelper output) : TestBase(output)
 {
-    public ValueTests(ITestOutputHelper output) : base (output) { }
-
     [Fact]
     public void NullValueChecks()
     {

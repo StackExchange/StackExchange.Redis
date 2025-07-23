@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Maintenance
     {
         private const string PubSubChannelName = "AzureRedisEvents";
 
-        internal AzureMaintenanceEvent(string azureEvent)
+        internal AzureMaintenanceEvent(string? azureEvent)
         {
             if (azureEvent == null)
             {
@@ -114,7 +114,7 @@ namespace StackExchange.Redis.Maintenance
             }
         }
 
-        internal async static Task AddListenerAsync(ConnectionMultiplexer multiplexer, Action<string>? log = null)
+        internal static async Task AddListenerAsync(ConnectionMultiplexer multiplexer, Action<string>? log = null)
         {
             if (!multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
             {

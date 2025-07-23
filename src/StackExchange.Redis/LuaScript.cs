@@ -148,7 +148,7 @@ namespace StackExchange.Redis
         public RedisResult Evaluate(IDatabase db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
-            return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
+            return db.ScriptEvaluate(script: ExecutableScript, keys: keys, values: args, flags: flags);
         }
 
         /// <summary>
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object? ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
             ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
-            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
+            return db.ScriptEvaluateAsync(script: ExecutableScript, keys: keys, values: args, flags: flags);
         }
 
         /// <summary>
@@ -189,7 +189,7 @@ namespace StackExchange.Redis
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
         /// using the implicit SHA1 hash that's calculated after the script is sent to the server for the first time.
         /// </para>
-        /// <para>Note: the FireAndForget command flag cannot be set</para>
+        /// <para>Note: the FireAndForget command flag cannot be set.</para>
         /// </summary>
         /// <param name="server">The server to load the script on.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -269,7 +269,7 @@ namespace StackExchange.Redis
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
 
-            return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
+            return db.ScriptEvaluate(script: ExecutableScript, keys: keys, values: args, flags: flags);
         }
 
         /// <summary>
@@ -287,7 +287,7 @@ namespace StackExchange.Redis
         {
             Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[]? keys, out RedisValue[]? args);
 
-            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
+            return db.ScriptEvaluateAsync(script: ExecutableScript, keys: keys, values: args, flags: flags);
         }
     }
 }

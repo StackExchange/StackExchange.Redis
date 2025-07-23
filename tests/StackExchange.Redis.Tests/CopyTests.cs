@@ -1,19 +1,15 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class CopyTests : TestBase
+public class CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public CopyTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
-
     [Fact]
     public async Task Basic()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var src = Me();
@@ -30,7 +26,7 @@ public class CopyTests : TestBase
     [Fact]
     public async Task CrossDB()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var dbDestId = TestConfig.GetDedicatedDB(conn);
@@ -52,7 +48,7 @@ public class CopyTests : TestBase
     [Fact]
     public async Task WithReplace()
     {
-        using var conn = Create(require: RedisFeatures.v6_2_0);
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
 
         var db = conn.GetDatabase();
         var src = Me();

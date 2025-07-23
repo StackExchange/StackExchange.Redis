@@ -23,9 +23,9 @@ namespace StackExchange.Redis
         /// Create a new RedisResult representing a single value.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to create a result from.</param>
-        /// <param name="resultType">The type of result being represented</param>
+        /// <param name="resultType">The type of result being represented.</param>
         /// <returns> new <see cref="RedisResult"/>.</returns>
-        [SuppressMessage("ApiDesign", "RS0027:Public API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "<Pending>")]
+        [SuppressMessage("ApiDesign", "RS0027:Public API with optional parameter(s) should have the most parameters amongst its public overloads", Justification = "Legacy compat.")]
         public static RedisResult Create(RedisValue value, ResultType? resultType = null) => new SingleRedisResult(value, resultType);
 
         /// <summary>
@@ -95,17 +95,17 @@ namespace StackExchange.Redis
         public sealed override string ToString() => ToString(out _) ?? "";
 
         /// <summary>
-        /// Gets the string content as per <see cref="ToString()"/>, but also obtains the declared type from verbatim strings (for example <c>LATENCY DOCTOR</c>)
+        /// Gets the string content as per <see cref="ToString()"/>, but also obtains the declared type from verbatim strings (for example <c>LATENCY DOCTOR</c>).
         /// </summary>
         /// <param name="type">The type of the returned string.</param>
-        /// <returns>The content</returns>
+        /// <returns>The content.</returns>
         public abstract string? ToString(out string? type);
 
         /// <summary>
         /// Internally, this is very similar to RawResult, except it is designed to be usable,
         /// outside of the IO-processing pipeline: the buffers are standalone, etc.
         /// </summary>
-        internal static bool TryCreate(PhysicalConnection connection, in RawResult result, [NotNullWhen(true)] out RedisResult? redisResult)
+        internal static bool TryCreate(PhysicalConnection? connection, in RawResult result, [NotNullWhen(true)] out RedisResult? redisResult)
         {
             try
             {
@@ -189,119 +189,142 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="string"/>.</param>
         public static explicit operator string?(RedisResult? result) => result?.AsString();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:byte[]"/>.</param>
         public static explicit operator byte[]?(RedisResult? result) => result?.AsByteArray();
+
         /// <summary>
         /// Interprets the result as a <see cref="double"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="double"/>.</param>
         public static explicit operator double(RedisResult result) => result.AsDouble();
+
         /// <summary>
         /// Interprets the result as an <see cref="long"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="long"/>.</param>
         public static explicit operator long(RedisResult result) => result.AsInt64();
+
         /// <summary>
         /// Interprets the result as an <see cref="ulong"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="ulong"/>.</param>
         [CLSCompliant(false)]
         public static explicit operator ulong(RedisResult result) => result.AsUInt64();
+
         /// <summary>
         /// Interprets the result as an <see cref="int"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="int"/>.</param>
         public static explicit operator int(RedisResult result) => result.AsInt32();
+
         /// <summary>
-        /// Interprets the result as a <see cref="bool"/>
+        /// Interprets the result as a <see cref="bool"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="bool"/>.</param>
         public static explicit operator bool(RedisResult result) => result.AsBoolean();
+
         /// <summary>
         /// Interprets the result as a <see cref="RedisValue"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="RedisValue"/>.</param>
         public static explicit operator RedisValue(RedisResult? result) => result?.AsRedisValue() ?? RedisValue.Null;
+
         /// <summary>
         /// Interprets the result as a <see cref="RedisKey"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="RedisKey"/>.</param>
         public static explicit operator RedisKey(RedisResult? result) => result?.AsRedisKey() ?? default;
+
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{double}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{double}"/>.</param>
         public static explicit operator double?(RedisResult? result) => result?.AsNullableDouble();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{long}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{long}"/>.</param>
         public static explicit operator long?(RedisResult? result) => result?.AsNullableInt64();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{ulong}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{ulong}"/>.</param>
         [CLSCompliant(false)]
         public static explicit operator ulong?(RedisResult? result) => result?.AsNullableUInt64();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{int}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{int}"/>.</param>
         public static explicit operator int?(RedisResult? result) => result?.AsNullableInt32();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{bool}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{bool}"/>.</param>
         public static explicit operator bool?(RedisResult? result) => result?.AsNullableBoolean();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:string[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:string[]"/>.</param>
         public static explicit operator string?[]?(RedisResult? result) => result?.AsStringArray();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:byte[][]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:byte[][]"/>.</param>
         public static explicit operator byte[]?[]?(RedisResult? result) => result?.AsByteArrayArray();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:double[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:double[]"/>.</param>
         public static explicit operator double[]?(RedisResult? result) => result?.AsDoubleArray();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:long[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:long[]"/>.</param>
         public static explicit operator long[]?(RedisResult? result) => result?.AsInt64Array();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:ulong[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:ulong[]"/>.</param>
         [CLSCompliant(false)]
         public static explicit operator ulong[]?(RedisResult? result) => result?.AsUInt64Array();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:int[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:int[]"/>.</param>
         public static explicit operator int[]?(RedisResult? result) => result?.AsInt32Array();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:bool[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:bool[]"/>.</param>
         public static explicit operator bool[]?(RedisResult? result) => result?.AsBooleanArray();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:RedisValue[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:RedisValue[]"/>.</param>
         public static explicit operator RedisValue[]?(RedisResult? result) => result?.AsRedisValueArray();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:RedisKey[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:RedisKey[]"/>.</param>
         public static explicit operator RedisKey[]?(RedisResult? result) => result?.AsRedisKeyArray();
+
         /// <summary>
         /// Interprets the result as a <see cref="T:RedisResult[]"/>.
         /// </summary>
@@ -579,7 +602,8 @@ namespace StackExchange.Redis
                 type = null;
                 string? s = _value;
                 if (Resp3Type == ResultType.VerbatimString && s is not null && s.Length >= 4 && s[3] == ':')
-                {   // remove the prefix
+                {
+                    // remove the prefix
                     type = s.Substring(0, 3);
                     s = s.Substring(4);
                 }
@@ -652,7 +676,11 @@ namespace StackExchange.Redis
                 ThrowNotSupported();
                 return default;
             }
-            DateTime IConvertible.ToDateTime(IFormatProvider? provider) { ThrowNotSupported(); return default; }
+            DateTime IConvertible.ToDateTime(IFormatProvider? provider)
+            {
+                ThrowNotSupported();
+                return default;
+            }
             string IConvertible.ToString(IFormatProvider? provider) => AsString()!;
             object IConvertible.ToType(Type conversionType, IFormatProvider? provider)
             {

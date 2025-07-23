@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
@@ -21,7 +22,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="hash">The entry to convert to a dictionary.</param>
         [return: NotNullIfNotNull("hash")]
-        public static Dictionary<string,string>? ToStringDictionary(this HashEntry[]? hash)
+        public static Dictionary<string, string>? ToStringDictionary(this HashEntry[]? hash)
         {
             if (hash is null)
             {
@@ -29,7 +30,7 @@ namespace StackExchange.Redis
             }
 
             var result = new Dictionary<string, string>(hash.Length, StringComparer.Ordinal);
-            for(int i = 0; i < hash.Length; i++)
+            for (int i = 0; i < hash.Length; i++)
             {
                 result.Add(hash[i].name!, hash[i].value!);
             }
@@ -188,22 +189,16 @@ namespace StackExchange.Redis
             return Array.ConvertAll(values, x => (string?)x);
         }
 
-        internal static void AuthenticateAsClient(this SslStream ssl, string host, SslProtocols? allowedProtocols, bool checkCertificateRevocation)
+        internal static Task AuthenticateAsClientAsync(this SslStream ssl, string host, SslProtocols? allowedProtocols, bool checkCertificateRevocation)
         {
             if (!allowedProtocols.HasValue)
             {
-                //Default to the sslProtocols defined by the .NET Framework
-                AuthenticateAsClientUsingDefaultProtocols(ssl, host);
-                return;
+                // Default to the sslProtocols defined by the .NET Framework
+                return ssl.AuthenticateAsClientAsync(host);
             }
 
             var certificateCollection = new X509CertificateCollection();
-            ssl.AuthenticateAsClient(host, certificateCollection, allowedProtocols.Value, checkCertificateRevocation);
-        }
-
-        private static void AuthenticateAsClientUsingDefaultProtocols(SslStream ssl, string host)
-        {
-            ssl.AuthenticateAsClient(host);
+            return ssl.AuthenticateAsClientAsync(host, certificateCollection, allowedProtocols.Value, checkCertificateRevocation);
         }
 
         /// <summary>
@@ -278,9 +273,8 @@ namespace StackExchange.Redis
         private sealed class LeaseMemoryStream : MemoryStream
         {
             private readonly IDisposable _parent;
-            public LeaseMemoryStream(ArraySegment<byte> segment, IDisposable parent)
-                : base(segment.Array!, segment.Offset, segment.Count, false, true)
-                => _parent = parent;
+
+            public LeaseMemoryStream(ArraySegment<byte> segment, IDisposable parent) : base(segment.Array!, segment.Offset, segment.Count, false, true) => _parent = parent;
 
             protected override void Dispose(bool disposing)
             {
@@ -302,7 +296,6 @@ namespace StackExchange.Redis
         // assembly-binding-redirect entries to fix this up, so; it would present an unreasonable support burden
         // otherwise. And yes, I've tried explicitly referencing System.Numerics.Vectors in the manifest to
         // force it... nothing. Nada.
-
 #if VECTOR_SAFE
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int VectorSafeIndexOf(this ReadOnlySpan<byte> span, byte value)
@@ -325,12 +318,13 @@ namespace StackExchange.Redis
             }
             return -1;
         }
+
         internal static int VectorSafeIndexOfCRLF(this ReadOnlySpan<byte> span)
         {
             // yes, this has zero optimization; I'm OK with this as the fallback strategy
             for (int i = 1; i < span.Length; i++)
             {
-                if (span[i] == '\n' && span[i-1] == '\r') return i - 1;
+                if (span[i] == '\n' && span[i - 1] == '\r') return i - 1;
             }
             return -1;
         }

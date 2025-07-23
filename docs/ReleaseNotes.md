@@ -6,8 +6,99 @@ Current package versions:
 | ------------ | ----------------- | ----- |
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
-## Unreleased
-No unreleased changes
+## Unreleased (2.9.xxx)
+
+- Add `HGETDEL`, `HGETEX` and `HSETEX` support ([#2863 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2863))
+- Fix key-prefix omission in `SetIntersectionLength` and `SortedSet{Combine[WithScores]|IntersectionLength}` ([#2863 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2863))
+
+## 2.8.58
+
+- Fix [#2679](https://github.com/StackExchange/StackExchange.Redis/issues/2679) - blocking call in long-running connects ([#2680 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2680))
+- Support async cancellation of `SCAN` enumeration ([#2911 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2911)) 
+- Add `XTRIM MINID` support ([#2842 by kijanawoodard](https://github.com/StackExchange/StackExchange.Redis/pull/2842))
+- Add new CE 8.2 stream support - `XDELEX`, `XACKDEL`, `{XADD|XTRIM} [KEEPREF|DELREF|ACKED]` ([#2912 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2912))
+- Fix `ZREVRANGEBYLEX` open-ended commands ([#2636 by ArnoKoll](https://github.com/StackExchange/StackExchange.Redis/pull/2636))
+- Fix `StreamGroupInfo.Lag` when `null` ([#2902 by robhop](https://github.com/StackExchange/StackExchange.Redis/pull/2902))
+- Internals
+  - Logging improvements ([#2903 by Meir017](https://github.com/StackExchange/StackExchange.Redis/pull/2903) and [#2917 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2917))
+  - Update tests to xUnit v3 ([#2907 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2907))
+  - Avoid `CLIENT PAUSE` in CI tests ([#2916 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2916))
+
+## 2.8.47
+
+- Add support for new `BITOP` operations in CE 8.2 ([#2900 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2900))
+- Package updates ([#2906 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2906))
+- Docs: added [guidance on async timeouts](https://stackexchange.github.io/StackExchange.Redis/AsyncTimeouts) ([#2910 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2910))
+- Fix handshake error with `CLIENT ID` ([#2909 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2909))
+
+## 2.8.41
+
+- Add support for sharded pub/sub via `RedisChannel.Sharded` - ([#2887 by vandyvilla, atakavci and mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2887))
+
+## 2.8.37
+
+- Add `ConfigurationOptions.SetUserPemCertificate(...)` and `ConfigurationOptions.SetUserPfxCertificate(...)` methods to simplify using client certificates ([#2873 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2873))
+- Add logging for when a Multiplexer reconfigures ([#2864 by st-dev-gh](https://github.com/StackExchange/StackExchange.Redis/pull/2864))
+- Fix: Move `AuthenticateAsClient` to fully async after dropping older framework support, to help client thread starvation in cases TLS negotiation stalls server-side ([#2878 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2878))
+
+## 2.8.31
+
+- Fix: Respect `IReconnectRetryPolicy` timing in the case that a node that was present disconnects indefinitely ([#2853](https://github.com/StackExchange/StackExchange.Redis/pull/2853) & [#2856](https://github.com/StackExchange/StackExchange.Redis/pull/2856) by NickCraver)
+  - Special thanks to [sampdei](https://github.com/sampdei) tracking this down and working a fix
+- Changes max default retry policy backoff to 60 seconds ([#2853 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2853))
+- Fix [#2652](https://github.com/StackExchange/StackExchange.Redis/issues/2652): Track client-initiated shutdown for any pipe type ([#2814 by bgrainger](https://github.com/StackExchange/StackExchange.Redis/pull/2814))
+
+## 2.8.24
+
+- Update Envoy command definitions to [allow `UNWATCH`](https://github.com/envoyproxy/envoy/pull/37620) ([#2824 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2824))
+
+## 2.8.22
+
+- Format IPv6 endpoints correctly when rewriting configration strings ([#2813 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2813))
+- Update default Redis version from `4.0.0` to `6.0.0` for Azure Redis resources ([#2810 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2810))
+- Detect Azure Managed Redis caches and tune default connection settings for them ([#2818 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2818))
+- Bump `Microsoft.Bcl.AsyncInterfaces` dependency from `5.0.0` to `6.0.0` ([#2820 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2820))
+
+## 2.8.16
+
+- Fix: PhysicalBridge: Always perform "last read" check in heartbeat when `HeartbeatConsistencyChecks` is enabled ([#2795 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2795))
+
+## 2.8.14
+
+- Fix [#2793](https://github.com/StackExchange/StackExchange.Redis/issues/2793): Update Envoyproxy's command map according to latest Envoy documentation ([#2794 by dbarbosapn](https://github.com/StackExchange/StackExchange.Redis/pull/2794))
+
+## 2.8.12
+
+- Add support for hash field expiration (see [#2715](https://github.com/StackExchange/StackExchange.Redis/issues/2715)) ([#2716 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2716]))
+- Add support for `HSCAN NOVALUES` (see [#2721](https://github.com/StackExchange/StackExchange.Redis/issues/2721)) ([#2722 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2722))
+- Fix [#2763](https://github.com/StackExchange/StackExchange.Redis/issues/2763): Make ConnectionMultiplexer.Subscription thread-safe ([#2769 by Chuck-EP](https://github.com/StackExchange/StackExchange.Redis/pull/2769))
+- Fix [#2778](https://github.com/StackExchange/StackExchange.Redis/issues/2778): Run `CheckInfoReplication` even with `HeartbeatConsistencyChecks` ([#2784 by NickCraver and leachdaniel-clark](https://github.com/StackExchange/StackExchange.Redis/pull/2784))
+
+## 2.8.0
+
+- Add high-integrity mode ([docs](https://stackexchange.github.io/StackExchange.Redis/Configuration), [#2471 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2741))
+- TLS certificate/`TrustIssuer`: Check EKU in X509 chain checks when validating certificates ([#2670 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2670))
+
+## 2.7.33
+
+- **Potentially Breaking**: Fix `CheckTrustedIssuer` certificate validation for broken chain scenarios ([#2665 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2665))
+  - Users inadvertently trusting a remote cert with a broken chain could not be failing custom validation before this change. This is only in play if you are using `ConfigurationOptions.TrustIssuer` at all.
+- Add new `LoggingTunnel` API; see [https://stackexchange.github.io/StackExchange.Redis/RespLogging](https://stackexchange.github.io/StackExchange.Redis/RespLogging) ([#2660 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2660))
+- Fix [#2664](https://github.com/StackExchange/StackExchange.Redis/issues/2664): Move ProcessBacklog to fully sync to prevent thread pool hopping and blocking on awaits ([#2667 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2667))
+
+## 2.7.27
+
+- Support `HeartbeatConsistencyChecks` and `HeartbeatInterval` in `Clone()` ([#2658 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2658))
+- Add `AddLibraryNameSuffix` to multiplexer; allows usage-specific tokens to be appended *after connect* ([#2659 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2659))
+
+## 2.7.23
+
+- Fix [#2653](https://github.com/StackExchange/StackExchange.Redis/issues/2653): Client library metadata should validate contents ([#2654 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2654))
+- Add `HeartbeatConsistencyChecks` option (opt-in) to enabled per-heartbeat (defaults to once per second) checks to be sent to ensure no network stream corruption has occurred ([#2656 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2656))
+
+## 2.7.20
+
+- Fix [#2642](https://github.com/StackExchange/StackExchange.Redis/issues/2642): Detect and support multi-DB pseudo-cluster/proxy scenarios ([#2646](https://github.com/StackExchange/StackExchange.Redis/pull/2646) by mgravell)
 
 ## 2.7.17
 
@@ -20,7 +111,7 @@ No unreleased changes
 
 - Fix [#2593](https://github.com/StackExchange/StackExchange.Redis/issues/2593): `EXPIRETIME` and `PEXPIRETIME` miscategorized as `PrimaryOnly` commands causing them to fail when issued against a read-only replica ([#2593 by slorello89](https://github.com/StackExchange/StackExchange.Redis/pull/2593))
 - Fix [#2591](https://github.com/StackExchange/StackExchange.Redis/issues/2591): Add `HELLO` to Sentinel connections so they can support RESP3 ([#2601 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2601))
-- Fix [#2595](https://github.com/StackExchange/StackExchange.Redis/issues/2595): Add detection handling for dead sockets that the OS says are okay, seen especially in Linux environments (https://github.com/StackExchange/StackExchange.Redis/pull/2610)
+- Fix [#2595](https://github.com/StackExchange/StackExchange.Redis/issues/2595): Add detection handling for dead sockets that the OS says are okay, seen especially in Linux environments ([#2610 by NickCraver](https://github.com/StackExchange/StackExchange.Redis/pull/2610))
 
 ## 2.7.4
 

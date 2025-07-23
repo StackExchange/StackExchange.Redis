@@ -1,12 +1,10 @@
 ﻿using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class FSharpCompatTests : TestBase
+public class FSharpCompatTests(ITestOutputHelper output) : TestBase(output)
 {
-    public FSharpCompatTests(ITestOutputHelper output) : base (output) { }
-
+#pragma warning disable SA1129 // Do not use default value type constructor
     [Fact]
     public void RedisKeyConstructor()
     {
@@ -22,4 +20,5 @@ public class FSharpCompatTests : TestBase
         Assert.Equal((RedisValue)"MyKey", new RedisValue("MyKey"));
         Assert.Equal((RedisValue)"MyKey2", new RedisValue("MyKey2", 0));
     }
+#pragma warning restore SA1129 // Do not use default value type constructor
 }

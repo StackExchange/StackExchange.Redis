@@ -2,19 +2,17 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class MassiveOpsTests : TestBase
+public class MassiveOpsTests(ITestOutputHelper output) : TestBase(output)
 {
-    public MassiveOpsTests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task LongRunning()
     {
-        using var conn = Create();
+        Skip.UnlessLongRunning();
+        await using var conn = Create();
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -33,12 +31,12 @@ public class MassiveOpsTests : TestBase
     [InlineData(false)]
     public async Task MassiveBulkOpsAsync(bool withContinuation)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
         await db.PingAsync().ForAwait();
-        static void nonTrivial(Task _)
+        static void NonTrivial(Task unused)
         {
             Thread.SpinWait(5);
         }
@@ -49,68 +47,69 @@ public class MassiveOpsTests : TestBase
             if (withContinuation)
             {
                 // Intentionally unawaited
-                _ = t.ContinueWith(nonTrivial);
+                _ = t.ContinueWith(NonTrivial);
             }
         }
         Assert.Equal(AsyncOpsQty, await db.StringGetAsync(key).ForAwait());
         watch.Stop();
-        Log("{2}: Time for {0} ops: {1}ms ({3}, any order); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-            withContinuation ? "with continuation" : "no continuation", AsyncOpsQty / watch.Elapsed.TotalSeconds);
-    }
-
-    [TheoryLongRunning]
-    [InlineData(1)]
-    [InlineData(5)]
-    [InlineData(10)]
-    [InlineData(50)]
-    public void MassiveBulkOpsSync(int threads)
-    {
-        using var conn = Create(syncTimeout: 30000);
-
-        RedisKey key = Me();
-        var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        int workPerThread = SyncOpsQty / threads;
-        var timeTaken = RunConcurrent(delegate
-        {
-            for (int i = 0; i < workPerThread; i++)
-            {
-                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
-            }
-        }, threads);
-
-        int val = (int)db.StringGet(key);
-        Assert.Equal(workPerThread * threads, val);
-        Log("{2}: Time for {0} ops on {3} threads: {1}ms (any order); ops/s: {4}",
-            threads * workPerThread, timeTaken.TotalMilliseconds, Me(), threads, (workPerThread * threads) / timeTaken.TotalSeconds);
+        Log($"{Me()}: Time for {AsyncOpsQty} ops: {watch.ElapsedMilliseconds}ms ({(withContinuation ? "with continuation" : "no continuation")}, any order); ops/s: {AsyncOpsQty / watch.Elapsed.TotalSeconds}");
     }
 
     [Theory]
     [InlineData(1)]
     [InlineData(5)]
-    public void MassiveBulkOpsFireAndForget(int threads)
+    [InlineData(10)]
+    [InlineData(50)]
+    public async Task MassiveBulkOpsSync(int threads)
     {
-        using var conn = Create(syncTimeout: 30000);
+        Skip.UnlessLongRunning();
+        await using var conn = Create(syncTimeout: 30000);
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
-        db.Ping();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        int workPerThread = SyncOpsQty / threads;
+        var timeTaken = RunConcurrent(
+            () =>
+            {
+                for (int i = 0; i < workPerThread; i++)
+                {
+                    db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                }
+            },
+            threads);
+
+        int val = (int)db.StringGet(key);
+        Assert.Equal(workPerThread * threads, val);
+        Log($"{Me()}: Time for {threads * workPerThread} ops on {threads} threads: {timeTaken.TotalMilliseconds}ms (any order); ops/s: {(workPerThread * threads) / timeTaken.TotalSeconds}");
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    public async Task MassiveBulkOpsFireAndForget(int threads)
+    {
+        await using var conn = Create(syncTimeout: 30000);
+
+        RedisKey key = Me();
+        var db = conn.GetDatabase();
+        await db.PingAsync();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         int perThread = AsyncOpsQty / threads;
-        var elapsed = RunConcurrent(delegate
-        {
-            for (int i = 0; i < perThread; i++)
+        var elapsed = RunConcurrent(
+            () =>
             {
-                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
-            }
-            db.Ping();
-        }, threads);
+                for (int i = 0; i < perThread; i++)
+                {
+                    db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                }
+                db.Ping();
+            },
+            threads);
         var val = (long)db.StringGet(key);
         Assert.Equal(perThread * threads, val);
 
-        Log("{2}: Time for {0} ops over {4} threads: {1:###,###}ms (any order); ops/s: {3:###,###,##0}",
-            val, elapsed.TotalMilliseconds, Me(),
-            val / elapsed.TotalSeconds, threads);
+        Log($"{Me()}: Time for {val} ops over {threads} threads: {elapsed.TotalMilliseconds:###,###}ms (any order); ops/s: {val / elapsed.TotalSeconds:###,###,##0}");
     }
 }

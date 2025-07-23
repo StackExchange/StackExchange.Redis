@@ -8,18 +8,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis.Configuration;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class DefaultOptionsTests : TestBase
+public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
 {
-    public DefaultOptionsTests(ITestOutputHelper output) : base(output) { }
-
-    public class TestOptionsProvider : DefaultOptionsProvider
+    public class TestOptionsProvider(string domainSuffix) : DefaultOptionsProvider
     {
-        private readonly string _domainSuffix;
-        public TestOptionsProvider(string domainSuffix) => _domainSuffix = domainSuffix;
+        private readonly string _domainSuffix = domainSuffix;
 
         public override bool AbortOnConnectFail => true;
         public override TimeSpan? ConnectTimeout => TimeSpan.FromSeconds(123);
@@ -32,6 +28,8 @@ public class DefaultOptionsTests : TestBase
         public override int ConnectRetry => 123;
         public override Version DefaultVersion => new Version(1, 2, 3, 4);
         protected override string GetDefaultClientName() => "TestPrefix-" + base.GetDefaultClientName();
+        public override bool HeartbeatConsistencyChecks => true;
+        public override TimeSpan HeartbeatInterval => TimeSpan.FromMilliseconds(500);
         public override bool IsMatch(EndPoint endpoint) => endpoint is DnsEndPoint dnsep && dnsep.Host.EndsWith(_domainSuffix);
         public override TimeSpan KeepAliveInterval => TimeSpan.FromSeconds(125);
         public override ILoggerFactory? LoggerFactory => NullLoggerFactory.Instance;
@@ -61,6 +59,21 @@ public class DefaultOptionsTests : TestBase
         epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint("local.nottestdomain", 0) });
         provider = DefaultOptionsProvider.GetProvider(epc);
         Assert.IsType<DefaultOptionsProvider>(provider);
+    }
+
+    [Theory]
+    [InlineData("contoso.redis.cache.windows.net")]
+    [InlineData("contoso.REDIS.CACHE.chinacloudapi.cn")] // added a few upper case chars to validate comparison
+    [InlineData("contoso.redis.cache.usgovcloudapi.net")]
+    [InlineData("contoso.redisenterprise.cache.azure.net")]
+    [InlineData("contoso.redis.azure.net")]
+    [InlineData("contoso.redis.chinacloudapi.cn")]
+    [InlineData("contoso.redis.usgovcloudapi.net")]
+    public void IsMatchOnAzureDomain(string hostName)
+    {
+        var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
+        var provider = DefaultOptionsProvider.GetProvider(epc);
+        Assert.IsType<AzureOptionsProvider>(provider);
     }
 
     [Fact]
@@ -99,6 +112,9 @@ public class DefaultOptionsTests : TestBase
         Assert.Equal(123, options.ConnectRetry);
         Assert.Equal(new Version(1, 2, 3, 4), options.DefaultVersion);
 
+        Assert.True(options.HeartbeatConsistencyChecks);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), options.HeartbeatInterval);
+
         Assert.Equal(TimeSpan.FromSeconds(125), TimeSpan.FromSeconds(options.KeepAlive));
         Assert.Equal(NullLoggerFactory.Instance, options.LoggerFactory);
         Assert.Equal(Proxy.Twemproxy, options.Proxy);
@@ -129,7 +145,7 @@ public class DefaultOptionsTests : TestBase
         var provider = new TestAfterConnectOptionsProvider();
         options.Defaults = provider;
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
         Assert.True(conn.IsConnected);
         Assert.Equal(1, provider.Calls);
@@ -146,7 +162,7 @@ public class DefaultOptionsTests : TestBase
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.Defaults = new TestClientNameOptionsProvider();
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
         Assert.True(conn.IsConnected);
         Assert.Equal("Hey there", conn.ClientName);
@@ -158,7 +174,7 @@ public class DefaultOptionsTests : TestBase
         var options = ConfigurationOptions.Parse(GetConfiguration() + ",name=FooBar");
         options.Defaults = new TestClientNameOptionsProvider();
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
 
         Assert.True(conn.IsConnected);
         Assert.Equal("FooBar", conn.ClientName);
@@ -178,9 +194,9 @@ public class DefaultOptionsTests : TestBase
         options.AllowAdmin = true;
         options.Defaults = defaults;
 
-        using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
         // CLIENT SETINFO is in 7.2.0+
-        ThrowIfBelowMinVersion(conn, RedisFeatures.v7_2_0_rc1);
+        TestBase.ThrowIfBelowMinVersion(conn, RedisFeatures.v7_2_0_rc1);
 
         var clients = await GetServer(conn).ClientListAsync();
         foreach (var client in clients)

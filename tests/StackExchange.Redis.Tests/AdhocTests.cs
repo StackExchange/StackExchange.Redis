@@ -1,17 +1,14 @@
-﻿using Xunit;
-using Xunit.Abstractions;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class AdhocTests : TestBase
+public class AdhocTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public AdhocTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
-
     [Fact]
-    public void TestAdhocCommandsAPI()
+    public async Task TestAdhocCommandsAPI()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         // needs explicit RedisKey type for key-based
@@ -20,7 +17,7 @@ public class AdhocTests : TestBase
         RedisKey key = Me();
 
         // note: if command renames are configured in
-        // the API, they will still work automatically 
+        // the API, they will still work automatically
         db.Execute("del", key);
         db.Execute("set", key, "12");
         db.Execute("incrby", key, 4);

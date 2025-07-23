@@ -1,4 +1,5 @@
-﻿
+﻿using System;
+
 namespace StackExchange.Redis
 {
     /// <summary>
@@ -60,6 +61,7 @@ namespace StackExchange.Redis
         internal static readonly RedisValue SetId = "SETID";
 
         internal static readonly RedisValue MaxLen = "MAXLEN";
+        internal static readonly RedisValue MinId = "MINID";
 
         internal static readonly RedisValue MkStream = "MKSTREAM";
 
@@ -68,5 +70,17 @@ namespace StackExchange.Redis
         internal static readonly RedisValue Stream = "STREAM";
 
         internal static readonly RedisValue Streams = "STREAMS";
+
+        private static readonly RedisValue KeepRef = "KEEPREF", DelRef = "DELREF", Acked = "ACKED";
+
+        internal static readonly RedisValue Ids = "IDS";
+
+        internal static RedisValue GetMode(StreamTrimMode mode) => mode switch
+            {
+                StreamTrimMode.KeepReferences => KeepRef,
+                StreamTrimMode.DeleteReferences => DelRef,
+                StreamTrimMode.Acknowledged => Acked,
+                _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+            };
     }
 }

@@ -9,18 +9,22 @@
         /// Classic redis-server server.
         /// </summary>
         Standalone,
+
         /// <summary>
         /// Monitoring/configuration redis-sentinel server.
         /// </summary>
         Sentinel,
+
         /// <summary>
         /// Distributed redis-cluster server.
         /// </summary>
         Cluster,
+
         /// <summary>
         /// Distributed redis installation via <a href="https://github.com/twitter/twemproxy">twemproxy</a>.
         /// </summary>
         Twemproxy,
+
         /// <summary>
         /// Redis cluster via <a href="https://github.com/envoyproxy/envoy">envoyproxy</a>.
         /// </summary>
@@ -35,7 +39,7 @@
         internal static bool HasSinglePrimary(this ServerType type) => type switch
         {
             ServerType.Envoyproxy => false,
-            _ => true
+            _ => true,
         };
 
         /// <summary>
@@ -45,7 +49,7 @@
         {
             ServerType.Twemproxy => false,
             ServerType.Envoyproxy => false,
-            _ => true
+            _ => true,
         };
     }
 }

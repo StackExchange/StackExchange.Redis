@@ -1,23 +1,19 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class ExpiryTests : TestBase
+public class ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
-
-    private static string[]? GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
+    private static string[]? GetMap(bool disablePTimes) => disablePTimes ? ["pexpire", "pexpireat", "pttl"] : null;
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task TestBasicExpiryTimeSpan(bool disablePTimes)
     {
-        using var conn = Create(disabledCommands: GetMap(disablePTimes));
+        await using var conn = Create(disabledCommands: GetMap(disablePTimes));
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -53,7 +49,7 @@ public class ExpiryTests : TestBase
     [InlineData(false)]
     public async Task TestExpiryOptions(bool disablePTimes)
     {
-        using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -84,7 +80,7 @@ public class ExpiryTests : TestBase
     [InlineData(false, false)]
     public async Task TestBasicExpiryDateTime(bool disablePTimes, bool utc)
     {
-        using var conn = Create(disabledCommands: GetMap(disablePTimes));
+        await using var conn = Create(disabledCommands: GetMap(disablePTimes));
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -135,9 +131,9 @@ public class ExpiryTests : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void KeyExpiryTime(bool disablePTimes)
+    public async Task KeyExpiryTime(bool disablePTimes)
     {
-        using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
         var db = conn.GetDatabase();
@@ -168,7 +164,7 @@ public class ExpiryTests : TestBase
     [InlineData(false)]
     public async Task KeyExpiryTimeAsync(bool disablePTimes)
     {
-        using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
         var db = conn.GetDatabase();

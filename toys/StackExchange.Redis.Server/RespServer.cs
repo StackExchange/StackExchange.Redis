@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
@@ -21,6 +20,7 @@ namespace StackExchange.Redis.Server
             ServerDisposed,
             ClientInitiated,
         }
+
         private readonly List<RedisClient> _clients = new List<RedisClient>();
         private readonly TextWriter _output;
 
@@ -70,6 +70,7 @@ namespace StackExchange.Redis.Server
             AppendStats(sb);
             return sb.ToString();
         }
+
         protected virtual void AppendStats(StringBuilder sb) =>
             sb.Append("Current clients:\t").Append(ClientCount).AppendLine()
               .Append("Total clients:\t").Append(TotalClientCount).AppendLine()
@@ -79,8 +80,10 @@ namespace StackExchange.Redis.Server
         [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
         protected sealed class RedisCommandAttribute : Attribute
         {
-            public RedisCommandAttribute(int arity,
-                string command = null, string subcommand = null)
+            public RedisCommandAttribute(
+                int arity,
+                string command = null,
+                string subcommand = null)
             {
                 Command = command;
                 SubCommand = subcommand;
@@ -276,7 +279,8 @@ namespace StackExchange.Redis.Server
                 if (ex.GetType().Name != nameof(ConnectionResetException))
                 {
                     // aspnet core has one too; swallow it by pattern
-                    fault = ex; throw;
+                    fault = ex;
+                    throw;
                 }
             }
             finally
@@ -411,7 +415,7 @@ namespace StackExchange.Redis.Server
 
         public TypedRedisValue Execute(RedisClient client, RedisRequest request)
         {
-            if (request.Count == 0) return default;// not a request
+            if (request.Count == 0) return default; // not a request
 
             if (!request.TryGetCommandBytes(0, out var cmdBytes)) return request.CommandNotFound();
             if (cmdBytes.Length == 0) return default; // not a request
@@ -496,11 +500,12 @@ namespace StackExchange.Redis.Server
             for (int i = 2; i < request.Count; i++)
             {
                 span[i - 2] = request.TryGetCommandBytes(i, out var cmdBytes)
-                    &&_commands.TryGetValue(cmdBytes, out var cmdInfo)
+                    && _commands.TryGetValue(cmdBytes, out var cmdInfo)
                     ? CommandInfo(cmdInfo) : TypedRedisValue.NullArray;
             }
             return results;
         }
+
         private TypedRedisValue CommandInfo(RespCommand command)
         {
             var arr = TypedRedisValue.Rent(6, out var span);

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -9,15 +8,12 @@ namespace StackExchange.Redis.Tests;
 /// This test set is for when we add an overload, to making sure all
 /// past versions work correctly and aren't source breaking.
 /// </summary>
-[Collection(SharedConnectionFixture.Key)]
-public class OverloadCompatTests : TestBase
+public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
-
     [Fact]
     public async Task KeyExpire()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
         var expiresIn = TimeSpan.FromSeconds(10);
@@ -42,7 +38,6 @@ public class OverloadCompatTests : TestBase
         db.KeyExpire(key, expireTime, when: when, flags: flags);
 
         // Async
-
         await db.KeyExpireAsync(key, expiresIn);
         await db.KeyExpireAsync(key, expiresIn, when);
         await db.KeyExpireAsync(key, expiresIn, when: when);
@@ -63,7 +58,7 @@ public class OverloadCompatTests : TestBase
     [Fact]
     public async Task StringBitCount()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -89,7 +84,6 @@ public class OverloadCompatTests : TestBase
         db.StringBitCount(key, start: 1, end: 1, flags: flags);
 
         // Async
-
         await db.StringBitCountAsync(key);
         await db.StringBitCountAsync(key, 1);
         await db.StringBitCountAsync(key, 0, 0);
@@ -110,7 +104,7 @@ public class OverloadCompatTests : TestBase
     [Fact]
     public async Task StringBitPosition()
     {
-        using var conn = Create(require: RedisFeatures.v2_6_0);
+        await using var conn = Create(require: RedisFeatures.v2_6_0);
 
         var db = conn.GetDatabase();
         var key = Me();
@@ -138,7 +132,6 @@ public class OverloadCompatTests : TestBase
         db.StringBitPosition(key, true, start: 1, end: 1, flags: flags);
 
         // Async
-
         await db.StringBitPositionAsync(key, true);
         await db.StringBitPositionAsync(key, true, 1);
         await db.StringBitPositionAsync(key, true, 1, 3);
@@ -161,12 +154,12 @@ public class OverloadCompatTests : TestBase
     [Fact]
     public async Task SortedSetAdd()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         RedisValue val = "myval";
         var score = 1.0d;
-        var values = new SortedSetEntry[]{new SortedSetEntry(val, score)};
+        var values = new SortedSetEntry[] { new SortedSetEntry(val, score) };
         var when = When.Exists;
         var flags = CommandFlags.None;
 
@@ -191,7 +184,6 @@ public class OverloadCompatTests : TestBase
         db.SortedSetAdd(key, values, when: when, flags: flags);
 
         // Async
-
         await db.SortedSetAddAsync(key, val, score);
         await db.SortedSetAddAsync(key, val, score, when);
         await db.SortedSetAddAsync(key, val, score, when: when);
@@ -216,7 +208,7 @@ public class OverloadCompatTests : TestBase
     [Fact]
     public async Task StringSet()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
         var val = "myval";
@@ -239,7 +231,6 @@ public class OverloadCompatTests : TestBase
         db.StringSet(key, val, null, When.NotExists, flags);
 
         // Async
-
         await db.StringSetAsync(key, val);
         await db.StringSetAsync(key, val, expiry: expiresIn);
         await db.StringSetAsync(key, val, when: when);

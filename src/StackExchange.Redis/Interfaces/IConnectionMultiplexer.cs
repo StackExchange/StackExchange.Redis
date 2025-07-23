@@ -1,11 +1,11 @@
-﻿using StackExchange.Redis.Maintenance;
-using StackExchange.Redis.Profiling;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Maintenance;
+using StackExchange.Redis.Profiling;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
@@ -294,5 +294,13 @@ namespace StackExchange.Redis
         /// <param name="destination">The destination stream to write the export to.</param>
         /// <param name="options">The options to use for this export.</param>
         void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All);
+
+        /// <summary>
+        /// Append a usage-specific modifier to the advertised library name; suffixes are de-duplicated
+        /// and sorted alphabetically (so adding 'a', 'b' and 'a' will result in suffix '-a-b').
+        /// Connections will be updated as necessary (RESP2 subscription
+        /// connections will not show updates until those connections next connect).
+        /// </summary>
+        void AddLibraryNameSuffix(string suffix);
     }
 }

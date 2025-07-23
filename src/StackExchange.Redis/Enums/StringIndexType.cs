@@ -11,6 +11,7 @@ public enum StringIndexType
     /// Indicates the index is the number of bytes into a string.
     /// </summary>
     Byte,
+
     /// <summary>
     /// Indicates the index is the number of bits into a string.
     /// </summary>
@@ -23,6 +24,6 @@ internal static class StringIndexTypeExtensions
     {
         StringIndexType.Bit => RedisLiterals.BIT,
         StringIndexType.Byte => RedisLiterals.BYTE,
-        _ => throw new ArgumentOutOfRangeException(nameof(indexType))
+        _ => throw new ArgumentOutOfRangeException(nameof(indexType)),
     };
 }

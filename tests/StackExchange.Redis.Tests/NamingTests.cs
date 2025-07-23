@@ -5,14 +5,11 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class NamingTests : TestBase
+public class NamingTests(ITestOutputHelper output) : TestBase(output)
 {
-    public NamingTests(ITestOutputHelper output) : base(output) { }
-
     [Theory]
     [InlineData(typeof(IDatabase), false)]
     [InlineData(typeof(IDatabaseAsync), true)]
@@ -115,6 +112,7 @@ public class NamingTests : TestBase
             case nameof(IDatabase.SetScan):
             case nameof(IDatabase.SortedSetScan):
             case nameof(IDatabase.HashScan):
+            case nameof(IDatabase.HashScanNoValues):
             case nameof(ISubscriber.SubscribedEndpoint):
                 return true;
         }

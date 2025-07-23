@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal class RedisTransaction : RedisDatabase, ITransaction
+    internal sealed class RedisTransaction : RedisDatabase, ITransaction
     {
         private List<ConditionResult>? _conditions;
         private List<QueuedMessage>? _pending;
@@ -169,7 +169,7 @@ namespace StackExchange.Redis
             return new TransactionMessage(Database, flags, cond, work);
         }
 
-        private class QueuedMessage : Message
+        private sealed class QueuedMessage : Message
         {
             public Message Wrapped { get; }
             private volatile bool wasQueued;
@@ -197,7 +197,7 @@ namespace StackExchange.Redis
                 => Wrapped.GetHashSlot(serverSelectionStrategy);
         }
 
-        private class QueuedProcessor : ResultProcessor<bool>
+        private sealed class QueuedProcessor : ResultProcessor<bool>
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
 
@@ -216,9 +216,10 @@ namespace StackExchange.Redis
             }
         }
 
-        private class TransactionMessage : Message, IMultiMessage
+        private sealed class TransactionMessage : Message, IMultiMessage
         {
             private readonly ConditionResult[] conditions;
+
             public QueuedMessage[] InnerOperations { get; }
 
             public TransactionMessage(int db, CommandFlags flags, List<ConditionResult>? conditions, List<QueuedMessage>? operations)
@@ -233,7 +234,7 @@ namespace StackExchange.Redis
                 var inner = InnerOperations;
                 if (inner != null)
                 {
-                    for(int i = 0; i < inner.Length;i++)
+                    for (int i = 0; i < inner.Length; i++)
                     {
                         inner[i]?.Wrapped?.SetExceptionAndComplete(exception, bridge);
                     }
@@ -358,7 +359,8 @@ namespace StackExchange.Redis
                             foreach (var op in InnerOperations)
                             {
                                 if (explicitCheckForQueued)
-                                {   // need to have locked them before sending them
+                                {
+                                    // need to have locked them before sending them
                                     // to guarantee that we see the pulse
                                     IResultBox? thisBox = op.ResultBox;
                                     if (thisBox != null)
@@ -463,7 +465,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private class TransactionProcessor : ResultProcessor<bool>
+        private sealed class TransactionProcessor : ResultProcessor<bool>
         {
             public static readonly TransactionProcessor Default = new();
 
@@ -498,11 +500,11 @@ namespace StackExchange.Redis
                                 SetResult(message, false);
                                 return true;
                             }
-                            //EXEC returned with a NULL
+                            // EXEC returned with a NULL
                             if (!tran.IsAborted && result.IsNull)
                             {
                                 connection.Trace("Server aborted due to failed EXEC");
-                                //cancel the commands in the transaction and mark them as complete with the completion manager
+                                // cancel the commands in the transaction and mark them as complete with the completion manager
                                 foreach (var op in wrapped)
                                 {
                                     var inner = op.Wrapped;
@@ -536,7 +538,7 @@ namespace StackExchange.Redis
                                     muxer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
 
                                     int i = 0;
-                                    foreach(ref RawResult item in arr)
+                                    foreach (ref RawResult item in arr)
                                     {
                                         var inner = wrapped[i++].Wrapped;
                                         muxer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");

@@ -3,19 +3,15 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class BasicOpsTests : TestBase
+public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
-
     [Fact]
     public async Task PingOnce()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         var duration = await db.PingAsync().ForAwait();
@@ -26,14 +22,14 @@ public class BasicOpsTests : TestBase
     [Fact(Skip = "This needs some CI love, it's not a scenario we care about too much but noisy atm.")]
     public async Task RapidDispose()
     {
-        using var primary = Create();
+        await using var primary = Create();
         var db = primary.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         for (int i = 0; i < 10; i++)
         {
-            using var secondary = Create(fail: true, shared: false);
+            await using var secondary = Create(fail: true, shared: false);
             secondary.GetDatabase().StringIncrement(key, flags: CommandFlags.FireAndForget);
         }
         // Give it a moment to get through the pipe...they were fire and forget
@@ -44,7 +40,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public async Task PingMany()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var tasks = new Task<TimeSpan>[100];
         for (int i = 0; i < tasks.Length; i++)
@@ -57,9 +53,9 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void GetWithNullKey()
+    public async Task GetWithNullKey()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         const string? key = null;
         var ex = Assert.Throws<ArgumentException>(() => db.StringGet(key));
@@ -67,9 +63,9 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void SetWithNullKey()
+    public async Task SetWithNullKey()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         const string? key = null, value = "abc";
         var ex = Assert.Throws<ArgumentException>(() => db.StringSet(key!, value));
@@ -77,9 +73,9 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void SetWithNullValue()
+    public async Task SetWithNullValue()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         string key = Me();
         const string? value = null;
@@ -95,9 +91,9 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void SetWithDefaultValue()
+    public async Task SetWithDefaultValue()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         string key = Me();
         var value = default(RedisValue); // this is kinda 0... ish
@@ -113,9 +109,9 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void SetWithZeroValue()
+    public async Task SetWithZeroValue()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         string key = Me();
         const long value = 0;
@@ -133,7 +129,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public async Task GetSetAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
@@ -156,9 +152,9 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void GetSetSync()
+    public async Task GetSetSync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
@@ -185,7 +181,7 @@ public class BasicOpsTests : TestBase
     [InlineData(true, false)]
     public async Task GetWithExpiry(bool exists, bool hasExpiry)
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -221,7 +217,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public async Task GetWithExpiryWrongTypeAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         _ = db.KeyDeleteAsync(key);
@@ -242,12 +238,12 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void GetWithExpiryWrongTypeSync()
+    public async Task GetWithExpiryWrongTypeSync()
     {
         RedisKey key = Me();
-        var ex = Assert.Throws<RedisServerException>(() =>
+        var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
         {
-            using var conn = Create();
+            await using var conn = Create();
             var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);
             db.SetAdd(key, "abc", CommandFlags.FireAndForget);
@@ -261,7 +257,7 @@ public class BasicOpsTests : TestBase
     public async Task TestSevered()
     {
         SetExpectedAmbientFailureCount(2);
-        using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, shared: false);
         var db = conn.GetDatabase();
         string key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -281,7 +277,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public async Task IncrAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -307,11 +303,12 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void IncrSync()
+    public async Task IncrSync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
+        Log(key);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var nix = db.KeyExists(key);
         var a = db.StringGet(key);
@@ -335,9 +332,9 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void IncrDifferentSizes()
+    public async Task IncrDifferentSizes()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -368,21 +365,21 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void ShouldUseSharedMuxer()
+    public async Task ShouldUseSharedMuxer()
     {
         Log($"Shared: {SharedFixtureAvailable}");
         if (SharedFixtureAvailable)
         {
-            using var a = Create();
+            await using var a = Create();
             Assert.IsNotType<ConnectionMultiplexer>(a);
-            using var b = Create();
+            await using var b = Create();
             Assert.Same(a, b);
         }
         else
         {
-            using var a = Create();
+            await using var a = Create();
             Assert.IsType<ConnectionMultiplexer>(a);
-            using var b = Create();
+            await using var b = Create();
             Assert.NotSame(a, b);
         }
     }
@@ -390,7 +387,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public async Task Delete()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
         _ = db.StringSetAsync(key, "Heyyyyy");
@@ -405,7 +402,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public async Task DeleteAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
         _ = db.StringSetAsync(key, "Heyyyyy");
@@ -420,7 +417,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public async Task DeleteMany()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key1 = Me();
         var key2 = Me() + "2";
@@ -428,7 +425,7 @@ public class BasicOpsTests : TestBase
         _ = db.StringSetAsync(key1, "Heyyyyy");
         _ = db.StringSetAsync(key2, "Heyyyyy");
         // key 3 not set
-        var ku1 = db.KeyDelete(new RedisKey[] { key1, key2, key3 });
+        var ku1 = db.KeyDelete([key1, key2, key3]);
         var ke1 = db.KeyExistsAsync(key1).ForAwait();
         var ke2 = db.KeyExistsAsync(key2).ForAwait();
         Assert.Equal(2, ku1);
@@ -439,7 +436,7 @@ public class BasicOpsTests : TestBase
     [Fact]
     public async Task DeleteManyAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase();
         var key1 = Me();
         var key2 = Me() + "2";
@@ -447,7 +444,7 @@ public class BasicOpsTests : TestBase
         _ = db.StringSetAsync(key1, "Heyyyyy");
         _ = db.StringSetAsync(key2, "Heyyyyy");
         // key 3 not set
-        var ku1 = db.KeyDeleteAsync(new RedisKey[] { key1, key2, key3 }).ForAwait();
+        var ku1 = db.KeyDeleteAsync([key1, key2, key3]).ForAwait();
         var ke1 = db.KeyExistsAsync(key1).ForAwait();
         var ke2 = db.KeyExistsAsync(key2).ForAwait();
         Assert.Equal(2, await ku1);
@@ -456,10 +453,10 @@ public class BasicOpsTests : TestBase
     }
 
     [Fact]
-    public void WrappedDatabasePrefixIntegration()
+    public async Task WrappedDatabasePrefixIntegration()
     {
         var key = Me();
-        using var conn = Create();
+        await using var conn = Create();
         var db = conn.GetDatabase().WithKeyPrefix("abc");
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringIncrement(key, flags: CommandFlags.FireAndForget);
@@ -468,5 +465,43 @@ public class BasicOpsTests : TestBase
 
         int count = (int)conn.GetDatabase().StringGet("abc" + key);
         Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public async Task TransactionSync()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+
+        RedisKey key = Me();
+
+        var tran = db.CreateTransaction();
+        _ = db.KeyDeleteAsync(key);
+        var x = tran.StringIncrementAsync(Me());
+        var y = tran.StringIncrementAsync(Me());
+        var z = tran.StringIncrementAsync(Me());
+        Assert.True(tran.Execute());
+        Assert.Equal(1, x.Result);
+        Assert.Equal(2, y.Result);
+        Assert.Equal(3, z.Result);
+    }
+
+    [Fact]
+    public async Task TransactionAsync()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+
+        RedisKey key = Me();
+
+        var tran = db.CreateTransaction();
+        _ = db.KeyDeleteAsync(key);
+        var x = tran.StringIncrementAsync(Me());
+        var y = tran.StringIncrementAsync(Me());
+        var z = tran.StringIncrementAsync(Me());
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal(1, await x);
+        Assert.Equal(2, await y);
+        Assert.Equal(3, await z);
     }
 }

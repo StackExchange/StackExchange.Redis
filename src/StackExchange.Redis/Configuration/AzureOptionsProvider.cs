@@ -1,7 +1,7 @@
-﻿using StackExchange.Redis.Maintenance;
-using System;
+﻿using System;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -16,12 +16,12 @@ namespace StackExchange.Redis.Configuration
         public override bool AbortOnConnectFail => false;
 
         /// <summary>
-        /// The minimum version of Redis in Azure is 4, so use the widest set of available commands when connecting.
+        /// The minimum version of Redis in Azure is 6, so use the widest set of available commands when connecting.
         /// </summary>
-        public override Version DefaultVersion => RedisFeatures.v4_0_0;
+        public override Version DefaultVersion => RedisFeatures.v6_0_0;
 
         /// <summary>
-        /// List of domains known to be Azure Redis, so we can light up some helpful functionality
+        /// Lists of domains known to be Azure Redis, so we can light up some helpful functionality
         /// for minimizing downtime during maintenance events and such.
         /// </summary>
         private static readonly string[] azureRedisDomains = new[]
@@ -29,8 +29,14 @@ namespace StackExchange.Redis.Configuration
             ".redis.cache.windows.net",
             ".redis.cache.chinacloudapi.cn",
             ".redis.cache.usgovcloudapi.net",
-            ".redis.cache.cloudapi.de",
             ".redisenterprise.cache.azure.net",
+        };
+
+        private static readonly string[] azureManagedRedisDomains = new[]
+        {
+            ".redis.azure.net",
+            ".redis.chinacloudapi.cn",
+            ".redis.usgovcloudapi.net",
         };
 
         /// <inheritdoc/>
@@ -38,14 +44,25 @@ namespace StackExchange.Redis.Configuration
         {
             if (endpoint is DnsEndPoint dnsEp)
             {
-                foreach (var host in azureRedisDomains)
+                if (IsHostInDomains(dnsEp.Host, azureRedisDomains) || IsHostInDomains(dnsEp.Host, azureManagedRedisDomains))
                 {
-                    if (dnsEp.Host.EndsWith(host, StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
+
+            return false;
+        }
+
+        private bool IsHostInDomains(string hostName, string[] domains)
+        {
+            foreach (var domain in domains)
+            {
+                if (hostName.EndsWith(domain, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
             return false;
         }
 
@@ -64,6 +81,10 @@ namespace StackExchange.Redis.Configuration
                         if (dns.Port == 6380)
                         {
                             return true;
+                        }
+                        if (dns.Port == 10000 && IsHostInDomains(dns.Host, azureManagedRedisDomains))
+                        {
+                            return true; // SSL is enabled by default on AMR caches
                         }
                         break;
                     case IPEndPoint ip:

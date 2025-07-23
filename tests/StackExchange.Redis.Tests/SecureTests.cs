@@ -1,26 +1,23 @@
 ﻿using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class SecureTests : TestBase
+public class SecureTests(ITestOutputHelper output) : TestBase(output)
 {
     protected override string GetConfiguration() =>
         TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
 
-    public SecureTests(ITestOutputHelper output) : base (output) { }
-
     [Fact]
-    public void MassiveBulkOpsFireAndForgetSecure()
+    public async Task MassiveBulkOpsFireAndForgetSecure()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         var watch = Stopwatch.StartNew();
 
@@ -31,8 +28,7 @@ public class SecureTests : TestBase
         int val = (int)db.StringGet(key);
         Assert.Equal(AsyncOpsQty, val);
         watch.Stop();
-        Log("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-            AsyncOpsQty / watch.Elapsed.TotalSeconds);
+        Log("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(), AsyncOpsQty / watch.Elapsed.TotalSeconds);
     }
 
     [Fact]
@@ -48,11 +44,11 @@ public class SecureTests : TestBase
     }
 
     [Fact]
-    public void Connect()
+    public async Task Connect()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
-        conn.GetDatabase().Ping();
+        await conn.GetDatabase().PingAsync();
     }
 
     [Theory]
@@ -60,7 +56,7 @@ public class SecureTests : TestBase
     [InlineData("", "NOAUTH Returned - connection has not yet authenticated")]
     public async Task ConnectWithWrongPassword(string password, string exepctedMessage)
     {
-        using var checkConn = Create();
+        await using var checkConn = Create();
         var checkServer = GetServer(checkConn);
 
         var config = ConfigurationOptions.Parse(GetConfiguration());
@@ -72,9 +68,9 @@ public class SecureTests : TestBase
         {
             SetExpectedAmbientFailureCount(-1);
 
-            using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false);
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false);
 
-            conn.GetDatabase().Ping();
+            await conn.GetDatabase().PingAsync();
         }).ConfigureAwait(false);
         Log($"Exception ({ex.FailureType}): {ex.Message}");
         Assert.Equal(ConnectionFailureType.AuthenticationFailure, ex.FailureType);

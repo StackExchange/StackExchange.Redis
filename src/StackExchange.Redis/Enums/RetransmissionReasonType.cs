@@ -16,10 +16,12 @@
         /// No stated reason.
         /// </summary>
         None = 0,
+
         /// <summary>
         /// Issued to investigate which node owns a key.
         /// </summary>
         Ask,
+
         /// <summary>
         /// A node has indicated that it does *not* own the given key.
         /// </summary>

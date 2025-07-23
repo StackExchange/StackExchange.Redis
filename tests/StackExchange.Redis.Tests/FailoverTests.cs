@@ -4,22 +4,19 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [Collection(NonParallelCollection.Name)]
-public class FailoverTests : TestBase, IAsyncLifetime
+public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncLifetime
 {
     protected override string GetConfiguration() => GetPrimaryReplicaConfig().ToString();
 
-    public FailoverTests(ITestOutputHelper output) : base(output) { }
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var shouldBePrimary = conn.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort);
         if (shouldBePrimary.IsReplica)
@@ -47,14 +44,14 @@ public class FailoverTests : TestBase, IAsyncLifetime
             {
                 { TestConfig.Current.FailoverPrimaryServer, TestConfig.Current.FailoverPrimaryPort },
                 { TestConfig.Current.FailoverReplicaServer, TestConfig.Current.FailoverReplicaPort },
-            }
+            },
         };
     }
 
     [Fact]
     public async Task ConfigureAsync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         await Task.Delay(1000).ForAwait();
         Log("About to reconfigure.....");
@@ -65,7 +62,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
     [Fact]
     public async Task ConfigureSync()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         await Task.Delay(1000).ForAwait();
         Log("About to reconfigure.....");
@@ -77,8 +74,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
     public async Task ConfigVerifyReceiveConfigChangeBroadcast()
     {
         _ = GetConfiguration();
-        using var senderConn = Create(allowAdmin: true);
-        using var receiverConn = Create(syncTimeout: 2000);
+        await using var senderConn = Create(allowAdmin: true);
+        await using var receiverConn = Create(syncTimeout: 2000);
 
         int total = 0;
         receiverConn.ConfigurationChangedBroadcast += (s, a) =>
@@ -88,8 +85,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
         };
         // send a reconfigure/reconnect message
         long count = senderConn.PublishReconfigure();
-        GetServer(receiverConn).Ping();
-        GetServer(receiverConn).Ping();
+        await GetServer(receiverConn).PingAsync();
+        await GetServer(receiverConn).PingAsync();
         await Task.Delay(1000).ConfigureAwait(false);
         Assert.True(count == -1 || count >= 2, "subscribers");
         Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
@@ -98,11 +95,11 @@ public class FailoverTests : TestBase, IAsyncLifetime
 
         // and send a second time via a re-primary operation
         var server = GetServer(senderConn);
-        if (server.IsReplica) Skip.Inconclusive("didn't expect a replica");
+        if (server.IsReplica) Assert.Skip("didn't expect a replica");
         await server.MakePrimaryAsync(ReplicationChangeOptions.Broadcast);
         await Task.Delay(1000).ConfigureAwait(false);
-        GetServer(receiverConn).Ping();
-        GetServer(receiverConn).Ping();
+        await GetServer(receiverConn).PingAsync();
+        await GetServer(receiverConn).PingAsync();
         Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");
     }
 
@@ -112,21 +109,21 @@ public class FailoverTests : TestBase, IAsyncLifetime
         ConfigurationOptions config = GetPrimaryReplicaConfig();
         config.ConfigCheckSeconds = 5;
 
-        using var conn = ConnectionMultiplexer.Connect(config);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
 
         var primary = conn.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort);
         var secondary = conn.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
 
-        primary.Ping();
-        secondary.Ping();
+        await primary.PingAsync();
+        await secondary.PingAsync();
 
         await primary.MakePrimaryAsync(ReplicationChangeOptions.SetTiebreaker);
         await secondary.MakePrimaryAsync(ReplicationChangeOptions.None);
 
         await Task.Delay(100).ConfigureAwait(false);
 
-        primary.Ping();
-        secondary.Ping();
+        await primary.PingAsync();
+        await secondary.PingAsync();
 
         using (var writer = new StringWriter())
         {
@@ -134,10 +131,10 @@ public class FailoverTests : TestBase, IAsyncLifetime
             string log = writer.ToString();
             Log(log);
             bool isUnanimous = log.Contains("tie-break is unanimous at " + TestConfig.Current.FailoverPrimaryServerAndPort);
-            if (!isUnanimous) Skip.Inconclusive("this is timing sensitive; unable to verify this time");
+            if (!isUnanimous) Assert.Skip("this is timing sensitive; unable to verify this time");
         }
-        // k, so we know everyone loves 6379; is that what we get?
 
+        // k, so we know everyone loves 6379; is that what we get?
         var db = conn.GetDatabase();
         RedisKey key = Me();
 
@@ -154,8 +151,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
         await Task.Delay(100).ConfigureAwait(false);
 
         Log("Invoking Ping() (post-primary)");
-        primary.Ping();
-        secondary.Ping();
+        await primary.PingAsync();
+        await secondary.PingAsync();
         Log("Finished Ping() (post-primary)");
 
         Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
@@ -201,17 +198,14 @@ public class FailoverTests : TestBase, IAsyncLifetime
     [Fact]
     public async Task SubscriptionsSurviveConnectionFailureAsync()
     {
-        using var conn = Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000);
+        await using var conn = Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000);
 
         var profiler = conn.AddProfiler();
         RedisChannel channel = RedisChannel.Literal(Me());
         var sub = conn.GetSubscriber();
         int counter = 0;
         Assert.True(sub.IsConnected());
-        await sub.SubscribeAsync(channel, delegate
-        {
-            Interlocked.Increment(ref counter);
-        }).ConfigureAwait(false);
+        await sub.SubscribeAsync(channel, (arg1, arg2) => Interlocked.Increment(ref counter)).ConfigureAwait(false);
 
         var profile1 = Log(profiler);
 
@@ -220,7 +214,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
         await Task.Delay(200).ConfigureAwait(false);
 
         await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
-        sub.Ping();
+        await sub.PingAsync();
         await Task.Delay(200).ConfigureAwait(false);
 
         var counter1 = Thread.VolatileRead(ref counter);
@@ -257,10 +251,9 @@ public class FailoverTests : TestBase, IAsyncLifetime
 
         // Ensure we've sent the subscribe command after reconnecting
         var profile2 = Log(profiler);
-        //Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
-
+        // Assert.Equal(1, profile2.Count(p => p.Command == nameof(RedisCommand.SUBSCRIBE)));
         Log("Issuing ping after reconnected");
-        sub.Ping();
+        await sub.PingAsync();
 
         var muxerSubCount = conn.GetSubscriptionsCount();
         Log($"Muxer thinks we have {muxerSubCount} subscriber(s).");
@@ -299,15 +292,10 @@ public class FailoverTests : TestBase, IAsyncLifetime
     [Fact]
     public async Task SubscriptionsSurvivePrimarySwitchAsync()
     {
-        static void TopologyFail() => Skip.Inconclusive("Replication topology change failed...and that's both inconsistent and not what we're testing.");
+        static void TopologyFail() => Assert.Skip("Replication topology change failed...and that's both inconsistent and not what we're testing.");
 
-        if (RunningInCI)
-        {
-            Skip.Inconclusive("TODO: Fix race in broadcast reconfig a zero latency.");
-        }
-
-        using var aConn = Create(allowAdmin: true, shared: false);
-        using var bConn = Create(allowAdmin: true, shared: false);
+        await using var aConn = Create(allowAdmin: true, shared: false);
+        await using var bConn = Create(allowAdmin: true, shared: false);
 
         RedisChannel channel = RedisChannel.Literal(Me());
         Log("Using Channel: " + channel);
@@ -366,8 +354,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
             }
             Log("Waiting for connection B to detect...");
             await UntilConditionAsync(TimeSpan.FromSeconds(10), () => bConn.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica).ForAwait();
-            subA.Ping();
-            subB.Ping();
+            await subA.PingAsync();
+            await subB.PingAsync();
             Log("Failover 2 Attempted. Pausing...");
             Log("  A " + TestConfig.Current.FailoverPrimaryServerAndPort + " status: " + (aConn.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort).IsReplica ? "Replica" : "Primary"));
             Log("  A " + TestConfig.Current.FailoverReplicaServerAndPort + " status: " + (aConn.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica ? "Replica" : "Primary"));
@@ -395,7 +383,7 @@ public class FailoverTests : TestBase, IAsyncLifetime
                     Log("    IsReplica: " + !server.IsReplica);
                     Log("    Type: " + server.ServerType);
                 }
-                //Skip.Inconclusive("Not enough latency.");
+                // Assert.Skip("Not enough latency.");
             }
             Assert.True(sanityCheck, $"B Connection: {TestConfig.Current.FailoverPrimaryServerAndPort} should be a replica");
             Assert.False(bConn.GetServer(TestConfig.Current.FailoverReplicaServerAndPort).IsReplica, $"B Connection: {TestConfig.Current.FailoverReplicaServerAndPort} should be a primary");
@@ -403,8 +391,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
             Log("Pause complete");
             Log("  A outstanding: " + aConn.GetCounters().TotalOutstanding);
             Log("  B outstanding: " + bConn.GetCounters().TotalOutstanding);
-            subA.Ping();
-            subB.Ping();
+            await subA.PingAsync();
+            await subB.PingAsync();
             await Task.Delay(5000).ForAwait();
             epA = subA.SubscribedEndpoint(channel);
             epB = subB.SubscribedEndpoint(channel);
@@ -415,8 +403,8 @@ public class FailoverTests : TestBase, IAsyncLifetime
             var bSentTo = subB.Publish(channel, "B2");
             Log("  A2 sent to: " + aSentTo);
             Log("  B2 sent to: " + bSentTo);
-            subA.Ping();
-            subB.Ping();
+            await subA.PingAsync();
+            await subB.PingAsync();
             Log("Ping Complete. Checking...");
             await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
 

@@ -23,37 +23,32 @@ using System.Text;
 
 namespace RedisSharp
 {
-    public class Redis : IDisposable
+    public class Redis(string host, int port) : IDisposable
     {
         private Socket socket;
         private BufferedStream bstream;
 
         public enum KeyType
         {
-            None, String, List, Set
+            None,
+            String,
+            List,
+            Set,
         }
 
-        public class ResponseException : Exception
+        public class ResponseException(string code) : Exception("Response error")
         {
-            public string Code { get; }
-            public ResponseException(string code) : base("Response error") => Code = code;
-        }
-
-        public Redis(string host, int port)
-        {
-            Host = host ?? throw new ArgumentNullException(nameof(host));
-            Port = port;
-            SendTimeout = -1;
+            public string Code { get; } = code;
         }
 
         public Redis(string host) : this(host, 6379) { }
         public Redis() : this("localhost", 6379) { }
 
-        public string Host { get; }
-        public int Port { get; }
+        public string Host { get; } = host ?? throw new ArgumentNullException(nameof(host));
+        public int Port { get; } = port;
         public int RetryTimeout { get; set; }
         public int RetryCount { get; set; }
-        public int SendTimeout { get; set; }
+        public int SendTimeout { get; set; } = -1;
         public string Password { get; set; }
 
         private int db;
@@ -217,7 +212,7 @@ namespace RedisSharp
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
             {
                 NoDelay = true,
-                SendTimeout = SendTimeout
+                SendTimeout = SendTimeout,
             };
             socket.Connect(Host, Port);
             if (!socket.Connected)
@@ -232,7 +227,7 @@ namespace RedisSharp
                 SendExpectSuccess("AUTH {0}\r\n", Password);
         }
 
-        private readonly byte[] end_data = new byte[] { (byte)'\r', (byte)'\n' };
+        private readonly byte[] endData = [(byte)'\r', (byte)'\n'];
 
         private bool SendDataCommand(byte[] data, string cmd, params object[] args)
         {
@@ -250,7 +245,7 @@ namespace RedisSharp
                 if (data != null)
                 {
                     socket.Send(data);
-                    socket.Send(end_data);
+                    socket.Send(endData);
                 }
             }
             catch (SocketException)
@@ -380,9 +375,7 @@ namespace RedisSharp
             throw new ResponseException("Unknown reply on integer request: " + c + s);
         }
 
-        //
         // This one does not throw errors
-        //
         private string SendGetString(string cmd, params object[] args)
         {
             if (!SendCommand(cmd, args))
@@ -435,7 +428,7 @@ namespace RedisSharp
                 throw new ResponseException("Invalid length");
             }
 
-            //returns the number of matches
+            // returns the number of matches
             if (c == '*')
             {
                 if (int.TryParse(r.Substring(1), out int n))

@@ -99,6 +99,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | tunnel={string}        | `Tunnel`               | `null`                       | Tunnel for connections (use `http:{proxy url}` for "connect"-based proxy server)                          |
 | setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
 | protocol={string}      | `Protocol`             | `null`                       | Redis protocol to use; see section below                                                                  |
+| highIntegrity={bool}   | `HighIntegrity`        | `false`                      | High integrity (incurs overhead) sequence checking on every command; see section below                    |
 
 Additional code-only options:
 - LoggerFactory (`ILoggerFactory`) - Default: `null`
@@ -115,6 +116,12 @@ Additional code-only options:
   - The thread pool to use for scheduling work to and from the socket connected to Redis, one of...
     - `SocketManager.Shared`: Use a shared dedicated thread pool for _all_ multiplexers (defaults to 10 threads) - best balance for most scenarios.
     - `SocketManager.ThreadPool`: Use the build-in .NET thread pool for scheduling. This can perform better for very small numbers of cores or with large apps on large machines that need to use more than 10 threads (total, across all multiplexers) under load. **Important**: this option isn't the default because it's subject to thread pool growth/starvation and if for example synchronous calls are waiting on a redis command to come back to unblock other threads, stalls/hangs can result. Use with caution, especially if you have sync-over-async work in play.
+- HighIntegrity - Default: `false`
+  - This enables sending a sequence check command after _every single command_ sent to Redis. This is an opt-in option that incurs overhead to add this integrity check which isn't in the Redis protocol (RESP2/3) itself. The impact on this for a given workload depends on the number of commands, size of payloads, etc. as to how proportionately impactful it will be - you should test with your workloads to assess this.
+  - This is especially relevant if your primary use case is all strings (e.g. key/value caching) where the protocol would otherwise not error.
+  - Intended for cases where network drops (e.g. bytes from the Redis stream, not packet loss) are suspected and integrity of responses is critical.
+- HeartbeatConsistencyChecks - Default: `false`
+  - Allows _always_ sending keepalive checks even if a connection isn't idle. This trades extra commands (per `HeartbeatInterval` - default 1 second) to check the network stream for consistency. If any data was lost, the result won't be as expected and the connection will be terminated ASAP. This is a check to react to any data loss at the network layer as soon as possible.
 - HeartbeatInterval - Default: `1000ms`
   - Allows running the heartbeat more often which importantly includes timeout evaluation for async commands. For example if you have a 50ms async command timeout, we're only actually checking it during the heartbeat (once per second by default), so it's possible 50-1050ms pass _before we notice it timed out_. If you want more fidelity in that check and to observe that a server failed faster, you can lower this to run the heartbeat more often to achieve that. 
   - **Note: heartbeats are not free and that's why the default is 1 second. There is additional overhead to running this more often simply because it does some work each time it fires.**

@@ -1,13 +1,10 @@
 ﻿using System;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class TransientErrorTests : TestBase
+public class TransientErrorTests(ITestOutputHelper output) : TestBase(output)
 {
-    public TransientErrorTests(ITestOutputHelper output) : base (output) { }
-
     [Fact]
     public void TestExponentialRetry()
     {

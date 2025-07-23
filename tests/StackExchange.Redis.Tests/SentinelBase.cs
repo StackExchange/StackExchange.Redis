@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
@@ -28,9 +27,9 @@ public class SentinelBase : TestBase, IAsyncLifetime
     }
 #nullable enable
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => default;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var options = ServiceOptions.Clone();
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
@@ -43,7 +42,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
             await Task.Delay(100).ForAwait();
             if (Conn.IsConnected)
             {
-                using var checkConn = Conn.GetSentinelMasterConnection(options, Writer);
+                await using var checkConn = Conn.GetSentinelMasterConnection(options, Writer);
                 if (checkConn.IsConnected)
                 {
                     break;
@@ -54,7 +53,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
         SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA)!;
         SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB)!;
         SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC)!;
-        SentinelsServers = new[] { SentinelServerA, SentinelServerB, SentinelServerC };
+        SentinelsServers = [SentinelServerA, SentinelServerB, SentinelServerC];
 
         SentinelServerA.AllowReplicaWrites = true;
         // Wait until we are in a state of a single primary and replica
@@ -99,14 +98,14 @@ public class SentinelBase : TestBase, IAsyncLifetime
             throw new RedisException($"Primary was expected to be {expectedPrimary}");
         Log($"Primary is {primary}");
 
-        using var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
+        await using var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
         await WaitForRoleAsync(checkConn.GetServer(primary), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
 
         var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
         if (replicas?.Length > 0)
         {
-            await Task.Delay(1000).ForAwait();
+            await Task.Delay(100).ForAwait();
             replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             await WaitForRoleAsync(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
         }
@@ -138,7 +137,7 @@ public class SentinelBase : TestBase, IAsyncLifetime
                 // ignore
             }
 
-            await Task.Delay(500).ForAwait();
+            await Task.Delay(100).ForAwait();
         }
 
         throw new RedisException($"Timeout waiting for server ({server.EndPoint}) to have expected role (\"{role}\") assigned");

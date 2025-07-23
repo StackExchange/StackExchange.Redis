@@ -1,19 +1,16 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO25567566Tests : TestBase
+public class SO25567566Tests(ITestOutputHelper output) : TestBase(output)
 {
-    protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort;
-    public SO25567566Tests(ITestOutputHelper output) : base(output) { }
-
-    [FactLongRunning]
+    [Fact]
     public async Task Execute()
     {
-        using var conn = ConnectionMultiplexer.Connect(GetConfiguration());
+        Skip.UnlessLongRunning();
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(GetConfiguration());
 
         for (int i = 0; i < 100; i++)
         {
@@ -47,8 +44,8 @@ public class SO25567566Tests : TestBase
 
         var exec = tran.ExecuteAsync();
         // SWAP THESE TWO
+        // bool ok = true;
         bool ok = await Task.WhenAny(exec, timeout).ForAwait() == exec;
-        //bool ok = true;
 
         if (ok)
         {

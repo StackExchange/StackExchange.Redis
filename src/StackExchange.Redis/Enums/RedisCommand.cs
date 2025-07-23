@@ -66,7 +66,12 @@ internal enum RedisCommand
     HDEL,
     HELLO,
     HEXISTS,
+    HEXPIRE,
+    HEXPIREAT,
+    HEXPIRETIME,
     HGET,
+    HGETEX,
+    HGETDEL,
     HGETALL,
     HINCRBY,
     HINCRBYFLOAT,
@@ -74,9 +79,15 @@ internal enum RedisCommand
     HLEN,
     HMGET,
     HMSET,
+    HPERSIST,
+    HPEXPIRE,
+    HPEXPIREAT,
+    HPEXPIRETIME,
+    HPTTL,
     HRANDFIELD,
     HSCAN,
     HSET,
+    HSETEX,
     HSETNX,
     HSTRLEN,
     HVALS,
@@ -173,6 +184,7 @@ internal enum RedisCommand
     SORT,
     SORT_RO,
     SPOP,
+    SPUBLISH,
     SRANDMEMBER,
     SREM,
     STRLEN,
@@ -180,6 +192,8 @@ internal enum RedisCommand
     SUNION,
     SUNIONSTORE,
     SSCAN,
+    SSUBSCRIBE,
+    SUNSUBSCRIBE,
     SWAPDB,
     SYNC,
 
@@ -195,10 +209,12 @@ internal enum RedisCommand
     WATCH,
 
     XACK,
+    XACKDEL,
     XADD,
     XAUTOCLAIM,
     XCLAIM,
     XDEL,
+    XDELEX,
     XGROUP,
     XINFO,
     XLEN,
@@ -279,10 +295,18 @@ internal static class RedisCommandExtensions
             case RedisCommand.GETEX:
             case RedisCommand.GETSET:
             case RedisCommand.HDEL:
+            case RedisCommand.HEXPIRE:
+            case RedisCommand.HEXPIREAT:
+            case RedisCommand.HGETDEL:
+            case RedisCommand.HGETEX:
             case RedisCommand.HINCRBY:
             case RedisCommand.HINCRBYFLOAT:
             case RedisCommand.HMSET:
+            case RedisCommand.HPERSIST:
+            case RedisCommand.HPEXPIRE:
+            case RedisCommand.HPEXPIREAT:
             case RedisCommand.HSET:
+            case RedisCommand.HSETEX:
             case RedisCommand.HSETNX:
             case RedisCommand.INCR:
             case RedisCommand.INCRBY:
@@ -378,11 +402,14 @@ internal static class RedisCommandExtensions
             case RedisCommand.GETRANGE:
             case RedisCommand.HELLO:
             case RedisCommand.HEXISTS:
+            case RedisCommand.HEXPIRETIME:
             case RedisCommand.HGET:
             case RedisCommand.HGETALL:
             case RedisCommand.HKEYS:
             case RedisCommand.HLEN:
             case RedisCommand.HMGET:
+            case RedisCommand.HPEXPIRETIME:
+            case RedisCommand.HPTTL:
             case RedisCommand.HRANDFIELD:
             case RedisCommand.HSCAN:
             case RedisCommand.HSTRLEN:
@@ -431,10 +458,13 @@ internal static class RedisCommandExtensions
             case RedisCommand.SMEMBERS:
             case RedisCommand.SMISMEMBER:
             case RedisCommand.SORT_RO:
+            case RedisCommand.SPUBLISH:
             case RedisCommand.SRANDMEMBER:
+            case RedisCommand.SSUBSCRIBE:
             case RedisCommand.STRLEN:
             case RedisCommand.SUBSCRIBE:
             case RedisCommand.SUNION:
+            case RedisCommand.SUNSUBSCRIBE:
             case RedisCommand.SSCAN:
             case RedisCommand.SYNC:
             case RedisCommand.TIME:
@@ -474,9 +504,11 @@ internal static class RedisCommandExtensions
             case RedisCommand.GEOADD:
             case RedisCommand.SORT:
             case RedisCommand.XACK:
+            case RedisCommand.XACKDEL:
             case RedisCommand.XADD:
             case RedisCommand.XCLAIM:
             case RedisCommand.XDEL:
+            case RedisCommand.XDELEX:
             case RedisCommand.XGROUP:
             case RedisCommand.XREADGROUP:
             case RedisCommand.XTRIM:

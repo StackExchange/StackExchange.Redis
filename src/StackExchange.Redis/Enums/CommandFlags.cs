@@ -4,7 +4,7 @@ using System.ComponentModel;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Behaviour markers associated with a given command
+    /// Behaviour markers associated with a given command.
     /// </summary>
     [Flags]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "Compatibility")]
@@ -16,11 +16,12 @@ namespace StackExchange.Redis
         None = 0,
 
         /// <summary>
-        /// From 2.0, this flag is not used
+        /// From 2.0, this flag is not used.
         /// </summary>
         [Obsolete("From 2.0, this flag is not used, this will be removed in 3.0.", false)]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         HighPriority = 1,
+
         /// <summary>
         /// The caller is not interested in the result; the caller will immediately receive a default-value
         /// of the expected return type (this value is not indicative of anything at the server).
@@ -33,11 +34,7 @@ namespace StackExchange.Redis
         /// </summary>
         PreferMaster = 0,
 
-        /// <summary>
-        /// This operation should only be performed on the primary.
-        /// </summary>
-        DemandMaster = 4,
-
+#if NET8_0_OR_GREATER
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
         /// a primary if no replicas are available. Suitable for read operations only.
@@ -45,6 +42,22 @@ namespace StackExchange.Redis
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         PreferSlave = 8,
+#endif
+
+        /// <summary>
+        /// This operation should only be performed on the primary.
+        /// </summary>
+        DemandMaster = 4,
+
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// This operation should be performed on the replica if it is available, but will be performed on
+        /// a primary if no replicas are available. Suitable for read operations only.
+        /// </summary>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead, this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        PreferSlave = 8,
+#endif
 
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
@@ -52,24 +65,35 @@ namespace StackExchange.Redis
         /// </summary>
         PreferReplica = 8, // note: we're using a 2-bit set here, which [Flags] formatting hates; position is doing the best we can for reasonable outcomes here
 
-        /// <summary>
-        /// This operation should only be performed on a replica. Suitable for read operations only.
-        /// </summary>
-        DemandReplica = 12, // note: we're using a 2-bit set here, which [Flags] formatting hates; position is doing the best we can for reasonable outcomes here
-
+#if NET8_0_OR_GREATER
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         DemandSlave = 12,
+#endif
+
+        /// <summary>
+        /// This operation should only be performed on a replica. Suitable for read operations only.
+        /// </summary>
+        DemandReplica = 12, // note: we're using a 2-bit set here, which [Flags] formatting hates; position is doing the best we can for reasonable outcomes here
+
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// This operation should only be performed on a replica. Suitable for read operations only.
+        /// </summary>
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead, this will be removed in 3.0.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        DemandSlave = 12,
+#endif
 
         // 16: reserved for additional "demand/prefer" options
 
         // 32: used for "asking" flag; never user-specified, so not visible on the public API
 
         /// <summary>
-        /// Indicates that this operation should not be forwarded to other servers as a result of an ASK or MOVED response
+        /// Indicates that this operation should not be forwarded to other servers as a result of an ASK or MOVED response.
         /// </summary>
         NoRedirect = 64,
 
@@ -78,7 +102,7 @@ namespace StackExchange.Redis
         // 256: used for "script unavailable"; never user-specified, so not visible on the public API
 
         /// <summary>
-        /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA
+        /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA.
         /// </summary>
         NoScriptCache = 512,
 

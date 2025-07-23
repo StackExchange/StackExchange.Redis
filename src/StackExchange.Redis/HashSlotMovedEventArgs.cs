@@ -27,8 +27,7 @@ namespace StackExchange.Redis
         /// </summary>
         public EndPoint NewEndPoint { get; }
 
-        internal HashSlotMovedEventArgs(EventHandler<HashSlotMovedEventArgs>? handler, object sender,
-            int hashSlot, EndPoint? old, EndPoint @new)
+        internal HashSlotMovedEventArgs(EventHandler<HashSlotMovedEventArgs>? handler, object sender, int hashSlot, EndPoint? old, EndPoint @new)
         {
             this.handler = handler;
             this.sender = sender;
@@ -45,7 +44,7 @@ namespace StackExchange.Redis
         /// <param name="old">Old endpoint.</param>
         /// <param name="new">New endpoint.</param>
         public HashSlotMovedEventArgs(object sender, int hashSlot, EndPoint old, EndPoint @new)
-            : this (null, sender, hashSlot, old, @new)
+            : this(null, sender, hashSlot, old, @new)
         {
         }
 
