@@ -1660,7 +1660,7 @@ namespace StackExchange.Redis
             public override int ArgCount => 0;
         }
 
-        private class CommandSlotValuesMessage : Message
+        private sealed class CommandSlotValuesMessage : Message
         {
             private readonly int slot;
             private readonly RedisValue[] values;

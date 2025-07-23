@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal class RedisBatch : RedisDatabase, IBatch
+    internal sealed class RedisBatch : RedisDatabase, IBatch
     {
         private List<Message>? pending;
 

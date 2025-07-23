@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal class RedisTransaction : RedisDatabase, ITransaction
+    internal sealed class RedisTransaction : RedisDatabase, ITransaction
     {
         private List<ConditionResult>? _conditions;
         private List<QueuedMessage>? _pending;
@@ -169,7 +169,7 @@ namespace StackExchange.Redis
             return new TransactionMessage(Database, flags, cond, work);
         }
 
-        private class QueuedMessage : Message
+        private sealed class QueuedMessage : Message
         {
             public Message Wrapped { get; }
             private volatile bool wasQueued;
@@ -197,7 +197,7 @@ namespace StackExchange.Redis
                 => Wrapped.GetHashSlot(serverSelectionStrategy);
         }
 
-        private class QueuedProcessor : ResultProcessor<bool>
+        private sealed class QueuedProcessor : ResultProcessor<bool>
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
 
@@ -216,7 +216,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private class TransactionMessage : Message, IMultiMessage
+        private sealed class TransactionMessage : Message, IMultiMessage
         {
             private readonly ConditionResult[] conditions;
 
@@ -465,7 +465,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private class TransactionProcessor : ResultProcessor<bool>
+        private sealed class TransactionProcessor : ResultProcessor<bool>
         {
             public static readonly TransactionProcessor Default = new();
 
