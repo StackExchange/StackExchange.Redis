@@ -458,7 +458,7 @@ namespace StackExchange.Redis
             // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits
             if (Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey) && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
             {
-                log?.LogInformationRequestingTieBreak(new LoggerExtensions.EndPointLogValue(EndPoint), tieBreakerKey.ToString());
+                log?.LogInformationRequestingTieBreak(new(EndPoint), tieBreakerKey);
                 msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                 msg.SetInternalCall();
                 msg = LoggingMessage.Create(log, msg);

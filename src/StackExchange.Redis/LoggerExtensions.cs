@@ -439,7 +439,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 62,
         Message = "{EndPoint}: Requesting tie-break (Key=\"{TieBreakerKey}\")...")]
-    internal static partial void LogInformationRequestingTieBreak(this ILogger logger, EndPointLogValue endPoint, string tieBreakerKey);
+    internal static partial void LogInformationRequestingTieBreak(this ILogger logger, EndPointLogValue endPoint, RedisKey tieBreakerKey);
 
     [LoggerMessage(
         Level = LogLevel.Information,
