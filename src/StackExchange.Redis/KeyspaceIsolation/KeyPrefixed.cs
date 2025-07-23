@@ -384,6 +384,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None) =>
             Inner.ExecuteAsync(command, ToInner(args), flags);
 
+        public Task<Lease<byte>?> ExecuteLeaseAsync(string command, params object[] args) =>
+            Inner.ExecuteLeaseAsync(command, ToInner(args), CommandFlags.None);
+
+        public Task<Lease<byte>?> ExecuteLeaseAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None) =>
+            Inner.ExecuteLeaseAsync(command, ToInner(args), flags);
+
+        public Task<Lease<byte>?> ExecuteLeaseExplicitAsync(string command, ICollection<RedisKey> keys, ICollection<RedisValue> args, CommandFlags flags = CommandFlags.None) =>
+            throw new NotSupportedException($"{nameof(ExecuteLeaseExplicitAsync)} is not supported with key prefixes");
+
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None) =>
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);

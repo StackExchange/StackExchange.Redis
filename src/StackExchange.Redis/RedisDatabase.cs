@@ -1890,6 +1890,21 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.ScriptResult)!;
         }
 
+        public Lease<byte>? ExecuteLease(string command, params object[] args)
+            => ExecuteLease(command, args, CommandFlags.None);
+
+        public Lease<byte>? ExecuteLease(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
+        public Lease<byte>? ExecuteLeaseExplicit(string command, ICollection<RedisKey> keys, ICollection<RedisValue> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecuteExplicitMessage(multiplexer?.CommandMap, Database, flags, command, keys, args);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
             => ExecuteAsync(command, args, CommandFlags.None);
 
@@ -1897,6 +1912,21 @@ namespace StackExchange.Redis
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
+        }
+
+        public Task<Lease<byte>?> ExecuteLeaseAsync(string command, params object[] args)
+            => ExecuteLeaseAsync(command, args, CommandFlags.None);
+
+        public Task<Lease<byte>?> ExecuteLeaseAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            return ExecuteAsync<Lease<byte>?>(msg, ResultProcessor.Lease!, defaultValue: null);
+        }
+
+        public Task<Lease<byte>?> ExecuteLeaseExplicitAsync(string command, ICollection<RedisKey>? keys, ICollection<RedisValue>? args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecuteExplicitMessage(multiplexer?.CommandMap, Database, flags, command, keys, args);
+            return ExecuteAsync<Lease<byte>?>(msg, ResultProcessor.Lease!, defaultValue: null);
         }
 
         public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -5395,6 +5425,48 @@ namespace StackExchange.Redis
                     {
                         slot = serverSelectionStrategy.CombineSlot(slot, key);
                     }
+                }
+                return slot;
+            }
+            public override int ArgCount => _args.Count;
+        }
+
+        internal sealed class ExecuteExplicitMessage : Message
+        {
+            private readonly ICollection<RedisKey> _keys;
+            private readonly ICollection<RedisValue> _args;
+            public new CommandBytes Command { get; }
+
+            public ExecuteExplicitMessage(CommandMap? map, int db, CommandFlags flags, string command, ICollection<RedisKey>? keys, ICollection<RedisValue>? args) : base(db, flags, RedisCommand.UNKNOWN)
+            {
+                if (args != null && args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                {
+                    throw ExceptionFactory.TooManyArgs(command, args.Count);
+                }
+                Command = map?.GetBytes(command) ?? default;
+                if (Command.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+                _keys = keys ?? Array.Empty<RedisKey>();
+                _args = args ?? Array.Empty<RedisValue>();
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(RedisCommand.UNKNOWN, _args.Count, Command);
+                foreach (var arg in _args)
+                {
+                    physical.WriteBulkString(arg);
+                }
+            }
+
+            public override string CommandString => Command.ToString();
+            public override string CommandAndKey => Command.ToString();
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = ServerSelectionStrategy.NoSlot;
+                foreach (var key in _keys)
+                {
+                    slot = serverSelectionStrategy.CombineSlot(slot, key);
                 }
                 return slot;
             }

@@ -79,6 +79,10 @@ public class NamingTests(ITestOutputHelper output) : TestBase(output)
                 case nameof(IDatabaseAsync.PublishAsync):
                 case nameof(IDatabase.Execute):
                 case nameof(IDatabaseAsync.ExecuteAsync):
+                case nameof(IDatabase.ExecuteLease):
+                case nameof(IDatabaseAsync.ExecuteLeaseAsync):
+                case nameof(IDatabase.ExecuteLeaseExplicit):
+                case nameof(IDatabaseAsync.ExecuteLeaseExplicitAsync):
                 case nameof(IDatabase.ScriptEvaluate):
                 case nameof(IDatabaseAsync.ScriptEvaluateAsync):
                 case nameof(IDatabase.StreamRead):
@@ -108,6 +112,10 @@ public class NamingTests(ITestOutputHelper output) : TestBase(output)
             case nameof(IDatabase.CreateTransaction):
             case nameof(IDatabase.Execute):
             case nameof(IDatabaseAsync.ExecuteAsync):
+            case nameof(IDatabase.ExecuteLease):
+            case nameof(IDatabaseAsync.ExecuteLeaseAsync):
+            case nameof(IDatabase.ExecuteLeaseExplicit):
+            case nameof(IDatabaseAsync.ExecuteLeaseExplicitAsync):
             case nameof(IDatabase.IsConnected):
             case nameof(IDatabase.SetScan):
             case nameof(IDatabase.SortedSetScan):
