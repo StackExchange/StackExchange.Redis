@@ -403,4 +403,89 @@ internal static partial class LoggerExtensions
         EventId = 56,
         Message = "...but we did find instead: {DeDottedEndpoint}")]
     internal static partial void LogInformationFoundAlternativeEndpoint(this ILogger logger, string deDottedEndpoint);
+
+    // ServerEndPoint logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 57,
+        Message = "{Server}: OnConnectedAsync already connected start")]
+    internal static partial void LogInformationOnConnectedAsyncAlreadyConnectedStart(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 58,
+        Message = "{Server}: OnConnectedAsync already connected end")]
+    internal static partial void LogInformationOnConnectedAsyncAlreadyConnectedEnd(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 59,
+        Message = "{Server}: OnConnectedAsync init (State={ConnectionState})")]
+    internal static partial void LogInformationOnConnectedAsyncInit(this ILogger logger, ServerEndPointLogValue server, PhysicalBridge.State? connectionState);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 60,
+        Message = "{Server}: OnConnectedAsync completed ({Result})")]
+    internal static partial void LogInformationOnConnectedAsyncCompleted(this ILogger logger, ServerEndPointLogValue server, string result);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 61,
+        Message = "{Server}: Auto-configuring...")]
+    internal static partial void LogInformationAutoConfiguring(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 62,
+        Message = "{EndPoint}: Requesting tie-break (Key=\"{TieBreakerKey}\")...")]
+    internal static partial void LogInformationRequestingTieBreak(this ILogger logger, EndPointLogValue endPoint, string tieBreakerKey);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 63,
+        Message = "{Server}: Server handshake")]
+    internal static partial void LogInformationServerHandshake(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 64,
+        Message = "{Server}: Authenticating via HELLO")]
+    internal static partial void LogInformationAuthenticatingViaHello(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 65,
+        Message = "{Server}: Authenticating (user/password)")]
+    internal static partial void LogInformationAuthenticatingUserPassword(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 66,
+        Message = "{Server}: Authenticating (password)")]
+    internal static partial void LogInformationAuthenticatingPassword(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 67,
+        Message = "{Server}: Setting client name: {ClientName}")]
+    internal static partial void LogInformationSettingClientName(this ILogger logger, ServerEndPointLogValue server, string clientName);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 68,
+        Message = "{Server}: Setting client lib/ver")]
+    internal static partial void LogInformationSettingClientLibVer(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 69,
+        Message = "{Server}: Sending critical tracer (handshake): {CommandAndKey}")]
+    internal static partial void LogInformationSendingCriticalTracer(this ILogger logger, ServerEndPointLogValue server, string commandAndKey);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 70,
+        Message = "{Server}: Flushing outbound buffer")]
+    internal static partial void LogInformationFlushingOutboundBuffer(this ILogger logger, ServerEndPointLogValue server);
 }
