@@ -285,14 +285,14 @@ namespace StackExchange.Redis
         public static Condition SortedSetNotContains(RedisKey key, RedisValue member) => new ExistsCondition(key, RedisType.SortedSet, member, false);
 
         /// <summary>
-        /// Enforces that the given sorted set contains a member that ist starting with the start-sequence
+        /// Enforces that the given sorted set contains a member that ist starting with the start-sequence.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="memberStartSequence">a byte array: the set must contain at least one member, that starts with the byte-sequence.</param>
         public static Condition SortedSetStartsWith(RedisKey key, byte[] memberStartSequence) => new StartsWithCondition(key, memberStartSequence, true);
 
         /// <summary>
-        /// Enforces that the given sorted set does not contain a member that ist starting with the start-sequence
+        /// Enforces that the given sorted set does not contain a member that ist starting with the start-sequence.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="memberStartSequence">a byte array: the set must not contain any members, that start with the byte-sequence.</param>
@@ -441,7 +441,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        physical.WriteHeader(command, value1.IsNull? 2 : value2.IsNull? 3 : value3.IsNull? 4 : value4.IsNull? 5 : 6); 
+                        physical.WriteHeader(command, value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6);
                         physical.Write(Key);
                         physical.WriteBulkString(value);
                         if (!value1.IsNull)
@@ -454,7 +454,7 @@ namespace StackExchange.Redis
                             physical.WriteBulkString(value4);
                     }
                 }
-            public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6;
+                public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6;
             }
         }
 
@@ -536,9 +536,9 @@ namespace StackExchange.Redis
 
         internal sealed class StartsWithCondition : Condition
         {
-            // only usable for RedisType.SortedSet, members of SortedSets are always byte-arrays, expectedStartValue therefore is a byte-array
-            // any Encoding and Conversion for the search-sequence has to be executed in calling application
-            // working with byte arrays should prevent any encoding within this class, that could distort the comparison
+            /* only usable for RedisType.SortedSet, members of SortedSets are always byte-arrays, expectedStartValue therefore is a byte-array
+               any Encoding and Conversion for the search-sequence has to be executed in calling application
+               working with byte arrays should prevent any encoding within this class, that could distort the comparison */
 
             private readonly bool expectedResult;
             private readonly RedisValue expectedStartValue;
@@ -566,10 +566,10 @@ namespace StackExchange.Redis
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
-#pragma warning disable CS8600, CS8604  // expectedStartValue is checked to be not null in Constructor and must be a byte[] because of API-parameters
+#pragma warning disable CS8600, CS8604, SA1117  // expectedStartValue is checked to be not null in Constructor and must be a byte[] because of API-parameters
                 var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZRANGEBYLEX, key,
-                        CombineBytes(91, (byte[])expectedStartValue.Box()), "+", "LIMIT", "0", "1");// prepends '[' to startValue for inclusive search in CombineBytes
-#pragma warning disable CS8600, CS8604
+                        CombineBytes(91, (byte[])expectedStartValue.Box()), "+", "LIMIT", "0", "1"); // prepends '[' to startValue for inclusive search in CombineBytes
+#pragma warning disable CS8600, CS8604, SA1117
                 message.SetSource(ConditionProcessor.Default, resultBox);
                 yield return message;
             }
@@ -579,7 +579,7 @@ namespace StackExchange.Redis
             internal override bool TryValidate(in RawResult result, out bool value)
             {
                 RedisValue[]? r = result.GetItemsAsValues();
-                if (result.ItemsCount == 0) value = false;// false, if empty list -> read after end of memberlist / itemsCout > 1 is impossible due to 'LIMIT 0 1'
+                if (result.ItemsCount == 0) value = false; // false, if empty list -> read after end of memberlist / itemsCout > 1 is impossible due to 'LIMIT 0 1'
 #pragma warning disable CS8600, CS8604  // warnings on StartsWith can be ignored because of ItemsCount-check in then preceding command!!
                 else value = r != null && r.Length > 0 && StartsWith((byte[])r[0].Box(), expectedStartValue);
 #pragma warning disable CS8600, CS8604
@@ -590,11 +590,11 @@ namespace StackExchange.Redis
                                                         + "; expected: " + expectedStartValue.ToString()
                                                         + "; wanted: " + (expectedResult ? "StartsWith" : "NotStartWith")
                                                         + "; voting: " + value);
-#pragma warning restore CS8602  
+#pragma warning restore CS8602
                 return true;
             }
 
-            private static byte[] CombineBytes(byte b1, byte[] a1)  // combines b1 and a1 to new array
+            private static byte[] CombineBytes(byte b1, byte[] a1) // combines b1 and a1 to new array
             {
                 byte[] newArray = new byte[a1.Length + 1];
                 newArray[0] = b1;
@@ -613,10 +613,7 @@ namespace StackExchange.Redis
 
                 return true;
             }
-
-
         }
-
 
         internal sealed class EqualsCondition : Condition
         {

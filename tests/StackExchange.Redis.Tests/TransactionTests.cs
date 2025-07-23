@@ -812,7 +812,6 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         }
     }
 
-
     [Theory]
     [InlineData(false, false, true)]
     [InlineData(false, true, false)]
