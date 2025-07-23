@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using NSubstitute;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
+using static StackExchange.Redis.Tests.KeyPrefixedDatabaseTests; // for IsKeys etc
 
 namespace StackExchange.Redis.Tests
 {
@@ -177,9 +178,8 @@ namespace StackExchange.Redis.Tests
         public async Task HyperLogLogMergeAsync_2()
         {
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.HyperLogLogMergeAsync("destination", keys, CommandFlags.None);
-            await mock.Received().HyperLogLogMergeAsync("prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().HyperLogLogMergeAsync("prefix:destination", IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -214,9 +214,8 @@ namespace StackExchange.Redis.Tests
         public async Task KeyDeleteAsync_2()
         {
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.KeyDeleteAsync(keys, CommandFlags.None);
-            await mock.Received().KeyDeleteAsync(Arg.Is(valid), CommandFlags.None);
+            await mock.Received().KeyDeleteAsync(IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -538,9 +537,8 @@ namespace StackExchange.Redis.Tests
             byte[] hash = Array.Empty<byte>();
             RedisValue[] values = Array.Empty<RedisValue>();
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.ScriptEvaluateAsync(hash, keys, values, CommandFlags.None);
-            await mock.Received().ScriptEvaluateAsync(hash, Arg.Is(valid), values, CommandFlags.None);
+            await mock.Received().ScriptEvaluateAsync(hash, IsKeys("prefix:a", "prefix:b"), values, CommandFlags.None);
         }
 
         [Fact]
@@ -548,9 +546,8 @@ namespace StackExchange.Redis.Tests
         {
             RedisValue[] values = Array.Empty<RedisValue>();
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.ScriptEvaluateAsync("script", keys, values, CommandFlags.None);
-            await mock.Received().ScriptEvaluateAsync(script: "script", keys: Arg.Is(valid), values: values, flags: CommandFlags.None);
+            await mock.Received().ScriptEvaluateAsync(script: "script", keys: IsKeys("prefix:a", "prefix:b"), values: values, flags: CommandFlags.None);
         }
 
         [Fact]
@@ -579,9 +576,8 @@ namespace StackExchange.Redis.Tests
         public async Task SetCombineAndStoreAsync_2()
         {
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", keys, CommandFlags.None);
-            await mock.Received().SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -595,9 +591,8 @@ namespace StackExchange.Redis.Tests
         public async Task SetCombineAsync_2()
         {
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.SetCombineAsync(SetOperation.Intersect, keys, CommandFlags.None);
-            await mock.Received().SetCombineAsync(SetOperation.Intersect, Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SetCombineAsync(SetOperation.Intersect, IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -618,9 +613,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SetIntersectionLengthAsync()
         {
-            var keys = new RedisKey[] { "key1", "key2" };
-            await prefixed.SetIntersectionLengthAsync(keys);
-            await mock.Received().SetIntersectionLengthAsync(keys, 0, CommandFlags.None);
+            await prefixed.SetIntersectionLengthAsync(["key1", "key2"]);
+            await mock.Received().SetIntersectionLengthAsync(IsKeys("prefix:key1", "prefix:key2"), 0, CommandFlags.None);
         }
 
         [Fact]
@@ -694,26 +688,24 @@ namespace StackExchange.Redis.Tests
         public async Task SortAndStoreAsync()
         {
             RedisValue[] get = ["a", "#"];
-            Expression<Predicate<RedisValue[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
 
             await prefixed.SortAndStoreAsync("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
             await prefixed.SortAndStoreAsync("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
 
-            await mock.Received().SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", Arg.Is(valid), CommandFlags.None);
-            await mock.Received().SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", IsValues("prefix:a", "#"), CommandFlags.None);
+            await mock.Received().SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", IsValues("prefix:a", "#"), CommandFlags.None);
         }
 
         [Fact]
         public async Task SortAsync()
         {
             RedisValue[] get = ["a", "#"];
-            Expression<Predicate<RedisValue[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
 
             await prefixed.SortAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
             await prefixed.SortAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
 
-            await mock.Received().SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", Arg.Is(valid), CommandFlags.None);
-            await mock.Received().SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", IsValues("prefix:a", "#"), CommandFlags.None);
+            await mock.Received().SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", IsValues("prefix:a", "#"), CommandFlags.None);
         }
 
         [Fact]
@@ -742,17 +734,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SortedSetCombineAsync()
         {
-            RedisKey[] keys = ["a", "b"];
-            await prefixed.SortedSetCombineAsync(SetOperation.Intersect, keys);
-            await mock.Received().SortedSetCombineAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None);
+            await prefixed.SortedSetCombineAsync(SetOperation.Intersect, ["a", "b"]);
+            await mock.Received().SortedSetCombineAsync(SetOperation.Intersect, IsKeys("prefix:a", "prefix:b"), null, Aggregate.Sum, CommandFlags.None);
         }
 
         [Fact]
         public async Task SortedSetCombineWithScoresAsync()
         {
-            RedisKey[] keys = ["a", "b"];
-            await prefixed.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys);
-            await mock.Received().SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None);
+            await prefixed.SortedSetCombineWithScoresAsync(SetOperation.Intersect, ["a", "b"]);
+            await mock.Received().SortedSetCombineWithScoresAsync(SetOperation.Intersect, IsKeys("prefix:a", "prefix:b"), null, Aggregate.Sum, CommandFlags.None);
         }
 
         [Fact]
@@ -766,9 +756,8 @@ namespace StackExchange.Redis.Tests
         public async Task SortedSetCombineAndStoreAsync_2()
         {
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", keys, CommandFlags.None);
-            await mock.Received().SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -788,9 +777,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SortedSetIntersectionLengthAsync()
         {
-            RedisKey[] keys = ["a", "b"];
-            await prefixed.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
-            await mock.Received().SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
+            await prefixed.SortedSetIntersectionLengthAsync(["a", "b"], 1, CommandFlags.None);
+            await mock.Received().SortedSetIntersectionLengthAsync(IsKeys("prefix:a", "prefix:b"), 1, CommandFlags.None);
         }
 
         [Fact]
@@ -1171,45 +1159,40 @@ namespace StackExchange.Redis.Tests
         public async Task StringBitOperationAsync_2()
         {
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.StringBitOperationAsync(Bitwise.Xor, "destination", keys, CommandFlags.None);
-            await mock.Received().StringBitOperationAsync(Bitwise.Xor, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.Xor, "prefix:destination", IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
         public async Task StringBitOperationAsync_Diff()
         {
             RedisKey[] keys = ["x", "y1", "y2"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
             await prefixed.StringBitOperationAsync(Bitwise.Diff, "destination", keys, CommandFlags.None);
-            await mock.Received().StringBitOperationAsync(Bitwise.Diff, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.Diff, "prefix:destination", IsKeys("prefix:x", "prefix:y1", "prefix:y2"), CommandFlags.None);
         }
 
         [Fact]
         public async Task StringBitOperationAsync_Diff1()
         {
             RedisKey[] keys = ["x", "y1", "y2"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
             await prefixed.StringBitOperationAsync(Bitwise.Diff1, "destination", keys, CommandFlags.None);
-            await mock.Received().StringBitOperationAsync(Bitwise.Diff1, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.Diff1, "prefix:destination", IsKeys("prefix:x", "prefix:y1", "prefix:y2"), CommandFlags.None);
         }
 
         [Fact]
         public async Task StringBitOperationAsync_AndOr()
         {
             RedisKey[] keys = ["x", "y1", "y2"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:x" && _[1] == "prefix:y1" && _[2] == "prefix:y2";
             await prefixed.StringBitOperationAsync(Bitwise.AndOr, "destination", keys, CommandFlags.None);
-            await mock.Received().StringBitOperationAsync(Bitwise.AndOr, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.AndOr, "prefix:destination", IsKeys("prefix:x", "prefix:y1", "prefix:y2"), CommandFlags.None);
         }
 
         [Fact]
         public async Task StringBitOperationAsync_One()
         {
             RedisKey[] keys = ["a", "b", "c"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 3 && _[0] == "prefix:a" && _[1] == "prefix:b" && _[2] == "prefix:c";
             await prefixed.StringBitOperationAsync(Bitwise.One, "destination", keys, CommandFlags.None);
-            await mock.Received().StringBitOperationAsync(Bitwise.One, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.One, "prefix:destination", IsKeys("prefix:a", "prefix:b", "prefix:c"), CommandFlags.None);
         }
 
         [Fact]
@@ -1251,9 +1234,8 @@ namespace StackExchange.Redis.Tests
         public async Task StringGetAsync_2()
         {
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.StringGetAsync(keys, CommandFlags.None);
-            await mock.Received().StringGetAsync(Arg.Is(valid), CommandFlags.None);
+            await mock.Received().StringGetAsync(IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -1370,9 +1352,8 @@ namespace StackExchange.Redis.Tests
         public async Task KeyTouchAsync_2()
         {
             RedisKey[] keys = ["a", "b"];
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
             await prefixed.KeyTouchAsync(keys, CommandFlags.None);
-            await mock.Received().KeyTouchAsync(Arg.Is(valid), CommandFlags.None);
+            await mock.Received().KeyTouchAsync(IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
     }
 }
