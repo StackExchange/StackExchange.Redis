@@ -12,6 +12,10 @@ public class CancellationTests(ITestOutputHelper output, SharedConnectionFixture
     [Fact]
     public async Task WithCancellation_CancelledToken_ThrowsOperationCanceledException()
     {
+#if NETFRAMEWORK
+        Skip.UnlessLongRunning(); // unpredictable on netfx due to weak WaitAsync impl
+#endif
+
         await using var conn = Create();
         var db = conn.GetDatabase();
 
