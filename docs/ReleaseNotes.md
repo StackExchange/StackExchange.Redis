@@ -12,7 +12,7 @@ Current package versions:
 - Fix key-prefix omission in `SetIntersectionLength` and `SortedSet{Combine[WithScores]|IntersectionLength}` ([#2863 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2863))
 - Add `Condition.SortedSet[Not]ContainsStarting` condition for transactions ([#2638 by ArnoKoll](https://github.com/StackExchange/StackExchange.Redis/pull/2638))
 - Add support for XPENDING Idle time filter ([#2822 by david-brink-talogy](https://github.com/StackExchange/StackExchange.Redis/pull/2822))
-- Improve `double` formatting performance on net8+ ([#xxxx by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/xxxx))
+- Improve `double` formatting performance on net8+ ([#2928 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2928))
 
 ## 2.8.58
 
