@@ -546,15 +546,9 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 80,
-        Message = "{Server}: Auto-configured (CONFIG) read-only replica: true")]
-    internal static partial void LogInformationAutoConfiguredConfigReadOnlyReplicaTrue(this ILogger logger, ServerEndPointLogValue server);
-
-    [LoggerMessage(
-        Level = LogLevel.Information,
         EventId = 81,
-        Message = "{Server}: Auto-configured (CONFIG) read-only replica: false")]
-    internal static partial void LogInformationAutoConfiguredConfigReadOnlyReplicaFalse(this ILogger logger, ServerEndPointLogValue server);
+        Message = "{Server}: Auto-configured (CONFIG) read-only replica: {ReadOnlyReplica}")]
+    internal static partial void LogInformationAutoConfiguredConfigReadOnlyReplica(this ILogger logger, ServerEndPointLogValue server, bool readOnlyReplica);
 
     [LoggerMessage(
         Level = LogLevel.Information,

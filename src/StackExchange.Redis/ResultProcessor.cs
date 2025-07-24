@@ -960,12 +960,12 @@ namespace StackExchange.Redis
                                     if (val.IsEqual(CommonReplies.yes))
                                     {
                                         server.ReplicaReadOnly = true;
-                                        Log?.LogInformationAutoConfiguredConfigReadOnlyReplicaTrue(new(server));
+                                        Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), true);
                                     }
                                     else if (val.IsEqual(CommonReplies.no))
                                     {
                                         server.ReplicaReadOnly = false;
-                                        Log?.LogInformationAutoConfiguredConfigReadOnlyReplicaFalse(new(server));
+                                        Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), false);
                                     }
                                 }
                             }
