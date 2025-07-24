@@ -310,6 +310,9 @@ namespace StackExchange.Redis
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
             new CommandValueValueValueValueValueMessage(db, flags, command, value0, value1, value2, value3, value4);
 
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue[] values) =>
+            new CommandKeyValueValueValuesMessage(db, flags, command, key, value0, value1, values);
+
         public static Message Create(
             int db,
             CommandFlags flags,
@@ -569,6 +572,9 @@ namespace StackExchange.Redis
                 case RedisCommand.SLAVEOF:
                 case RedisCommand.SLOWLOG:
                 case RedisCommand.SUBSCRIBE:
+                case RedisCommand.SPUBLISH:
+                case RedisCommand.SSUBSCRIBE:
+                case RedisCommand.SUNSUBSCRIBE:
                 case RedisCommand.SWAPDB:
                 case RedisCommand.SYNC:
                 case RedisCommand.TIME:
@@ -1177,6 +1183,36 @@ namespace StackExchange.Redis
             public override int ArgCount => values.Length + 1;
         }
 
+        private sealed class CommandKeyValueValueValuesMessage : CommandKeyBase
+        {
+            private readonly RedisValue value0;
+            private readonly RedisValue value1;
+            private readonly RedisValue[] values;
+            public CommandKeyValueValueValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, RedisValue[] values) : base(db, flags, command, key)
+            {
+                for (int i = 0; i < values.Length; i++)
+                {
+                    values[i].AssertNotNull();
+                }
+
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
+                this.values = values;
+            }
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, values.Length + 3);
+                physical.Write(Key);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
+            }
+            public override int ArgCount => values.Length + 3;
+        }
+
         private sealed class CommandKeyValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1;
@@ -1624,7 +1660,7 @@ namespace StackExchange.Redis
             public override int ArgCount => 0;
         }
 
-        private class CommandSlotValuesMessage : Message
+        private sealed class CommandSlotValuesMessage : Message
         {
             private readonly int slot;
             private readonly RedisValue[] values;

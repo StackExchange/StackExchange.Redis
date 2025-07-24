@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     public class ExponentialRetry : IReconnectRetryPolicy
     {
         private readonly int deltaBackOffMilliseconds;
-        private readonly int maxDeltaBackOffMilliseconds = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
+        private readonly int maxDeltaBackOffMilliseconds = (int)TimeSpan.FromSeconds(60).TotalMilliseconds;
         [ThreadStatic]
         private static Random? r;
 

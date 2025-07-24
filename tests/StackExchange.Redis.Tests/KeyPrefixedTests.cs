@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Net;
 using System.Text;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 using NSubstitute;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
+using static StackExchange.Redis.Tests.KeyPrefixedDatabaseTests; // for IsKeys etc
 
 namespace StackExchange.Redis.Tests
 {
@@ -176,10 +178,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task HyperLogLogMergeAsync_2()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.HyperLogLogMergeAsync("destination", keys, CommandFlags.None);
-            await mock.Received().HyperLogLogMergeAsync("prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().HyperLogLogMergeAsync("prefix:destination", IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -213,10 +214,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task KeyDeleteAsync_2()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.KeyDeleteAsync(keys, CommandFlags.None);
-            await mock.Received().KeyDeleteAsync(Arg.Is(valid), CommandFlags.None);
+            await mock.Received().KeyDeleteAsync(IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -404,7 +404,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ListLeftPushAsync_3()
         {
-            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            RedisValue[] values = ["value1", "value2"];
             await prefixed.ListLeftPushAsync("key", values, When.Exists, CommandFlags.None);
             await mock.Received().ListLeftPushAsync("prefix:key", values, When.Exists, CommandFlags.None);
         }
@@ -476,7 +476,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ListRightPushAsync_3()
         {
-            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            RedisValue[] values = ["value1", "value2"];
             await prefixed.ListRightPushAsync("key", values, When.Exists, CommandFlags.None);
             await mock.Received().ListRightPushAsync("prefix:key", values, When.Exists, CommandFlags.None);
         }
@@ -537,20 +537,18 @@ namespace StackExchange.Redis.Tests
         {
             byte[] hash = Array.Empty<byte>();
             RedisValue[] values = Array.Empty<RedisValue>();
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.ScriptEvaluateAsync(hash, keys, values, CommandFlags.None);
-            await mock.Received().ScriptEvaluateAsync(hash, Arg.Is(valid), values, CommandFlags.None);
+            await mock.Received().ScriptEvaluateAsync(hash, IsKeys("prefix:a", "prefix:b"), values, CommandFlags.None);
         }
 
         [Fact]
         public async Task ScriptEvaluateAsync_2()
         {
             RedisValue[] values = Array.Empty<RedisValue>();
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.ScriptEvaluateAsync("script", keys, values, CommandFlags.None);
-            await mock.Received().ScriptEvaluateAsync("script", Arg.Is(valid), values, CommandFlags.None);
+            await mock.Received().ScriptEvaluateAsync(script: "script", keys: IsKeys("prefix:a", "prefix:b"), values: values, flags: CommandFlags.None);
         }
 
         [Fact]
@@ -578,10 +576,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SetCombineAndStoreAsync_2()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", keys, CommandFlags.None);
-            await mock.Received().SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -594,10 +591,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SetCombineAsync_2()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.SetCombineAsync(SetOperation.Intersect, keys, CommandFlags.None);
-            await mock.Received().SetCombineAsync(SetOperation.Intersect, Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SetCombineAsync(SetOperation.Intersect, IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -610,7 +606,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SetContainsAsync_2()
         {
-            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            RedisValue[] values = ["value1", "value2"];
             await prefixed.SetContainsAsync("key", values, CommandFlags.None);
             await mock.Received().SetContainsAsync("prefix:key", values, CommandFlags.None);
         }
@@ -618,9 +614,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SetIntersectionLengthAsync()
         {
-            var keys = new RedisKey[] { "key1", "key2" };
-            await prefixed.SetIntersectionLengthAsync(keys);
-            await mock.Received().SetIntersectionLengthAsync(keys, 0, CommandFlags.None);
+            await prefixed.SetIntersectionLengthAsync(["key1", "key2"]);
+            await mock.Received().SetIntersectionLengthAsync(IsKeys("prefix:key1", "prefix:key2"), 0, CommandFlags.None);
         }
 
         [Fact]
@@ -693,27 +688,25 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SortAndStoreAsync()
         {
-            RedisValue[] get = new RedisValue[] { "a", "#" };
-            Expression<Predicate<RedisValue[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
+            RedisValue[] get = ["a", "#"];
 
             await prefixed.SortAndStoreAsync("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
             await prefixed.SortAndStoreAsync("destination", "key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
 
-            await mock.Received().SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", Arg.Is(valid), CommandFlags.None);
-            await mock.Received().SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", IsValues("prefix:a", "#"), CommandFlags.None);
+            await mock.Received().SortAndStoreAsync("prefix:destination", "prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", IsValues("prefix:a", "#"), CommandFlags.None);
         }
 
         [Fact]
         public async Task SortAsync()
         {
-            RedisValue[] get = new RedisValue[] { "a", "#" };
-            Expression<Predicate<RedisValue[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "#";
+            RedisValue[] get = ["a", "#"];
 
             await prefixed.SortAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", get, CommandFlags.None);
             await prefixed.SortAsync("key", 123, 456, Order.Descending, SortType.Alphabetic, "by", get, CommandFlags.None);
 
-            await mock.Received().SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", Arg.Is(valid), CommandFlags.None);
-            await mock.Received().SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "nosort", IsValues("prefix:a", "#"), CommandFlags.None);
+            await mock.Received().SortAsync("prefix:key", 123, 456, Order.Descending, SortType.Alphabetic, "prefix:by", IsValues("prefix:a", "#"), CommandFlags.None);
         }
 
         [Fact]
@@ -742,17 +735,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SortedSetCombineAsync()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            await prefixed.SortedSetCombineAsync(SetOperation.Intersect, keys);
-            await mock.Received().SortedSetCombineAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None);
+            await prefixed.SortedSetCombineAsync(SetOperation.Intersect, ["a", "b"]);
+            await mock.Received().SortedSetCombineAsync(SetOperation.Intersect, IsKeys("prefix:a", "prefix:b"), null, Aggregate.Sum, CommandFlags.None);
         }
 
         [Fact]
         public async Task SortedSetCombineWithScoresAsync()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            await prefixed.SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys);
-            await mock.Received().SortedSetCombineWithScoresAsync(SetOperation.Intersect, keys, null, Aggregate.Sum, CommandFlags.None);
+            await prefixed.SortedSetCombineWithScoresAsync(SetOperation.Intersect, ["a", "b"]);
+            await mock.Received().SortedSetCombineWithScoresAsync(SetOperation.Intersect, IsKeys("prefix:a", "prefix:b"), null, Aggregate.Sum, CommandFlags.None);
         }
 
         [Fact]
@@ -765,10 +756,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SortedSetCombineAndStoreAsync_2()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.SetCombineAndStoreAsync(SetOperation.Intersect, "destination", keys, CommandFlags.None);
-            await mock.Received().SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().SetCombineAndStoreAsync(SetOperation.Intersect, "prefix:destination", IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -788,9 +778,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SortedSetIntersectionLengthAsync()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            await prefixed.SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
-            await mock.Received().SortedSetIntersectionLengthAsync(keys, 1, CommandFlags.None);
+            await prefixed.SortedSetIntersectionLengthAsync(["a", "b"], 1, CommandFlags.None);
+            await mock.Received().SortedSetIntersectionLengthAsync(IsKeys("prefix:a", "prefix:b"), 1, CommandFlags.None);
         }
 
         [Fact]
@@ -1119,6 +1108,27 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StreamTrimByMinIdAsync()
+        {
+            await prefixed.StreamTrimByMinIdAsync("key", 1111111111);
+            await mock.Received().StreamTrimByMinIdAsync("prefix:key", 1111111111);
+        }
+
+        [Fact]
+        public async Task StreamTrimByMinIdAsyncWithApproximate()
+        {
+            await prefixed.StreamTrimByMinIdAsync("key", 1111111111, useApproximateMaxLength: true);
+            await mock.Received().StreamTrimByMinIdAsync("prefix:key", 1111111111, useApproximateMaxLength: true);
+        }
+
+        [Fact]
+        public async Task StreamTrimByMinIdAsyncWithApproximateAndLimit()
+        {
+            await prefixed.StreamTrimByMinIdAsync("key", 1111111111, useApproximateMaxLength: true, limit: 100);
+            await mock.Received().StreamTrimByMinIdAsync("prefix:key", 1111111111, useApproximateMaxLength: true, limit: 100);
+        }
+
+        [Fact]
         public async Task StringAppendAsync()
         {
             await prefixed.StringAppendAsync("key", "value", CommandFlags.None);
@@ -1149,10 +1159,41 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StringBitOperationAsync_2()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.StringBitOperationAsync(Bitwise.Xor, "destination", keys, CommandFlags.None);
-            await mock.Received().StringBitOperationAsync(Bitwise.Xor, "prefix:destination", Arg.Is(valid), CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.Xor, "prefix:destination", IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringBitOperationAsync_Diff()
+        {
+            RedisKey[] keys = ["x", "y1", "y2"];
+            await prefixed.StringBitOperationAsync(Bitwise.Diff, "destination", keys, CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.Diff, "prefix:destination", IsKeys("prefix:x", "prefix:y1", "prefix:y2"), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringBitOperationAsync_Diff1()
+        {
+            RedisKey[] keys = ["x", "y1", "y2"];
+            await prefixed.StringBitOperationAsync(Bitwise.Diff1, "destination", keys, CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.Diff1, "prefix:destination", IsKeys("prefix:x", "prefix:y1", "prefix:y2"), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringBitOperationAsync_AndOr()
+        {
+            RedisKey[] keys = ["x", "y1", "y2"];
+            await prefixed.StringBitOperationAsync(Bitwise.AndOr, "destination", keys, CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.AndOr, "prefix:destination", IsKeys("prefix:x", "prefix:y1", "prefix:y2"), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringBitOperationAsync_One()
+        {
+            RedisKey[] keys = ["a", "b", "c"];
+            await prefixed.StringBitOperationAsync(Bitwise.One, "destination", keys, CommandFlags.None);
+            await mock.Received().StringBitOperationAsync(Bitwise.One, "prefix:destination", IsKeys("prefix:a", "prefix:b", "prefix:c"), CommandFlags.None);
         }
 
         [Fact]
@@ -1193,10 +1234,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StringGetAsync_2()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.StringGetAsync(keys, CommandFlags.None);
-            await mock.Received().StringGetAsync(Arg.Is(valid), CommandFlags.None);
+            await mock.Received().StringGetAsync(IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
         }
 
         [Fact]
@@ -1274,7 +1314,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StringSetAsync_3()
         {
-            KeyValuePair<RedisKey, RedisValue>[] values = new KeyValuePair<RedisKey, RedisValue>[] { new KeyValuePair<RedisKey, RedisValue>("a", "x"), new KeyValuePair<RedisKey, RedisValue>("b", "y") };
+            KeyValuePair<RedisKey, RedisValue>[] values = [new KeyValuePair<RedisKey, RedisValue>("a", "x"), new KeyValuePair<RedisKey, RedisValue>("b", "y")];
             Expression<Predicate<KeyValuePair<RedisKey, RedisValue>[]>> valid = _ => _.Length == 2 && _[0].Key == "prefix:a" && _[0].Value == "x" && _[1].Key == "prefix:b" && _[1].Value == "y";
             await prefixed.StringSetAsync(values, When.Exists, CommandFlags.None);
             await mock.Received().StringSetAsync(Arg.Is(valid), When.Exists, CommandFlags.None);
@@ -1312,10 +1352,393 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task KeyTouchAsync_2()
         {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Predicate<RedisKey[]>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            RedisKey[] keys = ["a", "b"];
             await prefixed.KeyTouchAsync(keys, CommandFlags.None);
-            await mock.Received().KeyTouchAsync(Arg.Is(valid), CommandFlags.None);
+            await mock.Received().KeyTouchAsync(IsKeys("prefix:a", "prefix:b"), CommandFlags.None);
+        }
+        [Fact]
+        public async Task ExecuteAsync_1()
+        {
+            await prefixed.ExecuteAsync("CUSTOM", "arg1", (RedisKey)"arg2");
+            await mock.Received().ExecuteAsync("CUSTOM", Arg.Is<object[]>(args => args.Length == 2 && args[0].Equals("arg1") && args[1].Equals((RedisKey)"prefix:arg2")), CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_2()
+        {
+            var args = new List<object> { "arg1", (RedisKey)"arg2" };
+            await prefixed.ExecuteAsync("CUSTOM", args, CommandFlags.None);
+            await mock.Received().ExecuteAsync("CUSTOM", Arg.Is<ICollection<object>?>(a => a != null && a.Count == 2 && a.ElementAt(0).Equals("arg1") && a.ElementAt(1).Equals((RedisKey)"prefix:arg2")), CommandFlags.None);
+        }
+        [Fact]
+        public async Task GeoAddAsync_1()
+        {
+            await prefixed.GeoAddAsync("key", 1.23, 4.56, "member", CommandFlags.None);
+            await mock.Received().GeoAddAsync("prefix:key", 1.23, 4.56, "member", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoAddAsync_2()
+        {
+            var geoEntry = new GeoEntry(1.23, 4.56, "member");
+            await prefixed.GeoAddAsync("key", geoEntry, CommandFlags.None);
+            await mock.Received().GeoAddAsync("prefix:key", geoEntry, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoAddAsync_3()
+        {
+            var geoEntries = new GeoEntry[] { new GeoEntry(1.23, 4.56, "member1") };
+            await prefixed.GeoAddAsync("key", geoEntries, CommandFlags.None);
+            await mock.Received().GeoAddAsync("prefix:key", geoEntries, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoRemoveAsync()
+        {
+            await prefixed.GeoRemoveAsync("key", "member", CommandFlags.None);
+            await mock.Received().GeoRemoveAsync("prefix:key", "member", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoDistanceAsync()
+        {
+            await prefixed.GeoDistanceAsync("key", "member1", "member2", GeoUnit.Meters, CommandFlags.None);
+            await mock.Received().GeoDistanceAsync("prefix:key", "member1", "member2", GeoUnit.Meters, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoHashAsync_1()
+        {
+            await prefixed.GeoHashAsync("key", "member", CommandFlags.None);
+            await mock.Received().GeoHashAsync("prefix:key", "member", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoHashAsync_2()
+        {
+            var members = new RedisValue[] { "member1", "member2" };
+            await prefixed.GeoHashAsync("key", members, CommandFlags.None);
+            await mock.Received().GeoHashAsync("prefix:key", members, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoPositionAsync_1()
+        {
+            await prefixed.GeoPositionAsync("key", "member", CommandFlags.None);
+            await mock.Received().GeoPositionAsync("prefix:key", "member", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoPositionAsync_2()
+        {
+            var members = new RedisValue[] { "member1", "member2" };
+            await prefixed.GeoPositionAsync("key", members, CommandFlags.None);
+            await mock.Received().GeoPositionAsync("prefix:key", members, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoRadiusAsync_1()
+        {
+            await prefixed.GeoRadiusAsync("key", "member", 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+            await mock.Received().GeoRadiusAsync("prefix:key", "member", 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoRadiusAsync_2()
+        {
+            await prefixed.GeoRadiusAsync("key", 1.23, 4.56, 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+            await mock.Received().GeoRadiusAsync("prefix:key", 1.23, 4.56, 100, GeoUnit.Meters, 10, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoSearchAsync_1()
+        {
+            var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+            await prefixed.GeoSearchAsync("key", "member", shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+            await mock.Received().GeoSearchAsync("prefix:key", "member", shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoSearchAsync_2()
+        {
+            var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+            await prefixed.GeoSearchAsync("key", 1.23, 4.56, shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+            await mock.Received().GeoSearchAsync("prefix:key", 1.23, 4.56, shape, 10, true, Order.Ascending, GeoRadiusOptions.Default, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoSearchAndStoreAsync_1()
+        {
+            var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+            await prefixed.GeoSearchAndStoreAsync("source", "destination", "member", shape, 10, true, Order.Ascending, false, CommandFlags.None);
+            await mock.Received().GeoSearchAndStoreAsync("prefix:source", "prefix:destination", "member", shape, 10, true, Order.Ascending, false, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task GeoSearchAndStoreAsync_2()
+        {
+            var shape = new GeoSearchCircle(100, GeoUnit.Meters);
+            await prefixed.GeoSearchAndStoreAsync("source", "destination", 1.23, 4.56, shape, 10, true, Order.Ascending, false, CommandFlags.None);
+            await mock.Received().GeoSearchAndStoreAsync("prefix:source", "prefix:destination", 1.23, 4.56, shape, 10, true, Order.Ascending, false, CommandFlags.None);
+        }
+        [Fact]
+        public async Task HashFieldExpireAsync_1()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            var expiry = TimeSpan.FromSeconds(60);
+            await prefixed.HashFieldExpireAsync("key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+            await mock.Received().HashFieldExpireAsync("prefix:key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldExpireAsync_2()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            var expiry = DateTime.Now.AddMinutes(1);
+            await prefixed.HashFieldExpireAsync("key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+            await mock.Received().HashFieldExpireAsync("prefix:key", hashFields, expiry, ExpireWhen.Always, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetExpireDateTimeAsync()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            await prefixed.HashFieldGetExpireDateTimeAsync("key", hashFields, CommandFlags.None);
+            await mock.Received().HashFieldGetExpireDateTimeAsync("prefix:key", hashFields, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldPersistAsync()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            await prefixed.HashFieldPersistAsync("key", hashFields, CommandFlags.None);
+            await mock.Received().HashFieldPersistAsync("prefix:key", hashFields, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetTimeToLiveAsync()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            await prefixed.HashFieldGetTimeToLiveAsync("key", hashFields, CommandFlags.None);
+            await mock.Received().HashFieldGetTimeToLiveAsync("prefix:key", hashFields, CommandFlags.None);
+        }
+        [Fact]
+        public async Task HashGetLeaseAsync()
+        {
+            await prefixed.HashGetLeaseAsync("key", "field", CommandFlags.None);
+            await mock.Received().HashGetLeaseAsync("prefix:key", "field", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetAndDeleteAsync_1()
+        {
+            await prefixed.HashFieldGetAndDeleteAsync("key", "field", CommandFlags.None);
+            await mock.Received().HashFieldGetAndDeleteAsync("prefix:key", "field", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetAndDeleteAsync_2()
+        {
+            var hashFields = new RedisValue[] { "field1", "field2" };
+            await prefixed.HashFieldGetAndDeleteAsync("key", hashFields, CommandFlags.None);
+            await mock.Received().HashFieldGetAndDeleteAsync("prefix:key", hashFields, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetLeaseAndDeleteAsync()
+        {
+            await prefixed.HashFieldGetLeaseAndDeleteAsync("key", "field", CommandFlags.None);
+            await mock.Received().HashFieldGetLeaseAndDeleteAsync("prefix:key", "field", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetAndSetExpiryAsync_1()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.HashFieldGetAndSetExpiryAsync("key", "field", expiry, false, CommandFlags.None);
+            await mock.Received().HashFieldGetAndSetExpiryAsync("prefix:key", "field", expiry, false, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetAndSetExpiryAsync_2()
+        {
+            var expiry = DateTime.Now.AddMinutes(5);
+            await prefixed.HashFieldGetAndSetExpiryAsync("key", "field", expiry, CommandFlags.None);
+            await mock.Received().HashFieldGetAndSetExpiryAsync("prefix:key", "field", expiry, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetLeaseAndSetExpiryAsync_1()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.HashFieldGetLeaseAndSetExpiryAsync("key", "field", expiry, false, CommandFlags.None);
+            await mock.Received().HashFieldGetLeaseAndSetExpiryAsync("prefix:key", "field", expiry, false, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task HashFieldGetLeaseAndSetExpiryAsync_2()
+        {
+            var expiry = DateTime.Now.AddMinutes(5);
+            await prefixed.HashFieldGetLeaseAndSetExpiryAsync("key", "field", expiry, CommandFlags.None);
+            await mock.Received().HashFieldGetLeaseAndSetExpiryAsync("prefix:key", "field", expiry, CommandFlags.None);
+        }
+        [Fact]
+        public async Task StringGetLeaseAsync()
+        {
+            await prefixed.StringGetLeaseAsync("key", CommandFlags.None);
+            await mock.Received().StringGetLeaseAsync("prefix:key", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringGetSetExpiryAsync_1()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.StringGetSetExpiryAsync("key", expiry, CommandFlags.None);
+            await mock.Received().StringGetSetExpiryAsync("prefix:key", expiry, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringGetSetExpiryAsync_2()
+        {
+            var expiry = DateTime.Now.AddMinutes(5);
+            await prefixed.StringGetSetExpiryAsync("key", expiry, CommandFlags.None);
+            await mock.Received().StringGetSetExpiryAsync("prefix:key", expiry, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringSetAndGetAsync_1()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.StringSetAndGetAsync("key", "value", expiry, When.Always, CommandFlags.None);
+            await mock.Received().StringSetAndGetAsync("prefix:key", "value", expiry, When.Always, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringSetAndGetAsync_2()
+        {
+            var expiry = TimeSpan.FromMinutes(5);
+            await prefixed.StringSetAndGetAsync("key", "value", expiry, false, When.Always, CommandFlags.None);
+            await mock.Received().StringSetAndGetAsync("prefix:key", "value", expiry, false, When.Always, CommandFlags.None);
+        }
+        [Fact]
+        public async Task StringLongestCommonSubsequenceAsync()
+        {
+            await prefixed.StringLongestCommonSubsequenceAsync("key1", "key2", CommandFlags.None);
+            await mock.Received().StringLongestCommonSubsequenceAsync("prefix:key1", "prefix:key2", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringLongestCommonSubsequenceLengthAsync()
+        {
+            await prefixed.StringLongestCommonSubsequenceLengthAsync("key1", "key2", CommandFlags.None);
+            await mock.Received().StringLongestCommonSubsequenceLengthAsync("prefix:key1", "prefix:key2", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringLongestCommonSubsequenceWithMatchesAsync()
+        {
+            await prefixed.StringLongestCommonSubsequenceWithMatchesAsync("key1", "key2", 5, CommandFlags.None);
+            await mock.Received().StringLongestCommonSubsequenceWithMatchesAsync("prefix:key1", "prefix:key2", 5, CommandFlags.None);
+        }
+        [Fact]
+        public async Task KeyIdleTimeAsync()
+        {
+            await prefixed.KeyIdleTimeAsync("key", CommandFlags.None);
+            await mock.Received().KeyIdleTimeAsync("prefix:key", CommandFlags.None);
+        }
+        [Fact]
+        public async Task StreamAddAsync_WithTrimMode_1()
+        {
+            await prefixed.StreamAddAsync("key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamAddAsync("prefix:key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamAddAsync_WithTrimMode_2()
+        {
+            var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
+            await prefixed.StreamAddAsync("key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamAddAsync("prefix:key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamTrimAsync_WithMode()
+        {
+            await prefixed.StreamTrimAsync("key", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamTrimAsync("prefix:key", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamTrimByMinIdAsync_WithMode()
+        {
+            await prefixed.StreamTrimByMinIdAsync("key", "1111111111", false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamTrimByMinIdAsync("prefix:key", "1111111111", false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamReadGroupAsync_WithNoAck_1()
+        {
+            await prefixed.StreamReadGroupAsync("key", "group", "consumer", "0-0", 10, true, CommandFlags.None);
+            await mock.Received().StreamReadGroupAsync("prefix:key", "group", "consumer", "0-0", 10, true, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamReadGroupAsync_WithNoAck_2()
+        {
+            var streamPositions = new StreamPosition[] { new StreamPosition("key", "0-0") };
+            await prefixed.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, true, CommandFlags.None);
+            await mock.Received().StreamReadGroupAsync(streamPositions, "group", "consumer", 10, true, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamTrimAsync_Simple()
+        {
+            await prefixed.StreamTrimAsync("key", 1000, true, CommandFlags.None);
+            await mock.Received().StreamTrimAsync("prefix:key", 1000, true, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamReadGroupAsync_Simple_1()
+        {
+            await prefixed.StreamReadGroupAsync("key", "group", "consumer", "0-0", 10, CommandFlags.None);
+            await mock.Received().StreamReadGroupAsync("prefix:key", "group", "consumer", "0-0", 10, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamReadGroupAsync_Simple_2()
+        {
+            var streamPositions = new StreamPosition[] { new StreamPosition("key", "0-0") };
+            await prefixed.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.None);
+            await mock.Received().StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.None);
+        }
+
+        [Fact]
+        public void HashScanAsync()
+        {
+            var result = prefixed.HashScanAsync("key", "pattern*", 10, 1, 2, CommandFlags.None);
+            _ = mock.Received().HashScanAsync("prefix:key", "pattern*", 10, 1, 2, CommandFlags.None);
+        }
+
+        [Fact]
+        public void HashScanNoValuesAsync()
+        {
+            var result = prefixed.HashScanNoValuesAsync("key", "pattern*", 10, 1, 2, CommandFlags.None);
+            _ = mock.Received().HashScanNoValuesAsync("prefix:key", "pattern*", 10, 1, 2, CommandFlags.None);
+        }
+
+        [Fact]
+        public void SetScanAsync()
+        {
+            var result = prefixed.SetScanAsync("key", "pattern*", 10, 1, 2, CommandFlags.None);
+            _ = mock.Received().SetScanAsync("prefix:key", "pattern*", 10, 1, 2, CommandFlags.None);
+        }
+
+        [Fact]
+        public void SortedSetScanAsync()
+        {
+            var result = prefixed.SortedSetScanAsync("key", "pattern*", 10, 1, 2, CommandFlags.None);
+            _ = mock.Received().SortedSetScanAsync("prefix:key", "pattern*", 10, 1, 2, CommandFlags.None);
         }
     }
 }

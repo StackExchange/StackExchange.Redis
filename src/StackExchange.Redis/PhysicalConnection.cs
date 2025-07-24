@@ -29,7 +29,7 @@ namespace StackExchange.Redis
 
         private const int DefaultRedisDatabaseCount = 16;
 
-        private static readonly CommandBytes message = "message", pmessage = "pmessage";
+        private static readonly CommandBytes message = "message", pmessage = "pmessage", smessage = "smessage";
 
         private static readonly Message[] ReusableChangeDatabaseCommands = Enumerable.Range(0, DefaultRedisDatabaseCount).Select(
             i => Message.Create(i, CommandFlags.FireAndForget, RedisCommand.SELECT)).ToArray();
@@ -54,6 +54,8 @@ namespace StackExchange.Redis
         private ReadMode currentReadMode = ReadMode.NotSpecified;
 
         private int failureReported;
+
+        private int clientSentQuit;
 
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
 
@@ -274,7 +276,11 @@ namespace StackExchange.Redis
         private RedisProtocol _protocol; // note starts at **zero**, not RESP2
         public RedisProtocol? Protocol => _protocol == 0 ? null : _protocol;
 
-        internal void SetProtocol(RedisProtocol value) => _protocol = value;
+        internal void SetProtocol(RedisProtocol value)
+        {
+            _protocol = value;
+            BridgeCouldBeNull?.SetProtocol(value);
+        }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "Trust me yo")]
         internal void Shutdown()
@@ -375,15 +381,6 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>
-        /// Did we ask for the shutdown? If so this leads to informational messages for tracking but not errors.
-        /// </summary>
-        private bool IsRequestedShutdown(PipeShutdownKind kind) => kind switch
-        {
-            PipeShutdownKind.ProtocolExitClient => true,
-            _ => false,
-        };
-
         public void RecordConnectionFailed(
             ConnectionFailureType failureType,
             Exception? innerException = null,
@@ -391,7 +388,7 @@ namespace StackExchange.Redis
             bool isInitialConnect = false,
             IDuplexPipe? connectingPipe = null)
         {
-            bool weAskedForThis = false;
+            bool weAskedForThis;
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -436,12 +433,12 @@ namespace StackExchange.Redis
 
                     var exMessage = new StringBuilder(failureType.ToString());
 
+                    // If the reason for the shutdown was we asked for the socket to die, don't log it as an error (only informational)
+                    weAskedForThis = Thread.VolatileRead(ref clientSentQuit) != 0;
+
                     var pipe = connectingPipe ?? _ioPipe;
                     if (pipe is SocketConnection sc)
                     {
-                        // If the reason for the shutdown was we asked for the socket to die, don't log it as an error (only informational)
-                        weAskedForThis = IsRequestedShutdown(sc.ShutdownKind);
-
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
                         {
@@ -904,8 +901,12 @@ namespace StackExchange.Redis
 
         internal void WriteRaw(ReadOnlySpan<byte> bytes) => _ioPipe?.Output?.Write(bytes);
 
-        internal void RecordQuit() // don't blame redis if we fired the first shot
-            => (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
+        internal void RecordQuit()
+        {
+            // don't blame redis if we fired the first shot
+            Thread.VolatileWrite(ref clientSentQuit, 1);
+            (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
+        }
 
         internal static void WriteMultiBulkHeader(PipeWriter output, long count)
         {
@@ -1507,21 +1508,28 @@ namespace StackExchange.Redis
         {
             try
             {
-                var pfxPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
-                var pfxPassword = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
-                var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
-
-                X509KeyStorageFlags? flags = null;
-                if (!string.IsNullOrEmpty(pfxStorageFlags))
+                var certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
+                if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
                 {
-                    flags = Enum.Parse(typeof(X509KeyStorageFlags), pfxStorageFlags) as X509KeyStorageFlags?;
+                    var password = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
+                    var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
+                    X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet;
+                    if (!string.IsNullOrEmpty(pfxStorageFlags) && Enum.TryParse<X509KeyStorageFlags>(pfxStorageFlags, true, out var typedFlags))
+                    {
+                        storageFlags = typedFlags;
+                    }
+
+                    return ConfigurationOptions.CreatePfxUserCertificateCallback(certificatePath, password, storageFlags);
                 }
 
-                if (!string.IsNullOrEmpty(pfxPath) && File.Exists(pfxPath))
+#if NET5_0_OR_GREATER
+                certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPemPath");
+                if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
                 {
-                    return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
-                        new X509Certificate2(pfxPath, pfxPassword ?? "", flags ?? X509KeyStorageFlags.DefaultKeySet);
+                    var passwordPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPasswordPath");
+                    return ConfigurationOptions.CreatePemUserCertificateCallback(certificatePath, passwordPath);
                 }
+#endif
             }
             catch (Exception ex)
             {
@@ -1581,17 +1589,17 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+                                await ssl.AuthenticateAsClientAsync(host, config.SslProtocols, config.CheckCertificateRevocation).ForAwait();
                             }
 #else
-                            ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+                            await ssl.AuthenticateAsClientAsync(host, config.SslProtocols, config.CheckCertificateRevocation).ForAwait();
 #endif
                         }
                         catch (Exception ex)
                         {
                             Debug.WriteLine(ex.Message);
-                            bridge.Multiplexer?.SetAuthSuspect(ex);
-                            bridge.Multiplexer?.Logger?.LogError(ex, ex.Message);
+                            bridge.Multiplexer.SetAuthSuspect(ex);
+                            bridge.Multiplexer.Logger?.LogError(ex, ex.Message);
                             throw;
                         }
                         log?.LogInformation($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
@@ -1640,9 +1648,9 @@ namespace StackExchange.Redis
 
                 // out of band message does not match to a queued message
                 var items = result.GetItems();
-                if (items.Length >= 3 && items[0].IsEqual(message))
+                if (items.Length >= 3 && (items[0].IsEqual(message) || items[0].IsEqual(smessage)))
                 {
-                    _readStatus = ReadStatus.PubSubMessage;
+                    _readStatus = items[0].IsEqual(message) ? ReadStatus.PubSubMessage : ReadStatus.PubSubSMessage;
 
                     // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
                     var configChanged = muxer.ConfigurationChangedChannel;
@@ -1664,8 +1672,17 @@ namespace StackExchange.Redis
                     }
 
                     // invoke the handlers
-                    var channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
-                    Trace("MESSAGE: " + channel);
+                    RedisChannel channel;
+                    if (items[0].IsEqual(message))
+                    {
+                        channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.None);
+                        Trace("MESSAGE: " + channel);
+                    }
+                    else // see check on outer-if that restricts to message / smessage
+                    {
+                        channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Sharded);
+                        Trace("SMESSAGE: " + channel);
+                    }
                     if (!channel.IsNull)
                     {
                         if (TryGetPubSubPayload(items[2], out var payload))
@@ -1686,19 +1703,22 @@ namespace StackExchange.Redis
                 {
                     _readStatus = ReadStatus.PubSubPMessage;
 
-                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
+                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                     Trace("PMESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
                         if (TryGetPubSubPayload(items[3], out var payload))
                         {
-                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                             _readStatus = ReadStatus.InvokePubSub;
                             muxer.OnMessage(sub, channel, payload);
                         }
                         else if (TryGetMultiPubSubPayload(items[3], out var payloads))
                         {
-                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
                             _readStatus = ReadStatus.InvokePubSub;
                             muxer.OnMessage(sub, channel, payloads);
                         }
@@ -1706,7 +1726,7 @@ namespace StackExchange.Redis
                     return; // AND STOP PROCESSING!
                 }
 
-                // if it didn't look like "[p]message", then we still need to process the pending queue
+                // if it didn't look like "[p|s]message", then we still need to process the pending queue
             }
             Trace("Matching result...");
 
@@ -2106,6 +2126,7 @@ namespace StackExchange.Redis
             MatchResult,
             PubSubMessage,
             PubSubPMessage,
+            PubSubSMessage,
             Reconfigure,
             InvokePubSub,
             ResponseSequenceCheck, // high-integrity mode only

@@ -44,7 +44,10 @@ namespace StackExchange.Redis
                                          v7_0_0_rc1 = new Version(6, 9, 240), // 7.0 RC1 is version 6.9.240
                                          v7_2_0_rc1 = new Version(7, 1, 240), // 7.2 RC1 is version 7.1.240
                                          v7_4_0_rc1 = new Version(7, 3, 240), // 7.4 RC1 is version 7.3.240
-                                         v7_4_0_rc2 = new Version(7, 3, 241); // 7.4 RC2 is version 7.3.241
+                                         v7_4_0_rc2 = new Version(7, 3, 241), // 7.4 RC2 is version 7.3.241
+                                         v8_0_0_M04 = new Version(7, 9, 227), // 8.0 M04 is version 7.9.227
+                                         v8_2_0_rc1 = new Version(8, 1, 240); // 8.2 RC1 is version 8.1.240
+
 #pragma warning restore SA1310 // Field names should not contain underscore
 #pragma warning restore SA1311 // Static readonly fields should begin with upper-case letter
 
@@ -185,6 +188,11 @@ namespace StackExchange.Redis
         /// Does <see href="https://redis.io/commands/sadd/">SADD</see> support variadic usage?
         /// </summary>
         public bool SetVaradicAddRemove => Version.IsAtLeast(v2_4_0);
+
+        /// <summary>
+        /// Are <see href="https://redis.io/commands/ssubscribe/">SSUBSCRIBE</see> and <see href="https://redis.io/commands/spublish/">SPUBLISH</see> available?
+        /// </summary>
+        public bool ShardedPubSub => Version.IsAtLeast(v7_0_0_rc1);
 
         /// <summary>
         /// Are <see href="https://redis.io/commands/zpopmin/">ZPOPMIN</see> and <see href="https://redis.io/commands/zpopmax/">ZPOPMAX</see> available?

@@ -2,7 +2,6 @@ StackExchange.Redis
 ===================
 
 - [Release Notes](ReleaseNotes)
-- [API Browser (via fuget.org)](https://www.fuget.org/packages/StackExchange.Redis/)
 
 ## Overview
 
@@ -33,6 +32,7 @@ Documentation
 
 - [Server](Server) - running a redis server
 - [Basic Usage](Basics) - getting started and basic usage
+- [Async Timeouts](AsyncTimeouts) - async timeouts and cancellation
 - [Configuration](Configuration) - options available when connecting to redis
 - [Pipelines and Multiplexers](PipelinesMultiplexers) - what is a multiplexer?
 - [Keys, Values and Channels](KeysValues) - discusses the data-types used on the API

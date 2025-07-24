@@ -517,6 +517,149 @@ namespace StackExchange.Redis
         RedisValue[] HashGet(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the value associated with field in the hash stored at key.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value associated with field, or <see cref="RedisValue.Null"/> when field is not present in the hash or key does not exist.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/hget"/></remarks>
+        RedisValue HashFieldGetAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the value associated with field in the hash stored at key.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value associated with field, or <see langword="null"/> when field is not present in the hash or key does not exist.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/hget"/></remarks>
+        Lease<byte>? HashFieldGetLeaseAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the values associated with the specified fields in the hash stored at key.
+        /// For every field that does not exist in the hash, a <see langword="RedisValue.Null"/> value is returned.
+        /// Because non-existing keys are treated as empty hashes, running HMGET against a non-existing key will return a list of <see langword="RedisValue.Null"/> values.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to get.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>List of values associated with the given fields, in the same order as they are requested.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/hmget"/></remarks>
+        RedisValue[] HashFieldGetAndDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the value of the specified hash field and sets its expiration time.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get and set the expiration for.</param>
+        /// <param name="expiry">The expiration time to set.</param>
+        /// <param name="persist">If true, the expiration will be removed. And 'expiry' parameter is ignored.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of the specified hash field.</returns>
+        RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the value of the specified hash field and sets its expiration time.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get and set the expiration for.</param>
+        /// <param name="expiry">The exact date and time to set the expiration to.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of the specified hash field.</returns>
+        RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the value of the specified hash field and sets its expiration time, returning a lease.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get and set the expiration for.</param>
+        /// <param name="expiry">The expiration time to set.</param>
+        /// <param name="persist">If true, the expiration will be removed. And 'expiry' parameter is ignored.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of the specified hash field as a lease.</returns>
+        Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the value of the specified hash field and sets its expiration time, returning a lease.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get and set the expiration for.</param>
+        /// <param name="expiry">The exact date and time to set the expiration to.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of the specified hash field as a lease.</returns>
+        Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the values of the specified hash fields and sets their expiration times.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to get and set the expiration for.</param>
+        /// <param name="expiry">The expiration time to set.</param>
+        /// <param name="persist">If true, the expiration will be removed. And 'expiry' parameter is ignored.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The values of the specified hash fields.</returns>
+        RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the values of the specified hash fields and sets their expiration times.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to get and set the expiration for.</param>
+        /// <param name="expiry">The exact date and time to set the expiration to.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The values of the specified hash fields.</returns>
+        RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets the value of the specified hash field and sets its expiration time.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="field">The field in the hash to set and set the expiration for.</param>
+        /// <param name="value">The value in the hash to set and set the expiration for.</param>
+        /// <param name="expiry">The expiration time to set.</param>
+        /// <param name="keepTtl">Whether to maintain the existing field's TTL (KEEPTTL flag).</param>
+        /// <param name="when">Which conditions to set the value under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>0 if no fields were set,  1 if all the fields were set.</returns>
+        RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets the value of the specified hash field and sets its expiration time.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="field">The field in the hash to set and set the expiration for.</param>
+        /// <param name="value">The value in the hash to set and set the expiration for.</param>
+        /// <param name="expiry">The exact date and time to set the expiration to.</param>
+        /// <param name="when">Which conditions to set the value under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>0 if no fields were set,  1 if all the fields were set.</returns>
+        RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue field, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets the values of the specified hash fields and sets their expiration times.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to set and set the expiration for.</param>
+        /// <param name="expiry">The expiration time to set.</param>
+        /// <param name="keepTtl">Whether to maintain the existing fields' TTL (KEEPTTL flag).</param>
+        /// <param name="when">Which conditions to set the values under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>0 if no fields were set,  1 if all the fields were set.</returns>
+        RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets the values of the specified hash fields and sets their expiration times.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashFields">The fields in the hash to set and set the expiration for.</param>
+        /// <param name="expiry">The exact date and time to set the expiration to.</param>
+        /// <param name="when">Which conditions to set the values under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>0 if no fields were set,  1 if all the fields were set.</returns>
+        RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns all fields and values of the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash to get all entries from.</param>
@@ -2441,6 +2584,34 @@ namespace StackExchange.Redis
         long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group that received the message.</param>
+        /// <param name="mode">The delete mode to use when acknowledging the message.</param>
+        /// <param name="messageId">The ID of the message to acknowledge.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The outcome of the delete operation.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+#pragma warning disable RS0026 // similar overloads
+        StreamTrimResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
+        /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group that received the message.</param>
+        /// /// <param name="mode">The delete mode to use when acknowledging the message.</param>
+        /// <param name="messageIds">The IDs of the messages to acknowledge.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The outcome of each delete operation.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+#pragma warning disable RS0026 // similar overloads
+        StreamTrimResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
         /// Adds an entry using the specified values to the given stream key.
         /// If key does not exist, a new key holding a stream is created.
         /// The command returns the ID of the newly created stream entry.
@@ -2454,7 +2625,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
-        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags);
 
         /// <summary>
         /// Adds an entry using the specified values to the given stream key.
@@ -2469,7 +2640,46 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
-        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags);
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key.
+        /// If key does not exist, a new key holding a stream is created.
+        /// The command returns the ID of the newly created stream entry.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamField">The field name for the stream entry.</param>
+        /// <param name="streamValue">The value to set in the stream entry.</param>
+        /// <param name="messageId">The ID to assign to the stream entry, defaults to an auto-generated ID ("*").</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="limit">Specifies the maximal count of entries that will be evicted.</param>
+        /// <param name="trimMode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The ID of the newly created message.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+#pragma warning disable RS0026 // different shape
+        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key.
+        /// If key does not exist, a new key holding a stream is created.
+        /// The command returns the ID of the newly created stream entry.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
+        /// <param name="messageId">The ID to assign to the stream entry, defaults to an auto-generated ID ("*").</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="limit">Specifies the maximal count of entries that will be evicted.</param>
+        /// <param name="trimMode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The ID of the newly created message.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+#pragma warning disable RS0026 // different shape
+        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <summary>
         /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer.
@@ -2583,7 +2793,22 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns the number of messages successfully deleted from the stream.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+#pragma warning disable RS0026 // similar overloads
         long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
+        /// Delete messages in the stream. This method does not delete the stream.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="messageIds">The IDs of the messages to delete.</param>
+        /// <param name="mode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns the number of messages successfully deleted from the stream.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+#pragma warning disable RS0026 // similar overloads
+        StreamTrimResult[] StreamDelete(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <summary>
         /// Delete a consumer from a consumer group.
@@ -2789,7 +3014,33 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages removed from the stream.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags);
+
+        /// <summary>
+        /// Trim the stream to a specified maximum length.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="limit">Specifies the maximal count of entries that will be evicted.</param>
+        /// <param name="mode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of messages removed from the stream.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+        long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Trim the stream to a specified minimum timestamp.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="minId">All entries with an id (timestamp) earlier minId will be removed.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed minId by a small number. This improves performance when removing messages.</param>
+        /// <param name="limit">The maximum number of entries to remove per call when useApproximateMaxLength = true. If 0, the limiting mechanism is disabled entirely.</param>
+        /// <param name="mode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of messages removed from the stream.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+        long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// If key already exists and is a string, this command appends the value at the end of the string.

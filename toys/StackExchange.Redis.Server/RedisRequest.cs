@@ -45,8 +45,8 @@ namespace StackExchange.Redis.Server
 
         public RedisKey GetKey(int index) => _inner[index].AsRedisKey();
 
-        public RedisChannel GetChannel(int index, RedisChannel.PatternMode mode)
-            => _inner[index].AsRedisChannel(null, mode);
+        internal RedisChannel GetChannel(int index, RedisChannel.RedisChannelOptions options)
+            => _inner[index].AsRedisChannel(null, options);
 
         internal bool TryGetCommandBytes(int i, out CommandBytes command)
         {

@@ -141,6 +141,7 @@ namespace StackExchange.Redis
             {
                 if (_pageOffset + 1 < _pageCount)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     _pageOffset++;
                     return true;
                 }
@@ -274,7 +275,7 @@ namespace StackExchange.Redis
                     ScanResult scanResult;
                     try
                     {
-                        scanResult = await pending.ForAwait();
+                        scanResult = await pending.WaitAsync(cancellationToken).ForAwait();
                     }
                     catch (Exception ex)
                     {
@@ -343,7 +344,7 @@ namespace StackExchange.Redis
         internal static CursorEnumerable<T> From(RedisBase redis, ServerEndPoint? server, Task<T[]> pending, int pageOffset)
             => new SingleBlockEnumerable(redis, server, pending, pageOffset);
 
-        private class SingleBlockEnumerable : CursorEnumerable<T>
+        private sealed class SingleBlockEnumerable : CursorEnumerable<T>
         {
             private readonly Task<T[]> _pending;
             public SingleBlockEnumerable(RedisBase redis, ServerEndPoint? server, Task<T[]> pending, int pageOffset)

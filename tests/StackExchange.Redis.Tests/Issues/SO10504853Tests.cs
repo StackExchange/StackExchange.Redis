@@ -1,20 +1,18 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues;
 
-public class SO10504853Tests : TestBase
+public class SO10504853Tests(ITestOutputHelper output) : TestBase(output)
 {
-    public SO10504853Tests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
-    public void LoopLotsOfTrivialStuff()
+    public async Task LoopLotsOfTrivialStuff()
     {
         var key = Me();
         Trace.WriteLine("### init");
-        using (var conn = Create())
+        await using (var conn = Create())
         {
             var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -23,12 +21,12 @@ public class SO10504853Tests : TestBase
         for (int i = 0; i < COUNT; i++)
         {
             Trace.WriteLine("### incr:" + i);
-            using var conn = Create();
+            await using var conn = Create();
             var db = conn.GetDatabase();
             Assert.Equal(i + 1, db.StringIncrement(key));
         }
         Trace.WriteLine("### close");
-        using (var conn = Create())
+        await using (var conn = Create())
         {
             var db = conn.GetDatabase();
             Assert.Equal(COUNT, (long)db.StringGet(key));
@@ -36,20 +34,20 @@ public class SO10504853Tests : TestBase
     }
 
     [Fact]
-    public void ExecuteWithEmptyStartingPoint()
+    public async Task ExecuteWithEmptyStartingPoint()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var key = Me();
         var task = new { priority = 3 };
-        db.KeyDeleteAsync(key);
-        db.HashSetAsync(key, "something else", "abc");
-        db.HashSetAsync(key, "priority", task.priority.ToString());
+        _ = db.KeyDeleteAsync(key);
+        _ = db.HashSetAsync(key, "something else", "abc");
+        _ = db.HashSetAsync(key, "priority", task.priority.ToString());
 
         var taskResult = db.HashGetAsync(key, "priority");
 
-        db.Wait(taskResult);
+        await taskResult;
 
         var priority = int.Parse(taskResult.Result!);
 
@@ -57,18 +55,18 @@ public class SO10504853Tests : TestBase
     }
 
     [Fact]
-    public void ExecuteWithNonHashStartingPoint()
+    public async Task ExecuteWithNonHashStartingPoint()
     {
         var key = Me();
-        Assert.Throws<RedisServerException>(() =>
+        await Assert.ThrowsAsync<RedisServerException>(async () =>
         {
-            using var conn = Create();
+            await using var conn = Create();
 
             var db = conn.GetDatabase();
             var task = new { priority = 3 };
-            db.KeyDeleteAsync(key);
-            db.StringSetAsync(key, "not a hash");
-            db.HashSetAsync(key, "priority", task.priority.ToString());
+            _ = db.KeyDeleteAsync(key);
+            _ = db.StringSetAsync(key, "not a hash");
+            _ = db.HashSetAsync(key, "priority", task.priority.ToString());
 
             var taskResult = db.HashGetAsync(key, "priority");
 

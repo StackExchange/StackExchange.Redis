@@ -301,6 +301,49 @@ namespace StackExchange.Redis
         /// <param name="issuerCertificatePath">The file system path to find the certificate at.</param>
         public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
 
+#if NET5_0_OR_GREATER
+        /// <summary>
+        /// Supply a user certificate from a PEM file pair and enable TLS.
+        /// </summary>
+        /// <param name="userCertificatePath">The path for the the user certificate (commonly a .crt file).</param>
+        /// <param name="userKeyPath">The path for the the user key (commonly a .key file).</param>
+        public void SetUserPemCertificate(string userCertificatePath, string? userKeyPath = null)
+        {
+            CertificateSelectionCallback = CreatePemUserCertificateCallback(userCertificatePath, userKeyPath);
+            Ssl = true;
+        }
+#endif
+
+        /// <summary>
+        /// Supply a user certificate from a PFX file and optional password and enable TLS.
+        /// </summary>
+        /// <param name="userCertificatePath">The path for the the user certificate (commonly a .pfx file).</param>
+        /// <param name="password">The password for the certificate file.</param>
+        public void SetUserPfxCertificate(string userCertificatePath, string? password = null)
+        {
+            CertificateSelectionCallback = CreatePfxUserCertificateCallback(userCertificatePath, password);
+            Ssl = true;
+        }
+
+#if NET5_0_OR_GREATER
+        internal static LocalCertificateSelectionCallback CreatePemUserCertificateCallback(string userCertificatePath, string? userKeyPath)
+        {
+            // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
+            using var pem = X509Certificate2.CreateFromPemFile(userCertificatePath, userKeyPath);
+#pragma warning disable SYSLIB0057 // Type or member is obsolete
+            var pfx = new X509Certificate2(pem.Export(X509ContentType.Pfx));
+#pragma warning restore SYSLIB0057 // Type or member is obsolete
+
+            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
+        }
+#endif
+
+        internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
+        {
+            var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
+        }
+
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even when not known by the machine.
         /// </summary>
@@ -347,8 +390,18 @@ namespace StackExchange.Redis
             try
             {
                 // This only verifies that the chain is valid, but with AllowUnknownCertificateAuthority could trust
-                // self-signed or partial chained vertificates
-                var chainIsVerified = chain.Build(certificateToValidate);
+                // self-signed or partial chained certificates
+                bool chainIsVerified;
+                try
+                {
+                    chainIsVerified = chain.Build(certificateToValidate);
+                }
+                catch (ArgumentException ex) when ((ex.ParamName ?? ex.Message) == "certificate" && Runtime.IsMono)
+                {
+                    // work around Mono cert limitation; report as rejected rather than fault
+                    // (note also the likely .ctor mixup re param-name vs message)
+                    chainIsVerified = false;
+                }
                 if (chainIsVerified)
                 {
                     // Our method is "TrustIssuer", which means any intermediate cert we're being told to trust

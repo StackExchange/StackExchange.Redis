@@ -1,17 +1,14 @@
-﻿using Xunit;
-using Xunit.Abstractions;
+﻿using System.Threading.Tasks;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[Collection(SharedConnectionFixture.Key)]
-public class LexTests : TestBase
+public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public LexTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void QueryRangeAndLengthByLex()
+    public async Task QueryRangeAndLengthByLex()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -19,8 +16,7 @@ public class LexTests : TestBase
 
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                     new SortedSetEntry("a", 0),
                     new SortedSetEntry("b", 0),
                     new SortedSetEntry("c", 0),
@@ -28,7 +24,7 @@ public class LexTests : TestBase
                     new SortedSetEntry("e", 0),
                     new SortedSetEntry("f", 0),
                     new SortedSetEntry("g", 0),
-            },
+            ],
             CommandFlags.FireAndForget);
 
         var set = db.SortedSetRangeByValue(key, default(RedisValue), "c");
@@ -55,12 +51,15 @@ public class LexTests : TestBase
         set = db.SortedSetRangeByValue(key, "e", default(RedisValue));
         count = db.SortedSetLengthByValue(key, "e", default(RedisValue));
         Equate(set, count, "e", "f", "g");
+
+        set = db.SortedSetRangeByValue(key, RedisValue.Null, RedisValue.Null, Exclude.None, Order.Descending, 0, 3);    // added to test Null-min- and max-param
+        Equate(set, set.Length, "g", "f", "e");
     }
 
     [Fact]
-    public void RemoveRangeByLex()
+    public async Task RemoveRangeByLex()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         RedisKey key = Me();
@@ -68,25 +67,23 @@ public class LexTests : TestBase
 
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                     new SortedSetEntry("aaaa", 0),
                     new SortedSetEntry("b", 0),
                     new SortedSetEntry("c", 0),
                     new SortedSetEntry("d", 0),
                     new SortedSetEntry("e", 0),
-            },
+            ],
             CommandFlags.FireAndForget);
         db.SortedSetAdd(
             key,
-            new[]
-            {
+            [
                     new SortedSetEntry("foo", 0),
                     new SortedSetEntry("zap", 0),
                     new SortedSetEntry("zip", 0),
                     new SortedSetEntry("ALPHA", 0),
                     new SortedSetEntry("alpha", 0),
-            },
+            ],
             CommandFlags.FireAndForget);
 
         var set = db.SortedSetRangeByRank(key);

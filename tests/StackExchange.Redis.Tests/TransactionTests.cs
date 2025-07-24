@@ -1,20 +1,16 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-[Collection(SharedConnectionFixture.Key)]
-public class TransactionTests : TestBase
+public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public TransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
-
     [Fact]
-    public void BasicEmptyTran()
+    public async Task BasicEmptyTran()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -28,9 +24,9 @@ public class TransactionTests : TestBase
     }
 
     [Fact]
-    public void NestedTransactionThrows()
+    public async Task NestedTransactionThrows()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         var db = conn.GetDatabase();
         var tran = db.CreateTransaction();
@@ -45,7 +41,7 @@ public class TransactionTests : TestBase
     [InlineData(true, true, true)]
     public async Task BasicTranWithExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -92,7 +88,7 @@ public class TransactionTests : TestBase
     [InlineData(null, null, false, false)]
     public async Task BasicTranWithEqualsCondition(string? expected, string? value, bool expectEqual, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -133,7 +129,7 @@ public class TransactionTests : TestBase
     [InlineData(true, true, true)]
     public async Task BasicTranWithHashExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -181,7 +177,7 @@ public class TransactionTests : TestBase
     [InlineData(null, null, false, false)]
     public async Task BasicTranWithHashEqualsCondition(string? expected, string? value, bool expectEqual, bool expectedTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -245,7 +241,7 @@ public class TransactionTests : TestBase
     [InlineData(true, true, true)]
     public async Task BasicTranWithListExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -292,7 +288,7 @@ public class TransactionTests : TestBase
     [InlineData(null, null, false, false)]
     public async Task BasicTranWithListEqualsCondition(string? expected, string? value, bool expectEqual, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -359,15 +355,15 @@ public class TransactionTests : TestBase
     [InlineData(null, ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithStringLengthCondition(string? value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -438,15 +434,15 @@ public class TransactionTests : TestBase
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithHashLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -517,15 +513,15 @@ public class TransactionTests : TestBase
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithSetCardinalityCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -583,7 +579,7 @@ public class TransactionTests : TestBase
     [InlineData(true, true, true)]
     public async Task BasicTranWithSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -637,15 +633,15 @@ public class TransactionTests : TestBase
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithSortedSetCardinalityCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -716,15 +712,15 @@ public class TransactionTests : TestBase
     [InlineData(0, 0, ComparisonType.GreaterThan, 0L, true)]
     public async Task BasicTranWithSortedSetRangeCountCondition(double min, double max, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = (int)(max - min) + 1;
         switch (type)
         {
@@ -782,7 +778,7 @@ public class TransactionTests : TestBase
     [InlineData(true, true, true)]
     public async Task BasicTranWithSortedSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -816,6 +812,120 @@ public class TransactionTests : TestBase
         }
     }
 
+    public enum SortedSetValue
+    {
+        None,
+        Exact,
+        Shorter,
+        Longer,
+    }
+
+    [Theory]
+    [InlineData(false, SortedSetValue.None, true)]
+    [InlineData(false, SortedSetValue.Shorter, true)]
+    [InlineData(false, SortedSetValue.Exact, false)]
+    [InlineData(false, SortedSetValue.Longer, false)]
+    [InlineData(true, SortedSetValue.None, false)]
+    [InlineData(true, SortedSetValue.Shorter, false)]
+    [InlineData(true, SortedSetValue.Exact, true)]
+    [InlineData(true, SortedSetValue.Longer, true)]
+    public async Task BasicTranWithSortedSetStartsWithCondition_String(bool requestExists, SortedSetValue existingValue, bool expectTranResult)
+    {
+        using var conn = Create();
+
+        RedisKey key1 = Me() + "_1", key2 = Me() + "_2";
+        var db = conn.GetDatabase();
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(key2, "unrelated", 0.0, flags: CommandFlags.FireAndForget);
+        switch (existingValue)
+        {
+            case SortedSetValue.Shorter:
+                db.SortedSetAdd(key2, "see", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Exact:
+                db.SortedSetAdd(key2, "seek", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Longer:
+                db.SortedSetAdd(key2, "seeks", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+        }
+
+        var tran = db.CreateTransaction();
+        var cond = tran.AddCondition(requestExists ? Condition.SortedSetContainsStarting(key2, "seek") : Condition.SortedSetNotContainsStarting(key2, "seek"));
+        var incr = tran.StringIncrementAsync(key1);
+        var exec = await tran.ExecuteAsync();
+        var get = await db.StringGetAsync(key1);
+
+        Assert.Equal(expectTranResult, exec);
+        Assert.Equal(expectTranResult, cond.WasSatisfied);
+
+        if (expectTranResult)
+        {
+            Assert.Equal(1, await incr); // eq: incr
+            Assert.Equal(1, (long)get); // eq: get
+        }
+        else
+        {
+            Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+            Assert.Equal(0, (long)get); // neq: get
+        }
+    }
+
+    [Theory]
+    [InlineData(false, SortedSetValue.None, true)]
+    [InlineData(false, SortedSetValue.Shorter, true)]
+    [InlineData(false, SortedSetValue.Exact, false)]
+    [InlineData(false, SortedSetValue.Longer, false)]
+    [InlineData(true, SortedSetValue.None, false)]
+    [InlineData(true, SortedSetValue.Shorter, false)]
+    [InlineData(true, SortedSetValue.Exact, true)]
+    [InlineData(true, SortedSetValue.Longer, true)]
+    public async Task BasicTranWithSortedSetStartsWithCondition_Integer(bool requestExists, SortedSetValue existingValue, bool expectTranResult)
+    {
+        using var conn = Create();
+
+        RedisKey key1 = Me() + "_1", key2 = Me() + "_2";
+        var db = conn.GetDatabase();
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(key2, 789, 0.0, flags: CommandFlags.FireAndForget);
+        switch (existingValue)
+        {
+            case SortedSetValue.Shorter:
+                db.SortedSetAdd(key2, 123, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Exact:
+                db.SortedSetAdd(key2, 1234, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Longer:
+                db.SortedSetAdd(key2, 12345, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+        }
+
+        var tran = db.CreateTransaction();
+        var cond = tran.AddCondition(requestExists ? Condition.SortedSetContainsStarting(key2, 1234) : Condition.SortedSetNotContainsStarting(key2, 1234));
+        var incr = tran.StringIncrementAsync(key1);
+        var exec = await tran.ExecuteAsync();
+        var get = await db.StringGetAsync(key1);
+
+        Assert.Equal(expectTranResult, exec);
+        Assert.Equal(expectTranResult, cond.WasSatisfied);
+
+        if (expectTranResult)
+        {
+            Assert.Equal(1, await incr); // eq: incr
+            Assert.Equal(1, (long)get); // eq: get
+        }
+        else
+        {
+            Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+            Assert.Equal(0, (long)get); // neq: get
+        }
+    }
+
     [Theory]
     [InlineData(4D, 4D, true, true)]
     [InlineData(4D, 5D, true, false)]
@@ -830,7 +940,7 @@ public class TransactionTests : TestBase
     [InlineData(null, null, false, false)]
     public async Task BasicTranWithSortedSetEqualCondition(double? expected, double? value, bool expectEqual, bool expectedTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -876,7 +986,7 @@ public class TransactionTests : TestBase
     [InlineData(false, false, false, true)]
     public async Task BasicTranWithSortedSetScoreExistsCondition(bool member1HasScore, bool member2HasScore, bool demandScoreExists, bool expectedTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -897,8 +1007,8 @@ public class TransactionTests : TestBase
         }
 
         Assert.False(db.KeyExists(key));
-        Assert.Equal(member1HasScore ? (double?)Score : null, db.SortedSetScore(key2, member1));
-        Assert.Equal(member2HasScore ? (double?)Score : null, db.SortedSetScore(key2, member2));
+        Assert.Equal(member1HasScore ? Score : null, db.SortedSetScore(key2, member1));
+        Assert.Equal(member2HasScore ? Score : null, db.SortedSetScore(key2, member2));
 
         var tran = db.CreateTransaction();
         var cond = tran.AddCondition(demandScoreExists ? Condition.SortedSetScoreExists(key2, Score) : Condition.SortedSetScoreNotExists(key2, Score));
@@ -942,7 +1052,7 @@ public class TransactionTests : TestBase
     [InlineData(false, false, 1L, false, true)]
     public async Task BasicTranWithSortedSetScoreCountExistsCondition(bool member1HasScore, bool member2HasScore, long expectedLength, bool expectEqual, bool expectedTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
@@ -1011,15 +1121,15 @@ public class TransactionTests : TestBase
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithListLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -1090,15 +1200,15 @@ public class TransactionTests : TestBase
     [InlineData("", ComparisonType.GreaterThan, 0L, false)]
     public async Task BasicTranWithStreamLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
     {
-        using var conn = Create(require: RedisFeatures.v5_0_0);
+        await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         RedisKey key = Me(), key2 = Me() + "2";
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -1152,7 +1262,7 @@ public class TransactionTests : TestBase
     [Fact]
     public async Task BasicTran()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -1196,7 +1306,7 @@ public class TransactionTests : TestBase
     [Fact]
     public async Task CombineFireAndForgetAndRegularAsyncInTransaction()
     {
-        using var conn = Create();
+        await using var conn = Create();
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -1222,7 +1332,7 @@ public class TransactionTests : TestBase
     [Fact]
     public async Task TransactionWithAdHocCommandsAndSelectDisabled()
     {
-        using var conn = Create(disabledCommands: new string[] { "SELECT" });
+        await using var conn = Create(disabledCommands: ["SELECT"]);
         RedisKey key = Me();
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -1231,6 +1341,7 @@ public class TransactionTests : TestBase
         var tran = db.CreateTransaction("state");
         var a = tran.ExecuteAsync("SET", "foo", "bar");
         Assert.True(await tran.ExecuteAsync());
+        await a;
         var setting = db.StringGet("foo");
         Assert.Equal("bar", setting);
     }
@@ -1239,8 +1350,8 @@ public class TransactionTests : TestBase
     [Fact]
     public async Task WatchAbort_StringEqual()
     {
-        using var vicConn = Create();
-        using var perpConn = Create();
+        await using var vicConn = Create();
+        await using var perpConn = Create();
 
         var key = Me();
         var db = vicConn.GetDatabase();
@@ -1263,8 +1374,8 @@ public class TransactionTests : TestBase
     [Fact]
     public async Task WatchAbort_HashLengthEqual()
     {
-        using var vicConn = Create();
-        using var perpConn = Create();
+        await using var vicConn = Create();
+        await using var perpConn = Create();
 
         var key = Me();
         var db = vicConn.GetDatabase();
@@ -1285,21 +1396,22 @@ public class TransactionTests : TestBase
     }
 #endif
 
-    [FactLongRunning]
+    [Fact]
     public async Task ExecCompletes_Issue943()
     {
+        Skip.UnlessLongRunning();
         int hashHit = 0, hashMiss = 0, expireHit = 0, expireMiss = 0;
-        using (var conn = Create())
+        await using (var conn = Create())
         {
             var db = conn.GetDatabase();
             for (int i = 0; i < 40000; i++)
             {
                 RedisKey key = Me();
                 await db.KeyDeleteAsync(key);
-                HashEntry[] hashEntries = new[]
-                {
+                HashEntry[] hashEntries =
+                [
                     new HashEntry("blah", DateTime.UtcNow.ToString("R")),
-                };
+                ];
                 ITransaction transaction = db.CreateTransaction();
                 transaction.AddCondition(Condition.KeyNotExists(key));
                 Task hashSetTask = transaction.HashSetAsync(key, hashEntries);

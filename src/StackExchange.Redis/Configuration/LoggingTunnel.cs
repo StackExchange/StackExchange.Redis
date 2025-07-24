@@ -277,7 +277,7 @@ public abstract class LoggingTunnel : Tunnel
         options.Tunnel = tunnel;
     }
 
-    private class DirectoryLoggingTunnel : LoggingTunnel
+    private sealed class DirectoryLoggingTunnel : LoggingTunnel
     {
         private readonly string path;
         private int _nextIndex = -1;
@@ -367,10 +367,10 @@ public abstract class LoggingTunnel : Tunnel
         }
         else
         {
-            ssl.AuthenticateAsClient(host, _options.SslProtocols, _options.CheckCertificateRevocation);
+            await ssl.AuthenticateAsClientAsync(host, _options.SslProtocols, _options.CheckCertificateRevocation).ForAwait();
         }
 #else
-        ssl.AuthenticateAsClient(host, _options.SslProtocols, _options.CheckCertificateRevocation);
+        await ssl.AuthenticateAsClientAsync(host, _options.SslProtocols, _options.CheckCertificateRevocation).ForAwait();
 #endif
         return ssl;
     }

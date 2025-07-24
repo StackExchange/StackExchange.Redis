@@ -3,14 +3,11 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class FormatTests : TestBase
+public class FormatTests(ITestOutputHelper output) : TestBase(output)
 {
-    public FormatTests(ITestOutputHelper output) : base(output) { }
-
     public static IEnumerable<object?[]> EndpointData()
     {
         // note: the 3rd arg is for formatting; null means "expect the original string"
@@ -71,7 +68,10 @@ public class FormatTests : TestBase
     [InlineData(CommandFlags.DemandReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, DemandReplica")] // 2-bit flag is hit-and-miss
 #endif
     public void CommandFlagsFormatting(CommandFlags value, string expected)
-        => Assert.Equal(expected, value.ToString());
+    {
+        Assert.SkipWhen(Runtime.IsMono, "Mono has different enum flag behavior");
+        Assert.Equal(expected, value.ToString());
+    }
 
     [Theory]
     [InlineData(ClientType.Normal, "Normal")]

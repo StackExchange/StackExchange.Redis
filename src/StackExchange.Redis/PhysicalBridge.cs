@@ -47,6 +47,7 @@ namespace StackExchange.Redis
         private int beating;
         private int failConnectCount = 0;
         private volatile bool isDisposed;
+        private volatile bool shouldResetConnectionRetryCount;
         private long nonPreferredEndpointCount;
 
         // private volatile int missedHeartbeats;
@@ -123,9 +124,12 @@ namespace StackExchange.Redis
         public RedisCommand LastCommand { get; private set; }
 
         /// <summary>
-        /// If we have a connection, report the protocol being used.
+        /// If we have (or had) a connection, report the protocol being used.
         /// </summary>
-        public RedisProtocol? Protocol => physical?.Protocol;
+        /// <remarks>The value remains after disconnect, so that appropriate follow-up actions (pub/sub etc) can work reliably.</remarks>
+        public RedisProtocol? Protocol => _protocol == 0 ? default(RedisProtocol?) : _protocol;
+        private RedisProtocol _protocol; // note starts at zero, not RESP2
+        internal void SetProtocol(RedisProtocol protocol) => _protocol = protocol;
 
         public void Dispose()
         {
@@ -549,6 +553,12 @@ namespace StackExchange.Redis
         private int connectStartTicks;
         private long connectTimeoutRetryCount = 0;
 
+        private bool DueForConnectRetry()
+        {
+            int connectTimeMilliseconds = unchecked(Environment.TickCount - Thread.VolatileRead(ref connectStartTicks));
+            return Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Interlocked.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
+        }
+
         internal void OnHeartbeat(bool ifConnectedOnly)
         {
             bool runThisTime = false;
@@ -574,12 +584,10 @@ namespace StackExchange.Redis
                 switch (state)
                 {
                     case (int)State.Connecting:
-                        int connectTimeMilliseconds = unchecked(Environment.TickCount - Thread.VolatileRead(ref connectStartTicks));
-                        bool shouldRetry = Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Interlocked.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
-                        if (shouldRetry)
+                        if (DueForConnectRetry())
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
-                            var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
+                            var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout", Name);
                             LastException = ex;
                             Multiplexer.Logger?.LogError(ex, ex.Message);
                             Trace("Aborting connect");
@@ -597,6 +605,8 @@ namespace StackExchange.Redis
                         // We need to time that out and cleanup the PhysicalConnection if needed, otherwise that reader and socket will remain open
                         // for the lifetime of the application due to being orphaned, yet still referenced by the active task doing the pipe read.
                     case (int)State.ConnectedEstablished:
+                        // Track that we should reset the count on the next disconnect, but not do so in a loop
+                        shouldResetConnectionRetryCount = true;
                         var tmp = physical;
                         if (tmp != null)
                         {
@@ -668,10 +678,20 @@ namespace StackExchange.Redis
                         }
                         break;
                     case (int)State.Disconnected:
-                        Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
-                        if (!ifConnectedOnly)
+                        // Only if we should reset the connection count
+                        // This should only happen after a successful reconnection, and not every time we bounce from BeginConnectAsync -> Disconnected
+                        // in a failure loop case that happens when a node goes missing forever.
+                        if (shouldResetConnectionRetryCount)
                         {
-                            Multiplexer.Trace("Resurrecting " + ToString());
+                            shouldResetConnectionRetryCount = false;
+                            Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
+                        }
+                        if (!ifConnectedOnly && DueForConnectRetry())
+                        {
+                            // Increment count here, so that we don't re-enter in Connecting case up top - we don't want to re-enter and log there.
+                            Interlocked.Increment(ref connectTimeoutRetryCount);
+
+                            Multiplexer.Logger?.LogInformation($"Resurrecting {ToString()} (retry: {connectTimeoutRetryCount})");
                             Multiplexer.OnResurrecting(ServerEndPoint.EndPoint, ConnectionType);
                             TryConnect(null);
                         }

@@ -4,14 +4,11 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests;
 
-public class SentinelTests : SentinelBase
+public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
 {
-    public SentinelTests(ITestOutputHelper output) : base(output) { }
-
     [Fact]
     public async Task PrimaryConnectTest()
     {
@@ -20,7 +17,7 @@ public class SentinelTests : SentinelBase
         var conn = ConnectionMultiplexer.Connect(connectionString);
 
         var db = conn.GetDatabase();
-        db.Ping();
+        await db.PingAsync();
 
         var endpoints = conn.GetEndPoints();
         Assert.Equal(2, endpoints.Length);
@@ -87,19 +84,19 @@ public class SentinelTests : SentinelBase
 
     [Fact]
     [RunPerProtocol]
-    public void SentinelConnectTest()
+    public async Task SentinelConnectTest()
     {
         var options = ServiceOptions.Clone();
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
-        using var conn = ConnectionMultiplexer.SentinelConnect(options);
+        await using var conn = ConnectionMultiplexer.SentinelConnect(options);
 
         var db = conn.GetDatabase();
-        var test = db.Ping();
+        var test = await db.PingAsync();
         Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
     }
 
     [Fact]
-    public void SentinelRepeatConnectTest()
+    public async Task SentinelRepeatConnectTest()
     {
         var options = ConfigurationOptions.Parse($"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA}");
         options.ServiceName = ServiceName;
@@ -111,10 +108,10 @@ public class SentinelTests : SentinelBase
             Log("  Endpoint: " + ep);
         }
 
-        using var conn = ConnectionMultiplexer.Connect(options);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         var db = conn.GetDatabase();
-        var test = db.Ping();
+        var test = await db.PingAsync();
         Log("ping to 1st sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
 
         Log("Service Name: " + options.ServiceName);
@@ -123,10 +120,10 @@ public class SentinelTests : SentinelBase
             Log("  Endpoint: " + ep);
         }
 
-        using var conn2 = ConnectionMultiplexer.Connect(options);
+        await using var conn2 = ConnectionMultiplexer.Connect(options);
 
         var db2 = conn2.GetDatabase();
-        var test2 = db2.Ping();
+        var test2 = await db2.PingAsync();
         Log("ping to 2nd sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test2.TotalMilliseconds);
     }
 
@@ -156,13 +153,13 @@ public class SentinelTests : SentinelBase
     }
 
     [Fact]
-    public void PingTest()
+    public async Task PingTest()
     {
-        var test = SentinelServerA.Ping();
+        var test = await SentinelServerA.PingAsync();
         Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
-        test = SentinelServerB.Ping();
+        test = await SentinelServerB.PingAsync();
         Log("ping to sentinel {0}:{1} took {1} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB, test.TotalMilliseconds);
-        test = SentinelServerC.Ping();
+        test = await SentinelServerC.PingAsync();
         Log("ping to sentinel {0}:{1} took {1} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC, test.TotalMilliseconds);
     }
 
@@ -267,7 +264,7 @@ public class SentinelTests : SentinelBase
         }
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerA.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
         sentinels = SentinelServerB.SentinelSentinels(ServiceName);
@@ -277,14 +274,14 @@ public class SentinelTests : SentinelBase
             actual.Add(data["ip"] + ":" + data["port"]);
         }
 
-        expected = new List<string?>
-        {
+        expected =
+        [
             SentinelServerA.EndPoint.ToString(),
             SentinelServerC.EndPoint.ToString(),
-        };
+        ];
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerB.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
         sentinels = SentinelServerC.SentinelSentinels(ServiceName);
@@ -294,14 +291,14 @@ public class SentinelTests : SentinelBase
             actual.Add(data["ip"] + ":" + data["port"]);
         }
 
-        expected = new List<string?>
-        {
+        expected =
+        [
             SentinelServerA.EndPoint.ToString(),
             SentinelServerB.EndPoint.ToString(),
-        };
+        ];
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerC.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
     }
 
@@ -323,18 +320,18 @@ public class SentinelTests : SentinelBase
         }
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerA.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
         sentinels = await SentinelServerB.SentinelSentinelsAsync(ServiceName).ForAwait();
 
-        expected = new List<string?>
-        {
+        expected =
+        [
             SentinelServerA.EndPoint.ToString(),
             SentinelServerC.EndPoint.ToString(),
-        };
+        ];
 
-        actual = new List<string>();
+        actual = [];
         foreach (var kv in sentinels)
         {
             var data = kv.ToDictionary();
@@ -342,16 +339,16 @@ public class SentinelTests : SentinelBase
         }
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerB.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
         sentinels = await SentinelServerC.SentinelSentinelsAsync(ServiceName).ForAwait();
-        expected = new List<string?>
-        {
+        expected =
+        [
             SentinelServerA.EndPoint.ToString(),
             SentinelServerB.EndPoint.ToString(),
-        };
-        actual = new List<string>();
+        ];
+        actual = [];
         foreach (var kv in sentinels)
         {
             var data = kv.ToDictionary();
@@ -359,7 +356,7 @@ public class SentinelTests : SentinelBase
         }
 
         Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerC.EndPoint.ToString()));
-        Assert.True(sentinels.Length == 2);
+        Assert.Equal(2, sentinels.Length);
         Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
     }
 
@@ -458,7 +455,7 @@ public class SentinelTests : SentinelBase
         var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
         if (replicas.Length == 0)
         {
-            Skip.Inconclusive("Sentinel race: 0 replicas to test against.");
+            Assert.Skip("Sentinel race: 0 replicas to test against.");
         }
 
         var config = new ConfigurationOptions();
