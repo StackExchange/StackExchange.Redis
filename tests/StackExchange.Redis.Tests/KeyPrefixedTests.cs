@@ -1059,8 +1059,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamPendingMessageInfoGetAsync()
         {
-            await prefixed.StreamPendingMessagesAsync("key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.None);
-            await mock.Received().StreamPendingMessagesAsync("prefix:key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.None);
+            await prefixed.StreamPendingMessagesAsync("key", "group", 10, RedisValue.Null, "-", "+", 1000, CommandFlags.None);
+            await mock.Received().StreamPendingMessagesAsync("prefix:key", "group", 10, RedisValue.Null, "-", "+", 1000, CommandFlags.None);
         }
 
         [Fact]
