@@ -404,6 +404,15 @@ namespace StackExchange.Redis
         internal static int MeasureDouble(double value)
         {
             if (double.IsInfinity(value)) return 4; // +inf / -inf
+
+#if NET8_0_OR_GREATER // can use IUtf8Formattable
+            Span<byte> buffer = stackalloc byte[64];
+            if (value.TryFormat(buffer, out int len, "G17", NumberFormatInfo.InvariantInfo))
+            {
+                return len;
+            }
+#endif
+            // fallback (TFM or unexpected size)
             var s = value.ToString("G17", NumberFormatInfo.InvariantInfo); // this looks inefficient, but is how Utf8Formatter works too, just: more direct
             return s.Length;
         }
@@ -412,16 +421,18 @@ namespace StackExchange.Redis
         {
             if (double.IsInfinity(value))
             {
-                if (double.IsPositiveInfinity(value))
-                {
-                    if (!"+inf"u8.TryCopyTo(destination)) ThrowFormatFailed();
-                }
-                else
-                {
-                    if (!"-inf"u8.TryCopyTo(destination)) ThrowFormatFailed();
-                }
+                if (!(double.IsPositiveInfinity(value) ? "+inf"u8 : "-inf"u8).TryCopyTo(destination)) ThrowFormatFailed();
                 return 4;
             }
+
+#if NET8_0_OR_GREATER // can use IUtf8Formattable
+            if (!value.TryFormat(destination, out int len, "G17", NumberFormatInfo.InvariantInfo))
+            {
+                ThrowFormatFailed();
+            }
+
+            return len;
+#else
             var s = value.ToString("G17", NumberFormatInfo.InvariantInfo); // this looks inefficient, but is how Utf8Formatter works too, just: more direct
             if (s.Length > destination.Length) ThrowFormatFailed();
 
@@ -431,6 +442,7 @@ namespace StackExchange.Redis
                 destination[i] = (byte)chars[i];
             }
             return chars.Length;
+#endif
         }
 
         internal static int MeasureInt64(long value)
