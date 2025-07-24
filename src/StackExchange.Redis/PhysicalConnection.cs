@@ -1381,6 +1381,7 @@ namespace StackExchange.Redis
             var span = writer.GetSpan(7 + len);
             span[0] = (byte)'$';
             int offset = WriteRaw(span, len, withLengthPrefix: false, offset: 1);
+            valueSpan.Slice(0, len).CopyTo(span.Slice(offset));
             offset += len;
             offset = WriteCrlf(span, offset);
             writer.Advance(offset);
