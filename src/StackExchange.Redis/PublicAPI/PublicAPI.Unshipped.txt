@@ -1,6 +1,1 @@
 ﻿#nullable enable
-StackExchange.Redis.RedisValue.CopyTo(System.Span<byte> destination) -> int
-StackExchange.Redis.RedisValue.GetByteCount() -> int
-StackExchange.Redis.RedisValue.GetLongByteCount() -> long
-static StackExchange.Redis.Condition.SortedSetContainsStarting(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue prefix) -> StackExchange.Redis.Condition!
-static StackExchange.Redis.Condition.SortedSetNotContainsStarting(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue prefix) -> StackExchange.Redis.Condition!
