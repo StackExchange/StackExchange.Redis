@@ -431,7 +431,7 @@ namespace StackExchange.Redis
             {
                 ConnectedAt ??= DateTime.UtcNow;
                 await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
-                log?.LogInformationOnEstablishingComplete(new LoggerExtensions.EndPointLogValue(ServerEndPoint.EndPoint));
+                log?.LogInformationOnEstablishingComplete(new(ServerEndPoint.EndPoint));
             }
             else
             {
