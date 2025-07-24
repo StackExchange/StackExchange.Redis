@@ -362,8 +362,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -441,8 +441,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -520,8 +520,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -640,8 +640,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -719,8 +719,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = (int)(max - min) + 1;
         switch (type)
         {
@@ -812,43 +812,115 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         }
     }
 
-    [Theory]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, true)]
-    public async Task BasicTranWithSortedSetStartsWithCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+    public enum SortedSetValue
     {
-        using var conn = Create(disabledCommands: new[] { "info", "config" });
+        None,
+        Exact,
+        Shorter,
+        Longer,
+    }
 
-        RedisKey key = Me(), key2 = Me() + "2";
+    [Theory]
+    [InlineData(false, SortedSetValue.None, true)]
+    [InlineData(false, SortedSetValue.Shorter, true)]
+    [InlineData(false, SortedSetValue.Exact, false)]
+    [InlineData(false, SortedSetValue.Longer, false)]
+    [InlineData(true, SortedSetValue.None, false)]
+    [InlineData(true, SortedSetValue.Shorter, false)]
+    [InlineData(true, SortedSetValue.Exact, true)]
+    [InlineData(true, SortedSetValue.Longer, true)]
+    public async Task BasicTranWithSortedSetStartsWithCondition_String(bool requestExists, SortedSetValue existingValue, bool expectTranResult)
+    {
+        using var conn = Create();
+
+        RedisKey key1 = Me() + "_1", key2 = Me() + "_2";
         var db = conn.GetDatabase();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
-        RedisValue member = "value";
-        byte[] startWith = new byte[] { 118, 97, 108 };  // = "val"
-        if (keyExists) db.SortedSetAdd(key2, member, 0.0, flags: CommandFlags.FireAndForget);
-        Assert.False(db.KeyExists(key));
-        Assert.Equal(keyExists, db.SortedSetScore(key2, member).HasValue);
+
+        db.SortedSetAdd(key2, "unrelated", 0.0, flags: CommandFlags.FireAndForget);
+        switch (existingValue)
+        {
+            case SortedSetValue.Shorter:
+                db.SortedSetAdd(key2, "see", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Exact:
+                db.SortedSetAdd(key2, "seek", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Longer:
+                db.SortedSetAdd(key2, "seeks", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+        }
 
         var tran = db.CreateTransaction();
-        var cond = tran.AddCondition(demandKeyExists ? Condition.SortedSetContainsStarting(key2, startWith) : Condition.SortedSetNotContainsStarting(key2, startWith));
-        var incr = tran.StringIncrementAsync(key);
-        var exec = tran.ExecuteAsync();
-        var get = db.StringGet(key);
+        var cond = tran.AddCondition(requestExists ? Condition.SortedSetContainsStarting(key2, "seek") : Condition.SortedSetNotContainsStarting(key2, "seek"));
+        var incr = tran.StringIncrementAsync(key1);
+        var exec = await tran.ExecuteAsync();
+        var get = await db.StringGetAsync(key1);
 
-        Assert.Equal(expectTranResult, await exec);
-        if (demandKeyExists == keyExists)
+        Assert.Equal(expectTranResult, exec);
+        Assert.Equal(expectTranResult, cond.WasSatisfied);
+
+        if (expectTranResult)
         {
-            Assert.True(await exec, "eq: exec");
-            Assert.True(cond.WasSatisfied, "eq: was satisfied");
             Assert.Equal(1, await incr); // eq: incr
             Assert.Equal(1, (long)get); // eq: get
         }
         else
         {
-            Assert.False(await exec, "neq: exec");
-            Assert.False(cond.WasSatisfied, "neq: was satisfied");
+            Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+            Assert.Equal(0, (long)get); // neq: get
+        }
+    }
+
+    [Theory]
+    [InlineData(false, SortedSetValue.None, true)]
+    [InlineData(false, SortedSetValue.Shorter, true)]
+    [InlineData(false, SortedSetValue.Exact, false)]
+    [InlineData(false, SortedSetValue.Longer, false)]
+    [InlineData(true, SortedSetValue.None, false)]
+    [InlineData(true, SortedSetValue.Shorter, false)]
+    [InlineData(true, SortedSetValue.Exact, true)]
+    [InlineData(true, SortedSetValue.Longer, true)]
+    public async Task BasicTranWithSortedSetStartsWithCondition_Integer(bool requestExists, SortedSetValue existingValue, bool expectTranResult)
+    {
+        using var conn = Create();
+
+        RedisKey key1 = Me() + "_1", key2 = Me() + "_2";
+        var db = conn.GetDatabase();
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(key2, 789, 0.0, flags: CommandFlags.FireAndForget);
+        switch (existingValue)
+        {
+            case SortedSetValue.Shorter:
+                db.SortedSetAdd(key2, 123, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Exact:
+                db.SortedSetAdd(key2, 1234, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Longer:
+                db.SortedSetAdd(key2, 12345, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+        }
+
+        var tran = db.CreateTransaction();
+        var cond = tran.AddCondition(requestExists ? Condition.SortedSetContainsStarting(key2, 1234) : Condition.SortedSetNotContainsStarting(key2, 1234));
+        var incr = tran.StringIncrementAsync(key1);
+        var exec = await tran.ExecuteAsync();
+        var get = await db.StringGetAsync(key1);
+
+        Assert.Equal(expectTranResult, exec);
+        Assert.Equal(expectTranResult, cond.WasSatisfied);
+
+        if (expectTranResult)
+        {
+            Assert.Equal(1, await incr); // eq: incr
+            Assert.Equal(1, (long)get); // eq: get
+        }
+        else
+        {
             Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
             Assert.Equal(0, (long)get); // neq: get
         }
@@ -935,8 +1007,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         }
 
         Assert.False(db.KeyExists(key));
-        Assert.Equal(member1HasScore ? (double?)Score : null, db.SortedSetScore(key2, member1));
-        Assert.Equal(member2HasScore ? (double?)Score : null, db.SortedSetScore(key2, member2));
+        Assert.Equal(member1HasScore ? Score : null, db.SortedSetScore(key2, member1));
+        Assert.Equal(member2HasScore ? Score : null, db.SortedSetScore(key2, member2));
 
         var tran = db.CreateTransaction();
         var cond = tran.AddCondition(demandScoreExists ? Condition.SortedSetScoreExists(key2, Score) : Condition.SortedSetScoreNotExists(key2, Score));
@@ -1056,8 +1128,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -1135,8 +1207,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -1269,6 +1341,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         var tran = db.CreateTransaction("state");
         var a = tran.ExecuteAsync("SET", "foo", "bar");
         Assert.True(await tran.ExecuteAsync());
+        await a;
         var setting = db.StringGet("foo");
         Assert.Equal("bar", setting);
     }
