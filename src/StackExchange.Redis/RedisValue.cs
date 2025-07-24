@@ -149,7 +149,7 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator !=(RedisValue x, RedisValue y) => !(x == y);
 
-        private double OverlappedValueDouble
+        internal double OverlappedValueDouble
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => BitConverter.Int64BitsToDouble(_overlappedBits64);
@@ -849,7 +849,7 @@ namespace StackExchange.Redis
                     len = Format.FormatUInt64(value.OverlappedValueUInt64, span);
                     return span.Slice(0, len).ToArray();
                 case StorageType.Double:
-                    span = stackalloc byte[128];
+                    span = stackalloc byte[Format.MaxDoubleTextLen];
                     len = Format.FormatDouble(value.OverlappedValueDouble, span);
                     return span.Slice(0, len).ToArray();
                 case StorageType.String:

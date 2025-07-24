@@ -845,7 +845,9 @@ namespace StackExchange.Redis
                 case RedisValue.StorageType.UInt64:
                     WriteUnifiedUInt64(writer, value.OverlappedValueUInt64);
                     break;
-                case RedisValue.StorageType.Double: // use string
+                case RedisValue.StorageType.Double:
+                    WriteUnifiedDouble(writer, value.OverlappedValueDouble);
+                    break;
                 case RedisValue.StorageType.String:
                     WriteUnifiedPrefixedString(writer, null, (string?)value);
                     break;
@@ -1341,9 +1343,9 @@ namespace StackExchange.Redis
             // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
             // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
 
-            // ${asc-len}\r\n           = 3 + MaxInt32TextLen
+            // ${asc-len}\r\n           = 4/5 (asc-len at most 2 digits)
             // {asc}\r\n                = MaxInt64TextLen + 2
-            var span = writer.GetSpan(5 + Format.MaxInt32TextLen + Format.MaxInt64TextLen);
+            var span = writer.GetSpan(7 + Format.MaxInt64TextLen);
 
             span[0] = (byte)'$';
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
@@ -1354,13 +1356,12 @@ namespace StackExchange.Redis
         {
             // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
             // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
-
-            // ${asc-len}\r\n           = 3 + MaxInt32TextLen
-            // {asc}\r\n                = MaxInt64TextLen + 2
-            var span = writer.GetSpan(5 + Format.MaxInt32TextLen + Format.MaxInt64TextLen);
-
             Span<byte> valueSpan = stackalloc byte[Format.MaxInt64TextLen];
+
             var len = Format.FormatUInt64(value, valueSpan);
+            // ${asc-len}\r\n           = 4/5 (asc-len at most 2 digits)
+            // {asc}\r\n                = {len} + 2
+            var span = writer.GetSpan(7 + len);
             span[0] = (byte)'$';
             int offset = WriteRaw(span, len, withLengthPrefix: false, offset: 1);
             valueSpan.Slice(0, len).CopyTo(span.Slice(offset));
@@ -1368,6 +1369,27 @@ namespace StackExchange.Redis
             offset = WriteCrlf(span, offset);
             writer.Advance(offset);
         }
+
+        private static void WriteUnifiedDouble(PipeWriter writer, double value)
+        {
+#if NET8_0_OR_GREATER
+            Span<byte> valueSpan = stackalloc byte[Format.MaxDoubleTextLen];
+            var len = Format.FormatDouble(value, valueSpan);
+
+            // ${asc-len}\r\n           = 4/5 (asc-len at most 2 digits)
+            // {asc}\r\n                = {len} + 2
+            var span = writer.GetSpan(7 + len);
+            span[0] = (byte)'$';
+            int offset = WriteRaw(span, len, withLengthPrefix: false, offset: 1);
+            offset += len;
+            offset = WriteCrlf(span, offset);
+            writer.Advance(offset);
+#else
+            // fallback: drop to string
+            WriteUnifiedPrefixedString(writer, null, Format.ToString(value));
+#endif
+        }
+
         internal static void WriteInteger(PipeWriter writer, long value)
         {
             // note: client should never write integer; only server does this

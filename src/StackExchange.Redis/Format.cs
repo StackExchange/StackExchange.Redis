@@ -399,14 +399,15 @@ namespace StackExchange.Redis
 
         internal const int
             MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
-            MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
+            MaxInt64TextLen = 20, // -9,223,372,036,854,775,808 (not including the commas),
+            MaxDoubleTextLen = 40; // we use G17, allow for sign/E/and allow plenty of panic room
 
         internal static int MeasureDouble(double value)
         {
             if (double.IsInfinity(value)) return 4; // +inf / -inf
 
 #if NET8_0_OR_GREATER // can use IUtf8Formattable
-            Span<byte> buffer = stackalloc byte[64];
+            Span<byte> buffer = stackalloc byte[MaxDoubleTextLen];
             if (value.TryFormat(buffer, out int len, "G17", NumberFormatInfo.InvariantInfo))
             {
                 return len;
