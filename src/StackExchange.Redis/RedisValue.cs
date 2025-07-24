@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Buffers.Text;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -838,21 +839,76 @@ namespace StackExchange.Redis
 
                     return value._memory.ToArray();
                 case StorageType.Int64:
-                    Span<byte> span = stackalloc byte[Format.MaxInt64TextLen + 2];
-                    int len = PhysicalConnection.WriteRaw(span, value.OverlappedValueInt64, false, 0);
-                    arr = new byte[len - 2]; // don't need the CRLF
-                    span.Slice(0, arr.Length).CopyTo(arr);
-                    return arr;
+                    Debug.Assert(Format.MaxInt64TextLen <= 24);
+                    Span<byte> span = stackalloc byte[24];
+                    int len = Format.FormatInt64(value.OverlappedValueInt64, span);
+                    return span.Slice(0, len).ToArray();
                 case StorageType.UInt64:
-                    // we know it is a huge value - just jump straight to Utf8Formatter
-                    span = stackalloc byte[Format.MaxInt64TextLen];
+                    Debug.Assert(Format.MaxInt64TextLen <= 24);
+                    span = stackalloc byte[24];
                     len = Format.FormatUInt64(value.OverlappedValueUInt64, span);
-                    arr = new byte[len];
-                    span.Slice(0, len).CopyTo(arr);
-                    return arr;
+                    return span.Slice(0, len).ToArray();
+                case StorageType.Double:
+                    span = stackalloc byte[128];
+                    len = Format.FormatDouble(value.OverlappedValueDouble, span);
+                    return span.Slice(0, len).ToArray();
+                case StorageType.String:
+                    return Encoding.UTF8.GetBytes((string)value._objectOrSentinel!);
             }
             // fallback: stringify and encode
             return Encoding.UTF8.GetBytes((string)value!);
+        }
+
+        /// <summary>
+        /// Gets the length of the value in bytes.
+        /// </summary>
+        public int GetByteCount()
+        {
+            switch (Type)
+            {
+                case StorageType.Null: return 0;
+                case StorageType.Raw: return _memory.Length;
+                case StorageType.String: return Encoding.UTF8.GetByteCount((string)_objectOrSentinel!);
+                case StorageType.Int64: return Format.MeasureInt64(OverlappedValueInt64);
+                case StorageType.UInt64: return Format.MeasureUInt64(OverlappedValueUInt64);
+                case StorageType.Double: return Format.MeasureDouble(OverlappedValueDouble);
+                default: return ThrowUnableToMeasure();
+            }
+        }
+
+        private int ThrowUnableToMeasure() => throw new InvalidOperationException("Unable to compute length of type: " + Type);
+
+        /// <summary>
+        /// Gets the length of the value in bytes.
+        /// </summary>
+        /* right now, we only support int lengths, but adding this now so that
+         there are no surprises if/when we add support for discontiguous buffers */
+        public long GetLongByteCount() => GetByteCount();
+
+        /// <summary>
+        /// Copy the value as bytes to the provided <paramref name="destination"/>.
+        /// </summary>
+        public int CopyTo(Span<byte> destination)
+        {
+            switch (Type)
+            {
+                case StorageType.Null:
+                    return 0;
+                case StorageType.Raw:
+                    var srcBytes = _memory.Span;
+                    srcBytes.CopyTo(destination);
+                    return srcBytes.Length;
+                case StorageType.String:
+                    return Encoding.UTF8.GetBytes(((string)_objectOrSentinel!).AsSpan(), destination);
+                case StorageType.Int64:
+                    return Format.FormatInt64(OverlappedValueInt64, destination);
+                case StorageType.UInt64:
+                    return Format.FormatUInt64(OverlappedValueUInt64, destination);
+                case StorageType.Double:
+                    return Format.FormatDouble(OverlappedValueDouble, destination);
+                default:
+                    return ThrowUnableToMeasure();
+            }
         }
 
         /// <summary>

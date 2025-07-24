@@ -832,7 +832,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         Assert.Equal(keyExists, db.SortedSetScore(key2, member).HasValue);
 
         var tran = db.CreateTransaction();
-        var cond = tran.AddCondition(demandKeyExists ? Condition.SortedSetStartsWith(key2, startWith) : Condition.SortedSetNotStartsWith(key2, startWith));
+        var cond = tran.AddCondition(demandKeyExists ? Condition.SortedSetContainsStarting(key2, startWith) : Condition.SortedSetNotContainsStarting(key2, startWith));
         var incr = tran.StringIncrementAsync(key);
         var exec = tran.ExecuteAsync();
         var get = db.StringGet(key);

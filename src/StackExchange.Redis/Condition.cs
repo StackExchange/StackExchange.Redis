@@ -285,18 +285,18 @@ namespace StackExchange.Redis
         public static Condition SortedSetNotContains(RedisKey key, RedisValue member) => new ExistsCondition(key, RedisType.SortedSet, member, false);
 
         /// <summary>
-        /// Enforces that the given sorted set contains a member that ist starting with the start-sequence.
+        /// Enforces that the given sorted set contains a member that starts with the specified prefix.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
-        /// <param name="memberStartSequence">a byte array: the set must contain at least one member, that starts with the byte-sequence.</param>
-        public static Condition SortedSetStartsWith(RedisKey key, byte[] memberStartSequence) => new StartsWithCondition(key, memberStartSequence, true);
+        /// <param name="prefix">The sorted set must contain at least one member that starts with the specified prefix.</param>
+        public static Condition SortedSetContainsStarting(RedisKey key, RedisValue prefix) => new StartsWithCondition(key, prefix, true);
 
         /// <summary>
-        /// Enforces that the given sorted set does not contain a member that ist starting with the start-sequence.
+        /// Enforces that the given sorted set does not contain a member that starts with the specified prefix.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
-        /// <param name="memberStartSequence">a byte array: the set must not contain any members, that start with the byte-sequence.</param>
-        public static Condition SortedSetNotStartsWith(RedisKey key, byte[] memberStartSequence) => new StartsWithCondition(key, memberStartSequence, false);
+        /// <param name="prefix">The sorted set must not contain at a member that starts with the specified prefix.</param>
+        public static Condition SortedSetNotContainsStarting(RedisKey key, RedisValue prefix) => new StartsWithCondition(key, prefix, false);
 
         /// <summary>
         /// Enforces that the given sorted set member must have the specified score.
@@ -541,24 +541,23 @@ namespace StackExchange.Redis
                working with byte arrays should prevent any encoding within this class, that could distort the comparison */
 
             private readonly bool expectedResult;
-            private readonly RedisValue expectedStartValue;
+            private readonly RedisValue prefix;
             private readonly RedisKey key;
 
             internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
-                new StartsWithCondition(map(key), expectedStartValue, expectedResult);
+                new StartsWithCondition(map(key), prefix, expectedResult);
 
-            public StartsWithCondition(in RedisKey key, in RedisValue expectedStartValue, bool expectedResult)
+            public StartsWithCondition(in RedisKey key, in RedisValue prefix, bool expectedResult)
             {
                 if (key.IsNull) throw new ArgumentNullException(nameof(key));
-                if (expectedStartValue.IsNull) throw new ArgumentNullException(nameof(expectedStartValue));
+                if (prefix.IsNull) throw new ArgumentNullException(nameof(prefix));
                 this.key = key;
-                this.expectedStartValue = expectedStartValue;   // array with length 0 returns true condition
+                this.prefix = prefix;
                 this.expectedResult = expectedResult;
             }
 
             public override string ToString() =>
-                (expectedStartValue.IsNull ? key.ToString() : ((string?)key) + " " + RedisType.SortedSet + " > " + expectedStartValue)
-                    + (expectedResult ? " starts with" : " does not start with");
+                $"{key} {nameof(RedisType.SortedSet)} > {(expectedResult ? " member starting " : " no member starting ")} {prefix} + prefix";
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZRANGEBYLEX);
 
@@ -566,10 +565,21 @@ namespace StackExchange.Redis
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
-#pragma warning disable CS8600, CS8604, SA1117  // expectedStartValue is checked to be not null in Constructor and must be a byte[] because of API-parameters
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZRANGEBYLEX, key,
-                        CombineBytes(91, (byte[])expectedStartValue.Box()), "+", "LIMIT", "0", "1"); // prepends '[' to startValue for inclusive search in CombineBytes
-#pragma warning disable CS8600, CS8604, SA1117
+                // prepend '[' to prefix for inclusive search
+                var startValueWithToken = RedisDatabase.GetLexRange(prefix, Exclude.None, isStart: true, Order.Ascending);
+
+                var message = ConditionProcessor.CreateMessage(
+                    this,
+                    db,
+                    CommandFlags.None,
+                    RedisCommand.ZRANGEBYLEX,
+                    key,
+                    startValueWithToken,
+                    RedisLiterals.PlusSymbol,
+                    RedisLiterals.LIMIT,
+                    0,
+                    1);
+
                 message.SetSource(ConditionProcessor.Default, resultBox);
                 yield return message;
             }
@@ -578,39 +588,9 @@ namespace StackExchange.Redis
 
             internal override bool TryValidate(in RawResult result, out bool value)
             {
-                RedisValue[]? r = result.GetItemsAsValues();
-                if (result.ItemsCount == 0) value = false; // false, if empty list -> read after end of memberlist / itemsCout > 1 is impossible due to 'LIMIT 0 1'
-#pragma warning disable CS8600, CS8604  // warnings on StartsWith can be ignored because of ItemsCount-check in then preceding command!!
-                else value = r != null && r.Length > 0 && StartsWith((byte[])r[0].Box(), expectedStartValue);
-#pragma warning disable CS8600, CS8604
+                value = result.ItemsCount == 1 && result[0].AsRedisValue().StartsWith(prefix);
 
-#pragma warning disable CS8602  // warning for r[0] can be ignored because of null-check in then same command-line !!
                 if (!expectedResult) value = !value;
-                ConnectionMultiplexer.TraceWithoutContext("actual: " + r == null ? "null" : r.Length == 0 ? "empty" : r[0].ToString()
-                                                        + "; expected: " + expectedStartValue.ToString()
-                                                        + "; wanted: " + (expectedResult ? "StartsWith" : "NotStartWith")
-                                                        + "; voting: " + value);
-#pragma warning restore CS8602
-                return true;
-            }
-
-            private static byte[] CombineBytes(byte b1, byte[] a1) // combines b1 and a1 to new array
-            {
-                byte[] newArray = new byte[a1.Length + 1];
-                newArray[0] = b1;
-                System.Buffer.BlockCopy(a1, 0, newArray, 1, a1.Length);
-                return newArray;
-            }
-
-            internal bool StartsWith(byte[] result, byte[] searchfor)
-            {
-                if (searchfor.Length > result.Length) return false;
-
-                for (int i = 0; i < searchfor.Length; i++)
-                {
-                    if (result[i] != searchfor[i]) return false;
-                }
-
                 return true;
             }
         }
