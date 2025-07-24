@@ -1335,14 +1335,16 @@ namespace StackExchange.Redis
             if (log == null) return;
 
             var tmp = GetServerSnapshot();
-            log?.LogInformation("Endpoint Summary:");
+            log.LogInformationEndpointSummaryHeader();
             foreach (var server in tmp)
             {
-                log?.LogInformation("  " + server.Summary());
-                log?.LogInformation("  " + server.GetCounters().ToString());
-                log?.LogInformation("  " + server.GetProfile());
+                log.LogInformationServerSummary(server.Summary(), server.GetCounters(), server.GetProfile());
             }
-            log?.LogInformation($"Sync timeouts: {Interlocked.Read(ref syncTimeouts)}; async timeouts: {Interlocked.Read(ref asyncTimeouts)}; fire and forget: {Interlocked.Read(ref fireAndForgets)}; last heartbeat: {LastHeartbeatSecondsAgo}s ago");
+            log.LogInformationTimeoutsSummary(
+                Interlocked.Read(ref syncTimeouts),
+                Interlocked.Read(ref asyncTimeouts),
+                Interlocked.Read(ref fireAndForgets),
+                LastHeartbeatSecondsAgo);
         }
 
         private void ActivateAllServers(ILogger? log)
