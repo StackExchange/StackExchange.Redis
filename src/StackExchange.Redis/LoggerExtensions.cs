@@ -579,4 +579,90 @@ internal static partial class LoggerExtensions
         EventId = 86,
         Message = "{Server}: Auto-configured (HELLO) role: {Role}")]
     internal static partial void LogInformationAutoConfiguredHelloRole(this ILogger logger, ServerEndPointLogValue server, string role);
+
+    // PhysicalBridge logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 87,
+        Message = "{EndPoint}: OnEstablishingAsync complete")]
+    internal static partial void LogInformationOnEstablishingComplete(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 88,
+        Message = "{ErrorMessage}")]
+    internal static partial void LogInformationConnectionFailureRequested(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 89,
+        Message = "{ErrorMessage}")]
+    internal static partial void LogErrorConnectionIssue(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 90,
+        Message = "Dead socket detected, no reads in {LastReadSecondsAgo} seconds with {TimeoutCount} timeouts, issuing disconnect")]
+    internal static partial void LogWarningDeadSocketDetected(this ILogger logger, long lastReadSecondsAgo, long timeoutCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 91,
+        Message = "Resurrecting {Bridge} (retry: {RetryCount})")]
+    internal static partial void LogInformationResurrecting(this ILogger logger, PhysicalBridge bridge, long retryCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 92,
+        Message = "{BridgeName}: Connecting...")]
+    internal static partial void LogInformationConnecting(this ILogger logger, string bridgeName);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 93,
+        Message = "{BridgeName}: Connect failed: {ErrorMessage}")]
+    internal static partial void LogErrorConnectFailed(this ILogger logger, Exception exception, string bridgeName, string errorMessage);
+
+    // PhysicalConnection logging methods
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 94,
+        Message = "No endpoint")]
+    internal static partial void LogErrorNoEndpoint(this ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 95,
+        Message = "{EndPoint}: BeginConnectAsync")]
+    internal static partial void LogInformationBeginConnectAsync(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 96,
+        Message = "{EndPoint}: Starting read")]
+    internal static partial void LogInformationStartingRead(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 97,
+        Message = "{EndPoint}: (socket shutdown)")]
+    internal static partial void LogErrorSocketShutdown(this ILogger logger, Exception exception, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 98,
+        Message = "Configuring TLS")]
+    internal static partial void LogInformationConfiguringTLS(this ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 99,
+        Message = "TLS connection established successfully using protocol: {SslProtocol}")]
+    internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 100,
+        Message = "{BridgeName}: Connected")]
+    internal static partial void LogInformationConnected(this ILogger logger, string bridgeName);
 }
