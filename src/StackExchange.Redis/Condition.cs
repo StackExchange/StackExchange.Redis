@@ -285,6 +285,20 @@ namespace StackExchange.Redis
         public static Condition SortedSetNotContains(RedisKey key, RedisValue member) => new ExistsCondition(key, RedisType.SortedSet, member, false);
 
         /// <summary>
+        /// Enforces that the given sorted set contains a member that starts with the specified prefix.
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="prefix">The sorted set must contain at least one member that starts with the specified prefix.</param>
+        public static Condition SortedSetContainsStarting(RedisKey key, RedisValue prefix) => new StartsWithCondition(key, prefix, true);
+
+        /// <summary>
+        /// Enforces that the given sorted set does not contain a member that starts with the specified prefix.
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="prefix">The sorted set must not contain at a member that starts with the specified prefix.</param>
+        public static Condition SortedSetNotContainsStarting(RedisKey key, RedisValue prefix) => new StartsWithCondition(key, prefix, false);
+
+        /// <summary>
         /// Enforces that the given sorted set member must have the specified score.
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
@@ -370,6 +384,9 @@ namespace StackExchange.Redis
             public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1) =>
                 new ConditionMessage(condition, db, flags, command, key, value, value1);
 
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
+                new ConditionMessage(condition, db, flags, command, key, value, value1, value2, value3, value4);
+
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -389,6 +406,9 @@ namespace StackExchange.Redis
                 public readonly Condition Condition;
                 private readonly RedisValue value;
                 private readonly RedisValue value1;
+                private readonly RedisValue value2;
+                private readonly RedisValue value3;
+                private readonly RedisValue value4;
 
                 public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value)
                     : base(db, flags, command, key)
@@ -403,6 +423,15 @@ namespace StackExchange.Redis
                     this.value1 = value1; // note no assert here
                 }
 
+                // Message with 3 or 4 values not used, therefore not implemented
+                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4)
+                    : this(condition, db, flags, command, key, value, value1)
+                {
+                    this.value2 = value2; // note no assert here
+                    this.value3 = value3; // note no assert here
+                    this.value4 = value4; // note no assert here
+                }
+
                 protected override void WriteImpl(PhysicalConnection physical)
                 {
                     if (value.IsNull)
@@ -412,16 +441,20 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        physical.WriteHeader(command, value1.IsNull ? 2 : 3);
+                        physical.WriteHeader(command, value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6);
                         physical.Write(Key);
                         physical.WriteBulkString(value);
                         if (!value1.IsNull)
-                        {
                             physical.WriteBulkString(value1);
-                        }
+                        if (!value2.IsNull)
+                            physical.WriteBulkString(value2);
+                        if (!value3.IsNull)
+                            physical.WriteBulkString(value3);
+                        if (!value4.IsNull)
+                            physical.WriteBulkString(value4);
                     }
                 }
-                public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : 3;
+                public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6;
             }
         }
 
@@ -498,6 +531,67 @@ namespace StackExchange.Redis
                         value = false;
                         return false;
                 }
+            }
+        }
+
+        internal sealed class StartsWithCondition : Condition
+        {
+            /* only usable for RedisType.SortedSet, members of SortedSets are always byte-arrays, expectedStartValue therefore is a byte-array
+               any Encoding and Conversion for the search-sequence has to be executed in calling application
+               working with byte arrays should prevent any encoding within this class, that could distort the comparison */
+
+            private readonly bool expectedResult;
+            private readonly RedisValue prefix;
+            private readonly RedisKey key;
+
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map) =>
+                new StartsWithCondition(map(key), prefix, expectedResult);
+
+            public StartsWithCondition(in RedisKey key, in RedisValue prefix, bool expectedResult)
+            {
+                if (key.IsNull) throw new ArgumentNullException(nameof(key));
+                if (prefix.IsNull) throw new ArgumentNullException(nameof(prefix));
+                this.key = key;
+                this.prefix = prefix;
+                this.expectedResult = expectedResult;
+            }
+
+            public override string ToString() =>
+                $"{key} {nameof(RedisType.SortedSet)} > {(expectedResult ? " member starting " : " no member starting ")} {prefix} + prefix";
+
+            internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZRANGEBYLEX);
+
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
+            {
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+
+                // prepend '[' to prefix for inclusive search
+                var startValueWithToken = RedisDatabase.GetLexRange(prefix, Exclude.None, isStart: true, Order.Ascending);
+
+                var message = ConditionProcessor.CreateMessage(
+                    this,
+                    db,
+                    CommandFlags.None,
+                    RedisCommand.ZRANGEBYLEX,
+                    key,
+                    startValueWithToken,
+                    RedisLiterals.PlusSymbol,
+                    RedisLiterals.LIMIT,
+                    0,
+                    1);
+
+                message.SetSource(ConditionProcessor.Default, resultBox);
+                yield return message;
+            }
+
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
+
+            internal override bool TryValidate(in RawResult result, out bool value)
+            {
+                value = result.ItemsCount == 1 && result[0].AsRedisValue().StartsWith(prefix);
+
+                if (!expectedResult) value = !value;
+                return true;
             }
         }
 

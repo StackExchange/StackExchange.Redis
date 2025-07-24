@@ -51,6 +51,9 @@ public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         set = db.SortedSetRangeByValue(key, "e", default(RedisValue));
         count = db.SortedSetLengthByValue(key, "e", default(RedisValue));
         Equate(set, count, "e", "f", "g");
+
+        set = db.SortedSetRangeByValue(key, RedisValue.Null, RedisValue.Null, Exclude.None, Order.Descending, 0, 3);    // added to test Null-min- and max-param
+        Equate(set, set.Length, "g", "f", "e");
     }
 
     [Fact]

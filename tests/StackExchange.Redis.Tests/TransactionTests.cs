@@ -362,8 +362,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -441,8 +441,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -520,8 +520,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -640,8 +640,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -719,8 +719,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = (int)(max - min) + 1;
         switch (type)
         {
@@ -812,6 +812,120 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         }
     }
 
+    public enum SortedSetValue
+    {
+        None,
+        Exact,
+        Shorter,
+        Longer,
+    }
+
+    [Theory]
+    [InlineData(false, SortedSetValue.None, true)]
+    [InlineData(false, SortedSetValue.Shorter, true)]
+    [InlineData(false, SortedSetValue.Exact, false)]
+    [InlineData(false, SortedSetValue.Longer, false)]
+    [InlineData(true, SortedSetValue.None, false)]
+    [InlineData(true, SortedSetValue.Shorter, false)]
+    [InlineData(true, SortedSetValue.Exact, true)]
+    [InlineData(true, SortedSetValue.Longer, true)]
+    public async Task BasicTranWithSortedSetStartsWithCondition_String(bool requestExists, SortedSetValue existingValue, bool expectTranResult)
+    {
+        using var conn = Create();
+
+        RedisKey key1 = Me() + "_1", key2 = Me() + "_2";
+        var db = conn.GetDatabase();
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(key2, "unrelated", 0.0, flags: CommandFlags.FireAndForget);
+        switch (existingValue)
+        {
+            case SortedSetValue.Shorter:
+                db.SortedSetAdd(key2, "see", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Exact:
+                db.SortedSetAdd(key2, "seek", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Longer:
+                db.SortedSetAdd(key2, "seeks", 0.0, flags: CommandFlags.FireAndForget);
+                break;
+        }
+
+        var tran = db.CreateTransaction();
+        var cond = tran.AddCondition(requestExists ? Condition.SortedSetContainsStarting(key2, "seek") : Condition.SortedSetNotContainsStarting(key2, "seek"));
+        var incr = tran.StringIncrementAsync(key1);
+        var exec = await tran.ExecuteAsync();
+        var get = await db.StringGetAsync(key1);
+
+        Assert.Equal(expectTranResult, exec);
+        Assert.Equal(expectTranResult, cond.WasSatisfied);
+
+        if (expectTranResult)
+        {
+            Assert.Equal(1, await incr); // eq: incr
+            Assert.Equal(1, (long)get); // eq: get
+        }
+        else
+        {
+            Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+            Assert.Equal(0, (long)get); // neq: get
+        }
+    }
+
+    [Theory]
+    [InlineData(false, SortedSetValue.None, true)]
+    [InlineData(false, SortedSetValue.Shorter, true)]
+    [InlineData(false, SortedSetValue.Exact, false)]
+    [InlineData(false, SortedSetValue.Longer, false)]
+    [InlineData(true, SortedSetValue.None, false)]
+    [InlineData(true, SortedSetValue.Shorter, false)]
+    [InlineData(true, SortedSetValue.Exact, true)]
+    [InlineData(true, SortedSetValue.Longer, true)]
+    public async Task BasicTranWithSortedSetStartsWithCondition_Integer(bool requestExists, SortedSetValue existingValue, bool expectTranResult)
+    {
+        using var conn = Create();
+
+        RedisKey key1 = Me() + "_1", key2 = Me() + "_2";
+        var db = conn.GetDatabase();
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(key2, 789, 0.0, flags: CommandFlags.FireAndForget);
+        switch (existingValue)
+        {
+            case SortedSetValue.Shorter:
+                db.SortedSetAdd(key2, 123, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Exact:
+                db.SortedSetAdd(key2, 1234, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+            case SortedSetValue.Longer:
+                db.SortedSetAdd(key2, 12345, 0.0, flags: CommandFlags.FireAndForget);
+                break;
+        }
+
+        var tran = db.CreateTransaction();
+        var cond = tran.AddCondition(requestExists ? Condition.SortedSetContainsStarting(key2, 1234) : Condition.SortedSetNotContainsStarting(key2, 1234));
+        var incr = tran.StringIncrementAsync(key1);
+        var exec = await tran.ExecuteAsync();
+        var get = await db.StringGetAsync(key1);
+
+        Assert.Equal(expectTranResult, exec);
+        Assert.Equal(expectTranResult, cond.WasSatisfied);
+
+        if (expectTranResult)
+        {
+            Assert.Equal(1, await incr); // eq: incr
+            Assert.Equal(1, (long)get); // eq: get
+        }
+        else
+        {
+            Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+            Assert.Equal(0, (long)get); // neq: get
+        }
+    }
+
     [Theory]
     [InlineData(4D, 4D, true, true)]
     [InlineData(4D, 5D, true, false)]
@@ -893,8 +1007,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         }
 
         Assert.False(db.KeyExists(key));
-        Assert.Equal(member1HasScore ? (double?)Score : null, db.SortedSetScore(key2, member1));
-        Assert.Equal(member2HasScore ? (double?)Score : null, db.SortedSetScore(key2, member2));
+        Assert.Equal(member1HasScore ? Score : null, db.SortedSetScore(key2, member1));
+        Assert.Equal(member2HasScore ? Score : null, db.SortedSetScore(key2, member2));
 
         var tran = db.CreateTransaction();
         var cond = tran.AddCondition(demandScoreExists ? Condition.SortedSetScoreExists(key2, Score) : Condition.SortedSetScoreNotExists(key2, Score));
@@ -1014,8 +1128,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -1093,8 +1207,8 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
-        var expectSuccess = false;
-        Condition? condition = null;
+        bool expectSuccess;
+        Condition? condition;
         var valueLength = value?.Length ?? 0;
         switch (type)
         {
@@ -1227,6 +1341,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         var tran = db.CreateTransaction("state");
         var a = tran.ExecuteAsync("SET", "foo", "bar");
         Assert.True(await tran.ExecuteAsync());
+        await a;
         var setting = db.StringGet("foo");
         Assert.Equal("bar", setting);
     }

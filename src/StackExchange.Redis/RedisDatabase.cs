@@ -3962,21 +3962,23 @@ namespace StackExchange.Redis
             return tran;
         }
 
-        private static RedisValue GetLexRange(RedisValue value, Exclude exclude, bool isStart, Order order)
+        internal static RedisValue GetLexRange(RedisValue value, Exclude exclude, bool isStart, Order order)
         {
-            if (value.IsNull)
+            if (value.IsNull) // open search
             {
                 if (order == Order.Ascending) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
 
-                return isStart ? RedisLiterals.PlusSymbol : RedisLiterals.MinusSymbol; // 24.01.2024: when descending order: Plus and Minus have to be reversed
+                return isStart ? RedisLiterals.PlusSymbol : RedisLiterals.MinusSymbol; // when descending order: Plus and Minus have to be reversed
             }
 
-            byte[] orig = value!;
+            var srcLength = value.GetByteCount();
+            Debug.Assert(srcLength >= 0);
 
-            byte[] result = new byte[orig.Length + 1];
+            byte[] result = new byte[srcLength + 1];
             // no defaults here; must always explicitly specify [ / (
             result[0] = (exclude & (isStart ? Exclude.Start : Exclude.Stop)) == 0 ? (byte)'[' : (byte)'(';
-            Buffer.BlockCopy(orig, 0, result, 1, orig.Length);
+            int written = value.CopyTo(result.AsSpan(1));
+            Debug.Assert(written == srcLength, "predicted/actual length mismatch");
             return result;
         }
 
