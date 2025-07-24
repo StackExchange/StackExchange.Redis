@@ -579,4 +579,47 @@ internal static partial class LoggerExtensions
         EventId = 86,
         Message = "{Server}: Auto-configured (HELLO) role: {Role}")]
     internal static partial void LogInformationAutoConfiguredHelloRole(this ILogger logger, ServerEndPointLogValue server, string role);
+
+    // PhysicalBridge logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 87,
+        Message = "{EndPoint}: OnEstablishingAsync complete")]
+    internal static partial void LogInformationOnEstablishingComplete(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 88,
+        Message = "{ErrorMessage}")]
+    internal static partial void LogInformationConnectionFailureRequested(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 89,
+        Message = "{ErrorMessage}")]
+    internal static partial void LogErrorConnectionIssue(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 90,
+        Message = "Dead socket detected, no reads in {LastReadSecondsAgo} seconds with {TimeoutCount} timeouts, issuing disconnect")]
+    internal static partial void LogWarningDeadSocketDetected(this ILogger logger, long lastReadSecondsAgo, long timeoutCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 91,
+        Message = "Resurrecting {Bridge} (retry: {RetryCount})")]
+    internal static partial void LogInformationResurrecting(this ILogger logger, PhysicalBridge bridge, long retryCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 92,
+        Message = "{BridgeName}: Connecting...")]
+    internal static partial void LogInformationConnecting(this ILogger logger, string bridgeName);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 93,
+        Message = "{BridgeName}: Connect failed: {ErrorMessage}")]
+    internal static partial void LogErrorConnectFailed(this ILogger logger, Exception exception, string bridgeName, string errorMessage);
 }
