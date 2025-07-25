@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Benchmarks
         [Arguments(123442D)]
         [Arguments(double.NegativeInfinity)]
         [Arguments(double.NaN)]
-        public double FormatDouble(double value) => Format.FormatDouble(value, buffer.AsSpan());
+        public int FormatDouble(double value) => Format.FormatDouble(value, buffer.AsSpan());
 
         [Benchmark]
         [Arguments("host.com", -1)]
