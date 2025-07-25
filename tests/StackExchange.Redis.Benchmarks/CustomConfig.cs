@@ -1,4 +1,5 @@
-﻿using BenchmarkDotNet.Columns;
+﻿using System.Runtime.InteropServices;
+using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Environments;
@@ -17,7 +18,14 @@ namespace StackExchange.Redis.Benchmarks
             AddColumn(StatisticColumn.OperationsPerSecond);
             AddValidator(JitOptimizationsValidator.FailOnError);
 
-            AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net481)));
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net481)));
+            }
+            else
+            {
+                AddJob(Configure(Job.Default.WithRuntime(MonoRuntime.Mono90)));
+            }
             AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core80)));
         }
     }

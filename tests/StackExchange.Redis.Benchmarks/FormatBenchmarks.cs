@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using BenchmarkDotNet.Attributes;
 
 namespace StackExchange.Redis.Benchmarks
@@ -22,6 +23,26 @@ namespace StackExchange.Redis.Benchmarks
         [Arguments("0")]
         [Arguments("123442")]
         public long ParseInt32(string s) => Format.ParseInt32(s);
+
+        [Benchmark]
+        [Arguments("64")]
+        [Arguments("-1")]
+        [Arguments("0")]
+        [Arguments("123442")]
+        [Arguments("-inf")]
+        [Arguments("nan")]
+        public double ParseDouble(string s) => Format.TryParseDouble(s, out var val) ? val : double.NaN;
+
+        private byte[] buffer = new byte[128];
+
+        [Benchmark]
+        [Arguments(64D)]
+        [Arguments(-1D)]
+        [Arguments(0D)]
+        [Arguments(123442D)]
+        [Arguments(double.NegativeInfinity)]
+        [Arguments(double.NaN)]
+        public double FormatDouble(double value) => Format.FormatDouble(value, buffer.AsSpan());
 
         [Benchmark]
         [Arguments("host.com", -1)]
