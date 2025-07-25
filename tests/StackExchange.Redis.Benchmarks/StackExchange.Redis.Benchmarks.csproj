@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>StackExchange.Redis MicroBenchmark Suite</Description>
+    <TargetFrameworks>net481;net8.0</TargetFrameworks>
+    <Configuration>Release</Configuration>
+    <OutputType>Exe</OutputType>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    
+    <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+</Project>

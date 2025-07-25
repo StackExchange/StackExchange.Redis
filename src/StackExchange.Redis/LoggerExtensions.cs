@@ -488,4 +488,225 @@ internal static partial class LoggerExtensions
         EventId = 70,
         Message = "{Server}: Flushing outbound buffer")]
     internal static partial void LogInformationFlushingOutboundBuffer(this ILogger logger, ServerEndPointLogValue server);
+
+    // ResultProcessor logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 71,
+        Message = "Response from {BridgeName} / {CommandAndKey}: {Result}")]
+    internal static partial void LogInformationResponse(this ILogger logger, string? bridgeName, string commandAndKey, RawResult result);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 72,
+        Message = "{Server}: Auto-configured role: replica")]
+    internal static partial void LogInformationAutoConfiguredRoleReplica(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 73,
+        Message = "{Server}: Auto-configured (CLIENT) connection-id: {ConnectionId}")]
+    internal static partial void LogInformationAutoConfiguredClientConnectionId(this ILogger logger, ServerEndPointLogValue server, long connectionId);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 74,
+        Message = "{Server}: Auto-configured (INFO) role: {Role}")]
+    internal static partial void LogInformationAutoConfiguredInfoRole(this ILogger logger, ServerEndPointLogValue server, string role);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 75,
+        Message = "{Server}: Auto-configured (INFO) version: {Version}")]
+    internal static partial void LogInformationAutoConfiguredInfoVersion(this ILogger logger, ServerEndPointLogValue server, Version version);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 76,
+        Message = "{Server}: Auto-configured (INFO) server-type: {ServerType}")]
+    internal static partial void LogInformationAutoConfiguredInfoServerType(this ILogger logger, ServerEndPointLogValue server, ServerType serverType);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 77,
+        Message = "{Server}: Auto-configured (SENTINEL) server-type: sentinel")]
+    internal static partial void LogInformationAutoConfiguredSentinelServerType(this ILogger logger, ServerEndPointLogValue server);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 78,
+        Message = "{Server}: Auto-configured (CONFIG) timeout: {TimeoutSeconds}s")]
+    internal static partial void LogInformationAutoConfiguredConfigTimeout(this ILogger logger, ServerEndPointLogValue server, int timeoutSeconds);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 79,
+        Message = "{Server}: Auto-configured (CONFIG) databases: {DatabaseCount}")]
+    internal static partial void LogInformationAutoConfiguredConfigDatabases(this ILogger logger, ServerEndPointLogValue server, int databaseCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 81,
+        Message = "{Server}: Auto-configured (CONFIG) read-only replica: {ReadOnlyReplica}")]
+    internal static partial void LogInformationAutoConfiguredConfigReadOnlyReplica(this ILogger logger, ServerEndPointLogValue server, bool readOnlyReplica);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 82,
+        Message = "{Server}: Auto-configured (HELLO) server-version: {Version}")]
+    internal static partial void LogInformationAutoConfiguredHelloServerVersion(this ILogger logger, ServerEndPointLogValue server, Version version);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 83,
+        Message = "{Server}: Auto-configured (HELLO) protocol: {Protocol}")]
+    internal static partial void LogInformationAutoConfiguredHelloProtocol(this ILogger logger, ServerEndPointLogValue server, RedisProtocol protocol);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 84,
+        Message = "{Server}: Auto-configured (HELLO) connection-id: {ConnectionId}")]
+    internal static partial void LogInformationAutoConfiguredHelloConnectionId(this ILogger logger, ServerEndPointLogValue server, long connectionId);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 85,
+        Message = "{Server}: Auto-configured (HELLO) server-type: {ServerType}")]
+    internal static partial void LogInformationAutoConfiguredHelloServerType(this ILogger logger, ServerEndPointLogValue server, ServerType serverType);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 86,
+        Message = "{Server}: Auto-configured (HELLO) role: {Role}")]
+    internal static partial void LogInformationAutoConfiguredHelloRole(this ILogger logger, ServerEndPointLogValue server, string role);
+
+    // PhysicalBridge logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 87,
+        Message = "{EndPoint}: OnEstablishingAsync complete")]
+    internal static partial void LogInformationOnEstablishingComplete(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 88,
+        Message = "{ErrorMessage}")]
+    internal static partial void LogInformationConnectionFailureRequested(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 89,
+        Message = "{ErrorMessage}")]
+    internal static partial void LogErrorConnectionIssue(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 90,
+        Message = "Dead socket detected, no reads in {LastReadSecondsAgo} seconds with {TimeoutCount} timeouts, issuing disconnect")]
+    internal static partial void LogWarningDeadSocketDetected(this ILogger logger, long lastReadSecondsAgo, long timeoutCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 91,
+        Message = "Resurrecting {Bridge} (retry: {RetryCount})")]
+    internal static partial void LogInformationResurrecting(this ILogger logger, PhysicalBridge bridge, long retryCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 92,
+        Message = "{BridgeName}: Connecting...")]
+    internal static partial void LogInformationConnecting(this ILogger logger, string bridgeName);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 93,
+        Message = "{BridgeName}: Connect failed: {ErrorMessage}")]
+    internal static partial void LogErrorConnectFailed(this ILogger logger, Exception exception, string bridgeName, string errorMessage);
+
+    // PhysicalConnection logging methods
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 94,
+        Message = "No endpoint")]
+    internal static partial void LogErrorNoEndpoint(this ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 95,
+        Message = "{EndPoint}: BeginConnectAsync")]
+    internal static partial void LogInformationBeginConnectAsync(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 96,
+        Message = "{EndPoint}: Starting read")]
+    internal static partial void LogInformationStartingRead(this ILogger logger, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 97,
+        Message = "{EndPoint}: (socket shutdown)")]
+    internal static partial void LogErrorSocketShutdown(this ILogger logger, Exception exception, EndPointLogValue endPoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 98,
+        Message = "Configuring TLS")]
+    internal static partial void LogInformationConfiguringTLS(this ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 99,
+        Message = "TLS connection established successfully using protocol: {SslProtocol}")]
+    internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 100,
+        Message = "{BridgeName}: Connected")]
+    internal static partial void LogInformationConnected(this ILogger logger, string bridgeName);
+
+    // ConnectionMultiplexer GetStatus logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 101,
+        Message = "Endpoint Summary:")]
+    internal static partial void LogInformationEndpointSummaryHeader(this ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 102,
+        Message = "Server summary: {ServerSummary}, counters: {ServerCounters}, profile: {ServerProfile}")]
+    internal static partial void LogInformationServerSummary(this ILogger logger, string serverSummary, ServerCounters serverCounters, string serverProfile);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 105,
+        Message = "Sync timeouts: {SyncTimeouts}; async timeouts: {AsyncTimeouts}; fire and forget: {FireAndForgets}; last heartbeat: {LastHeartbeatSecondsAgo}s ago")]
+    internal static partial void LogInformationTimeoutsSummary(this ILogger logger, long syncTimeouts, long asyncTimeouts, long fireAndForgets, long lastHeartbeatSecondsAgo);
+
+    // EndPointCollection logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 106,
+        Message = "Using DNS to resolve '{DnsHost}'...")]
+    internal static partial void LogInformationUsingDnsToResolve(this ILogger logger, string dnsHost);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 107,
+        Message = "'{DnsHost}' => {IpAddress}")]
+    internal static partial void LogInformationDnsResolutionResult(this ILogger logger, string dnsHost, IPAddress ipAddress);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 108,
+        Message = "{ErrorMessage}")]
+    internal static partial void LogErrorDnsResolution(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 109,
+        Message = "Service name not defined.")]
+    internal static partial void LogInformationServiceNameNotDefined(this ILogger logger);
 }

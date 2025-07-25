@@ -109,7 +109,7 @@ namespace StackExchange.Redis
             var endpoint = bridge?.ServerEndPoint?.EndPoint;
             if (bridge == null || endpoint == null)
             {
-                log?.LogError(new ArgumentNullException(nameof(endpoint)), "No endpoint");
+                log?.LogErrorNoEndpoint(new ArgumentNullException(nameof(endpoint)));
                 return;
             }
 
@@ -135,7 +135,7 @@ namespace StackExchange.Redis
                 }
             }
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            log?.LogInformation($"{Format.ToString(endpoint)}: BeginConnectAsync");
+            log?.LogInformationBeginConnectAsync(new(endpoint));
 
             CancellationTokenSource? timeoutSource = null;
             try
@@ -184,7 +184,7 @@ namespace StackExchange.Redis
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager!).ForAwait())
                         {
-                            log?.LogInformation($"{Format.ToString(endpoint)}: Starting read");
+                            log?.LogInformationStartingRead(new(endpoint));
                             try
                             {
                                 StartReading();
@@ -204,7 +204,7 @@ namespace StackExchange.Redis
                     }
                     catch (ObjectDisposedException ex)
                     {
-                        log?.LogError(ex, $"{Format.ToString(endpoint)}: (socket shutdown)");
+                        log?.LogErrorSocketShutdown(ex, new(endpoint));
                         try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                         catch (Exception inner)
                         {
@@ -1586,7 +1586,7 @@ namespace StackExchange.Redis
 
                 if (config.Ssl)
                 {
-                    log?.LogInformation("Configuring TLS");
+                    log?.LogInformationConfiguringTLS();
                     var host = config.SslHost;
                     if (host.IsNullOrWhiteSpace())
                     {
@@ -1622,10 +1622,10 @@ namespace StackExchange.Redis
                         {
                             Debug.WriteLine(ex.Message);
                             bridge.Multiplexer.SetAuthSuspect(ex);
-                            bridge.Multiplexer.Logger?.LogError(ex, ex.Message);
+                            bridge.Multiplexer.Logger?.LogErrorConnectionIssue(ex, ex.Message);
                             throw;
                         }
-                        log?.LogInformation($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
+                        log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol);
                     }
                     catch (AuthenticationException authexception)
                     {
@@ -1648,7 +1648,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                log?.LogInformation($"{bridge.Name}: Connected ");
+                log?.LogInformationConnected(bridge.Name);
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;

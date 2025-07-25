@@ -431,7 +431,7 @@ namespace StackExchange.Redis
             {
                 ConnectedAt ??= DateTime.UtcNow;
                 await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
-                log?.LogInformation($"{Format.ToString(ServerEndPoint)}: OnEstablishingAsync complete");
+                log?.LogInformationOnEstablishingComplete(new(ServerEndPoint.EndPoint));
             }
             else
             {
@@ -457,11 +457,11 @@ namespace StackExchange.Redis
         {
             if (wasRequested)
             {
-                Multiplexer.Logger?.LogInformation(innerException, innerException.Message);
+                Multiplexer.Logger?.LogInformationConnectionFailureRequested(innerException, innerException.Message);
             }
             else
             {
-                Multiplexer.Logger?.LogError(innerException, innerException.Message);
+                Multiplexer.Logger?.LogErrorConnectionIssue(innerException, innerException.Message);
             }
             Trace($"OnConnectionFailed: {connection}");
             // If we're configured to, fail all pending backlogged messages
@@ -589,7 +589,7 @@ namespace StackExchange.Redis
                             Interlocked.Increment(ref connectTimeoutRetryCount);
                             var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout", Name);
                             LastException = ex;
-                            Multiplexer.Logger?.LogError(ex, ex.Message);
+                            Multiplexer.Logger?.LogErrorConnectionIssue(ex, ex.Message);
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
@@ -671,7 +671,7 @@ namespace StackExchange.Redis
                                 // This is meant to address the scenario we see often in Linux configs where TCP retries will happen for 15 minutes.
                                 // To us as a client, we'll see the socket as green/open/fine when writing but we'll bet getting nothing back.
                                 // Since we can't depend on the pipe to fail in that case, we want to error here based on the criteria above so we reconnect broken clients much faster.
-                                tmp.BridgeCouldBeNull?.Multiplexer.Logger?.LogWarning($"Dead socket detected, no reads in {tmp.LastReadSecondsAgo} seconds with {timedOutThisHeartbeat} timeouts, issuing disconnect");
+                                tmp.BridgeCouldBeNull?.Multiplexer.Logger?.LogWarningDeadSocketDetected(tmp.LastReadSecondsAgo, timedOutThisHeartbeat);
                                 OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out _, out State oldState);
                                 tmp.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                             }
@@ -691,7 +691,7 @@ namespace StackExchange.Redis
                             // Increment count here, so that we don't re-enter in Connecting case up top - we don't want to re-enter and log there.
                             Interlocked.Increment(ref connectTimeoutRetryCount);
 
-                            Multiplexer.Logger?.LogInformation($"Resurrecting {ToString()} (retry: {connectTimeoutRetryCount})");
+                            Multiplexer.Logger?.LogInformationResurrecting(this, connectTimeoutRetryCount);
                             Multiplexer.OnResurrecting(ServerEndPoint.EndPoint, ConnectionType);
                             TryConnect(null);
                         }
@@ -1453,7 +1453,7 @@ namespace StackExchange.Redis
                 {
                     if (!Multiplexer.IsDisposed)
                     {
-                        log?.LogInformation($"{Name}: Connecting...");
+                        log?.LogInformationConnecting(Name);
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
@@ -1470,7 +1470,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    log?.LogError(ex, $"{Name}: Connect failed: {ex.Message}");
+                    log?.LogErrorConnectFailed(ex, Name, ex.Message);
                     Multiplexer.Trace("Connect failed: " + ex.Message, Name);
                     ChangeState(State.Disconnected);
                     OnInternalError(ex);
