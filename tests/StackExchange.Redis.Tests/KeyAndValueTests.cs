@@ -64,6 +64,12 @@ public class KeyAndValueTests
 
     internal static void CheckSame(RedisValue x, RedisValue y)
     {
+        if (x.TryParse(out double value) && double.IsNaN(value))
+        {
+            // NaN has atypical equality rules
+            Assert.True(y.TryParse(out value) && double.IsNaN(value));
+            return;
+        }
         Assert.True(Equals(x, y), "Equals(x, y)");
         Assert.True(Equals(y, x), "Equals(y, x)");
         Assert.True(EqualityComparer<RedisValue>.Default.Equals(x, y), "EQ(x,y)");

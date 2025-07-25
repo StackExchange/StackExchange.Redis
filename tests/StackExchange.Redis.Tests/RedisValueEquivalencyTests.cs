@@ -137,11 +137,24 @@ public class RedisValueEquivalency
 
         Check(double.NegativeInfinity, double.NegativeInfinity);
         Check(double.NegativeInfinity, "-inf");
+        Check(double.NegativeInfinity, Bytes("-inf"));
         CheckString(double.NegativeInfinity, "-inf");
 
         Check(double.PositiveInfinity, double.PositiveInfinity);
         Check(double.PositiveInfinity, "+inf");
+        Check(double.PositiveInfinity, "inf");
+        Check(double.PositiveInfinity, Bytes("+inf"));
+        Check(double.PositiveInfinity, Bytes("inf"));
         CheckString(double.PositiveInfinity, "+inf");
+
+        Check(double.NaN, double.NaN);
+        Check(double.NaN, "+nan");
+        Check(double.NaN, "-nan");
+        Check(double.NaN, "nan");
+        Check(double.NaN, Bytes("+nan"));
+        Check(double.NaN, Bytes("-nan"));
+        Check(double.NaN, Bytes("nan"));
+        CheckString(double.NaN, "NaN");
     }
 
     private static void CheckString(RedisValue value, string expected)
