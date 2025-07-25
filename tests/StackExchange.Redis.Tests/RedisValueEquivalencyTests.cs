@@ -157,6 +157,125 @@ public class RedisValueEquivalency
         CheckString(double.NaN, "NaN");
     }
 
+    [Theory]
+    [InlineData("na")]
+    [InlineData("nan")]
+    [InlineData("nans")]
+    [InlineData("in")]
+    [InlineData("inf")]
+    [InlineData("info")]
+    public void SpecialCaseEqualityRules_String(string value)
+    {
+        RedisValue x = value, y = value;
+        Assert.Equal(x, y);
+
+        Assert.True(x.Equals(y));
+        Assert.True(y.Equals(x));
+        Assert.True(x == y);
+        Assert.True(y == x);
+        Assert.False(x != y);
+        Assert.False(y != x);
+        Assert.Equal(x.GetHashCode(), y.GetHashCode());
+    }
+
+    [Theory]
+    [InlineData("na")]
+    [InlineData("nan")]
+    [InlineData("nans")]
+    [InlineData("in")]
+    [InlineData("inf")]
+    [InlineData("info")]
+    public void SpecialCaseEqualityRules_Bytes(string value)
+    {
+        byte[] bytes0 = Encoding.UTF8.GetBytes(value),
+               bytes1 = Encoding.UTF8.GetBytes(value);
+        Assert.NotSame(bytes0, bytes1);
+        RedisValue x = bytes0, y = bytes1;
+
+        Assert.True(x.Equals(y));
+        Assert.True(y.Equals(x));
+        Assert.True(x == y);
+        Assert.True(y == x);
+        Assert.False(x != y);
+        Assert.False(y != x);
+        Assert.Equal(x.GetHashCode(), y.GetHashCode());
+    }
+
+    [Theory]
+    [InlineData("na")]
+    [InlineData("nan")]
+    [InlineData("nans")]
+    [InlineData("in")]
+    [InlineData("inf")]
+    [InlineData("info")]
+    public void SpecialCaseEqualityRules_Hybrid(string value)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        RedisValue x = bytes, y = value;
+
+        Assert.True(x.Equals(y));
+        Assert.True(y.Equals(x));
+        Assert.True(x == y);
+        Assert.True(y == x);
+        Assert.False(x != y);
+        Assert.False(y != x);
+        Assert.Equal(x.GetHashCode(), y.GetHashCode());
+    }
+
+    [Theory]
+    [InlineData("na", "NA")]
+    [InlineData("nan", "NAN")]
+    [InlineData("nans", "NANS")]
+    [InlineData("in", "IN")]
+    [InlineData("inf", "INF")]
+    [InlineData("info", "INFO")]
+    public void SpecialCaseNonEqualityRules_String(string s, string t)
+    {
+        RedisValue x = s, y = t;
+        Assert.False(x.Equals(y));
+        Assert.False(y.Equals(x));
+        Assert.False(x == y);
+        Assert.False(y == x);
+        Assert.True(x != y);
+        Assert.True(y != x);
+    }
+
+    [Theory]
+    [InlineData("na", "NA")]
+    [InlineData("nan", "NAN")]
+    [InlineData("nans", "NANS")]
+    [InlineData("in", "IN")]
+    [InlineData("inf", "INF")]
+    [InlineData("info", "INFO")]
+    public void SpecialCaseNonEqualityRules_Bytes(string s, string t)
+    {
+        RedisValue x = Encoding.UTF8.GetBytes(s), y = Encoding.UTF8.GetBytes(t);
+        Assert.False(x.Equals(y));
+        Assert.False(y.Equals(x));
+        Assert.False(x == y);
+        Assert.False(y == x);
+        Assert.True(x != y);
+        Assert.True(y != x);
+    }
+
+    [Theory]
+    [InlineData("na", "NA")]
+    [InlineData("nan", "NAN")]
+    [InlineData("nans", "NANS")]
+    [InlineData("in", "IN")]
+    [InlineData("inf", "INF")]
+    [InlineData("info", "INFO")]
+    public void SpecialCaseNonEqualityRules_Hybrid(string s, string t)
+    {
+        RedisValue x = s, y = Encoding.UTF8.GetBytes(t);
+        Assert.False(x.Equals(y));
+        Assert.False(y.Equals(x));
+        Assert.False(x == y);
+        Assert.False(y == x);
+        Assert.True(x != y);
+        Assert.True(y != x);
+    }
+
     private static void CheckString(RedisValue value, string expected)
     {
         var s = value.ToString();
