@@ -149,7 +149,7 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator !=(RedisValue x, RedisValue y) => !(x == y);
 
-        private double OverlappedValueDouble
+        internal double OverlappedValueDouble
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => BitConverter.Int64BitsToDouble(_overlappedBits64);
@@ -849,7 +849,7 @@ namespace StackExchange.Redis
                     len = Format.FormatUInt64(value.OverlappedValueUInt64, span);
                     return span.Slice(0, len).ToArray();
                 case StorageType.Double:
-                    span = stackalloc byte[128];
+                    span = stackalloc byte[Format.MaxDoubleTextLen];
                     len = Format.FormatDouble(value.OverlappedValueDouble, span);
                     return span.Slice(0, len).ToArray();
                 case StorageType.String:
@@ -986,7 +986,8 @@ namespace StackExchange.Redis
                         if (Format.TryParseInt64(s, out i64)) return i64;
                         if (Format.TryParseUInt64(s, out u64)) return u64;
                     }
-                    if (Format.TryParseDouble(s, out var f64)) return f64;
+                    // note: don't simplify inf/nan, as that causes equality semantic problems
+                    if (Format.TryParseDouble(s, out var f64) && !IsSpecialDouble(f64)) return f64;
                     break;
                 case StorageType.Raw:
                     var b = _memory.Span;
@@ -995,7 +996,8 @@ namespace StackExchange.Redis
                         if (Format.TryParseInt64(b, out i64)) return i64;
                         if (Format.TryParseUInt64(b, out u64)) return u64;
                     }
-                    if (TryParseDouble(b, out f64)) return f64;
+                    // note: don't simplify inf/nan, as that causes equality semantic problems
+                    if (TryParseDouble(b, out f64) && !IsSpecialDouble(f64)) return f64;
                     break;
                 case StorageType.Double:
                     // is the double actually an integer?
@@ -1005,6 +1007,8 @@ namespace StackExchange.Redis
             }
             return this;
         }
+
+        private static bool IsSpecialDouble(double d) => double.IsNaN(d) || double.IsInfinity(d);
 
         /// <summary>
         /// Convert to a signed <see cref="long"/> if possible.

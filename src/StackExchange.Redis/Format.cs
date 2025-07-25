@@ -4,6 +4,7 @@ using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 #if UNIX_SOCKET
@@ -168,24 +169,41 @@ namespace StackExchange.Redis
                     value = s[0] - '0';
                     return true;
                 // RESP3 spec demands inf/nan handling
-                case 3 when CaseInsensitiveASCIIEqual("inf", s):
-                    value = double.PositiveInfinity;
-                    return true;
-                case 3 when CaseInsensitiveASCIIEqual("nan", s):
-                    value = double.NaN;
-                    return true;
-                case 4 when CaseInsensitiveASCIIEqual("+inf", s):
-                    value = double.PositiveInfinity;
-                    return true;
-                case 4 when CaseInsensitiveASCIIEqual("-inf", s):
-                    value = double.NegativeInfinity;
-                    return true;
-                case 4 when CaseInsensitiveASCIIEqual("+nan", s):
-                case 4 when CaseInsensitiveASCIIEqual("-nan", s):
-                    value = double.NaN;
+                case 3 when TryParseInfNaN(s.AsSpan(), true, out value):
+                case 4 when s[0] == '+' && TryParseInfNaN(s.AsSpan(1), true, out value):
+                case 4 when s[0] == '-' && TryParseInfNaN(s.AsSpan(1), false, out value):
                     return true;
             }
             return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
+
+            static bool TryParseInfNaN(ReadOnlySpan<char> s, bool positive, out double value)
+            {
+                switch (s[0])
+                {
+                    case 'i':
+                    case 'I':
+                        if (s[1] is 'n' or 'N' && s[2] is 'f' or 'F')
+                        {
+                            value = positive ? double.PositiveInfinity : double.NegativeInfinity;
+                            return true;
+                        }
+                        break;
+                    case 'n':
+                    case 'N':
+                        if (s[1] is 'a' or 'A' && s[2] is 'n' or 'N')
+                        {
+                            value = double.NaN;
+                            return true;
+                        }
+                        break;
+                }
+#if NET6_0_OR_GREATER
+                Unsafe.SkipInit(out value);
+#else
+                value = 0;
+#endif
+                return false;
+            }
         }
 
         internal static bool TryParseUInt64(string s, out ulong value) =>
@@ -235,37 +253,41 @@ namespace StackExchange.Redis
                     value = s[0] - '0';
                     return true;
                 // RESP3 spec demands inf/nan handling
-                case 3 when CaseInsensitiveASCIIEqual("inf", s):
-                    value = double.PositiveInfinity;
-                    return true;
-                case 3 when CaseInsensitiveASCIIEqual("nan", s):
-                    value = double.NaN;
-                    return true;
-                case 4 when CaseInsensitiveASCIIEqual("+inf", s):
-                    value = double.PositiveInfinity;
-                    return true;
-                case 4 when CaseInsensitiveASCIIEqual("-inf", s):
-                    value = double.NegativeInfinity;
-                    return true;
-                case 4 when CaseInsensitiveASCIIEqual("+nan", s):
-                case 4 when CaseInsensitiveASCIIEqual("-nan", s):
-                    value = double.NaN;
+                case 3 when TryParseInfNaN(s, true, out value):
+                case 4 when s[0] == '+' && TryParseInfNaN(s.Slice(1), true, out value):
+                case 4 when s[0] == '-' && TryParseInfNaN(s.Slice(1), false, out value):
                     return true;
             }
             return Utf8Parser.TryParse(s, out value, out int bytes) & bytes == s.Length;
-        }
 
-        private static bool CaseInsensitiveASCIIEqual(string xLowerCase, string y)
-            => string.Equals(xLowerCase, y, StringComparison.OrdinalIgnoreCase);
-
-        private static bool CaseInsensitiveASCIIEqual(string xLowerCase, ReadOnlySpan<byte> y)
-        {
-            if (y.Length != xLowerCase.Length) return false;
-            for (int i = 0; i < y.Length; i++)
+            static bool TryParseInfNaN(ReadOnlySpan<byte> s, bool positive, out double value)
             {
-                if (char.ToLower((char)y[i]) != xLowerCase[i]) return false;
+                switch (s[0])
+                {
+                    case (byte)'i':
+                    case (byte)'I':
+                        if (s[1] is (byte)'n' or (byte)'N' && s[2] is (byte)'f' or (byte)'F')
+                        {
+                            value = positive ? double.PositiveInfinity : double.NegativeInfinity;
+                            return true;
+                        }
+                        break;
+                    case (byte)'n':
+                    case (byte)'N':
+                        if (s[1] is (byte)'a' or (byte)'A' && s[2] is (byte)'n' or (byte)'N')
+                        {
+                            value = double.NaN;
+                            return true;
+                        }
+                        break;
+                }
+#if NET6_0_OR_GREATER
+                Unsafe.SkipInit(out value);
+#else
+                value = 0;
+#endif
+                return false;
             }
-            return true;
         }
 
         /// <summary>
@@ -399,11 +421,21 @@ namespace StackExchange.Redis
 
         internal const int
             MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
-            MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
+            MaxInt64TextLen = 20, // -9,223,372,036,854,775,808 (not including the commas),
+            MaxDoubleTextLen = 40; // we use G17, allow for sign/E/and allow plenty of panic room
 
         internal static int MeasureDouble(double value)
         {
             if (double.IsInfinity(value)) return 4; // +inf / -inf
+
+#if NET8_0_OR_GREATER // can use IUtf8Formattable
+            Span<byte> buffer = stackalloc byte[MaxDoubleTextLen];
+            if (value.TryFormat(buffer, out int len, "G17", NumberFormatInfo.InvariantInfo))
+            {
+                return len;
+            }
+#endif
+            // fallback (TFM or unexpected size)
             var s = value.ToString("G17", NumberFormatInfo.InvariantInfo); // this looks inefficient, but is how Utf8Formatter works too, just: more direct
             return s.Length;
         }
@@ -412,16 +444,18 @@ namespace StackExchange.Redis
         {
             if (double.IsInfinity(value))
             {
-                if (double.IsPositiveInfinity(value))
-                {
-                    if (!"+inf"u8.TryCopyTo(destination)) ThrowFormatFailed();
-                }
-                else
-                {
-                    if (!"-inf"u8.TryCopyTo(destination)) ThrowFormatFailed();
-                }
+                if (!(double.IsPositiveInfinity(value) ? "+inf"u8 : "-inf"u8).TryCopyTo(destination)) ThrowFormatFailed();
                 return 4;
             }
+
+#if NET8_0_OR_GREATER // can use IUtf8Formattable
+            if (!value.TryFormat(destination, out int len, "G17", NumberFormatInfo.InvariantInfo))
+            {
+                ThrowFormatFailed();
+            }
+
+            return len;
+#else
             var s = value.ToString("G17", NumberFormatInfo.InvariantInfo); // this looks inefficient, but is how Utf8Formatter works too, just: more direct
             if (s.Length > destination.Length) ThrowFormatFailed();
 
@@ -431,6 +465,7 @@ namespace StackExchange.Redis
                 destination[i] = (byte)chars[i];
             }
             return chars.Length;
+#endif
         }
 
         internal static int MeasureInt64(long value)
