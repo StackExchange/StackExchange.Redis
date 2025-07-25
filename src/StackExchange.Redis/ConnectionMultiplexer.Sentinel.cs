@@ -396,7 +396,7 @@ public partial class ConnectionMultiplexer
         var logger = Logger.With(writer);
         if (connection.RawConfig.ServiceName is not string serviceName)
         {
-            logger?.LogInformation("Service name not defined.");
+            logger?.LogInformationServiceNameNotDefined();
             return;
         }
 

@@ -665,4 +665,48 @@ internal static partial class LoggerExtensions
         EventId = 100,
         Message = "{BridgeName}: Connected")]
     internal static partial void LogInformationConnected(this ILogger logger, string bridgeName);
+
+    // ConnectionMultiplexer GetStatus logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 101,
+        Message = "Endpoint Summary:")]
+    internal static partial void LogInformationEndpointSummaryHeader(this ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 102,
+        Message = "Server summary: {ServerSummary}, counters: {ServerCounters}, profile: {ServerProfile}")]
+    internal static partial void LogInformationServerSummary(this ILogger logger, string serverSummary, ServerCounters serverCounters, string serverProfile);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 105,
+        Message = "Sync timeouts: {SyncTimeouts}; async timeouts: {AsyncTimeouts}; fire and forget: {FireAndForgets}; last heartbeat: {LastHeartbeatSecondsAgo}s ago")]
+    internal static partial void LogInformationTimeoutsSummary(this ILogger logger, long syncTimeouts, long asyncTimeouts, long fireAndForgets, long lastHeartbeatSecondsAgo);
+
+    // EndPointCollection logging methods
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 106,
+        Message = "Using DNS to resolve '{DnsHost}'...")]
+    internal static partial void LogInformationUsingDnsToResolve(this ILogger logger, string dnsHost);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 107,
+        Message = "'{DnsHost}' => {IpAddress}")]
+    internal static partial void LogInformationDnsResolutionResult(this ILogger logger, string dnsHost, IPAddress ipAddress);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        EventId = 108,
+        Message = "{ErrorMessage}")]
+    internal static partial void LogErrorDnsResolution(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 109,
+        Message = "Service name not defined.")]
+    internal static partial void LogInformationServiceNameNotDefined(this ILogger logger);
 }
