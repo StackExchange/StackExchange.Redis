@@ -58,7 +58,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Fetch the full history
-    - uses: Vampire/setup-wsl@v6
+    - uses: Vampire/setup-wsl@v2
       with:
         distribution: Ubuntu-22.04
     - name: Install Redis
