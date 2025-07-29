@@ -81,16 +81,16 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
     }
 
     private ConnectionMultiplexer GetFailFastConn() =>
-        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.FailFast, 400).Apply(o => o.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379")), Writer);
+        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.FailFast, duration: 400, connectTimeout: 500).Apply(o => o.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379")), Writer);
 
     private ConnectionMultiplexer GetWorkingBacklogConn() =>
-        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.Default, 1000).Apply(o => o.EndPoints.Add(GetConfiguration())), Writer);
+        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.Default).Apply(o => o.EndPoints.Add(GetConfiguration())), Writer);
 
-    private static ConfigurationOptions GetOptions(BacklogPolicy policy, int duration) => new ConfigurationOptions()
+    private static ConfigurationOptions GetOptions(BacklogPolicy policy, int duration = 1000, int connectTimeout = 2000) => new ConfigurationOptions()
     {
         AbortOnConnectFail = false,
         BacklogPolicy = policy,
-        ConnectTimeout = 500,
+        ConnectTimeout = connectTimeout,
         SyncTimeout = duration,
         KeepAlive = duration,
         AllowAdmin = true,
