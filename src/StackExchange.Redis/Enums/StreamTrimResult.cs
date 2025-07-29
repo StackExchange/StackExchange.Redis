@@ -16,7 +16,8 @@ public enum StreamTrimResult
     Deleted = 1,
 
     /// <summary>
-    /// Entry was not deleted, but there are still dangling references.
+    /// Entry was not deleted because it has either not been delivered to any consumer, or
+    /// still has references in the consumer groups' Pending Entries List (PEL).
     /// </summary>
     /// <remarks>This response relates to the <see cref="StreamTrimMode.Acknowledged"/> mode.</remarks>
     NotDeleted = 2,
