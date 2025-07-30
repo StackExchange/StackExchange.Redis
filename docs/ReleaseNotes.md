@@ -13,6 +13,7 @@ Current package versions:
 - Add `Condition.SortedSet[Not]ContainsStarting` condition for transactions ([#2638 by ArnoKoll](https://github.com/StackExchange/StackExchange.Redis/pull/2638))
 - Add support for XPENDING Idle time filter ([#2822 by david-brink-talogy](https://github.com/StackExchange/StackExchange.Redis/pull/2822))
 - Improve `double` formatting performance on net8+ ([#2928 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2928))
+- Add `GetServer(RedisKey, ...)` API ([#2936 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2936))
 
 ## 2.8.58
 

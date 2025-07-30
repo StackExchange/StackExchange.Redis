@@ -1,7 +1,1 @@
 ﻿#nullable enable
-StackExchange.Redis.ConnectionMultiplexer.GetServer(StackExchange.Redis.RedisKey key, object? asyncState = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.IServer!
-StackExchange.Redis.IConnectionMultiplexer.GetServer(StackExchange.Redis.RedisKey key, object? asyncState = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.IServer!
-StackExchange.Redis.IServer.Execute(int? database, string! command, params object![]! args) -> StackExchange.Redis.RedisResult!
-StackExchange.Redis.IServer.Execute(int? database, string! command, System.Collections.Generic.ICollection<object!>! args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
-StackExchange.Redis.IServer.ExecuteAsync(int? database, string! command, params object![]! args) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
-StackExchange.Redis.IServer.ExecuteAsync(int? database, string! command, System.Collections.Generic.ICollection<object!>! args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
