@@ -267,6 +267,22 @@ namespace StackExchange.Redis
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
 
         /// <summary>
+        /// Execute an arbitrary database-specific command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        /// </summary>
+        /// <param name="database">The database ID; if <see langword="null"/>, the configured default database is used.</param>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
+        /// <returns>A dynamic representation of the command's result.</returns>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
+        RedisResult Execute(int? database, string command, params object[] args);
+
+        /// <inheritdoc cref="Execute(int?, string, object[])"/>
+        Task<RedisResult> ExecuteAsync(int? database, string command, params object[] args);
+
+#pragma warning disable RS0026, RS0027 // multiple overloads
+        /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
         /// executing modules, but may also be used to provide access to new features that lack
         /// a direct API.
@@ -280,6 +296,23 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="Execute(string, ICollection{object}, CommandFlags)"/>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute an arbitrary database-specific command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        /// </summary>
+        /// <param name="database">The database ID; if <see langword="null"/>, the configured default database is used.</param>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the command's result.</returns>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful.</remarks>
+        RedisResult Execute(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="Execute(int?, string, ICollection{object}, CommandFlags)"/>
+        Task<RedisResult> ExecuteAsync(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026, RS0027
 
         /// <summary>
         /// Delete all the keys of all databases on the server.
