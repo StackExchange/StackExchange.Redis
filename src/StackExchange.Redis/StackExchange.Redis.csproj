@@ -17,14 +17,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- needed everywhere (with hack to override to LTS when possible) -->
-    <PackageReference Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="8.0"/>
-    <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
 
     <!-- built into .NET core now -->
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net462' or '$(TargetFramework)' == 'netstandard2.0'" />
-    <PackageReference Include="System.Threading.Channels" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net462' or '$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'netcoreapp3.0'))" />
+    <PackageReference Include="System.Threading.Channels" Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'netcoreapp3.0'))" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))"/>
 
     <!-- net462 needs this for OSPlatform et al -->

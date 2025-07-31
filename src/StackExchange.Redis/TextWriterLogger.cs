@@ -17,11 +17,7 @@ internal sealed class TextWriterLogger : ILogger
         _wrapped = wrapped;
     }
 
-#if NET8_0_OR_GREATER
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NothingDisposable.Instance;
-#else
-    public IDisposable BeginScope<TState>(TState state) => NothingDisposable.Instance;
-#endif
 
     public bool IsEnabled(LogLevel logLevel) => _writer is not null || _wrapped is not null;
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
