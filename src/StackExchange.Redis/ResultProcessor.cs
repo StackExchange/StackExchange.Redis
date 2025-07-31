@@ -10,7 +10,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {

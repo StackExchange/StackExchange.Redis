@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {

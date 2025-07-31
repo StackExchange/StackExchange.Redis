@@ -10,8 +10,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
 using static StackExchange.Redis.PhysicalConnection;
 
 namespace StackExchange.Redis.Configuration;

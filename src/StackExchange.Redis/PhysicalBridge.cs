@@ -8,10 +8,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-#if !NETCOREAPP
-using Pipelines.Sockets.Unofficial.Threading;
-using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
-#endif
 
 namespace StackExchange.Redis
 {
@@ -63,11 +59,7 @@ namespace StackExchange.Redis
 
         internal long? ConnectionId => physical?.ConnectionId;
 
-#if NETCOREAPP
         private readonly SemaphoreSlim _singleWriterMutex = new(1, 1);
-#else
-        private readonly MutexSlim _singleWriterMutex;
-#endif
 
         internal string? PhysicalName => physical?.ToString();
 
@@ -82,9 +74,6 @@ namespace StackExchange.Redis
             Multiplexer = serverEndPoint.Multiplexer;
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
             TimeoutMilliseconds = timeoutMilliseconds;
-#if !NETCOREAPP
-            _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds);
-#endif
             if (type == ConnectionType.Interactive && Multiplexer.RawConfig.HighIntegrity)
             {
                 // we just need this to be non-zero to enable tracking
@@ -345,11 +334,7 @@ namespace StackExchange.Redis
         {
             MessagesSinceLastHeartbeat = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog)),
             ConnectedAt = ConnectedAt,
-#if NETCOREAPP
             IsWriterActive = _singleWriterMutex.CurrentCount == 0,
-#else
-            IsWriterActive = !_singleWriterMutex.IsAvailable,
-#endif
             BacklogMessagesPending = _backlog.Count,
             BacklogMessagesPendingCounter = Volatile.Read(ref _backlogCurrentEnqueued),
             BacklogStatus = _backlogStatus,
@@ -807,20 +792,11 @@ namespace StackExchange.Redis
                 return WriteResult.Success; // queued counts as success
             }
 
-#if NETCOREAPP
             bool gotLock = false;
-#else
-            LockToken token = default;
-#endif
             try
             {
-#if NETCOREAPP
                 gotLock = _singleWriterMutex.Wait(0);
                 if (!gotLock)
-#else
-                token = _singleWriterMutex.TryWait(WaitOptions.NoDelay);
-                if (!token.Success)
-#endif
                 {
                     // If we can't get it *instantaneously*, pass it to the backlog for throughput
                     if (TryPushToBacklog(message, onlyIfExists: false))
@@ -831,13 +807,8 @@ namespace StackExchange.Redis
                     // no backlog... try to wait with the timeout;
                     // if we *still* can't get it: that counts as
                     // an actual timeout
-#if NETCOREAPP
                     gotLock = _singleWriterMutex.Wait(TimeoutMilliseconds);
                     if (!gotLock) return TimedOutBeforeWrite(message);
-#else
-                    token = _singleWriterMutex.TryWait();
-                    if (!token.Success) return TimedOutBeforeWrite(message);
-#endif
                 }
 
                 var result = WriteMessageInsideLock(physical, message);
@@ -854,14 +825,10 @@ namespace StackExchange.Redis
             finally
             {
                 UnmarkActiveMessage(message);
-#if NETCOREAPP
                 if (gotLock)
                 {
                     _singleWriterMutex.Release();
                 }
-#else
-                token.Dispose();
-#endif
             }
         }
 
@@ -1112,11 +1079,7 @@ namespace StackExchange.Redis
         {
             // Importantly: don't assume we have a physical connection here
             // We are very likely to hit a state where it's not re-established or even referenced here
-#if NETCOREAPP
             bool gotLock = false;
-#else
-            LockToken token = default;
-#endif
             _backlogAutoReset.Reset();
             try
             {
@@ -1134,13 +1097,8 @@ namespace StackExchange.Redis
                     if (_backlog.IsEmpty) return; // nothing to do
 
                     // try and get the lock; if unsuccessful, retry
-#if NETCOREAPP
                     gotLock = _singleWriterMutex.Wait(TimeoutMilliseconds);
                     if (gotLock) break; // got the lock; now go do something with it
-#else
-                    token = _singleWriterMutex.TryWait();
-                    if (token.Success) break; // got the lock; now go do something with it
-#endif
                 }
                 _backlogStatus = BacklogStatus.Started;
 
@@ -1199,14 +1157,10 @@ namespace StackExchange.Redis
             }
             finally
             {
-#if NETCOREAPP
                 if (gotLock)
                 {
                     _singleWriterMutex.Release();
                 }
-#else
-                token.Dispose();
-#endif
             }
         }
 
@@ -1250,22 +1204,12 @@ namespace StackExchange.Redis
             }
 
             bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
-#if NETCOREAPP
             bool gotLock = false;
-#else
-            LockToken token = default;
-#endif
             try
             {
                 // try to acquire it synchronously
-#if NETCOREAPP
                 gotLock = _singleWriterMutex.Wait(0);
                 if (!gotLock)
-#else
-                // note: timeout is specified in mutex-constructor
-                token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
-                if (!token.Success)
-#endif
                 {
                     // If we can't get it *instantaneously*, pass it to the backlog for throughput
                     if (TryPushToBacklog(message, onlyIfExists: false, bypassBacklog: bypassBacklog))
@@ -1276,19 +1220,11 @@ namespace StackExchange.Redis
                     // no backlog... try to wait with the timeout;
                     // if we *still* can't get it: that counts as
                     // an actual timeout
-#if NETCOREAPP
                     var pending = _singleWriterMutex.WaitAsync(TimeoutMilliseconds);
                     if (pending.Status != TaskStatus.RanToCompletion) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
 
                     gotLock = pending.Result; // fine since we know we got a result
                     if (!gotLock) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
-#else
-                    var pending = _singleWriterMutex.TryWaitAsync(options: WaitOptions.DisableAsyncContext);
-                    if (!pending.IsCompletedSuccessfully) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
-
-                    token = pending.Result; // fine since we know we got a result
-                    if (!token.Success) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
-#endif
                 }
                 var result = WriteMessageInsideLock(physical, message);
                 if (result == WriteResult.Success)
@@ -1297,11 +1233,7 @@ namespace StackExchange.Redis
                     if (!flush.IsCompletedSuccessfully)
                     {
                         releaseLock = false; // so we don't release prematurely
-#if NETCOREAPP
                         return CompleteWriteAndReleaseLockAsync(flush, message);
-#else
-                        return CompleteWriteAndReleaseLockAsync(token, flush, message);
-#endif
                     }
 
                     result = flush.Result; // .Result: we know it was completed, so this is fine
@@ -1317,47 +1249,29 @@ namespace StackExchange.Redis
             }
             finally
             {
-#if NETCOREAPP
                 if (gotLock)
-#else
-                if (token.Success)
-#endif
                 {
                     UnmarkActiveMessage(message);
 
                     if (releaseLock)
                     {
-#if NETCOREAPP
                         _singleWriterMutex.Release();
-#else
-                        token.Dispose();
-#endif
                     }
                 }
             }
         }
 
         private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(
-#if NETCOREAPP
             Task<bool> pending,
-#else
-            ValueTask<LockToken> pending,
-#endif
             PhysicalConnection physical,
             Message message)
         {
-#if NETCOREAPP
             bool gotLock = false;
-#endif
 
             try
             {
-#if NETCOREAPP
                 gotLock = await pending.ForAwait();
                 if (!gotLock) return TimedOutBeforeWrite(message);
-#else
-                using var token = await pending.ForAwait();
-#endif
                 var result = WriteMessageInsideLock(physical, message);
 
                 if (result == WriteResult.Success)
@@ -1376,26 +1290,18 @@ namespace StackExchange.Redis
             finally
             {
                 UnmarkActiveMessage(message);
-#if NETCOREAPP
                 if (gotLock)
                 {
                     _singleWriterMutex.Release();
                 }
-#endif
             }
         }
 
         [SuppressMessage("StyleCop.CSharp.LayoutRules", "SA1519:Braces should not be omitted from multi-line child statement", Justification = "Detector is confused with the #ifdefs here")]
         private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(
-#if !NETCOREAPP
-            LockToken lockToken,
-#endif
             ValueTask<WriteResult> flush,
             Message message)
         {
-#if !NETCOREAPP
-            using (lockToken)
-#endif
             try
             {
                 var result = await flush.ForAwait();
@@ -1408,9 +1314,7 @@ namespace StackExchange.Redis
             }
             finally
             {
-#if NETCOREAPP
                 _singleWriterMutex.Release();
-#endif
             }
         }
 

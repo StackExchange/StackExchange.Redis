@@ -4,8 +4,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis

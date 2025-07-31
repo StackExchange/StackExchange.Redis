@@ -1,9 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {
@@ -79,8 +79,6 @@ namespace StackExchange.Redis
             if (name.IsNullOrWhiteSpace()) name = GetType().Name;
             if (workerCount <= 0) workerCount = DEFAULT_WORKERS;
             Name = name;
-            bool useHighPrioritySocketThreads = (options & SocketManagerOptions.UseHighPrioritySocketThreads) != 0,
-                useThreadPool = (options & SocketManagerOptions.UseThreadPool) != 0;
 
             const long Receive_PauseWriterThreshold = 4L * 1024 * 1024 * 1024; // receive: let's give it up to 4GiB of buffer for now
             const long Receive_ResumeWriterThreshold = 3L * 1024 * 1024 * 1024; // (large replies get crazy big)
@@ -95,13 +93,6 @@ namespace StackExchange.Redis
                 defaultPipeOptions.ResumeWriterThreshold);
 
             Scheduler = PipeScheduler.ThreadPool;
-            if (!useThreadPool)
-            {
-                Scheduler = new DedicatedThreadPoolPipeScheduler(
-                    name: name + ":IO",
-                    workerCount: workerCount,
-                    priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
-            }
             SendPipeOptions = new PipeOptions(
                 pool: defaultPipeOptions.Pool,
                 readerScheduler: Scheduler,
@@ -166,12 +157,7 @@ namespace StackExchange.Redis
         /// Returns a string that represents the current object.
         /// </summary>
         /// <returns>A string that represents the current object.</returns>
-        public override string ToString()
-        {
-            var scheduler = SchedulerPool;
-            if (scheduler == null) return Name;
-            return $"{Name} - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}";
-        }
+        public override string ToString() => Name;
 
         private static SocketManager? s_shared, s_threadPool;
 
@@ -180,8 +166,6 @@ namespace StackExchange.Redis
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
         internal PipeScheduler Scheduler { get; private set; }
-
-        internal DedicatedThreadPoolPipeScheduler? SchedulerPool => Scheduler as DedicatedThreadPoolPipeScheduler;
 
         private enum CallbackOperation
         {
@@ -194,25 +178,9 @@ namespace StackExchange.Redis
         /// </summary>
         public void Dispose()
         {
-            DisposeRefs();
             GC.SuppressFinalize(this);
             OnDispose();
         }
-
-        private void DisposeRefs()
-        {
-            // note: the scheduler *can't* be collected by itself - there will
-            // be threads, and those threads will be rooting the DedicatedThreadPool;
-            // but: we can lend a hand! We need to do this even in the finalizer
-            var tmp = SchedulerPool;
-            Scheduler = PipeScheduler.ThreadPool;
-            try { tmp?.Dispose(); } catch { }
-        }
-
-        /// <summary>
-        /// Releases *appropriate* resources associated with this instance.
-        /// </summary>
-        ~SocketManager() => DisposeRefs();
 
         internal static Socket CreateSocket(EndPoint endpoint)
         {
@@ -222,17 +190,18 @@ namespace StackExchange.Redis
             var socket = addressFamily == AddressFamily.Unspecified
                 ? new Socket(SocketType.Stream, protocolType)
                 : new Socket(addressFamily, SocketType.Stream, protocolType);
-            SocketConnection.SetRecommendedClientOptions(socket);
+            SetRecommendedClientOptions(socket);
             // socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
             return socket;
         }
 
-        partial void OnDispose();
-
-        internal string? GetState()
+        private static void SetRecommendedClientOptions(Socket socket)
         {
-            var s = SchedulerPool;
-            return s == null ? null : $"{s.AvailableCount} of {s.WorkerCount} available";
+            if (socket.AddressFamily == AddressFamily.Unix) return;
+
+            try { socket.NoDelay = true; } catch (Exception ex) { Debug.WriteLine(ex.Message); }
         }
+
+        partial void OnDispose();
     }
 }

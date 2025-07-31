@@ -17,8 +17,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
+using StackExchange.Redis.Resp;
 using static StackExchange.Redis.Message;
 
 namespace StackExchange.Redis
@@ -1908,12 +1907,17 @@ namespace StackExchange.Redis
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr);
 
         internal void UpdateLastReadTime() => Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
+
+        private RespFrameScanner FrameScanner => connectionType == ConnectionType.Subscription ? RespFrameScanner.Subscription : RespFrameScanner.Default;
         private async Task ReadFromPipe()
         {
             bool allowSyncRead = true, isReading = false;
             try
             {
                 _readStatus = ReadStatus.Init;
+                FrameScanInfo scanInfo = default;
+                RespScanState scanState = default;
+                FrameScanner.OnBeforeFrame(ref scanState, ref scanInfo);
                 while (true)
                 {
                     var input = _ioPipe?.Input;
@@ -1932,19 +1936,45 @@ namespace StackExchange.Redis
                     _readStatus = ReadStatus.UpdateWriteTime;
                     UpdateLastReadTime();
 
+                    // note we use an incremental scanner, where "scanInfo" tracks our state (in particular, how
+                    // many more RESP fragments we need to get to the end of the current message); "remaining"
+                    // tracks from the start of the message; "newBytes" is the part we haven't yet processed - for
+                    // example, in an array "newBytes" might start at the third element with 2 more expected.
                     _readStatus = ReadStatus.ProcessBuffer;
-                    var buffer = readResult.Buffer;
+                    var remaining = readResult.Buffer;
+                    var newBytes = scanInfo.BytesRead == 0 ? remaining : remaining.Slice(scanInfo.BytesRead);
+                    OperationStatus result;
+                    bool makingProgress = false;
                     int handled = 0;
-                    if (!buffer.IsEmpty)
+                    do
                     {
-                        handled = ProcessBuffer(ref buffer); // updates buffer.Start
+                        _readStatus = ReadStatus.TryParseResult;
+                        result = FrameScanner.TryReadAndAdvance(ref scanState, ref newBytes, ref scanInfo, ref makingProgress);
+                        switch (result)
+                        {
+                            case OperationStatus.NeedMoreData:
+                                break;
+                            case OperationStatus.Done: // we have a complete message
+                                var payload = remaining.Slice(0, scanInfo.BytesRead);
+                                _readStatus = ReadStatus.MatchResult;
+                                MatchResult(payload);
+                                _readStatus = ReadStatus.MatchResultComplete;
+                                handled++;
+                                // prepare for the next message
+                                remaining = newBytes = readResult.Buffer.Slice(payload.End);
+                                FrameScanner.OnBeforeFrame(ref scanState, ref scanInfo);
+                                break;
+                            default:
+                                throw new InvalidOperationException("Unexpected parser status: " + result);
+                        }
                     }
+                    while (result == OperationStatus.Done);
 
-                    allowSyncRead = handled != 0;
+                    allowSyncRead = makingProgress;
 
                     _readStatus = ReadStatus.MarkProcessed;
                     Trace($"Processed {handled} messages");
-                    input.AdvanceTo(buffer.Start, buffer.End);
+                    input.AdvanceTo(remaining.Start, remaining.End);
 
                     if (handled == 0 && readResult.IsCompleted)
                     {
@@ -1982,9 +2012,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private static readonly ArenaOptions s_arenaOptions = new ArenaOptions();
-        private readonly Arena<RawResult> _arena = new Arena<RawResult>(s_arenaOptions);
-
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
@@ -1992,6 +2019,7 @@ namespace StackExchange.Redis
 
             while (!buffer.IsEmpty)
             {
+                scanner.TryRead(ref scanState, in buffer, ref scanInfo);
                 _readStatus = ReadStatus.TryParseResult;
                 var reader = new BufferReader(buffer);
                 var result = TryParseResult(_protocol >= RedisProtocol.Resp3, _arena, in buffer, ref reader, IncludeDetailInExceptions, this);

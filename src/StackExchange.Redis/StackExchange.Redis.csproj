@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
-    <PackageReference Include="Pipelines.Sockets.Unofficial" />
+    <PackageReference Include="System.IO.Pipelines"/>
 
     <!-- built into .NET core now -->
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'netcoreapp3.0'))" />

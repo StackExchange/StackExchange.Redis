@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis;
 
