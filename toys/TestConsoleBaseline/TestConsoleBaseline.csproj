@@ -2,12 +2,12 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net8.0;net461;net462;net47;net472</TargetFrameworks>
+    <TargetFrameworks>net8.0;net462;net462;net47;net472</TargetFrameworks>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Computername)'=='OCHO' or '$(Computername)'=='SKINK'">
-    <LocalReference>true</LocalReference>
-  </PropertyGroup>
+<!--  <PropertyGroup Condition="'$(Computername)'=='OCHO' or '$(Computername)'=='SKINK'">-->
+<!--    <LocalReference>true</LocalReference>-->
+<!--  </PropertyGroup>-->
 
   <ItemGroup>
     <Compile Include="..\TestConsole\Program.cs" Link="Program.cs" />
