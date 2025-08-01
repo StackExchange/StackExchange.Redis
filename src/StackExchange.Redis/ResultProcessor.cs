@@ -10,6 +10,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis.Resp;
 
 namespace StackExchange.Redis
 {
@@ -225,7 +226,7 @@ namespace StackExchange.Redis
             box?.SetException(ex);
         }
         // true if ready to be completed (i.e. false if re-issued to another server)
-        public virtual bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
+        public virtual bool SetResult(PhysicalConnection connection, Message message, in RespReader result)
         {
             var bridge = connection.BridgeCouldBeNull;
             if (message is LoggingMessage logging)
@@ -236,6 +237,7 @@ namespace StackExchange.Redis
                 }
                 catch { }
             }
+            result.MoveNext();
             if (result.IsError)
             {
                 if (result.StartsWith(CommonReplies.NOAUTH))

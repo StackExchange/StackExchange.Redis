@@ -7,5 +7,8 @@
 
         public static ResultType ToResp2(this ResultType value)
             => value & (ResultType)0b111; // just keep the last 3 bits
+
+        public static bool IsAggregate(this ResultType value)
+            => (value & (ResultType)0b111) == ResultType.Array;
     }
 }

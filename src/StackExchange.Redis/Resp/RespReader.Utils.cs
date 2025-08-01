@@ -38,8 +38,8 @@ internal ref partial struct RespReader
     /// </summary>
     public readonly void DemandScalar()
     {
-        if (!IsScalar) Throw();
-        static void Throw() => throw new InvalidOperationException("This operation requires a scalar element");
+        if (!IsScalar) Throw(Prefix);
+        static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"This operation requires a scalar element, got {prefix}");
     }
 
     /// <summary>
@@ -47,8 +47,8 @@ internal ref partial struct RespReader
     /// </summary>
     public readonly void DemandAggregate()
     {
-        if (!IsAggregate) Throw();
-        static void Throw() => throw new InvalidOperationException("This operation requires an aggregate element");
+        if (!IsAggregate) Throw(Prefix);
+        static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"This operation requires an aggregate element, got {prefix}");
     }
 
     private static LengthPrefixResult TryReadLengthPrefix(ReadOnlySpan<byte> bytes, out int value, out int byteCount)

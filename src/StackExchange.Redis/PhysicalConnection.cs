@@ -1942,6 +1942,7 @@ namespace StackExchange.Redis
                     // example, in an array "newBytes" might start at the third element with 2 more expected.
                     _readStatus = ReadStatus.ProcessBuffer;
                     var remaining = readResult.Buffer;
+                    bytesInBuffer = remaining.Length;
                     var newBytes = scanInfo.BytesRead == 0 ? remaining : remaining.Slice(scanInfo.BytesRead);
                     OperationStatus result;
                     bool makingProgress = false;
@@ -1958,10 +1959,12 @@ namespace StackExchange.Redis
                                 var payload = remaining.Slice(0, scanInfo.BytesRead);
                                 _readStatus = ReadStatus.MatchResult;
                                 MatchResult(payload);
+                                bytesLastResult = payload.Length;
                                 _readStatus = ReadStatus.MatchResultComplete;
                                 handled++;
                                 // prepare for the next message
                                 remaining = newBytes = readResult.Buffer.Slice(payload.End);
+                                bytesInBuffer = remaining.Length;
                                 FrameScanner.OnBeforeFrame(ref scanState, ref scanInfo);
                                 break;
                             default:
@@ -2012,156 +2015,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
-        {
-            int messageCount = 0;
-            bytesInBuffer = buffer.Length;
-
-            while (!buffer.IsEmpty)
-            {
-                scanner.TryRead(ref scanState, in buffer, ref scanInfo);
-                _readStatus = ReadStatus.TryParseResult;
-                var reader = new BufferReader(buffer);
-                var result = TryParseResult(_protocol >= RedisProtocol.Resp3, _arena, in buffer, ref reader, IncludeDetailInExceptions, this);
-                try
-                {
-                    if (result.HasValue)
-                    {
-                        buffer = reader.SliceFromCurrent();
-
-                        messageCount++;
-                        Trace(result.ToString());
-                        _readStatus = ReadStatus.MatchResult;
-                        MatchResult(result);
-
-                        // Track the last result size *after* processing for the *next* error message
-                        bytesInBuffer = buffer.Length;
-                        bytesLastResult = result.Payload.Length;
-                    }
-                    else
-                    {
-                        break; // remaining buffer isn't enough; give up
-                    }
-                }
-                finally
-                {
-                    _readStatus = ReadStatus.ResetArena;
-                    _arena.Reset();
-                }
-            }
-            _readStatus = ReadStatus.ProcessBufferComplete;
-            return messageCount;
-        }
-
-        private static RawResult.ResultFlags AsNull(RawResult.ResultFlags flags) => flags & ~RawResult.ResultFlags.NonNull;
-
-        private static RawResult ReadArray(ResultType resultType, RawResult.ResultFlags flags, Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint? server)
-        {
-            var itemCount = ReadLineTerminatedString(ResultType.Integer, flags, ref reader);
-            if (itemCount.HasValue)
-            {
-                if (!itemCount.TryGetInt64(out long i64))
-                {
-                    throw ExceptionFactory.ConnectionFailure(
-                        includeDetailInExceptions,
-                        ConnectionFailureType.ProtocolFailure,
-                        itemCount.Is('?') ? "Streamed aggregate types not yet implemented" : "Invalid array length",
-                        server);
-                }
-
-                int itemCountActual = checked((int)i64);
-
-                if (itemCountActual < 0)
-                {
-                    // for null response by command like EXEC, RESP array: *-1\r\n
-                    return new RawResult(resultType, items: default, AsNull(flags));
-                }
-                else if (itemCountActual == 0)
-                {
-                    // for zero array response by command like SCAN, Resp array: *0\r\n
-                    return new RawResult(resultType, items: default, flags);
-                }
-
-                if (resultType == ResultType.Map) itemCountActual <<= 1; // if it says "3", it means 3 pairs, i.e. 6 values
-
-                var oversized = arena.Allocate(itemCountActual);
-                var result = new RawResult(resultType, oversized, flags);
-
-                if (oversized.IsSingleSegment)
-                {
-                    var span = oversized.FirstSpan;
-                    for (int i = 0; i < span.Length; i++)
-                    {
-                        if (!(span[i] = TryParseResult(flags, arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
-                        {
-                            return RawResult.Nil;
-                        }
-                    }
-                }
-                else
-                {
-                    foreach (var span in oversized.Spans)
-                    {
-                        for (int i = 0; i < span.Length; i++)
-                        {
-                            if (!(span[i] = TryParseResult(flags, arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
-                            {
-                                return RawResult.Nil;
-                            }
-                        }
-                    }
-                }
-                return result;
-            }
-            return RawResult.Nil;
-        }
-
-        private static RawResult ReadBulkString(ResultType type, RawResult.ResultFlags flags, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint? server)
-        {
-            var prefix = ReadLineTerminatedString(ResultType.Integer, flags, ref reader);
-            if (prefix.HasValue)
-            {
-                if (!prefix.TryGetInt64(out long i64))
-                {
-                    throw ExceptionFactory.ConnectionFailure(
-                        includeDetailInExceptions,
-                        ConnectionFailureType.ProtocolFailure,
-                        prefix.Is('?') ? "Streamed strings not yet implemented" : "Invalid bulk string length",
-                        server);
-                }
-                int bodySize = checked((int)i64);
-                if (bodySize < 0)
-                {
-                    return new RawResult(type, ReadOnlySequence<byte>.Empty, AsNull(flags));
-                }
-
-                if (reader.TryConsumeAsBuffer(bodySize, out var payload))
-                {
-                    switch (reader.TryConsumeCRLF())
-                    {
-                        case ConsumeResult.NeedMoreData:
-                            break; // see NilResult below
-                        case ConsumeResult.Success:
-                            return new RawResult(type, payload, flags);
-                        default:
-                            throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string terminator", server);
-                    }
-                }
-            }
-            return RawResult.Nil;
-        }
-
-        private static RawResult ReadLineTerminatedString(ResultType type, RawResult.ResultFlags flags, ref BufferReader reader)
-        {
-            int crlfOffsetFromCurrent = BufferReader.FindNextCrLf(reader);
-            if (crlfOffsetFromCurrent < 0) return RawResult.Nil;
-
-            var payload = reader.ConsumeAsBuffer(crlfOffsetFromCurrent);
-            reader.Consume(2);
-
-            return new RawResult(type, payload, flags);
-        }
-
         internal enum ReadStatus
         {
             NotStarted,
@@ -2194,118 +2047,6 @@ namespace StackExchange.Redis
         internal ReadStatus GetReadStatus() => _readStatus;
 
         internal void StartReading() => ReadFromPipe().RedisFireAndForget();
-
-        internal static RawResult TryParseResult(
-            bool isResp3,
-            Arena<RawResult> arena,
-            in ReadOnlySequence<byte> buffer,
-            ref BufferReader reader,
-            bool includeDetilInExceptions,
-            PhysicalConnection? connection,
-            bool allowInlineProtocol = false)
-        {
-            return TryParseResult(
-                isResp3 ? (RawResult.ResultFlags.Resp3 | RawResult.ResultFlags.NonNull) : RawResult.ResultFlags.NonNull,
-                arena,
-                buffer,
-                ref reader,
-                includeDetilInExceptions,
-                connection?.BridgeCouldBeNull?.ServerEndPoint,
-                allowInlineProtocol);
-        }
-
-        private static RawResult TryParseResult(
-            RawResult.ResultFlags flags,
-            Arena<RawResult> arena,
-            in ReadOnlySequence<byte> buffer,
-            ref BufferReader reader,
-            bool includeDetilInExceptions,
-            ServerEndPoint? server,
-            bool allowInlineProtocol = false)
-        {
-            int prefix;
-            do // this loop is just to allow us to parse (skip) attributes without doing a stack-dive
-            {
-                prefix = reader.PeekByte();
-                if (prefix < 0) return RawResult.Nil; // EOF
-                switch (prefix)
-                {
-                    // RESP2
-                    case '+': // simple string
-                        reader.Consume(1);
-                        return ReadLineTerminatedString(ResultType.SimpleString, flags, ref reader);
-                    case '-': // error
-                        reader.Consume(1);
-                        return ReadLineTerminatedString(ResultType.Error, flags, ref reader);
-                    case ':': // integer
-                        reader.Consume(1);
-                        return ReadLineTerminatedString(ResultType.Integer, flags, ref reader);
-                    case '$': // bulk string
-                        reader.Consume(1);
-                        return ReadBulkString(ResultType.BulkString, flags, ref reader, includeDetilInExceptions, server);
-                    case '*': // array
-                        reader.Consume(1);
-                        return ReadArray(ResultType.Array, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
-                    // RESP3
-                    case '_': // null
-                        reader.Consume(1);
-                        return ReadLineTerminatedString(ResultType.Null, flags, ref reader);
-                    case ',': // double
-                        reader.Consume(1);
-                        return ReadLineTerminatedString(ResultType.Double, flags, ref reader);
-                    case '#': // boolean
-                        reader.Consume(1);
-                        return ReadLineTerminatedString(ResultType.Boolean, flags, ref reader);
-                    case '!': // blob error
-                        reader.Consume(1);
-                        return ReadBulkString(ResultType.BlobError, flags, ref reader, includeDetilInExceptions, server);
-                    case '=': // verbatim string
-                        reader.Consume(1);
-                        return ReadBulkString(ResultType.VerbatimString, flags, ref reader, includeDetilInExceptions, server);
-                    case '(': // big number
-                        reader.Consume(1);
-                        return ReadLineTerminatedString(ResultType.BigInteger, flags, ref reader);
-                    case '%': // map
-                        reader.Consume(1);
-                        return ReadArray(ResultType.Map, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
-                    case '~': // set
-                        reader.Consume(1);
-                        return ReadArray(ResultType.Set, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
-                    case '|': // attribute
-                        reader.Consume(1);
-                        var arr = ReadArray(ResultType.Attribute, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
-                        if (!arr.HasValue) return RawResult.Nil; // failed to parse attribute data
-
-                        // for now, we want to just skip attribute data; so
-                        // drop whatever we parsed on the floor and keep looking
-                        break; // exits the SWITCH, not the DO/WHILE
-                    case '>': // push
-                        reader.Consume(1);
-                        return ReadArray(ResultType.Push, flags, arena, in buffer, ref reader, includeDetilInExceptions, server);
-                }
-            }
-            while (prefix == '|');
-
-            if (allowInlineProtocol) return ParseInlineProtocol(flags, arena, ReadLineTerminatedString(ResultType.SimpleString, flags, ref reader));
-            throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
-        }
-
-        private static RawResult ParseInlineProtocol(RawResult.ResultFlags flags, Arena<RawResult> arena, in RawResult line)
-        {
-            if (!line.HasValue) return RawResult.Nil; // incomplete line
-
-            int count = 0;
-            foreach (var _ in line.GetInlineTokenizer()) count++;
-            var block = arena.Allocate(count);
-
-            var iter = block.GetEnumerator();
-            foreach (var token in line.GetInlineTokenizer())
-            {
-                // this assigns *via a reference*, returned via the iterator; just... sweet
-                iter.GetNext() = new RawResult(line.Resp3Type, token, flags); // spoof RESP2 from RESP1
-            }
-            return new RawResult(ResultType.Array, block, flags); // spoof RESP2 from RESP1
-        }
 
         internal bool HasPendingCallerFacingItems()
         {

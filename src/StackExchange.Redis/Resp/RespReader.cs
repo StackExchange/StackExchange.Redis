@@ -134,6 +134,21 @@ internal ref partial struct RespReader
     public readonly int AggregateLength() => (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming)) == RespFlags.IsAggregate
             ? _length : AggregateLengthSlow();
 
+    public delegate T Projection<out T>(ref RespReader value);
+
+    public int Fill<T>(Span<T> target, Projection<T> projection)
+    {
+        DemandNotNull();
+        int index = 0;
+        var iter = AggregateChildren();
+        while (iter.MoveNext())
+        {
+            iter.Value.MoveNext();
+            target[index++] = projection(ref iter.Value);
+        }
+        return index;
+    }
+
     private readonly int AggregateLengthSlow()
     {
         switch (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming))
@@ -289,6 +304,27 @@ internal ref partial struct RespReader
     /// <summary>
     /// Move to the next content element; this skips attribute metadata, checking for RESP error messages by default.
     /// </summary>
+    /// <param name="checkError">Whether to check and throw for error messages.</param>
+    /// <exception cref="EndOfStreamException">If the data is exhausted before a streaming scalar is exhausted.</exception>
+    /// <exception cref="RespException">If the data contains an explicit error element.</exception>
+    public bool TryMoveNext(bool checkError)
+    {
+        while (IsStreamingScalar) // close out the current streaming scalar
+        {
+            if (!TryReadNextSkipAttributes()) ThrowEOF();
+        }
+
+        if (TryReadNextSkipAttributes())
+        {
+            if (checkError && IsError) ThrowError();
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Move to the next content element; this skips attribute metadata, checking for RESP error messages by default.
+    /// </summary>
     /// <param name="respAttributeReader">Parser for attribute data preceding the data.</param>
     /// <param name="attributes">The state for attributes encountered.</param>
     /// <exception cref="EndOfStreamException">If the data is exhausted before a streaming scalar is exhausted.</exception>
@@ -388,7 +424,7 @@ internal ref partial struct RespReader
     public void MoveNextAggregate()
     {
         MoveNext();
-        DemandScalar();
+        DemandAggregate();
     }
 
     /// <summary>
@@ -1282,6 +1318,21 @@ internal ref partial struct RespReader
     }
 
     /// <summary>
+    /// Try to read the current element as a <see cref="long"/> value.
+    /// </summary>
+    public readonly bool TryReadInt64(out long value)
+    {
+        var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesInt64 + 1]);
+        if (span.Length <= RespConstants.MaxRawBytesInt64)
+        {
+            return Utf8Parser.TryParse(span, out value, out int bytes) & bytes == span.Length;
+        }
+
+        value = 0;
+        return false;
+    }
+
+    /// <summary>
     /// Read the current element as a <see cref="int"/> value.
     /// </summary>
     [SuppressMessage("Style", "IDE0018:Inline variable declaration", Justification = "No it can't - conditional")]
@@ -1297,6 +1348,21 @@ internal ref partial struct RespReader
             value = 0;
         }
         return value;
+    }
+
+    /// <summary>
+    /// Try to read the current element as a <see cref="long"/> value.
+    /// </summary>
+    public readonly bool TryReadInt32(out int value)
+    {
+        var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesInt32 + 1]);
+        if (span.Length <= RespConstants.MaxRawBytesInt32)
+        {
+            return Utf8Parser.TryParse(span, out value, out int bytes) & bytes == span.Length;
+        }
+
+        value = 0;
+        return false;
     }
 
     /// <summary>
@@ -1325,6 +1391,70 @@ internal ref partial struct RespReader
         }
         ThrowFormatException();
         return 0;
+    }
+
+    /// <summary>
+    /// Try to read the current element as a <see cref="double"/> value.
+    /// </summary>
+    public bool TryReadDouble(out double value, bool allowTokens = true)
+    {
+        var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesNumber + 1]);
+
+        if (span.Length <= RespConstants.MaxRawBytesNumber
+            && Utf8Parser.TryParse(span, out value, out int bytes)
+            && bytes == span.Length)
+        {
+            return true;
+        }
+
+        if (allowTokens)
+        {
+            switch (span.Length)
+            {
+                case 3 when "inf"u8.SequenceEqual(span):
+                    value = double.PositiveInfinity;
+                    return true;
+                case 3 when "nan"u8.SequenceEqual(span):
+                    value = double.NaN;
+                    return true;
+                case 4 when "+inf"u8.SequenceEqual(span): // not actually mentioned in spec, but: we'll allow it
+                    value = double.PositiveInfinity;
+                    return true;
+                case 4 when "-inf"u8.SequenceEqual(span):
+                    value = double.NegativeInfinity;
+                    return true;
+            }
+        }
+
+        value = 0;
+        return false;
+    }
+
+    public readonly bool TryReadShortAscii(out string value)
+    {
+        const int ShortLength = 31;
+
+        var span = Buffer(stackalloc byte[ShortLength + 1]);
+        value = "";
+        if (span.IsEmpty) return true;
+
+        if (span.Length <= ShortLength)
+        {
+            // check for anything that looks binary or unicode
+            foreach (var b in span)
+            {
+                // allow [SPACE]-thru-[DEL], plus CR/LF
+                if (!(b < 127 & (b >= 32 | (b is 12 or 13))))
+                {
+                    return false;
+                }
+            }
+
+            value = Encoding.UTF8.GetString(span);
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -1,22 +1,52 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
+using StackExchange.Redis.Resp;
 
 namespace StackExchange.Redis
 {
     internal readonly struct RawResult
     {
-        internal ref RawResult this[int index] => ref GetItems()[index];
+        [Obsolete("This API is inefficient and should be avoided.")]
+        internal RespReader this[int index]
+        {
+            get
+            {
+                if (index < 0) throw new IndexOutOfRangeException(nameof(index));
+                var items = GetItems();
+                int i = 0;
+                for (; i < index && items.MoveNext(); i++) { }
+                if (i != index) throw new IndexOutOfRangeException(nameof(index));
+                return items.Value;
+            }
+        }
 
-        internal int ItemsCount => (int)_items.Length;
+        private RespReader InitReader()
+        {
+            RespReader reader = new(_rawFragment);
+            reader.MoveNext();
+            return reader;
+        }
+        internal int ItemsCount()
+        {
+            var reader = new RespReader(_rawFragment);
+            return reader.TryMoveNext(checkError: false) && reader.IsAggregate
+                ? reader.AggregateLength() : 0;
+        }
 
-        private readonly ReadOnlySequence<byte> _payload;
-        internal ReadOnlySequence<byte> Payload => _payload;
+        internal int ScalarLength()
+        {
+            var reader = new RespReader(_rawFragment);
+            return reader.TryMoveNext(checkError: false) && reader.IsScalar
+                ? reader.ScalarLength() : 0;
+        }
+
+        private readonly ReadOnlySequence<byte> _rawFragment;
 
         internal static readonly RawResult Nil = default;
-        // Note: can't use Memory<RawResult> here - struct recursion breaks runtime
-        private readonly Sequence _items;
         private readonly ResultType _resultType;
         private readonly ResultFlags _flags;
 
@@ -29,54 +59,43 @@ namespace StackExchange.Redis
             Resp3 = 1 << 2, // was the connection in RESP3 mode?
         }
 
-        public RawResult(ResultType resultType, in ReadOnlySequence<byte> payload, ResultFlags flags)
+        public RawResult(in ReadOnlySequence<byte> fragment, ResultFlags flags)
         {
-            switch (resultType)
+            var reader = new RespReader(fragment);
+            if (!reader.TryMoveNext(checkError: false))
             {
-                case ResultType.SimpleString:
-                case ResultType.Error:
-                case ResultType.Integer:
-                case ResultType.BulkString:
-                case ResultType.Double:
-                case ResultType.Boolean:
-                case ResultType.BlobError:
-                case ResultType.VerbatimString:
-                case ResultType.BigInteger:
-                    break;
-                case ResultType.Null:
-                    flags &= ~ResultFlags.NonNull;
-                    break;
-                default:
-                    ThrowInvalidType(resultType);
-                    break;
+                ThrowEOF();
             }
-            _resultType = resultType;
-            _flags = flags | ResultFlags.HasValue;
-            _payload = payload;
-            _items = default;
-        }
 
-        public RawResult(ResultType resultType, Sequence<RawResult> items, ResultFlags flags)
-        {
-            switch (resultType)
+            var resultType = reader.Prefix switch
             {
-                case ResultType.Array:
-                case ResultType.Map:
-                case ResultType.Set:
-                case ResultType.Attribute:
-                case ResultType.Push:
-                    break;
-                case ResultType.Null:
-                    flags &= ~ResultFlags.NonNull;
-                    break;
-                default:
-                    ThrowInvalidType(resultType);
-                    break;
+                RespPrefix.SimpleString => ResultType.SimpleString,
+                RespPrefix.SimpleError => ResultType.Error,
+                RespPrefix.Array => ResultType.Array,
+                RespPrefix.Integer => ResultType.Integer,
+                RespPrefix.BulkString => ResultType.BulkString,
+                RespPrefix.BulkError => ResultType.BlobError,
+                RespPrefix.VerbatimString => ResultType.VerbatimString,
+                RespPrefix.Double => ResultType.Double,
+                RespPrefix.Boolean => ResultType.Boolean,
+                RespPrefix.BigInteger => ResultType.BigInteger,
+                RespPrefix.Null => ResultType.Null,
+                RespPrefix.Map => ResultType.Map,
+                RespPrefix.Set => ResultType.Set,
+                RespPrefix.Push => ResultType.Push,
+                RespPrefix.Attribute => ResultType.Attribute,
+                _ => throw new ArgumentOutOfRangeException(nameof(reader.Prefix), $"Unexpected prefix: {reader.Prefix}"),
+            };
+
+            _flags = (flags & ~ResultFlags.NonNull) | ResultFlags.HasValue;
+            if (reader.IsNull)
+            {
+                _flags |= ResultFlags.NonNull;
             }
             _resultType = resultType;
-            _flags = flags | ResultFlags.HasValue;
-            _payload = default;
-            _items = items.Untyped();
+            _rawFragment = fragment;
+
+            static void ThrowEOF() => throw new EndOfStreamException("Unable to read RESP fragment");
         }
 
         private static void ThrowInvalidType(ResultType resultType)
@@ -104,62 +123,12 @@ namespace StackExchange.Redis
             return _resultType.ToResp2() switch
             {
                 ResultType.SimpleString or ResultType.Integer or ResultType.Error => $"{Resp3Type}: {GetString()}",
-                ResultType.BulkString => $"{Resp3Type}: {Payload.Length} bytes",
-                ResultType.Array => $"{Resp3Type}: {ItemsCount} items",
+                ResultType.BulkString => $"{Resp3Type}: {ScalarLength()} bytes",
+                ResultType.Array => $"{Resp3Type}: {ItemsCount()} items",
                 _ => $"(unknown: {Resp3Type})",
             };
         }
 
-        public Tokenizer GetInlineTokenizer() => new Tokenizer(Payload);
-
-        internal ref struct Tokenizer
-        {
-            // tokenizes things according to the inline protocol
-            // specifically; the line: abc    "def ghi" jkl
-            // is 3 tokens: "abc", "def ghi" and "jkl"
-            public Tokenizer GetEnumerator() => this;
-            private BufferReader _value;
-
-            public Tokenizer(scoped in ReadOnlySequence<byte> value)
-            {
-                _value = new BufferReader(value);
-                Current = default;
-            }
-
-            public bool MoveNext()
-            {
-                Current = default;
-                // take any white-space
-                while (_value.PeekByte() == (byte)' ') { _value.Consume(1); }
-
-                byte terminator = (byte)' ';
-                var first = _value.PeekByte();
-                if (first < 0) return false; // EOF
-
-                switch (first)
-                {
-                    case (byte)'"':
-                    case (byte)'\'':
-                        // start of string
-                        terminator = (byte)first;
-                        _value.Consume(1);
-                        break;
-                }
-
-                int end = BufferReader.FindNext(_value, terminator);
-                if (end < 0)
-                {
-                    Current = _value.ConsumeToEnd();
-                }
-                else
-                {
-                    Current = _value.ConsumeAsBuffer(end);
-                    _value.Consume(1); // drop the terminator itself;
-                }
-                return true;
-            }
-            public ReadOnlySequence<byte> Current { get; private set; }
-        }
         internal RedisChannel AsRedisChannel(byte[]? channelPrefix, RedisChannel.RedisChannelOptions options)
         {
             switch (Resp2TypeBulkString)
@@ -182,52 +151,22 @@ namespace StackExchange.Redis
             }
         }
 
-        internal RedisKey AsRedisKey()
-        {
-            return Resp2TypeBulkString switch
-            {
-                ResultType.SimpleString or ResultType.BulkString => (RedisKey)GetBlob(),
-                _ => throw new InvalidCastException("Cannot convert to RedisKey: " + Resp3Type),
-            };
-        }
+        internal RedisKey AsRedisKey() => InitReader().ReadRedisKey();
 
-        internal RedisValue AsRedisValue()
-        {
-            if (IsNull) return RedisValue.Null;
-            if (Resp3Type == ResultType.Boolean && Payload.Length == 1)
-            {
-                switch (Payload.First.Span[0])
-                {
-                    case (byte)'t': return (RedisValue)true;
-                    case (byte)'f': return (RedisValue)false;
-                }
-            }
-            switch (Resp2TypeBulkString)
-            {
-                case ResultType.Integer:
-                    long i64;
-                    if (TryGetInt64(out i64)) return (RedisValue)i64;
-                    break;
-                case ResultType.SimpleString:
-                case ResultType.BulkString:
-                    return (RedisValue)GetBlob();
-            }
-            throw new InvalidCastException("Cannot convert to RedisValue: " + Resp3Type);
-        }
+        internal RedisValue AsRedisValue() => InitReader().ReadRedisValue();
 
         internal Lease<byte>? AsLease()
         {
             if (IsNull) return null;
-            switch (Resp2TypeBulkString)
-            {
-                case ResultType.SimpleString:
-                case ResultType.BulkString:
-                    var payload = Payload;
-                    var lease = Lease<byte>.Create(checked((int)payload.Length), false);
-                    payload.CopyTo(lease.Span);
-                    return lease;
-            }
-            throw new InvalidCastException("Cannot convert to Lease: " + Resp3Type);
+            var reader = InitReader();
+            reader.DemandScalar();
+            var len = reader.ScalarLength();
+            if (len == 0) return Lease<byte>.Empty;
+
+            var lease = Lease<byte>.Create(len);
+            var actual = reader.CopyTo(lease.Span);
+            Debug.Assert(actual == len);
+            return lease;
         }
 
         internal bool IsEqual(in CommandBytes expected)
@@ -265,6 +204,7 @@ namespace StackExchange.Redis
             var rangeToCheck = Payload.Slice(0, len);
             return new CommandBytes(rangeToCheck).Equals(expected);
         }
+
         internal bool StartsWith(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
@@ -289,7 +229,7 @@ namespace StackExchange.Redis
         {
             if (IsNull) return null;
 
-            if (Payload.IsEmpty) return Array.Empty<byte>();
+            if (Payload.IsEmpty) return [];
 
             return Payload.ToArray();
         }
@@ -315,58 +255,87 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Sequence<RawResult> GetItems() => _items.Cast<RawResult>();
+        internal RespReader.AggregateEnumerator GetItems()
+            => InitReader().AggregateChildren();
+
+        private T[]? ToArray<T>(RespReader.Projection<T> projection)
+        {
+            var reader = InitReader();
+            if (reader.IsNull) return null;
+            reader.DemandAggregate();
+            var expected = reader.AggregateLength();
+            if (expected == 0) return [];
+
+            var arr = new T[expected];
+            int actual = reader.Fill(arr, projection);
+            if (actual != expected) ThrowNoFill(expected, actual);
+            return arr;
+        }
+
+        private Lease<T>? ToLease<T>(RespReader.Projection<T> projection)
+        {
+            var reader = InitReader();
+            if (reader.IsNull) return null;
+            reader.DemandAggregate();
+            var expected = reader.AggregateLength();
+            if (expected == 0) return Lease<T>.Empty;
+
+            var lease = Lease<T>.Create(expected, clear: false);
+            int actual = reader.Fill(lease.Span, projection);
+            if (actual != expected) ThrowNoFill(expected, actual);
+            return lease;
+        }
+
+        private static void ThrowNoFill(int expected, int actual) =>
+            throw new InvalidOperationException($"A call to {nameof(RespReader.Fill)} read {actual} of {expected} elements.");
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal double?[]? GetItemsAsDoubles() => this.ToArray<double?>((in RawResult x) => x.TryGetDouble(out double val) ? val : null);
+        internal double?[]? GetItemsAsDoubles() => ToArray<double?>((ref RespReader value) => value.IsNull ? null : value.ReadDouble());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal RedisKey[]? GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
+        internal RedisKey[]? GetItemsAsKeys() => this.ToArray<RedisKey>((ref RespReader x) => x.ReadRedisKey());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal RedisValue[]? GetItemsAsValues() => this.ToArray<RedisValue>((in RawResult x) => x.AsRedisValue());
+        internal RedisValue[]? GetItemsAsValues() => this.ToArray<RedisValue>((ref RespReader x) => x.ReadRedisValue());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal string?[]? GetItemsAsStrings() => this.ToArray<string?>((in RawResult x) => (string?)x.AsRedisValue());
+        internal string?[]? GetItemsAsStrings() => ToArray<string?>((ref RespReader value) => value.ReadString());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal string[]? GetItemsAsStringsNotNullable() => this.ToArray<string>((in RawResult x) => (string)x.AsRedisValue()!);
+        internal string[]? GetItemsAsStringsNotNullable() => ToArray<string>((ref RespReader value) => value.ReadString()!);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal bool[]? GetItemsAsBooleans() => this.ToArray<bool>((in RawResult x) => (bool)x.AsRedisValue());
+        internal bool[]? GetItemsAsBooleans() => ToArray<bool>((ref RespReader value) => value.ReadBoolean());
 
         internal GeoPosition? GetItemsAsGeoPosition()
         {
+            if (IsNull) return null;
             var items = GetItems();
-            if (IsNull || items.Length == 0)
+            if (!items.MoveNext())
             {
                 return null;
             }
 
-            ref RawResult root = ref items[0];
-            if (root.IsNull)
-            {
-                return null;
-            }
-            return AsGeoPosition(root.GetItems());
+            var root = items.Value;
+            if (root.IsNull) return null;
+            return AsGeoPosition(root.AggregateChildren());
         }
 
-        internal SortedSetEntry[]? GetItemsAsSortedSetEntryArray() => this.ToArray((in RawResult item) => AsSortedSetEntry(item.GetItems()));
-
-        private static SortedSetEntry AsSortedSetEntry(in Sequence<RawResult> elements)
+        internal SortedSetEntry[]? GetItemsAsSortedSetEntryArray() => this.ToArray(static (ref RespReader value) =>
         {
-            if (elements.IsSingleSegment)
-            {
-                var span = elements.FirstSpan;
-                return new SortedSetEntry(span[0].AsRedisValue(), span[1].TryGetDouble(out double val) ? val : double.NaN);
-            }
-            else
-            {
-                return new SortedSetEntry(elements[0].AsRedisValue(), elements[1].TryGetDouble(out double val) ? val : double.NaN);
-            }
-        }
+            var iter = value.AggregateChildren();
+            if (!iter.MoveNext()) ThrowEOF();
+            var element = iter.Value.ReadRedisValue();
+            if (!iter.MoveNext()) ThrowEOF();
+            var score = iter.Value.IsNull ? double.NaN : iter.Value.ReadDouble();
+            return new SortedSetEntry(element, score);
 
-        private static GeoPosition AsGeoPosition(in Sequence<RawResult> coords)
+            static void ThrowEOF() =>
+                throw new EndOfStreamException("Insufficient chile elements for " + nameof(SortedSetEntry));
+        });
+
+
+        private static GeoPosition AsGeoPosition(RespReader.AggregateEnumerator coords)
         {
             double longitude, latitude;
             if (coords.IsSingleSegment)
@@ -461,48 +430,26 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryGetDouble(out double val)
+        internal bool TryGetDouble(out double value)
         {
-            if (IsNull || Payload.IsEmpty)
-            {
-                val = 0;
-                return false;
-            }
-            if (TryGetInt64(out long i64))
-            {
-                val = i64;
-                return true;
-            }
-
-            if (Payload.IsSingleSegment) return Format.TryParseDouble(Payload.First.Span, out val);
-            if (Payload.Length < 64)
-            {
-                Span<byte> span = stackalloc byte[(int)Payload.Length];
-                Payload.CopyTo(span);
-                return Format.TryParseDouble(span, out val);
-            }
-            return Format.TryParseDouble(GetString(), out val);
-        }
-
-        internal bool TryGetInt64(out long value)
-        {
-            if (IsNull || Payload.IsEmpty || Payload.Length > Format.MaxInt64TextLen)
+            var reader = InitReader();
+            if (reader.ScalarIsEmpty())
             {
                 value = 0;
                 return false;
             }
-
-            if (Payload.IsSingleSegment) return Format.TryParseInt64(Payload.First.Span, out value);
-
-            Span<byte> span = stackalloc byte[(int)Payload.Length]; // we already checked the length was <= MaxInt64TextLen
-            Payload.CopyTo(span);
-            return Format.TryParseInt64(span, out value);
+            return reader.TryReadDouble(out value);
         }
 
-        internal bool Is(char value)
+        internal bool TryGetInt64(out long value)
         {
-            var span = Payload.First.Span;
-            return span.Length == 1 && (char)span[0] == value && Payload.IsSingleSegment;
+            var reader = InitReader();
+            if (reader.ScalarIsEmpty())
+            {
+                value = 0;
+                return false;
+            }
+            return reader.TryReadInt64(out value);
         }
     }
 }
