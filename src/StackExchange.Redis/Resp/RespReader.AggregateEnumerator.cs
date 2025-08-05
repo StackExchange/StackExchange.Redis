@@ -141,6 +141,29 @@ internal ref partial struct RespReader
             while (MoveNext()) { }
             reader = _reader;
         }
+
+        public void DemandNext()
+        {
+            if (!MoveNext()) ThrowEOF();
+            Value.MoveNext(); // skip any attributes etc
+        }
+
+        public T ReadOne<T>(Projection<T> projection)
+        {
+            DemandNext();
+            return projection(ref Value);
+        }
+
+        public void FillAll<T>(scoped Span<T> target, Projection<T> projection)
+        {
+            for (int i = 0; i < target.Length; i++)
+            {
+                if (!MoveNext()) ThrowEOF();
+
+                Value.MoveNext(); // skip any attributes etc
+                target[i] = projection(ref Value);
+            }
+        }
     }
 
     internal void TrimToTotal(long length) => TrimToRemaining(length - BytesConsumed);

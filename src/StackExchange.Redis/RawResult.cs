@@ -24,7 +24,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private RespReader InitReader()
+        internal RespReader InitReader()
         {
             RespReader reader = new(_rawFragment);
             reader.MoveNext();
@@ -263,12 +263,11 @@ namespace StackExchange.Redis
             var reader = InitReader();
             if (reader.IsNull) return null;
             reader.DemandAggregate();
-            var expected = reader.AggregateLength();
-            if (expected == 0) return [];
+            var length = reader.AggregateLength();
+            if (length == 0) return [];
 
-            var arr = new T[expected];
-            int actual = reader.Fill(arr, projection);
-            if (actual != expected) ThrowNoFill(expected, actual);
+            var arr = new T[length];
+            reader.FillAll(arr, projection);
             return arr;
         }
 
@@ -277,17 +276,13 @@ namespace StackExchange.Redis
             var reader = InitReader();
             if (reader.IsNull) return null;
             reader.DemandAggregate();
-            var expected = reader.AggregateLength();
-            if (expected == 0) return Lease<T>.Empty;
+            var length = reader.AggregateLength();
+            if (length == 0) return Lease<T>.Empty;
 
-            var lease = Lease<T>.Create(expected, clear: false);
-            int actual = reader.Fill(lease.Span, projection);
-            if (actual != expected) ThrowNoFill(expected, actual);
+            var lease = Lease<T>.Create(length, clear: false);
+            reader.FillAll(lease.Span, projection);
             return lease;
         }
-
-        private static void ThrowNoFill(int expected, int actual) =>
-            throw new InvalidOperationException($"A call to {nameof(RespReader.Fill)} read {actual} of {expected} elements.");
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal double?[]? GetItemsAsDoubles() => ToArray<double?>((ref RespReader value) => value.IsNull ? null : value.ReadDouble());
@@ -324,93 +319,43 @@ namespace StackExchange.Redis
         internal SortedSetEntry[]? GetItemsAsSortedSetEntryArray() => this.ToArray(static (ref RespReader value) =>
         {
             var iter = value.AggregateChildren();
-            if (!iter.MoveNext()) ThrowEOF();
+            if (!iter.MoveNext()) ThrowEof();
+            iter.Value.MoveNextScalar();
             var element = iter.Value.ReadRedisValue();
-            if (!iter.MoveNext()) ThrowEOF();
+            iter.Value.MoveNextScalar();
+            if (!iter.MoveNext()) ThrowEof();
             var score = iter.Value.IsNull ? double.NaN : iter.Value.ReadDouble();
             return new SortedSetEntry(element, score);
-
-            static void ThrowEOF() =>
-                throw new EndOfStreamException("Insufficient chile elements for " + nameof(SortedSetEntry));
         });
 
+        private static void ThrowEof([CallerMemberName] string caller = "") =>
+            throw new EndOfStreamException("Insufficient child elements for " + caller);
 
-        private static GeoPosition AsGeoPosition(RespReader.AggregateEnumerator coords)
+        internal static GeoPosition AsGeoPosition(RespReader.AggregateEnumerator coords)
         {
-            double longitude, latitude;
-            if (coords.IsSingleSegment)
-            {
-                var span = coords.FirstSpan;
-                longitude = (double)span[0].AsRedisValue();
-                latitude = (double)span[1].AsRedisValue();
-            }
-            else
-            {
-                longitude = (double)coords[0].AsRedisValue();
-                latitude = (double)coords[1].AsRedisValue();
-            }
-
-            return new GeoPosition(longitude, latitude);
+            Span<double> vals = stackalloc double[2];
+            coords.FillAll(vals, static (ref RespReader x) => x.ReadDouble());
+            return new(vals[0], vals[1]);
         }
 
         internal GeoPosition?[]? GetItemsAsGeoPositionArray()
-            => this.ToArray<GeoPosition?>((in RawResult item) => item.IsNull ? default : AsGeoPosition(item.GetItems()));
+            => this.ToArray<GeoPosition?>((ref RespReader item) => item.IsNull ? default : AsGeoPosition(item.AggregateChildren()));
 
-        internal unsafe string? GetString() => GetString(out _);
-        internal unsafe string? GetString(out ReadOnlySpan<char> verbatimPrefix)
+        internal string? GetString() => GetString(out _);
+
+        internal string? GetString(out ReadOnlySpan<char> verbatimPrefix)
         {
-            verbatimPrefix = default;
-            if (IsNull) return null;
-            if (Payload.IsEmpty) return "";
-
-            string s;
-            if (Payload.IsSingleSegment)
+            var reader = InitReader();
+            var s = reader.ReadString();
+            switch (reader.Prefix)
             {
-                s = Format.GetString(Payload.First.Span);
-                return Resp3Type == ResultType.VerbatimString ? GetVerbatimString(s, out verbatimPrefix) : s;
-            }
-#if NET6_0_OR_GREATER
-            // use system-provided sequence decoder
-            return Encoding.UTF8.GetString(in _payload);
-#else
-            var decoder = Encoding.UTF8.GetDecoder();
-            int charCount = 0;
-            foreach (var segment in Payload)
-            {
-                var span = segment.Span;
-                if (span.IsEmpty) continue;
-
-                fixed (byte* bPtr = span)
-                {
-                    charCount += decoder.GetCharCount(bPtr, span.Length, false);
-                }
+                case RespPrefix.VerbatimString:
+                    return GetVerbatimString(s, out verbatimPrefix);
+                default:
+                    verbatimPrefix = default;
+                    return s;
             }
 
-            decoder.Reset();
-
-            s = new string((char)0, charCount);
-            fixed (char* sPtr = s)
-            {
-                char* cPtr = sPtr;
-                foreach (var segment in Payload)
-                {
-                    var span = segment.Span;
-                    if (span.IsEmpty) continue;
-
-                    fixed (byte* bPtr = span)
-                    {
-                        var written = decoder.GetChars(bPtr, span.Length, cPtr, charCount, false);
-                        if (written < 0 || written > charCount) Throw(); // protect against hypothetical cPtr weirdness
-                        cPtr += written;
-                        charCount -= written;
-                    }
-                }
-            }
-
-            return Resp3Type == ResultType.VerbatimString ? GetVerbatimString(s, out verbatimPrefix) : s;
-
-            static void Throw() => throw new InvalidOperationException("Invalid result from GetChars");
-#endif
             static string? GetVerbatimString(string? value, out ReadOnlySpan<char> type)
             {
                 // The first three bytes provide information about the format of the following string, which

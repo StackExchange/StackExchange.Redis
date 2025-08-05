@@ -1462,9 +1462,13 @@ namespace StackExchange.Redis
             {
                 if (result.Resp2TypeArray == ResultType.Array)
                 {
-                    var arr = result.GetItems();
-                    if (arr.Length == 2 && arr[1].TryGetInt64(out long val))
+                    var reader = result.InitReader();
+                    var len = reader.AggregateLength();
+                    if (len == 2)
                     {
+                        var iter = reader.AggregateChildren();
+                        iter.DemandNext();
+                        var val = iter.ReadOne(static (ref RespReader reader) => reader.ReadInt64());
                         SetResult(message, val);
                         return true;
                     }
@@ -1821,10 +1825,10 @@ namespace StackExchange.Redis
                     return new GeoRadiusResult(item.AsRedisValue(), null, null, null);
                 }
                 // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
-                var iter = item.GetItems().GetEnumerator();
+                var iter = item.GetItems();
 
                 // the first item in the sub-array is always the name of the returned item.
-                var member = iter.GetNext().AsRedisValue();
+                var member = iter.ReadOne(static (ref RespReader reader) => reader.ReadRedisValue());
 
                 /*  The other information is returned in the following order as successive elements of the sub-array.
 The distance from the center as a floating point number, in the same unit specified in the radius.
@@ -1834,14 +1838,21 @@ The coordinates as a two items x,y array (longitude,latitude).
                 double? distance = null;
                 GeoPosition? position = null;
                 long? hash = null;
-                if ((options & GeoRadiusOptions.WithDistance) != 0) { distance = (double?)iter.GetNext().AsRedisValue(); }
-                if ((options & GeoRadiusOptions.WithGeoHash) != 0) { hash = (long?)iter.GetNext().AsRedisValue(); }
+                if ((options & GeoRadiusOptions.WithDistance) != 0)
+                {
+                    distance = iter.ReadOne(static (ref RespReader reader) => reader.ReadDouble());
+                }
+
+                if ((options & GeoRadiusOptions.WithGeoHash) != 0)
+                {
+                    hash = iter.ReadOne(static (ref RespReader reader) => reader.ReadInt64());
+                }
+
                 if ((options & GeoRadiusOptions.WithCoordinates) != 0)
                 {
-                    var coords = iter.GetNext().GetItems();
-                    double longitude = (double)coords[0].AsRedisValue(), latitude = (double)coords[1].AsRedisValue();
-                    position = new GeoPosition(longitude, latitude);
+                    position = iter.ReadOne(static (ref RespReader reader) => RawResult.AsGeoPosition(reader.AggregateChildren()));
                 }
+
                 return new GeoRadiusResult(member, distance, hash, position);
             }
         }
@@ -3042,19 +3053,21 @@ The coordinates as a two items x,y array (longitude,latitude).
             switch (result.Resp2TypeArray)
             {
                 case ResultType.Array:
-                    var items = result.GetItems();
+                    var reader = result.InitReader();
+                    var length = reader.AggregateLength();
                     T[] arr;
-                    if (items.IsEmpty)
+                    if (length == 0)
                     {
-                        arr = Array.Empty<T>();
+                        arr = [];
                     }
                     else
                     {
-                        arr = new T[checked((int)items.Length)];
-                        int index = 0;
-                        foreach (ref RawResult inner in items)
+                        var iter = reader.AggregateChildren();
+                        arr = new T[length];
+                        for (int i = 0; i < arr.Length; i++)
                         {
-                            if (!TryParse(inner, out arr[index++]))
+                            iter.DemandNext();
+                            if (!TryParse(ref iter.Value, out arr[i]))
                                 return false;
                         }
                     }
@@ -3065,6 +3078,6 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        protected abstract bool TryParse(in RawResult raw, out T parsed);
+        protected abstract bool TryParse(ref RespReader raw, out T parsed);
     }
 }

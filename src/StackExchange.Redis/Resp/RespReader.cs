@@ -136,17 +136,10 @@ internal ref partial struct RespReader
 
     public delegate T Projection<out T>(ref RespReader value);
 
-    public int Fill<T>(Span<T> target, Projection<T> projection)
+    public void FillAll<T>(scoped Span<T> target, Projection<T> projection)
     {
         DemandNotNull();
-        int index = 0;
-        var iter = AggregateChildren();
-        while (iter.MoveNext())
-        {
-            iter.Value.MoveNext();
-            target[index++] = projection(ref iter.Value);
-        }
-        return index;
+        AggregateChildren().FillAll(target, projection);
     }
 
     private readonly int AggregateLengthSlow()
