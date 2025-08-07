@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Configuration
     /// <summary>
     /// Allows interception of the transport used to communicate with Redis.
     /// </summary>
-    public abstract class Tunnel
+    public abstract partial class Tunnel
     {
         /// <summary>
         /// Gets the underlying socket endpoint to use when connecting to a logical endpoint.

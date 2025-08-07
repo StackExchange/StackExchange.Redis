@@ -1958,3 +1958,34 @@ StackExchange.Redis.RedisValue.GetByteCount() -> int
 StackExchange.Redis.RedisValue.GetLongByteCount() -> long
 static StackExchange.Redis.Condition.SortedSetContainsStarting(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue prefix) -> StackExchange.Redis.Condition!
 static StackExchange.Redis.Condition.SortedSetNotContainsStarting(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue prefix) -> StackExchange.Redis.Condition!
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.BeginRead(byte[]! buffer, int offset, int count, System.AsyncCallback? callback, object? state) -> System.IAsyncResult!
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.BeginWrite(byte[]! buffer, int offset, int count, System.AsyncCallback? callback, object? state) -> System.IAsyncResult!
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.EndRead(System.IAsyncResult! asyncResult) -> int
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.EndWrite(System.IAsyncResult! asyncResult) -> void
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.Length.get -> long
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.Position.get -> long
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.Position.set -> void
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.Seek(long offset, System.IO.SeekOrigin origin) -> long
+override sealed StackExchange.Redis.Configuration.Tunnel.TunnelStream.SetLength(long value) -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.CanRead.get -> bool
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.CanSeek.get -> bool
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.CanTimeout.get -> bool
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.CanWrite.get -> bool
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.Close() -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.CopyToAsync(System.IO.Stream! destination, int bufferSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.Dispose(bool disposing) -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.Flush() -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.FlushAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.Read(byte[]! buffer, int offset, int count) -> int
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.ReadAsync(byte[]! buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.ReadByte() -> int
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.ReadTimeout.get -> int
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.ReadTimeout.set -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.Write(byte[]! buffer, int offset, int count) -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.WriteAsync(byte[]! buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.WriteByte(byte value) -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.WriteTimeout.get -> int
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.WriteTimeout.set -> void
+StackExchange.Redis.Configuration.Tunnel.TunnelStream
+StackExchange.Redis.Configuration.Tunnel.TunnelStream.TunnelStream(System.IO.Stream! tail) -> void
+[SER001]static StackExchange.Redis.Configuration.Tunnel.AddLatency(StackExchange.Redis.ConfigurationOptions! options, System.TimeSpan latency) -> void

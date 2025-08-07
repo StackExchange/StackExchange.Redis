@@ -1,2 +1,8 @@
 ﻿StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.get -> System.Func<string!, System.Net.Security.SslClientAuthenticationOptions!>?
 StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.set -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.CopyTo(System.IO.Stream! destination, int bufferSize) -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.DisposeAsync() -> System.Threading.Tasks.ValueTask
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.Read(System.Span<byte> buffer) -> int
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.Write(System.ReadOnlySpan<byte> buffer) -> void
+override StackExchange.Redis.Configuration.Tunnel.TunnelStream.WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

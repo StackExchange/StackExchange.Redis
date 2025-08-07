@@ -504,8 +504,8 @@ public abstract class LoggingTunnel : Tunnel
 
         public override async Task FlushAsync(CancellationToken cancellationToken)
         {
-            await _writes.FlushAsync().ForAwait();
-            await _inner.FlushAsync().ForAwait();
+            await _writes.FlushAsync(cancellationToken).ForAwait();
+            await _inner.FlushAsync(cancellationToken).ForAwait();
         }
 
         protected override void Dispose(bool disposing)
