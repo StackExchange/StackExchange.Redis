@@ -11,7 +11,7 @@ var options = ConfigurationOptions.Parse("127.0.0.1");
 options.HighIntegrity = false; // as needed
 Console.WriteLine($"{nameof(options.HighIntegrity)}: {options.HighIntegrity}");
 
-Tunnel.AddLatency(options, TimeSpan.FromSeconds(0.001));
+Tunnel.AddLatency(options, TimeSpan.FromSeconds(0.3));
 #endif
 
 // options.SocketManager = SocketManager.ThreadPool;
