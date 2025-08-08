@@ -224,9 +224,7 @@ public interface IConnectionMultiplexer : IDisposable, IAsyncDisposable
     /// and ad-hoc commands with unusual routing requirements. Note that <see cref="GetDatabase"/> provides a connection that automatically routes commands by
     /// looking for <see cref="RedisKey"/> parameters, so this method is only necessary when used with commands that do not take a <see cref="RedisKey"/> parameter,
     /// but require consistent routing using key-like semantics.</remarks>
-#pragma warning disable RS0026
     IServer GetServer(RedisKey key, object? asyncState = null, CommandFlags flags = CommandFlags.None);
-#pragma warning restore RS0026
 
     /// <summary>
     /// Obtain configuration APIs for all servers in this multiplexer.
