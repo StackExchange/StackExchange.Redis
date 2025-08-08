@@ -1052,18 +1052,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
-        public RedisResult Execute(int? database, string command, params object[] args)
-            => Execute(database, command, args, flags: CommandFlags.None);
-
         public Task<RedisResult> ExecuteAsync(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var db = multiplexer.ApplyDefaultDatabase(database ?? -1);
             var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, db, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
-
-        public Task<RedisResult> ExecuteAsync(int? database, string command, params object[] args)
-            => ExecuteAsync(database, command, args, flags: CommandFlags.None);
 
         /// <summary>
         /// For testing only.
