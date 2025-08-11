@@ -5721,5 +5721,225 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+
+        // Vector Set operations - stub implementations (to be implemented)
+        public long VectorSetAdd(
+            RedisKey key,
+            RedisValue element,
+            ReadOnlyMemory<float> values,
+            int? reducedDimensions = null,
+            VectorQuantizationType quantizationType = VectorQuantizationType.Int8,
+            int? buildExplorationFactor = null,
+            int? maxConnections = null,
+            bool useCheckAndSet = false,
+            string? attributesJson = null,
+            CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public long VectorSetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public int VectorSetDimension(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Lease<float>? VectorSetGetApproximateVector(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public string? VectorSetGetAttributesJson(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public VectorSetInfo? VectorSetInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public bool VectorSetContains(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Lease<RedisValue>? VectorSetGetLinks(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Lease<VectorSetLink>? VectorSetGetLinksWithScores(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public RedisValue VectorSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public RedisValue[] VectorSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public long VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByVector(
+            RedisKey key,
+            ReadOnlyMemory<float> vector,
+            long count = 10,
+            bool withScores = false,
+            bool withAttributes = false,
+            double? epsilon = null,
+            int? searchExplorationFactor = null,
+            string? filterExpression = null,
+            int? maxFilteringEffort = null,
+            bool useExactSearch = false,
+            bool disableThreading = false,
+            CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByMember(
+            RedisKey key,
+            RedisValue member,
+            long count = 10,
+            bool withScores = false,
+            bool withAttributes = false,
+            double? epsilon = null,
+            int? searchExplorationFactor = null,
+            string? filterExpression = null,
+            int? maxFilteringEffort = null,
+            bool useExactSearch = false,
+            bool disableThreading = false,
+            CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        // Vector Set async operations
+        public Task<long> VectorSetAddAsync(
+            RedisKey key,
+            RedisValue element,
+            ReadOnlyMemory<float> values,
+            int? reducedDimensions = null,
+            VectorQuantizationType quantizationType = VectorQuantizationType.Int8,
+            int? buildExplorationFactor = null,
+            int? maxConnections = null,
+            bool useCheckAndSet = false,
+            string? attributesJson = null,
+            CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<int> VectorSetDimensionAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<Lease<float>?> VectorSetGetApproximateVectorAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<string?> VectorSetGetAttributesJsonAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<VectorSetInfo?> VectorSetInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<bool> VectorSetContainsAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<Lease<RedisValue>?> VectorSetGetLinksAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<Lease<VectorSetLink>?> VectorSetGetLinksWithScoresAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<RedisValue> VectorSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<RedisValue[]> VectorSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<long> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByVectorAsync(
+            RedisKey key,
+            ReadOnlyMemory<float> vector,
+            long count = 10,
+            bool withScores = false,
+            bool withAttributes = false,
+            double? epsilon = null,
+            int? searchExplorationFactor = null,
+            string? filterExpression = null,
+            int? maxFilteringEffort = null,
+            bool useExactSearch = false,
+            bool disableThreading = false,
+            CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
+
+        public Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByMemberAsync(
+            RedisKey key,
+            RedisValue member,
+            long count = 10,
+            bool withScores = false,
+            bool withAttributes = false,
+            double? epsilon = null,
+            int? searchExplorationFactor = null,
+            string? filterExpression = null,
+            int? maxFilteringEffort = null,
+            bool useExactSearch = false,
+            bool disableThreading = false,
+            CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException("Vector Set operations are not yet implemented");
+        }
     }
 }

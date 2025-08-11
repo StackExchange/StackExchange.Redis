@@ -843,5 +843,86 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.StringSetRange(RedisKey, long, RedisValue, CommandFlags)"/>
         Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        // Vector Set operations
+
+        /// <inheritdoc cref="IDatabase.VectorSetAdd(RedisKey, RedisValue, ReadOnlyMemory{float}, int?, VectorQuantizationType, int?, int?, bool, string?, CommandFlags)"/>
+        Task<long> VectorSetAddAsync(
+            RedisKey key,
+            RedisValue element,
+            ReadOnlyMemory<float> values,
+            int? reducedDimensions = null,
+            VectorQuantizationType quantizationType = VectorQuantizationType.Int8,
+            int? buildExplorationFactor = null,
+            int? maxConnections = null,
+            bool useCheckAndSet = false,
+            string? attributesJson = null,
+            CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetLength(RedisKey, CommandFlags)"/>
+        Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetDimension(RedisKey, CommandFlags)"/>
+        Task<int> VectorSetDimensionAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetGetApproximateVector(RedisKey, RedisValue, CommandFlags)"/>
+        Task<Lease<float>?> VectorSetGetApproximateVectorAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetGetAttributesJson(RedisKey, RedisValue, CommandFlags)"/>
+        Task<string?> VectorSetGetAttributesJsonAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetInfo(RedisKey, CommandFlags)"/>
+        Task<VectorSetInfo?> VectorSetInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetContains(RedisKey, RedisValue, CommandFlags)"/>
+        Task<bool> VectorSetContainsAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetGetLinks(RedisKey, RedisValue, CommandFlags)"/>
+        Task<Lease<RedisValue>?> VectorSetGetLinksAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetGetLinksWithScores(RedisKey, RedisValue, CommandFlags)"/>
+        Task<Lease<VectorSetLink>?> VectorSetGetLinksWithScoresAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetRandomMember(RedisKey, CommandFlags)"/>
+        Task<RedisValue> VectorSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetRandomMembers(RedisKey, long, CommandFlags)"/>
+        Task<RedisValue[]> VectorSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetRemove(RedisKey, RedisValue, CommandFlags)"/>
+        Task<long> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetSetAttributesJson(RedisKey, RedisValue, string, CommandFlags)"/>
+        Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearchByVector(RedisKey, ReadOnlyMemory{float}, long, bool, bool, double?, int?, string?, int?, bool, bool, CommandFlags)"/>
+        Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByVectorAsync(
+            RedisKey key,
+            ReadOnlyMemory<float> vector,
+            long count = 10,
+            bool withScores = false,
+            bool withAttributes = false,
+            double? epsilon = null,
+            int? searchExplorationFactor = null,
+            string? filterExpression = null,
+            int? maxFilteringEffort = null,
+            bool useExactSearch = false,
+            bool disableThreading = false,
+            CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearchByMember(RedisKey, RedisValue, long, bool, bool, double?, int?, string?, int?, bool, bool, CommandFlags)"/>
+        Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByMemberAsync(
+            RedisKey key,
+            RedisValue member,
+            long count = 10,
+            bool withScores = false,
+            bool withAttributes = false,
+            double? epsilon = null,
+            int? searchExplorationFactor = null,
+            string? filterExpression = null,
+            int? maxFilteringEffort = null,
+            bool useExactSearch = false,
+            bool disableThreading = false,
+            CommandFlags flags = CommandFlags.None);
     }
 }
