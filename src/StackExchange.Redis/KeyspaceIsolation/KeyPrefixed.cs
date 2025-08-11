@@ -815,7 +815,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.WaitAll(tasks);
 
         // Vector Set operations - async methods
-        public Task<long> VectorSetAddAsync(
+        public Task<bool> VectorSetAddAsync(
             RedisKey key,
             RedisValue element,
             ReadOnlyMemory<float> values,

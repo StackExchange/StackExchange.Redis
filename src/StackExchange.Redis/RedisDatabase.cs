@@ -5723,7 +5723,7 @@ namespace StackExchange.Redis
         }
 
         // Vector Set operations - stub implementations (to be implemented)
-        public long VectorSetAdd(
+        public bool VectorSetAdd(
             RedisKey key,
             RedisValue element,
             ReadOnlyMemory<float> values,
@@ -5833,7 +5833,7 @@ namespace StackExchange.Redis
         }
 
         // Vector Set async operations
-        public Task<long> VectorSetAddAsync(
+        public Task<bool> VectorSetAddAsync(
             RedisKey key,
             RedisValue element,
             ReadOnlyMemory<float> values,

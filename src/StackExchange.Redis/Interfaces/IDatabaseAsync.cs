@@ -847,7 +847,7 @@ namespace StackExchange.Redis
         // Vector Set operations
 
         /// <inheritdoc cref="IDatabase.VectorSetAdd(RedisKey, RedisValue, ReadOnlyMemory{float}, int?, VectorQuantizationType, int?, int?, bool, string?, CommandFlags)"/>
-        Task<long> VectorSetAddAsync(
+        Task<bool> VectorSetAddAsync(
             RedisKey key,
             RedisValue element,
             ReadOnlyMemory<float> values,

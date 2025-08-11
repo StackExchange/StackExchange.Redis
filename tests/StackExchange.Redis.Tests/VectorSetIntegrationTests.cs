@@ -22,7 +22,7 @@ public sealed class VectorSetIntegrationTests : TestBase
         var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f };
         var result = await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
 
-        Assert.Equal(1, result);
+        Assert.True(result);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class VectorSetIntegrationTests : TestBase
 
         var result = await db.VectorSetAddAsync(key, "element1", vector.AsMemory(), attributesJson: attributes);
 
-        Assert.Equal(1, result);
+        Assert.True(result);
 
         // Verify attributes were stored
         var retrievedAttributes = await db.VectorSetGetAttributesJsonAsync(key, "element1");

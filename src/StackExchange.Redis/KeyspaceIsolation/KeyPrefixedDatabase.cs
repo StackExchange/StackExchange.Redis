@@ -806,7 +806,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Inner.KeyTouch(ToInner(keys), flags);
 
         // Vector Set operations
-        public long VectorSetAdd(
+        public bool VectorSetAdd(
             RedisKey key,
             RedisValue element,
             ReadOnlyMemory<float> values,

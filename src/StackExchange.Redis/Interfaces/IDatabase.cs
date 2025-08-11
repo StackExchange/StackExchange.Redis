@@ -3444,9 +3444,9 @@ namespace StackExchange.Redis
         /// <param name="useCheckAndSet">Optional check-and-set mode for partial threading (CAS parameter).</param>
         /// <param name="attributesJson">Optional JSON attributes for the element (SETATTR parameter).</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of elements added to the vectorset.</returns>
+        /// <returns><see langword="true"/> if the element was added; <see langword="false"/> if it already existed.</returns>
         /// <remarks><seealso href="https://redis.io/commands/vadd"/></remarks>
-        long VectorSetAdd(
+        bool VectorSetAdd(
             RedisKey key,
             RedisValue element,
             ReadOnlyMemory<float> values,
