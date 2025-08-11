@@ -57,6 +57,39 @@ public sealed class VectorSetIntegrationTests : TestBase
         Assert.Equal(attributes, retrievedAttributes);
     }
 
+    [Theory]
+    [InlineData(VectorQuantizationType.Int8)]
+    [InlineData(VectorQuantizationType.None)]
+    [InlineData(VectorQuantizationType.Binary)]
+    public async Task VectorSetAdd_WithEverything(VectorQuantizationType quantizationType)
+    {
+        using var conn = Create();
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        await db.KeyDeleteAsync(key);
+
+        var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f };
+        var attributes = """{"category":"test","id":123}""";
+
+        var result = await db.VectorSetAddAsync(
+            key,
+            "element1",
+            vector.AsMemory(),
+            attributesJson: attributes,
+            useCheckAndSet: true,
+            quantizationType: quantizationType,
+            reducedDimensions: 64,
+            buildExplorationFactor: 300,
+            maxConnections: 32);
+
+        Assert.True(result);
+
+        // Verify attributes were stored
+        var retrievedAttributes = await db.VectorSetGetAttributesJsonAsync(key, "element1");
+        Assert.Equal(attributes, retrievedAttributes);
+    }
+
     [Fact]
     public async Task VectorSetLength_EmptySet()
     {
