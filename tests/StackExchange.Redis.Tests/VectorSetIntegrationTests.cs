@@ -9,8 +9,10 @@ public sealed class VectorSetIntegrationTests : TestBase
 {
     public VectorSetIntegrationTests(ITestOutputHelper output) : base(output) { }
 
-    [Fact]
-    public async Task VectorSetAdd_BasicOperation()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task VectorSetAdd_BasicOperation(bool suppressFp32)
     {
         using var conn = Create();
         var db = conn.GetDatabase();
@@ -20,9 +22,18 @@ public sealed class VectorSetIntegrationTests : TestBase
         await db.KeyDeleteAsync(key);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f };
-        var result = await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
 
-        Assert.True(result);
+        if (suppressFp32) VectorSetAddMessage.SuppressFp32();
+        try
+        {
+            var result = await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+
+            Assert.True(result);
+        }
+        finally
+        {
+            if (suppressFp32) VectorSetAddMessage.RestoreFp32();
+        }
     }
 
     [Fact]
@@ -94,8 +105,10 @@ public sealed class VectorSetIntegrationTests : TestBase
         Assert.Equal(5, dimension);
     }
 
-    [Fact]
-    public async Task VectorSetContains()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task VectorSetContains(bool suppressFp32)
     {
         using var conn = Create();
         var db = conn.GetDatabase();
@@ -104,17 +117,27 @@ public sealed class VectorSetIntegrationTests : TestBase
         await db.KeyDeleteAsync(key);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f };
-        await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+        if (suppressFp32) VectorSetAddMessage.SuppressFp32();
+        try
+        {
+            await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
 
-        var exists = await db.VectorSetContainsAsync(key, "element1");
-        var notExists = await db.VectorSetContainsAsync(key, "element2");
+            var exists = await db.VectorSetContainsAsync(key, "element1");
+            var notExists = await db.VectorSetContainsAsync(key, "element2");
 
-        Assert.True(exists);
-        Assert.False(notExists);
+            Assert.True(exists);
+            Assert.False(notExists);
+        }
+        finally
+        {
+            if (suppressFp32) VectorSetAddMessage.RestoreFp32();
+        }
     }
 
-    [Fact]
-    public async Task VectorSetGetApproximateVector()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task VectorSetGetApproximateVector(bool suppressFp32)
     {
         using var conn = Create();
         var db = conn.GetDatabase();
@@ -123,19 +146,28 @@ public sealed class VectorSetIntegrationTests : TestBase
         await db.KeyDeleteAsync(key);
 
         var originalVector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f };
-        await db.VectorSetAddAsync(key, "element1", originalVector.AsMemory());
-
-        using var retrievedLease = await db.VectorSetGetApproximateVectorAsync(key, "element1");
-
-        Assert.NotNull(retrievedLease);
-        var retrievedVector = retrievedLease.Span;
-
-        Assert.Equal(originalVector.Length, retrievedVector.Length);
-        // Note: Due to quantization, values might not be exactly equal
-        for (int i = 0; i < originalVector.Length; i++)
+        if (suppressFp32) VectorSetAddMessage.SuppressFp32();
+        try
         {
-            var delta = Math.Abs(originalVector[i] - retrievedVector[i]);
-            Assert.True(delta < 0.1f, $"Vector component {i} differs too much: expected {originalVector[i]}, got {retrievedVector[i]}");
+            await db.VectorSetAddAsync(key, "element1", originalVector.AsMemory());
+
+            using var retrievedLease = await db.VectorSetGetApproximateVectorAsync(key, "element1");
+
+            Assert.NotNull(retrievedLease);
+            var retrievedVector = retrievedLease.Span;
+
+            Assert.Equal(originalVector.Length, retrievedVector.Length);
+            // Note: Due to quantization, values might not be exactly equal
+            for (int i = 0; i < originalVector.Length; i++)
+            {
+                Assert.True(
+                    Math.Abs(originalVector[i] - retrievedVector[i]) < 0.1f,
+                    $"Vector component {i} differs too much: expected {originalVector[i]}, got {retrievedVector[i]}");
+            }
+        }
+        finally
+        {
+            if (suppressFp32) VectorSetAddMessage.RestoreFp32();
         }
     }
 
@@ -152,7 +184,10 @@ public sealed class VectorSetIntegrationTests : TestBase
         await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
 
         var removed = await db.VectorSetRemoveAsync(key, "element1");
-        Assert.Equal(1, removed);
+        Assert.True(removed);
+
+        removed = await db.VectorSetRemoveAsync(key, "element1");
+        Assert.False(removed);
 
         var exists = await db.VectorSetContainsAsync(key, "element1");
         Assert.False(exists);

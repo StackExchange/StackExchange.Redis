@@ -849,7 +849,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue[] VectorSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetRandomMembers(ToInner(key), count, flags);
 
-        public long VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
+        public bool VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetRemove(ToInner(key), member, flags);
 
         public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None) =>

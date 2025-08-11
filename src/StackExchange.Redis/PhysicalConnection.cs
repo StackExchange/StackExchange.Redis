@@ -859,6 +859,14 @@ namespace StackExchange.Redis
             }
         }
 
+        internal void WriteBulkString(ReadOnlySpan<byte> value)
+        {
+            if (_ioPipe?.Output is { } writer)
+            {
+                WriteUnifiedSpan(writer, value);
+            }
+        }
+
         internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
         internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)

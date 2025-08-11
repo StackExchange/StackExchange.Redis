@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Net;
 using System.Threading.Tasks;
 
+// ReSharper disable once CheckNamespace
 namespace StackExchange.Redis
 {
     /// <summary>
@@ -890,7 +891,7 @@ namespace StackExchange.Redis
         Task<RedisValue[]> VectorSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.VectorSetRemove(RedisKey, RedisValue, CommandFlags)"/>
-        Task<long> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+        Task<bool> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.VectorSetSetAttributesJson(RedisKey, RedisValue, string, CommandFlags)"/>
         Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None);

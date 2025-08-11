@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Net;
 
+// ReSharper disable once CheckNamespace
 namespace StackExchange.Redis
 {
     /// <summary>
@@ -3560,9 +3561,9 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the vectorset.</param>
         /// <param name="member">The member to remove.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of members removed.</returns>
+        /// <returns><see langword="true"/> if the member was removed; <see langword="false"/> if it was not found.</returns>
         /// <remarks><seealso href="https://redis.io/commands/vrem"/></remarks>
-        long VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+        bool VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Set JSON attributes for a member in a vectorset.

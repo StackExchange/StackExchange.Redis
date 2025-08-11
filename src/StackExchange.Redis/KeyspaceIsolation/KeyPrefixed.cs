@@ -858,7 +858,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue[]> VectorSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetRandomMembersAsync(ToInner(key), count, flags);
 
-        public Task<long> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
+        public Task<bool> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetRemoveAsync(ToInner(key), member, flags);
 
         public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None) =>

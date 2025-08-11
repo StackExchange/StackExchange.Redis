@@ -60,6 +60,9 @@ namespace StackExchange.Redis
             PubSubNumSub = new PubSubNumSubProcessor(),
             Int64DefaultNegativeOne = new Int64DefaultValueProcessor(-1);
 
+        public static readonly ResultProcessor<int> Int32 = new Int32Processor();
+        public static readonly ResultProcessor<Lease<float>?> LeaseFloat32 = new LeaseFloat32Processor();
+
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
 
@@ -1384,6 +1387,26 @@ namespace StackExchange.Redis
             }
         }
 
+        private class Int32Processor : ResultProcessor<int>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeBulkString)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        if (result.TryGetInt64(out long i64))
+                        {
+                            SetResult(message, checked((int)i64));
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
+
         internal static ResultProcessor<StreamTrimResult> StreamTrimResult =>
             Int32EnumProcessor<StreamTrimResult>.Instance;
 
@@ -2087,6 +2110,47 @@ The coordinates as a two items x,y array (longitude,latitude).
                             SetResult(message, items[0].AsLease()!);
                             return true;
                         }
+                        break;
+                }
+                return false;
+            }
+        }
+
+        private sealed class LeaseFloat32Processor : ResultProcessor<Lease<float>?>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Resp2TypeArray)
+                {
+                    case ResultType.Array:
+                        if (result.IsNull)
+                        {
+                            SetResult(message, null);
+                            return true;
+                        }
+
+                        var items = result.GetItems();
+                        if (items.IsEmpty)
+                        {
+                            SetResult(message, Lease<float>.Empty);
+                            return true;
+                        }
+
+                        var length = checked((int)items.Length);
+                        var lease = Lease<float>.Create(length, clear: false);
+                        var target = lease.Span;
+                        int index = 0;
+                        foreach (ref RawResult item in items)
+                        {
+                            if (!item.TryGetDouble(out double val)) break;
+                            target[index++] = (float)val;
+                        }
+                        if (index == length)
+                        {
+                            SetResult(message, lease);
+                            return true;
+                        }
+                        lease.Dispose(); // something went wrong; recycle
                         break;
                 }
                 return false;

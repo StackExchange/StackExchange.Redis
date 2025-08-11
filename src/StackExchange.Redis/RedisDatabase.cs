@@ -5735,27 +5735,32 @@ namespace StackExchange.Redis
             string? attributesJson = null,
             CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = new VectorSetAddMessage(Database, flags, key, element, values, reducedDimensions, quantizationType, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public long VectorSetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VCARD, key);
+            return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public int VectorSetDimension(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VDIM, key);
+            return ExecuteSync(msg, ResultProcessor.Int32);
         }
 
         public Lease<float>? VectorSetGetApproximateVector(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VEMB, key, member);
+            return ExecuteSync(msg, ResultProcessor.LeaseFloat32);
         }
 
         public string? VectorSetGetAttributesJson(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VGETATTR, key, member);
+            return ExecuteSync(msg, ResultProcessor.String);
         }
 
         public VectorSetInfo? VectorSetInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -5765,7 +5770,8 @@ namespace StackExchange.Redis
 
         public bool VectorSetContains(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VISMEMBER, key, member);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public Lease<RedisValue>? VectorSetGetLinks(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -5780,22 +5786,26 @@ namespace StackExchange.Redis
 
         public RedisValue VectorSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VRANDMEMBER, key);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
         public RedisValue[] VectorSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VRANDMEMBER, key, count);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public long VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public bool VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VREM, key, member);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, jsonAttributes);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByVector(
@@ -5845,27 +5855,32 @@ namespace StackExchange.Redis
             string? attributesJson = null,
             CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = new VectorSetAddMessage(Database, flags, key, element, values, reducedDimensions, quantizationType, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
         public Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VCARD, key);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public Task<int> VectorSetDimensionAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VDIM, key);
+            return ExecuteAsync(msg, ResultProcessor.Int32);
         }
 
         public Task<Lease<float>?> VectorSetGetApproximateVectorAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VEMB, key, member);
+            return ExecuteAsync(msg, ResultProcessor.LeaseFloat32);
         }
 
         public Task<string?> VectorSetGetAttributesJsonAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VGETATTR, key, member);
+            return ExecuteAsync(msg, ResultProcessor.String);
         }
 
         public Task<VectorSetInfo?> VectorSetInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -5875,7 +5890,8 @@ namespace StackExchange.Redis
 
         public Task<bool> VectorSetContainsAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VISMEMBER, key, member);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
         public Task<Lease<RedisValue>?> VectorSetGetLinksAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -5890,22 +5906,26 @@ namespace StackExchange.Redis
 
         public Task<RedisValue> VectorSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VRANDMEMBER, key);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
         public Task<RedisValue[]> VectorSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VRANDMEMBER, key, count);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
-        public Task<long> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public Task<bool> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VREM, key, member);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
         public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, jsonAttributes);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
         public Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByVectorAsync(
