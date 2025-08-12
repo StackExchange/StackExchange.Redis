@@ -865,10 +865,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetSetAttributesJsonAsync(ToInner(key), member, jsonAttributes, flags);
 
-        public Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByVectorAsync(
+        public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByVectorAsync(
             RedisKey key,
             ReadOnlyMemory<float> vector,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,
@@ -880,10 +880,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetSimilaritySearchByVectorAsync(ToInner(key), vector, count, withScores, withAttributes, epsilon, searchExplorationFactor, filterExpression, maxFilteringEffort, useExactSearch, disableThreading, flags);
 
-        public Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByMemberAsync(
+        public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByMemberAsync(
             RedisKey key,
             RedisValue member,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,

@@ -910,12 +910,12 @@ namespace StackExchange.Redis
         [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
         Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearchByVector(RedisKey, ReadOnlyMemory{float}, long, bool, bool, double?, int?, string?, int?, bool, bool, CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearchByVector(RedisKey, ReadOnlyMemory{float}, int?, bool, bool, double?, int?, string?, int?, bool, bool, CommandFlags)"/>
         [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-        Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByVectorAsync(
+        Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByVectorAsync(
             RedisKey key,
             ReadOnlyMemory<float> vector,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,
@@ -926,12 +926,12 @@ namespace StackExchange.Redis
             bool disableThreading = false,
             CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearchByMember(RedisKey, RedisValue, long, bool, bool, double?, int?, string?, int?, bool, bool, CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearchByMember(RedisKey, RedisValue, int?, bool, bool, double?, int?, string?, int?, bool, bool, CommandFlags)"/>
         [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-        Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByMemberAsync(
+        Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByMemberAsync(
             RedisKey key,
             RedisValue member,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,

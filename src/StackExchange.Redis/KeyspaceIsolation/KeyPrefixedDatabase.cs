@@ -855,10 +855,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetSetAttributesJson(ToInner(key), member, jsonAttributes, flags);
 
-        public Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByVector(
+        public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByVector(
             RedisKey key,
             ReadOnlyMemory<float> vector,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,
@@ -870,10 +870,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetSimilaritySearchByVector(ToInner(key), vector, count, withScores, withAttributes, epsilon, searchExplorationFactor, filterExpression, maxFilteringEffort, useExactSearch, disableThreading, flags);
 
-        public Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByMember(
+        public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByMember(
             RedisKey key,
             RedisValue member,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,

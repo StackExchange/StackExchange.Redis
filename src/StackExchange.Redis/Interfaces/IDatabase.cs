@@ -3608,10 +3608,10 @@ namespace StackExchange.Redis
         /// <returns>Similar vectors with their similarity scores.</returns>
         /// <remarks><seealso href="https://redis.io/commands/vsim"/></remarks>
         [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-        Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByVector(
+        Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByVector(
             RedisKey key,
             ReadOnlyMemory<float> vector,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,
@@ -3640,10 +3640,10 @@ namespace StackExchange.Redis
         /// <returns>Similar vectors with their similarity scores.</returns>
         /// <remarks><seealso href="https://redis.io/commands/vsim"/></remarks>
         [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-        Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByMember(
+        Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByMember(
             RedisKey key,
             RedisValue member,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,

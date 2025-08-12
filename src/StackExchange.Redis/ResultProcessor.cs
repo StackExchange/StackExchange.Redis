@@ -65,6 +65,9 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<Lease<VectorSetLink>?> VectorSetLinksWithScores = new VectorSetLinksWithScoresProcessor();
         public static readonly ResultProcessor<Lease<RedisValue>?> VectorSetLinks = new VectorSetLinksProcessor();
+        public static readonly ResultProcessor<Lease<VectorSetSimilaritySearchResult>?> LeaseVectorSimilarityResult = new VectorSetSimilaritySearchProcessor();
+
+        public static ResultProcessor<VectorSetInfo?> VectorSetInfo = new VectorSetInfoProcessor();
 
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
@@ -706,7 +709,7 @@ namespace StackExchange.Redis
                 count = (int)arr.Length;
                 if (count == 0)
                 {
-                    return Array.Empty<T>();
+                    return [];
                 }
 
                 bool interleaved = !(result.IsResp3 && AllowJaggedPairs && IsAllJaggedPairs(arr));
@@ -1895,6 +1898,18 @@ namespace StackExchange.Redis
             }
         }
 
+        private sealed class VectorSetInfoProcessor : ResultProcessor<VectorSetInfo?>
+        {
+            protected override bool
+                SetResultCore(PhysicalConnection connection, Message message, in RawResult result) => false;
+        }
+
+        private sealed class VectorSetSimilaritySearchProcessor : ResultProcessor<Lease<VectorSetSimilaritySearchResult>?>
+        {
+            protected override bool
+                SetResultCore(PhysicalConnection connection, Message message, in RawResult result) => false;
+        }
+
         private sealed class LeaseFloat32Processor : LeaseProcessor<float>
         {
             protected override bool TryParse(in RawResult raw, out float parsed)
@@ -2357,7 +2372,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if (result.IsNull)
                 {
                     // Server returns 'nil' if no entries are returned for the given stream.
-                    SetResult(message, Array.Empty<StreamEntry>());
+                    SetResult(message, []);
                     return true;
                 }
 
@@ -2462,7 +2477,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if (result.IsNull)
                 {
                     // Nothing returned for any of the requested streams. The server returns 'nil'.
-                    SetResult(message, Array.Empty<RedisStream>());
+                    SetResult(message, []);
                     return true;
                 }
 
@@ -2528,7 +2543,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     var entries = ParseRedisStreamEntries(items[1]);
                     // [2] The array of message IDs deleted from the stream that were in the PEL.
                     //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
-                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? [];
 
                     SetResult(message, new StreamAutoClaimResult(nextStartId, entries, deletedIds));
                     return true;
@@ -2554,10 +2569,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                     // [0] The next start ID.
                     var nextStartId = items[0].AsRedisValue();
                     // [1] The array of claimed message IDs.
-                    var claimedIds = items[1].GetItemsAsValues() ?? Array.Empty<RedisValue>();
+                    var claimedIds = items[1].GetItemsAsValues() ?? [];
                     // [2] The array of message IDs deleted from the stream that were in the PEL.
                     //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
-                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? Array.Empty<RedisValue>();
+                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? [];
 
                     SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds));
                     return true;
@@ -2865,7 +2880,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     pendingMessageCount: (int)arr[0].AsRedisValue(),
                     lowestId: arr[1].AsRedisValue(),
                     highestId: arr[2].AsRedisValue(),
-                    consumers: consumers ?? Array.Empty<StreamConsumer>());
+                    consumers: consumers ?? []);
 
                 SetResult(message, pendingInfo);
                 return true;
@@ -2950,7 +2965,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //       4) "18.2"
                 if (result.Resp2TypeArray != ResultType.Array || result.IsNull)
                 {
-                    return Array.Empty<NameValueEntry>();
+                    return [];
                 }
                 return StreamNameValueEntryProcessor.Instance.ParseArray(result, false, out _, null)!; // ! because we checked null above
             }
@@ -3138,7 +3153,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                List<EndPoint> endPoints = new List<EndPoint>();
+                List<EndPoint> endPoints = [];
 
                 switch (result.Resp2TypeArray)
                 {
@@ -3172,7 +3187,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                List<EndPoint> endPoints = new List<EndPoint>();
+                List<EndPoint> endPoints = [];
 
                 switch (result.Resp2TypeArray)
                 {
@@ -3266,7 +3281,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     T[] arr;
                     if (items.IsEmpty)
                     {
-                        arr = Array.Empty<T>();
+                        arr = [];
                     }
                     else
                     {

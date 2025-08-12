@@ -6,7 +6,7 @@ namespace StackExchange.Redis;
 /// Represents a result from vector similarity search operations.
 /// </summary>
 [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-public readonly struct VectorSimilarityResult(RedisValue member, double score = double.NaN, string? attributesJson = null)
+public readonly struct VectorSetSimilaritySearchResult(RedisValue member, double score = double.NaN, string? attributesJson = null)
 {
     /// <summary>
     /// The member name/identifier in the vectorset.

@@ -5722,7 +5722,6 @@ namespace StackExchange.Redis
             }
         }
 
-        // Vector Set operations - stub implementations (to be implemented)
         public bool VectorSetAdd(
             RedisKey key,
             RedisValue element,
@@ -5765,7 +5764,8 @@ namespace StackExchange.Redis
 
         public VectorSetInfo? VectorSetInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VINFO, key);
+            return ExecuteSync(msg, ResultProcessor.VectorSetInfo);
         }
 
         public bool VectorSetContains(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -5810,10 +5810,10 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByVector(
+        public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByVector(
             RedisKey key,
             ReadOnlyMemory<float> vector,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,
@@ -5824,13 +5824,28 @@ namespace StackExchange.Redis
             bool disableThreading = false,
             CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = new VectorSetSimilaritySearchMessage(
+                Database,
+                flags,
+                key,
+                RedisValue.Null,
+                vector,
+                count,
+                withScores,
+                withAttributes,
+                epsilon,
+                searchExplorationFactor,
+                filterExpression,
+                maxFilteringEffort,
+                useExactSearch,
+                disableThreading);
+            return ExecuteSync(msg, ResultProcessor.LeaseVectorSimilarityResult);
         }
 
-        public Lease<VectorSimilarityResult>? VectorSetSimilaritySearchByMember(
+        public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByMember(
             RedisKey key,
             RedisValue member,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,
@@ -5841,7 +5856,22 @@ namespace StackExchange.Redis
             bool disableThreading = false,
             CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = new VectorSetSimilaritySearchMessage(
+                Database,
+                flags,
+                key,
+                member,
+                ReadOnlyMemory<float>.Empty,
+                count,
+                withScores,
+                withAttributes,
+                epsilon,
+                searchExplorationFactor,
+                filterExpression,
+                maxFilteringEffort,
+                useExactSearch,
+                disableThreading);
+            return ExecuteSync(msg, ResultProcessor.LeaseVectorSimilarityResult);
         }
 
         // Vector Set async operations
@@ -5887,7 +5917,8 @@ namespace StackExchange.Redis
 
         public Task<VectorSetInfo?> VectorSetInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VINFO, key);
+            return ExecuteAsync(msg, ResultProcessor.VectorSetInfo);
         }
 
         public Task<bool> VectorSetContainsAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -5932,10 +5963,10 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByVectorAsync(
+        public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByVectorAsync(
             RedisKey key,
             ReadOnlyMemory<float> vector,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,
@@ -5946,13 +5977,28 @@ namespace StackExchange.Redis
             bool disableThreading = false,
             CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = new VectorSetSimilaritySearchMessage(
+                Database,
+                flags,
+                key,
+                RedisValue.Null,
+                vector,
+                count,
+                withScores,
+                withAttributes,
+                epsilon,
+                searchExplorationFactor,
+                filterExpression,
+                maxFilteringEffort,
+                useExactSearch,
+                disableThreading);
+            return ExecuteAsync(msg, ResultProcessor.LeaseVectorSimilarityResult);
         }
 
-        public Task<Lease<VectorSimilarityResult>?> VectorSetSimilaritySearchByMemberAsync(
+        public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByMemberAsync(
             RedisKey key,
             RedisValue member,
-            long count = 10,
+            int? count = null,
             bool withScores = false,
             bool withAttributes = false,
             double? epsilon = null,
@@ -5963,7 +6009,22 @@ namespace StackExchange.Redis
             bool disableThreading = false,
             CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = new VectorSetSimilaritySearchMessage(
+                Database,
+                flags,
+                key,
+                member,
+                ReadOnlyMemory<float>.Empty,
+                count,
+                withScores,
+                withAttributes,
+                epsilon,
+                searchExplorationFactor,
+                filterExpression,
+                maxFilteringEffort,
+                useExactSearch,
+                disableThreading);
+            return ExecuteAsync(msg, ResultProcessor.LeaseVectorSimilarityResult);
         }
     }
 }
