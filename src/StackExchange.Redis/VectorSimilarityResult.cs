@@ -1,8 +1,11 @@
-﻿namespace StackExchange.Redis;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents a result from vector similarity search operations.
 /// </summary>
+[Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
 public readonly struct VectorSimilarityResult(RedisValue member, double score = double.NaN, string? attributesJson = null)
 {
     /// <summary>

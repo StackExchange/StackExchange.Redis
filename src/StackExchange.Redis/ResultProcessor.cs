@@ -102,6 +102,8 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
+        public static readonly ResultProcessor<Lease<RedisValue>?>
+            RedisValueLease = new RedisValueLeaseProcessor();
 
         public static readonly ResultProcessor<long[]>
             Int64Array = new Int64ArrayProcessor();
@@ -1707,6 +1709,64 @@ namespace StackExchange.Redis
             }
         }
 
+        private abstract class LeaseProcessor<T> : ResultProcessor<Lease<T>?>
+        {
+            protected sealed override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Resp2TypeArray != ResultType.Array)
+                {
+                    return false; // not an array
+                }
+
+                // deal with null
+                if (result.IsNull)
+                {
+                    SetResult(message, Lease<T>.Empty);
+                    return true;
+                }
+
+                // lease and fill
+                var items = result.GetItems();
+                var length = checked((int)items.Length);
+                var lease = Lease<T>.Create(length, clear: false); // note this handles zero nicely
+                var target = lease.Span;
+                int index = 0;
+                foreach (ref RawResult item in items)
+                {
+                    if (!TryParse(item, out target[index++]))
+                    {
+                        // something went wrong; recycle and quit
+                        lease.Dispose();
+                        return false;
+                    }
+                }
+                Debug.Assert(index == length, "length mismatch");
+                SetResult(message, lease);
+                return true;
+            }
+
+            protected abstract bool TryParse(in RawResult raw, out T parsed);
+        }
+
+        private sealed class RedisValueLeaseProcessor : LeaseProcessor<RedisValue>
+        {
+            protected override bool TryParse(in RawResult raw, out RedisValue parsed)
+            {
+                parsed = raw.AsRedisValue();
+                return true;
+            }
+        }
+
+        private sealed class LeaseFloat32Processor : LeaseProcessor<float>
+        {
+            protected override bool TryParse(in RawResult raw, out float parsed)
+            {
+                var result = raw.TryGetDouble(out double val);
+                parsed = (float)val;
+                return result;
+            }
+        }
+
         private sealed class Int64ArrayProcessor : ResultProcessor<long[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -2110,47 +2170,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                             SetResult(message, items[0].AsLease()!);
                             return true;
                         }
-                        break;
-                }
-                return false;
-            }
-        }
-
-        private sealed class LeaseFloat32Processor : ResultProcessor<Lease<float>?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                switch (result.Resp2TypeArray)
-                {
-                    case ResultType.Array:
-                        if (result.IsNull)
-                        {
-                            SetResult(message, null);
-                            return true;
-                        }
-
-                        var items = result.GetItems();
-                        if (items.IsEmpty)
-                        {
-                            SetResult(message, Lease<float>.Empty);
-                            return true;
-                        }
-
-                        var length = checked((int)items.Length);
-                        var lease = Lease<float>.Create(length, clear: false);
-                        var target = lease.Span;
-                        int index = 0;
-                        foreach (ref RawResult item in items)
-                        {
-                            if (!item.TryGetDouble(out double val)) break;
-                            target[index++] = (float)val;
-                        }
-                        if (index == length)
-                        {
-                            SetResult(message, lease);
-                            return true;
-                        }
-                        lease.Dispose(); // something went wrong; recycle
                         break;
                 }
                 return false;
