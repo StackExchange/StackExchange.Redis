@@ -63,6 +63,8 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<int> Int32 = new Int32Processor();
         public static readonly ResultProcessor<Lease<float>?> LeaseFloat32 = new LeaseFloat32Processor();
 
+        public static readonly ResultProcessor<Lease<VectorSetLink>?> LeaseVectorSetLink = new LeaseVectorSetLinkProcessor();
+
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
 
@@ -1748,6 +1750,50 @@ namespace StackExchange.Redis
             protected abstract bool TryParse(in RawResult raw, out T parsed);
         }
 
+        private abstract class InterleavedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
+        {
+            protected sealed override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Resp2TypeArray != ResultType.Array)
+                {
+                    return false; // not an array
+                }
+
+                // deal with null
+                if (result.IsNull)
+                {
+                    SetResult(message, Lease<T>.Empty);
+                    return true;
+                }
+
+                // lease and fill
+                var items = result.GetItems();
+                var length = checked((int)items.Length) / 2;
+                var lease = Lease<T>.Create(length, clear: false); // note this handles zero nicely
+                var target = lease.Span;
+
+                var iter = items.GetEnumerator();
+                for (int i = 0; i < target.Length; i++)
+                {
+                    bool ok = iter.MoveNext();
+                    if (ok)
+                    {
+                        ref readonly RawResult first = ref iter.Current;
+                        ok = iter.MoveNext() && TryParse(in first, in iter.Current, out target[i]);
+                    }
+                    if (!ok)
+                    {
+                        lease.Dispose();
+                        return false;
+                    }
+                }
+                SetResult(message, lease);
+                return true;
+            }
+
+            protected abstract bool TryParse(in RawResult first, in RawResult second, out T parsed);
+        }
+
         private sealed class RedisValueLeaseProcessor : LeaseProcessor<RedisValue>
         {
             protected override bool TryParse(in RawResult raw, out RedisValue parsed)
@@ -1763,6 +1809,17 @@ namespace StackExchange.Redis
             {
                 var result = raw.TryGetDouble(out double val);
                 parsed = (float)val;
+                return result;
+            }
+        }
+
+        private sealed class LeaseVectorSetLinkProcessor : InterleavedLeaseProcessor<VectorSetLink>
+        {
+            protected override bool TryParse(in RawResult first, in RawResult second, out VectorSetLink parsed)
+            {
+                var member = first.AsRedisValue();
+                bool result = second.TryGetDouble(out var score);
+                parsed = new VectorSetLink(member, score);
                 return result;
             }
         }
