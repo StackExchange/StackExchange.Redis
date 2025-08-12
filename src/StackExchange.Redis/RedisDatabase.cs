@@ -5776,7 +5776,8 @@ namespace StackExchange.Redis
 
         public Lease<RedisValue>? VectorSetGetLinks(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VLINKS, key, member);
+            return ExecuteSync(msg, ResultProcessor.RedisValueLease);
         }
 
         public Lease<VectorSetLink>? VectorSetGetLinksWithScores(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -5896,7 +5897,8 @@ namespace StackExchange.Redis
 
         public Task<Lease<RedisValue>?> VectorSetGetLinksAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            throw new NotImplementedException("Vector Set operations are not yet implemented");
+            var msg = Message.Create(Database, flags, RedisCommand.VLINKS, key, member);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueLease);
         }
 
         public Task<Lease<VectorSetLink>?> VectorSetGetLinksWithScoresAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
