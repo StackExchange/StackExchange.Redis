@@ -424,10 +424,14 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         using var links = await db.VectorSetGetLinksAsync(key, "element1");
 
         Assert.NotNull(links);
+        foreach (var link in links.Span)
+        {
+            Log(link.ToString());
+        }
+
         var linksArray = links.Span.ToArray();
 
-        // Should contain the other elements
-        Assert.Equal(2, linksArray.Length);
+        // Should contain the other elements (note there can be transient duplicates, so: contains, not exact)
         Assert.Contains("element2", linksArray);
         Assert.Contains("element3", linksArray);
     }
@@ -469,12 +473,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
             Assert.True(link.Score >= 0.0); // Similarity scores should be non-negative
         });
 
-        // Should contain the other elements
-        Assert.Equal(2, linksArray.Length);
+        // Should contain the other elements (note there can be transient duplicates, so: contains, not exact)
         Assert.Contains(linksArray, l => l.Member == "element2");
         Assert.Contains(linksArray, l => l.Member == "element3");
 
-        Assert.True(linksArray.Single(l => l.Member == "element2").Score > 0.9); // similar
-        Assert.True(linksArray.Single(l => l.Member == "element3").Score < 0.8); // less-so
+        Assert.True(linksArray.First(l => l.Member == "element2").Score > 0.9); // similar
+        Assert.True(linksArray.First(l => l.Member == "element3").Score < 0.8); // less-so
     }
 }

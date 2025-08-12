@@ -53,7 +53,7 @@ internal sealed class VectorSetSimilaritySearchMessage(
 
     private int GetArgCount(bool useFp32)
     {
-        int argCount = 2; // {key} and "ELE {member}", "FP32 {vector}" or "VALUES {num}"
+        int argCount = 3; // {key} and "ELE {member}", "FP32 {vector}" or "VALUES {num}"
         if (member.IsNull && !useFp32)
         {
             argCount += vector.Length; // {vector} in the VALUES case
