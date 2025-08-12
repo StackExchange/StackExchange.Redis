@@ -18,4 +18,7 @@ public readonly struct VectorSetLink(RedisValue member, double score)
     /// The similarity score between the queried member and this linked member.
     /// </summary>
     public double Score { get; } = score;
+
+    /// <inheritdoc/>
+    public override string ToString() => $"{Member}: {Score}";
 }

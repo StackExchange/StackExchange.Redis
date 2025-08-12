@@ -1,20 +1,19 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-public sealed class VectorSetIntegrationTests : TestBase
+public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBase(output)
 {
-    public VectorSetIntegrationTests(ITestOutputHelper output) : base(output) { }
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task VectorSetAdd_BasicOperation(bool suppressFp32)
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -39,7 +38,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetAdd_WithAttributes()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -63,7 +62,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [InlineData(VectorQuantizationType.Binary)]
     public async Task VectorSetAdd_WithEverything(VectorQuantizationType quantizationType)
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -93,7 +92,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetLength_EmptySet()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -106,7 +105,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetLength_WithElements()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -125,7 +124,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetDimension()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -143,7 +142,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [InlineData(false)]
     public async Task VectorSetContains(bool suppressFp32)
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -172,7 +171,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [InlineData(false)]
     public async Task VectorSetGetApproximateVector(bool suppressFp32)
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -207,7 +206,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetRemove()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -229,7 +228,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetInfo()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -249,7 +248,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetRandomMember()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -268,7 +267,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetRandomMembers()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -292,7 +291,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetSimilaritySearch_WithVector()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -324,7 +323,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetSimilaritySearch_WithMember()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -350,7 +349,7 @@ public sealed class VectorSetIntegrationTests : TestBase
     [Fact]
     public async Task VectorSetSimilaritySearch_WithAttributes()
     {
-        using var conn = Create();
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me();
 
@@ -374,5 +373,108 @@ public sealed class VectorSetIntegrationTests : TestBase
         Assert.Equal("element1", result.Member);
         Assert.False(double.IsNaN(result.Score));
         Assert.Equal(attributes, result.AttributesJson);
+    }
+
+    [Fact]
+    public async Task VectorSetSetAttributesJson()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        await db.KeyDeleteAsync(key);
+
+        var vector = new float[] { 1.0f, 2.0f, 3.0f };
+        await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+
+        // Set attributes for existing element
+        var attributes = """{"category":"updated","priority":"high","timestamp":"2024-01-01"}""";
+        var result = await db.VectorSetSetAttributesJsonAsync(key, "element1", attributes);
+
+        Assert.True(result);
+
+        // Verify attributes were set
+        var retrievedAttributes = await db.VectorSetGetAttributesJsonAsync(key, "element1");
+        Assert.Equal(attributes, retrievedAttributes);
+
+        // Try setting attributes for non-existent element
+        var failResult = await db.VectorSetSetAttributesJsonAsync(key, "nonexistent", attributes);
+        Assert.False(failResult);
+    }
+
+    [Fact]
+    public async Task VectorSetGetLinks()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        await db.KeyDeleteAsync(key);
+
+        // Add some vectors that should be linked
+        var vector1 = new float[] { 1.0f, 0.0f, 0.0f };
+        var vector2 = new float[] { 0.9f, 0.1f, 0.0f }; // Similar to vector1
+        var vector3 = new float[] { 0.0f, 1.0f, 0.0f }; // Different from vector1
+
+        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
+        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
+        await db.VectorSetAddAsync(key, "element3", vector3.AsMemory());
+
+        // Get links for element1 (should include similar vectors)
+        using var links = await db.VectorSetGetLinksAsync(key, "element1");
+
+        Assert.NotNull(links);
+        var linksArray = links.Span.ToArray();
+
+        // Should contain the other elements
+        Assert.Equal(2, linksArray.Length);
+        Assert.Contains("element2", linksArray);
+        Assert.Contains("element3", linksArray);
+    }
+
+    [Fact]
+    public async Task VectorSetGetLinksWithScores()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        await db.KeyDeleteAsync(key);
+
+        // Add some vectors with known relationships
+        var vector1 = new float[] { 1.0f, 0.0f, 0.0f };
+        var vector2 = new float[] { 0.9f, 0.1f, 0.0f }; // Similar to vector1
+        var vector3 = new float[] { 0.0f, 1.0f, 0.0f }; // Different from vector1
+
+        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
+        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
+        await db.VectorSetAddAsync(key, "element3", vector3.AsMemory());
+
+        // Get links with scores for element1
+        using var linksWithScores = await db.VectorSetGetLinksWithScoresAsync(key, "element1");
+        Assert.NotNull(linksWithScores);
+        foreach (var link in linksWithScores.Span)
+        {
+            Log(link.ToString());
+        }
+
+        var linksArray = linksWithScores.Span.ToArray();
+        Assert.NotEmpty(linksArray);
+
+        // Verify each link has a valid score
+        Assert.All(linksArray, link =>
+        {
+            Assert.False(link.Member.IsNull);
+            Assert.False(double.IsNaN(link.Score));
+            Assert.True(link.Score >= 0.0); // Similarity scores should be non-negative
+        });
+
+        // Should contain the other elements
+        Assert.Equal(2, linksArray.Length);
+        Assert.Contains(linksArray, l => l.Member == "element2");
+        Assert.Contains(linksArray, l => l.Member == "element3");
+
+        Assert.True(linksArray.Single(l => l.Member == "element2").Score > 0.9); // similar
+        Assert.True(linksArray.Single(l => l.Member == "element3").Score < 0.8); // less-so
     }
 }

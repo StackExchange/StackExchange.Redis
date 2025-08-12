@@ -1,4 +1,5 @@
 ﻿#nullable enable
+[SER001]override StackExchange.Redis.VectorSetLink.ToString() -> string!
 [SER001]StackExchange.Redis.IDatabase.VectorSetAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue element, System.ReadOnlyMemory<float> values, int? reducedDimensions = null, StackExchange.Redis.VectorQuantizationType quantizationType = StackExchange.Redis.VectorQuantizationType.Int8, int? buildExplorationFactor = null, int? maxConnections = null, bool useCheckAndSet = false, string? attributesJson = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 [SER001]StackExchange.Redis.IDatabase.VectorSetContains(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 [SER001]StackExchange.Redis.IDatabase.VectorSetDimension(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> int

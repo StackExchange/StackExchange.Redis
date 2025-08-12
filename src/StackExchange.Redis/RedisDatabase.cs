@@ -5777,13 +5777,13 @@ namespace StackExchange.Redis
         public Lease<RedisValue>? VectorSetGetLinks(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.VLINKS, key, member);
-            return ExecuteSync(msg, ResultProcessor.RedisValueLease);
+            return ExecuteSync(msg, ResultProcessor.VectorSetLinks);
         }
 
         public Lease<VectorSetLink>? VectorSetGetLinksWithScores(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.VLINKS, key, member, RedisLiterals.WITHSCORES);
-            return ExecuteSync(msg, ResultProcessor.LeaseVectorSetLink);
+            return ExecuteSync(msg, ResultProcessor.VectorSetLinksWithScores);
         }
 
         public RedisValue VectorSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -5899,13 +5899,13 @@ namespace StackExchange.Redis
         public Task<Lease<RedisValue>?> VectorSetGetLinksAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.VLINKS, key, member);
-            return ExecuteAsync(msg, ResultProcessor.RedisValueLease);
+            return ExecuteAsync(msg, ResultProcessor.VectorSetLinks);
         }
 
         public Task<Lease<VectorSetLink>?> VectorSetGetLinksWithScoresAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.VLINKS, key, member, RedisLiterals.WITHSCORES);
-            return ExecuteAsync(msg, ResultProcessor.LeaseVectorSetLink);
+            return ExecuteAsync(msg, ResultProcessor.VectorSetLinksWithScores);
         }
 
         public Task<RedisValue> VectorSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
