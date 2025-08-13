@@ -51,7 +51,19 @@ public abstract class TestBase : IDisposable
             output?.WriteLine(Time() + ": " + message);
         }
     }
-    protected void Log(string? message, params object[] args) => Output.WriteLine(Time() + ": " + message, args);
+
+    protected void Log(string? message, params object[] args)
+    {
+        if (args is { Length: > 0 })
+        {
+            Output.WriteLine(Time() + ": " + message, args);
+        }
+        else
+        {
+            // avoid "not intended as a format specifier" scenarios
+            Output.WriteLine(Time() + ": " + message);
+        }
+    }
 
     protected ProfiledCommandEnumerable Log(ProfilingSession session)
     {

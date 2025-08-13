@@ -23,4 +23,19 @@ public readonly struct VectorSetSimilaritySearchResult(RedisValue member, double
     /// The JSON attributes associated with the member when WITHATTRIBS is used, null otherwise.
     /// </summary>
     public string? AttributesJson { get; } = attributesJson;
+
+    /// <inheritdoc/>
+    public override string ToString()
+    {
+        if (double.IsNaN(Score))
+        {
+            return AttributesJson is null
+                ? Member.ToString()
+                : $"{Member}: {AttributesJson}";
+        }
+
+        return AttributesJson is null
+            ? $"{Member} ({Score})"
+            : $"{Member} ({Score}): {AttributesJson}";
+    }
 }

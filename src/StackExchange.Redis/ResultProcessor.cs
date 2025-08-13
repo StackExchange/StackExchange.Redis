@@ -65,7 +65,6 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<Lease<VectorSetLink>?> VectorSetLinksWithScores = new VectorSetLinksWithScoresProcessor();
         public static readonly ResultProcessor<Lease<RedisValue>?> VectorSetLinks = new VectorSetLinksProcessor();
-        public static readonly ResultProcessor<Lease<VectorSetSimilaritySearchResult>?> LeaseVectorSimilarityResult = new VectorSetSimilaritySearchProcessor();
 
         public static ResultProcessor<VectorSetInfo?> VectorSetInfo = new VectorSetInfoProcessor();
 
@@ -1966,12 +1965,6 @@ namespace StackExchange.Redis
                 }
                 return false;
             }
-        }
-
-        private sealed class VectorSetSimilaritySearchProcessor : ResultProcessor<Lease<VectorSetSimilaritySearchResult>?>
-        {
-            protected override bool
-                SetResultCore(PhysicalConnection connection, Message message, in RawResult result) => false;
         }
 
         private sealed class LeaseFloat32Processor : LeaseProcessor<float>

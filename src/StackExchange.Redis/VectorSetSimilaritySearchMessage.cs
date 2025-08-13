@@ -33,6 +33,83 @@ internal sealed class VectorSetSimilaritySearchMessage(
     private readonly int _searchExplorationFactor = searchExplorationFactor.GetValueOrDefault();
     private readonly int _maxFilteringEffort = maxFilteringEffort.GetValueOrDefault();
 
+    public ResultProcessor<Lease<VectorSetSimilaritySearchResult>?> GetResultProcessor() => VectorSetSimilaritySearchProcessor.Instance;
+    private sealed class VectorSetSimilaritySearchProcessor : ResultProcessor<Lease<VectorSetSimilaritySearchResult>?>
+    {
+        // keep local, since we need to know what flags were being sent
+        public static readonly VectorSetSimilaritySearchProcessor Instance = new();
+        private VectorSetSimilaritySearchProcessor() { }
+
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        {
+            if (result.Resp2TypeArray == ResultType.Array && message is VectorSetSimilaritySearchMessage vssm)
+            {
+                if (result.IsNull)
+                {
+                    SetResult(message, null);
+                    return true;
+                }
+
+                bool withScores = vssm.HasFlag(VsimFlags.WithScores);
+                bool withAttribs = vssm.HasFlag(VsimFlags.WithAttributes);
+
+                // in RESP3 mode (only), when both are requested, we get a sub-array per item; weird, but true
+                bool internalNesting = withScores && withAttribs && connection.Protocol is RedisProtocol.Resp3;
+
+                int rowsPerItem = internalNesting ? 2
+                    : 1 + ((withScores ? 1 : 0) + (withAttribs ? 1 : 0)); // each value is separate root element
+
+                var items = result.GetItems();
+                var length = checked((int)items.Length) / rowsPerItem;
+                var lease = Lease<VectorSetSimilaritySearchResult>.Create(length, clear: false);
+                var target = lease.Span;
+                int count = 0;
+                var iter = items.GetEnumerator();
+                for (int i = 0; i < target.Length && iter.MoveNext(); i++)
+                {
+                    var member = iter.Current.AsRedisValue();
+                    double score = double.NaN;
+                    string? attributesJson = null;
+
+                    if (internalNesting)
+                    {
+                        if (!iter.MoveNext() || iter.Current.Resp2TypeArray != ResultType.Array) break;
+                        if (!iter.Current.IsNull)
+                        {
+                            var subArray = iter.Current.GetItems();
+                            if (subArray.Length >= 1 && !subArray[0].TryGetDouble(out score)) break;
+                            if (subArray.Length >= 2) attributesJson = subArray[1].GetString();
+                        }
+                    }
+                    else
+                    {
+                        if (withScores)
+                        {
+                            if (!iter.MoveNext() || !iter.Current.TryGetDouble(out score)) break;
+                        }
+
+                        if (withAttribs)
+                        {
+                            if (!iter.MoveNext()) break;
+                            attributesJson = iter.Current.GetString();
+                        }
+                    }
+
+                    target[i] = new VectorSetSimilaritySearchResult(member, score, attributesJson);
+                    count++;
+                }
+                if (count == target.Length)
+                {
+                    SetResult(message, lease);
+                    return true;
+                }
+                lease.Dispose(); // failed to fill?
+            }
+
+            return false;
+        }
+    }
+
     [Flags]
     private enum VsimFlags
     {

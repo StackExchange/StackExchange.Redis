@@ -5839,7 +5839,7 @@ namespace StackExchange.Redis
                 maxFilteringEffort,
                 useExactSearch,
                 disableThreading);
-            return ExecuteSync(msg, ResultProcessor.LeaseVectorSimilarityResult);
+            return ExecuteSync(msg, msg.GetResultProcessor());
         }
 
         public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByMember(
@@ -5871,7 +5871,7 @@ namespace StackExchange.Redis
                 maxFilteringEffort,
                 useExactSearch,
                 disableThreading);
-            return ExecuteSync(msg, ResultProcessor.LeaseVectorSimilarityResult);
+            return ExecuteSync(msg, msg.GetResultProcessor());
         }
 
         // Vector Set async operations
@@ -5992,7 +5992,7 @@ namespace StackExchange.Redis
                 maxFilteringEffort,
                 useExactSearch,
                 disableThreading);
-            return ExecuteAsync(msg, ResultProcessor.LeaseVectorSimilarityResult);
+            return ExecuteAsync(msg, msg.GetResultProcessor());
         }
 
         public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByMemberAsync(
@@ -6024,7 +6024,7 @@ namespace StackExchange.Redis
                 maxFilteringEffort,
                 useExactSearch,
                 disableThreading);
-            return ExecuteAsync(msg, ResultProcessor.LeaseVectorSimilarityResult);
+            return ExecuteAsync(msg, msg.GetResultProcessor());
         }
     }
 }

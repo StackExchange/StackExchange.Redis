@@ -296,12 +296,17 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
             Assert.True(member == "element1" || member == "element2" || member == "element3"));
     }
 
-    [Fact]
-    public async Task VectorSetSimilaritySearch_WithVector()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task VectorSetSimilaritySearch_ByVector(bool withScores, bool withAttributes)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
-        var key = Me();
+        var disambiguator = (withScores ? 1 : 0) + (withAttributes ? 2 : 0);
+        var key = Me() + disambiguator;
 
         await db.KeyDeleteAsync(key);
 
@@ -310,77 +315,89 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector2 = new float[] { 0.0f, 1.0f, 0.0f };
         var vector3 = new float[] { 0.9f, 0.1f, 0.0f }; // Similar to vector1
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
-        await db.VectorSetAddAsync(key, "element3", vector3.AsMemory());
+        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory(), attributesJson: """{"category":"x"}""");
+        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory(), attributesJson: """{"category":"y"}""");
+        await db.VectorSetAddAsync(key, "element3", vector3.AsMemory(), attributesJson: """{"category":"z"}""");
 
         // Search for vectors similar to vector1
         using var results =
-            await db.VectorSetSimilaritySearchByVectorAsync(key, vector1.AsMemory(), count: 2, withScores: true);
+            await db.VectorSetSimilaritySearchByVectorAsync(
+                key,
+                vector1.AsMemory(),
+                count: 2,
+                withScores: withScores,
+                withAttributes: withAttributes);
 
         Assert.NotNull(results);
+        foreach (var result in results.Span)
+        {
+            Log(result.ToString());
+        }
         var resultsArray = results.Span.ToArray();
 
         Assert.True(resultsArray.Length <= 2);
         Assert.Contains(resultsArray, r => r.Member == "element1");
+        var found = resultsArray.First(r => r.Member == "element1");
 
-        // Verify scores are present when withScores is true
-        Assert.All(resultsArray, r => Assert.False(double.IsNaN(r.Score)));
+        if (withAttributes)
+        {
+            Assert.Equal("""{"category":"x"}""", found.AttributesJson);
+        }
+        else
+        {
+            Assert.Null(found.AttributesJson);
+        }
+
+        Assert.NotEqual(withScores, double.IsNaN(found.Score));
     }
 
-    [Fact]
-    public async Task VectorSetSimilaritySearch_WithMember()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task VectorSetSimilaritySearch_ByMember(bool withScores, bool withAttributes)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
-        var key = Me();
+        var disambiguator = (withScores ? 1 : 0) + (withAttributes ? 2 : 0);
+        var key = Me() + disambiguator;
 
         await db.KeyDeleteAsync(key);
 
         var vector1 = new float[] { 1.0f, 0.0f, 0.0f };
         var vector2 = new float[] { 0.0f, 1.0f, 0.0f };
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
+        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory(), attributesJson: """{"category":"x"}""");
+        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory(), attributesJson: """{"category":"y"}""");
 
         using var results =
-            await db.VectorSetSimilaritySearchByMemberAsync(key, "element1", count: 1, withScores: true);
+            await db.VectorSetSimilaritySearchByMemberAsync(
+                key,
+                "element1",
+                count: 1,
+                withScores: withScores,
+                withAttributes: withAttributes);
 
         Assert.NotNull(results);
+        foreach (var result in results.Span)
+        {
+            Log(result.ToString());
+        }
         var resultsArray = results.Span.ToArray();
 
         Assert.Single(resultsArray);
         Assert.Equal("element1", resultsArray[0].Member);
-        Assert.False(double.IsNaN(resultsArray[0].Score));
-    }
+        if (withAttributes)
+        {
+            Assert.Equal("""{"category":"x"}""", resultsArray[0].AttributesJson);
+        }
+        else
+        {
+            Assert.Null(resultsArray[0].AttributesJson);
+        }
 
-    [Fact]
-    public async Task VectorSetSimilaritySearch_WithAttributes()
-    {
-        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
-        var key = Me();
-
-        await db.KeyDeleteAsync(key);
-
-        var vector = new float[] { 1.0f, 2.0f, 3.0f };
-        var attributes = """{"category":"test","priority":"high"}""";
-
-        await db.VectorSetAddAsync(key, "element1", vector.AsMemory(), attributesJson: attributes);
-
-        using var results = await db.VectorSetSimilaritySearchByVectorAsync(
-            key,
-            vector.AsMemory(),
-            count: 1,
-            withScores: true,
-            withAttributes: true);
-
-        Assert.NotNull(results);
-        var result = results.Span[0];
-
-        Assert.Equal("element1", result.Member);
-        Assert.False(double.IsNaN(result.Score));
-        Assert.Equal(attributes, result.AttributesJson);
+        Assert.NotEqual(withScores, double.IsNaN(resultsArray[0].Score));
     }
 
     [Fact]
