@@ -11,7 +11,7 @@ internal sealed class VectorSetAddMessage(
     RedisValue element,
     ReadOnlyMemory<float> values,
     int? reducedDimensions,
-    VectorQuantizationType quantizationType,
+    VectorSetQuantization quantization,
     int? buildExplorationFactor,
     int? maxConnections,
     bool useCheckAndSet,
@@ -44,11 +44,11 @@ internal sealed class VectorSetAddMessage(
         if (!useFp32) count += values.Length; // {vector} in the VALUES case
 
         if (useCheckAndSet) count++; // [CAS]
-        count += quantizationType switch
+        count += quantization switch
         {
-            VectorQuantizationType.None or VectorQuantizationType.Binary => 1, // [NOQUANT] or [BIN]
-            VectorQuantizationType.Int8 => 0, // implicit
-            _ => throw new ArgumentOutOfRangeException(nameof(quantizationType)),
+            VectorSetQuantization.None or VectorSetQuantization.Binary => 1, // [NOQUANT] or [BIN]
+            VectorSetQuantization.Int8 => 0, // implicit
+            _ => throw new ArgumentOutOfRangeException(nameof(quantization)),
         };
 
         if (buildExplorationFactor.HasValue) count += 2; // [EF {build-exploration-factor}]
@@ -84,18 +84,18 @@ internal sealed class VectorSetAddMessage(
         physical.WriteBulkString(element);
         if (useCheckAndSet) physical.WriteBulkString("CAS"u8);
 
-        switch (quantizationType)
+        switch (quantization)
         {
-            case VectorQuantizationType.Int8:
+            case VectorSetQuantization.Int8:
                 break;
-            case VectorQuantizationType.None:
+            case VectorSetQuantization.None:
                 physical.WriteBulkString("NOQUANT"u8);
                 break;
-            case VectorQuantizationType.Binary:
+            case VectorSetQuantization.Binary:
                 physical.WriteBulkString("BIN"u8);
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(quantizationType));
+                throw new ArgumentOutOfRangeException(nameof(quantization));
         }
         if (buildExplorationFactor.HasValue)
         {

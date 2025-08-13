@@ -57,10 +57,10 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     }
 
     [Theory]
-    [InlineData(VectorQuantizationType.Int8)]
-    [InlineData(VectorQuantizationType.None)]
-    [InlineData(VectorQuantizationType.Binary)]
-    public async Task VectorSetAdd_WithEverything(VectorQuantizationType quantizationType)
+    [InlineData(VectorSetQuantization.Int8)]
+    [InlineData(VectorSetQuantization.None)]
+    [InlineData(VectorSetQuantization.Binary)]
+    public async Task VectorSetAdd_WithEverything(VectorSetQuantization quantization)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
@@ -77,7 +77,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
             vector.AsMemory(),
             attributesJson: attributes,
             useCheckAndSet: true,
-            quantizationType: quantizationType,
+            quantization: quantization,
             reducedDimensions: 64,
             buildExplorationFactor: 300,
             maxConnections: 32);
@@ -225,8 +225,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         Assert.False(exists);
     }
 
-    [Fact]
-    public async Task VectorSetInfo()
+    [Theory]
+    [InlineData(VectorSetQuantization.Int8)]
+    [InlineData(VectorSetQuantization.Binary)]
+    [InlineData(VectorSetQuantization.None)]
+    public async Task VectorSetInfo(VectorSetQuantization quantization)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
@@ -235,14 +238,19 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         await db.KeyDeleteAsync(key);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
-        await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+        await db.VectorSetAddAsync(key, "element1", vector.AsMemory(), quantization: quantization);
 
         var info = await db.VectorSetInfoAsync(key);
 
         Assert.NotNull(info);
-        Assert.Equal(5, info.Value.Dimension);
-        Assert.Equal(1, info.Value.Length);
-        Assert.Equal(VectorQuantizationType.Int8, info.Value.QuantizationType);
+        var v = info.GetValueOrDefault();
+        Assert.Equal(5, v.Dimension);
+        Assert.Equal(1, v.Length);
+        Assert.Equal(quantization, v.Quantization);
+        Assert.Null(v.QuantizationRaw); // Should be null for known quant types
+
+        Assert.NotEqual(0, v.VectorSetUid);
+        Assert.NotEqual(0, v.HnswMaxNodeUid);
     }
 
     [Fact]

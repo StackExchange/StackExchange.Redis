@@ -1909,9 +1909,10 @@ namespace StackExchange.Redis
                         SetResult(message, null);
                         return true;
                     }
-                    var quantType = VectorQuantizationType.Unknown;
+                    var quantType = VectorSetQuantization.Unknown;
+                    string? quantTypeRaw = null;
                     int vectorDim = 0, maxLevel = 0;
-                    long size = 0, vectorSetUid = 0, hnswMaxNodeUid = 0;
+                    long size = 0, vsetUid = 0, hnswMaxNodeUid = 0;
                     var iter = result.GetItems().GetEnumerator();
                     while (iter.MoveNext())
                     {
@@ -1920,27 +1921,47 @@ namespace StackExchange.Redis
                         var value = iter.Current;
 
                         var len = key.Payload.Length;
-                        switch (len)
+                        var keyHash = key.Payload.Hash64();
+                        switch (key.Payload.Length)
                         {
-                            // case 10 when key.IsEqual("quant-type"u8):
-                            //     quantType = value.AsRedisValue() switch
-                            //     {
-                            //         "NOQUANT" => VectorQuantizationType.None,
-                            //         "BIN" => VectorQuantizationType.Binary,
-                            //         "INT8" => VectorQuantizationType.Int8,
-                            //         _ => VectorQuantizationType.Unknown,
-                            //     };
-                            //     break;
-                            case 10 when key.IsEqual("vector-dim"u8) && value.TryGetInt64(out var i64):
+                            case 4 when keyHash == FastHash._4.size && key.IsEqual(FastHash._4.size_u8) && value.TryGetInt64(out var i64):
+                                size = i64;
+                                break;
+                            case 8 when keyHash == FastHash._8.vset_uid && key.IsEqual(FastHash._8.vset_uid_u8) && value.TryGetInt64(out var i64):
+                                vsetUid = i64;
+                                break;
+                            case 9 when keyHash == FastHash._9.max_level && key.IsEqual(FastHash._9.max_level_u8) && value.TryGetInt64(out var i64):
+                                maxLevel = checked((int)i64);
+                                break;
+                            case 10 when keyHash == FastHash._10.vector_dim && key.IsEqual(FastHash._10.vector_dim_u8) && value.TryGetInt64(out var i64):
                                 vectorDim = checked((int)i64);
                                 break;
-                            case 4 when key.IsEqual("size"u8) && value.TryGetInt64(out var i64):
-                                size = i64;
+                            case 10 when keyHash == FastHash._10.quant_type && key.IsEqual(FastHash._10.quant_type_u8):
+                                var qHash = value.Payload.Hash64();
+                                switch (value.Payload.Length)
+                                {
+                                    case 3 when qHash == FastHash._3.bin && value.IsEqual(FastHash._3.bin_u8):
+                                        quantType = VectorSetQuantization.Binary;
+                                        break;
+                                    case 3 when qHash == FastHash._3.f32 && value.IsEqual(FastHash._3.f32_u8):
+                                        quantType = VectorSetQuantization.None;
+                                        break;
+                                    case 4 when qHash == FastHash._4.int8 && value.IsEqual(FastHash._4.int8_u8):
+                                        quantType = VectorSetQuantization.Int8;
+                                        break;
+                                    default:
+                                        quantTypeRaw = value.GetString();
+                                        quantType = VectorSetQuantization.Unknown;
+                                        break;
+                                }
+                                break;
+                            case 17 when keyHash == FastHash._17.hnsw_max_node_uid && key.IsEqual(FastHash._17.hnsw_max_node_uid_u8) && value.TryGetInt64(out var i64):
+                                hnswMaxNodeUid = i64;
                                 break;
                         }
                     }
 
-                    SetResult(message, new VectorSetInfo(quantType, vectorDim, size, maxLevel, vectorSetUid, hnswMaxNodeUid));
+                    SetResult(message, new VectorSetInfo(quantType, quantTypeRaw, vectorDim, size, maxLevel, vsetUid, hnswMaxNodeUid));
                     return true;
                 }
                 return false;

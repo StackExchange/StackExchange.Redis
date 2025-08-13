@@ -3440,7 +3440,7 @@ namespace StackExchange.Redis
         /// <param name="element">The element name.</param>
         /// <param name="values">The vector data.</param>
         /// <param name="reducedDimensions">Optional dimension reduction using random projection (REDUCE parameter).</param>
-        /// <param name="quantizationType">Quantization type - Int8 (Q8), None (NOQUANT), or Binary (BIN). Default: Int8.</param>
+        /// <param name="quantization">Quantization type - Int8 (Q8), None (NOQUANT), or Binary (BIN). Default: Int8.</param>
         /// <param name="buildExplorationFactor">Optional HNSW build exploration factor (EF parameter, default: 200).</param>
         /// <param name="maxConnections">Optional maximum connections per HNSW node (M parameter, default: 16).</param>
         /// <param name="useCheckAndSet">Optional check-and-set mode for partial threading (CAS parameter).</param>
@@ -3454,7 +3454,7 @@ namespace StackExchange.Redis
             RedisValue element,
             ReadOnlyMemory<float> values,
             int? reducedDimensions = null,
-            VectorQuantizationType quantizationType = VectorQuantizationType.Int8,
+            VectorSetQuantization quantization = VectorSetQuantization.Int8,
             int? buildExplorationFactor = null,
             int? maxConnections = null,
             bool useCheckAndSet = false,

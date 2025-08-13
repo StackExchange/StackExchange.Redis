@@ -821,13 +821,13 @@ namespace StackExchange.Redis.KeyspaceIsolation
             RedisValue element,
             ReadOnlyMemory<float> values,
             int? reducedDimensions = null,
-            VectorQuantizationType quantizationType = VectorQuantizationType.Int8,
+            VectorSetQuantization quantization = VectorSetQuantization.Int8,
             int? buildExplorationFactor = null,
             int? maxConnections = null,
             bool useCheckAndSet = false,
             string? attributesJson = null,
             CommandFlags flags = CommandFlags.None) =>
-            Inner.VectorSetAddAsync(ToInner(key), element, values, reducedDimensions, quantizationType, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson, flags);
+            Inner.VectorSetAddAsync(ToInner(key), element, values, reducedDimensions, quantization, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson, flags);
 
         public Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.VectorSetLengthAsync(ToInner(key), flags);

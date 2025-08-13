@@ -848,14 +848,14 @@ namespace StackExchange.Redis
 
         // Vector Set operations
 
-        /// <inheritdoc cref="IDatabase.VectorSetAdd(RedisKey, RedisValue, ReadOnlyMemory{float}, int?, VectorQuantizationType, int?, int?, bool, string?, CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.VectorSetAdd(RedisKey, RedisValue, ReadOnlyMemory{float}, int?, VectorSetQuantization, int?, int?, bool, string?, CommandFlags)"/>
         [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
         Task<bool> VectorSetAddAsync(
             RedisKey key,
             RedisValue element,
             ReadOnlyMemory<float> values,
             int? reducedDimensions = null,
-            VectorQuantizationType quantizationType = VectorQuantizationType.Int8,
+            VectorSetQuantization quantization = VectorSetQuantization.Int8,
             int? buildExplorationFactor = null,
             int? maxConnections = null,
             bool useCheckAndSet = false,

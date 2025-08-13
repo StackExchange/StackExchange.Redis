@@ -8,7 +8,8 @@ namespace StackExchange.Redis;
 /// </summary>
 [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
 public readonly struct VectorSetInfo(
-    VectorQuantizationType quantizationType,
+    VectorSetQuantization quantization,
+    string? quantizationRaw,
     int dimension,
     long length,
     int maxLevel,
@@ -18,7 +19,13 @@ public readonly struct VectorSetInfo(
     /// <summary>
     /// The quantization type used for vectors in this vectorset.
     /// </summary>
-    public VectorQuantizationType QuantizationType { get; } = quantizationType;
+    public VectorSetQuantization Quantization { get; } = quantization;
+
+    /// <summary>
+    /// The raw representation of the quantization type used for vectors in this vectorset. This is only
+    /// populated if the <see cref="Quantization"/> is <see cref="VectorSetQuantization.Unknown"/>.
+    /// </summary>
+    public string? QuantizationRaw { get; } = quantizationRaw;
 
     /// <summary>
     /// The number of dimensions in each vector.

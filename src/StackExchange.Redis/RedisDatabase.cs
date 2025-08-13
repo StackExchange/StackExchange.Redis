@@ -5727,14 +5727,14 @@ namespace StackExchange.Redis
             RedisValue element,
             ReadOnlyMemory<float> values,
             int? reducedDimensions = null,
-            VectorQuantizationType quantizationType = VectorQuantizationType.Int8,
+            VectorSetQuantization quantization = VectorSetQuantization.Int8,
             int? buildExplorationFactor = null,
             int? maxConnections = null,
             bool useCheckAndSet = false,
             string? attributesJson = null,
             CommandFlags flags = CommandFlags.None)
         {
-            var msg = new VectorSetAddMessage(Database, flags, key, element, values, reducedDimensions, quantizationType, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson);
+            var msg = new VectorSetAddMessage(Database, flags, key, element, values, reducedDimensions, quantization, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
@@ -5880,14 +5880,14 @@ namespace StackExchange.Redis
             RedisValue element,
             ReadOnlyMemory<float> values,
             int? reducedDimensions = null,
-            VectorQuantizationType quantizationType = VectorQuantizationType.Int8,
+            VectorSetQuantization quantization = VectorSetQuantization.Int8,
             int? buildExplorationFactor = null,
             int? maxConnections = null,
             bool useCheckAndSet = false,
             string? attributesJson = null,
             CommandFlags flags = CommandFlags.None)
         {
-            var msg = new VectorSetAddMessage(Database, flags, key, element, values, reducedDimensions, quantizationType, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson);
+            var msg = new VectorSetAddMessage(Database, flags, key, element, values, reducedDimensions, quantization, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
