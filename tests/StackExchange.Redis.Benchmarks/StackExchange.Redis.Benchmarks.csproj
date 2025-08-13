@@ -5,6 +5,7 @@
     <Configuration>Release</Configuration>
     <OutputType>Exe</OutputType>
     <SignAssembly>true</SignAssembly>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>

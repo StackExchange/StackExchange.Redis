@@ -1,10 +1,25 @@
-﻿using System.Reflection;
+﻿using System;
+using System.Reflection;
 using BenchmarkDotNet.Running;
 
 namespace StackExchange.Redis.Benchmarks
 {
     internal static class Program
     {
-        private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+        private static void Main(string[] args)
+        {
+#if DEBUG
+            var obj = new FastHashBenchmarks();
+            foreach (var size in obj.Sizes)
+            {
+                Console.WriteLine($"Size: {size}");
+                obj.Size = size;
+                obj.Setup();
+                obj.Hash64();
+            }
+#else
+            BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+#endif
+        }
     }
 }

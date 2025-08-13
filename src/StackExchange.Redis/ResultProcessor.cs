@@ -1900,8 +1900,51 @@ namespace StackExchange.Redis
 
         private sealed class VectorSetInfoProcessor : ResultProcessor<VectorSetInfo?>
         {
-            protected override bool
-                SetResultCore(PhysicalConnection connection, Message message, in RawResult result) => false;
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (result.Resp2TypeArray == ResultType.Array)
+                {
+                    if (result.IsNull)
+                    {
+                        SetResult(message, null);
+                        return true;
+                    }
+                    var quantType = VectorQuantizationType.Unknown;
+                    int vectorDim = 0, maxLevel = 0;
+                    long size = 0, vectorSetUid = 0, hnswMaxNodeUid = 0;
+                    var iter = result.GetItems().GetEnumerator();
+                    while (iter.MoveNext())
+                    {
+                        var key = iter.Current;
+                        if (!iter.MoveNext()) break;
+                        var value = iter.Current;
+
+                        var len = key.Payload.Length;
+                        switch (len)
+                        {
+                            // case 10 when key.IsEqual("quant-type"u8):
+                            //     quantType = value.AsRedisValue() switch
+                            //     {
+                            //         "NOQUANT" => VectorQuantizationType.None,
+                            //         "BIN" => VectorQuantizationType.Binary,
+                            //         "INT8" => VectorQuantizationType.Int8,
+                            //         _ => VectorQuantizationType.Unknown,
+                            //     };
+                            //     break;
+                            case 10 when key.IsEqual("vector-dim"u8) && value.TryGetInt64(out var i64):
+                                vectorDim = checked((int)i64);
+                                break;
+                            case 4 when key.IsEqual("size"u8) && value.TryGetInt64(out var i64):
+                                size = i64;
+                                break;
+                        }
+                    }
+
+                    SetResult(message, new VectorSetInfo(quantType, vectorDim, size, maxLevel, vectorSetUid, hnswMaxNodeUid));
+                    return true;
+                }
+                return false;
+            }
         }
 
         private sealed class VectorSetSimilaritySearchProcessor : ResultProcessor<Lease<VectorSetSimilaritySearchResult>?>

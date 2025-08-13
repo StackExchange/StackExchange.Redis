@@ -29,7 +29,7 @@ internal sealed class VectorSetAddMessage(
     internal static void SuppressFp32() => Interlocked.Increment(ref _fp32Disabled);
     internal static void RestoreFp32() => Interlocked.Decrement(ref _fp32Disabled);
 #else
-    internal static bool UseFP32 => CanUseFP32;
+    internal static bool UseFp32 => CanUseFp32;
     internal static void SuppressFp32() { }
     internal static void RestoreFp32() { }
 #endif
