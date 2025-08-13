@@ -3600,7 +3600,7 @@ namespace StackExchange.Redis
         /// <param name="withAttributes">Whether to include JSON attributes in the results (WITHATTRIBS parameter).</param>
         /// <param name="epsilon">Optional similarity threshold - only return elements with similarity >= (1 - epsilon) (EPSILON parameter).</param>
         /// <param name="searchExplorationFactor">Optional search exploration factor for better recall (EF parameter).</param>
-        /// <param name="filterExpression">Optional filter expression to restrict results (FILTER parameter).</param>
+        /// <param name="filterExpression">Optional filter expression to restrict results (FILTER parameter); <see href="https://redis.io/docs/latest/develop/data-types/vector-sets/filtered-search/"/>.</param>
         /// <param name="maxFilteringEffort">Optional maximum filtering attempts (FILTER-EF parameter).</param>
         /// <param name="useExactSearch">Whether to use exact linear scan instead of HNSW (TRUTH parameter).</param>
         /// <param name="disableThreading">Whether to run search in main thread (NOTHREAD parameter).</param>

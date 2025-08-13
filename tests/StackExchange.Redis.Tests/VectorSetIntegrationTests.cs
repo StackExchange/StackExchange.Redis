@@ -1,6 +1,8 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -333,6 +335,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         {
             Log(result.ToString());
         }
+
         var resultsArray = results.Span.ToArray();
 
         Assert.True(resultsArray.Length <= 2);
@@ -384,6 +387,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         {
             Log(result.ToString());
         }
+
         var resultsArray = results.Span.ToArray();
 
         Assert.Single(resultsArray);
@@ -398,6 +402,86 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         Assert.NotEqual(withScores, double.IsNaN(resultsArray[0].Score));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task VectorSetSimilaritySearch_WithFilter(bool corruptPrefix, bool corruptSuffix)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        await db.KeyDeleteAsync(key);
+
+        Random rand = new Random();
+
+        float[] vector = new float[50];
+
+        void ScrambleVector()
+        {
+            var arr = vector;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                arr[i] = (float)rand.NextDouble();
+            }
+        }
+
+        string[] regions = new[] { "us-west", "us-east", "eu-west", "eu-east", "ap-south", "ap-north" };
+        for (int i = 0; i < 100; i++)
+        {
+            var region = regions[rand.Next(regions.Length)];
+            var json = (corruptPrefix ? "oops" : "")
+                       + JsonConvert.SerializeObject(new { id = i, region })
+                       + (corruptSuffix ? "oops" : "");
+            ScrambleVector();
+            await db.VectorSetAddAsync(key, $"element{i}", vector, attributesJson: json);
+        }
+
+        ScrambleVector();
+        using var results =
+            await db.VectorSetSimilaritySearchByVectorAsync(
+                key,
+                vector,
+                count: 100,
+                withScores: true,
+                withAttributes: true,
+                filterExpression: ".id >= 30");
+
+        Assert.NotNull(results);
+        foreach (var result in results.Span)
+        {
+            Log(result.ToString());
+        }
+
+        Log($"Total matches: {results.Span.Length}");
+
+        var resultsArray = results.Span.ToArray();
+        if (corruptPrefix)
+        {
+            // server short-circuits failure to be no match; we just want to assert
+            // what the observed behavior *is*
+            Assert.Empty(resultsArray);
+        }
+        else
+        {
+            Assert.Equal(70, resultsArray.Length);
+            Assert.All(resultsArray, r => Assert.True(
+                r.Score is > 0.0 and < 1.0 && GetId(r.Member!) >= 30));
+        }
+
+        static int GetId(string member)
+        {
+            if (member.StartsWith("element"))
+            {
+                return int.Parse(member.Substring(7), NumberStyles.Integer, CultureInfo.InvariantCulture);
+            }
+
+            return -1;
+        }
     }
 
     [Fact]
