@@ -121,6 +121,7 @@ internal abstract partial class ResultProcessor
 
 #pragma warning disable CS8981, SA1134, SA1300, SA1303, SA1502
         // ReSharper disable InconsistentNaming - to better represent expected literals
+        // ReSharper disable IdentifierTypo
         [FastHash] public static partial class bin { }
         [FastHash] public static partial class f32 { }
         [FastHash] public static partial class int8 { }
@@ -131,6 +132,7 @@ internal abstract partial class ResultProcessor
         [FastHash] public static partial class vector_dim { }
         [FastHash] public static partial class hnsw_max_node_uid { }
         // ReSharper restore InconsistentNaming
+        // ReSharper restore IdentifierTypo
 #pragma warning restore CS8981, SA1134, SA1300, SA1303, SA1502
     }
 }
