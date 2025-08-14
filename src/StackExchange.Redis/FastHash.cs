@@ -28,8 +28,8 @@ to construct strings when parsing tokens.
 */
 internal static partial class FastHash
 {
-    [AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = false)]
-    public sealed class LiteralAttribute(string token) : Attribute
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+    public sealed class FastHashAttribute(string token = "") : Attribute
     {
         public string Token => token;
     }

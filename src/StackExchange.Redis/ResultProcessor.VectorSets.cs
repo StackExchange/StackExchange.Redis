@@ -1,4 +1,5 @@
 ﻿using Pipelines.Sockets.Unofficial.Arenas;
+using FH = global::StackExchange.Redis.FastHash;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;
@@ -6,7 +7,9 @@ namespace StackExchange.Redis;
 internal abstract partial class ResultProcessor
 {
     // VectorSet result processors
-    public static readonly ResultProcessor<Lease<VectorSetLink>?> VectorSetLinksWithScores = new VectorSetLinksWithScoresProcessor();
+    public static readonly ResultProcessor<Lease<VectorSetLink>?> VectorSetLinksWithScores =
+        new VectorSetLinksWithScoresProcessor();
+
     public static readonly ResultProcessor<Lease<RedisValue>?> VectorSetLinks = new VectorSetLinksProcessor();
 
     public static ResultProcessor<VectorSetInfo?> VectorSetInfo = new VectorSetInfoProcessor();
@@ -26,6 +29,7 @@ internal abstract partial class ResultProcessor
                     return true;
                 }
             }
+
             value = default;
             return false;
         }
@@ -51,6 +55,7 @@ internal abstract partial class ResultProcessor
                     SetResult(message, null);
                     return true;
                 }
+
                 var quantType = VectorSetQuantization.Unknown;
                 string? quantTypeRaw = null;
                 int vectorDim = 0, maxLevel = 0;
@@ -58,37 +63,38 @@ internal abstract partial class ResultProcessor
                 var iter = result.GetItems().GetEnumerator();
                 while (iter.MoveNext())
                 {
-                    var key = iter.Current;
+                    ref readonly RawResult key = ref iter.Current;
                     if (!iter.MoveNext()) break;
-                    var value = iter.Current;
+                    ref readonly RawResult value = ref iter.Current;
 
                     var len = key.Payload.Length;
                     var keyHash = key.Payload.Hash64();
                     switch (key.Payload.Length)
                     {
-                        case 4 when keyHash == FastHash._4.size && key.IsEqual(FastHash._4.size_u8) && value.TryGetInt64(out var i64):
+                        case FH.size.Length when FH.size.Is(keyHash, key) && value.TryGetInt64(out var i64):
                             size = i64;
                             break;
-                        case 8 when keyHash == FastHash._8.vset_uid && key.IsEqual(FastHash._8.vset_uid_u8) && value.TryGetInt64(out var i64):
+                        case FH.vset_uid.Length when FH.vset_uid.Is(keyHash, key) && value.TryGetInt64(out var i64):
                             vsetUid = i64;
                             break;
-                        case 9 when keyHash == FastHash._9.max_level && key.IsEqual(FastHash._9.max_level_u8) && value.TryGetInt64(out var i64):
+                        case FH.max_level.Length when FH.max_level.Is(keyHash, key) && value.TryGetInt64(out var i64):
                             maxLevel = checked((int)i64);
                             break;
-                        case 10 when keyHash == FastHash._10.vector_dim && key.IsEqual(FastHash._10.vector_dim_u8) && value.TryGetInt64(out var i64):
+                        case FH.vector_dim.Length
+                            when FH.vector_dim.Is(keyHash, key) && value.TryGetInt64(out var i64):
                             vectorDim = checked((int)i64);
                             break;
-                        case 10 when keyHash == FastHash._10.quant_type && key.IsEqual(FastHash._10.quant_type_u8):
+                        case FH.quant_type.Length when FH.quant_type.Is(keyHash, key):
                             var qHash = value.Payload.Hash64();
                             switch (value.Payload.Length)
                             {
-                                case 3 when qHash == FastHash._3.bin && value.IsEqual(FastHash._3.bin_u8):
+                                case FH.bin.Length when FH.bin.Is(qHash, value):
                                     quantType = VectorSetQuantization.Binary;
                                     break;
-                                case 3 when qHash == FastHash._3.f32 && value.IsEqual(FastHash._3.f32_u8):
+                                case FH.f32.Length when FH.f32.Is(qHash, value):
                                     quantType = VectorSetQuantization.None;
                                     break;
-                                case 4 when qHash == FastHash._4.int8 && value.IsEqual(FastHash._4.int8_u8):
+                                case FH.int8.Length when FH.int8.Is(qHash, value):
                                     quantType = VectorSetQuantization.Int8;
                                     break;
                                 default:
@@ -96,16 +102,21 @@ internal abstract partial class ResultProcessor
                                     quantType = VectorSetQuantization.Unknown;
                                     break;
                             }
+
                             break;
-                        case 17 when keyHash == FastHash._17.hnsw_max_node_uid && key.IsEqual(FastHash._17.hnsw_max_node_uid_u8) && value.TryGetInt64(out var i64):
+                        case FH.hnsw_max_node_uid.Length
+                            when FH.hnsw_max_node_uid.Is(keyHash, key) && value.TryGetInt64(out var i64):
                             hnswMaxNodeUid = i64;
                             break;
                     }
                 }
 
-                SetResult(message, new VectorSetInfo(quantType, quantTypeRaw, vectorDim, size, maxLevel, vsetUid, hnswMaxNodeUid));
+                SetResult(
+                    message,
+                    new VectorSetInfo(quantType, quantTypeRaw, vectorDim, size, maxLevel, vsetUid, hnswMaxNodeUid));
                 return true;
             }
+
             return false;
         }
     }
