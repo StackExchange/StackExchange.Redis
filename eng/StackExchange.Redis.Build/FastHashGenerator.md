@@ -55,11 +55,8 @@ switch (key.Length)
 
 The switch on the `Length` is optional, but recommended - these low values can often be implemented (by the compiler)
 as a simple jump-table, which is very fast. However, switching on the hash itself is also valid. All hash matches
-must also perform a sequence equality check - the `Is` convenient method validates both hash and equality.
+must also perform a sequence equality check - the `Is(hash, value)` convenience method validates both hash and equality.
 
 Note that `switch` requires `const` values, hence why we use generated *types* rather than partial-properties
 that emit an instance with the known values. Also, the `"..."u8` syntax emits a span which is awkward to store, but
-easy to return via a property.~~~~
-
-
-
+easy to return via a property.
