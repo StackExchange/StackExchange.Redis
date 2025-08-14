@@ -14,7 +14,7 @@ using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
-    internal abstract class ResultProcessor
+    internal abstract partial class ResultProcessor
     {
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
@@ -61,12 +61,6 @@ namespace StackExchange.Redis
             Int64DefaultNegativeOne = new Int64DefaultValueProcessor(-1);
 
         public static readonly ResultProcessor<int> Int32 = new Int32Processor();
-        public static readonly ResultProcessor<Lease<float>?> LeaseFloat32 = new LeaseFloat32Processor();
-
-        public static readonly ResultProcessor<Lease<VectorSetLink>?> VectorSetLinksWithScores = new VectorSetLinksWithScoresProcessor();
-        public static readonly ResultProcessor<Lease<RedisValue>?> VectorSetLinks = new VectorSetLinksProcessor();
-
-        public static ResultProcessor<VectorSetInfo?> VectorSetInfo = new VectorSetInfoProcessor();
 
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
@@ -98,12 +92,6 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<RedisValue>
             RedisValueFromArray = new RedisValueFromArrayProcessor();
-
-        public static readonly ResultProcessor<Lease<byte>>
-            Lease = new LeaseProcessor();
-
-        public static readonly ResultProcessor<Lease<byte>>
-            LeaseFromArray = new LeaseFromArrayProcessor();
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
@@ -1712,271 +1700,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private abstract class LeaseProcessor<T> : ResultProcessor<Lease<T>?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                if (result.Resp2TypeArray != ResultType.Array)
-                {
-                    return false; // not an array
-                }
-
-                // deal with null
-                if (result.IsNull)
-                {
-                    SetResult(message, Lease<T>.Empty);
-                    return true;
-                }
-
-                // lease and fill
-                var items = result.GetItems();
-                var length = checked((int)items.Length);
-                var lease = Lease<T>.Create(length, clear: false); // note this handles zero nicely
-                var target = lease.Span;
-                int index = 0;
-                foreach (ref RawResult item in items)
-                {
-                    if (!TryParse(item, out target[index++]))
-                    {
-                        // something went wrong; recycle and quit
-                        lease.Dispose();
-                        return false;
-                    }
-                }
-                Debug.Assert(index == length, "length mismatch");
-                SetResult(message, lease);
-                return true;
-            }
-
-            protected abstract bool TryParse(in RawResult raw, out T parsed);
-        }
-
-        private abstract class InterleavedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                if (result.Resp2TypeArray != ResultType.Array)
-                {
-                    return false; // not an array
-                }
-
-                // deal with null
-                if (result.IsNull)
-                {
-                    SetResult(message, Lease<T>.Empty);
-                    return true;
-                }
-
-                // lease and fill
-                var items = result.GetItems();
-                var length = checked((int)items.Length) / 2;
-                var lease = Lease<T>.Create(length, clear: false); // note this handles zero nicely
-                var target = lease.Span;
-
-                var iter = items.GetEnumerator();
-                for (int i = 0; i < target.Length; i++)
-                {
-                    bool ok = iter.MoveNext();
-                    if (ok)
-                    {
-                        ref readonly RawResult first = ref iter.Current;
-                        ok = iter.MoveNext() && TryParse(in first, in iter.Current, out target[i]);
-                    }
-                    if (!ok)
-                    {
-                        lease.Dispose();
-                        return false;
-                    }
-                }
-                SetResult(message, lease);
-                return true;
-            }
-
-            protected abstract bool TryParse(in RawResult first, in RawResult second, out T parsed);
-        }
-
-        // takes a nested vector of the form [[A],[B,C],[D]] and exposes it as [A,B,C,D]; this is
-        // especially useful for VLINKS
-        private abstract class FlattenedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
-        {
-            protected virtual long GetArrayLength(in RawResult array) => array.GetItems().Length;
-
-            protected virtual bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out T value)
-            {
-                if (reader.MoveNext() && TryReadOne(reader.Current, out value))
-                {
-                    return true;
-                }
-                value = default!;
-                return false;
-            }
-
-            protected virtual bool TryReadOne(in RawResult result, out T value)
-            {
-                value = default!;
-                return false;
-            }
-
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                if (result.Resp2TypeArray != ResultType.Array)
-                {
-                    return false; // not an array
-                }
-                if (result.IsNull)
-                {
-                    SetResult(message, Lease<T>.Empty);
-                    return true;
-                }
-                var items = result.GetItems();
-                long length = 0;
-                foreach (ref RawResult item in items)
-                {
-                    if (item.Resp2TypeArray == ResultType.Array && !item.IsNull)
-                    {
-                        length += GetArrayLength(item);
-                    }
-                }
-
-                if (length == 0)
-                {
-                    SetResult(message, Lease<T>.Empty);
-                    return true;
-                }
-                var lease = Lease<T>.Create(checked((int)length), clear: false);
-                int index = 0;
-                var target = lease.Span;
-                foreach (ref RawResult item in items)
-                {
-                    if (item.Resp2TypeArray == ResultType.Array && !item.IsNull)
-                    {
-                        var iter = item.GetItems().GetEnumerator();
-                        while (index < target.Length && TryReadOne(ref iter, out T value))
-                        {
-                            target[index++] = value;
-                        }
-                    }
-                }
-
-                if (index == length)
-                {
-                    SetResult(message, lease);
-                    return true;
-                }
-                lease.Dispose(); // failed to fill?
-                return false;
-            }
-        }
-
-        private sealed class VectorSetLinksWithScoresProcessor : FlattenedLeaseProcessor<VectorSetLink>
-        {
-            protected override long GetArrayLength(in RawResult array) => array.GetItems().Length / 2;
-
-            protected override bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out VectorSetLink value)
-            {
-                if (reader.MoveNext())
-                {
-                    ref readonly RawResult first = ref reader.Current;
-                    if (reader.MoveNext() && reader.Current.TryGetDouble(out var score))
-                    {
-                        value = new VectorSetLink(first.AsRedisValue(), score);
-                        return true;
-                    }
-                }
-                value = default;
-                return false;
-            }
-        }
-
-        private sealed class VectorSetLinksProcessor : FlattenedLeaseProcessor<RedisValue>
-        {
-            protected override bool TryReadOne(in RawResult result, out RedisValue value)
-            {
-                value = result.AsRedisValue();
-                return true;
-            }
-        }
-
-        private sealed class VectorSetInfoProcessor : ResultProcessor<VectorSetInfo?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                if (result.Resp2TypeArray == ResultType.Array)
-                {
-                    if (result.IsNull)
-                    {
-                        SetResult(message, null);
-                        return true;
-                    }
-                    var quantType = VectorSetQuantization.Unknown;
-                    string? quantTypeRaw = null;
-                    int vectorDim = 0, maxLevel = 0;
-                    long size = 0, vsetUid = 0, hnswMaxNodeUid = 0;
-                    var iter = result.GetItems().GetEnumerator();
-                    while (iter.MoveNext())
-                    {
-                        var key = iter.Current;
-                        if (!iter.MoveNext()) break;
-                        var value = iter.Current;
-
-                        var len = key.Payload.Length;
-                        var keyHash = key.Payload.Hash64();
-                        switch (key.Payload.Length)
-                        {
-                            case 4 when keyHash == FastHash._4.size && key.IsEqual(FastHash._4.size_u8) && value.TryGetInt64(out var i64):
-                                size = i64;
-                                break;
-                            case 8 when keyHash == FastHash._8.vset_uid && key.IsEqual(FastHash._8.vset_uid_u8) && value.TryGetInt64(out var i64):
-                                vsetUid = i64;
-                                break;
-                            case 9 when keyHash == FastHash._9.max_level && key.IsEqual(FastHash._9.max_level_u8) && value.TryGetInt64(out var i64):
-                                maxLevel = checked((int)i64);
-                                break;
-                            case 10 when keyHash == FastHash._10.vector_dim && key.IsEqual(FastHash._10.vector_dim_u8) && value.TryGetInt64(out var i64):
-                                vectorDim = checked((int)i64);
-                                break;
-                            case 10 when keyHash == FastHash._10.quant_type && key.IsEqual(FastHash._10.quant_type_u8):
-                                var qHash = value.Payload.Hash64();
-                                switch (value.Payload.Length)
-                                {
-                                    case 3 when qHash == FastHash._3.bin && value.IsEqual(FastHash._3.bin_u8):
-                                        quantType = VectorSetQuantization.Binary;
-                                        break;
-                                    case 3 when qHash == FastHash._3.f32 && value.IsEqual(FastHash._3.f32_u8):
-                                        quantType = VectorSetQuantization.None;
-                                        break;
-                                    case 4 when qHash == FastHash._4.int8 && value.IsEqual(FastHash._4.int8_u8):
-                                        quantType = VectorSetQuantization.Int8;
-                                        break;
-                                    default:
-                                        quantTypeRaw = value.GetString();
-                                        quantType = VectorSetQuantization.Unknown;
-                                        break;
-                                }
-                                break;
-                            case 17 when keyHash == FastHash._17.hnsw_max_node_uid && key.IsEqual(FastHash._17.hnsw_max_node_uid_u8) && value.TryGetInt64(out var i64):
-                                hnswMaxNodeUid = i64;
-                                break;
-                        }
-                    }
-
-                    SetResult(message, new VectorSetInfo(quantType, quantTypeRaw, vectorDim, size, maxLevel, vsetUid, hnswMaxNodeUid));
-                    return true;
-                }
-                return false;
-            }
-        }
-
-        private sealed class LeaseFloat32Processor : LeaseProcessor<float>
-        {
-            protected override bool TryParse(in RawResult raw, out float parsed)
-            {
-                var result = raw.TryGetDouble(out double val);
-                parsed = (float)val;
-                return result;
-            }
-        }
-
         private sealed class Int64ArrayProcessor : ResultProcessor<long[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -2348,41 +2071,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 var primaries = items[1].GetItemsAsStrings()!;
                 return new Role.Sentinel(primaries);
-            }
-        }
-
-        private sealed class LeaseProcessor : ResultProcessor<Lease<byte>>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                switch (result.Resp2TypeBulkString)
-                {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        SetResult(message, result.AsLease()!);
-                        return true;
-                }
-                return false;
-            }
-        }
-
-        private sealed class LeaseFromArrayProcessor : ResultProcessor<Lease<byte>>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                switch (result.Resp2TypeBulkString)
-                {
-                    case ResultType.Array:
-                        var items = result.GetItems();
-                        if (items.Length == 1)
-                        { // treat an array of 1 like a single reply
-                            SetResult(message, items[0].AsLease()!);
-                            return true;
-                        }
-                        break;
-                }
-                return false;
             }
         }
 
