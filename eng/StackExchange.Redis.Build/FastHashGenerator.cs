@@ -40,6 +40,24 @@ public class FastHashGenerator : IIncrementalGenerator
         return false;
     }
 
+    private static string GetName(INamedTypeSymbol type)
+    {
+        if (type.ContainingType is null) return type.Name;
+        var stack = new Stack<string>();
+        while (true)
+        {
+            stack.Push(type.Name);
+            if (type.ContainingType is null) break;
+            type = type.ContainingType;
+        }
+        var sb = new StringBuilder(stack.Pop());
+        while (stack.Count != 0)
+        {
+            sb.Append('.').Append(stack.Pop());
+        }
+        return sb.ToString();
+    }
+
     private (string Namespace, string ParentType, string Name, string Value) Transform(
         GeneratorSyntaxContext ctx,
         CancellationToken cancellationToken)
@@ -49,7 +67,7 @@ public class FastHashGenerator : IIncrementalGenerator
         string ns = "", parentType = "";
         if (named.ContainingType is { } containingType)
         {
-            parentType = containingType.Name; // don't worry about multi-level nesting for now; add later if needed
+            parentType = GetName(containingType);
             ns = containingType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
         }
         else if (named.ContainingNamespace is { } containingNamespace)
@@ -114,17 +132,33 @@ public class FastHashGenerator : IIncrementalGenerator
         foreach (var grp in literals.GroupBy(l => (l.Namespace, l.ParentType)))
         {
             NewLine();
+            int braces = 0;
             if (!string.IsNullOrWhiteSpace(grp.Key.Namespace))
             {
                 NewLine().Append("namespace ").Append(grp.Key.Namespace);
                 NewLine().Append("{");
                 indent++;
+                braces++;
             }
             if (!string.IsNullOrWhiteSpace(grp.Key.ParentType))
             {
-                NewLine().Append("partial class ").Append(grp.Key.ParentType);
-                NewLine().Append("{");
-                indent++;
+                if (grp.Key.ParentType.Contains('.')) // nested types
+                {
+                    foreach (var part in grp.Key.ParentType.Split('.'))
+                    {
+                        NewLine().Append("partial class ").Append(part);
+                        NewLine().Append("{");
+                        indent++;
+                        braces++;
+                    }
+                }
+                else
+                {
+                    NewLine().Append("partial class ").Append(grp.Key.ParentType);
+                    NewLine().Append("{");
+                    indent++;
+                    braces++;
+                }
             }
 
             foreach (var literal in grp)
@@ -156,12 +190,8 @@ public class FastHashGenerator : IIncrementalGenerator
                 NewLine().Append("}");
             }
 
-            if (!string.IsNullOrWhiteSpace(grp.Key.ParentType))
-            {
-                indent--;
-                NewLine().Append("}");
-            }
-            if (!string.IsNullOrWhiteSpace(grp.Key.Namespace))
+            // handle any closing braces
+            while (braces-- > 0)
             {
                 indent--;
                 NewLine().Append("}");

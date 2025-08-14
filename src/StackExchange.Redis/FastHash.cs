@@ -1,6 +1,6 @@
-﻿using System;
-using System.Buffers;
+﻿using System.Buffers;
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -11,29 +11,16 @@ namespace StackExchange.Redis;
 /// RESP literals that are usually identifiable by their length and initial bytes; it is not intended
 /// for general purpose hashing. All matches must also perform a sequence equality check.
 /// </summary>
-/// <remarks>While introduced alongside the VSET work, this is not specific to VSET - and indeed VSET
-/// is not a good example of the feature; rather, this is intended for more widespread use.</remarks>
-/*
-Example data from the benchmarks; note that string is included only for baseline purposes - we don't actually want
-to construct strings when parsing tokens.
-
-| Method               | Size | Mean      | Error     | StdDev    | Median    | Op/s          | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------------------- |----- |----------:|----------:|----------:|----------:|--------------:|------:|--------:|----------:|------------:|
-| String               | 16   | 21.376 ns | 0.4164 ns | 0.6483 ns | 21.268 ns |  46,781,518.5 |  1.00 |    0.04 |         - |          NA |
-| Hash64               | 16   |  3.161 ns | 0.0605 ns | 0.0647 ns |  3.148 ns | 316,400,326.5 |  0.15 |    0.01 |         - |          NA |
-| Hash64Unsafe         | 16   |  3.820 ns | 0.0747 ns | 0.1072 ns |  3.811 ns | 261,789,013.8 |  0.18 |    0.01 |         - |          NA |
-| Hash64Fallback       | 16   | 19.461 ns | 0.2954 ns | 0.2763 ns | 19.496 ns |  51,383,837.0 |  0.91 |    0.03 |         - |          NA |
-| Hash64_SingleSegment | 16   |  9.477 ns | 0.1877 ns | 0.3705 ns |  9.464 ns | 105,519,833.1 |  0.44 |    0.02 |         - |          NA |
-| Hash64_MultiSegment  | 16   | 82.778 ns | 1.6255 ns | 2.3313 ns | 82.475 ns |  12,080,568.6 |  3.88 |    0.16 |         - |          NA |
-*/
-internal static partial class FastHash
+/// <remarks>See HastHashGenerator.md for more information and intended usage.</remarks>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+[Conditional("DEBUG")] // evaporate in release
+internal sealed class FastHashAttribute(string token = "") : Attribute
 {
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-    public sealed class FastHashAttribute(string token = "") : Attribute
-    {
-        public string Token => token;
-    }
+    public string Token => token;
+}
 
+internal static class FastHash
+{
     // Perform case-insensitive hash by masking (X and x differ by only 1 bit); this halves
     // our entropy, but is still useful when case doesn't matter.
     private const long CaseMask = ~0x2020202020202020;
