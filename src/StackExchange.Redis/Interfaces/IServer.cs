@@ -270,7 +270,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
         /// executing modules, but may also be used to provide access to new features that lack
-        /// a direct API.
+        /// a direct API. The command is assumed to be not database-specific. If this is not the case,
+        /// <see cref="Execute(int?, string, ICollection{object}, CommandFlags)"/> should be used to
+        /// specify the database (using <langword>null</langword> to use the configured default database).
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
