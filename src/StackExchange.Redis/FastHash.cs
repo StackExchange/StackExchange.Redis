@@ -22,12 +22,17 @@ internal sealed class FastHashAttribute(string token = "") : Attribute
 
 internal static class FastHash
 {
+    /* not sure we need this, but: retain for reference
+
     // Perform case-insensitive hash by masking (X and x differ by only 1 bit); this halves
     // our entropy, but is still useful when case doesn't matter.
     private const long CaseMask = ~0x2020202020202020;
 
     public static long Hash64CI(this ReadOnlySequence<byte> value)
         => value.Hash64() & CaseMask;
+    public static long Hash64CI(this scoped ReadOnlySpan<byte> value)
+        => value.Hash64() & CaseMask;
+*/
 
     public static long Hash64(this ReadOnlySequence<byte> value)
     {
@@ -56,9 +61,6 @@ internal static class FastHash
                 : BinaryPrimitives.ReadInt64LittleEndian(buffer);
         }
     }
-
-    public static long Hash64CI(this scoped ReadOnlySpan<byte> value)
-        => value.Hash64() & CaseMask;
 
     public static long Hash64(this scoped ReadOnlySpan<byte> value)
     {

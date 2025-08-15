@@ -175,17 +175,28 @@ public class FastHashGenerator : IIncrementalGenerator
                     }
                 }
 
+                // perform string escaping on the generated value (this includes the quotes, note)
+                var csValue = SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(literal.Value)).ToFullString();
+
                 var hash = FastHash.Hash64(buffer.AsSpan(0, len));
                 NewLine().Append("static partial class ").Append(literal.Name);
                 NewLine().Append("{");
                 indent++;
                 NewLine().Append("public const int Length = ").Append(len).Append(';');
                 NewLine().Append("public const long Hash = ").Append(hash).Append(';');
-                NewLine().Append("public static ReadOnlySpan<byte> U8 => @\"")
-                    .Append(literal.Value.Replace("\"", "\"\"")).Append("\"u8;");
-                NewLine().Append("public static string Text => @\"")
-                    .Append(literal.Value.Replace("\"", "\"\"")).Append("\";");
-                NewLine().Append("public static bool Is(long hash, in RawResult value) => hash == Hash && value.IsEqual(U8);");
+                NewLine().Append("public static ReadOnlySpan<byte> U8 => ").Append(csValue).Append("u8;");
+                NewLine().Append("public const string Text = ").Append(csValue).Append(';');
+                if (len <= 8)
+                {
+                    // the hash enforces all the values
+                    NewLine().Append("public static bool Is(long hash, in RawResult value) => hash == Hash && value.Payload.Length == Length;");
+                    NewLine().Append("public static bool Is(long hash, ReadOnlySpan<byte> value) => hash == Hash & value.Length == Length;");
+                }
+                else
+                {
+                    NewLine().Append("public static bool Is(long hash, in RawResult value) => hash == Hash && value.IsEqual(U8);");
+                    NewLine().Append("public static bool Is(long hash, ReadOnlySpan<byte> value) => hash == Hash && value.SequenceEqual(U8);");
+                }
                 indent--;
                 NewLine().Append("}");
             }

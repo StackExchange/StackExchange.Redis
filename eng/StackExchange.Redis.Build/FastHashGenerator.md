@@ -23,15 +23,17 @@ static partial class bin
     public const long Hash = 7235938;
     public static ReadOnlySpan<byte> U8 => @"bin"u8;
     public static string Text => @"bin";
-    public static bool Is(long hash, in RawResult value) => hash == Hash && value.IsEqual(U8);
+    public static bool Is(long hash, in RawResult value) => ...
+    public static bool Is(long hash, in ReadOnlySpan<byte> value) => ...
 }
 static partial class f32
 {
     public const int Length = 3;
     public const long Hash = 3289958;
     public static ReadOnlySpan<byte> U8 => @"f32"u8;
-    public static string Text => @"f32";
-    public static bool Is(long hash, in RawResult value) => hash == Hash && value.IsEqual(U8);
+    public const string Text = @"f32";
+    public static bool Is(long hash, in RawResult value) => ...
+    public static bool Is(long hash, in ReadOnlySpan<byte> value) => ...
 }
 ```
 
