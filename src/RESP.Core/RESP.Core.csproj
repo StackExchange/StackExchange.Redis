@@ -1,0 +1,63 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <!-- extend the default lib targets for the main lib; mostly because of "vectors" -->
+    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net6.0;net8.0</TargetFrameworks>
+    <RootNamespace>Resp</RootNamespace>
+    <Description>Low-level RESP (Redis, etc) APIs.</Description>
+    <AssemblyName>RESP.Core</AssemblyName>
+    <AssemblyTitle>RESP.Core</AssemblyTitle>
+    <PackageId>RESP.Core</PackageId>
+    <PackageTags>RESP</PackageTags>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Nowarn>$(NoWarn);CS1591</Nowarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces"  />
+    <PackageReference Include="System.Buffers"/>
+    <PackageReference Include="System.Memory"/>
+  </ItemGroup>
+
+  <!-- APIs for all target frameworks -->
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+  <!-- additional APIs, incremental by TFM; only additional FRM-specific APIs are needed -->
+  <ItemGroup  Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net5.0'))">
+    <AdditionalFiles Include="PublicAPI/net5.0/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/net5.0/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+  <ItemGroup  Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">
+    <AdditionalFiles Include="PublicAPI/net7.0/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/net7.0/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+  <ItemGroup  Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <AdditionalFiles Include="PublicAPI/net8.0/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/net8.0/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="StackExchange.Redis.Benchmarks" />
+    <InternalsVisibleTo Include="StackExchange.Redis.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\FrameworkShims.cs">
+      <Link>FrameworkShims.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs">
+      <Link>NullableHacks.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs">
+      <Link>SkipLocalsInit.cs</Link>
+    </Compile>
+  </ItemGroup>
+</Project>

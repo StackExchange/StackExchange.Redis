@@ -7,6 +7,8 @@
     <PackageVersion Include="System.Diagnostics.PerformanceCounter" Version="5.0.0" />
     <PackageVersion Include="System.Threading.Channels" Version="5.0.0" />
     <PackageVersion Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
+    <PackageVersion Include="System.Buffers" Version="4.6.1" />
+    <PackageVersion Include="System.Memory" Version="4.6.3" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
     <!-- Packages only used in the solution, upgrade at will -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.2" />
