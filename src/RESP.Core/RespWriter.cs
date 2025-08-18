@@ -9,11 +9,23 @@ using System.Text;
 
 namespace Resp;
 
+public interface ICommandMap
+{
+    void Map(scoped ref ReadOnlySpan<byte> command);
+}
+
+internal sealed class DefaultCommandMap : ICommandMap
+{
+    public void Map(scoped ref ReadOnlySpan<byte> command) { }
+}
+
 /// <summary>
 /// Provides low-level RESP formatting operations.
 /// </summary>
 public ref struct RespWriter
 {
+    public ICommandMap? CommandMap { get; set; }
+
     private readonly IBufferWriter<byte>? _target;
     [SuppressMessage("Style", "IDE0032:Use auto property", Justification = "Clarity")]
     private int _index;
@@ -200,6 +212,10 @@ public ref struct RespWriter
     {
         if (args < 0) Throw();
         WritePrefixedInteger(RespPrefix.Array, args + 1);
+        if (CommandMap is { } map)
+        {
+            map.Map(ref command);
+        }
         WriteBulkString(command);
 
         static void Throw() => throw new ArgumentOutOfRangeException(nameof(args));

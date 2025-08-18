@@ -19,6 +19,29 @@ public sealed class RespPayload : IDisposable
         }
     }
 
+    internal static RespPayload Create<TRequest>(scoped ReadOnlySpan<byte> command, in TRequest request, IRespFormatter<TRequest> formatter)
+    {
+        int size = 0;
+        if (formatter is IRespSizeEstimator<TRequest> estimator)
+        {
+            size = estimator.EstimateSize(command, request);
+        }
+        var buffer = AmbientBufferWriter.Get(size);
+        try
+        {
+            var writer = new RespWriter(buffer);
+            int msgCount = formatter.Format(command, ref writer, request);
+            writer.Flush();
+            var payload = buffer.Detach();
+            return new(new(payload), msgCount, AmbientBufferWriter.RecycleBuffer);
+        }
+        catch
+        {
+            buffer.Reset();
+            throw;
+        }
+    }
+
     /// <inheritdoc/>
     public override int GetHashCode() => throw new NotSupportedException();
 
@@ -74,5 +97,39 @@ public sealed class RespPayload : IDisposable
         _onDispose = null;
         _payload = default;
         onDispose?.Invoke(payload);
+    }
+
+    internal TResponse ParseAndDispose<TResponse>(IRespParser<TResponse> parser)
+    {
+        try
+        {
+            var reader = new RespReader(Payload);
+            if (parser is not IRespMetadataParser)
+            {
+                reader.MoveNext(); // move to content by default
+            }
+            return parser.Parse(ref reader);
+        }
+        finally
+        {
+            Dispose();
+        }
+    }
+
+    internal TResponse ParseAndDispose<TRequest, TResponse>(in TRequest request, IRespParser<TRequest, TResponse> parser)
+    {
+        try
+        {
+            var reader = new RespReader(Payload);
+            if (parser is not IRespMetadataParser)
+            {
+                reader.MoveNext(); // move to content by default
+            }
+            return parser.Parse(in request, ref reader);
+        }
+        finally
+        {
+            Dispose();
+        }
     }
 }

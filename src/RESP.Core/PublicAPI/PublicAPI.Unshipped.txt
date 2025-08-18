@@ -15,8 +15,29 @@ Resp.FrameScanInfo.IsOutOfBand.get -> bool
 Resp.FrameScanInfo.IsOutOfBand.set -> void
 Resp.FrameScanInfo.ReadHint.get -> int
 Resp.FrameScanInfo.ReadHint.set -> void
+Resp.ICommandMap
+Resp.ICommandMap.Map(scoped ref System.ReadOnlySpan<byte> command) -> void
+Resp.IRespConnection
+Resp.IRespConnection.Send(Resp.RespPayload! payload) -> Resp.RespPayload!
+Resp.IRespConnection.SendAsync(Resp.RespPayload! payload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Resp.RespPayload!>
+Resp.IRespFormatter<TRequest>
+Resp.IRespFormatter<TRequest>.Format(scoped System.ReadOnlySpan<byte> command, ref Resp.RespWriter writer, in TRequest request) -> int
+Resp.IRespMetadataParser
+Resp.IRespParser<TRequest, TResponse>
+Resp.IRespParser<TRequest, TResponse>.Parse(in TRequest request, ref Resp.RespReader reader) -> TResponse
+Resp.IRespParser<TResponse>
+Resp.IRespParser<TResponse>.Parse(ref Resp.RespReader reader) -> TResponse
+Resp.IRespSizeEstimator<TRequest>
+Resp.IRespSizeEstimator<TRequest>.EstimateSize(scoped System.ReadOnlySpan<byte> command, in TRequest request) -> int
+Resp.RedisCommands.RedisString
+Resp.RedisCommands.RedisString.Get() -> string?
+Resp.RedisCommands.RedisString.GetAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string?>
+Resp.RedisCommands.RedisString.RedisString() -> void
+Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key) -> void
+Resp.RedisCommands.RespConnectionExtensions
 Resp.RespAttributeReader<T>
 Resp.RespAttributeReader<T>.RespAttributeReader() -> void
+Resp.RespConnectionExtensions
 Resp.RespException
 Resp.RespException.RespException(string! message) -> void
 Resp.RespFrameScanner
@@ -136,6 +157,8 @@ Resp.RespScanState.TryRead(in System.Buffers.ReadOnlySequence<byte> value, out l
 Resp.RespScanState.TryRead(ref Resp.RespReader reader, out long bytesRead) -> bool
 Resp.RespScanState.TryRead(System.ReadOnlySpan<byte> value, out int bytesRead) -> bool
 Resp.RespWriter
+Resp.RespWriter.CommandMap.get -> Resp.ICommandMap?
+Resp.RespWriter.CommandMap.set -> void
 Resp.RespWriter.Flush() -> void
 Resp.RespWriter.RespWriter() -> void
 Resp.RespWriter.RespWriter(System.Buffers.IBufferWriter<byte>! target) -> void
@@ -149,6 +172,11 @@ Resp.RespWriter.WriteBulkString(scoped System.ReadOnlySpan<char> value) -> void
 Resp.RespWriter.WriteBulkString(string! value) -> void
 Resp.RespWriter.WriteCommand(scoped System.ReadOnlySpan<byte> command, int args) -> void
 Resp.RespWriter.WriteRaw(scoped System.ReadOnlySpan<byte> buffer) -> void
+static Resp.RedisCommands.RespConnectionExtensions.String(this Resp.IRespConnection! connection, string! key) -> Resp.RedisCommands.RedisString
+static Resp.RespConnectionExtensions.Send<TRequest, TResponse>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>! formatter, Resp.IRespParser<TRequest, TResponse>! parser) -> TResponse
+static Resp.RespConnectionExtensions.Send<TRequest, TResponse>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>! formatter, Resp.IRespParser<TResponse>! parser) -> TResponse
+static Resp.RespConnectionExtensions.SendAsync<TRequest, TResponse>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>! formatter, Resp.IRespParser<TRequest, TResponse>! parser, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResponse>
+static Resp.RespConnectionExtensions.SendAsync<TRequest, TResponse>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>! formatter, Resp.IRespParser<TResponse>! parser, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResponse>
 static Resp.RespFrameScanner.Default.get -> Resp.RespFrameScanner!
 static Resp.RespFrameScanner.Subscription.get -> Resp.RespFrameScanner!
 static Resp.RespScanState.Create(bool pubSubConnection) -> Resp.RespScanState
