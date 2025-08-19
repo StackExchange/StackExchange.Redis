@@ -65,8 +65,14 @@ internal struct ReadBuffer
     /// <summary>
     /// Gets the available data, optionally skipping data that has already been parsed but not consumed.
     /// </summary>
-    public ReadOnlySpan<byte> GetReadSpan(int skip = 0)
+    public ReadOnlySpan<byte> GetSpan(int skip = 0)
         => new(_buffer, skip, _count - skip);
+
+    /// <summary>
+    /// Gets the available data, optionally skipping data that has already been parsed but not consumed.
+    /// </summary>
+    public ReadOnlySequence<byte> GetSequence(int skip = 0)
+        => new(_buffer!, skip, _count - skip);
 
     /// <summary>
     /// Copy out the requested portion, resetting the buffer (but retaining unconsumed data).

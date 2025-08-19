@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
@@ -77,12 +78,40 @@ internal sealed class DirectWriteConnection : IRespConnection
         try
         {
             CancellationToken cancellationToken = CancellationToken.None;
+            var scanner = RespFrameScanner.Default;
+            RespScanState state = default;
+            FrameScanInfo info = new(isOutbound: false);
+            scanner.OnBeforeFrame(ref state, ref info);
+            bool makingProgress = true;
             while (true)
             {
                 var buffer = _readBuffer.GetWriteBuffer();
                 var read = await tail.ReadAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken)
                     .ConfigureAwait(false);
                 if (!_readBuffer.OnRead(read)) break;
+
+                var toParse = _readBuffer.GetSequence((int)info.BytesRead);
+                OperationStatus status;
+                int consumed = 0;
+                while ((status = scanner.TryRead(ref state, in toParse, ref info)) == OperationStatus.Done)
+                {
+                    var bytes = (int)info.BytesRead;
+INCR CONSUMED
+ADVANCE TOPARSE
+                    var arr = ArrayPool<byte>.Shared.Rent(bytes);
+                    toParse.Slice(0, bytes).CopyTo(arr);
+                    toParse = toParse.Slice(bytes);
+                    HandleFrame(arr, bytes, ref info);
+                    info = new(isOutbound: false);
+                    scanner.OnBeforeFrame(ref state, ref info);
+                }
+
+                if (status != OperationStatus.NeedMoreData)
+                {
+                    ThrowStatus(status);
+                    static void ThrowStatus(OperationStatus status) => throw new InvalidOperationException($"Unexpected operation status: {status}");
+                }
+                _readBuffer..Advance((int)info.BytesRead);
             }
 
             Volatile.Write(ref _readStatus, READER_COMPLETED);
@@ -138,6 +167,8 @@ internal sealed class DirectWriteConnection : IRespConnection
         try
         {
             var bytes = payload.Payload;
+            var pending = new SyncArrayPoolRespPayload();
+            _outstanding.Enqueue(pending);
             if (bytes.IsSingleSegment)
             {
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
@@ -163,8 +194,6 @@ internal sealed class DirectWriteConnection : IRespConnection
                 payload.Dispose();
             }
 
-            var pending = new SyncArrayPoolRespPayload();
-            _outstanding.Enqueue(pending);
             ReleaseWriter();
             return pending;
         }

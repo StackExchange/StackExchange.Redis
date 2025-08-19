@@ -156,10 +156,6 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
         }
     }
 
-    internal void Trim(ref RespScanState state, ref ReadOnlySequence<byte> data, ref FrameScanInfo info)
-    {
-    }
-
     /// <summary>
     /// Validate that the supplied message is a valid RESP request, specifically: that it contains a single
     /// top-level array payload with bulk-string elements, the first of which is non-empty (the command).
