@@ -33,8 +33,6 @@ Resp.IRespSizeEstimator<TRequest>
 Resp.IRespSizeEstimator<TRequest>.EstimateSize(scoped System.ReadOnlySpan<byte> command, in TRequest request) -> int
 Resp.RedisCommands.RedisString
 Resp.RedisCommands.RedisString.Get() -> string?
-Resp.RedisCommands.RedisString.GetAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string?>!
-Resp.RedisCommands.RedisString.RedisString() -> void
 Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key) -> void
 Resp.RedisCommands.RedisString.Set(string! value) -> void
 Resp.RedisCommands.RespConnectionExtensions
@@ -174,9 +172,7 @@ Resp.RespWriter.WriteBulkString(scoped System.ReadOnlySpan<char> value) -> void
 Resp.RespWriter.WriteBulkString(string! value) -> void
 Resp.RespWriter.WriteCommand(scoped System.ReadOnlySpan<byte> command, int args) -> void
 Resp.RespWriter.WriteRaw(scoped System.ReadOnlySpan<byte> buffer) -> void
-static Resp.RedisCommands.RespConnectionExtensions.String(this Resp.IRespConnection! connection, string! key) -> Resp.RedisCommands.RedisString
 static Resp.RespConnectionExtensions.Send<TRequest>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>? formatter = null) -> Resp.RespPayload!
-static Resp.RespConnectionExtensions.SendAsync<TRequest>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>? formatter = null) -> System.Threading.Tasks.ValueTask<Resp.RespPayload!>
 static Resp.RespFrameScanner.Default.get -> Resp.RespFrameScanner!
 static Resp.RespFrameScanner.Subscription.get -> Resp.RespFrameScanner!
 static Resp.RespPayload.Create(System.Buffers.ReadOnlySequence<byte> payload) -> Resp.RespPayload!
@@ -190,3 +186,6 @@ virtual Resp.RespPayload.WaitAsync() -> System.Threading.Tasks.Task!
 virtual Resp.RespReader.Parser<TSource, TState, TValue>.Invoke(System.ReadOnlySpan<TSource> value, TState? state) -> TValue
 virtual Resp.RespReader.Parser<TSource, TValue>.Invoke(System.ReadOnlySpan<TSource> value) -> TValue
 virtual Resp.RespReader.Projection<T>.Invoke(ref Resp.RespReader value) -> T
+Resp.RedisCommands.RedisString.GetAsync() -> System.Threading.Tasks.Task<string?>!
+Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key, System.Threading.CancellationToken cancellationToken) -> void
+Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key, System.TimeSpan timeout = default(System.TimeSpan)) -> void

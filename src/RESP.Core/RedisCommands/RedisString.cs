@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,7 +12,15 @@ public readonly struct RedisString
     private readonly TimeSpan _timeout;
     private readonly CancellationToken _cancellationToken;
 
-    public RedisString(IRespConnection connection, string key, TimeSpan timeout = default)
+    public RedisString(IRespConnection connection, string key)
+    {
+        _connection = connection;
+        _key = key;
+        _timeout = TimeSpan.Zero;
+        _cancellationToken = CancellationToken.None;
+    }
+
+    public RedisString(IRespConnection connection, string key, TimeSpan timeout)
     {
         _connection = connection;
         _key = key;
@@ -80,17 +87,17 @@ internal static class DefaultFormatters
         public static IRespFormatter<T>? Instance;
     }
 
-    [DoesNotReturn]
-    private static void ThrowFormatter(Type type) => throw new ArgumentNullException(
-        paramName: "formatter",
-        message: $"No default formatter registered for type '{type.FullName}'; a custom formatter must be specified");
-
     public static IRespFormatter<T> Get<T>()
     {
-        var obj = FormatterCache<T>.Instance;
-        if (obj is null) ThrowFormatter(typeof(T));
-        return obj;
+        var formatter = FormatterCache<T>.Instance;
+        if (formatter is null) ThrowFormatter(nameof(formatter), typeof(T));
+        return formatter;
     }
+
+    [DoesNotReturn]
+    private static void ThrowFormatter(string paramName, Type type) => throw new ArgumentNullException(
+        paramName: paramName,
+        message: $"No default formatter registered for type '{type.FullName}'; a custom formatter must be specified");
 }
 internal static class DefaultParsers
 {
@@ -105,17 +112,17 @@ internal static class DefaultParsers
         public static IRespParser<T>? Instance;
     }
 
-    [DoesNotReturn]
-    private static void ThrowParser(Type type) => throw new ArgumentNullException(
-        paramName: "parser",
-        message: $"No default parser registered for type '{type.FullName}'; a custom parser must be specified");
-
     public static IRespParser<T> Get<T>()
     {
-        var obj = ParserCache<T>.Instance;
-        if (obj is null) ThrowParser(typeof(T));
-        return obj;
+        var parser = ParserCache<T>.Instance;
+        if (parser is null) ThrowParser(nameof(parser), typeof(T));
+        return parser;
     }
+
+    [DoesNotReturn]
+    private static void ThrowParser(string paramName, Type type) => throw new ArgumentNullException(
+        paramName: paramName,
+        message: $"No default parser registered for type '{type.FullName}'; a custom parser must be specified");
 }
 
 internal sealed class VoidFormatter : IRespFormatter<Void>
