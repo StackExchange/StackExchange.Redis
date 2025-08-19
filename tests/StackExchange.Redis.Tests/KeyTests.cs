@@ -182,8 +182,8 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
 
-        Assert.True(db.KeyEncoding(key) is "embstr" or "raw");
-        Assert.True((await db.KeyEncodingAsync(key)) is "embstr" or "raw");
+        Assert.True(db.KeyEncoding(key) is "embstr" or "raw"); // server-version dependent
+        Assert.True(await db.KeyEncodingAsync(key) is "embstr" or "raw");
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.ListLeftPush(key, "new value", flags: CommandFlags.FireAndForget);
