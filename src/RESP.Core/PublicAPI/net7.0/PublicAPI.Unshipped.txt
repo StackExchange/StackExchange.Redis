@@ -1,2 +1,5 @@
 #nullable enable
+Resp.RedisCommands.RedisString.GetAsync() -> System.Threading.Tasks.Task<string?>!
+Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key, System.Threading.CancellationToken cancellationToken) -> void
+Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key, System.TimeSpan timeout = default(System.TimeSpan)) -> void
 Resp.RespReader.ParseChars<T>(System.IFormatProvider? formatProvider = null) -> T

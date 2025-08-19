@@ -55,10 +55,11 @@ internal sealed class AmbientBufferWriter : IBufferWriter<byte>
         ArrayPool<byte>.Shared.Return(oldBuffer);
     }
 
-    internal ReadOnlyMemory<byte> Detach()
+    internal byte[] Detach(out int length)
     {
-        if (_committed == 0) return default;
-        var result = new ReadOnlyMemory<byte>(_buffer, 0, _committed);
+        length = _committed;
+        if (length == 0) return [];
+        var result = _buffer;
         _buffer = [];
         _committed = 0;
         return result;
@@ -88,13 +89,4 @@ internal sealed class AmbientBufferWriter : IBufferWriter<byte>
     }
 
     internal void Reset() => _committed = 0;
-
-    internal static readonly Action<ReadOnlySequence<byte>> RecycleBuffer = buffer =>
-    {
-        // we only currently issue single-segment buffers that are zero-offset; if it isn't that: skip
-        if (buffer.IsSingleSegment && MemoryMarshal.TryGetArray(buffer.First, out var arr) && arr.Offset == 0)
-        {
-            ArrayPool<byte>.Shared.Return(arr.Array!);
-        }
-    };
 }

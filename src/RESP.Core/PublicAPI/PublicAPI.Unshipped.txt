@@ -1,6 +1,6 @@
 #nullable enable
-override Resp.RespPayload.Equals(object? obj) -> bool
-override Resp.RespPayload.GetHashCode() -> int
+abstract Resp.RespPayload.Dispose(bool disposing) -> void
+abstract Resp.RespPayload.GetPayload() -> System.Buffers.ReadOnlySequence<byte>
 override Resp.RespPayload.ToString() -> string!
 override Resp.RespScanState.Equals(object? obj) -> bool
 override Resp.RespScanState.GetHashCode() -> int
@@ -18,10 +18,12 @@ Resp.FrameScanInfo.ReadHint.set -> void
 Resp.ICommandMap
 Resp.ICommandMap.Map(scoped ref System.ReadOnlySpan<byte> command) -> void
 Resp.IRespConnection
+Resp.IRespConnection.CanWrite.get -> bool
+Resp.IRespConnection.Outstanding.get -> int
 Resp.IRespConnection.Send(Resp.RespPayload! payload) -> Resp.RespPayload!
 Resp.IRespConnection.SendAsync(Resp.RespPayload! payload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Resp.RespPayload!>
 Resp.IRespFormatter<TRequest>
-Resp.IRespFormatter<TRequest>.Format(scoped System.ReadOnlySpan<byte> command, ref Resp.RespWriter writer, in TRequest request) -> int
+Resp.IRespFormatter<TRequest>.Format(scoped System.ReadOnlySpan<byte> command, ref Resp.RespWriter writer, in TRequest request) -> void
 Resp.IRespMetadataParser
 Resp.IRespParser<TRequest, TResponse>
 Resp.IRespParser<TRequest, TResponse>.Parse(in TRequest request, ref Resp.RespReader reader) -> TResponse
@@ -31,9 +33,10 @@ Resp.IRespSizeEstimator<TRequest>
 Resp.IRespSizeEstimator<TRequest>.EstimateSize(scoped System.ReadOnlySpan<byte> command, in TRequest request) -> int
 Resp.RedisCommands.RedisString
 Resp.RedisCommands.RedisString.Get() -> string?
-Resp.RedisCommands.RedisString.GetAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string?>
+Resp.RedisCommands.RedisString.GetAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string?>!
 Resp.RedisCommands.RedisString.RedisString() -> void
 Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key) -> void
+Resp.RedisCommands.RedisString.Set(string! value) -> void
 Resp.RedisCommands.RespConnectionExtensions
 Resp.RespAttributeReader<T>
 Resp.RespAttributeReader<T>.RespAttributeReader() -> void
@@ -45,10 +48,9 @@ Resp.RespFrameScanner.OnBeforeFrame(ref Resp.RespScanState state, ref Resp.Frame
 Resp.RespFrameScanner.TryRead(ref Resp.RespScanState state, in System.Buffers.ReadOnlySequence<byte> data, ref Resp.FrameScanInfo info) -> System.Buffers.OperationStatus
 Resp.RespFrameScanner.ValidateRequest(in System.Buffers.ReadOnlySequence<byte> message) -> void
 Resp.RespPayload
-Resp.RespPayload.Count.get -> int
 Resp.RespPayload.Dispose() -> void
 Resp.RespPayload.Payload.get -> System.Buffers.ReadOnlySequence<byte>
-Resp.RespPayload.RespPayload(System.Buffers.ReadOnlySequence<byte> payload, int count = 1, System.Action<System.Buffers.ReadOnlySequence<byte>>? onDispose = null) -> void
+Resp.RespPayload.RespPayload() -> void
 Resp.RespPayload.Validate(bool checkError = true) -> void
 Resp.RespPrefix
 Resp.RespPrefix.Array = 42 -> Resp.RespPrefix
@@ -173,16 +175,18 @@ Resp.RespWriter.WriteBulkString(string! value) -> void
 Resp.RespWriter.WriteCommand(scoped System.ReadOnlySpan<byte> command, int args) -> void
 Resp.RespWriter.WriteRaw(scoped System.ReadOnlySpan<byte> buffer) -> void
 static Resp.RedisCommands.RespConnectionExtensions.String(this Resp.IRespConnection! connection, string! key) -> Resp.RedisCommands.RedisString
-static Resp.RespConnectionExtensions.Send<TRequest, TResponse>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>! formatter, Resp.IRespParser<TRequest, TResponse>! parser) -> TResponse
-static Resp.RespConnectionExtensions.Send<TRequest, TResponse>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>! formatter, Resp.IRespParser<TResponse>! parser) -> TResponse
-static Resp.RespConnectionExtensions.SendAsync<TRequest, TResponse>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>! formatter, Resp.IRespParser<TRequest, TResponse>! parser, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResponse>
-static Resp.RespConnectionExtensions.SendAsync<TRequest, TResponse>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>! formatter, Resp.IRespParser<TResponse>! parser, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResponse>
+static Resp.RespConnectionExtensions.Send<TRequest>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>? formatter = null) -> Resp.RespPayload!
+static Resp.RespConnectionExtensions.SendAsync<TRequest>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>? formatter = null) -> System.Threading.Tasks.ValueTask<Resp.RespPayload!>
 static Resp.RespFrameScanner.Default.get -> Resp.RespFrameScanner!
 static Resp.RespFrameScanner.Subscription.get -> Resp.RespFrameScanner!
+static Resp.RespPayload.Create(System.Buffers.ReadOnlySequence<byte> payload) -> Resp.RespPayload!
+static Resp.RespPayload.Create(System.ReadOnlyMemory<byte> payload) -> Resp.RespPayload!
 static Resp.RespScanState.Create(bool pubSubConnection) -> Resp.RespScanState
 virtual Resp.RespAttributeReader<T>.Read(ref Resp.RespReader reader, ref T value) -> void
 virtual Resp.RespAttributeReader<T>.ReadKeyValuePair(scoped System.ReadOnlySpan<byte> key, ref Resp.RespReader reader, ref T value) -> bool
 virtual Resp.RespAttributeReader<T>.ReadKeyValuePairs(ref Resp.RespReader reader, ref T value) -> int
+virtual Resp.RespPayload.Wait(System.TimeSpan timeout) -> void
+virtual Resp.RespPayload.WaitAsync() -> System.Threading.Tasks.Task!
 virtual Resp.RespReader.Parser<TSource, TState, TValue>.Invoke(System.ReadOnlySpan<TSource> value, TState? state) -> TValue
 virtual Resp.RespReader.Parser<TSource, TValue>.Invoke(System.ReadOnlySpan<TSource> value) -> TValue
 virtual Resp.RespReader.Projection<T>.Invoke(ref Resp.RespReader value) -> T

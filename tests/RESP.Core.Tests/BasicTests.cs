@@ -32,6 +32,9 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
     public void Ping()
     {
         using var conn = GetConnection();
-        conn.String("abc").Get();
+        var s = conn.String("abc", TimeSpan.FromSeconds(10));
+        s.Set("def");
+        var val = s.Get();
+        Assert.Equal("def", val);
     }
 }

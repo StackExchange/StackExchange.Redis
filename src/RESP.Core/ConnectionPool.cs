@@ -44,7 +44,7 @@ internal sealed class ConnectionPool(Func<IRespConnection> createConnection, int
 
     private void Return(IRespConnection tail)
     {
-        if (_pool.Count >= count)
+        if (!tail.CanWrite || _pool.Count >= count)
         {
             tail.Dispose();
         }
@@ -59,7 +59,7 @@ internal sealed class ConnectionPool(Func<IRespConnection> createConnection, int
         Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         socket.NoDelay = true;
         socket.Connect(endpoint);
-        return new RespConnection(new NetworkStream(socket));
+        return new DirectWriteConnection(new NetworkStream(socket));
     }
 
     private sealed class PoolWrapper(ConnectionPool pool, IRespConnection tail) : IRespConnection
@@ -70,6 +70,10 @@ internal sealed class ConnectionPool(Func<IRespConnection> createConnection, int
             _isDisposed = true;
             pool.Return(tail);
         }
+
+        public bool CanWrite => !_isDisposed && tail.CanWrite;
+
+        public int Outstanding => tail.Outstanding;
 
         private void ThrowIfDisposed()
         {

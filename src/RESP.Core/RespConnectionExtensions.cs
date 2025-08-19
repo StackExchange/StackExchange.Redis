@@ -1,12 +1,12 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
+using Resp.RedisCommands;
 
 namespace Resp;
 
 public interface IRespFormatter<TRequest>
 {
-    int Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in TRequest request);
+    void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in TRequest request);
 }
 public interface IRespSizeEstimator<TRequest> : IRespFormatter<TRequest>
 {
@@ -28,16 +28,19 @@ public interface IRespMetadataParser // if implemented, the consumer must manual
 
 public static class RespConnectionExtensions
 {
-    public static TResponse Send<TRequest, TResponse>(this IRespConnection connection, scoped ReadOnlySpan<byte> command, TRequest request, IRespFormatter<TRequest> formatter, IRespParser<TResponse> parser)
+    public static RespPayload Send<TRequest>(this IRespConnection connection, scoped ReadOnlySpan<byte> command, TRequest request, IRespFormatter<TRequest>? formatter = null)
     {
-        var reqPayload = RespPayload.Create(command, request, formatter);
-        request = default!; // formally release the request
-        var respPayload = connection.Send(reqPayload);
-        reqPayload.Dispose();
-
-        return respPayload.ParseAndDispose(parser);
+        var reqPayload = RespPayload.Create(command, request, formatter ?? DefaultFormatters.Get<TRequest>(), disposeOnWrite: true);
+        return connection.Send(reqPayload);
     }
 
+    public static ValueTask<RespPayload> SendAsync<TRequest>(this IRespConnection connection, scoped ReadOnlySpan<byte> command, TRequest request, IRespFormatter<TRequest>? formatter = null)
+    {
+        var reqPayload = RespPayload.Create(command, request, formatter ?? DefaultFormatters.Get<TRequest>(), disposeOnWrite: true);
+        return connection.SendAsync(reqPayload);
+    }
+
+    /*
     public static ValueTask<TResponse> SendAsync<TRequest, TResponse>(this IRespConnection connection, scoped ReadOnlySpan<byte> command, TRequest request, IRespFormatter<TRequest> formatter, IRespParser<TResponse> parser, CancellationToken cancellationToken)
     {
         var reqPayload = RespPayload.Create(command, request, formatter);
@@ -76,7 +79,7 @@ public static class RespConnectionExtensions
 
             return respPayload.ParseAndDispose(request, parser);
         }
-    }
+    }*/
 }
 
 internal static class Singleton<T> where T : class, new()

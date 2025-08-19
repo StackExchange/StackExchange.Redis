@@ -5,7 +5,9 @@
 [assembly: System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.Runtime.CompilerServices.IsExternalInit))]
 #else
 // To support { get; init; } properties
+using System.Buffers;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace System.Runtime.CompilerServices
@@ -16,7 +18,26 @@ namespace System.Runtime.CompilerServices
 #endif
 
 #if !(NETCOREAPP || NETSTANDARD2_1_OR_GREATER)
-
+namespace System.IO
+{
+    internal static class StreamExtensions
+    {
+        public static void Write(this Stream stream, ReadOnlyMemory<byte> value)
+        {
+            if (MemoryMarshal.TryGetArray(value, out var segment))
+            {
+                stream.Write(segment.Array!, segment.Offset, segment.Count);
+            }
+            else
+            {
+                var arr = ArrayPool<byte>.Shared.Rent(value.Length);
+                value.CopyTo(arr);
+                stream.Write(arr, 0, value.Length);
+                ArrayPool<byte>.Shared.Return(arr);
+            }
+        }
+    }
+}
 namespace System.Text
 {
     internal static unsafe class EncodingExtensions
