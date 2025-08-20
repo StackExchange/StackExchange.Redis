@@ -6,7 +6,9 @@ Current package versions:
 | ------------ | ----------------- | ----- |
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
-## Unreleased (2.9.xxx)
+## Unreleased
+
+## 2.9.11
 
 - Add `HGETDEL`, `HGETEX` and `HSETEX` support ([#2863 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2863))
 - Fix key-prefix omission in `SetIntersectionLength` and `SortedSet{Combine[WithScores]|IntersectionLength}` ([#2863 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2863))
