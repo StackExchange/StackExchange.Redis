@@ -1,5 +1,6 @@
 ﻿namespace Resp;
 
+/*
 /// <summary>
 /// Additional information about a frame parsing operation.
 /// </summary>
@@ -18,7 +19,7 @@ public struct FrameScanInfo
     /// <summary>
     /// The amount of data, in bytes, to read before attempting to read the next frame.
     /// </summary>
-    public int ReadHint { get; set; }
+    public int MinBytes => 3; // minimum legal RESP frame is: _\r\n
 
     /// <summary>
     /// Gets the total number of bytes processed.
@@ -30,3 +31,4 @@ public struct FrameScanInfo
     /// </summary>
     public bool IsOutOfBand { get; set; }
 }
+*/

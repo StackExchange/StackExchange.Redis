@@ -20,15 +20,6 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
     private RespFrameScanner(bool pubsub) => _pubsub = pubsub;
     private readonly bool _pubsub;
 
-    /// <summary>
-    /// Prepare to read a new frame.
-    /// </summary>
-    public void OnBeforeFrame(ref RespScanState state, ref FrameScanInfo info)
-    {
-        state = RespScanState.Create(_pubsub);
-        info.ReadHint = 3; // minimum legal RESP frame is: _\r\n
-    }
-
     private static readonly uint FastNull = UnsafeCpuUInt32("_\r\n\0"u8),
         SingleCharScalarMask = CpuUInt32(0xFF00FFFF),
         SingleDigitInteger = UnsafeCpuUInt32(":\0\r\n"u8),
@@ -42,7 +33,7 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
         FirstSeven = CpuUInt64(0xFFFFFFFFFFFFFF00);
 
     private const OperationStatus UseReader = (OperationStatus)(-1);
-    private static OperationStatus TryFastRead(ReadOnlySpan<byte> data, ref FrameScanInfo info)
+    private static OperationStatus TryFastRead(ReadOnlySpan<byte> data, ref RespScanState info)
     {
         // use silly math to detect the most common short patterns without needing
         // to access a reader, or use indexof etc; handles:
@@ -68,14 +59,19 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
         }
         if ((hi & FirstThree) == FastNull)
         {
-            info.BytesRead = 3;
+            info.SetComplete(3, RespPrefix.Null);
             return OperationStatus.Done;
         }
 
         var masked = hi & SingleCharScalarMask;
-        if (masked == SingleDigitInteger || masked == EitherBoolean)
+        if (masked == SingleDigitInteger)
         {
-            info.BytesRead = 4;
+            info.SetComplete(4, RespPrefix.Integer);
+            return OperationStatus.Done;
+        }
+        else if (masked == EitherBoolean)
+        {
+            info.SetComplete(4, RespPrefix.Boolean);
             return OperationStatus.Done;
         }
 
@@ -101,55 +97,69 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
         var u64 = BitConverter.IsLittleEndian ? ((((ulong)lo) << 32) | hi) : ((((ulong)hi) << 32) | lo);
         if (((u64 & FirstFive) == OK) | ((u64 & DoubleCharScalarMask) == DoubleDigitInteger))
         {
-            info.BytesRead = 5;
+            info.SetComplete(5, RespPrefix.SimpleString);
             return OperationStatus.Done;
         }
         if ((u64 & FirstSeven) == PONG)
         {
-            info.BytesRead = 7;
+            info.SetComplete(7, RespPrefix.SimpleString);
             return OperationStatus.Done;
         }
         return UseReader;
     }
 
-    internal OperationStatus TryReadAndAdvance(ref RespScanState state, ref ReadOnlySequence<byte> data, ref FrameScanInfo info, ref bool makingProgress)
+    /// <summary>
+    /// Attempt to read more data as part of the current frame.
+    /// </summary>
+    public OperationStatus TryRead(ref RespScanState state, in ReadOnlySequence<byte> data)
     {
-        var readBefore = info.BytesRead;
-        var result = TryRead(ref state, in data, ref info);
-        var consumed = info.BytesRead - readBefore;
-        if (consumed != 0)
+        if (!_pubsub & state.TotalBytes == 0 & data.IsSingleSegment)
         {
-            makingProgress = true;
-            data = data.Slice(consumed);
+#if NETCOREAPP3_1_OR_GREATER
+            var status = TryFastRead(data.FirstSpan, ref state);
+#else
+            var status = TryFastRead(data.First.Span, ref state);
+#endif
+            if (status != UseReader) return status;
         }
-        return result;
+
+        return TryReadViaReader(ref state, in data);
+
+        static OperationStatus TryReadViaReader(ref RespScanState state, in ReadOnlySequence<byte> data)
+        {
+            var reader = new RespReader(in data);
+            var complete = state.TryRead(ref reader, out var consumed);
+            if (complete)
+            {
+                return OperationStatus.Done;
+            }
+            return OperationStatus.NeedMoreData;
+        }
     }
 
     /// <summary>
     /// Attempt to read more data as part of the current frame.
     /// </summary>
-    public OperationStatus TryRead(ref RespScanState state, in ReadOnlySequence<byte> data, ref FrameScanInfo info)
+    public OperationStatus TryRead(ref RespScanState state, ReadOnlySpan<byte> data)
     {
-        if (!_pubsub & info.BytesRead == 0 & data.IsSingleSegment)
+        if (!_pubsub & state.TotalBytes == 0)
         {
 #if NETCOREAPP3_1_OR_GREATER
-            var status = TryFastRead(data.FirstSpan, ref info);
+            var status = TryFastRead(data, ref state);
 #else
-            var status = TryFastRead(data.First.Span, ref info);
+            var status = TryFastRead(data, ref state);
 #endif
             if (status != UseReader) return status;
         }
 
-        return TryReadViaReader(ref state, in data, ref info);
+        return TryReadViaReader(ref state, data);
 
-        static OperationStatus TryReadViaReader(ref RespScanState state, in ReadOnlySequence<byte> data, ref FrameScanInfo info)
+        static OperationStatus TryReadViaReader(ref RespScanState state, ReadOnlySpan<byte> data)
         {
-            var reader = new RespReader(in data);
+            var reader = new RespReader(data);
             var complete = state.TryRead(ref reader, out var consumed);
-            info.BytesRead += consumed;
             if (complete)
             {
-                info.IsOutOfBand = state.IsOutOfBand;
                 return OperationStatus.Done;
             }
             return OperationStatus.NeedMoreData;

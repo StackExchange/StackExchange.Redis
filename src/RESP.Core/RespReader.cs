@@ -1221,6 +1221,27 @@ public ref partial struct RespReader
     public readonly bool Is(ReadOnlySpan<byte> value)
         => TryGetSpan(out var span) ? span.SequenceEqual(value) : IsSlow(value);
 
+    internal readonly bool IsInlneCpuUInt32(uint value)
+    {
+        if (IsInlineScalar && _length == sizeof(uint))
+        {
+            return CurrentAvailable >= sizeof(uint)
+                ? Unsafe.ReadUnaligned<uint>(ref UnsafeCurrent) == value
+                : SlowIsInlneCpuUInt32(value);
+        }
+
+        return false;
+    }
+
+    private readonly bool SlowIsInlneCpuUInt32(uint value)
+    {
+        Debug.Assert(IsInlineScalar && _length == sizeof(uint));
+        Span<byte> buffer = stackalloc byte[sizeof(uint)];
+        var copy = this;
+        copy.RawFillBytes(buffer);
+        return RespConstants.UnsafeCpuUInt32(buffer) == value;
+    }
+
     /// <summary>
     /// Indicates whether the current element is a scalar with a value that matches the provided <paramref name="value"/>.
     /// </summary>

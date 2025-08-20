@@ -15,7 +15,7 @@ namespace RESP.Core.Tests;
 
 public class ConnectionFixture : IDisposable
 {
-    private readonly ConnectionPool _pool = new(new IPEndPoint(IPAddress.Loopback, 6379));
+    private readonly RespConnectionPool _pool = new(new IPEndPoint(IPAddress.Loopback, 6379));
 
     public void Dispose() => _pool.Dispose();
 

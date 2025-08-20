@@ -19,6 +19,7 @@
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="System.Collections.Immutable" />
     <PackageReference Include="System.Reflection.Metadata" />
+    <ProjectReference Include="..\..\src\RESP.Core\RESP.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -7,11 +7,12 @@ using System.Threading.Tasks;
 
 namespace Resp;
 
-internal sealed class ConnectionPool(Func<IRespConnection> createConnection, int count = 10) : IDisposable
+public sealed class RespConnectionPool(Func<IRespConnection> createConnection, int count = RespConnectionPool.DefaultCount) : IDisposable
 {
+    private const int DefaultCount = 10;
     private bool _isDisposed;
 
-    public ConnectionPool(EndPoint endPoint, int count = 10) : this(() => CreateConnection(endPoint), count)
+    public RespConnectionPool(EndPoint endPoint, int count = DefaultCount) : this(() => CreateConnection(endPoint), count)
     {
     }
 
@@ -30,7 +31,7 @@ internal sealed class ConnectionPool(Func<IRespConnection> createConnection, int
     private void ThrowIfDisposed()
     {
         if (_isDisposed) Throw();
-        static void Throw() => throw new ObjectDisposedException(nameof(ConnectionPool));
+        static void Throw() => throw new ObjectDisposedException(nameof(RespConnectionPool));
     }
 
     public void Dispose()
@@ -62,7 +63,7 @@ internal sealed class ConnectionPool(Func<IRespConnection> createConnection, int
         return new DirectWriteConnection(new NetworkStream(socket));
     }
 
-    private sealed class PoolWrapper(ConnectionPool pool, IRespConnection tail) : IRespConnection
+    private sealed class PoolWrapper(RespConnectionPool pool, IRespConnection tail) : IRespConnection
     {
         private bool _isDisposed;
         public void Dispose()

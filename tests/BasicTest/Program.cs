@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Net;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Columns;
@@ -9,6 +11,7 @@ using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Validators;
+using Resp.RedisCommands;
 using StackExchange.Redis;
 
 namespace BasicTest
@@ -29,9 +32,11 @@ namespace BasicTest
             AddDiagnoser(MemoryDiagnoser.Default);
             AddColumn(StatisticColumn.OperationsPerSecond);
             AddValidator(JitOptimizationsValidator.FailOnError);
-
-            AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net472)));
-            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core50)));
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net472)));
+            }
+            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core80)));
         }
     }
     internal class SlowConfig : CustomConfig
@@ -48,16 +53,20 @@ namespace BasicTest
         private SocketManager mgr;
         private ConnectionMultiplexer connection;
         private IDatabase db;
+        private Resp.RespConnectionPool pool;
 
         [GlobalSetup]
         public void Setup()
         {
             // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
+            pool = new(new IPEndPoint(IPAddress.Loopback, 6379));
             var options = ConfigurationOptions.Parse("127.0.0.1:6379");
             connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase(3);
 
             db.KeyDelete(GeoKey);
+            db.KeyDelete(StringKey_K);
+            db.StringSet(StringKey_K, StringValue_S);
             db.GeoAdd(GeoKey, 13.361389, 38.115556, "Palermo ");
             db.GeoAdd(GeoKey, 15.087269, 37.502669, "Catania");
 
@@ -68,9 +77,16 @@ namespace BasicTest
             }
         }
 
-        private static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter", StringKey = "string", HashKey = "hash";
+        private const string StringKey_S = "string", StringValue_S = "some suitably non-trivial value";
+        private static readonly RedisKey GeoKey = "GeoTest",
+            IncrByKey = "counter",
+            StringKey_K = StringKey_S,
+            HashKey = "hash";
+        private static readonly RedisValue StringValue_V = StringValue_S;
+
         void IDisposable.Dispose()
         {
+            pool?.Dispose();
             mgr?.Dispose();
             connection?.Dispose();
             mgr = null;
@@ -161,7 +177,7 @@ namespace BasicTest
         {
             for (int i = 0; i < COUNT; i++)
             {
-                db.StringSet(StringKey, "hey");
+                db.StringSet(StringKey_K, StringValue_V);
             }
         }
 
@@ -173,14 +189,42 @@ namespace BasicTest
         {
             for (int i = 0; i < COUNT; i++)
             {
-                db.StringGet(StringKey);
+                db.StringGet(StringKey_K);
+            }
+        }
+
+        /// <summary>
+        /// Run StringSet lots of times.
+        /// </summary>
+        [Benchmark(Description = "C StringSet/s", OperationsPerInvoke = COUNT)]
+        public void StringSet_Core()
+        {
+            using var conn = pool.GetConnection();
+            var s = conn.Strings();
+            for (int i = 0; i < COUNT; i++)
+            {
+                s.Set(StringKey_S, StringValue_S);
+            }
+        }
+
+        /// <summary>
+        /// Run StringGet lots of times.
+        /// </summary>
+        [Benchmark(Description = "C StringGet/s", OperationsPerInvoke = COUNT)]
+        public void StringGet_Core()
+        {
+            using var conn = pool.GetConnection();
+            var s = conn.Strings();
+            for (int i = 0; i < COUNT; i++)
+            {
+                s.Get(StringKey_S);
             }
         }
 
         /// <summary>
         /// Run HashGetAll lots of times.
         /// </summary>
-        [Benchmark(Description = "HashGetAll F+F/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "HashGetAll F+F/s", OperationsPerInvoke = COUNT)]
         public void HashGetAll_FAF()
         {
             for (int i = 0; i < COUNT; i++)
@@ -193,8 +237,7 @@ namespace BasicTest
         /// <summary>
         /// Run HashGetAll lots of times.
         /// </summary>
-        [Benchmark(Description = "HashGetAll F+F/a", OperationsPerInvoke = COUNT)]
-
+        // [Benchmark(Description = "HashGetAll F+F/a", OperationsPerInvoke = COUNT)]
         public async Task HashGetAllAsync_FAF()
         {
             for (int i = 0; i < COUNT; i++)

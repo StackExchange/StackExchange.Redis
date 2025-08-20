@@ -24,16 +24,19 @@ public struct RespScanState
     */
     private int _delta; // when this becomes -1, we have fully read a top-level message;
     private ushort _streamingAggregateDepth;
-    private MessageKind _kind;
+    private RespPrefix _prefix;
+
+    public RespPrefix Prefix => _prefix;
+
     private long _totalBytes;
 #if DEBUG
     private int _elementCount;
 
     /// <inheritdoc/>
-    public override string ToString() => $"{_kind}, consumed: {_totalBytes} bytes, {_elementCount} nodes, complete: {IsComplete}";
+    public override string ToString() => $"{_prefix}, consumed: {_totalBytes} bytes, {_elementCount} nodes, complete: {IsComplete}";
 #else
     /// <inheritdoc/>
-    public override string ToString() => nameof(ScanState);
+    public override string ToString() => _prefix.ToString();
 #endif
 
     /// <inheritdoc/>
@@ -41,33 +44,6 @@ public struct RespScanState
 
     /// <inheritdoc/>
     public override int GetHashCode() => throw new NotSupportedException();
-
-    private enum MessageKind : byte
-    {
-        Root, // we haven't yet seen the first non-attribute element
-        PubSubRoot, // we haven't yet seen the first non-attribute element, and this is a pub-sub connection
-        PubSubArrayRoot, // this is a pub-sub connection, and we've seen an array-root first element, waiting for the second
-        OutOfBand, // we have determined that this is an out-of-band message
-        RequestResponse, // we have determined that this is a request-response message
-    }
-
-    /// <summary>
-    /// Initializes a <see cref="RespScanState"/> instance.
-    /// </summary>
-    public static ref readonly RespScanState Create(bool pubSubConnection) => ref pubSubConnection ? ref _pubSub : ref _default;
-
-    private static readonly RespScanState _pubSub = new RespScanState(MessageKind.PubSubRoot), _default = default;
-
-    private RespScanState(MessageKind kind)
-    {
-        this = default;
-        _kind = kind;
-    }
-
-    /// <summary>
-    /// Gets whether the root element represents and out-of-band message.
-    /// </summary>
-    public bool IsOutOfBand => _kind is MessageKind.OutOfBand;
 
     /// <summary>
     /// Gets whether an entire top-level RESP message has been consumed.
@@ -79,6 +55,22 @@ public struct RespScanState
     /// <c>TryRead</c> operations.
     /// </summary>
     public long TotalBytes => _totalBytes;
+
+    // used when spotting common replies - we entirely bypass the usual reader/delta mechanism
+    internal void SetComplete(int totalBytes, RespPrefix prefix)
+    {
+        _totalBytes = totalBytes;
+        _delta = -1;
+        _prefix = prefix;
+#if DEBUG
+        _elementCount = 1;
+#endif
+    }
+
+    /// <summary>
+    /// The amount of data, in bytes, to read before attempting to read the next frame.
+    /// </summary>
+    public const int MinBytes = 3; // minimum legal RESP frame is: _\r\n
 
     /// <summary>
     /// Create a new value that can parse the supplied node (and subtree).
@@ -133,25 +125,9 @@ public struct RespScanState
 #if DEBUG
             _elementCount++;
 #endif
-            if (!reader.IsAttribute)
+            if (!reader.IsAttribute & _prefix == RespPrefix.None)
             {
-                switch (_kind)
-                {
-                    case MessageKind.Root:
-                        _kind = reader.Prefix == RespPrefix.Push ? MessageKind.OutOfBand : MessageKind.RequestResponse;
-                        break;
-                    case MessageKind.PubSubRoot:
-                        _kind = reader.Prefix switch
-                        {
-                            RespPrefix.Array => MessageKind.PubSubArrayRoot,
-                            _ => MessageKind.OutOfBand, // in pub-sub, everything is OOB unless proven otherwise
-                        };
-                        break;
-                    case MessageKind.PubSubArrayRoot:
-                        // in pub-sub, the only request-response scenario is PING, which responds with an array with "ping" in the first element
-                        _kind = reader.Prefix == RespPrefix.BulkString && reader.Is("pong"u8) ? MessageKind.RequestResponse : MessageKind.OutOfBand;
-                        break;
-                }
+                _prefix = reader.Prefix;
             }
 
             if (reader.IsAggregate) ApplyAggregateRules(ref reader);

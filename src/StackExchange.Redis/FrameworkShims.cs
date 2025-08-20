@@ -9,6 +9,8 @@ using System.Buffers;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Runtime.CompilerServices
 {
@@ -30,10 +32,36 @@ namespace System.IO
             }
             else
             {
-                var arr = ArrayPool<byte>.Shared.Rent(value.Length);
-                value.CopyTo(arr);
-                stream.Write(arr, 0, value.Length);
-                ArrayPool<byte>.Shared.Return(arr);
+                var leased = ArrayPool<byte>.Shared.Rent(value.Length);
+                value.CopyTo(leased);
+                stream.Write(leased, 0, value.Length);
+                ArrayPool<byte>.Shared.Return(leased); // on success only
+            }
+        }
+
+        public static ValueTask WriteAsync(this Stream stream, ReadOnlyMemory<byte> value, CancellationToken cancellationToken)
+        {
+            if (MemoryMarshal.TryGetArray(value, out var segment))
+            {
+                return new(stream.WriteAsync(segment.Array!, segment.Offset, segment.Count, cancellationToken));
+            }
+            else
+            {
+                var leased = ArrayPool<byte>.Shared.Rent(value.Length);
+                value.CopyTo(leased);
+                var pending = stream.WriteAsync(leased, 0, value.Length, cancellationToken);
+                if (!pending.IsCompleted)
+                {
+                    return Awaited(pending, leased);
+                }
+                pending.GetAwaiter().GetResult();
+                ArrayPool<byte>.Shared.Return(leased); // on success only
+                return default;
+            }
+            static async ValueTask Awaited(Task pending, byte[] leased)
+            {
+                await pending.ConfigureAwait(false);
+                ArrayPool<byte>.Shared.Return(leased); // on success only
             }
         }
     }

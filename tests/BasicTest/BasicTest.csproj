@@ -15,6 +15,7 @@
     <PackageReference Include="System.Reflection.Metadata" />
     
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+    <ProjectReference Include="..\..\src\RESP.Core\RESP.Core.csproj" />
   </ItemGroup>
 
 </Project>

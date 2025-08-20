@@ -5,43 +5,41 @@ using System.Threading.Tasks;
 
 namespace Resp.RedisCommands;
 
-public readonly struct RedisString
+public readonly struct RedisStrings
 {
     private readonly IRespConnection _connection;
-    private readonly string _key;
     private readonly TimeSpan _timeout;
     private readonly CancellationToken _cancellationToken;
 
-    public RedisString(IRespConnection connection, string key)
+    public RedisStrings(IRespConnection connection)
     {
         _connection = connection;
-        _key = key;
         _timeout = TimeSpan.Zero;
         _cancellationToken = CancellationToken.None;
     }
 
-    public RedisString(IRespConnection connection, string key, TimeSpan timeout)
+    public RedisStrings(IRespConnection connection, TimeSpan timeout)
     {
         _connection = connection;
-        _key = key;
         _timeout = timeout;
         _cancellationToken = CancellationToken.None;
     }
 
-    public RedisString(IRespConnection connection, string key, CancellationToken cancellationToken)
+    public RedisStrings(IRespConnection connection, CancellationToken cancellationToken)
     {
         _connection = connection;
-        _key = key;
         _cancellationToken = cancellationToken;
         _timeout = TimeSpan.Zero;
     }
 
-    public string? Get() => _connection.Send("get"u8, _key).ParseAndDispose<string?>(timeout: _timeout);
+    public string? Get(string key) => _connection.Send("get"u8, key).ParseAndDispose<string?>(timeout: _timeout);
 
-    public void Set(string value) => _connection.Send("set"u8, (key: _key, value)).ParseAndDispose<Void>(timeout: _timeout);
+    public void Set(string key, string value) => _connection.Send("set"u8, (key: key, value)).ParseAndDispose<Void>(timeout: _timeout);
 
-    public Task<string?> GetAsync()
-        => _connection.SendAsync("get"u8, _key).ParseAndDisposeAsync<string?>(cancellationToken: _cancellationToken);
+    public Task SetAsync(string key, string value) => _connection.SendAsync("set"u8, (key: key, value)).ParseAndDisposeAsync<Void>(cancellationToken: _cancellationToken);
+
+    public Task<string?> GetAsync(string key)
+        => _connection.SendAsync("get"u8, key).ParseAndDisposeAsync<string?>(cancellationToken: _cancellationToken);
 }
 
 internal static class AsyncRespExtensions

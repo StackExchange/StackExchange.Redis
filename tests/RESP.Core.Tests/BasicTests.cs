@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using Resp;
 using Resp.RedisCommands;
 using Xunit;
@@ -28,13 +31,64 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
         Assert.Equal("abc", value);
     }
 
-    [Fact]
-    public void Ping()
+    private static string Me([CallerMemberName] string? caller = null) => caller ?? "unknown";
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(100)]
+    public void Ping(int count)
     {
         using var conn = GetConnection();
-        var s = conn.String("abc", TimeSpan.FromSeconds(10));
-        s.Set("def");
-        var val = s.Get();
-        Assert.Equal("def", val);
+        for (int i = 0; i < count; i++)
+        {
+            var s = conn.Strings(TimeSpan.FromSeconds(10));
+            var key = $"{Me()}{i}";
+            s.Set(key, $"def{i}");
+            var val = s.Get(key);
+            Assert.Equal($"def{i}", val);
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(100)]
+    public async Task PingAsync(int count)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var conn = GetConnection();
+        for (int i = 0; i < count; i++)
+        {
+            var s = conn.Strings(cts.Token);
+            var key = $"{Me()}{i}";
+            await s.SetAsync(key, $"def{i}");
+            var val = await s.GetAsync(key);
+            Assert.Equal($"def{i}", val);
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(100)]
+    public async Task PingPipelinedAsync(int count)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var conn = GetConnection();
+        Task<string?>[] tasks = new Task<string?>[count];
+        for (int i = 0; i < count; i++)
+        {
+            var s = conn.Strings(cts.Token);
+            var key = $"{Me()}{i}";
+            _ = s.SetAsync(key, $"def{i}");
+            tasks[i] = s.GetAsync(key);
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            var val = await tasks[i];
+            Assert.Equal($"def{i}", val);
+        }
     }
 }

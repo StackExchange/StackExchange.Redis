@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Threading;
 
 namespace Resp.RedisCommands;
 
 public static class RespConnectionExtensions
 {
-    public static RedisString String(this IRespConnection connection, string key, TimeSpan timeout = default) => new(connection, key, timeout);
+    public static RedisStrings Strings(this IRespConnection connection, TimeSpan timeout = default) => new(connection, timeout);
+    public static RedisStrings Strings(this IRespConnection connection, CancellationToken cancellationToken) => new(connection, cancellationToken);
 }

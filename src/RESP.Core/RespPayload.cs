@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Resp.RedisCommands;
@@ -191,7 +192,7 @@ internal sealed class SyncArrayPoolRespPayload() : ArrayPoolRespPayload([], 0), 
 {
     private const int STATUS_PENDING = 0, STATUS_COMPLETED = 1, STATUS_FAILED = 2, STATUS_DISPOSED = 3;
     private int _status;
-    public override Task WaitAsync() => throw new NotSupportedException("This payload must be awaited asynchronously");
+    public override Task WaitAsync() => throw new NotSupportedException("This payload must be awaited synchronously");
 
     public bool TryComplete(byte[] payload, int length)
     {
@@ -283,4 +284,57 @@ internal sealed class SyncArrayPoolRespPayload() : ArrayPoolRespPayload([], 0), 
         STATUS_DISPOSED => "Operation was disposed",
         _ => $"Unexpected status: {status}",
     });
+}
+
+internal sealed class AsyncArrayPoolRespPayload : ArrayPoolRespPayload, IPendingRespPayload
+{
+    private readonly struct Buffer(byte[] payload, int length)
+    {
+        public readonly byte[] Payload = payload;
+        public readonly int Length = length;
+    }
+
+    public AsyncArrayPoolRespPayload() : base([], 0)
+    {
+        _task = AsyncTaskMethodBuilder<Buffer>.Create();
+        _ = _task.Task; // ensure init
+    }
+
+    private AsyncTaskMethodBuilder<Buffer> _task;
+
+    public override Task WaitAsync() => _task.Task;
+
+    public bool TryComplete(byte[] payload, int length)
+    {
+        try
+        {
+            _task.SetResult(new(payload, length));
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public bool TryFail()
+    {
+        try
+        {
+            _task.SetException(new InvalidOperationException("Operation failed"));
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public override void Wait(TimeSpan timeout) => _task.Task.Wait(timeout);
+
+    protected override ReadOnlySequence<byte> GetPayload()
+    {
+        var buffer = _task.Task.GetAwaiter().GetResult();
+        return new(buffer.Payload, 0, buffer.Length);
+    }
 }

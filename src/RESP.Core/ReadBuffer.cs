@@ -77,19 +77,22 @@ internal struct ReadBuffer
     /// <summary>
     /// Copy out the requested portion, resetting the buffer (but retaining unconsumed data).
     /// </summary>
-    public void Consume(Span<byte> target)
+    public void Consume(int count)
     {
-        if (target.Length > _count) Throw();
-        new ReadOnlySpan<byte>(_buffer, 0, target.Length).CopyTo(target);
-        _count -= target.Length;
+        if (count == 0) return;
+        if (count < 0 || count > _count) Throw(count);
 
         // flush down any remaining unconsumed data
-        var remaining = _count - target.Length;
+        var remaining = _count - count;
         if (remaining != 0)
         {
-            new ReadOnlySpan<byte>(_buffer, target.Length, remaining).CopyTo(_buffer);
+            new ReadOnlySpan<byte>(_buffer, count, remaining).CopyTo(_buffer);
         }
-
-        static void Throw() => throw new InvalidOperationException("Attempted to consume more data than is available.");
+        _count = remaining;
+        static void Throw(int count)
+        {
+            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count), "Attempted to consume negative amount of data.");
+            else throw new ArgumentOutOfRangeException(nameof(count), "Attempted to consume more data than is available.");
+        }
     }
 }
