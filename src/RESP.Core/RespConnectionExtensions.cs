@@ -28,6 +28,12 @@ public interface IRespMetadataParser // if implemented, the consumer must manual
 
 public static class RespConnectionExtensions
 {
+    /// <summary>
+    /// Enforces stricter ordering guarantees, so that unawaited async operations cannot cause overlapping writes.
+    /// </summary>
+    public static IRespConnection ForPipeline(this IRespConnection connection)
+        => connection is PipelinedConnection ? connection : new PipelinedConnection(connection);
+
     public static RespPayload Send<TRequest>(this IRespConnection connection, scoped ReadOnlySpan<byte> command, TRequest request, IRespFormatter<TRequest>? formatter = null)
     {
         var reqPayload = RespPayload.Create(command, request, formatter ?? DefaultFormatters.Get<TRequest>(), disposeOnWrite: true);

@@ -11,6 +11,7 @@ using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Validators;
+using Resp;
 using Resp.RedisCommands;
 using StackExchange.Redis;
 
@@ -18,7 +19,21 @@ namespace BasicTest
 {
     internal static class Program
     {
+#if DEBUG
+        private static void Main()
+        {
+            using var obj = new RedisBenchmarks();
+            obj.Setup();
+            for (int i = 0; i < 1000; i++)
+            {
+                obj.StringSet_Pipelined_Core();
+                obj.StringGet_Pipelined_Core();
+                Console.WriteLine(i);
+            }
+        }
+#else
         private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+#endif
     }
     internal class CustomConfig : ManualConfig
     {
@@ -214,6 +229,34 @@ namespace BasicTest
         public void StringGet_Core()
         {
             using var conn = pool.GetConnection();
+            var s = conn.Strings();
+            for (int i = 0; i < COUNT; i++)
+            {
+                s.Get(StringKey_S);
+            }
+        }
+
+        /// <summary>
+        /// Run StringSet lots of times.
+        /// </summary>
+        [Benchmark(Description = "PC StringSet/s", OperationsPerInvoke = COUNT)]
+        public void StringSet_Pipelined_Core()
+        {
+            using var conn = pool.GetConnection().ForPipeline();
+            var s = conn.Strings();
+            for (int i = 0; i < COUNT; i++)
+            {
+                s.Set(StringKey_S, StringValue_S);
+            }
+        }
+
+        /// <summary>
+        /// Run StringGet lots of times.
+        /// </summary>
+        [Benchmark(Description = "PC StringGet/s", OperationsPerInvoke = COUNT)]
+        public void StringGet_Pipelined_Core()
+        {
+            using var conn = pool.GetConnection().ForPipeline();
             var s = conn.Strings();
             for (int i = 0; i < COUNT; i++)
             {
