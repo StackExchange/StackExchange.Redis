@@ -185,7 +185,14 @@ internal sealed class DirectWriteConnection : IRespConnection
         // request/response; match to inbound
         if (_outstanding.TryDequeue(out var pending))
         {
-            pending.SetResponse(prefix, payload);
+            if (pending is IRespInternalMessage { AllowInlineParsing: true })
+            {
+                pending.ProcessResponse(payload);
+            }
+            else
+            {
+                ActivationHelper.UnsafeQueueUserWorkItem(pending, payload);
+            }
         }
         else
         {

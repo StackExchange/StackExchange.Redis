@@ -20,7 +20,7 @@ namespace BasicTest
     internal static class Program
     {
 #if DEBUG
-        private static void Main()
+        private static async Task Main()
         {
             using var obj = new RedisBenchmarks();
             obj.Setup();
@@ -28,6 +28,8 @@ namespace BasicTest
             {
                 obj.StringSet_Pipelined_Core();
                 obj.StringGet_Pipelined_Core();
+                await obj.StringSet_Pipelined_Core_Async();
+                await obj.StringGet_Pipelined_Core_Async();
                 Console.WriteLine(i);
             }
         }
@@ -251,6 +253,20 @@ namespace BasicTest
         }
 
         /// <summary>
+        /// Run StringSet lots of times.
+        /// </summary>
+        [Benchmark(Description = "PC StringSet/s", OperationsPerInvoke = COUNT)]
+        public async Task StringSet_Pipelined_Core_Async()
+        {
+            using var conn = pool.GetConnection().ForPipeline();
+            var s = conn.Strings();
+            for (int i = 0; i < COUNT; i++)
+            {
+                await s.SetAsync(StringKey_S, StringValue_S);
+            }
+        }
+
+        /// <summary>
         /// Run StringGet lots of times.
         /// </summary>
         [Benchmark(Description = "PC StringGet/s", OperationsPerInvoke = COUNT)]
@@ -261,6 +277,20 @@ namespace BasicTest
             for (int i = 0; i < COUNT; i++)
             {
                 s.Get(StringKey_S);
+            }
+        }
+
+        /// <summary>
+        /// Run StringGet lots of times.
+        /// </summary>
+        [Benchmark(Description = "PC StringGet/s", OperationsPerInvoke = COUNT)]
+        public async Task StringGet_Pipelined_Core_Async()
+        {
+            using var conn = pool.GetConnection().ForPipeline();
+            var s = conn.Strings();
+            for (int i = 0; i < COUNT; i++)
+            {
+                await s.GetAsync(StringKey_S);
             }
         }
 

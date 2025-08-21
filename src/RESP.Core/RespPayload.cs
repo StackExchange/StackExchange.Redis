@@ -145,32 +145,14 @@ public interface IRespMessage
     bool TrySetException(Exception exception);
 
     /// <summary>
-    /// Capture the response payload. This operation occurs on the IO thread, so should be as fast as possible;
-    /// it should not usually process the response.
-    /// </summary>
-    void SetResponse(RespPrefix prefix, ReadOnlySpan<byte> payload);
-
-    /// <summary>
     /// Parse the response and complete the request.
     /// </summary>
-    void ProcessResponse();
+    void ProcessResponse(ReadOnlySpan<byte> payload);
 }
 
 internal static class ActivationHelper
 {
     private static readonly WaitCallback ExecuteCallback = state => ((IRespMessage?)state)?.ProcessResponse();
-
-    public static void UnsafeQueueUserWorkItem(IRespMessage message)
-    {
-#if NETCOREAPP3_0_OR_GREATER
-        if (message is IThreadPoolWorkItem tpwi)
-        {
-            ThreadPool.UnsafeQueueUserWorkItem(tpwi, false);
-            return;
-        }
-#endif
-        ThreadPool.UnsafeQueueUserWorkItem(ExecuteCallback, message);
-    }
 
     private static readonly Action<object?> CancellationCallback =
         static state => ((IRespMessage)state!).TrySetCanceled(CancellationToken.None);
@@ -179,19 +161,53 @@ internal static class ActivationHelper
         IRespMessage message,
         CancellationToken cancellationToken)
         => cancellationToken.Register(CancellationCallback, message);
+
+    public static void UnsafeQueueUserWorkItem(IRespMessage pending, ReadOnlySpan<byte> payload)
+    {
+        var oversized = ArrayPool<byte>.Shared.Rent(payload.Length);
+        payload.CopyTo(oversized);
+        ThreadPool.UnsafeQueueUserWorkItem(ExecuteCallback, pending);
+        throw new NotImplementedException();
+    }
+
+    sealed class WorkItem
+    {
+        private WorkItem(byte[] payload, int length, IRespMessage message)
+        {
+            this.payload = payload;
+            this.length = length;
+            this.message = message;
+        }
+
+        private byte[] payload;
+        private int length;
+        private IRespMessage? message;
+
+        private static WorkItem? _spare;
+        public static void Activate(byte[] payload, int length, IRespMessage message)
+        {
+            var obj = _spare;
+            if (obj is null)
+            {
+                obj = new(payload, length, message);
+            }
+            else
+            {
+                _spare = null;
+                obj.payload = payload;
+                obj.length = length;
+                obj.message = message;
+                asdasdsa
+            }
+        }
+    }
 }
 
-internal abstract class InternalRespMessageBase<TResponse> : IRespMessage
-#if NETCOREAPP3_0_OR_GREATER
-#pragma warning disable SA1001
-    , IThreadPoolWorkItem
-#pragma warning restore SA1001
-#endif
+internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessage
 {
     private IRespParser<TResponse>? _parser;
-    private byte[] _requestPayload, _responsePayload;
-    private int _requestLength, _responseLength;
-    private int _requestRefCount = 1;
+    private byte[] _requestPayload;
+    private int _requestLength, _requestRefCount = 1;
 
     /// <summary>
     /// Create a new instance using the supplied payload.
@@ -201,8 +217,6 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespMessage
         _parser = parser;
         _requestPayload = requestPayload;
         _requestLength = requestLength;
-        _responsePayload = [];
-        _responseLength = 0;
     }
 
     public abstract bool IsCompleted { get; }
@@ -252,23 +266,15 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespMessage
     public abstract bool TrySetException(Exception exception);
     public abstract bool TrySetCanceled(CancellationToken cancellationToken);
 
-#if NETCOREAPP3_0_OR_GREATER
-    void IThreadPoolWorkItem.Execute() => ParseResponse();
-#endif
+    // ReSharper disable once SuspiciousTypeConversion.Global
+    bool IRespInternalMessage.AllowInlineParsing => _parser is null or IRespInlineParser;
 
-    void IRespMessage.ProcessResponse() => ParseResponse();
-
-    private void ParseResponse(ReadOnlySpan<byte> payload = default)
+    void IRespMessage.ProcessResponse(ReadOnlySpan<byte> payload)
     {
         try
         {
             if (!IsCompleted && _parser is { } parser)
             {
-                if (payload.IsEmpty)
-                {
-                    payload = new(_responsePayload, 0, _responseLength);
-                }
-
                 var reader = new RespReader(payload);
                 // ReSharper disable once SuspiciousTypeConversion.Global
                 if (parser is not IRespMetadataParser)
@@ -291,26 +297,6 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespMessage
             _responseLength = 0;
             _responsePayload = [];
             ArrayPool<byte>.Shared.Return(arr);
-        }
-    }
-
-    void IRespMessage.SetResponse(RespPrefix prefix, ReadOnlySpan<byte> payload)
-    {
-        if (!IsCompleted && _parser is { } parser)
-        {
-            // ReSharper disable once SuspiciousTypeConversion.Global
-            if (parser is IRespInlineParser) // complete on IO thread
-            {
-                ParseResponse(payload);
-            }
-            else
-            {
-                var tmp = ArrayPool<byte>.Shared.Rent(payload.Length);
-                payload.CopyTo(tmp);
-                _responsePayload = tmp;
-                _responseLength = payload.Length;
-                ActivationHelper.UnsafeQueueUserWorkItem(this);
-            }
         }
     }
 }
@@ -436,6 +422,70 @@ internal sealed class SyncInternalRespMessage<TResponse>(
     }
 }
 
+#if NET9_0_OR_GREATER
+internal sealed class AsyncInternalRespMessage<TResponse>(
+    byte[] requestPayload,
+    int requestLength,
+    IRespParser<TResponse>? parser)
+    : InternalRespMessageBase<TResponse>(requestPayload, requestLength, parser)
+{
+    [UnsafeAccessor(UnsafeAccessorKind.Constructor)]
+    private static extern Task<TResponse> CreateTask(object? state, TaskCreationOptions options);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern bool TrySetException(Task<TResponse> obj, Exception exception);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern bool TrySetResult(Task<TResponse> obj, TResponse value);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method)]
+    private static extern bool TrySetCanceled(Task<TResponse> obj, CancellationToken cancellationToken);
+
+    // ReSharper disable once SuspiciousTypeConversion.Global
+    private readonly Task<TResponse> _task = CreateTask(
+        null,
+        // if we're using IO-thread parsing, we *must* still dispatch downstream continuations to the thread-pool to
+        // prevent thread-theft; otherwise, we're fine to run downstream inline (we already jumped)
+        parser is IRespInlineParser ? TaskCreationOptions.RunContinuationsAsynchronously : TaskCreationOptions.None);
+
+    private CancellationTokenRegistration _cancellationTokenRegistration;
+
+    public override bool IsCompleted => _task.IsCompleted;
+    protected override bool TrySetResult(TResponse value)
+    {
+        UnregisterCancellation();
+        return TrySetResult(_task, value);
+    }
+
+    public override bool TrySetException(Exception exception)
+    {
+        UnregisterCancellation();
+        return TrySetException(_task, exception);
+    }
+
+    public override bool TrySetCanceled(CancellationToken cancellationToken)
+    {
+        UnregisterCancellation();
+        return TrySetCanceled(_task, cancellationToken);
+    }
+
+    private void UnregisterCancellation()
+    {
+        _cancellationTokenRegistration.Dispose();
+        _cancellationTokenRegistration = default;
+    }
+
+    public Task<TResponse> WaitAsync(CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.CanBeCanceled)
+        {
+            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
+        }
+
+        return _task;
+    }
+}
+#else
 internal sealed class AsyncInternalRespMessage<TResponse>(
     byte[] requestPayload,
     int requestLength,
@@ -485,3 +535,4 @@ internal sealed class AsyncInternalRespMessage<TResponse>(
         return _tcs.Task;
     }
 }
+#endif

@@ -53,11 +53,17 @@ internal static class DefaultFormatters
     }
 
     private static class FormatterCache<T>
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
     {
         public static IRespFormatter<T>? Instance;
     }
 
     public static IRespFormatter<T> Get<T>()
+#if NET9_0_OR_GREATER
+        where T : allows ref struct
+#endif
     {
         var formatter = FormatterCache<T>.Instance;
         if (formatter is null) ThrowFormatter(nameof(formatter), typeof(T));

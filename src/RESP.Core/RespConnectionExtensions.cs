@@ -25,6 +25,11 @@ public interface IRespParser<out TResponse>
     TResponse Parse(ref RespReader reader);
 }
 
+internal interface IRespInternalMessage : IRespMessage
+{
+    bool AllowInlineParsing { get; }
+}
+
 internal interface IRespInlineParser // if implemented, parsing is permitted on the IO thread
 {
 }
@@ -76,10 +81,10 @@ public static class RespConnectionExtensions
     }
 
     private static byte[] Serialize<TRequest>(ReadOnlySpan<byte> command, TRequest request, IRespFormatter<TRequest>? formatter, out int length)
-    {
 #if NET9_0_OR_GREATER
         where TRequest : allows ref struct
 #endif
+    {
         formatter ??= DefaultFormatters.Get<TRequest>();
         int size = 0;
         if (formatter is IRespSizeEstimator<TRequest> estimator)
