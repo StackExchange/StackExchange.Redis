@@ -88,16 +88,16 @@ public sealed class RespConnectionPool(Func<IRespConnection> createConnection, i
             return default;
         }
 
-        public RespPayload Send(RespPayload payload)
+        public void Send(IRespMessage message)
         {
             ThrowIfDisposed();
-            return tail.Send(payload);
+            tail.Send(message);
         }
 
-        public ValueTask<RespPayload> SendAsync(RespPayload payload, CancellationToken cancellationToken = default)
+        public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
-            return tail.SendAsync(payload, cancellationToken);
+            return tail.SendAsync(message, cancellationToken);
         }
     }
 }

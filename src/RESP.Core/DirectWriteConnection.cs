@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,7 +21,7 @@ internal sealed class DirectWriteConnection : IRespConnection
     public Task Reader { get; private set; } = Task.CompletedTask;
 
     private readonly Stream tail;
-    private ConcurrentQueue<IPendingRespPayload> _outstanding = new();
+    private ConcurrentQueue<IRespMessage> _outstanding = new();
 
     public DirectWriteConnection(Stream tail, bool asyncRead = true)
     {
@@ -69,7 +70,7 @@ internal sealed class DirectWriteConnection : IRespConnection
             // abandon anything in the queue
             while (_outstanding.TryDequeue(out var pending))
             {
-                pending.TryFail();
+                pending.TrySetCanceled(CancellationToken.None);
             }
         }
     }
@@ -151,7 +152,7 @@ internal sealed class DirectWriteConnection : IRespConnection
             // abandon anything in the queue
             while (_outstanding.TryDequeue(out var pending))
             {
-                pending.TryFail();
+                pending.TrySetCanceled(CancellationToken.None);
             }
         }
     }
@@ -182,16 +183,14 @@ internal sealed class DirectWriteConnection : IRespConnection
         }
 
         // request/response; match to inbound
-        if (!_outstanding.TryDequeue(out var pending))
+        if (_outstanding.TryDequeue(out var pending))
         {
-            Debug.Fail("Unexpected response!");
-            return;
+            pending.SetResponse(prefix, payload);
         }
-
-        // create isolated copy of the payload
-        var oversized = ArrayPool<byte>.Shared.Rent(payload.Length);
-        payload.CopyTo(oversized);
-        pending.TryComplete(oversized, payload.Length);
+        else
+        {
+            Debug.Fail("Unexpected response without pending message!");
+        }
 
         static bool IsArrayPong(ReadOnlySpan<byte> payload)
         {
@@ -232,13 +231,8 @@ internal sealed class DirectWriteConnection : IRespConnection
         });
     }
 
-    private void ReleaseWriter(int status = WRITER_AVAILABLE, RespPayload? payload = null)
+    private void ReleaseWriter(int status = WRITER_AVAILABLE)
     {
-        if (payload is DisposeOnWriteRespPayload)
-        {
-            payload.Dispose();
-        }
-
         if (status == WRITER_AVAILABLE && _isDoomed)
         {
             status = WRITER_DOOMED;
@@ -247,114 +241,69 @@ internal sealed class DirectWriteConnection : IRespConnection
         Interlocked.CompareExchange(ref _writeStatus, status, WRITER_TAKEN);
     }
 
-    public RespPayload Send(RespPayload payload)
+    public void Send(IRespMessage message)
     {
+        var bytes = message.ReserveRequest();
+        bool releaseRequest = true;
         TakeWriter();
         try
         {
-            var bytes = payload.Payload;
-            var placeholder = new SyncArrayPoolRespPayload();
-            _outstanding.Enqueue(placeholder);
-            if (bytes.IsSingleSegment)
-            {
+            _outstanding.Enqueue(message);
+            releaseRequest = false; // once we write, only release on success
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
-                tail.Write(bytes.FirstSpan);
-#else
-                tail.Write(bytes.First);
+            tail.Write(bytes.Span);
+            #else
+            tail.Write(bytes);
 #endif
-            }
-            else
-            {
-                foreach (var segment in bytes)
-                {
-#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
-                    tail.Write(segment.Span);
-#else
-                    tail.Write(segment);
-#endif
-                }
-            }
-
-            ReleaseWriter(payload: payload);
-            return placeholder;
+            ReleaseWriter();
+            message.ReleaseRequest();
         }
         catch
         {
             ReleaseWriter(WRITER_DOOMED);
+            if (releaseRequest) message.ReleaseRequest();
             throw;
         }
     }
 
-    public ValueTask<RespPayload> SendAsync(RespPayload payload, CancellationToken cancellationToken = default)
+    public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default)
     {
+        var bytes = message.ReserveRequest();
+        bool releaseRequest = true;
         TakeWriter();
         try
         {
-            var bytes = payload.Payload;
-            var placeholder = new AsyncArrayPoolRespPayload();
-            _outstanding.Enqueue(placeholder);
-            if (!bytes.IsSingleSegment)
-            {
-                return WriteMultiWithToken(this, payload, placeholder, cancellationToken);
-            }
-
-            var pendingWrite = tail.WriteAsync(bytes.First, cancellationToken);
+            _outstanding.Enqueue(message);
+            releaseRequest = false; // once we write, only release on success
+            var pendingWrite = tail.WriteAsync(bytes, cancellationToken);
             if (!pendingWrite.IsCompleted)
             {
-                return AwaitedSingleWithToken(this, pendingWrite, payload, placeholder);
+                return AwaitedSingleWithToken(this, pendingWrite, message);
             }
 
             pendingWrite.GetAwaiter().GetResult();
-            ReleaseWriter(payload: payload);
-            return new(placeholder);
+            ReleaseWriter();
+            message.ReleaseRequest();
+            return Task.CompletedTask;
         }
         catch
         {
             ReleaseWriter(WRITER_DOOMED);
+            if (releaseRequest) message.ReleaseRequest();
             throw;
         }
 
-        static async ValueTask<RespPayload> AwaitedSingleWithToken(
+        static async Task AwaitedSingleWithToken(
             DirectWriteConnection @this,
             ValueTask pendingWrite,
-            RespPayload payload,
-            RespPayload placeholder)
+            IRespMessage message)
         {
-            Debug.Fail("Async write could be a problem re overlapping IO and not knowing when we can write again");
             try
             {
                 await pendingWrite.ConfigureAwait(false);
 
-                @this.ReleaseWriter(payload: payload);
-                return placeholder;
-            }
-            catch
-            {
-                @this.ReleaseWriter(WRITER_DOOMED);
-                throw;
-            }
-        }
-
-        static async ValueTask<RespPayload> WriteMultiWithToken(
-            DirectWriteConnection @this,
-            RespPayload payload,
-            RespPayload placeholder,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                foreach (var segment in payload.Payload)
-                {
-                    await @this.tail.WriteAsync(segment, cancellationToken).ConfigureAwait(false);
-                }
-
-                if (payload is DisposeOnWriteRespPayload)
-                {
-                    payload.Dispose();
-                }
-
                 @this.ReleaseWriter();
-                return placeholder;
+                message.ReleaseRequest();
             }
             catch
             {

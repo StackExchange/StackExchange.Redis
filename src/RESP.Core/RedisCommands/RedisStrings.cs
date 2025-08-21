@@ -32,43 +32,15 @@ public readonly struct RedisStrings
         _timeout = TimeSpan.Zero;
     }
 
-    public string? Get(string key) => _connection.Send("get"u8, key).ParseAndDispose<string?>(timeout: _timeout);
+    public string? Get(string key) => RespMessage.Create("get"u8, key).Wait<string?>(_connection, timeout: _timeout);
+    public Task<string?> GetAsync(string key) => RespMessage.Create("get"u8, key).WaitAsync<string?>(_connection, cancellationToken: _cancellationToken);
 
-    public void Set(string key, string value) => _connection.Send("set"u8, (key: key, value)).ParseAndDispose<Void>(timeout: _timeout);
-
-    public Task SetAsync(string key, string value) => _connection.SendAsync("set"u8, (key: key, value)).ParseAndDisposeAsync<Void>(cancellationToken: _cancellationToken);
-
-    public Task<string?> GetAsync(string key)
-        => _connection.SendAsync("get"u8, key).ParseAndDisposeAsync<string?>(cancellationToken: _cancellationToken);
+    public void Set(string key, string value) => RespMessage.Create("set"u8, (key: key, value)).Wait(_connection, timeout: _timeout);
+    public Task SetAsync(string key, string value) => RespMessage.Create("set"u8, (key: key, value)).WaitAsync(_connection, cancellationToken: _cancellationToken);
 }
 
-internal static class AsyncRespExtensions
+public readonly struct Void
 {
-    public static Task<T> ParseAndDisposeAsync<T>(
-        this ValueTask<RespPayload> pending,
-        IRespParser<T>? parser = null,
-        CancellationToken cancellationToken = default)
-    {
-        if (pending.IsCompletedSuccessfully)
-        {
-            return Task.FromResult(pending.GetAwaiter().GetResult().ParseAndDispose(parser));
-        }
-        return cancellationToken.CanBeCanceled ? AwaitedCancel(pending, parser, cancellationToken) : AwaitedNoCancel(pending, parser);
-
-        static async Task<T> AwaitedNoCancel(ValueTask<RespPayload> pending, IRespParser<T>? parser)
-            => (await pending.ConfigureAwait(false)).ParseAndDispose(parser);
-
-        static Task<T> AwaitedCancel(ValueTask<RespPayload> pending, IRespParser<T>? parser, CancellationToken cancellationToken) =>
-            pending.AsTask().ContinueWith<T>(
-                static (task, state) => task.Result.ParseAndDispose((IRespParser<T>?)state), parser, cancellationToken);
-    }
-}
-
-internal struct Void
-{
-#pragma warning disable CS0649 // Field is never assigned to, and will always have its default value
-    public static readonly Void Instance;
-#pragma warning restore CS0649 // Field is never assigned to, and will always have its default value
 }
 
 internal static class DefaultFormatters
@@ -134,7 +106,16 @@ internal sealed class VoidFormatter : IRespFormatter<Void>
 internal sealed class VoidParser : IRespParser<Void>
 {
     public static readonly VoidParser Instance = new();
-    public Void Parse(ref RespReader reader) => default;
+
+    public Void Parse(ref RespReader reader)
+    {
+        if (!(reader.Prefix == RespPrefix.SimpleString && reader.IsOK()))
+        {
+            Throw();
+        }
+        return default;
+        static void Throw() => throw new InvalidOperationException("Expected +OK response");
+    }
 }
 
 internal sealed class StringFormatter : IRespFormatter<string>
