@@ -204,14 +204,14 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
         }
     }
 
-    internal class PerThreadProfiler
+    internal sealed class PerThreadProfiler
     {
         private readonly ThreadLocal<ProfilingSession> perThreadSession = new ThreadLocal<ProfilingSession>(() => new ProfilingSession());
 
         public ProfilingSession GetSession() => perThreadSession.Value!;
     }
 
-    internal class AsyncLocalProfiler
+    internal sealed class AsyncLocalProfiler
     {
         private readonly AsyncLocal<ProfilingSession> perThreadSession = new AsyncLocal<ProfilingSession>();
 

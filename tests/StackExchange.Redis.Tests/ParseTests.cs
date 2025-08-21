@@ -79,7 +79,7 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(expected, found);
     }
 
-    private class FragmentedSegment<T> : ReadOnlySequenceSegment<T>
+    private sealed class FragmentedSegment<T> : ReadOnlySequenceSegment<T>
     {
         public FragmentedSegment(long runningIndex, ReadOnlyMemory<T> memory)
         {

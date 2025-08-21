@@ -138,6 +138,9 @@ csharp_space_between_method_call_empty_parameter_list_parentheses = false
 csharp_preserve_single_line_statements = true
 csharp_preserve_single_line_blocks = true
 
+# Help Link: https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1852
+# Tags     : Telemetry, EnabledRuleInAggressiveMode, CompilationEnd
+dotnet_diagnostic.CA1852.severity = warning
 
 # IDE preferences
 dotnet_diagnostic.IDE0090.severity = silent # IDE0090: Use 'new(...)'

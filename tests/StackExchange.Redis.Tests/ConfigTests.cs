@@ -713,7 +713,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal($"127.0.0.1:6380,tunnel={expected}", cs);
     }
 
-    private class CustomTunnel : Tunnel { }
+    private sealed class CustomTunnel : Tunnel { }
 
     [Fact]
     public void CustomTunnelCanRoundtripMinusTunnel()
