@@ -185,14 +185,7 @@ internal sealed class DirectWriteConnection : IRespConnection
         // request/response; match to inbound
         if (_outstanding.TryDequeue(out var pending))
         {
-            if (pending is IRespInternalMessage { AllowInlineParsing: true })
-            {
-                pending.ProcessResponse(payload);
-            }
-            else
-            {
-                ActivationHelper.UnsafeQueueUserWorkItem(pending, payload);
-            }
+            ActivationHelper.ProcessResponse(pending, payload);
         }
         else
         {
@@ -250,8 +243,8 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     public void Send(IRespMessage message)
     {
-        var bytes = message.ReserveRequest();
-        bool releaseRequest = true;
+        bool releaseRequest = message.TryReserveRequest(out var bytes);
+        if (!releaseRequest) return;
         TakeWriter();
         try
         {
@@ -275,8 +268,8 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default)
     {
-        var bytes = message.ReserveRequest();
-        bool releaseRequest = true;
+        bool releaseRequest = message.TryReserveRequest(out var bytes);
+        if (!releaseRequest) return Task.CompletedTask;
         TakeWriter();
         try
         {

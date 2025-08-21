@@ -47,7 +47,7 @@ internal static class DefaultFormatters
 {
     static DefaultFormatters()
     {
-        FormatterCache<Void>.Instance = VoidFormatter.Instance;
+        FormatterCache<Void>.Instance = VoidFormatter.Default;
         FormatterCache<string>.Instance = StringFormatter.Instance;
         FormatterCache<(string, string)>.Instance = StringStringFormatter.Instance;
     }
@@ -79,7 +79,7 @@ internal static class DefaultParsers
 {
     static DefaultParsers()
     {
-        ParserCache<Void>.Instance = VoidParser.Instance;
+        ParserCache<Void>.Instance = VoidParser.Default;
         ParserCache<string?>.Instance = StringParser.Instance;
     }
 
@@ -103,15 +103,15 @@ internal static class DefaultParsers
 
 internal sealed class VoidFormatter : IRespFormatter<Void>
 {
-    public static readonly VoidFormatter Instance = new();
+    public static readonly VoidFormatter Default = new();
     public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in Void value)
     {
         writer.WriteCommand(command, 0);
     }
 }
-internal sealed class VoidParser : IRespParser<Void>
+internal sealed class VoidParser : IRespParser<Void>, IRespInlineParser
 {
-    public static readonly VoidParser Instance = new();
+    public static readonly VoidParser Default = new();
 
     public Void Parse(ref RespReader reader)
     {

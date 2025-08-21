@@ -57,9 +57,9 @@ public static class RespConnectionExtensions
 #endif
     {
         var bytes = Serialize(command, request, formatter, out int length);
-        var msg = new SyncInternalRespMessage<TResponse>(bytes, length, parser ?? DefaultParsers.Get<TResponse>());
+        var msg = SyncInternalRespMessage<TResponse>.Create(bytes, length, parser ?? DefaultParsers.Get<TResponse>());
         connection.Send(msg);
-        return msg.Wait(timeout);
+        return msg.WaitAndRecycle(timeout);
     }
 
     public static Task<TResponse> SendAsync<TRequest, TResponse>(

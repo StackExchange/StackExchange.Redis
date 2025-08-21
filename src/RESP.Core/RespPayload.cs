@@ -135,7 +135,9 @@ public interface IRespMessage
     /// <summary>
     /// Gets the request payload, reserving the value. This must be released using <see cref="ReleaseRequest"/>.
     /// </summary>
-    ReadOnlyMemory<byte> ReserveRequest();
+    bool TryReserveRequest(out ReadOnlyMemory<byte> payload);
+
+    bool IsCompleted { get; }
 
     /// <summary>
     /// Releases the request payload.
@@ -147,13 +149,11 @@ public interface IRespMessage
     /// <summary>
     /// Parse the response and complete the request.
     /// </summary>
-    void ProcessResponse(ReadOnlySpan<byte> payload);
+    void ProcessResponse(ref RespReader reader);
 }
 
 internal static class ActivationHelper
 {
-    private static readonly WaitCallback ExecuteCallback = state => ((IRespMessage?)state)?.ProcessResponse();
-
     private static readonly Action<object?> CancellationCallback =
         static state => ((IRespMessage)state!).TrySetCanceled(CancellationToken.None);
 
@@ -162,43 +162,91 @@ internal static class ActivationHelper
         CancellationToken cancellationToken)
         => cancellationToken.Register(CancellationCallback, message);
 
-    public static void UnsafeQueueUserWorkItem(IRespMessage pending, ReadOnlySpan<byte> payload)
-    {
-        var oversized = ArrayPool<byte>.Shared.Rent(payload.Length);
-        payload.CopyTo(oversized);
-        ThreadPool.UnsafeQueueUserWorkItem(ExecuteCallback, pending);
-        throw new NotImplementedException();
-    }
-
-    sealed class WorkItem
+    private sealed class WorkItem
+    #if NETCOREAPP3_0_OR_GREATER
+        : IThreadPoolWorkItem
+    #endif
     {
         private WorkItem(byte[] payload, int length, IRespMessage message)
         {
-            this.payload = payload;
-            this.length = length;
-            this.message = message;
+            this._payload = payload;
+            this._length = length;
+            this._message = message;
         }
 
-        private byte[] payload;
-        private int length;
-        private IRespMessage? message;
+        private byte[] _payload;
+        private int _length;
+        private IRespMessage? _message;
 
-        private static WorkItem? _spare;
-        public static void Activate(byte[] payload, int length, IRespMessage message)
+        private static WorkItem? _spare; // do NOT use ThreadStatic - different producer/consumer, no overlap
+        public static void UnsafeQueueUserWorkItem(IRespMessage message, ReadOnlySpan<byte> payload)
         {
-            var obj = _spare;
+            var oversized = ArrayPool<byte>.Shared.Rent(payload.Length);
+            payload.CopyTo(oversized);
+            var obj = Interlocked.Exchange(ref _spare, null);
             if (obj is null)
             {
-                obj = new(payload, length, message);
+                obj = new(oversized, payload.Length, message);
             }
             else
             {
-                _spare = null;
-                obj.payload = payload;
-                obj.length = length;
-                obj.message = message;
-                asdasdsa
+                obj._payload = oversized;
+                obj._length = payload.Length;
+                obj._message = message;
             }
+#if NETCOREAPP3_0_OR_GREATER
+            ThreadPool.UnsafeQueueUserWorkItem(obj, false);
+#else
+            ThreadPool.UnsafeQueueUserWorkItem(WaitCallback, obj);
+#endif
+        }
+#if !NETCOREAPP3_0_OR_GREATER
+        private static readonly WaitCallback WaitCallback = state => ((WorkItem)state!).Execute();
+#endif
+
+        public static void Execute(IRespMessage? message, ReadOnlySpan<byte> payload)
+        {
+            if (message is { IsCompleted: false })
+            {
+                try
+                {
+                    var reader = new RespReader(payload);
+                    message.ProcessResponse(ref reader);
+                }
+                catch (Exception ex)
+                {
+                    message.TrySetException(ex);
+                }
+            }
+        }
+
+        public void Execute()
+        {
+            var message = _message;
+            var payload = _payload;
+            var length = _length;
+            _message = null;
+            _payload = [];
+            _length = 0;
+            Interlocked.Exchange(ref _spare, this);
+            Execute(message, new(payload, 0, length));
+            ArrayPool<byte>.Shared.Return(payload);
+        }
+    }
+
+    public static void ProcessResponse(IRespMessage? pending, ReadOnlySpan<byte> payload)
+    {
+        if (pending is null)
+        {
+            // nothing to do
+        }
+        else if (pending is IRespInternalMessage { AllowInlineParsing: true })
+        {
+            WorkItem.Execute(pending, payload);
+        }
+        else
+        {
+            WorkItem.UnsafeQueueUserWorkItem(pending, payload);
         }
     }
 }
@@ -221,19 +269,18 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessag
 
     public abstract bool IsCompleted { get; }
 
-    public ReadOnlyMemory<byte> ReserveRequest()
+    public bool TryReserveRequest(out ReadOnlyMemory<byte> payload)
     {
+        payload = default;
         while (true) // need to take reservation
         {
-            if (IsCompleted) ThrowComplete();
+            if (IsCompleted) return false;
             var oldCount = Volatile.Read(ref _requestRefCount);
-            if (oldCount == 0) ThrowReleased();
+            if (oldCount == 0) return false;
             if (Interlocked.CompareExchange(ref _requestRefCount, checked(oldCount + 1), oldCount) == oldCount) break;
         }
-        return new(_requestPayload, 0, _requestLength);
-
-        static void ThrowComplete() => throw new InvalidOperationException("The request has already completed");
-        static void ThrowReleased() => throw new InvalidOperationException("The request payload has already been released");
+        payload = new(_requestPayload, 0, _requestLength);
+        return true;
     }
 
     public void ReleaseRequest()
@@ -269,35 +316,36 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessag
     // ReSharper disable once SuspiciousTypeConversion.Global
     bool IRespInternalMessage.AllowInlineParsing => _parser is null or IRespInlineParser;
 
-    void IRespMessage.ProcessResponse(ReadOnlySpan<byte> payload)
+    void IRespMessage.ProcessResponse(ref RespReader reader)
     {
-        try
+        // ReSharper disable once SuspiciousTypeConversion.Global
+        if (_parser is { } parser)
         {
-            if (!IsCompleted && _parser is { } parser)
+            if (parser is not IRespMetadataParser)
             {
-                var reader = new RespReader(payload);
-                // ReSharper disable once SuspiciousTypeConversion.Global
-                if (parser is not IRespMetadataParser)
-                {
-                    reader.MoveNext(); // skip attributes and process errors
-                }
-
-                var result = parser.Parse(ref reader);
-                TryReleaseRequest();
-                TrySetResult(result);
+                reader.MoveNext(); // skip attributes and process errors
             }
+
+            var result = parser.Parse(ref reader);
+            TryReleaseRequest();
+            TrySetResult(result);
         }
-        catch (Exception ex)
-        {
-            TrySetException(ex);
-        }
-        finally
-        {
-            var arr = _responsePayload;
-            _responseLength = 0;
-            _responsePayload = [];
-            ArrayPool<byte>.Shared.Return(arr);
-        }
+    }
+
+    protected void Reset()
+    {
+        _parser = null;
+        _requestLength = 0;
+        _requestPayload = [];
+        _requestRefCount = 0;
+    }
+
+    protected void Reset(byte[] requestPayload, int requestLength, IRespParser<TResponse>? parser)
+    {
+        _parser = parser;
+        _requestPayload = requestPayload;
+        _requestLength = requestLength;
+        _requestRefCount = 1;
     }
 }
 
@@ -311,12 +359,16 @@ internal static class SyncRespMessageStatus // think "enum", but need Volatile.R
         Timeout = 4;
 }
 
-internal sealed class SyncInternalRespMessage<TResponse>(
-    byte[] requestPayload,
-    int requestLength,
-    IRespParser<TResponse>? parser)
-    : InternalRespMessageBase<TResponse>(requestPayload, requestLength, parser)
+internal sealed class SyncInternalRespMessage<TResponse> : InternalRespMessageBase<TResponse>
 {
+    private SyncInternalRespMessage(
+        byte[] requestPayload,
+        int requestLength,
+        IRespParser<TResponse>? parser)
+        : base(requestPayload, requestLength, parser)
+    {
+    }
+
     private int _status;
     private TResponse _result = default!;
     private Exception? _exception;
@@ -379,7 +431,7 @@ internal sealed class SyncInternalRespMessage<TResponse>(
 
     public override bool IsCompleted => Volatile.Read(ref _status) != SyncRespMessageStatus.Pending;
 
-    public TResponse Wait(TimeSpan timeout)
+    public TResponse WaitAndRecycle(TimeSpan timeout)
     {
         int status = Volatile.Read(ref _status);
         if (status == SyncRespMessageStatus.Pending)
@@ -409,7 +461,9 @@ internal sealed class SyncInternalRespMessage<TResponse>(
         switch (status)
         {
             case SyncRespMessageStatus.Completed:
-                return _result;
+                var result = _result; // snapshot
+                Recycle();
+                return result;
             case SyncRespMessageStatus.Faulted:
                 throw _exception ?? new InvalidOperationException("Operation failed");
             case SyncRespMessageStatus.Cancelled:
@@ -419,6 +473,41 @@ internal sealed class SyncInternalRespMessage<TResponse>(
             default:
                 throw new InvalidOperationException($"Unexpected status: {status}");
         }
+    }
+
+    private bool TryReset()
+    {
+        Reset();
+        _exception = null;
+        _result = default!;
+        _status = SyncRespMessageStatus.Pending;
+        return true;
+    }
+
+    [ThreadStatic]
+    private static SyncInternalRespMessage<TResponse>? _spare;
+    private void Recycle()
+    {
+        if (_spare is null && TryReset())
+        {
+            _spare = this;
+        }
+    }
+
+    public static SyncInternalRespMessage<TResponse> Create(byte[] requestPayload, int requestLength, IRespParser<TResponse>? parser)
+    {
+        var obj = _spare;
+        if (obj is null)
+        {
+            obj = new(requestPayload, requestLength, parser);
+        }
+        else
+        {
+            _spare = null;
+            obj.Reset(requestPayload, requestLength, parser);
+        }
+
+        return obj;
     }
 }
 

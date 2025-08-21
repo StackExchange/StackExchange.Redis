@@ -255,7 +255,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringSet lots of times.
         /// </summary>
-        [Benchmark(Description = "PC StringSet/s", OperationsPerInvoke = COUNT)]
+        [Benchmark(Description = "PCA StringSet/s", OperationsPerInvoke = COUNT)]
         public async Task StringSet_Pipelined_Core_Async()
         {
             using var conn = pool.GetConnection().ForPipeline();
@@ -283,7 +283,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringGet lots of times.
         /// </summary>
-        [Benchmark(Description = "PC StringGet/s", OperationsPerInvoke = COUNT)]
+        [Benchmark(Description = "PCA StringGet/s", OperationsPerInvoke = COUNT)]
         public async Task StringGet_Pipelined_Core_Async()
         {
             using var conn = pool.GetConnection().ForPipeline();
