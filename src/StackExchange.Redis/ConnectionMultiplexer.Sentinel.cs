@@ -14,7 +14,7 @@ public partial class ConnectionMultiplexer
 {
     internal EndPoint? currentSentinelPrimaryEndPoint;
     internal Timer? sentinelPrimaryReconnectTimer;
-    internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
+    internal readonly Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new();
     internal ConnectionMultiplexer? sentinelConnection;
 
     /// <summary>
@@ -44,10 +44,8 @@ public partial class ConnectionMultiplexer
                     lock (sentinelConnectionChildren)
                     {
                         // Switch the primary if we have connections for that service
-                        if (sentinelConnectionChildren.ContainsKey(messageParts[0]))
+                        if (sentinelConnectionChildren.TryGetValue(messageParts[0], out ConnectionMultiplexer? child))
                         {
-                            ConnectionMultiplexer child = sentinelConnectionChildren[messageParts[0]];
-
                             // Is the connection still valid?
                             if (child.IsDisposed)
                             {
@@ -57,7 +55,7 @@ public partial class ConnectionMultiplexer
                             }
                             else
                             {
-                                SwitchPrimary(switchBlame, sentinelConnectionChildren[messageParts[0]]);
+                                SwitchPrimary(switchBlame, child);
                             }
                         }
                     }
