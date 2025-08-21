@@ -20,7 +20,7 @@ namespace BasicTest
     internal static class Program
     {
 #if DEBUG
-        private static async Task Main()
+        private static void /* async Task */ Main()
         {
             using var obj = new RedisBenchmarks();
             obj.Setup();
@@ -28,8 +28,10 @@ namespace BasicTest
             {
                 obj.StringSet_Pipelined_Core();
                 obj.StringGet_Pipelined_Core();
+                /*
                 await obj.StringSet_Pipelined_Core_Async();
                 await obj.StringGet_Pipelined_Core_Async();
+                */
                 Console.WriteLine(i);
             }
         }
