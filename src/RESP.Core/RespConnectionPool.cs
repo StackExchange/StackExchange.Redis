@@ -13,7 +13,12 @@ public sealed class RespConnectionPool(Func<RespConfiguration, IRespConnection> 
     private const int DefaultCount = 10;
     private bool _isDisposed;
 
-    public RespConnectionPool(EndPoint endPoint, RespConfiguration? configuration = null, int count = DefaultCount) : this(config => CreateConnection(config, endPoint), configuration, count)
+    public RespConnectionPool(IPAddress? address = null, int port = 6379, RespConfiguration? configuration = null, int count = DefaultCount)
+        : this(new IPEndPoint(address ?? IPAddress.Loopback, port), configuration, count)
+    {
+    }
+    public RespConnectionPool(EndPoint endPoint, RespConfiguration? configuration = null, int count = DefaultCount)
+        : this(config => CreateConnection(config, endPoint), configuration, count)
     {
     }
 

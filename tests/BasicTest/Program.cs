@@ -22,21 +22,20 @@ namespace BasicTest
 #if DEBUG
         private static void /* async Task */ Main()
         {
-            using var obj = new RedisBenchmarks();
-            obj.Setup();
-            for (int i = 0; i < 1000; i++)
+            using var pool = new RespConnectionPool();
+            for (int outer = 0; outer < 1000; outer++)
             {
-                /*
-obj.StringSet_Pipelined_Core();
-obj.StringGet_Pipelined_Core();
-
-await obj.StringSet_Pipelined_Core_Async();
-await obj.StringGet_Pipelined_Core_Async();
-*/
-                Console.WriteLine(obj.IncrBy_Old());
-                Console.WriteLine(obj.IncrBy_New());
-                Console.WriteLine(obj.IncrBy_New_Pipelined());
-                Console.WriteLine(i);
+                using var conn = pool.GetConnection();
+                var s = conn.Strings();
+                int value = 0;
+                s.Set(RedisBenchmarks.StringKey_S, value);
+                for (int inner = 0; inner < RedisBenchmarks.OperationsPerInvoke; inner++)
+                {
+                    value = s.Incr(RedisBenchmarks.StringKey_K);
+                }
+                Console.Write(outer);
+                Console.Write(' ');
+                Console.WriteLine(value);
             }
         }
 #else
@@ -100,12 +99,12 @@ await obj.StringGet_Pipelined_Core_Async();
             }
         }
 
-        private const string StringKey_S = "string", StringValue_S = "some suitably non-trivial value";
-        private static readonly RedisKey GeoKey = "GeoTest",
+        public const string StringKey_S = "string", StringValue_S = "some suitably non-trivial value";
+        public static readonly RedisKey GeoKey = "GeoTest",
             IncrByKey = "counter",
             StringKey_K = StringKey_S,
             HashKey = "hash";
-        private static readonly RedisValue StringValue_V = StringValue_S;
+        public static readonly RedisValue StringValue_V = StringValue_S;
 
         void IDisposable.Dispose()
         {
@@ -118,7 +117,7 @@ await obj.StringGet_Pipelined_Core_Async();
             GC.SuppressFinalize(this);
         }
 
-        private const int COUNT = 128;
+        public const int OperationsPerInvoke = 128;
 
         /// <summary>
         /// Run INCRBY lots of times.
@@ -130,7 +129,7 @@ await obj.StringGet_Pipelined_Core_Async();
 
             db.KeyDelete(IncrByKey, CommandFlags.FireAndForget);
             int expected = 0;
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 int x = rand.Next(50);
                 expected += x;
@@ -151,7 +150,7 @@ await obj.StringGet_Pipelined_Core_Async();
 
             db.KeyDelete(IncrByKey, CommandFlags.FireAndForget);
             int expected = 0;
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 int x = rand.Next(50);
                 expected += x;
@@ -169,7 +168,7 @@ await obj.StringGet_Pipelined_Core_Async();
         public int ExecuteGeoRadius()
         {
             int total = 0;
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 var results = db.GeoRadius(GeoKey, 15, 37, 200, GeoUnit.Kilometers, options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash);
                 total += results.Length;
@@ -184,7 +183,7 @@ await obj.StringGet_Pipelined_Core_Async();
         public async Task<int> ExecuteGeoRadiusAsync()
         {
             int total = 0;
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 var results = await db.GeoRadiusAsync(GeoKey, 15, 37, 200, GeoUnit.Kilometers, options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash).ConfigureAwait(false);
                 total += results.Length;
@@ -198,7 +197,7 @@ await obj.StringGet_Pipelined_Core_Async();
         // [Benchmark(Description = "StringSet/s", OperationsPerInvoke = COUNT)]
         public void StringSet()
         {
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 db.StringSet(StringKey_K, StringValue_V);
             }
@@ -210,7 +209,7 @@ await obj.StringGet_Pipelined_Core_Async();
         // [Benchmark(Description = "StringGet/s", OperationsPerInvoke = COUNT)]
         public void StringGet()
         {
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 db.StringGet(StringKey_K);
             }
@@ -224,7 +223,7 @@ await obj.StringGet_Pipelined_Core_Async();
         {
             using var conn = pool.GetConnection();
             var s = conn.Strings();
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 s.Set(StringKey_S, StringValue_S);
             }
@@ -238,7 +237,7 @@ await obj.StringGet_Pipelined_Core_Async();
         {
             using var conn = pool.GetConnection();
             var s = conn.Strings();
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 s.Get(StringKey_S);
             }
@@ -252,7 +251,7 @@ await obj.StringGet_Pipelined_Core_Async();
         {
             using var conn = pool.GetConnection().ForPipeline();
             var s = conn.Strings();
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 s.Set(StringKey_S, StringValue_S);
             }
@@ -266,7 +265,7 @@ await obj.StringGet_Pipelined_Core_Async();
         {
             using var conn = pool.GetConnection().ForPipeline();
             var s = conn.Strings();
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 await s.SetAsync(StringKey_S, StringValue_S);
             }
@@ -280,7 +279,7 @@ await obj.StringGet_Pipelined_Core_Async();
         {
             using var conn = pool.GetConnection().ForPipeline();
             var s = conn.Strings();
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 s.Get(StringKey_S);
             }
@@ -294,7 +293,7 @@ await obj.StringGet_Pipelined_Core_Async();
         {
             using var conn = pool.GetConnection().ForPipeline();
             var s = conn.Strings();
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 await s.GetAsync(StringKey_S);
             }
@@ -306,7 +305,7 @@ await obj.StringGet_Pipelined_Core_Async();
         // [Benchmark(Description = "HashGetAll F+F/s", OperationsPerInvoke = COUNT)]
         public void HashGetAll_FAF()
         {
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 db.HashGetAll(HashKey, CommandFlags.FireAndForget);
                 db.Ping(); // to wait for response
@@ -319,7 +318,7 @@ await obj.StringGet_Pipelined_Core_Async();
         // [Benchmark(Description = "HashGetAll F+F/a", OperationsPerInvoke = COUNT)]
         public async Task HashGetAllAsync_FAF()
         {
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 await db.HashGetAllAsync(HashKey, CommandFlags.FireAndForget);
                 await db.PingAsync(); // to wait for response
@@ -329,12 +328,12 @@ await obj.StringGet_Pipelined_Core_Async();
         /// <summary>
         /// Run incr lots of times.
         /// </summary>
-        [Benchmark(Description = "old incr", OperationsPerInvoke = COUNT)]
+        [Benchmark(Description = "old incr", OperationsPerInvoke = OperationsPerInvoke)]
         public int IncrBy_Old()
         {
             RedisValue value = 0;
             db.StringSet(StringKey_K, value);
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 value = db.StringIncrement(StringKey_K);
             }
@@ -345,14 +344,14 @@ await obj.StringGet_Pipelined_Core_Async();
         /// <summary>
         /// Run incr lots of times.
         /// </summary>
-        [Benchmark(Description = "new incr /p", OperationsPerInvoke = COUNT)]
+        [Benchmark(Description = "new incr /p", OperationsPerInvoke = OperationsPerInvoke)]
         public int IncrBy_New_Pipelined()
         {
             using var conn = pool.GetConnection().ForPipeline();
             var s = conn.Strings();
             int value = 0;
             s.Set(StringKey_S, value);
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 value = s.Incr(StringKey_K);
             }
@@ -363,14 +362,14 @@ await obj.StringGet_Pipelined_Core_Async();
         /// <summary>
         /// Run incr lots of times.
         /// </summary>
-        [Benchmark(Description = "new incr", OperationsPerInvoke = COUNT)]
+        [Benchmark(Description = "new incr", OperationsPerInvoke = OperationsPerInvoke)]
         public int IncrBy_New()
         {
             using var conn = pool.GetConnection();
             var s = conn.Strings();
             int value = 0;
             s.Set(StringKey_S, value);
-            for (int i = 0; i < COUNT; i++)
+            for (int i = 0; i < OperationsPerInvoke; i++)
             {
                 value = s.Incr(StringKey_K);
             }
