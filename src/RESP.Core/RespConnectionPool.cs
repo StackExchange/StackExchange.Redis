@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -7,29 +9,46 @@ using System.Threading.Tasks;
 
 namespace Resp;
 
-public sealed class RespConnectionPool(Func<RespConfiguration, IRespConnection> createConnection, RespConfiguration? configuration = null, int count = RespConnectionPool.DefaultCount) : IDisposable
+public sealed class RespConnectionPool : IDisposable
 {
-    private readonly RespConfiguration _configuration = configuration ?? RespConfiguration.Default;
+    private readonly RespConfiguration _configuration;
     private const int DefaultCount = 10;
     private bool _isDisposed;
+
+    [Obsolete("This is for testing only")]
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public bool UseCustomNetworkStream { get; set; }
+
+    private readonly ConcurrentQueue<IRespConnection> _pool = [];
+    private readonly Func<RespConfiguration, IRespConnection> _createConnection;
+    private readonly int _count;
+
+    public RespConnectionPool(Func<RespConfiguration, IRespConnection> createConnection, RespConfiguration? configuration = null, int count = RespConnectionPool.DefaultCount)
+    {
+        _createConnection = createConnection;
+        _count = count;
+        _configuration = configuration ?? RespConfiguration.Default;
+    }
 
     public RespConnectionPool(IPAddress? address = null, int port = 6379, RespConfiguration? configuration = null, int count = DefaultCount)
         : this(new IPEndPoint(address ?? IPAddress.Loopback, port), configuration, count)
     {
     }
     public RespConnectionPool(EndPoint endPoint, RespConfiguration? configuration = null, int count = DefaultCount)
-        : this(config => CreateConnection(config, endPoint), configuration, count)
     {
+        #pragma warning disable CS0618 // Type or member is obsolete
+        _createConnection = config => CreateConnection(config, endPoint, UseCustomNetworkStream);
+        #pragma warning restore CS0618 // Type or member is obsolete
+        _count = count;
+        _configuration = configuration ?? RespConfiguration.Default;
     }
-
-    private readonly ConcurrentQueue<IRespConnection> _pool = [];
 
     public IRespConnection GetConnection()
     {
         ThrowIfDisposed();
         if (!_pool.TryDequeue(out var connection))
         {
-            connection = createConnection(_configuration);
+            connection = _createConnection(_configuration);
         }
         return new PoolWrapper(this, connection);
     }
@@ -51,7 +70,7 @@ public sealed class RespConnectionPool(Func<RespConfiguration, IRespConnection> 
 
     private void Return(IRespConnection tail)
     {
-        if (!tail.CanWrite || _pool.Count >= count)
+        if (!tail.CanWrite || _pool.Count >= _count)
         {
             tail.Dispose();
         }
@@ -61,12 +80,20 @@ public sealed class RespConnectionPool(Func<RespConfiguration, IRespConnection> 
         }
     }
 
-    private static IRespConnection CreateConnection(RespConfiguration config, EndPoint endpoint)
+    private static IRespConnection CreateConnection(RespConfiguration config, EndPoint endpoint, bool useCustom)
     {
         Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         socket.NoDelay = true;
         socket.Connect(endpoint);
-        return new DirectWriteConnection(config, new NetworkStream(socket));
+        return new DirectWriteConnection(config, Wrap(socket, useCustom));
+
+        static Stream Wrap(Socket socket, bool useCustom)
+        {
+#if NETCOREAPP3_0_OR_GREATER
+            if (useCustom) return new CustomNetworkStream(socket);
+#endif
+            return new NetworkStream(socket);
+        }
     }
 
     private sealed class PoolWrapper(RespConnectionPool pool, IRespConnection tail) : IRespConnection

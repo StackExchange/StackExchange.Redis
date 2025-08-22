@@ -75,28 +75,31 @@ namespace BasicTest
         private SocketManager mgr;
         private ConnectionMultiplexer connection;
         private IDatabase db;
-        private Resp.RespConnectionPool pool;
+        private Resp.RespConnectionPool pool, customPool;
 
         [GlobalSetup]
         public void Setup()
         {
             // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
-            pool = new(new IPEndPoint(IPAddress.Loopback, 6379));
-            var options = ConfigurationOptions.Parse("127.0.0.1:6379");
-            connection = ConnectionMultiplexer.Connect(options);
-            db = connection.GetDatabase(3);
-
-            db.KeyDelete(GeoKey);
-            db.KeyDelete(StringKey_K);
-            db.StringSet(StringKey_K, StringValue_S);
-            db.GeoAdd(GeoKey, 13.361389, 38.115556, "Palermo ");
-            db.GeoAdd(GeoKey, 15.087269, 37.502669, "Catania");
-
-            db.KeyDelete(HashKey);
-            for (int i = 0; i < 1000; i++)
-            {
-                db.HashSet(HashKey, i, i);
-            }
+            pool = new();
+            #pragma warning disable CS0618 // Type or member is obsolete
+            customPool = new() { UseCustomNetworkStream = true };
+            #pragma warning restore CS0618 // Type or member is obsolete
+            // var options = ConfigurationOptions.Parse("127.0.0.1:6379");
+            // connection = ConnectionMultiplexer.Connect(options);
+            // db = connection.GetDatabase(3);
+            //
+            // db.KeyDelete(GeoKey);
+            // db.KeyDelete(StringKey_K);
+            // db.StringSet(StringKey_K, StringValue_S);
+            // db.GeoAdd(GeoKey, 13.361389, 38.115556, "Palermo ");
+            // db.GeoAdd(GeoKey, 15.087269, 37.502669, "Catania");
+            //
+            // db.KeyDelete(HashKey);
+            // for (int i = 0; i < 1000; i++)
+            // {
+            //     db.HashSet(HashKey, i, i);
+            // }
         }
 
         public const string StringKey_S = "string", StringValue_S = "some suitably non-trivial value";
@@ -109,6 +112,7 @@ namespace BasicTest
         void IDisposable.Dispose()
         {
             pool?.Dispose();
+            customPool?.Dispose();
             mgr?.Dispose();
             connection?.Dispose();
             mgr = null;
@@ -328,7 +332,7 @@ namespace BasicTest
         /// <summary>
         /// Run incr lots of times.
         /// </summary>
-        [Benchmark(Description = "old incr", OperationsPerInvoke = OperationsPerInvoke)]
+        // [Benchmark(Description = "old incr", OperationsPerInvoke = OperationsPerInvoke)]
         public int IncrBy_Old()
         {
             RedisValue value = 0;
@@ -366,6 +370,42 @@ namespace BasicTest
         public int IncrBy_New()
         {
             using var conn = pool.GetConnection();
+            var s = conn.Strings();
+            int value = 0;
+            s.Set(StringKey_S, value);
+            for (int i = 0; i < OperationsPerInvoke; i++)
+            {
+                value = s.Incr(StringKey_K);
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// Run incr lots of times.
+        /// </summary>
+        [Benchmark(Description = "new incr /pc", OperationsPerInvoke = OperationsPerInvoke)]
+        public int IncrBy_New_Pipelined_Custom()
+        {
+            using var conn = customPool.GetConnection().ForPipeline();
+            var s = conn.Strings();
+            int value = 0;
+            s.Set(StringKey_S, value);
+            for (int i = 0; i < OperationsPerInvoke; i++)
+            {
+                value = s.Incr(StringKey_K);
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// Run incr lots of times.
+        /// </summary>
+        [Benchmark(Description = "new incr /c", OperationsPerInvoke = OperationsPerInvoke)]
+        public int IncrBy_New_Custom()
+        {
+            using var conn = customPool.GetConnection();
             var s = conn.Strings();
             int value = 0;
             s.Set(StringKey_S, value);

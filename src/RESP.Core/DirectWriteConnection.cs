@@ -99,8 +99,14 @@ internal sealed class DirectWriteConnection : IRespConnection
             while (true) // main IO loop
             {
                 var buffer = _readBuffer.GetWriteBuffer();
+                #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+                var read = await tail.ReadAsync(
+                        new(buffer.Array!, buffer.Offset, buffer.Count), cancellationToken)
+                    .ConfigureAwait(false);
+                #else
                 var read = await tail.ReadAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken)
                     .ConfigureAwait(false);
+                #endif
                 if (!_readBuffer.OnRead(read)) break;
 
                 var fullBuffer = _readBuffer.GetSpan();

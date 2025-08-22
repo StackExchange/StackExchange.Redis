@@ -1,5 +1,10 @@
 ﻿namespace Resp.RedisCommands;
 
+public static partial class StringExtensions
+{
+    // [RespCommand]
+    // public static partial string? StringGet(this in RespContext context, string key);
+}
 public readonly partial struct RedisDatabase
 {
     private readonly RespContext _context;
