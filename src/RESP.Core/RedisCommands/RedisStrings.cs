@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Resp.RedisCommands;
 
-public readonly struct RedisStrings
+public readonly partial struct RedisStrings
 {
     private readonly IRespConnection _connection;
     private readonly TimeSpan _timeout;
@@ -32,11 +32,23 @@ public readonly struct RedisStrings
         _timeout = TimeSpan.Zero;
     }
 
-    public string? Get(string key) => RespMessage.Create("get"u8, key).Wait<string?>(_connection, timeout: _timeout);
-    public Task<string?> GetAsync(string key) => RespMessage.Create("get"u8, key).WaitAsync<string?>(_connection, cancellationToken: _cancellationToken);
+    [RespCommand]
+    public partial string? Get(string key);
 
-    public void Set(string key, string value) => RespMessage.Create("set"u8, (key: key, value)).Wait(_connection, timeout: _timeout);
-    public Task SetAsync(string key, string value) => RespMessage.Create("set"u8, (key: key, value)).WaitAsync(_connection, cancellationToken: _cancellationToken);
+    [RespCommand]
+    public partial void Set(string key, string value);
+
+    [RespCommand]
+    public partial int Incr(string key);
+
+    [RespCommand]
+    public partial int IncrBy(string key, int value);
+
+    [RespCommand]
+    public partial int Decr(string key);
+
+    [RespCommand]
+    public partial int DecrBy(string key, int value);
 }
 
 public readonly struct Void
@@ -75,6 +87,7 @@ internal static class DefaultFormatters
         paramName: paramName,
         message: $"No default formatter registered for type '{type.FullName}'; a custom formatter must be specified");
 }
+
 internal static class DefaultParsers
 {
     static DefaultParsers()
@@ -104,11 +117,13 @@ internal static class DefaultParsers
 internal sealed class VoidFormatter : IRespFormatter<Void>
 {
     public static readonly VoidFormatter Default = new();
+
     public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in Void value)
     {
         writer.WriteCommand(command, 0);
     }
 }
+
 internal sealed class VoidParser : IRespParser<Void>, IRespInlineParser
 {
     public static readonly VoidParser Default = new();
@@ -119,6 +134,7 @@ internal sealed class VoidParser : IRespParser<Void>, IRespInlineParser
         {
             Throw();
         }
+
         return default;
         static void Throw() => throw new InvalidOperationException("Expected +OK response");
     }

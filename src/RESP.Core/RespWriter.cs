@@ -208,7 +208,8 @@ public ref struct RespWriter
     /// </summary>
     /// <param name="command">The command name to write.</param>
     /// <param name="args">The number of arguments for the command (excluding the command itself).</param>
-    public void WriteCommand(scoped ReadOnlySpan<byte> command, int args)
+    /// <param name="keyIndex">The index of the argument to use as a key for sharding purposes (if any).</param>
+    public void WriteCommand(scoped ReadOnlySpan<byte> command, int args, int keyIndex = -1)
     {
         if (args < 0) Throw();
         WritePrefixedInteger(RespPrefix.Array, args + 1);
