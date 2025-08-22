@@ -63,7 +63,8 @@ public class RespCommandGenerator : IIncrementalGenerator
     }
 
     private (string Namespace, string TypeName, string ReturnType, string MethodName, string Command, int KeyIndex,
-        ImmutableArray<(string Type, string Name)> Parameters, string TypeModifiers, string MethodModifiers) Transform(
+        ImmutableArray<(string Type, string Name, string Modifiers)> Parameters, string TypeModifiers, string
+        MethodModifiers, string Context) Transform(
             GeneratorSyntaxContext ctx,
             CancellationToken cancellationToken)
     {
@@ -113,7 +114,54 @@ public class RespCommandGenerator : IIncrementalGenerator
         }
 
         int keyIndex = -1, fallbackKeyIndex = -1;
-        var parameters = ImmutableArray.CreateBuilder<(string Type, string Name)>(method.Parameters.Length);
+        var parameters =
+            ImmutableArray.CreateBuilder<(string Type, string Name, string Modifiers)>(method.Parameters.Length);
+
+        // get context from the available fields
+        string? context = null;
+        foreach (var member in method.ContainingType.GetMembers())
+        {
+            if (member is IFieldSymbol { IsStatic: false } field && IsRespContext(field.Type))
+            {
+                context = field.Name;
+                break;
+            }
+        }
+
+        if (context is null)
+        {
+            // get context from primary constructor (actually, we look at all constructors,
+            // and just hope that the one that matches: works!)
+            foreach (var ctor in method.ContainingType.Constructors)
+            {
+                if (ctor.IsStatic) continue;
+                foreach (var param in ctor.Parameters)
+                {
+                    if (IsRespContext(param.Type))
+                    {
+                        context = param.Name;
+                        break;
+                    }
+                }
+
+                if (context is not null) break;
+            }
+        }
+
+        if (context is null)
+        {
+            // last ditch, get context from properties
+            foreach (var member in method.ContainingType.GetMembers())
+            {
+                if (member is IPropertySymbol { IsStatic: false } prop
+                    && IsRespContext(prop.Type) && prop.GetMethod is not null)
+                {
+                    context = prop.Name;
+                    break;
+                }
+            }
+        }
+
         foreach (var param in method.Parameters)
         {
             if (param.Type is not INamedTypeSymbol named) return default; // I can't work with that
@@ -127,13 +175,38 @@ public class RespCommandGenerator : IIncrementalGenerator
                 fallbackKeyIndex = parameters.Count;
             }
 
-            parameters.Add((GetFullName(named), param.Name));
+            string modifiers = param.RefKind switch
+            {
+                RefKind.None => "",
+                RefKind.In => "in ",
+                RefKind.Out => "out ",
+                RefKind.Ref => "ref ",
+                _ => "",
+            };
+
+            if (param.Ordinal == 0 && method.IsExtensionMethod)
+            {
+                modifiers = "this " + modifiers;
+                if (IsRespContext(param.Type))
+                {
+                    context = param.Name;
+                }
+            }
+
+            parameters.Add((GetFullName(named), param.Name, modifiers));
         }
+
+        static bool IsRespContext(ITypeSymbol type)
+            => type is INamedTypeSymbol
+            {
+                Name: "RespContext",
+                ContainingNamespace: { Name: "Resp", ContainingNamespace.IsGlobalNamespace: true }
+            };
 
         if (keyIndex == -1) keyIndex = fallbackKeyIndex;
         var syntax = (MethodDeclarationSyntax)ctx.Node;
         return (ns, parentType, returnType, method.Name, value, keyIndex, parameters.ToImmutable(),
-            TypeModifiers(method.ContainingType), syntax.Modifiers.ToString());
+            TypeModifiers(method.ContainingType), syntax.Modifiers.ToString(), context ?? "");
 
         static string TypeModifiers(INamedTypeSymbol type)
         {
@@ -181,8 +254,9 @@ public class RespCommandGenerator : IIncrementalGenerator
     private void Generate(
         SourceProductionContext ctx,
         ImmutableArray<(string Namespace, string TypeName, string ReturnType, string MethodName, string Command, int
-            KeyIndex, ImmutableArray<(string Type, string Name)> Parameters, string TypeModifiers, string
-            MethodModifiers)> methods)
+            KeyIndex, ImmutableArray<(string Type, string Name, string Modifiers)> Parameters, string TypeModifiers,
+            string
+            MethodModifiers, string Context)> methods)
     {
         if (methods.IsDefaultOrEmpty) return;
 
@@ -193,12 +267,25 @@ public class RespCommandGenerator : IIncrementalGenerator
         int indent = 0;
 
         // find the unique param types, so we can build helpers
-        Dictionary<(ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex), string> formatters =
-            new(FormatterComparer.Default);
+        Dictionary<(ImmutableArray<(string Type, string Name, string Modifiers)> Parameters, int KeyIndex), string>
+            formatters =
+                new(FormatterComparer.Default);
+        static bool IsThis(string modifier) => modifier.StartsWith("this ");
+
+        static bool UseTuple(ImmutableArray<(string Type, string Name, string Modifiers)> parameters)
+        {
+            if (parameters.IsDefaultOrEmpty) return false;
+            if (parameters.Length < 2) return false;
+            if (parameters.Length == 2 && IsThis(parameters[0].Modifiers)) return false;
+            return true;
+        }
+
         foreach (var method in methods)
         {
-            if (method.Parameters.Length < 2)
+            if (!UseTuple(method.Parameters))
+            {
                 continue; // consumer should add their own extension method for the target type
+            }
 
             var key = (method.Parameters, method.KeyIndex);
             if (!formatters.ContainsKey(key))
@@ -210,7 +297,6 @@ public class RespCommandGenerator : IIncrementalGenerator
         StringBuilder NewLine() => sb.AppendLine().Append(' ', indent * 4);
         NewLine().Append("using System;");
         NewLine().Append("using System.Threading.Tasks;");
-        NewLine().Append("#pragma warning disable CS8981");
         foreach (var grp in methods.GroupBy(l => (l.Namespace, l.TypeName, l.TypeModifiers)))
         {
             NewLine();
@@ -275,32 +361,39 @@ public class RespCommandGenerator : IIncrementalGenerator
                     if (!first) sb.Append(", ");
                     first = false;
 
-                    sb.Append(param.Type).Append(' ').Append(param.Name);
+                    sb.Append(param.Modifiers).Append(param.Type).Append(' ').Append(param.Name);
                 }
-
-                string context = "_context";
 
                 sb.Append(")");
                 indent++;
-                sb = NewLine().Append("=> ").Append(context).Append(".Command(").Append(csValue).Append("u8");
-                if (!method.Parameters.IsDefaultOrEmpty)
+                sb = NewLine().Append("=> ");
+                if (string.IsNullOrWhiteSpace(method.Context))
                 {
-                    sb.Append(", ");
-                    WriteTuple(method.Parameters, sb, TupleMode.Values);
-
-                    if (formatter is not null)
+                    sb.Append("throw new NotSupportedException(\"No RespContext available\");");
+                }
+                else
+                {
+                    sb.Append(method.Context).Append(".Command(").Append(csValue).Append("u8");
+                    if (!method.Parameters.IsDefaultOrEmpty)
                     {
-                        sb.Append(", ").Append(formatter);
+                        sb.Append(", ");
+                        WriteTuple(method.Parameters, sb, TupleMode.Values);
+
+                        if (formatter is not null)
+                        {
+                            sb.Append(", ").Append(formatter);
+                        }
                     }
+
+                    sb.Append(").Wait");
+                    if (!string.IsNullOrWhiteSpace(method.ReturnType))
+                    {
+                        sb.Append('<').Append(method.ReturnType).Append('>');
+                    }
+
+                    sb.Append("(").Append(InbuiltParser(method.ReturnType)).Append(");");
                 }
 
-                sb.Append(").Wait");
-                if (!string.IsNullOrWhiteSpace(method.ReturnType))
-                {
-                    sb.Append('<').Append(method.ReturnType).Append('>');
-                }
-
-                sb.Append("(").Append(InbuiltParser(method.ReturnType)).Append(");");
                 indent--;
                 NewLine();
 
@@ -317,30 +410,39 @@ public class RespCommandGenerator : IIncrementalGenerator
                     if (!first) sb.Append(", ");
                     first = false;
 
-                    sb.Append(param.Type).Append(' ').Append(param.Name);
+                    sb.Append(param.Modifiers).Append(param.Type).Append(' ').Append(param.Name);
                 }
 
                 sb.Append(")");
                 indent++;
-                sb = NewLine().Append("=> ").Append(context).Append(".Command(").Append(csValue).Append("u8");
-                if (!method.Parameters.IsDefaultOrEmpty)
+                sb = NewLine().Append("=> ");
+                if (string.IsNullOrWhiteSpace(method.Context))
                 {
-                    sb.Append(", ");
-                    WriteTuple(method.Parameters, sb, TupleMode.Values);
-
-                    if (formatter is not null)
+                    sb.Append("throw new NotSupportedException(\"No RespContext available\");");
+                }
+                else
+                {
+                    sb.Append(method.Context).Append(".Command(").Append(csValue).Append("u8");
+                    if (!method.Parameters.IsDefaultOrEmpty)
                     {
-                        sb.Append(", ").Append(formatter);
+                        sb.Append(", ");
+                        WriteTuple(method.Parameters, sb, TupleMode.Values);
+
+                        if (formatter is not null)
+                        {
+                            sb.Append(", ").Append(formatter);
+                        }
                     }
+
+                    sb.Append(").WaitAsync");
+                    if (!string.IsNullOrWhiteSpace(method.ReturnType))
+                    {
+                        sb.Append('<').Append(method.ReturnType).Append('>');
+                    }
+
+                    sb.Append("(").Append(InbuiltParser(method.ReturnType)).Append(");");
                 }
 
-                sb.Append(").WaitAsync");
-                if (!string.IsNullOrWhiteSpace(method.ReturnType))
-                {
-                    sb.Append('<').Append(method.ReturnType).Append('>');
-                }
-
-                sb.Append("(").Append(InbuiltParser(method.ReturnType)).Append(");");
                 indent--;
                 NewLine();
             }
@@ -400,12 +502,21 @@ public class RespCommandGenerator : IIncrementalGenerator
         NewLine();
         ctx.AddSource(GetType().Name + ".generated.cs", sb.ToString());
 
-        static void WriteTuple(ImmutableArray<(string Type, string Name)> parameters, StringBuilder sb, TupleMode mode)
+        static void WriteTuple(
+            ImmutableArray<(string Type, string Name, string Modifiers)> parameters,
+            StringBuilder sb,
+            TupleMode mode)
         {
             if (parameters.IsDefaultOrEmpty) return;
-            if (parameters.Length == 1)
+            if (!UseTuple(parameters))
             {
-                sb.Append(mode == TupleMode.Values ? parameters[0].Name : parameters[0].Type);
+                var p = parameters[0];
+                if (IsThis(p.Modifiers))
+                {
+                    p = parameters[1];
+                }
+
+                sb.Append(mode == TupleMode.Values ? p.Name : p.Type);
                 return;
             }
 
@@ -413,6 +524,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             int index = 0;
             foreach (var param in parameters)
             {
+                if (IsThis(param.Modifiers)) continue; // note don't increase index
                 if (index != 0) sb.Append(", ");
 
                 switch (mode)
@@ -438,7 +550,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         }
     }
 
-    private static string? InbuiltFormatter(ImmutableArray<(string Type, string Name)> parameters)
+    private static string? InbuiltFormatter(ImmutableArray<(string Type, string Name, string Modifiers)> parameters)
     {
         if (!parameters.IsDefaultOrEmpty && parameters.Length == 1)
         {
@@ -493,14 +605,15 @@ public class RespCommandGenerator : IIncrementalGenerator
 
 // compares whether a formatter can be shared, which depends on the key index and types (not names)
 internal sealed class
-    FormatterComparer : IEqualityComparer<(ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex)>
+    FormatterComparer : IEqualityComparer<(ImmutableArray<(string Type, string Name, string Modifiers)> Parameters, int
+    KeyIndex)>
 {
     private FormatterComparer() { }
     public static readonly FormatterComparer Default = new();
 
     public bool Equals(
-        (ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex) x,
-        (ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex) y)
+        (ImmutableArray<(string Type, string Name, string Modifiers)> Parameters, int KeyIndex) x,
+        (ImmutableArray<(string Type, string Name, string Modifiers)> Parameters, int KeyIndex) y)
     {
         if (x.KeyIndex != y.KeyIndex) return false;
         if (x.Parameters.Length != y.Parameters.Length) return false;
@@ -512,7 +625,7 @@ internal sealed class
         return true;
     }
 
-    public int GetHashCode((ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex) obj)
+    public int GetHashCode((ImmutableArray<(string Type, string Name, string Modifiers)> Parameters, int KeyIndex) obj)
     {
         var hash = obj.KeyIndex & obj.Parameters.Length;
         foreach (var p in obj.Parameters)

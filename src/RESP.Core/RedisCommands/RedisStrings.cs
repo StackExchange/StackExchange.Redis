@@ -1,46 +1,54 @@
-﻿namespace Resp.RedisCommands;
+﻿#pragma warning disable SA1403 // multiple namespaces for demo only
 
-public static partial class StringExtensions
+namespace Resp.RedisCommands.Strings
 {
-    // [RespCommand]
-    // public static partial string? StringGet(this in RespContext context, string key);
-}
-public readonly partial struct RedisDatabase
-{
-    private readonly RespContext _context;
-
-    public RedisDatabase(in RespContext context)
-        => _context = context;
-
-    [RespCommand]
-    public partial void FlushDb();
+    public static partial class StringExtensions
+    {
+        [RespCommand("get")]
+        public static partial string? StringGet(this in RespContext context, string key);
+    }
 }
 
-public readonly partial struct RedisStrings
+namespace Resp.RedisCommands
 {
-    private readonly RespContext _context;
+    public readonly partial struct RedisDatabase(in RespContext context)
+    {
+        private readonly RespContext _context = context;
 
-    public RedisStrings(in RespContext context)
-        => _context = context;
+        [RespCommand]
+        public partial void FlushDb();
+    }
 
-    [RespCommand]
-    public partial string? Get(string key);
+    public static partial class RespConnectionExtensions
+    {
+        public static RedisStrings Strings(this in RespContext context) => new(context);
+        public static RedisStrings Strings(this IRespConnection connection) => new RespContext(connection).Strings();
+    }
 
-    [RespCommand]
-    public partial void Set(string key, string value);
 
-    [RespCommand]
-    public partial void Set(string key, int value);
+    public readonly partial struct RedisStrings(in RespContext context)
+    {
+        private readonly RespContext _context = context;
 
-    [RespCommand]
-    public partial int Incr(string key);
+        [RespCommand]
+        public partial string? Get(string key);
 
-    [RespCommand]
-    public partial int IncrBy(string key, int value);
+        [RespCommand]
+        public partial void Set(string key, string value);
 
-    [RespCommand]
-    public partial int Decr(string key);
+        [RespCommand]
+        public partial void Set(string key, int value);
 
-    [RespCommand]
-    public partial int DecrBy(string key, int value);
+        [RespCommand]
+        public partial int Incr(string key);
+
+        [RespCommand]
+        public partial int IncrBy(string key, int value);
+
+        [RespCommand]
+        public partial int Decr(string key);
+
+        [RespCommand]
+        public partial int DecrBy(string key, int value);
+    }
 }
