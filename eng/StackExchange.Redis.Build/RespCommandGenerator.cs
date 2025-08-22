@@ -193,16 +193,12 @@ public class RespCommandGenerator : IIncrementalGenerator
         int indent = 0;
 
         // find the unique param types, so we can build helpers
-        Dictionary<(ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex), string> formatters = new(FormatterComparer.Default);
+        Dictionary<(ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex), string> formatters =
+            new(FormatterComparer.Default);
         foreach (var method in methods)
         {
-            switch (method.Parameters.Length)
-            {
-                case 0: continue;
-                case 1:
-                    if (method.Parameters[0].Type is "string" or "int" or "long" or "float" or "double") continue;
-                    break;
-            }
+            if (method.Parameters.Length < 2)
+                continue; // consumer should add their own extension method for the target type
 
             var key = (method.Parameters, method.KeyIndex);
             if (!formatters.ContainsKey(key))
@@ -213,6 +209,7 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         StringBuilder NewLine() => sb.AppendLine().Append(' ', indent * 4);
         NewLine().Append("using System;");
+        NewLine().Append("using System.Threading.Tasks;");
         NewLine().Append("#pragma warning disable CS8981");
         foreach (var grp in methods.GroupBy(l => (l.Namespace, l.TypeName, l.TypeModifiers)))
         {
@@ -259,7 +256,10 @@ public class RespCommandGenerator : IIncrementalGenerator
 
             foreach (var method in grp)
             {
-                string? formatter = formatters.TryGetValue((method.Parameters, method.KeyIndex), out var tmp) ? tmp : null;
+                string? formatter = InbuiltFormatter(method.Parameters)
+                                    ?? (formatters.TryGetValue((method.Parameters, method.KeyIndex), out var tmp)
+                                        ? $"{tmp}.Default"
+                                        : null);
 
                 // perform string escaping on the generated value (this includes the quotes, note)
                 var csValue = SyntaxFactory
@@ -278,37 +278,38 @@ public class RespCommandGenerator : IIncrementalGenerator
                     sb.Append(param.Type).Append(' ').Append(param.Name);
                 }
 
+                string context = "_context";
+
                 sb.Append(")");
                 indent++;
-                sb = NewLine().Append("=> RespMessage.Create(").Append(csValue).Append("u8, ");
-                switch (method.Parameters.Length)
+                sb = NewLine().Append("=> ").Append(context).Append(".Command(").Append(csValue).Append("u8");
+                if (!method.Parameters.IsDefaultOrEmpty)
                 {
-                    case 0:
-                        sb.Append("default(Resp.Core.Void)");
-                        break;
-                    default:
-                        WriteTuple(method.Parameters, sb, TupleMode.Values);
-                        break;
+                    sb.Append(", ");
+                    WriteTuple(method.Parameters, sb, TupleMode.Values);
+
+                    if (formatter is not null)
+                    {
+                        sb.Append(", ").Append(formatter);
+                    }
                 }
 
-                if (formatter is not null)
-                {
-                    sb.Append(", ").Append(formatter).Append(".Default");
-                }
                 sb.Append(").Wait");
                 if (!string.IsNullOrWhiteSpace(method.ReturnType))
                 {
                     sb.Append('<').Append(method.ReturnType).Append('>');
                 }
-                sb.Append("(_connection, timeout: _timeout);");
+
+                sb.Append("(").Append(InbuiltParser(method.ReturnType)).Append(");");
                 indent--;
                 NewLine();
 
-                sb = NewLine().Append(RemovePartial(method.MethodModifiers)).Append(" System.Threading.Tasks.Task");
+                sb = NewLine().Append(RemovePartial(method.MethodModifiers)).Append(" Task");
                 if (!string.IsNullOrWhiteSpace(method.ReturnType))
                 {
                     sb.Append('<').Append(method.ReturnType).Append('>');
                 }
+
                 sb.Append(' ').Append(method.MethodName).Append("Async(");
                 first = true;
                 foreach (var param in method.Parameters)
@@ -321,27 +322,25 @@ public class RespCommandGenerator : IIncrementalGenerator
 
                 sb.Append(")");
                 indent++;
-                sb = NewLine().Append("=> RespMessage.Create(").Append(csValue).Append("u8, ");
-                switch (method.Parameters.Length)
+                sb = NewLine().Append("=> ").Append(context).Append(".Command(").Append(csValue).Append("u8");
+                if (!method.Parameters.IsDefaultOrEmpty)
                 {
-                    case 0:
-                        sb.Append("default(Resp.Core.Void)");
-                        break;
-                    default:
-                        WriteTuple(method.Parameters, sb, TupleMode.Values);
-                        break;
+                    sb.Append(", ");
+                    WriteTuple(method.Parameters, sb, TupleMode.Values);
+
+                    if (formatter is not null)
+                    {
+                        sb.Append(", ").Append(formatter);
+                    }
                 }
 
-                if (formatter is not null)
-                {
-                    sb.Append(", ").Append(formatter).Append(".Default");
-                }
                 sb.Append(").WaitAsync");
                 if (!string.IsNullOrWhiteSpace(method.ReturnType))
                 {
                     sb.Append('<').Append(method.ReturnType).Append('>');
                 }
-                sb.Append("(_connection, cancellationToken: _cancellationToken);");
+
+                sb.Append("(").Append(InbuiltParser(method.ReturnType)).Append(");");
                 indent--;
                 NewLine();
             }
@@ -352,6 +351,8 @@ public class RespCommandGenerator : IIncrementalGenerator
                 indent--;
                 NewLine().Append("}");
             }
+
+            NewLine();
         }
 
         foreach (var tuple in formatters)
@@ -368,7 +369,8 @@ public class RespCommandGenerator : IIncrementalGenerator
             NewLine().Append("public static readonly ").Append(name).Append(" Default = new();");
             NewLine();
 
-            sb = NewLine().Append("public void Format(scoped ReadOnlySpan<byte> command, ref Resp.RespWriter writer, in ");
+            sb = NewLine()
+                .Append("public void Format(scoped ReadOnlySpan<byte> command, ref Resp.RespWriter writer, in ");
             WriteTuple(parameters, sb, TupleMode.SyntheticNames);
             sb.Append(" request)");
             NewLine().Append("{");
@@ -388,12 +390,14 @@ public class RespCommandGenerator : IIncrementalGenerator
                     NewLine().Append("writer.WriteBulkString(request.Arg").Append(index++).Append(");");
                 }
             }
+
             indent--;
             NewLine().Append("}");
             indent--;
             NewLine().Append("}");
         }
 
+        NewLine();
         ctx.AddSource(GetType().Name + ".generated.cs", sb.ToString());
 
         static void WriteTuple(ImmutableArray<(string Type, string Name)> parameters, StringBuilder sb, TupleMode mode)
@@ -404,6 +408,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                 sb.Append(mode == TupleMode.Values ? parameters[0].Name : parameters[0].Type);
                 return;
             }
+
             sb.Append('(');
             int index = 0;
             foreach (var param in parameters)
@@ -428,9 +433,45 @@ public class RespCommandGenerator : IIncrementalGenerator
 
                 index++;
             }
+
             sb.Append(')');
         }
     }
+
+    private static string? InbuiltFormatter(ImmutableArray<(string Type, string Name)> parameters)
+    {
+        if (!parameters.IsDefaultOrEmpty && parameters.Length == 1)
+        {
+            return InbuiltFormatter(parameters[0].Type);
+        }
+
+        return null;
+    }
+
+    private static string? InbuiltFormatter(string type) => type switch
+    {
+        "string" => "Resp.RespFormatters.String",
+        "int" => "Resp.RespFormatters.Int32",
+        "long" => "Resp.RespFormatters.Int64",
+        "float" => "Resp.RespFormatters.Single",
+        "double" => "Resp.RespFormatters.Double",
+        _ => null,
+    };
+
+    private static string? InbuiltParser(string type, bool explicitSuccess = false) => type switch
+    {
+        "" when explicitSuccess => "Resp.RespParsers.Success",
+        "string" => "Resp.RespParsers.String",
+        "int" => "Resp.RespParsers.Int32",
+        "long" => "Resp.RespParsers.Int64",
+        "float" => "Resp.RespParsers.Single",
+        "double" => "Resp.RespParsers.Double",
+        "int?" => "Resp.RespParsers.NullableInt32",
+        "long?" => "Resp.RespParsers.NullableInt64",
+        "float?" => "Resp.RespParsers.NullableSingle",
+        "double?" => "Resp.RespParsers.NullableDouble",
+        _ => null,
+    };
 
     private enum TupleMode
     {
@@ -439,6 +480,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         Values,
         SyntheticNames,
     }
+
     private static string RemovePartial(string modifiers)
     {
         if (string.IsNullOrWhiteSpace(modifiers) || !modifiers.Contains("partial")) return modifiers;
@@ -450,7 +492,8 @@ public class RespCommandGenerator : IIncrementalGenerator
 }
 
 // compares whether a formatter can be shared, which depends on the key index and types (not names)
-internal sealed class FormatterComparer : IEqualityComparer<(ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex)>
+internal sealed class
+    FormatterComparer : IEqualityComparer<(ImmutableArray<(string Type, string Name)> Parameters, int KeyIndex)>
 {
     private FormatterComparer() { }
     public static readonly FormatterComparer Default = new();

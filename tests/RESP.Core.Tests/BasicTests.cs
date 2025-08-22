@@ -15,7 +15,7 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
     {
         Span<byte> buffer = stackalloc byte[128];
         var writer = new RespWriter(buffer);
-        StringFormatter.Instance.Format("get"u8, ref writer, "abc");
+        RespFormatters.String.Format("get"u8, ref writer, "abc");
         writer.Flush();
         Assert.Equal("*2\r\n$3\r\nget\r\n$3\r\nabc\r\n", writer.DebugBuffer());
     }
@@ -26,7 +26,7 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
         ReadOnlySpan<byte> buffer = "$3\r\nabc\r\n"u8;
         var reader = new RespReader(buffer);
         reader.MoveNext();
-        var value = StringParser.Instance.Parse(ref reader);
+        var value = RespParsers.String.Parse(ref reader);
         reader.DemandEnd();
         Assert.Equal("abc", value);
     }
@@ -42,7 +42,7 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
         using var conn = GetConnection();
         for (int i = 0; i < count; i++)
         {
-            var s = conn.Strings(TimeSpan.FromSeconds(10));
+            var s = conn.Strings();
             var key = $"{Me()}{i}";
             s.Set(key, $"def{i}");
             var val = s.Get(key);
@@ -60,7 +60,8 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
         await using var conn = GetConnection();
         for (int i = 0; i < count; i++)
         {
-            var s = conn.Strings(cts.Token);
+            var ctx = new RespContext(conn, cts.Token);
+            var s = ctx.Strings();
             var key = $"{Me()}{i}";
             await s.SetAsync(key, $"def{i}");
             var val = await s.GetAsync(key);
@@ -76,10 +77,12 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var conn = GetConnection();
+
         Task<string?>[] tasks = new Task<string?>[count];
         for (int i = 0; i < count; i++)
         {
-            var s = conn.Strings(cts.Token);
+            RespContext ctx = new(conn, cts.Token);
+            var s = ctx.Strings();
             var key = $"{Me()}{i}";
             _ = s.SetAsync(key, $"def{i}");
             tasks[i] = s.GetAsync(key);

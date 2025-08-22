@@ -21,7 +21,7 @@ internal class PipelinedConnection : IRespConnection
         _semaphore.Dispose();
         return _tail.DisposeAsync();
     }
-
+    public RespConfiguration Configuration => _tail.Configuration;
     public bool CanWrite => _semaphore.CurrentCount > 0 && _tail.CanWrite;
     public int Outstanding => _tail.Outstanding;
 

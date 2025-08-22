@@ -7,12 +7,13 @@ using System.Threading.Tasks;
 
 namespace Resp;
 
-public sealed class RespConnectionPool(Func<IRespConnection> createConnection, int count = RespConnectionPool.DefaultCount) : IDisposable
+public sealed class RespConnectionPool(Func<RespConfiguration, IRespConnection> createConnection, RespConfiguration? configuration = null, int count = RespConnectionPool.DefaultCount) : IDisposable
 {
+    private readonly RespConfiguration _configuration = configuration ?? RespConfiguration.Default;
     private const int DefaultCount = 10;
     private bool _isDisposed;
 
-    public RespConnectionPool(EndPoint endPoint, int count = DefaultCount) : this(() => CreateConnection(endPoint), count)
+    public RespConnectionPool(EndPoint endPoint, RespConfiguration? configuration = null, int count = DefaultCount) : this(config => CreateConnection(config, endPoint), configuration, count)
     {
     }
 
@@ -23,7 +24,7 @@ public sealed class RespConnectionPool(Func<IRespConnection> createConnection, i
         ThrowIfDisposed();
         if (!_pool.TryDequeue(out var connection))
         {
-            connection = createConnection();
+            connection = createConnection(_configuration);
         }
         return new PoolWrapper(this, connection);
     }
@@ -55,12 +56,12 @@ public sealed class RespConnectionPool(Func<IRespConnection> createConnection, i
         }
     }
 
-    private static IRespConnection CreateConnection(EndPoint endpoint)
+    private static IRespConnection CreateConnection(RespConfiguration config, EndPoint endpoint)
     {
         Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         socket.NoDelay = true;
         socket.Connect(endpoint);
-        return new DirectWriteConnection(new NetworkStream(socket));
+        return new DirectWriteConnection(config, new NetworkStream(socket));
     }
 
     private sealed class PoolWrapper(RespConnectionPool pool, IRespConnection tail) : IRespConnection
@@ -76,6 +77,7 @@ public sealed class RespConnectionPool(Func<IRespConnection> createConnection, i
 
         public int Outstanding => tail.Outstanding;
 
+        public RespConfiguration Configuration => tail.Configuration;
         private void ThrowIfDisposed()
         {
             if (_isDisposed) Throw();

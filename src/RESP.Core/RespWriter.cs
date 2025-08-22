@@ -9,23 +9,11 @@ using System.Text;
 
 namespace Resp;
 
-public interface ICommandMap
-{
-    void Map(scoped ref ReadOnlySpan<byte> command);
-}
-
-internal sealed class DefaultCommandMap : ICommandMap
-{
-    public void Map(scoped ref ReadOnlySpan<byte> command) { }
-}
-
 /// <summary>
 /// Provides low-level RESP formatting operations.
 /// </summary>
 public ref struct RespWriter
 {
-    public ICommandMap? CommandMap { get; set; }
-
     private readonly IBufferWriter<byte>? _target;
     [SuppressMessage("Style", "IDE0032:Use auto property", Justification = "Clarity")]
     private int _index;
@@ -203,6 +191,8 @@ public ref struct RespWriter
         }
     }
 
+    public RespCommandMap? CommandMap { get; set; }
+
     /// <summary>
     /// Write a command header.
     /// </summary>
@@ -213,13 +203,19 @@ public ref struct RespWriter
     {
         if (args < 0) Throw();
         WritePrefixedInteger(RespPrefix.Array, args + 1);
+        if (command.IsEmpty) ThrowEmptyCommand();
         if (CommandMap is { } map)
         {
-            map.Map(ref command);
+            var mapped = map.Map(command);
+            if (mapped.IsEmpty) ThrowCommandUnavailable(command);
+            command = mapped;
         }
         WriteBulkString(command);
 
         static void Throw() => throw new ArgumentOutOfRangeException(nameof(args));
+        static void ThrowEmptyCommand() => throw new ArgumentException(paramName: nameof(command), message: "Empty command specified.");
+        static void ThrowCommandUnavailable(ReadOnlySpan<byte> command)
+            => throw new ArgumentException(paramName: nameof(command), message: $"The command {Encoding.UTF8.GetString(command)} is not available.");
     }
 
     /// <summary>

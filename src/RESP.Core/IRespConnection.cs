@@ -6,6 +6,7 @@ namespace Resp;
 
 public interface IRespConnection : IDisposable, IAsyncDisposable
 {
+    RespConfiguration Configuration { get; }
     bool CanWrite { get; }
     int Outstanding { get; }
 

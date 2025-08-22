@@ -22,9 +22,11 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     private readonly Stream tail;
     private ConcurrentQueue<IRespMessage> _outstanding = new();
+    public RespConfiguration Configuration { get; }
 
-    public DirectWriteConnection(Stream tail, bool asyncRead = true)
+    public DirectWriteConnection(RespConfiguration configuration, Stream tail, bool asyncRead = true)
     {
+        Configuration = configuration;
         if (!(tail.CanRead && tail.CanWrite)) Throw();
         this.tail = tail;
         if (asyncRead)

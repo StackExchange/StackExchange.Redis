@@ -26,12 +26,16 @@ namespace BasicTest
             obj.Setup();
             for (int i = 0; i < 1000; i++)
             {
-                obj.StringSet_Pipelined_Core();
-                obj.StringGet_Pipelined_Core();
                 /*
-                await obj.StringSet_Pipelined_Core_Async();
-                await obj.StringGet_Pipelined_Core_Async();
-                */
+obj.StringSet_Pipelined_Core();
+obj.StringGet_Pipelined_Core();
+
+await obj.StringSet_Pipelined_Core_Async();
+await obj.StringGet_Pipelined_Core_Async();
+*/
+                Console.WriteLine(obj.IncrBy_Old());
+                Console.WriteLine(obj.IncrBy_New());
+                Console.WriteLine(obj.IncrBy_New_Pipelined());
                 Console.WriteLine(i);
             }
         }
@@ -114,7 +118,7 @@ namespace BasicTest
             GC.SuppressFinalize(this);
         }
 
-        private const int COUNT = 50;
+        private const int COUNT = 128;
 
         /// <summary>
         /// Run INCRBY lots of times.
@@ -191,7 +195,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringSet lots of times.
         /// </summary>
-        [Benchmark(Description = "StringSet/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "StringSet/s", OperationsPerInvoke = COUNT)]
         public void StringSet()
         {
             for (int i = 0; i < COUNT; i++)
@@ -203,7 +207,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringGet lots of times.
         /// </summary>
-        [Benchmark(Description = "StringGet/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "StringGet/s", OperationsPerInvoke = COUNT)]
         public void StringGet()
         {
             for (int i = 0; i < COUNT; i++)
@@ -215,7 +219,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringSet lots of times.
         /// </summary>
-        [Benchmark(Description = "C StringSet/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "C StringSet/s", OperationsPerInvoke = COUNT)]
         public void StringSet_Core()
         {
             using var conn = pool.GetConnection();
@@ -229,7 +233,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringGet lots of times.
         /// </summary>
-        [Benchmark(Description = "C StringGet/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "C StringGet/s", OperationsPerInvoke = COUNT)]
         public void StringGet_Core()
         {
             using var conn = pool.GetConnection();
@@ -243,7 +247,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringSet lots of times.
         /// </summary>
-        [Benchmark(Description = "PC StringSet/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "PC StringSet/s", OperationsPerInvoke = COUNT)]
         public void StringSet_Pipelined_Core()
         {
             using var conn = pool.GetConnection().ForPipeline();
@@ -257,7 +261,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringSet lots of times.
         /// </summary>
-        [Benchmark(Description = "PCA StringSet/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "PCA StringSet/s", OperationsPerInvoke = COUNT)]
         public async Task StringSet_Pipelined_Core_Async()
         {
             using var conn = pool.GetConnection().ForPipeline();
@@ -271,7 +275,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringGet lots of times.
         /// </summary>
-        [Benchmark(Description = "PC StringGet/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "PC StringGet/s", OperationsPerInvoke = COUNT)]
         public void StringGet_Pipelined_Core()
         {
             using var conn = pool.GetConnection().ForPipeline();
@@ -285,7 +289,7 @@ namespace BasicTest
         /// <summary>
         /// Run StringGet lots of times.
         /// </summary>
-        [Benchmark(Description = "PCA StringGet/s", OperationsPerInvoke = COUNT)]
+        // [Benchmark(Description = "PCA StringGet/s", OperationsPerInvoke = COUNT)]
         public async Task StringGet_Pipelined_Core_Async()
         {
             using var conn = pool.GetConnection().ForPipeline();
@@ -320,6 +324,58 @@ namespace BasicTest
                 await db.HashGetAllAsync(HashKey, CommandFlags.FireAndForget);
                 await db.PingAsync(); // to wait for response
             }
+        }
+
+        /// <summary>
+        /// Run incr lots of times.
+        /// </summary>
+        [Benchmark(Description = "old incr", OperationsPerInvoke = COUNT)]
+        public int IncrBy_Old()
+        {
+            RedisValue value = 0;
+            db.StringSet(StringKey_K, value);
+            for (int i = 0; i < COUNT; i++)
+            {
+                value = db.StringIncrement(StringKey_K);
+            }
+
+            return (int)value;
+        }
+
+        /// <summary>
+        /// Run incr lots of times.
+        /// </summary>
+        [Benchmark(Description = "new incr /p", OperationsPerInvoke = COUNT)]
+        public int IncrBy_New_Pipelined()
+        {
+            using var conn = pool.GetConnection().ForPipeline();
+            var s = conn.Strings();
+            int value = 0;
+            s.Set(StringKey_S, value);
+            for (int i = 0; i < COUNT; i++)
+            {
+                value = s.Incr(StringKey_K);
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// Run incr lots of times.
+        /// </summary>
+        [Benchmark(Description = "new incr", OperationsPerInvoke = COUNT)]
+        public int IncrBy_New()
+        {
+            using var conn = pool.GetConnection();
+            var s = conn.Strings();
+            int value = 0;
+            s.Set(StringKey_S, value);
+            for (int i = 0; i < COUNT; i++)
+            {
+                value = s.Incr(StringKey_K);
+            }
+
+            return value;
         }
     }
 
