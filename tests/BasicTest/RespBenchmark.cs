@@ -257,6 +257,9 @@ public partial class RespBenchmark : IDisposable
             var clients = _clients;
             var pending = new Task<T>[clients.Length];
             int index = 0;
+#if DEBUG
+            DebugCounters.Flush();
+#endif
             var watch = Stopwatch.StartNew();
             foreach (var client in clients)
             {
@@ -275,6 +278,11 @@ public partial class RespBenchmark : IDisposable
                  {totalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec""
                  {clients.Length:#,##0} parallel clients{(_multiplexed ? ", multiplexed" : "")}
                  """);
+#if DEBUG
+            var counters = DebugCounters.Flush();
+            Console.WriteLine(
+                $"Read (s/a/MiB): {counters.Read:#,##0}/{counters.AsyncRead:#,##0}/{counters.ReadBytes >> 20:#,##0}, Grow: {counters.Grow:#,##0}, Shuffle (count/MiB): {counters.ShuffleCount:#,##0}/{counters.ShuffleBytes >> 20:#,##0}");
+#endif
             if (typeof(T) != typeof(Void))
             {
                 if (string.IsNullOrWhiteSpace(format))

@@ -51,6 +51,7 @@ internal sealed class DirectWriteConnection : IRespConnection
             {
                 var buffer = _readBuffer.GetWriteBuffer();
                 var read = tail.Read(buffer.Array!, buffer.Offset, buffer.Count);
+                DebugCounters.OnRead(read);
                 if (!_readBuffer.OnRead(read)) break;
             }
 
@@ -107,6 +108,7 @@ internal sealed class DirectWriteConnection : IRespConnection
                 var read = await tail.ReadAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken)
                     .ConfigureAwait(false);
 #endif
+                DebugCounters.OnAsyncRead(read);
                 if (!_readBuffer.OnRead(read)) break;
 
                 var fullBuffer = _readBuffer.GetSpan();

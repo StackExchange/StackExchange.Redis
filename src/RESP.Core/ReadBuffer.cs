@@ -8,7 +8,49 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace Resp;
+#if DEBUG
+public partial class DebugCounters
+#else
+internal partial class DebugCounters
+#endif
+{
+    private static int _tallyRead, _tallyAsyncRead, _tallyGrow, _tallyShuffleCount;
+    private static long _tallyShuffleBytes, _tallyReadBytes;
 
+    [Conditional("DEBUG")]
+    internal static void OnRead(int bytes)
+    {
+        Interlocked.Increment(ref _tallyRead);
+        if (bytes > 0) Interlocked.Add(ref _tallyReadBytes, bytes);
+    }
+
+    [Conditional("DEBUG")]
+    internal static void OnAsyncRead(int bytes)
+    {
+        Interlocked.Increment(ref _tallyAsyncRead);
+        if (bytes > 0) Interlocked.Add(ref _tallyReadBytes, bytes);
+    }
+
+    [Conditional("DEBUG")]
+    internal static void OnGrow() => Interlocked.Increment(ref _tallyGrow);
+
+    [Conditional("DEBUG")]
+    internal static void OnShuffle(int bytes)
+    {
+        Interlocked.Increment(ref _tallyShuffleCount);
+        if (bytes > 0) Interlocked.Add(ref _tallyShuffleBytes, bytes);
+    }
+
+    public static DebugCounters Flush() => new();
+    private DebugCounters() { }
+
+    public int Read { get; } = Interlocked.Exchange(ref _tallyRead, 0);
+    public int AsyncRead { get; } = Interlocked.Exchange(ref _tallyAsyncRead, 0);
+    public long ReadBytes { get; } = Interlocked.Exchange(ref _tallyReadBytes, 0);
+    public int Grow { get; } = Interlocked.Exchange(ref _tallyGrow, 0);
+    public int ShuffleCount { get; } = Interlocked.Exchange(ref _tallyShuffleCount, 0);
+    public long ShuffleBytes { get; } = Interlocked.Exchange(ref _tallyShuffleBytes, 0);
+}
 internal struct ReadBuffer
 {
     private byte[]? _buffer;
@@ -32,6 +74,7 @@ internal struct ReadBuffer
 
     private void Grow()
     {
+        DebugCounters.OnGrow();
         var oldLength = _buffer?.Length ?? 0;
         var newLength = Math.Max(_count + MIN_READ, checked((oldLength * 3) / 2));
         byte[] newBuffer = ArrayPool<byte>.Shared.Rent(newLength);
@@ -86,6 +129,7 @@ internal struct ReadBuffer
         var remaining = _count - count;
         if (remaining != 0)
         {
+            DebugCounters.OnShuffle(remaining);
             new ReadOnlySpan<byte>(_buffer, count, remaining).CopyTo(_buffer);
         }
         _count = remaining;
