@@ -254,21 +254,12 @@ internal static class ActivationHelper
     }
 }
 
-internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessage
+internal abstract class InternalRespMessageBase<TState, TResponse> : IRespInternalMessage
 {
-    private IRespParser<TResponse>? _parser;
-    private byte[] _requestPayload;
+    private IRespParser<TState, TResponse>? _parser;
+    private byte[] _requestPayload = [];
     private int _requestLength, _requestRefCount = 1;
-
-    /// <summary>
-    /// Create a new instance using the supplied payload.
-    /// </summary>
-    internal InternalRespMessageBase(byte[] requestPayload, int requestLength, IRespParser<TResponse>? parser)
-    {
-        _parser = parser;
-        _requestPayload = requestPayload;
-        _requestLength = requestLength;
-    }
+    private TState _state = default!;
 
     public abstract bool IsCompleted { get; }
 
@@ -334,7 +325,7 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessag
                 reader.MoveNext(); // skip attributes and process errors
             }
 
-            var result = parser.Parse(ref reader);
+            var result = parser.Parse(in _state, ref reader);
             TryReleaseRequest();
             TrySetResult(result);
         }
@@ -343,14 +334,16 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessag
     protected void Reset()
     {
         _parser = null;
+        _state = default!;
         _requestLength = 0;
         _requestPayload = [];
         _requestRefCount = 0;
     }
 
-    protected void Reset(byte[] requestPayload, int requestLength, IRespParser<TResponse>? parser)
+    protected void Reset(byte[] requestPayload, int requestLength, IRespParser<TState, TResponse>? parser, in TState state)
     {
         _parser = parser;
+        _state = state;
         _requestPayload = requestPayload;
         _requestLength = requestLength;
         _requestRefCount = 1;
@@ -367,15 +360,9 @@ internal static class SyncRespMessageStatus // think "enum", but need Volatile.R
         Timeout = 4;
 }
 
-internal sealed class SyncInternalRespMessage<TResponse> : InternalRespMessageBase<TResponse>
+internal sealed class SyncInternalRespMessage<TState, TResponse> : InternalRespMessageBase<TState, TResponse>
 {
-    private SyncInternalRespMessage(
-        byte[] requestPayload,
-        int requestLength,
-        IRespParser<TResponse>? parser)
-        : base(requestPayload, requestLength, parser)
-    {
-    }
+    private SyncInternalRespMessage() { }
 
     private int _status;
     private TResponse _result = default!;
@@ -496,23 +483,17 @@ internal sealed class SyncInternalRespMessage<TResponse> : InternalRespMessageBa
     }
 
     [ThreadStatic]
-    private static SyncInternalRespMessage<TResponse>? _spare;
+    private static SyncInternalRespMessage<TState, TResponse>? _spare;
 
-    public static SyncInternalRespMessage<TResponse> Create(
+    public static SyncInternalRespMessage<TState, TResponse> Create(
         byte[] requestPayload,
         int requestLength,
-        IRespParser<TResponse>? parser)
+        IRespParser<TState, TResponse>? parser,
+        in TState state)
     {
-        var obj = _spare;
-        if (obj is null)
-        {
-            obj = new(requestPayload, requestLength, parser);
-        }
-        else
-        {
-            _spare = null;
-            obj.Reset(requestPayload, requestLength, parser);
-        }
+        var obj = _spare ?? new();
+        _spare = null;
+        obj.Reset(requestPayload, requestLength, parser, in state);
 
         return obj;
     }
@@ -582,19 +563,11 @@ internal sealed class AsyncInternalRespMessage<TResponse>(
     }
 }
 #else
-internal sealed class AsyncInternalRespMessage<TResponse> : InternalRespMessageBase<TResponse>,
+internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalRespMessageBase<TState, TResponse>,
     IValueTaskSource<TResponse>, IValueTaskSource
 {
     [ThreadStatic]
-    private static AsyncInternalRespMessage<TResponse>? _spare;
-
-    private AsyncInternalRespMessage(
-        byte[] requestPayload,
-        int requestLength,
-        IRespParser<TResponse>? parser) : base(requestPayload, requestLength, parser)
-    {
-        _asyncCore.RunContinuationsAsynchronously = true;
-    }
+    private static AsyncInternalRespMessage<TState, TResponse>? _spare;
 
     // we need synchronization over multiple attempts (completion, cancellation, abort) trying
     // to signal the MRTCS
@@ -630,17 +603,16 @@ internal sealed class AsyncInternalRespMessage<TResponse> : InternalRespMessageB
         return false;
     }
 
-    public static AsyncInternalRespMessage<TResponse> Create(
+    public static AsyncInternalRespMessage<TState, TResponse> Create(
         byte[] requestPayload,
         int requestLength,
-        IRespParser<TResponse>? parser)
+        IRespParser<TState, TResponse>? parser,
+        in TState state)
     {
-        var obj = _spare;
-        if (obj is null) return new(requestPayload, requestLength, parser);
-
+        var obj = _spare ?? new();
         _spare = null;
         obj._asyncCore.RunContinuationsAsynchronously = true;
-        obj.Reset(requestPayload, requestLength, parser);
+        obj.Reset(requestPayload, requestLength, parser, in state);
         return obj;
     }
 

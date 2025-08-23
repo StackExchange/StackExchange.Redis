@@ -20,9 +20,9 @@ public interface IRespSizeEstimator<TRequest> : IRespFormatter<TRequest>
     int EstimateSize(scoped ReadOnlySpan<byte> command, in TRequest request);
 }
 
-public interface IRespParser<out TResponse>
+public interface IRespParser<TState, out TResponse>
 {
-    TResponse Parse(ref RespReader reader);
+    TResponse Parse(in TState state, ref RespReader reader);
 }
 
 internal interface IRespInternalMessage : IRespMessage
@@ -152,13 +152,13 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
         scoped ReadOnlySpan<byte> command,
         TRequest request,
         IRespFormatter<TRequest> formatter,
-        IRespParser<TResponse> parser)
+        IRespParser<Void, TResponse> parser)
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
     {
         var bytes = Serialize(RespCommandMap, command, request, formatter, out int length);
-        var msg = SyncInternalRespMessage<TResponse>.Create(bytes, length, parser);
+        var msg = SyncInternalRespMessage<Void, TResponse>.Create(bytes, length, parser, in Void.Instance);
         connection.Send(msg);
         return msg.WaitAndRecycle(connection.Configuration.SyncTimeout);
     }
@@ -167,54 +167,55 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
         scoped ReadOnlySpan<byte> command,
         TRequest request,
         IRespFormatter<TRequest> formatter,
-        IRespParser<TResponse> parser)
+        IRespParser<Void, TResponse> parser)
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
-        => SendAsync(command, request, formatter, parser).WaitTypedTaskAsync(cancellationToken);
+        => SendAsync(command, request, formatter, parser, in Void.Instance).WaitTypedTaskAsync(cancellationToken);
 
     public ValueTask<TResponse> SendValueTaskAsync<TRequest, TResponse>(
         scoped ReadOnlySpan<byte> command,
         TRequest request,
         IRespFormatter<TRequest> formatter,
-        IRespParser<TResponse> parser)
+        IRespParser<Void, TResponse> parser)
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
-        => SendAsync(command, request, formatter, parser).WaitTypedValueTaskAsync(cancellationToken);
+        => SendAsync(command, request, formatter, parser, in Void.Instance).WaitTypedValueTaskAsync(cancellationToken);
 
     public Task SendTaskAsync<TRequest>(
         scoped ReadOnlySpan<byte> command,
         TRequest request,
         IRespFormatter<TRequest> formatter,
-        IRespParser<Void> parser)
+        IRespParser<Void, Void> parser)
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
-        => SendAsync(command, request, formatter, parser).WaitUntypedTaskAsync(cancellationToken);
+        => SendAsync(command, request, formatter, parser, in Void.Instance).WaitUntypedTaskAsync(cancellationToken);
 
     public ValueTask SendValueTaskAsync<TRequest>(
         scoped ReadOnlySpan<byte> command,
         TRequest request,
         IRespFormatter<TRequest> formatter,
-        IRespParser<Void> parser)
+        IRespParser<Void, Void> parser)
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
-        => SendAsync(command, request, formatter, parser).WaitUntypedValueTaskAsync(cancellationToken);
+        => SendAsync(command, request, formatter, parser, in Void.Instance).WaitUntypedValueTaskAsync(cancellationToken);
 
-    private AsyncInternalRespMessage<TResponse> SendAsync<TRequest, TResponse>(
+    private AsyncInternalRespMessage<TState, TResponse> SendAsync<TRequest, TState, TResponse>(
         ReadOnlySpan<byte> command,
         TRequest request,
         IRespFormatter<TRequest> formatter,
-        IRespParser<TResponse> parser)
+        IRespParser<TState, TResponse> parser,
+        in TState state)
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
     {
         cancellationToken.ThrowIfCancellationRequested();
         var bytes = Serialize(RespCommandMap, command, request, formatter, out int length);
-        var msg = AsyncInternalRespMessage<TResponse>.Create(bytes, length, parser);
+        var msg = AsyncInternalRespMessage<TState, TResponse>.Create(bytes, length, parser, in state);
         connection.Send(msg);
         return msg;
     }

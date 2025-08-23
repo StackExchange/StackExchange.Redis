@@ -26,7 +26,7 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
         ReadOnlySpan<byte> buffer = "$3\r\nabc\r\n"u8;
         var reader = new RespReader(buffer);
         reader.MoveNext();
-        var value = RespParsers.String.Parse(ref reader);
+        var value = RespParsers.String.Parse(in Resp.Void.Instance, ref reader);
         reader.DemandEnd();
         Assert.Equal("abc", value);
     }

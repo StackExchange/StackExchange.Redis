@@ -1342,6 +1342,30 @@ public ref partial struct RespReader
     }
 
     /// <summary>
+    /// Copy the current scalar value out into the supplied <paramref name="target"/>, or as much as can be copied.
+    /// </summary>
+    /// <param name="target">The destination for the copy operation.</param>
+    /// <returns>The number of bytes successfully copied.</returns>
+    public readonly int CopyTo(IBufferWriter<byte> target)
+    {
+        if (TryGetSpan(out var value))
+        {
+            target.Write(value);
+            return value.Length;
+        }
+
+        int totalBytes = 0;
+        var iterator = ScalarChunks();
+        while (iterator.MoveNext())
+        {
+            value = iterator.Current;
+            target.Write(value);
+            totalBytes += value.Length;
+        }
+        return totalBytes;
+    }
+
+    /// <summary>
     /// Asserts that the current element is not null.
     /// </summary>
     public void DemandNotNull()

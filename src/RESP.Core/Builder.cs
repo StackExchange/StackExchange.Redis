@@ -13,31 +13,31 @@ public readonly ref struct RespMessageBuilder<TRequest>(RespContext context, Rea
 
     public TResponse Wait<TResponse>()
         => context.Send(_command, _value, formatter, RespParsers.Get<TResponse>());
-    public TResponse Wait<TResponse>(IRespParser<TResponse> parser)
+    public TResponse Wait<TResponse>(IRespParser<Void, TResponse> parser)
         => context.Send(_command, _value, formatter, parser);
 
     public void Wait()
         => context.Send(_command, _value, formatter, RespParsers.Success);
-    public void Wait(IRespParser<Void> parser)
+    public void Wait(IRespParser<Void, Void> parser)
         => context.Send(_command, _value, formatter, parser);
 
     public Task<TResponse> AsTask<TResponse>()
         => context.SendTaskAsync(_command, _value, formatter, RespParsers.Get<TResponse>());
-    public Task<TResponse> AsTask<TResponse>(IRespParser<TResponse> parser)
+    public Task<TResponse> AsTask<TResponse>(IRespParser<Void, TResponse> parser)
         => context.SendTaskAsync(_command, _value, formatter, parser);
 
     public Task AsTask()
         => context.SendTaskAsync(_command, _value, formatter, RespParsers.Success);
-    public Task AsTask(IRespParser<Void> parser)
+    public Task AsTask(IRespParser<Void, Void> parser)
         => context.SendTaskAsync(_command, _value, formatter, parser);
 
     public ValueTask<TResponse> AsValueTask<TResponse>()
         => context.SendValueTaskAsync(_command, _value, formatter, RespParsers.Get<TResponse>());
-    public ValueTask<TResponse> AsValueTask<TResponse>(IRespParser<TResponse> parser)
+    public ValueTask<TResponse> AsValueTask<TResponse>(IRespParser<Void, TResponse> parser)
         => context.SendValueTaskAsync(_command, _value, formatter, parser);
 
     public ValueTask AsValueTask()
         => context.SendValueTaskAsync(_command, _value, formatter, RespParsers.Success);
-    public ValueTask AsValueTask(IRespParser<Void> parser)
+    public ValueTask AsValueTask(IRespParser<Void, Void> parser)
         => context.SendValueTaskAsync(_command, _value, formatter, parser);
 }
