@@ -66,9 +66,12 @@ public partial class RespBenchmark : IDisposable
         await RunAsync(Get, GetInit).ConfigureAwait(false);
         await RunAsync(Set).ConfigureAwait(false);
         await RunAsync(LPush).ConfigureAwait(false);
-        await RunAsync(LRange100, LRangeInit).ConfigureAwait(false);
-        await RunAsync(LRange300, LRangeInit).ConfigureAwait(false);
-        await RunAsync(LRange500, LRangeInit).ConfigureAwait(false);
+        await RunAsync(LRange100, LRangeInit450).ConfigureAwait(false);
+        await RunAsync(LRange300, LRangeInit450).ConfigureAwait(false);
+        await RunAsync(LRange500, LRangeInit450).ConfigureAwait(false);
+        await RunAsync(LPop, LPopInit).ConfigureAwait(false);
+        await RunAsync(SAdd).ConfigureAwait(false);
+        await RunAsync(SPop, SPopInit).ConfigureAwait(false);
         await RunAsync(MSet).ConfigureAwait(false);
         await CleanupAsync().ConfigureAwait(false);
     }
@@ -166,6 +169,9 @@ public partial class RespBenchmark : IDisposable
     [DisplayName("LPUSH")]
     private Task LPush(RespContext ctx) => Pipeline(() => LPushAsync(ctx, _key, _payload));
 
+    [RespCommand]
+    private partial void LPush(in RespContext ctx, string key, byte[] payload);
+
     [DisplayName("LRANGE_100 (100 of 450)")]
     private Task LRange100(RespContext ctx) => Pipeline(() => LRangeAsync(ctx, _key, 0, 99));
 
@@ -174,6 +180,42 @@ public partial class RespBenchmark : IDisposable
 
     [DisplayName("LRANGE_500 (450 of 450)")]
     private Task LRange500(RespContext ctx) => Pipeline(() => LRangeAsync(ctx, _key, 0, 499));
+
+    [DisplayName("LPOP")]
+    private Task LPop(RespContext ctx) => Pipeline(() => LPopAsync(ctx, _key));
+
+    private async Task LPopInit(RespContext ctx)
+    {
+        int ops = _operationsPerClient * _clients.Length;
+        for (int i = 0; i < ops; i++)
+        {
+            await LPushAsync(ctx, _key, _payload).ConfigureAwait(false);
+        }
+    }
+
+    [RespCommand]
+    private partial byte[] LPop(in RespContext ctx, string key);
+
+    [DisplayName("SADD")]
+    private Task SAdd(RespContext ctx) => Pipeline(() => SAddAsync(ctx, _key, _payload));
+
+    [DisplayName("SPOP")]
+    private Task SPop(RespContext ctx) => Pipeline(() => SPopAsync(ctx, _key));
+
+    private async Task SPopInit(RespContext ctx)
+    {
+        int ops = _operationsPerClient * _clients.Length;
+        for (int i = 0; i < ops; i++)
+        {
+            await SAddAsync(ctx, _key, _payload).ConfigureAwait(false);
+        }
+    }
+
+    [RespCommand]
+    private partial byte[] SPop(in RespContext ctx, string key);
+
+    [RespCommand]
+    private partial void SAdd(in RespContext ctx, string key, byte[] payload);
 
     [RespCommand]
     private partial byte[][] LRange(in RespContext ctx, string key, int start, int stop);
@@ -199,16 +241,13 @@ public partial class RespBenchmark : IDisposable
             }
         }
     }
-    private async Task LRangeInit(RespContext ctx)
+    private async Task LRangeInit450(RespContext ctx)
     {
         for (int i = 0; i < 450; i++)
         {
             await LPushAsync(ctx, _key, _payload).ConfigureAwait(false);
         }
     }
-
-    [RespCommand]
-    private partial void LPush(in RespContext ctx, string key, byte[] payload);
 
     private async Task RunAsync(Func<RespContext, Task> action, Func<RespContext, Task> init = null)
     {
