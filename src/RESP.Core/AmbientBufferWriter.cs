@@ -7,6 +7,7 @@ namespace Resp;
 
 internal sealed class AmbientBufferWriter : IBufferWriter<byte>
 {
+    [ThreadStatic]
     private static AmbientBufferWriter? _threadStaticInstance;
 
     public static AmbientBufferWriter Get(int estimatedSize)

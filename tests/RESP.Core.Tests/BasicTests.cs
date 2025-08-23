@@ -15,7 +15,7 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
     {
         Span<byte> buffer = stackalloc byte[128];
         var writer = new RespWriter(buffer);
-        RespFormatters.String.Format("get"u8, ref writer, "abc");
+        RespFormatters.Value.String.Format("get"u8, ref writer, "abc");
         writer.Flush();
         Assert.Equal("*2\r\n$3\r\nget\r\n$3\r\nabc\r\n", writer.DebugBuffer());
     }

@@ -19,29 +19,32 @@ namespace BasicTest
 {
     internal static class Program
     {
-#if DEBUG
-        private static async Task Main()
+        private static async Task Main(string[] args)
         {
-            using var pool = new RespConnectionPool();
-            for (int outer = 0; outer < 1000; outer++)
+            int port = RespBenchmark.DefaultPort, clients = RespBenchmark.DefaultClients,
+                requests = RespBenchmark.DefaultRequests, pipelineDepth = RespBenchmark.DefaultPipelineDepth;
+            for (int i = 0; i < args.Length; i++)
             {
-                using var conn = pool.GetConnection();
-                var s = conn.Strings();
-                int value = 0;
-                s.Set(RedisBenchmarks.StringKey_S, value);
-                for (int inner = 0; inner < RedisBenchmarks.OperationsPerInvoke; inner++)
+                switch (args[i])
                 {
-                    value = s.Incr(RedisBenchmarks.StringKey_K);
-                    value = await s.IncrAsync(RedisBenchmarks.StringKey_K);
+                    case "-p" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                        port = tmp;
+                        break;
+                    case "-c" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                        clients = tmp;
+                        break;
+                    case "-n" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                        requests = tmp;
+                        break;
+                    case "-P" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                        pipelineDepth = tmp;
+                        break;
                 }
-                Console.Write(outer);
-                Console.Write(' ');
-                Console.WriteLine(value);
             }
+            using var bench = new RespBenchmark(port: port, clients: clients, requests: requests, pipelineDepth: pipelineDepth);
+            await bench.RunAll();
         }
-#else
-        private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
-#endif
+        // private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
     }
     internal class CustomConfig : ManualConfig
     {

@@ -70,7 +70,7 @@ public sealed class RespConnectionPool : IDisposable
 
     private void Return(IRespConnection tail)
     {
-        if (!tail.CanWrite || _pool.Count >= _count)
+        if (_isDisposed || !tail.CanWrite || _pool.Count >= _count)
         {
             tail.Dispose();
         }

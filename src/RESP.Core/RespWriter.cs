@@ -157,6 +157,12 @@ public ref struct RespWriter
 #else
                 _buffer = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
 #endif
+                #if DEBUG
+                if (Available == 0)
+                {
+                    Debugger.Break();
+                }
+                #endif
                 Debug.Assert(Available > 0);
             }
         }
@@ -198,8 +204,7 @@ public ref struct RespWriter
     /// </summary>
     /// <param name="command">The command name to write.</param>
     /// <param name="args">The number of arguments for the command (excluding the command itself).</param>
-    /// <param name="keyIndex">The index of the argument to use as a key for sharding purposes (if any).</param>
-    public void WriteCommand(scoped ReadOnlySpan<byte> command, int args, int keyIndex = -1)
+    public void WriteCommand(scoped ReadOnlySpan<byte> command, int args)
     {
         if (args < 0) Throw();
         WritePrefixedInteger(RespPrefix.Array, args + 1);
@@ -217,6 +222,30 @@ public ref struct RespWriter
         static void ThrowCommandUnavailable(ReadOnlySpan<byte> command)
             => throw new ArgumentException(paramName: nameof(command), message: $"The command {Encoding.UTF8.GetString(command)} is not available.");
     }
+
+    /// <summary>
+    /// Write a key as a bulk string.
+    /// </summary>
+    /// <param name="value">The key to write.</param>
+    public void WriteKey(scoped ReadOnlySpan<byte> value) => WriteBulkString(value);
+
+    /// <summary>
+    /// Write a key as a bulk string.
+    /// </summary>
+    /// <param name="value">The key to write.</param>
+    public void WriteKey(scoped ReadOnlySpan<char> value) => WriteBulkString(value);
+
+    /// <summary>
+    /// Write a key as a bulk string.
+    /// </summary>
+    /// <param name="value">The key to write.</param>
+    public void WriteKey(string value) => WriteBulkString(value);
+
+    /// <summary>
+    /// Write a key as a bulk string.
+    /// </summary>
+    /// <param name="value">The key to write.</param>
+    public void WriteKey(byte[] value) => WriteBulkString(value);
 
     /// <summary>
     /// Write a payload as a bulk string.

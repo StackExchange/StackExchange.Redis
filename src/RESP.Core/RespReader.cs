@@ -536,6 +536,27 @@ public ref partial struct RespReader
         PrefixMkd = RespConstants.UnsafeCpuUInt32("mkd:"u8);
 
     /// <summary>
+    /// Reads the current element as a string value.
+    /// </summary>
+    public readonly byte[]? ReadByteArray()
+    {
+        byte[] pooled = [];
+        try
+        {
+            var span = Buffer(ref pooled, stackalloc byte[256]);
+            if (span.IsEmpty)
+            {
+                return IsNull ? null : [];
+            }
+            return span.ToArray();
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(pooled);
+        }
+    }
+
+    /// <summary>
     /// Reads the current element using a general purpose text parser.
     /// </summary>
     /// <typeparam name="T">The type of data being parsed.</typeparam>
@@ -1537,5 +1558,16 @@ public ref partial struct RespReader
 #else
         return Enum.TryParse(ReadString(), true, out T value) ? value : unknownValue;
 #endif
+    }
+
+    public T[]? ReadArray<T>(Projection<T> projection)
+    {
+        DemandAggregate();
+        if (IsNull) return null;
+        var len = AggregateLength();
+        if (len == 0) return [];
+        T[] result = new T[len];
+        FillAll(result, projection);
+        return result;
     }
 }

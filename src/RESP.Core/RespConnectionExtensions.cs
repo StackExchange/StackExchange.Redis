@@ -142,8 +142,11 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
     public RespMessageBuilder<Void> Command(ReadOnlySpan<byte> command)
         => new(this, command, Void.Instance, RespFormatters.Void);
 
-    public RespMessageBuilder<string> Command(ReadOnlySpan<byte> command, string value)
-        => new(this, command, value, RespFormatters.String);
+    public RespMessageBuilder<string> Command(ReadOnlySpan<byte> command, string value, bool isKey)
+        => new(this, command, value, RespFormatters.String(isKey));
+
+    public RespMessageBuilder<byte[]> Command(ReadOnlySpan<byte> command, byte[] value, bool isKey)
+        => new(this, command, value, RespFormatters.ByteArray(isKey));
 
     public TResponse Send<TRequest, TResponse>(
         scoped ReadOnlySpan<byte> command,

@@ -16,6 +16,8 @@ public static class RespParsers
     public static IRespParser<float?> NullableSingle => InbuiltParsers.Default;
     public static IRespParser<double> Double => InbuiltParsers.Default;
     public static IRespParser<double?> NullableDouble => InbuiltParsers.Default;
+    public static IRespParser<byte[]?> ByteArray => InbuiltParsers.Default;
+    public static IRespParser<byte[]?[]?> ByteArrayArray => InbuiltParsers.Default;
 
     private sealed class Cache<T>
     {
@@ -77,6 +79,7 @@ public static class RespParsers
     }
 
     private sealed class InbuiltParsers : IRespParser<string?>,
+        IRespParser<byte[]?>, IRespParser<byte[]?[]?>,
         IRespParser<int>, IRespParser<int?>,
         IRespParser<long>, IRespParser<long?>,
         IRespParser<float>, IRespParser<float?>,
@@ -86,6 +89,9 @@ public static class RespParsers
         public static readonly InbuiltParsers Default = new();
 
         string? IRespParser<string?>.Parse(ref RespReader reader) => reader.ReadString();
+        byte[]? IRespParser<byte[]?>.Parse(ref RespReader reader) => reader.ReadByteArray();
+        byte[]?[]? IRespParser<byte[]?[]?>.Parse(ref RespReader reader) => reader.ReadArray(
+            static (ref RespReader reader) => reader.ReadByteArray());
         int IRespParser<int>.Parse(ref RespReader reader) => reader.ReadInt32();
         int? IRespParser<int?>.Parse(ref RespReader reader) => reader.IsNull ? null : reader.ReadInt32();
         long IRespParser<long>.Parse(ref RespReader reader) => reader.ReadInt64();
