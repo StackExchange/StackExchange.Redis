@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Resp;
+using Void = Resp.Void;
 
 namespace BasicTest;
 
@@ -99,7 +100,7 @@ public partial class RespBenchmark : IDisposable
         await CleanupAsync().ConfigureAwait(false);
     }
 
-    private async Task Pipeline(Func<ValueTask> operation)
+    private async Task<Void> Pipeline(Func<ValueTask> operation)
     {
         if (_pipelineDepth == 1)
         {
@@ -126,6 +127,8 @@ public partial class RespBenchmark : IDisposable
                 await queue.Dequeue().ConfigureAwait(false);
             }
         }
+
+        return Void.Instance;
     }
 
     private async Task<T> Pipeline<T>(Func<ValueTask<T>> operation)
@@ -161,93 +164,214 @@ public partial class RespBenchmark : IDisposable
     }
 
     [DisplayName("PING_BULK")]
-    private Task PingBulk(RespContext ctx) => Pipeline(() => PingAsync(ctx, _payload));
-
-    [RespCommand]
-    internal partial byte[] Ping(in RespContext ctx, byte[] payload);
+    private Task<int> PingBulk(RespContext ctx) => Pipeline(() => ctx.PingAsync(_payload));
 
     [DisplayName("INCR")]
-    private Task Incr(RespContext ctx) => Pipeline(() => IncrAsync(ctx, _key));
-
-    [RespCommand]
-    private partial int Incr(in RespContext ctx, string key);
-
-    [RespCommand]
-    private partial void Del(in RespContext ctx, string key);
+    private Task<int> Incr(RespContext ctx) => Pipeline(() => ctx.IncrAsync(_key));
 
     [DisplayName("GET")]
-    private Task Get(RespContext ctx) => Pipeline(() => GetAsync(ctx, _key));
+    private Task<int> Get(RespContext ctx) => Pipeline(() => ctx.GetAsync(_key));
 
-    [RespCommand]
-    private partial byte[] Get(in RespContext ctx, string key);
-
-    private Task GetInit(RespContext ctx) => SetAsync(ctx, _key, _payload).AsTask();
+    private Task GetInit(RespContext ctx) => ctx.SetAsync(_key, _payload).AsTask();
 
     [DisplayName("SET")]
-    private Task Set(RespContext ctx) => Pipeline(() => SetAsync(ctx, _key, _payload));
-
-    [RespCommand]
-    private partial void Set(in RespContext ctx, string key, byte[] payload);
+    private Task<Void> Set(RespContext ctx) => Pipeline(() => ctx.SetAsync(_key, _payload));
 
     [DisplayName("LPUSH")]
-    private Task LPush(RespContext ctx) => Pipeline(() => LPushAsync(ctx, _key, _payload));
-
-    [RespCommand]
-    private partial void LPush(in RespContext ctx, string key, byte[] payload);
+    private Task<Void> LPush(RespContext ctx) => Pipeline(() => ctx.LPushAsync(_key, _payload));
 
     [DisplayName("LRANGE_100 (100 of 450)")]
-    private Task LRange100(RespContext ctx) => Pipeline(() => LRangeAsync(ctx, _key, 0, 99));
+    private Task<int> LRange100(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 99));
 
     [DisplayName("LRANGE_300 (300 of 450)")]
-    private Task LRange300(RespContext ctx) => Pipeline(() => LRangeAsync(ctx, _key, 0, 299));
+    private Task<int> LRange300(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 299));
 
     [DisplayName("LRANGE_500 (450 of 450)")]
-    private Task LRange500(RespContext ctx) => Pipeline(() => LRangeAsync(ctx, _key, 0, 499));
+    private Task<int> LRange500(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 499));
 
     [DisplayName("LPOP")]
-    private Task LPop(RespContext ctx) => Pipeline(() => LPopAsync(ctx, _key));
+    private Task<int> LPop(RespContext ctx) => Pipeline(() => LPopAsync(ctx, _key));
 
     private async Task LPopInit(RespContext ctx)
     {
         int ops = _operationsPerClient * _clients.Length;
         for (int i = 0; i < ops; i++)
         {
-            await LPushAsync(ctx, _key, _payload).ConfigureAwait(false);
+            await ctx.LPushAsync(_key, _payload).ConfigureAwait(false);
         }
     }
 
+    private ValueTask<int> LPopAsync(in RespContext ctx, string key)
+        => ctx.Command("lpop"u8, key, RespFormatters.Key.String).AsValueTask(RespParsers.Length);
+
+    /*
     [RespCommand]
     private partial byte[] LPop(in RespContext ctx, string key);
-
+*/
     [DisplayName("SADD")]
-    private Task SAdd(RespContext ctx) => Pipeline(() => SAddAsync(ctx, _key, _payload));
+    private Task<Void> SAdd(RespContext ctx) => Pipeline(() => ctx.SAddAsync(_key, _payload));
 
     [DisplayName("SPOP")]
-    private Task SPop(RespContext ctx) => Pipeline(() => SPopAsync(ctx, _key));
+    private Task<int> SPop(RespContext ctx) => Pipeline(() => ctx.SPopAsync(_key));
 
     private async Task SPopInit(RespContext ctx)
     {
-        int ops = _operationsPerClient * _clients.Length;
+        int ops = (_operationsPerClient * _clients.Length) + 5;
         for (int i = 0; i < ops; i++)
         {
-            await SAddAsync(ctx, _key, _payload).ConfigureAwait(false);
+            await ctx.SAddAsync(_key, _payload).ConfigureAwait(false);
         }
     }
 
+    [DisplayName("MSET (10 keys)")]
+    private Task<Void> MSet(RespContext ctx) => Pipeline(() => ctx.MSetAsync(_pairs));
+
+    private async Task LRangeInit450(RespContext ctx)
+    {
+        for (int i = 0; i < 450; i++)
+        {
+            await ctx.LPushAsync(_key, _payload).ConfigureAwait(false);
+        }
+    }
+
+    private async Task RunAsync<T>(
+        Func<RespContext, Task<T>> action,
+        Func<RespContext, Task> init = null,
+        string format = "")
+    {
+        await CleanupAsync().ConfigureAwait(false);
+        if (init is not null) await init(_clients[0]).ConfigureAwait(false);
+
+        string name = action.Method.Name;
+
+        if (action.Method.GetCustomAttribute(typeof(DisplayNameAttribute)) is DisplayNameAttribute
+            {
+                DisplayName: { Length: > 0 }
+            } attr)
+        {
+            name = attr.DisplayName;
+        }
+
+        var clients = _clients;
+        var pending = new Task<T>[clients.Length];
+        int index = 0;
+        var watch = Stopwatch.StartNew();
+        foreach (var client in clients)
+        {
+            pending[index++] = Task.Run(() => action(client));
+        }
+
+        await Task.WhenAll(pending).ConfigureAwait(false);
+        watch.Stop();
+
+        var totalOperations = _operationsPerClient * _clients.Length;
+        var seconds = watch.Elapsed.TotalSeconds;
+        var rate = (totalOperations / seconds) / 1000;
+        Console.WriteLine(
+            $"""
+             ====== {name} ======
+             {totalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec""
+             {clients.Length:#,##0} parallel clients{(_multiplexed ? ", multiplexed" : "")}
+             """);
+        if (typeof(T) != typeof(Void))
+        {
+            if (string.IsNullOrWhiteSpace(format))
+            {
+                format = "Typical result: {0}";
+            }
+
+            T result = await pending[pending.Length - 1];
+            Console.WriteLine(format, result);
+        }
+        Console.WriteLine();
+    }
+
+    public async Task CleanupAsync()
+    {
+        var client = _clients[0];
+        await client.DelAsync(_key).ConfigureAwait(false);
+        foreach (var pair in _pairs)
+        {
+            await client.DelAsync(pair.Key).ConfigureAwait(false);
+        }
+    }
+
+    public async Task InitAsync()
+    {
+        foreach (var client in _clients)
+        {
+            await client.PingAsync().ConfigureAwait(false);
+        }
+    }
+}
+
+internal static partial class RedisCommands
+{
+    [RespCommand]
+    internal static partial void Ping(this in RespContext ctx);
+
+    internal static ValueTask<int> SPopAsync(this in RespContext ctx, string key)
+        => ctx.Command("spop"u8, key, RespFormatters.Key.String).AsValueTask(RespParsers.Length);
+
+    /*
     [RespCommand]
     private partial byte[] SPop(in RespContext ctx, string key);
+*/
+    [RespCommand]
+    internal static partial void SAdd(this in RespContext ctx, string key, byte[] payload);
 
     [RespCommand]
-    private partial void SAdd(in RespContext ctx, string key, byte[] payload);
+    internal static partial void Set(this in RespContext ctx, string key, byte[] payload);
 
+    [RespCommand]
+    internal static partial void LPush(this in RespContext ctx, string key, byte[] payload);
+
+    internal static ValueTask<int> LRangeAsync(this in RespContext ctx, string key, int start, int stop)
+        => ctx.Command("lrange"u8, (key, start, stop), LRangeFormatter.Default).AsValueTask(RespParsers.Length);
+
+    private sealed class LRangeFormatter : IRespFormatter<(string Key, int Start, int Stop)>
+    {
+        public static readonly LRangeFormatter Default = new LRangeFormatter();
+
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in (string Key, int Start, int Stop) request)
+        {
+            writer.WriteCommand(command, 3);
+            writer.WriteKey(request.Key);
+            writer.WriteBulkString(request.Start);
+            writer.WriteBulkString(request.Stop);
+        }
+    }
+    /*
     [RespCommand]
     private partial byte[][] LRange(in RespContext ctx, string key, int start, int stop);
+    */
 
-    [DisplayName("MSET (10 keys)")]
-    private Task MSet(RespContext ctx) => Pipeline(() => MSetAsync(ctx, _pairs));
+    /*
+[RespCommand]
+internal partial byte[] Ping(in RespContext ctx, byte[] payload);
+*/
 
+    internal static ValueTask<int> PingAsync(this in RespContext ctx, byte[] payload)
+        => ctx.Command("ping"u8, payload, RespFormatters.Value.ByteArray).AsValueTask(RespParsers.Length);
+
+    [RespCommand]
+    internal static partial int Incr(this in RespContext ctx, string key);
+
+    [RespCommand]
+    internal static partial void Del(this in RespContext ctx, string key);
+
+    internal static ValueTask<int> GetAsync(this in RespContext ctx, string key)
+        => ctx.Command("get"u8, key, RespFormatters.Key.String).AsValueTask(RespParsers.Length);
+
+    /*
+    [RespCommand]
+    private partial byte[] Get(in RespContext ctx, string key);
+*/
     // here we also demo a custom command formatter
-    private ValueTask MSetAsync(in RespContext ctx, (string, byte[])[] pairs)
+    internal static ValueTask MSetAsync(this in RespContext ctx, (string, byte[])[] pairs)
         => ctx.Command("mset"u8, pairs, PairsFormatter.Instance).AsValueTask();
 
     private sealed class PairsFormatter : IRespFormatter<(string Key, byte[] Value)[]>
@@ -267,71 +391,4 @@ public partial class RespBenchmark : IDisposable
             }
         }
     }
-
-    private async Task LRangeInit450(RespContext ctx)
-    {
-        for (int i = 0; i < 450; i++)
-        {
-            await LPushAsync(ctx, _key, _payload).ConfigureAwait(false);
-        }
-    }
-
-    private async Task RunAsync(Func<RespContext, Task> action, Func<RespContext, Task> init = null)
-    {
-        await CleanupAsync().ConfigureAwait(false);
-        if (init is not null) await init(_clients[0]).ConfigureAwait(false);
-
-        string name = action.Method.Name;
-        if (action.Method.GetCustomAttribute(typeof(DisplayNameAttribute)) is DisplayNameAttribute
-            {
-                DisplayName: { Length: > 0 }
-            } attr)
-        {
-            name = attr.DisplayName;
-        }
-
-        var clients = _clients;
-        var pending = new Task[clients.Length];
-        int index = 0;
-        var watch = Stopwatch.StartNew();
-        foreach (var client in clients)
-        {
-            pending[index++] = Task.Run(() => action(client));
-        }
-
-        await Task.WhenAll(pending).ConfigureAwait(false);
-        watch.Stop();
-
-        var totalOperations = _operationsPerClient * _clients.Length;
-        var seconds = watch.Elapsed.TotalSeconds;
-        var rate = (totalOperations / seconds) / 1000;
-        Console.WriteLine(
-            $"""
-             ====== {name} ======
-             {totalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec""
-             {clients.Length:#,##0} parallel clients{(_multiplexed ? ", multiplexed" : "")}
-
-             """);
-    }
-
-    public async Task CleanupAsync()
-    {
-        var client = _clients[0];
-        await DelAsync(client, _key).ConfigureAwait(false);
-        foreach (var pair in _pairs)
-        {
-            await DelAsync(client, pair.Key).ConfigureAwait(false);
-        }
-    }
-
-    public async Task InitAsync()
-    {
-        foreach (var client in _clients)
-        {
-            await PingAsync(client).ConfigureAwait(false);
-        }
-    }
-
-    [RespCommand]
-    private partial void Ping(in RespContext ctx);
 }

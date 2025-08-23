@@ -20,6 +20,7 @@ public static class RespParsers
     public static IRespParser<Void, byte[]?> ByteArray => InbuiltParsers.Default;
     public static IRespParser<Void, byte[]?[]?> ByteArrayArray => InbuiltParsers.Default;
     public static IRespParser<IBufferWriter<byte>, int> BufferWriter => InbuiltParsers.Default;
+    public static IRespParser<Void, int> Length => LengthParser.Default;
 
     private sealed class Cache<TResponse>
     {
@@ -109,6 +110,17 @@ public static class RespParsers
             reader.DemandScalar();
             if (reader.IsNull) return -1;
             return reader.CopyTo(state);
+        }
+    }
+    private sealed class LengthParser : IRespParser<Void, int>, IRespInlineParser
+    {
+        private LengthParser() { }
+        public static readonly LengthParser Default = new();
+
+        public int Parse(in Void state, ref RespReader reader)
+        {
+            if (reader.IsNull) return -1;
+            return reader.IsScalar ? reader.ScalarLength() : reader.AggregateLength();
         }
     }
 }
