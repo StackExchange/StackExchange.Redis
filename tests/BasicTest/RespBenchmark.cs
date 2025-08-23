@@ -19,7 +19,9 @@ public partial class RespBenchmark : IDisposable
     public int ClientCount => _clients.Length;
 
     private readonly int _operationsPerClient, _pipelineDepth;
+    private readonly bool _multiplexed;
     public const int DefaultPort = 6379, DefaultRequests = 100_000, DefaultPipelineDepth = 1, DefaultClients = 50;
+    public const bool DefaultMultiplexed = false;
     private readonly byte[] _payload;
     private readonly (string Key, byte[] Value)[] _pairs;
 
@@ -29,23 +31,44 @@ public partial class RespBenchmark : IDisposable
         int port = DefaultPort,
         int requests = DefaultRequests,
         int pipelineDepth = DefaultPipelineDepth,
-        int clients = DefaultClients)
+        int clients = DefaultClients,
+        bool multiplexed = DefaultMultiplexed)
     {
         if (clients <= 0) throw new ArgumentOutOfRangeException(nameof(clients));
         if (pipelineDepth <= 0) throw new ArgumentOutOfRangeException(nameof(pipelineDepth));
         _payload = "abc"u8.ToArray();
         _operationsPerClient = requests / clients;
         _pipelineDepth = pipelineDepth;
-        _connectionPool = new(count: clients);
+        _multiplexed = multiplexed;
+        _connectionPool = new(count: multiplexed ? 1 : clients);
         _pairs = new (string, byte[])[10];
         for (var i = 0; i < 10; i++)
         {
             _pairs[i] = ($"{_key}{i}", _payload);
         }
+
         _clients = new RespContext[clients];
-        for (int i = 0; i < clients; i++) // init all
+        if (multiplexed)
         {
-            _clients[i] = new(_connectionPool.GetConnection());
+            var conn = _connectionPool.GetConnection().ForPipeline();
+            var ctx = new RespContext(conn);
+            for (int i = 0; i < clients; i++) // init all
+            {
+                _clients[i] = ctx;
+            }
+        }
+        else
+        {
+            for (int i = 0; i < clients; i++) // init all
+            {
+                var conn = _connectionPool.GetConnection();
+                if (_pipelineDepth > 1)
+                {
+                    conn = conn.ForPipeline();
+                }
+
+                _clients[i] = new(conn);
+            }
         }
     }
 
@@ -231,7 +254,10 @@ public partial class RespBenchmark : IDisposable
     {
         public static readonly PairsFormatter Instance = new PairsFormatter();
 
-        public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in (string Key, byte[] Value)[] request)
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in (string Key, byte[] Value)[] request)
         {
             writer.WriteCommand(command, 2 * request.Length);
             foreach (var pair in request)
@@ -241,6 +267,7 @@ public partial class RespBenchmark : IDisposable
             }
         }
     }
+
     private async Task LRangeInit450(RespContext ctx)
     {
         for (int i = 0; i < 450; i++)
@@ -282,7 +309,7 @@ public partial class RespBenchmark : IDisposable
             $"""
              ====== {name} ======
              {totalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec""
-             {clients.Length:#,##0} parallel clients
+             {clients.Length:#,##0} parallel clients{(_multiplexed ? ", multiplexed" : "")}
 
              """);
     }
@@ -296,6 +323,7 @@ public partial class RespBenchmark : IDisposable
             await DelAsync(client, pair.Key).ConfigureAwait(false);
         }
     }
+
     public async Task InitAsync()
     {
         foreach (var client in _clients)

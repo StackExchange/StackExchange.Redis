@@ -23,6 +23,7 @@ namespace BasicTest
         {
             int port = RespBenchmark.DefaultPort, clients = RespBenchmark.DefaultClients,
                 requests = RespBenchmark.DefaultRequests, pipelineDepth = RespBenchmark.DefaultPipelineDepth;
+            bool multiplexed = RespBenchmark.DefaultMultiplexed;
             for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
@@ -39,9 +40,15 @@ namespace BasicTest
                     case "-P" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
                         pipelineDepth = tmp;
                         break;
+                    case "+m":
+                        multiplexed = true;
+                        break;
+                    case "-m":
+                        multiplexed = false;
+                        break;
                 }
             }
-            using var bench = new RespBenchmark(port: port, clients: clients, requests: requests, pipelineDepth: pipelineDepth);
+            using var bench = new RespBenchmark(port: port, clients: clients, requests: requests, pipelineDepth: pipelineDepth, multiplexed: multiplexed);
             await bench.RunAll();
         }
         // private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
