@@ -20,6 +20,14 @@ public static class RespParsers
     public static IRespParser<Void, byte[]?> ByteArray => InbuiltParsers.Default;
     public static IRespParser<Void, byte[]?[]?> ByteArrayArray => InbuiltParsers.Default;
     public static IRespParser<IBufferWriter<byte>, int> BufferWriter => InbuiltParsers.Default;
+
+    /// <summary>
+    /// For scalar values, returns the length in bytes. For aggregates, returns the count. Returns
+    /// <c>-1</c> for <c>null</c> values.
+    /// </summary>
+    /// <remarks>This is mostly useful for debugging purposes; note that the value is still fetched
+    /// over the network, so this is <i>not</i> an efficient way of measuring things - usually,
+    /// a native command that only returns the length/count should be used instead.</remarks>
     public static IRespParser<Void, int> Length => LengthParser.Default;
 
     private sealed class Cache<TResponse>

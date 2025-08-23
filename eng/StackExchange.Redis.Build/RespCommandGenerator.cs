@@ -66,7 +66,7 @@ public class RespCommandGenerator : IIncrementalGenerator
     private (string Namespace, string TypeName, string ReturnType, string MethodName, string Command,
         ImmutableArray<(string Type, string Name, string Modifiers, ParameterFlags Flags)> Parameters, string
         TypeModifiers, string
-        MethodModifiers, string Context) Transform(
+        MethodModifiers, string Context, string? Formatter, string? Parser) Transform(
             GeneratorSyntaxContext ctx,
             CancellationToken cancellationToken)
     {
@@ -101,6 +101,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         }
 
         string value = method.Name.ToLowerInvariant();
+        string? formatter = null, parser = null;
         foreach (var attrib in method.GetAttributes())
         {
             if (attrib.AttributeClass?.Name == "RespCommandAttribute")
@@ -111,6 +112,19 @@ public class RespCommandGenerator : IIncrementalGenerator
                     {
                         value = val;
                         break;
+                    }
+
+                    foreach (var tuple in attrib.NamedArguments)
+                    {
+                        switch (tuple.Key)
+                        {
+                            case "Formatter":
+                                formatter = tuple.Value.Value?.ToString();
+                                break;
+                            case "Parser":
+                                parser = tuple.Value.Value?.ToString();
+                                break;
+                        }
                     }
                 }
             }
@@ -212,7 +226,7 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         var syntax = (MethodDeclarationSyntax)ctx.Node;
         return (ns, parentType, returnType, method.Name, value, parameters.ToImmutable(),
-            TypeModifiers(method.ContainingType), syntax.Modifiers.ToString(), context ?? "");
+            TypeModifiers(method.ContainingType), syntax.Modifiers.ToString(), context ?? "", formatter, parser);
 
         static string TypeModifiers(ITypeSymbol type)
         {
@@ -268,7 +282,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             ImmutableArray<(string Type, string Name, string Modifiers, ParameterFlags Flags)> Parameters, string
             TypeModifiers,
             string
-            MethodModifiers, string Context)> methods)
+            MethodModifiers, string Context, string? Formatter, string? Parser)> methods)
     {
         if (methods.IsDefaultOrEmpty) return;
 
@@ -287,7 +301,7 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         foreach (var method in methods)
         {
-            if (DataParameterCount(method.Parameters) < 2)
+            if (method.Formatter is not null || DataParameterCount(method.Parameters) < 2)
             {
                 continue; // consumer should add their own extension method for the target type
             }
@@ -351,7 +365,8 @@ public class RespCommandGenerator : IIncrementalGenerator
 
             foreach (var method in grp)
             {
-                string? formatter = InbuiltFormatter(method.Parameters)
+                string? formatter = method.Formatter
+                                    ?? InbuiltFormatter(method.Parameters)
                                     ?? (formatters.TryGetValue(method.Parameters, out var tmp)
                                         ? $"{tmp.Name}.Default"
                                         : null);
@@ -402,7 +417,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                         sb.Append('<').Append(method.ReturnType).Append('>');
                     }
 
-                    sb.Append("(").Append(InbuiltParser(method.ReturnType)).Append(");");
+                    sb.Append("(").Append(method.Parser ?? InbuiltParser(method.ReturnType)).Append(");");
                 }
 
                 indent--;
@@ -452,7 +467,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                         sb.Append('<').Append(method.ReturnType).Append('>');
                     }
 
-                    sb.Append("(").Append(InbuiltParser(method.ReturnType)).Append(");");
+                    sb.Append("(").Append(method.Parser ?? InbuiltParser(method.ReturnType)).Append(");");
                 }
 
                 indent--;
