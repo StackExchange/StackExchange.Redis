@@ -23,7 +23,7 @@ namespace BasicTest
         {
             int port = RespBenchmark.DefaultPort, clients = RespBenchmark.DefaultClients,
                 requests = RespBenchmark.DefaultRequests, pipelineDepth = RespBenchmark.DefaultPipelineDepth;
-            bool multiplexed = RespBenchmark.DefaultMultiplexed;
+            bool multiplexed = RespBenchmark.DefaultMultiplexed, cancel = RespBenchmark.DefaultCancel;
             for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
@@ -46,9 +46,15 @@ namespace BasicTest
                     case "-m":
                         multiplexed = false;
                         break;
+                    case "+x":
+                        cancel = true;
+                        break;
+                    case "-c":
+                        cancel = false;
+                        break;
                 }
             }
-            using var bench = new RespBenchmark(port: port, clients: clients, requests: requests, pipelineDepth: pipelineDepth, multiplexed: multiplexed);
+            using var bench = new RespBenchmark(port: port, clients: clients, requests: requests, pipelineDepth: pipelineDepth, multiplexed: multiplexed, cancel: cancel);
             await bench.RunAll();
         }
         // private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);

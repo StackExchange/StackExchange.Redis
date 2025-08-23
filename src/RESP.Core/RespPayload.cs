@@ -197,6 +197,7 @@ internal static class ActivationHelper
                 obj._length = payload.Length;
                 obj._message = message;
             }
+            DebugCounters.OnCopyOut(payload.Length);
 #if NETCOREAPP3_0_OR_GREATER
             ThreadPool.UnsafeQueueUserWorkItem(obj, false);
 #else

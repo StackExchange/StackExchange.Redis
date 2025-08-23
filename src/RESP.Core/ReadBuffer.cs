@@ -14,8 +14,8 @@ public partial class DebugCounters
 internal partial class DebugCounters
 #endif
 {
-    private static int _tallyRead, _tallyAsyncRead, _tallyGrow, _tallyShuffleCount;
-    private static long _tallyShuffleBytes, _tallyReadBytes;
+    private static int _tallyRead, _tallyAsyncRead, _tallyGrow, _tallyShuffleCount, _tallyCopyOutCount;
+    private static long _tallyShuffleBytes, _tallyReadBytes, _tallyCopyOutBytes;
 
     [Conditional("DEBUG")]
     internal static void OnRead(int bytes)
@@ -41,6 +41,13 @@ internal partial class DebugCounters
         if (bytes > 0) Interlocked.Add(ref _tallyShuffleBytes, bytes);
     }
 
+    [Conditional("DEBUG")]
+    internal static void OnCopyOut(int bytes)
+    {
+        Interlocked.Increment(ref _tallyCopyOutCount);
+        if (bytes > 0) Interlocked.Add(ref _tallyCopyOutBytes, bytes);
+    }
+
     public static DebugCounters Flush() => new();
     private DebugCounters() { }
 
@@ -50,6 +57,8 @@ internal partial class DebugCounters
     public int Grow { get; } = Interlocked.Exchange(ref _tallyGrow, 0);
     public int ShuffleCount { get; } = Interlocked.Exchange(ref _tallyShuffleCount, 0);
     public long ShuffleBytes { get; } = Interlocked.Exchange(ref _tallyShuffleBytes, 0);
+    public int CopyOutCount { get; } = Interlocked.Exchange(ref _tallyCopyOutCount, 0);
+    public long CopyOutBytes { get; } = Interlocked.Exchange(ref _tallyCopyOutBytes, 0);
 }
 internal struct ReadBuffer
 {

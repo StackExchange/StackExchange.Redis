@@ -250,6 +250,15 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
             throw;
         }
     }
+
+    public RespContext WithCancellationToken(CancellationToken cancellationToken)
+        => new(connection, database, cancellationToken);
+
+    public RespContext WithDatabase(int database)
+        => new(connection, database, cancellationToken);
+
+    public RespContext WithConnection(IRespConnection connection)
+        => new(connection, database, cancellationToken);
 }
 public static class RespConnectionExtensions
 {

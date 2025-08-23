@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Resp;
 using Void = Resp.Void;
@@ -20,9 +21,9 @@ public partial class RespBenchmark : IDisposable
     public int ClientCount => _clients.Length;
 
     private readonly int _operationsPerClient, _pipelineDepth;
-    private readonly bool _multiplexed;
+    private readonly bool _multiplexed, _cancel;
     public const int DefaultPort = 6379, DefaultRequests = 100_000, DefaultPipelineDepth = 1, DefaultClients = 50;
-    public const bool DefaultMultiplexed = false;
+    public const bool DefaultMultiplexed = false, DefaultCancel = false;
     private readonly byte[] _payload;
     private readonly (string Key, byte[] Value)[] _pairs;
 
@@ -33,7 +34,8 @@ public partial class RespBenchmark : IDisposable
         int requests = DefaultRequests,
         int pipelineDepth = DefaultPipelineDepth,
         int clients = DefaultClients,
-        bool multiplexed = DefaultMultiplexed)
+        bool multiplexed = DefaultMultiplexed,
+        bool cancel = DefaultCancel)
     {
         if (clients <= 0) throw new ArgumentOutOfRangeException(nameof(clients));
         if (pipelineDepth <= 0) throw new ArgumentOutOfRangeException(nameof(pipelineDepth));
@@ -41,6 +43,7 @@ public partial class RespBenchmark : IDisposable
         _operationsPerClient = requests / clients;
         _pipelineDepth = pipelineDepth;
         _multiplexed = multiplexed;
+        _cancel = cancel;
         _connectionPool = new(count: multiplexed ? 1 : clients);
         _pairs = new (string, byte[])[10];
         for (var i = 0; i < 10; i++)
@@ -260,10 +263,11 @@ public partial class RespBenchmark : IDisposable
 #if DEBUG
             DebugCounters.Flush();
 #endif
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             var watch = Stopwatch.StartNew();
             foreach (var client in clients)
             {
-                pending[index++] = Task.Run(() => action(client));
+                pending[index++] = Task.Run(() => action(client.WithCancellationToken(cts.Token)));
             }
 
             await Task.WhenAll(pending).ConfigureAwait(false);
@@ -281,7 +285,7 @@ public partial class RespBenchmark : IDisposable
 #if DEBUG
             var counters = DebugCounters.Flush();
             Console.WriteLine(
-                $"Read (s/a/MiB): {counters.Read:#,##0}/{counters.AsyncRead:#,##0}/{counters.ReadBytes >> 20:#,##0}, Grow: {counters.Grow:#,##0}, Shuffle (count/MiB): {counters.ShuffleCount:#,##0}/{counters.ShuffleBytes >> 20:#,##0}");
+                $"Read (s/a/MiB): {counters.Read:#,##0}/{counters.AsyncRead:#,##0}/{counters.ReadBytes >> 20:#,##0}, Grow: {counters.Grow:#,##0}, Shuffle (count/MiB): {counters.ShuffleCount:#,##0}/{counters.ShuffleBytes >> 20:#,##0}, Copy out (count/MiB): {counters.CopyOutCount}/{counters.CopyOutBytes >> 20:#,##0}");
 #endif
             if (typeof(T) != typeof(Void))
             {
@@ -309,11 +313,18 @@ public partial class RespBenchmark : IDisposable
 
     public async Task CleanupAsync()
     {
-        var client = _clients[0];
-        await client.DelAsync(_key).ConfigureAwait(false);
-        foreach (var pair in _pairs)
+        try
         {
-            await client.DelAsync(pair.Key).ConfigureAwait(false);
+            var client = _clients[0];
+            await client.DelAsync(_key).ConfigureAwait(false);
+            foreach (var pair in _pairs)
+            {
+                await client.DelAsync(pair.Key).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Cleanup: {ex.Message}");
         }
     }
 

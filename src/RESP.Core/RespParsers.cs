@@ -8,18 +8,18 @@ public static class RespParsers
 {
     public static IRespParser<Void, Void> Success => InbuiltInlineParsers.Default;
     public static IRespParser<Void, Void> OK => OKParser.Default;
-    public static IRespParser<Void, string?> String => InbuiltParsers.Default;
-    public static IRespParser<Void, int> Int32 => InbuiltParsers.Default;
-    public static IRespParser<Void, int?> NullableInt32 => InbuiltParsers.Default;
-    public static IRespParser<Void, long> Int64 => InbuiltParsers.Default;
-    public static IRespParser<Void, long?> NullableInt64 => InbuiltParsers.Default;
-    public static IRespParser<Void, float> Single => InbuiltParsers.Default;
-    public static IRespParser<Void, float?> NullableSingle => InbuiltParsers.Default;
-    public static IRespParser<Void, double> Double => InbuiltParsers.Default;
-    public static IRespParser<Void, double?> NullableDouble => InbuiltParsers.Default;
-    public static IRespParser<Void, byte[]?> ByteArray => InbuiltParsers.Default;
-    public static IRespParser<Void, byte[]?[]?> ByteArrayArray => InbuiltParsers.Default;
-    public static IRespParser<IBufferWriter<byte>, int> BufferWriter => InbuiltParsers.Default;
+    public static IRespParser<Void, string?> String => InbuiltCopyOutParsers.Default;
+    public static IRespParser<Void, int> Int32 => InbuiltInlineParsers.Default;
+    public static IRespParser<Void, int?> NullableInt32 => InbuiltInlineParsers.Default;
+    public static IRespParser<Void, long> Int64 => InbuiltInlineParsers.Default;
+    public static IRespParser<Void, long?> NullableInt64 => InbuiltInlineParsers.Default;
+    public static IRespParser<Void, float> Single => InbuiltInlineParsers.Default;
+    public static IRespParser<Void, float?> NullableSingle => InbuiltInlineParsers.Default;
+    public static IRespParser<Void, double> Double => InbuiltInlineParsers.Default;
+    public static IRespParser<Void, double?> NullableDouble => InbuiltInlineParsers.Default;
+    public static IRespParser<Void, byte[]?> ByteArray => InbuiltCopyOutParsers.Default;
+    public static IRespParser<Void, byte[]?[]?> ByteArrayArray => InbuiltCopyOutParsers.Default;
+    public static IRespParser<IBufferWriter<byte>, int> BufferWriter => InbuiltCopyOutParsers.Default;
 
     /// <summary>
     /// For scalar values, returns the length in bytes. For aggregates, returns the count. Returns
@@ -33,7 +33,7 @@ public static class RespParsers
     private sealed class Cache<TResponse>
     {
         public static IRespParser<Void, TResponse>? Instance =
-            (InbuiltParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
+            (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
     }
 
     public static IRespParser<Void, TResponse> Get<TResponse>()
@@ -41,14 +41,14 @@ public static class RespParsers
 
     public static void Set<TResponse>(IRespParser<Void, TResponse> parser)
     {
-        var obj = (InbuiltParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
+        var obj = (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
         if (obj is not null) ThrowInbuiltParser(typeof(TResponse));
         Cache<TResponse>.Instance = parser;
     }
 
     private static IRespParser<Void, TResponse> GetCore<TResponse>()
     {
-        var obj = (InbuiltParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
+        var obj = (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
         if (obj is null)
         {
             ThrowNoParser(typeof(TResponse));
@@ -64,12 +64,25 @@ public static class RespParsers
     private static void ThrowInbuiltParser(Type type) => throw new InvalidOperationException(
         message: $"Type '{type.FullName}' has inbuilt handling and cannot be changed.");
 
-    private sealed class InbuiltInlineParsers : IRespParser<Void, Void>, IRespInlineParser
+    private sealed class InbuiltInlineParsers : IRespParser<Void, Void>, IRespInlineParser,
+        IRespParser<Void, int>, IRespParser<Void, int?>,
+        IRespParser<Void, long>, IRespParser<Void, long?>,
+        IRespParser<Void, float>, IRespParser<Void, float?>,
+        IRespParser<Void, double>, IRespParser<Void, double?>
     {
         private InbuiltInlineParsers() { }
         public static readonly InbuiltInlineParsers Default = new();
 
         public Void Parse(in Void state, ref RespReader reader) => Void.Instance;
+
+        int IRespParser<Void, int>.Parse(in Void state, ref RespReader reader) => reader.ReadInt32();
+        int? IRespParser<Void, int?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadInt32();
+        long IRespParser<Void, long>.Parse(in Void state, ref RespReader reader) => reader.ReadInt64();
+        long? IRespParser<Void, long?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadInt64();
+        float IRespParser<Void, float>.Parse(in Void state, ref RespReader reader) => (float)reader.ReadDouble();
+        float? IRespParser<Void, float?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : (float)reader.ReadDouble();
+        double IRespParser<Void, double>.Parse(in Void state, ref RespReader reader) => reader.ReadDouble();
+        double? IRespParser<Void, double?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadDouble();
     }
 
     private sealed class OKParser : IRespParser<Void, Void>, IRespInlineParser
@@ -89,29 +102,17 @@ public static class RespParsers
         }
     }
 
-    private sealed class InbuiltParsers : IRespParser<Void, string?>,
+    private sealed class InbuiltCopyOutParsers : IRespParser<Void, string?>,
         IRespParser<Void, byte[]?>, IRespParser<Void, byte[]?[]?>,
-        IRespParser<Void, int>, IRespParser<Void, int?>,
-        IRespParser<Void, long>, IRespParser<Void, long?>,
-        IRespParser<Void, float>, IRespParser<Void, float?>,
-        IRespParser<Void, double>, IRespParser<Void, double?>,
         IRespParser<IBufferWriter<byte>, int>
     {
-        private InbuiltParsers() { }
-        public static readonly InbuiltParsers Default = new();
+        private InbuiltCopyOutParsers() { }
+        public static readonly InbuiltCopyOutParsers Default = new();
 
         string? IRespParser<Void, string?>.Parse(in Void state, ref RespReader reader) => reader.ReadString();
         byte[]? IRespParser<Void, byte[]?>.Parse(in Void state, ref RespReader reader) => reader.ReadByteArray();
         byte[]?[]? IRespParser<Void, byte[]?[]?>.Parse(in Void state, ref RespReader reader) => reader.ReadArray(
             static (ref RespReader reader) => reader.ReadByteArray());
-        int IRespParser<Void, int>.Parse(in Void state, ref RespReader reader) => reader.ReadInt32();
-        int? IRespParser<Void, int?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadInt32();
-        long IRespParser<Void, long>.Parse(in Void state, ref RespReader reader) => reader.ReadInt64();
-        long? IRespParser<Void, long?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadInt64();
-        float IRespParser<Void, float>.Parse(in Void state, ref RespReader reader) => (float)reader.ReadDouble();
-        float? IRespParser<Void, float?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : (float)reader.ReadDouble();
-        double IRespParser<Void, double>.Parse(in Void state, ref RespReader reader) => reader.ReadDouble();
-        double? IRespParser<Void, double?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadDouble();
 
         int IRespParser<IBufferWriter<byte>, int>.Parse(in IBufferWriter<byte> state, ref RespReader reader)
         {
