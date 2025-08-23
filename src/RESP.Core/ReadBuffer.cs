@@ -51,7 +51,7 @@ internal struct ReadBuffer
     public bool OnRead(int bytes)
     {
         if (bytes <= 0) return false;
-        Debug.Assert(bytes < Available);
+        Debug.Assert(bytes <= Available, $"Insufficient bytes in OnRead; got {bytes}, Available={Available}");
         _count += bytes;
         return true;
     }

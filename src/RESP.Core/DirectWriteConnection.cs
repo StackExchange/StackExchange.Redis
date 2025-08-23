@@ -99,14 +99,14 @@ internal sealed class DirectWriteConnection : IRespConnection
             while (true) // main IO loop
             {
                 var buffer = _readBuffer.GetWriteBuffer();
-                #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
                 var read = await tail.ReadAsync(
                         new(buffer.Array!, buffer.Offset, buffer.Count), cancellationToken)
                     .ConfigureAwait(false);
-                #else
+#else
                 var read = await tail.ReadAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken)
                     .ConfigureAwait(false);
-                #endif
+#endif
                 if (!_readBuffer.OnRead(read)) break;
 
                 var fullBuffer = _readBuffer.GetSpan();
@@ -116,8 +116,9 @@ internal sealed class DirectWriteConnection : IRespConnection
                 while (toParse.Length >= RespScanState.MinBytes &&
                        (status = scanner.TryRead(ref state, toParse)) == OperationStatus.Done)
                 {
-                    Debug.Assert(state.IsComplete && state.TotalBytes >= RespScanState.MinBytes &&
-                                 state.Prefix is not RespPrefix.None);
+                    Debug.Assert(
+                        state is { IsComplete: true, TotalBytes: >= RespScanState.MinBytes, Prefix: not RespPrefix.None },
+                        "Invalid RESP read state");
 
                     // extract the frame
                     var bytes = (int)state.TotalBytes;
@@ -260,7 +261,7 @@ internal sealed class DirectWriteConnection : IRespConnection
             releaseRequest = false; // once we write, only release on success
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
             tail.Write(bytes.Span);
-            #else
+#else
             tail.Write(bytes);
 #endif
             ReleaseWriter();

@@ -1235,7 +1235,7 @@ public ref partial struct RespReader
 
     private readonly bool SlowIsInlneCpuUInt32(uint value)
     {
-        Debug.Assert(IsInlineScalar && _length == sizeof(uint));
+        Debug.Assert(IsInlineScalar && _length == sizeof(uint), "should be inline scalar of length 4");
         Span<byte> buffer = stackalloc byte[sizeof(uint)];
         var copy = this;
         copy.RawFillBytes(buffer);

@@ -20,7 +20,7 @@ namespace BasicTest
     internal static class Program
     {
 #if DEBUG
-        private static void /* async Task */ Main()
+        private static async Task Main()
         {
             using var pool = new RespConnectionPool();
             for (int outer = 0; outer < 1000; outer++)
@@ -32,6 +32,7 @@ namespace BasicTest
                 for (int inner = 0; inner < RedisBenchmarks.OperationsPerInvoke; inner++)
                 {
                     value = s.Incr(RedisBenchmarks.StringKey_K);
+                    value = await s.IncrAsync(RedisBenchmarks.StringKey_K);
                 }
                 Console.Write(outer);
                 Console.Write(' ');
@@ -366,6 +367,24 @@ namespace BasicTest
         /// <summary>
         /// Run incr lots of times.
         /// </summary>
+        [Benchmark(Description = "new incr /p/a", OperationsPerInvoke = OperationsPerInvoke)]
+        public async Task<int> IncrBy_New_Pipelined_Async()
+        {
+            using var conn = pool.GetConnection().ForPipeline();
+            var s = conn.Strings();
+            int value = 0;
+            s.Set(StringKey_S, value);
+            for (int i = 0; i < OperationsPerInvoke; i++)
+            {
+                value = await s.IncrAsync(StringKey_K);
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// Run incr lots of times.
+        /// </summary>
         [Benchmark(Description = "new incr", OperationsPerInvoke = OperationsPerInvoke)]
         public int IncrBy_New()
         {
@@ -384,7 +403,7 @@ namespace BasicTest
         /// <summary>
         /// Run incr lots of times.
         /// </summary>
-        [Benchmark(Description = "new incr /pc", OperationsPerInvoke = OperationsPerInvoke)]
+        // [Benchmark(Description = "new incr /pc", OperationsPerInvoke = OperationsPerInvoke)]
         public int IncrBy_New_Pipelined_Custom()
         {
             using var conn = customPool.GetConnection().ForPipeline();
@@ -402,7 +421,7 @@ namespace BasicTest
         /// <summary>
         /// Run incr lots of times.
         /// </summary>
-        [Benchmark(Description = "new incr /c", OperationsPerInvoke = OperationsPerInvoke)]
+        // [Benchmark(Description = "new incr /c", OperationsPerInvoke = OperationsPerInvoke)]
         public int IncrBy_New_Custom()
         {
             using var conn = customPool.GetConnection();

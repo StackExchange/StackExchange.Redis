@@ -397,7 +397,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                 indent--;
                 NewLine();
 
-                sb = NewLine().Append(RemovePartial(method.MethodModifiers)).Append(" Task");
+                sb = NewLine().Append(RemovePartial(method.MethodModifiers)).Append(" ValueTask");
                 if (!string.IsNullOrWhiteSpace(method.ReturnType))
                 {
                     sb.Append('<').Append(method.ReturnType).Append('>');
@@ -434,7 +434,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                         }
                     }
 
-                    sb.Append(").WaitAsync");
+                    sb.Append(").AsValueTask");
                     if (!string.IsNullOrWhiteSpace(method.ReturnType))
                     {
                         sb.Append('<').Append(method.ReturnType).Append('>');

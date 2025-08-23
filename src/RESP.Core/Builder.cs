@@ -21,13 +21,23 @@ public readonly ref struct RespMessageBuilder<TRequest>(RespContext context, Rea
     public void Wait(IRespParser<Void> parser)
         => context.Send(_command, _value, formatter, parser);
 
-    public Task<TResponse> WaitAsync<TResponse>()
-        => context.SendAsync(_command, _value, formatter, RespParsers.Get<TResponse>());
-    public Task<TResponse> WaitAsync<TResponse>(IRespParser<TResponse> parser)
-        => context.SendAsync(_command, _value, formatter, parser);
+    public Task<TResponse> AsTask<TResponse>()
+        => context.SendTaskAsync(_command, _value, formatter, RespParsers.Get<TResponse>());
+    public Task<TResponse> AsTask<TResponse>(IRespParser<TResponse> parser)
+        => context.SendTaskAsync(_command, _value, formatter, parser);
 
-    public Task WaitAsync()
-        => context.SendAsync(_command, _value, formatter, RespParsers.Success);
-    public Task WaitAsync(IRespParser<Void> parser)
-        => context.SendAsync(_command, _value, formatter, parser);
+    public Task AsTask()
+        => context.SendTaskAsync(_command, _value, formatter, RespParsers.Success);
+    public Task AsTask(IRespParser<Void> parser)
+        => context.SendTaskAsync(_command, _value, formatter, parser);
+
+    public ValueTask<TResponse> AsValueTask<TResponse>()
+        => context.SendValueTaskAsync(_command, _value, formatter, RespParsers.Get<TResponse>());
+    public ValueTask<TResponse> AsValueTask<TResponse>(IRespParser<TResponse> parser)
+        => context.SendValueTaskAsync(_command, _value, formatter, parser);
+
+    public ValueTask AsValueTask()
+        => context.SendValueTaskAsync(_command, _value, formatter, RespParsers.Success);
+    public ValueTask AsValueTask(IRespParser<Void> parser)
+        => context.SendValueTaskAsync(_command, _value, formatter, parser);
 }

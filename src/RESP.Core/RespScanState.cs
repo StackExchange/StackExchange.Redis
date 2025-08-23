@@ -77,7 +77,7 @@ public struct RespScanState
     /// </summary>
     internal RespScanState(in RespReader reader)
     {
-        Debug.Assert(reader.Prefix != RespPrefix.None);
+        Debug.Assert(reader.Prefix != RespPrefix.None, "missing RESP prefix");
         _totalBytes = 0;
         _delta = reader.GetInitialScanCount(out _streamingAggregateDepth);
     }
@@ -142,7 +142,7 @@ public struct RespScanState
 
     private void ApplyAggregateRules(ref RespReader reader)
     {
-        Debug.Assert(reader.IsAggregate);
+        Debug.Assert(reader.IsAggregate, "RESP aggregate expected");
         if (reader.IsStreaming)
         {
             // entering an aggregate stream

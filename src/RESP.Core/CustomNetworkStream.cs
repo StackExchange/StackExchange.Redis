@@ -220,7 +220,7 @@ internal sealed class CustomNetworkStream(Socket socket) : Stream
 
         protected override void OnCompleted(SocketAsyncEventArgs args)
         {
-            Debug.Assert(ReferenceEquals(args, this));
+            Debug.Assert(ReferenceEquals(args, this), "Incorrect SocketAsyncEventArgs");
             var c = _continuation;
 
             if (c != null || (c = Interlocked.CompareExchange(ref _continuation, ContinuationCompleted, null)) != null)

@@ -25,7 +25,6 @@ namespace Resp.RedisCommands
         public static RedisStrings Strings(this IRespConnection connection) => new RespContext(connection).Strings();
     }
 
-
     public readonly partial struct RedisStrings(in RespContext context)
     {
         private readonly RespContext _context = context;

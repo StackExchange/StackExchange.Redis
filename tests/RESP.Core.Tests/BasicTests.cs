@@ -70,15 +70,19 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
     }
 
     [Theory]
-    [InlineData(1)]
-    [InlineData(5)]
-    [InlineData(100)]
-    public async Task PingPipelinedAsync(int count)
+    [InlineData(1, false)]
+    [InlineData(5, false)]
+    [InlineData(100, false)]
+    [InlineData(1, true)]
+    [InlineData(5, true)]
+    [InlineData(100, true)]
+    public async Task PingPipelinedAsync(int count, bool forPipeline)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var conn = GetConnection();
+        await using var conn =
+            forPipeline ? GetConnection().ForPipeline() : GetConnection();
 
-        Task<string?>[] tasks = new Task<string?>[count];
+        ValueTask<string?>[] tasks = new ValueTask<string?>[count];
         for (int i = 0; i < count; i++)
         {
             RespContext ctx = new(conn, cts.Token);

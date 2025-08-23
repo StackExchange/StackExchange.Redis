@@ -25,7 +25,7 @@ public ref partial struct RespReader
 
     private partial void UnsafeTrimCurrentBy(int count)
     {
-        Debug.Assert(count >= 0 && count <= _bufferLength);
+        Debug.Assert(count >= 0 && count <= _bufferLength, "Unsafe trim length");
         _bufferLength -= count;
     }
 

@@ -237,7 +237,7 @@ public ref partial struct RespReader
 
     private readonly bool RawTryAssertInlineScalarPayloadCrLf()
     {
-        Debug.Assert(IsInlineScalar);
+        Debug.Assert(IsInlineScalar, "should be inline scalar");
 
         var reader = Clone();
         var len = reader._length;

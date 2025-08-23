@@ -1,8 +1,10 @@
 using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using Resp.RedisCommands;
 
 namespace Resp;
@@ -143,6 +145,7 @@ public interface IRespMessage
     /// Releases the request payload.
     /// </summary>
     void ReleaseRequest();
+
     bool TrySetCanceled(CancellationToken cancellationToken);
     bool TrySetException(Exception exception);
 
@@ -163,9 +166,9 @@ internal static class ActivationHelper
         => cancellationToken.Register(CancellationCallback, message);
 
     private sealed class WorkItem
-    #if NETCOREAPP3_0_OR_GREATER
+#if NETCOREAPP3_0_OR_GREATER
         : IThreadPoolWorkItem
-    #endif
+#endif
     {
         private WorkItem(byte[] payload, int length, IRespMessage message)
         {
@@ -279,6 +282,7 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessag
             if (oldCount == 0) return false;
             if (Interlocked.CompareExchange(ref _requestRefCount, checked(oldCount + 1), oldCount) == oldCount) break;
         }
+
         payload = new(_requestPayload, 0, _requestLength);
         return true;
     }
@@ -286,8 +290,11 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessag
     public void ReleaseRequest()
     {
         if (!TryReleaseRequest()) ThrowReleased();
-        static void ThrowReleased() => throw new InvalidOperationException("The request payload has already been released");
+
+        static void ThrowReleased() =>
+            throw new InvalidOperationException("The request payload has already been released");
     }
+
     private bool TryReleaseRequest() // bool here means "it wasn't already zero"; it doesn't mean "it became zero"
     {
         while (true)
@@ -304,6 +311,7 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessag
                     _requestPayload = [];
                     ArrayPool<byte>.Shared.Return(arr);
                 }
+
                 return true;
             }
         }
@@ -314,7 +322,7 @@ internal abstract class InternalRespMessageBase<TResponse> : IRespInternalMessag
     public abstract bool TrySetCanceled(CancellationToken cancellationToken);
 
     // ReSharper disable once SuspiciousTypeConversion.Global
-    bool IRespInternalMessage.AllowInlineParsing => _parser is null or IRespInlineParser;
+    public bool AllowInlineParsing => _parser is null or IRespInlineParser;
 
     void IRespMessage.ProcessResponse(ref RespReader reader)
     {
@@ -462,7 +470,10 @@ internal sealed class SyncInternalRespMessage<TResponse> : InternalRespMessageBa
         {
             case SyncRespMessageStatus.Completed:
                 var result = _result; // snapshot
-                Recycle();
+                if (_spare is null && TryReset())
+                {
+                    _spare = this;
+                }
                 return result;
             case SyncRespMessageStatus.Faulted:
                 throw _exception ?? new InvalidOperationException("Operation failed");
@@ -486,15 +497,11 @@ internal sealed class SyncInternalRespMessage<TResponse> : InternalRespMessageBa
 
     [ThreadStatic]
     private static SyncInternalRespMessage<TResponse>? _spare;
-    private void Recycle()
-    {
-        if (_spare is null && TryReset())
-        {
-            _spare = this;
-        }
-    }
 
-    public static SyncInternalRespMessage<TResponse> Create(byte[] requestPayload, int requestLength, IRespParser<TResponse>? parser)
+    public static SyncInternalRespMessage<TResponse> Create(
+        byte[] requestPayload,
+        int requestLength,
+        IRespParser<TResponse>? parser)
     {
         var obj = _spare;
         if (obj is null)
@@ -511,7 +518,7 @@ internal sealed class SyncInternalRespMessage<TResponse> : InternalRespMessageBa
     }
 }
 
-#if NET9_0_OR_GREATER
+#if NET9_0_OR_GREATER && NEVER
 internal sealed class AsyncInternalRespMessage<TResponse>(
     byte[] requestPayload,
     int requestLength,
@@ -575,53 +582,146 @@ internal sealed class AsyncInternalRespMessage<TResponse>(
     }
 }
 #else
-internal sealed class AsyncInternalRespMessage<TResponse>(
-    byte[] requestPayload,
-    int requestLength,
-    IRespParser<TResponse>? parser)
-    : InternalRespMessageBase<TResponse>(requestPayload, requestLength, parser)
+internal sealed class AsyncInternalRespMessage<TResponse> : InternalRespMessageBase<TResponse>,
+    IValueTaskSource<TResponse>, IValueTaskSource
 {
-    // ReSharper disable once SuspiciousTypeConversion.Global
-    private readonly TaskCompletionSource<TResponse> _tcs = new(
-        // if we're using IO-thread parsing, we *must* still dispatch downstream continuations to the thread-pool to
-        // prevent thread-theft; otherwise, we're fine to run downstream inline (we already jumped)
-        parser is IRespInlineParser ? TaskCreationOptions.RunContinuationsAsynchronously : TaskCreationOptions.None);
+    [ThreadStatic]
+    private static AsyncInternalRespMessage<TResponse>? _spare;
 
+    private AsyncInternalRespMessage(
+        byte[] requestPayload,
+        int requestLength,
+        IRespParser<TResponse>? parser) : base(requestPayload, requestLength, parser)
+    {
+        _asyncCore.RunContinuationsAsynchronously = true;
+    }
+
+    // we need synchronization over multiple attempts (completion, cancellation, abort) trying
+    // to signal the MRTCS
+    private int _completedFlag;
+
+    private void RegisterForCancellation(CancellationToken cancellationToken)
+    {
+        if (cancellationToken.CanBeCanceled)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
+        }
+    }
+
+    private bool SetCompleted(bool withSuccess = false)
+    {
+        if (Interlocked.CompareExchange(ref _completedFlag, 1, 0) == 0)
+        {
+            // stop listening for CT notifications
+            _cancellationTokenRegistration.Dispose();
+            _cancellationTokenRegistration = default;
+
+            // configure threading model; failure can be triggered from any thread - *always*
+            // dispatch to pool; in the success case, we're either on the IO thread
+            // (if inline-parsing is enabled) - in which case, yes: dispatch - or we've
+            // already jumped to a pool thread for the parse step. So: the only
+            // time we want to complete inline is success and not inline-parsing.
+            _asyncCore.RunContinuationsAsynchronously = !withSuccess || AllowInlineParsing;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public static AsyncInternalRespMessage<TResponse> Create(
+        byte[] requestPayload,
+        int requestLength,
+        IRespParser<TResponse>? parser)
+    {
+        var obj = _spare;
+        if (obj is null) return new(requestPayload, requestLength, parser);
+
+        _spare = null;
+        obj._asyncCore.RunContinuationsAsynchronously = true;
+        obj.Reset(requestPayload, requestLength, parser);
+        return obj;
+    }
+
+    private ManualResetValueTaskSourceCore<TResponse> _asyncCore;
     private CancellationTokenRegistration _cancellationTokenRegistration;
 
-    public override bool IsCompleted => _tcs.Task.IsCompleted;
+    public override bool IsCompleted => Volatile.Read(ref _completedFlag) == 1;
+
     protected override bool TrySetResult(TResponse value)
     {
-        UnregisterCancellation();
-        return _tcs.TrySetResult(value);
+        if (SetCompleted(withSuccess: true))
+        {
+            _asyncCore.SetResult(value);
+            return true;
+        }
+        return false;
     }
 
     public override bool TrySetException(Exception exception)
     {
-        UnregisterCancellation();
-        return _tcs.TrySetException(exception);
+        if (SetCompleted())
+        {
+            _asyncCore.SetException(exception);
+            return true;
+        }
+        return false;
     }
 
     public override bool TrySetCanceled(CancellationToken cancellationToken)
     {
-        UnregisterCancellation();
-        return _tcs.TrySetCanceled(cancellationToken);
-    }
-
-    private void UnregisterCancellation()
-    {
-        _cancellationTokenRegistration.Dispose();
-        _cancellationTokenRegistration = default;
-    }
-
-    public Task<TResponse> WaitAsync(CancellationToken cancellationToken = default)
-    {
-        if (cancellationToken.CanBeCanceled)
+        if (SetCompleted())
         {
-            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
+            _asyncCore.SetException(new OperationCanceledException(cancellationToken));
+            return true;
+        }
+        return false;
+    }
+
+    public ValueTask<TResponse> WaitTypedValueTaskAsync(CancellationToken cancellationToken = default)
+    {
+        RegisterForCancellation(cancellationToken);
+        return new(this, _asyncCore.Version);
+    }
+    public ValueTask WaitUntypedValueTaskAsync(CancellationToken cancellationToken = default)
+    {
+        RegisterForCancellation(cancellationToken);
+        return new(this, _asyncCore.Version);
+    }
+
+    public Task<TResponse> WaitTypedTaskAsync(CancellationToken cancellationToken = default)
+        => WaitTypedValueTaskAsync(cancellationToken).AsTask();
+
+    public Task WaitUntypedTaskAsync(CancellationToken cancellationToken = default)
+        => WaitUntypedValueTaskAsync(cancellationToken).AsTask();
+
+    public ValueTaskSourceStatus GetStatus(short token) => _asyncCore.GetStatus(token);
+
+    public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+        => _asyncCore.OnCompleted(continuation, state, token, flags);
+
+    public TResponse GetResult(short token)
+    {
+        Debug.Assert(IsCompleted, "Async payload should already be completed");
+        var result = _asyncCore.GetResult(token);
+        // recycle on success (only)
+        if (_spare is null && TryReset())
+        {
+            _spare = this;
         }
 
-        return _tcs.Task;
+        return result;
     }
+
+    private bool TryReset()
+    {
+        Reset();
+        _asyncCore.Reset(); // incr version, etc
+        _completedFlag = 0;
+        return true;
+    }
+
+    void IValueTaskSource.GetResult(short token) => _ = GetResult(token);
 }
 #endif
