@@ -41,9 +41,20 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
     private int EndSegmentCommitted
     {
         get => endSegmentCommittedAndFirstTrimmedFlag & ~MSB;
-        set
+        // set: preserve MSB
+        set => endSegmentCommittedAndFirstTrimmedFlag = (value & ~MSB) | (endSegmentCommittedAndFirstTrimmedFlag & MSB);
     }
-    private bool FirstSegmentTrimmed => (endSegmentCommittedAndFirstTrimmedFlag & MSB) != 0;
+
+    private bool FirstSegmentTrimmed
+    {
+        get => (endSegmentCommittedAndFirstTrimmedFlag & MSB) != 0;
+        set
+        {
+            if (value) endSegmentCommittedAndFirstTrimmedFlag |= MSB;
+            else endSegmentCommittedAndFirstTrimmedFlag &= ~MSB;
+        }
+    }
+
     public bool TryGetCommitted(out ReadOnlySpan<byte> span)
     {
         if (!ReferenceEquals(startSegment, endSegment))
@@ -85,18 +96,20 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         // optimize for most common case, where we consume everything
         if (ReferenceEquals(startSegment, endSegment)
             & count == EndSegmentCommitted
-            & count > 0)
+            & (endSegmentCommittedAndFirstTrimmedFlag & MSB) == 0) // checks sign *and* non-trimmed
         {
             // we are consuming all the data in the single segment; we can
-            // just reset that segment back to full size and re-use as-is
-            endSegmentLength = startSegment!.Untrim();
-            EndSegmentCommitted = 0;
+            // just reset that segment back to full size and re-use as-is;
+            // already checked MSB/trimmed, which means we don't need to do *anything*
+            // except push this back to zero
+            endSegmentCommittedAndFirstTrimmedFlag = 0;
         }
         else
         {
             DiscardCommitted(count);
         }
     }
+
     private void DiscardCommittedSlow(int count)
     {
         while (count > 0)
@@ -117,7 +130,6 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             }
         }
         if (count < 0) ThrowCount();
-
 
         [DoesNotReturn]
         static void ThrowCount() => throw new ArgumentOutOfRangeException(nameof(count));
