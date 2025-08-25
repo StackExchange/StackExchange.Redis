@@ -119,9 +119,11 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
     private void DiscardCommittedSlow(int count)
     {
         DebugCounters.OnDiscardPartial(count);
-        #if DEBUG
-        var expectedLength = GetCommittedLength() - count;
-        #endif
+#if DEBUG
+        var originalLength = GetCommittedLength();
+        var originalCount = count;
+        var expectedLength = originalLength - originalCount;
+#endif
         while (count > 0)
         {
             DebugAssertValid();
@@ -147,47 +149,69 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
                     EndSegmentCommitted -= count;
                     FirstSegmentTrimmed = true;
                 }
-#if DEBUG
-                DebugAssertValid(expectedLength);
-#endif
-                return;
+                count = 0;
+                break;
+            }
+            else if (count < segment.Length)
+            {
+                // multiple, but can take some (not all) of the first buffer
+                segment.TrimStart(count);
+                FirstSegmentTrimmed = true;
+                Debug.Assert(segment.Length > 0);
+                count = 0;
+                break;
             }
             else
             {
                 // multiple; discard the entire first segment
                 count -= segment.Length;
-                startSegment = segment.ResetAndGetNext(); // we already did a ref-check, so we know this isn't going past endSegment
+                startSegment =
+                    segment.ResetAndGetNext(); // we already did a ref-check, so we know this isn't going past endSegment
                 FirstSegmentTrimmed = false;
                 endSegment!.AppendOrRecycle(segment, maxDepth: 1);
                 DebugAssertValid(count);
             }
         }
+
         if (count != 0) ThrowCount();
-        #if DEBUG
+#if DEBUG
         DebugAssertValid(expectedLength);
-        #endif
+        _ = originalLength;
+        _ = originalCount;
+#endif
 
         [DoesNotReturn]
         static void ThrowCount() => throw new ArgumentOutOfRangeException(nameof(count));
     }
 
     [Conditional("DEBUG")]
-    private void DebugAssertValid(long committedLength)
+    private void DebugAssertValid(long expectedCommittedLength, [CallerMemberName] string caller = "")
     {
         DebugAssertValid();
         var actual = GetCommittedLength();
-        Debug.Assert(committedLength == actual, $"Committed length mismatch: expected {committedLength}, got {actual}");
+        Debug.Assert(
+            expectedCommittedLength >= 0,
+            $"Expected committed length is just... wrong: {expectedCommittedLength} (from {caller})");
+        Debug.Assert(
+            expectedCommittedLength == actual,
+            $"Committed length mismatch: expected {expectedCommittedLength}, got {actual} (from {caller})");
     }
+
     [Conditional("DEBUG")]
     private void DebugAssertValid()
     {
         if (startSegment is null)
         {
-            Debug.Assert(endSegmentLength == 0 & endSegmentCommittedAndFirstTrimmedFlag == 0, "un-init state should be zero");
+            Debug.Assert(
+                endSegmentLength == 0 & endSegmentCommittedAndFirstTrimmedFlag == 0,
+                "un-init state should be zero");
             return;
         }
+
         Debug.Assert(endSegment is not null, "end segment must not be null if start segment exists");
-        Debug.Assert(endSegmentLength == endSegment!.Length, $"end segment length is incorrect - expected {endSegmentLength}, got {endSegment.Length}");
+        Debug.Assert(
+            endSegmentLength == endSegment!.Length,
+            $"end segment length is incorrect - expected {endSegmentLength}, got {endSegment.Length}");
         Debug.Assert(FirstSegmentTrimmed == startSegment.IsTrimmed(), "start segment trimmed is incorrect");
         Debug.Assert(EndSegmentCommitted <= endSegmentLength);
     }
@@ -208,6 +232,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             span = memory.Span;
             return true;
         }
+
         span = default;
         return false;
     }
@@ -224,9 +249,11 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
                 memory = default;
                 return false;
             }
+
             memory = startSegment!.Memory.Slice(start: 0, length: EndSegmentCommitted);
             return !fullOnly | EndSegmentCommitted == endSegmentLength;
         }
+
         // multi-page
         memory = startSegment!.Memory;
         return true;
@@ -248,7 +275,8 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
                 Commit(srcLength);
                 return;
             }
-            value.Slice(0,  tgtLength).CopyTo(target);
+
+            value.Slice(0, tgtLength).CopyTo(target);
             Commit(tgtLength);
             value = value.Slice(tgtLength);
             srcLength -= tgtLength;
@@ -280,7 +308,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
 #if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
                   @this.Write(value.FirstSpan);
 #else
-                  @this.Write(value.First.Span);
+                @this.Write(value.First.Span);
 #endif
             }
         }
@@ -294,7 +322,9 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         if (ReferenceEquals(startSegment, endSegment))
         {
             // single segment, fine
-            return startSegment is null ? default : new ReadOnlySequence<byte>(startSegment.Memory.Slice(start: 0, length: EndSegmentCommitted));
+            return startSegment is null
+                ? default
+                : new ReadOnlySequence<byte>(startSegment.Memory.Slice(start: 0, length: EndSegmentCommitted));
         }
 
         Debug.Assert(startSegment is not null, "end segment is unexpectedly null");
@@ -349,7 +379,8 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         if (segment is not null)
         {
             var memory = segment.Memory;
-            if (EndSegmentCommitted == 0) memory = memory.Slice(start: EndSegmentCommitted);
+            var endSegmentCommitted = EndSegmentCommitted;
+            if (endSegmentCommitted != 0) memory = memory.Slice(start: endSegmentCommitted);
             if (hint <= 0) // allow anything non-empty
             {
                 if (!memory.IsEmpty) return MemoryMarshal.AsMemory(memory);
@@ -387,6 +418,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             Memory = memory;
             return this;
         }
+
         public int Length => Memory.Length;
 
         public void Append(int committedBytes, Segment next)
@@ -398,6 +430,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             next.RunningIndex = this.RunningIndex + committedBytes;
             Next = next;
         }
+
         public void TrimEnd(int newLength)
         {
             var delta = Length - newLength;
@@ -472,6 +505,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
                     node.Next = segment;
                     return;
                 }
+
                 node = node.Next;
             }
 
