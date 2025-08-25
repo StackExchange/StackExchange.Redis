@@ -112,7 +112,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         }
         else
         {
-            DiscardCommitted(count);
+            DiscardCommittedSlow(count);
         }
     }
 
@@ -147,7 +147,9 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
                     EndSegmentCommitted -= count;
                     FirstSegmentTrimmed = true;
                 }
-                DebugAssertValid(0);
+#if DEBUG
+                DebugAssertValid(expectedLength);
+#endif
                 return;
             }
             else
@@ -185,7 +187,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             return;
         }
         Debug.Assert(endSegment is not null, "end segment must not be null if start segment exists");
-        Debug.Assert(endSegmentLength == endSegment!.Length, "end segment length is incorrect");
+        Debug.Assert(endSegmentLength == endSegment!.Length, $"end segment length is incorrect - expected {endSegmentLength}, got {endSegment.Length}");
         Debug.Assert(FirstSegmentTrimmed == startSegment.IsTrimmed(), "start segment trimmed is incorrect");
         Debug.Assert(EndSegmentCommitted <= endSegmentLength);
     }
@@ -317,7 +319,10 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         if (endSegment is null)
         {
             Debug.Assert(startSegment is null & EndSegmentCommitted == 0, "invalid empty state");
-            return endSegment = startSegment = segment;
+            endSegmentLength = segment.Length;
+            endSegment = startSegment = segment;
+            DebugAssertValid();
+            return segment;
         }
 
         endSegment.Append(EndSegmentCommitted, segment);
