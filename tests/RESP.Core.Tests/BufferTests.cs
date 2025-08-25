@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics;
+using System.Threading;
+using System.Xml.XPath;
 using Resp;
 using Xunit;
 
@@ -10,7 +13,7 @@ public class BufferTests
     [Fact]
     public void SimpleUsage()
     {
-        CycleBuffer buffer = default;
+        CycleBuffer buffer = CycleBuffer.Create();
         Assert.True(buffer.CommittedIsEmpty);
         Assert.Equal(0, buffer.GetCommittedLength());
         Assert.False(buffer.TryGetFirstCommittedSpan(false, out _));
@@ -44,17 +47,73 @@ public class BufferTests
         Assert.True(buffer.CommittedIsEmpty);
         Assert.Equal(0, buffer.GetCommittedLength());
         Assert.False(buffer.TryGetFirstCommittedSpan(false, out _));
+        buffer.Release();
     }
 
-    [Fact]
-    public void MultiSegmentUsage()
+    private sealed class CountingMemoryPool(MemoryPool<byte>? tail = null) : MemoryPool<byte>
+    {
+        private readonly MemoryPool<byte> _tail = tail ?? MemoryPool<byte>.Shared;
+        private int count;
+
+        public int Count => Volatile.Read(ref count);
+        public override IMemoryOwner<byte> Rent(int minBufferSize = -1) => new Wrapper(this, _tail.Rent(minBufferSize));
+
+        protected override void Dispose(bool disposing) => throw new NotImplementedException();
+
+        private void Decrement() => Interlocked.Decrement(ref count);
+
+        private CountingMemoryPool Increment()
+        {
+            Interlocked.Increment(ref count);
+            return this;
+        }
+
+        public override int MaxBufferSize => _tail.MaxBufferSize;
+
+        private sealed class Wrapper(CountingMemoryPool parent, IMemoryOwner<byte> tail) : IMemoryOwner<byte>
+        {
+            private int _disposed;
+            private readonly CountingMemoryPool _parent = parent.Increment();
+
+            public void Dispose()
+            {
+                if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
+                {
+                    _parent.Decrement();
+                    tail.Dispose();
+                }
+                else
+                {
+                    ThrowDisposed();
+                }
+            }
+
+            private void ThrowDisposed() => throw new ObjectDisposedException(nameof(MemoryPool<byte>));
+
+            public Memory<byte> Memory
+            {
+                get
+                {
+                    if (Volatile.Read(ref _disposed) != 0) ThrowDisposed();
+                    return tail.Memory;
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void MultiSegmentUsage(bool multiSegmentRead)
     {
         byte[] garbage = new byte[1024 * 1024];
         var rand = new Random(Seed: 134521);
         rand.NextBytes(garbage);
 
         int offset = 0;
-        CycleBuffer buffer = default;
+        var mgr = new CountingMemoryPool();
+        CycleBuffer buffer = CycleBuffer.Create(mgr);
+        Assert.Equal(0, mgr.Count);
         while (offset < garbage.Length)
         {
             var size = rand.Next(1, garbage.Length - offset + 1);
@@ -64,15 +123,51 @@ public class BufferTests
             Assert.Equal(offset, buffer.GetCommittedLength());
         }
 
+        Assert.True(mgr.Count >= 50); // some non-trivial count
         int total = 0;
-        while (buffer.TryGetFirstCommittedSpan(true, out var span))
+        if (multiSegmentRead)
         {
-            var take = rand.Next(0, span.Length + 1);
-            var slice = span.Slice(0, take);
-            Assert.True(slice.SequenceEqual(new(garbage, total, take)), "data integrity check");
-            buffer.DiscardCommitted(take);
-            total += take;
+            while (!buffer.CommittedIsEmpty)
+            {
+                var seq = buffer.GetAllCommitted();
+                var take = rand.Next((int)Math.Min(seq.Length, 4 * buffer.PageSize)) + 1;
+                var slice = seq.Slice(0, take);
+                Assert.True(SequenceEqual(slice, new(garbage, total, take)), "data integrity check");
+                buffer.DiscardCommitted(take);
+                total += take;
+            }
         }
+        else
+        {
+            while (buffer.TryGetFirstCommittedSpan(true, out var span))
+            {
+                var take = rand.Next(span.Length) + 1;
+                var slice = span.Slice(0, take);
+                Assert.True(slice.SequenceEqual(new(garbage, total, take)), "data integrity check");
+                buffer.DiscardCommitted(take);
+                total += take;
+            }
+        }
+
         Assert.Equal(garbage.Length, total);
+        Assert.Equal(3, mgr.Count);
+        buffer.Release();
+
+        Assert.Equal(0, mgr.Count);
+
+        static bool SequenceEqual(ReadOnlySequence<byte> seq1, ReadOnlySpan<byte> seq2)
+        {
+            if (seq1.IsSingleSegment)
+            {
+                return seq1.First.Span.SequenceEqual(seq2);
+            }
+
+            if (seq1.Length != seq2.Length) return false;
+            var arr = ArrayPool<byte>.Shared.Rent(seq2.Length);
+            seq1.CopyTo(arr);
+            var result = arr.AsSpan(0,  seq2.Length).SequenceEqual(seq2);
+            ArrayPool<byte>.Shared.Return(arr);
+            return result;
+        }
     }
 }

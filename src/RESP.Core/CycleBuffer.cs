@@ -26,12 +26,28 @@ namespace Resp;
 ///   - call <see cref="DiscardCommitted"/> to indicate how much data is no longer needed
 ///  Emphasis: no concurrency! This is intended for a single worker acting as both producer and consumer.
 /// </remarks>
-internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.DefaultPageSize)
+internal struct CycleBuffer
 {
+    // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud
+    public static CycleBuffer Create(MemoryPool<byte>? pool = null, int pageSize = DefaultPageSize)
+    {
+        pool ??= MemoryPool<byte>.Shared;
+        if (pageSize <= 0) pageSize = DefaultPageSize;
+        if (pageSize > pool.MaxBufferSize) pageSize = pool.MaxBufferSize;
+
+        return new CycleBuffer(pool, pageSize);
+    }
+
+    private CycleBuffer(MemoryPool<byte> pool, int pageSize)
+    {
+        Pool = pool;
+        PageSize = pageSize;
+    }
+
     private const int DefaultPageSize = 8 * 1024;
-    private readonly int xorPageSize = pageSize ^ DefaultPageSize;
-    public int PageSize => xorPageSize ^ DefaultPageSize; // branch-free default value
-    public MemoryPool<byte> Pool => pool ?? MemoryPool<byte>.Shared; // in respect of default struct
+
+    public int PageSize { get; }
+    public MemoryPool<byte> Pool { get; }
 
     private Segment? startSegment, endSegment;
 
@@ -535,6 +551,22 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             }
 
             segment.Recycle();
+        }
+    }
+
+    /// <summary>
+    /// Discard all data and buffers.
+    /// </summary>
+    public void Release()
+    {
+        var node = startSegment;
+        startSegment = endSegment = null;
+        endSegmentCommittedAndFirstTrimmedFlag = endSegmentLength = 0;
+        while (node is not null)
+        {
+            var next = node.Next;
+            node.Recycle();
+            node = next;
         }
     }
 }
