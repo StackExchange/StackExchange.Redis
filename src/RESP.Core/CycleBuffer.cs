@@ -123,6 +123,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         var originalLength = GetCommittedLength();
         var originalCount = count;
         var expectedLength = originalLength - originalCount;
+        string blame = nameof(DiscardCommittedSlow);
 #endif
         while (count > 0)
         {
@@ -135,11 +136,17 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
                 if (count == endSegmentCommittedAndFirstTrimmedFlag) // note already checked sign, so: not trimmed
                 {
                     endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+#if DEBUG
+                    blame += ",full-final (u)";
+#endif
                 }
                 else if (count == EndSegmentCommitted)
                 {
                     endSegmentLength = startSegment!.Untrim();
                     endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+#if DEBUG
+                    blame += ",full-final (t)";
+#endif
                 }
                 else
                 {
@@ -148,16 +155,27 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
                     endSegmentLength -= count;
                     EndSegmentCommitted -= count;
                     FirstSegmentTrimmed = true;
+#if DEBUG
+                    blame += ",partial-final";
+#endif
                 }
+
                 count = 0;
                 break;
             }
             else if (count < segment.Length)
             {
                 // multiple, but can take some (not all) of the first buffer
+#if DEBUG
+                var len = segment.Length;
+#endif
                 segment.TrimStart(count);
                 FirstSegmentTrimmed = true;
-                Debug.Assert(segment.Length > 0);
+                Debug.Assert(segment.Length > 0, "parial trim should have left non-empty segment");
+#if DEBUG
+                Debug.Assert(segment.Length == len - count, "trim failure");
+                blame += ",partial-first";
+#endif
                 count = 0;
                 break;
             }
@@ -168,14 +186,17 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
                 startSegment =
                     segment.ResetAndGetNext(); // we already did a ref-check, so we know this isn't going past endSegment
                 FirstSegmentTrimmed = false;
-                endSegment!.AppendOrRecycle(segment, maxDepth: 1);
-                DebugAssertValid(count);
+                endSegment!.AppendOrRecycle(segment, maxDepth: 2);
+                DebugAssertValid();
+#if DEBUG
+                blame += ",full-first";
+#endif
             }
         }
 
         if (count != 0) ThrowCount();
 #if DEBUG
-        DebugAssertValid(expectedLength);
+        DebugAssertValid(expectedLength, blame);
         _ = originalLength;
         _ = originalCount;
 #endif
@@ -449,7 +470,11 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             }
         }
 
-        public void TrimStart(int remove) => Memory = Memory.Slice(start: remove);
+        public void TrimStart(int remove)
+        {
+            Memory = Memory.Slice(start: remove);
+            RunningIndex += remove; // so that ROS length keeps working
+        }
 
         public new Segment? Next
         {
@@ -470,7 +495,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         {
             var lease = _lease;
             _lease = NullLease.Instance;
-            _lease.Dispose();
+            lease.Dispose();
             Next = null;
             Memory = default;
             RunningIndex = 0;
@@ -481,7 +506,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         {
             private NullLease() { }
             public static readonly NullLease Instance = new NullLease();
-            public void Dispose() => throw new NotImplementedException();
+            public void Dispose() { }
 
             public Memory<byte> Memory => default;
         }
