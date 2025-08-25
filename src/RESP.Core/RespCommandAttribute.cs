@@ -15,8 +15,8 @@ public sealed class RespCommandAttribute(string? command = null) : Attribute
     {
         private const string Prefix = "global::Resp.RespParsers.";
 
-        /// <inheritdoc cref="RespParsers.Length"/>
-        public const string Length = Prefix + nameof(RespParsers.Length);
+        /// <inheritdoc cref="ResponseSummary.Parser"/>
+        public const string Summary = "global::Resp." + nameof(ResponseSummary) + "." + nameof(ResponseSummary.Parser);
 
         public const string ByteArray = Prefix + nameof(RespParsers.ByteArray);
         public const string String = Prefix + nameof(RespParsers.String);

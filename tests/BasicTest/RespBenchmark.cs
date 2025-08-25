@@ -167,13 +167,13 @@ public partial class RespBenchmark : IDisposable
     }
 
     [DisplayName("PING_BULK")]
-    private Task<int> PingBulk(RespContext ctx) => Pipeline(() => ctx.PingAsync(_payload));
+    private Task<ResponseSummary> PingBulk(RespContext ctx) => Pipeline(() => ctx.PingAsync(_payload));
 
     [DisplayName("INCR")]
     private Task<int> Incr(RespContext ctx) => Pipeline(() => ctx.IncrAsync(_key));
 
     [DisplayName("GET")]
-    private Task<int> Get(RespContext ctx) => Pipeline(() => ctx.GetAsync(_key));
+    private Task<ResponseSummary> Get(RespContext ctx) => Pipeline(() => ctx.GetAsync(_key));
 
     private Task GetInit(RespContext ctx) => ctx.SetAsync(_key, _payload).AsTask();
 
@@ -184,16 +184,16 @@ public partial class RespBenchmark : IDisposable
     private Task<Void> LPush(RespContext ctx) => Pipeline(() => ctx.LPushAsync(_key, _payload));
 
     [DisplayName("LRANGE_100 (100 of 450)")]
-    private Task<int> LRange100(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 99));
+    private Task<ResponseSummary> LRange100(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 99));
 
     [DisplayName("LRANGE_300 (300 of 450)")]
-    private Task<int> LRange300(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 299));
+    private Task<ResponseSummary> LRange300(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 299));
 
     [DisplayName("LRANGE_500 (450 of 450)")]
-    private Task<int> LRange500(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 499));
+    private Task<ResponseSummary> LRange500(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 499));
 
     [DisplayName("LPOP")]
-    private Task<int> LPop(RespContext ctx) => Pipeline(() => LPopAsync(ctx, _key));
+    private Task<ResponseSummary> LPop(RespContext ctx) => Pipeline(() => ctx.LPopAsync(_key));
 
     private async Task LPopInit(RespContext ctx)
     {
@@ -204,18 +204,11 @@ public partial class RespBenchmark : IDisposable
         }
     }
 
-    private ValueTask<int> LPopAsync(in RespContext ctx, string key)
-        => ctx.Command("lpop"u8, key, RespFormatters.Key.String).AsValueTask(RespParsers.Length);
-
-    /*
-    [RespCommand]
-    private partial byte[] LPop(in RespContext ctx, string key);
-*/
     [DisplayName("SADD")]
     private Task<Void> SAdd(RespContext ctx) => Pipeline(() => ctx.SAddAsync(_key, _payload));
 
     [DisplayName("SPOP")]
-    private Task<int> SPop(RespContext ctx) => Pipeline(() => ctx.SPopAsync(_key));
+    private Task<ResponseSummary> SPop(RespContext ctx) => Pipeline(() => ctx.SPopAsync(_key));
 
     private async Task SPopInit(RespContext ctx)
     {
@@ -344,8 +337,8 @@ internal static partial class RedisCommands
     [RespCommand]
     internal static partial void Ping(this in RespContext ctx);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Length)]
-    internal static partial int SPop(this in RespContext ctx, string key);
+    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    internal static partial ResponseSummary SPop(this in RespContext ctx, string key);
 
     [RespCommand]
     internal static partial void SAdd(this in RespContext ctx, string key, byte[] payload);
@@ -356,11 +349,14 @@ internal static partial class RedisCommands
     [RespCommand]
     internal static partial void LPush(this in RespContext ctx, string key, byte[] payload);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Length)]
-    internal static partial int LRange(this in RespContext ctx, string key, int start, int stop);
+    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    internal static partial ResponseSummary LPop(this in RespContext ctx, string key);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Length)]
-    internal static partial int Ping(this in RespContext ctx, byte[] payload);
+    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    internal static partial ResponseSummary LRange(this in RespContext ctx, string key, int start, int stop);
+
+    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    internal static partial ResponseSummary Ping(this in RespContext ctx, byte[] payload);
 
     [RespCommand]
     internal static partial int Incr(this in RespContext ctx, string key);
@@ -368,8 +364,8 @@ internal static partial class RedisCommands
     [RespCommand]
     internal static partial void Del(this in RespContext ctx, string key);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Length)]
-    internal static partial int Get(this in RespContext ctx, string key);
+    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    internal static partial ResponseSummary Get(this in RespContext ctx, string key);
 
     [RespCommand(Formatter = "PairsFormatter.Instance")] // custom command formatter
     internal static partial void MSet(this in RespContext ctx, (string, byte[])[] pairs);

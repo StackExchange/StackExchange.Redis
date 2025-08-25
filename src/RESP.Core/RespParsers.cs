@@ -4,6 +4,50 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Resp;
 
+public readonly struct ResponseSummary(RespPrefix prefix, int length, long protocolBytes) : IEquatable<ResponseSummary>
+{
+    public RespPrefix Prefix { get; } = prefix;
+    public int Length { get; } = length;
+    public long ProtocolBytes { get; } = protocolBytes;
+
+    /// <inheritdoc />
+    public override string ToString() => $"{Prefix}, Length: {Length}, Protocol Bytes: {ProtocolBytes}";
+
+    /// <inheritdoc cref="IEquatable{T}.Equals(T)" />
+    public bool Equals(ResponseSummary other) => EqualsCore(in other);
+
+    private bool EqualsCore(in ResponseSummary other) =>
+        Prefix == other.Prefix && Length == other.Length && ProtocolBytes == other.ProtocolBytes;
+
+    bool IEquatable<ResponseSummary>.Equals(ResponseSummary other) => EqualsCore(in other);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ResponseSummary summary && EqualsCore(in summary);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => (int)Prefix ^ Length ^ ProtocolBytes.GetHashCode();
+
+    public static IRespParser<Void, ResponseSummary> Parser => ResponseSummaryParser.Default;
+
+    private sealed class ResponseSummaryParser : IRespParser<Void, ResponseSummary>, IRespInlineParser, IRespMetadataParser
+    {
+        private ResponseSummaryParser() { }
+        public static readonly ResponseSummaryParser Default = new();
+
+        public ResponseSummary Parse(in Void state, ref RespReader reader)
+        {
+            var protocolBytes = reader.ProtocolBytes;
+            int length = 0;
+            if (reader.TryMoveNext())
+            {
+                if (reader.IsScalar) length = reader.ScalarLength();
+                else if (reader.IsAggregate) length = reader.AggregateLength();
+            }
+            return new ResponseSummary(reader.Prefix, length, protocolBytes);
+        }
+    }
+}
+
 public static class RespParsers
 {
     public static IRespParser<Void, Void> Success => InbuiltInlineParsers.Default;
@@ -21,19 +65,11 @@ public static class RespParsers
     public static IRespParser<Void, byte[]?[]?> ByteArrayArray => InbuiltCopyOutParsers.Default;
     public static IRespParser<IBufferWriter<byte>, int> BufferWriter => InbuiltCopyOutParsers.Default;
 
-    /// <summary>
-    /// For scalar values, returns the length in bytes. For aggregates, returns the count. Returns
-    /// <c>-1</c> for <c>null</c> values.
-    /// </summary>
-    /// <remarks>This is mostly useful for debugging purposes; note that the value is still fetched
-    /// over the network, so this is <i>not</i> an efficient way of measuring things - usually,
-    /// a native command that only returns the length/count should be used instead.</remarks>
-    public static IRespParser<Void, int> Length => LengthParser.Default;
-
     private sealed class Cache<TResponse>
     {
         public static IRespParser<Void, TResponse>? Instance =
-            (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
+            (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ??
+            (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
     }
 
     public static IRespParser<Void, TResponse> Get<TResponse>()
@@ -41,24 +77,28 @@ public static class RespParsers
 
     public static void Set<TResponse>(IRespParser<Void, TResponse> parser)
     {
-        var obj = (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
+        var obj = (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ??
+                  (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
         if (obj is not null) ThrowInbuiltParser(typeof(TResponse));
         Cache<TResponse>.Instance = parser;
     }
 
     private static IRespParser<Void, TResponse> GetCore<TResponse>()
     {
-        var obj = (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ?? (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
+        var obj = (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ??
+                  (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
         if (obj is null)
         {
             ThrowNoParser(typeof(TResponse));
         }
+
         return Cache<TResponse>.Instance = obj;
     }
 
     [DoesNotReturn]
     private static void ThrowNoParser(Type type) => throw new InvalidOperationException(
-        message: $"No default parser registered for type '{type.FullName}'; a custom parser must be specified via {nameof(RespParsers)}.{nameof(RespParsers.Set)}(...).");
+        message:
+        $"No default parser registered for type '{type.FullName}'; a custom parser must be specified via {nameof(RespParsers)}.{nameof(RespParsers.Set)}(...).");
 
     [DoesNotReturn]
     private static void ThrowInbuiltParser(Type type) => throw new InvalidOperationException(
@@ -76,13 +116,24 @@ public static class RespParsers
         public Void Parse(in Void state, ref RespReader reader) => Void.Instance;
 
         int IRespParser<Void, int>.Parse(in Void state, ref RespReader reader) => reader.ReadInt32();
-        int? IRespParser<Void, int?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadInt32();
+
+        int? IRespParser<Void, int?>.Parse(in Void state, ref RespReader reader) =>
+            reader.IsNull ? null : reader.ReadInt32();
+
         long IRespParser<Void, long>.Parse(in Void state, ref RespReader reader) => reader.ReadInt64();
-        long? IRespParser<Void, long?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadInt64();
+
+        long? IRespParser<Void, long?>.Parse(in Void state, ref RespReader reader) =>
+            reader.IsNull ? null : reader.ReadInt64();
+
         float IRespParser<Void, float>.Parse(in Void state, ref RespReader reader) => (float)reader.ReadDouble();
-        float? IRespParser<Void, float?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : (float)reader.ReadDouble();
+
+        float? IRespParser<Void, float?>.Parse(in Void state, ref RespReader reader) =>
+            reader.IsNull ? null : (float)reader.ReadDouble();
+
         double IRespParser<Void, double>.Parse(in Void state, ref RespReader reader) => reader.ReadDouble();
-        double? IRespParser<Void, double?>.Parse(in Void state, ref RespReader reader) => reader.IsNull ? null : reader.ReadDouble();
+
+        double? IRespParser<Void, double?>.Parse(in Void state, ref RespReader reader) =>
+            reader.IsNull ? null : reader.ReadDouble();
     }
 
     private sealed class OKParser : IRespParser<Void, Void>, IRespInlineParser
@@ -111,25 +162,15 @@ public static class RespParsers
 
         string? IRespParser<Void, string?>.Parse(in Void state, ref RespReader reader) => reader.ReadString();
         byte[]? IRespParser<Void, byte[]?>.Parse(in Void state, ref RespReader reader) => reader.ReadByteArray();
-        byte[]?[]? IRespParser<Void, byte[]?[]?>.Parse(in Void state, ref RespReader reader) => reader.ReadArray(
-            static (ref RespReader reader) => reader.ReadByteArray());
+
+        byte[]?[]? IRespParser<Void, byte[]?[]?>.Parse(in Void state, ref RespReader reader) =>
+            reader.ReadArray(static (ref RespReader reader) => reader.ReadByteArray());
 
         int IRespParser<IBufferWriter<byte>, int>.Parse(in IBufferWriter<byte> state, ref RespReader reader)
         {
             reader.DemandScalar();
             if (reader.IsNull) return -1;
             return reader.CopyTo(state);
-        }
-    }
-    private sealed class LengthParser : IRespParser<Void, int>, IRespInlineParser
-    {
-        private LengthParser() { }
-        public static readonly LengthParser Default = new();
-
-        public int Parse(in Void state, ref RespReader reader)
-        {
-            if (reader.IsNull) return -1;
-            return reader.IsScalar ? reader.ScalarLength() : reader.AggregateLength();
         }
     }
 }
