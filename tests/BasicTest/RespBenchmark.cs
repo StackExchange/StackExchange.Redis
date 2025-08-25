@@ -286,6 +286,8 @@ public partial class RespBenchmark : IDisposable
             var counters = DebugCounters.Flush();
             Console.WriteLine(
                 $"Read (s/a/MiB): {counters.Read:#,##0}/{counters.AsyncRead:#,##0}/{counters.ReadBytes >> 20:#,##0}, Grow: {counters.Grow:#,##0}, Shuffle (count/MiB): {counters.ShuffleCount:#,##0}/{counters.ShuffleBytes >> 20:#,##0}, Copy out (count/MiB): {counters.CopyOutCount}/{counters.CopyOutBytes >> 20:#,##0}");
+            Console.WriteLine(
+                $"Discard (full/partial/avg): {counters.DiscardFullCount:#,##0}/{counters.DiscardPartialCount:#,##0}/{counters.DiscardAverage:#,##0}");
 #endif
             if (typeof(T) != typeof(Void))
             {

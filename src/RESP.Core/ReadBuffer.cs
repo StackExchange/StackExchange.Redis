@@ -14,7 +14,15 @@ public partial class DebugCounters
 internal partial class DebugCounters
 #endif
 {
-    private static int _tallyRead, _tallyAsyncRead, _tallyGrow, _tallyShuffleCount, _tallyCopyOutCount;
+    private static int _tallyRead,
+        _tallyAsyncRead,
+        _tallyGrow,
+        _tallyShuffleCount,
+        _tallyCopyOutCount,
+        _tallyDiscardAverage,
+        _tallyDiscardFullCount,
+        _tallyDiscardPartialCount;
+
     private static long _tallyShuffleBytes, _tallyReadBytes, _tallyCopyOutBytes;
 
     [Conditional("DEBUG")]
@@ -48,8 +56,34 @@ internal partial class DebugCounters
         if (bytes > 0) Interlocked.Add(ref _tallyCopyOutBytes, bytes);
     }
 
+    [Conditional("DEBUG")]
+    public static void OnDiscardFull(int count)
+    {
+        if (count > 0)
+        {
+            Interlocked.Increment(ref _tallyDiscardFullCount);
+            EstimatedMovingRangeAverage(ref _tallyDiscardAverage, count);
+        }
+    }
+
+    [Conditional("DEBUG")]
+    public static void OnDiscardPartial(int count)
+    {
+        if (count > 0)
+        {
+            Interlocked.Increment(ref _tallyDiscardPartialCount);
+            EstimatedMovingRangeAverage(ref _tallyDiscardAverage, count);
+        }
+    }
+
+    private static void EstimatedMovingRangeAverage(ref int field, int value)
+    {
+        var lastValue = Volatile.Read(ref field);
+        var delta = (value - lastValue) >> 3; // is is a 7:1 old:new EMRA, using integer/bit math (alplha=0.125)
+        Interlocked.Add(ref field, delta);
+    }
+
     public static DebugCounters Flush() => new();
-    private DebugCounters() { }
 
     public int Read { get; } = Interlocked.Exchange(ref _tallyRead, 0);
     public int AsyncRead { get; } = Interlocked.Exchange(ref _tallyAsyncRead, 0);
@@ -59,7 +93,11 @@ internal partial class DebugCounters
     public long ShuffleBytes { get; } = Interlocked.Exchange(ref _tallyShuffleBytes, 0);
     public int CopyOutCount { get; } = Interlocked.Exchange(ref _tallyCopyOutCount, 0);
     public long CopyOutBytes { get; } = Interlocked.Exchange(ref _tallyCopyOutBytes, 0);
+    public int DiscardAverage { get; } = Interlocked.Exchange(ref _tallyDiscardAverage, 32);
+    public int DiscardFullCount { get; } = Interlocked.Exchange(ref _tallyDiscardFullCount, 0);
+    public int DiscardPartialCount { get; } = Interlocked.Exchange(ref _tallyDiscardPartialCount, 0);
 }
+
 internal struct ReadBuffer
 {
     private byte[]? _buffer;
@@ -92,6 +130,7 @@ internal struct ReadBuffer
         {
             new ReadOnlySpan<byte>(oldBuffer, 0, _count).CopyTo(newBuffer);
         }
+
         _buffer = newBuffer;
         if (oldBuffer is not null)
         {
@@ -138,14 +177,29 @@ internal struct ReadBuffer
         var remaining = _count - count;
         if (remaining != 0)
         {
+            DebugCounters.OnDiscardPartial(count);
             DebugCounters.OnShuffle(remaining);
             new ReadOnlySpan<byte>(_buffer, count, remaining).CopyTo(_buffer);
         }
+        else
+        {
+            DebugCounters.OnDiscardFull(count);
+        }
+
         _count = remaining;
+
         static void Throw(int count)
         {
-            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count), "Attempted to consume negative amount of data.");
-            else throw new ArgumentOutOfRangeException(nameof(count), "Attempted to consume more data than is available.");
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), "Attempted to consume negative amount of data.");
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(count),
+                    "Attempted to consume more data than is available.");
+            }
         }
     }
 }

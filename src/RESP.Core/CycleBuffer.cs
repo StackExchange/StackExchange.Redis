@@ -57,6 +57,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
 
     public bool TryGetCommitted(out ReadOnlySpan<byte> span)
     {
+        DebugAssertValid();
         if (!ReferenceEquals(startSegment, endSegment))
         {
             span = default;
@@ -73,6 +74,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
     /// </summary>
     public void Commit(int count)
     {
+        DebugAssertValid();
         if (count <= 0)
         {
             if (count < 0) Throw();
@@ -82,6 +84,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         var available = endSegmentLength - EndSegmentCommitted;
         if (count > available) Throw();
         EndSegmentCommitted += count;
+        DebugAssertValid();
 
         static void Throw() => throw new ArgumentOutOfRangeException(nameof(count));
     }
@@ -93,6 +96,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
     /// </summary>
     public void DiscardCommitted(int count)
     {
+        DebugAssertValid();
         // optimize for most common case, where we consume everything
         if (ReferenceEquals(startSegment, endSegment)
             & count == EndSegmentCommitted
@@ -102,7 +106,9 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             // just reset that segment back to full size and re-use as-is;
             // already checked MSB/trimmed, which means we don't need to do *anything*
             // except push this back to zero
-            endSegmentCommittedAndFirstTrimmedFlag = 0;
+            endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+            DebugAssertValid(0);
+            DebugCounters.OnDiscardFull(count);
         }
         else
         {
@@ -112,31 +118,89 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
 
     private void DiscardCommittedSlow(int count)
     {
+        DebugCounters.OnDiscardPartial(count);
+        #if DEBUG
+        var expectedLength = GetCommittedLength() - count;
+        #endif
         while (count > 0)
         {
+            DebugAssertValid();
             var segment = startSegment;
+            if (segment is null) break;
             if (ReferenceEquals(segment, endSegment))
             {
-                if (segment is null) ThrowCount();
-                // final segment
-                if (count == EndSegmentCommitted)
+                // first==final==only segment
+                if (count == endSegmentCommittedAndFirstTrimmedFlag) // note already checked sign, so: not trimmed
                 {
-                    // we are consuming all of the (only) segment; we can
-                    // just reset that segment back to full size and repeat
-                    endSegmentLength = startSegment!.Untrim();
-                    EndSegmentCommitted = 0;
-                    return;
+                    endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
                 }
+                else if (count == EndSegmentCommitted)
+                {
+                    endSegmentLength = startSegment!.Untrim();
+                    endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+                }
+                else
+                {
+                    // discard from the start
+                    segment.TrimStart(count);
+                    endSegmentLength -= count;
+                    EndSegmentCommitted -= count;
+                    FirstSegmentTrimmed = true;
+                }
+                DebugAssertValid(0);
+                return;
+            }
+            else
+            {
+                // multiple; discard the entire first segment
+                count -= segment.Length;
+                startSegment = segment.ResetAndGetNext(); // we already did a ref-check, so we know this isn't going past endSegment
+                FirstSegmentTrimmed = false;
+                endSegment!.AppendOrRecycle(segment, maxDepth: 1);
+                DebugAssertValid(count);
             }
         }
-        if (count < 0) ThrowCount();
+        if (count != 0) ThrowCount();
+        #if DEBUG
+        DebugAssertValid(expectedLength);
+        #endif
 
         [DoesNotReturn]
         static void ThrowCount() => throw new ArgumentOutOfRangeException(nameof(count));
     }
 
+    [Conditional("DEBUG")]
+    private void DebugAssertValid(long committedLength)
+    {
+        DebugAssertValid();
+        var actual = GetCommittedLength();
+        Debug.Assert(committedLength == actual, $"Committed length mismatch: expected {committedLength}, got {actual}");
+    }
+    [Conditional("DEBUG")]
+    private void DebugAssertValid()
+    {
+        if (startSegment is null)
+        {
+            Debug.Assert(endSegmentLength == 0 & endSegmentCommittedAndFirstTrimmedFlag == 0, "un-init state should be zero");
+            return;
+        }
+        Debug.Assert(endSegment is not null, "end segment must not be null if start segment exists");
+        Debug.Assert(endSegmentLength == endSegment!.Length, "end segment length is incorrect");
+        Debug.Assert(FirstSegmentTrimmed == startSegment.IsTrimmed(), "start segment trimmed is incorrect");
+        Debug.Assert(EndSegmentCommitted <= endSegmentLength);
+    }
+
+    public long GetCommittedLength()
+    {
+        DebugAssertValid();
+        return ReferenceEquals(startSegment, endSegment)
+            ? EndSegmentCommitted
+            : GetAllCommitted().Length;
+    }
+
     public bool TryGetFirstCommittedSpan(bool fullOnly, out ReadOnlySpan<byte> span)
     {
+        DebugAssertValid();
         if (TryGetFirstCommittedMemory(fullOnly, out var memory))
         {
             span = memory.Span;
@@ -148,6 +212,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
 
     public bool TryGetFirstCommittedMemory(bool fullOnly, out ReadOnlyMemory<byte> memory)
     {
+        DebugAssertValid();
         if (ReferenceEquals(startSegment, endSegment))
         {
             // single page
@@ -236,6 +301,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
 
     private Segment GetNextSegment()
     {
+        DebugAssertValid();
         var spare = endSegment?.Next;
         if (spare is not null) // we already have an unused segment; just update our state
         {
@@ -243,6 +309,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             endSegment = spare;
             EndSegmentCommitted = 0;
             endSegmentLength = spare.Length;
+            DebugAssertValid();
             return spare;
         }
 
@@ -256,7 +323,9 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         endSegment.Append(EndSegmentCommitted, segment);
         EndSegmentCommitted = 0;
         endSegmentLength = segment.Length;
-        return endSegment = segment;
+        endSegment = segment;
+        DebugAssertValid();
+        return segment;
     }
 
     /// <summary>
@@ -270,6 +339,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
     /// </summary>
     public Memory<byte> GetUncommittedMemory(int hint = 0)
     {
+        DebugAssertValid();
         var segment = endSegment;
         if (segment is not null)
         {
@@ -349,7 +419,7 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
             private set => base.Next = value;
         }
 
-        public Segment? Detach()
+        public Segment? ResetAndGetNext()
         {
             var next = Next;
             Next = null;
@@ -382,5 +452,25 @@ internal struct CycleBuffer(MemoryPool<byte> pool, int pageSize = CycleBuffer.De
         /// Undo any trimming, returning the new full capacity.
         /// </summary>
         public int Untrim() => (Memory = _lease.Memory).Length;
+
+        public bool IsTrimmed() => Length < _lease.Memory.Length;
+
+        public void AppendOrRecycle(Segment segment, int maxDepth)
+        {
+            var node = this;
+            while (maxDepth-- > 0 && node is not null)
+            {
+                if (node.Next is null) // found somewhere to attach it
+                {
+                    if (segment.Untrim() == 0) break; // turned out to be useless
+                    segment.RunningIndex = node.RunningIndex + node.Length;
+                    node.Next = segment;
+                    return;
+                }
+                node = node.Next;
+            }
+
+            segment.Recycle();
+        }
     }
 }
