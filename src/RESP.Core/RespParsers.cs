@@ -36,7 +36,7 @@ public readonly struct ResponseSummary(RespPrefix prefix, int length, long proto
 
         public ResponseSummary Parse(in Void state, ref RespReader reader)
         {
-            var protocolBytes = reader.ProtocolBytes;
+            var protocolBytes = reader.ProtocolBytesRemaining;
             int length = 0;
             if (reader.TryMoveNext())
             {
@@ -68,8 +68,9 @@ public static class RespParsers
     private sealed class Cache<TResponse>
     {
         public static IRespParser<Void, TResponse>? Instance =
-            (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ??
-            (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
+            (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ?? // regular (may allocate, etc)
+            (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>) ?? // inline
+            (ResponseSummary.Parser as IRespParser<Void, TResponse>); // inline+metadata
     }
 
     public static IRespParser<Void, TResponse> Get<TResponse>()

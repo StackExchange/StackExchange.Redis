@@ -669,9 +669,9 @@ public class RespCommandGenerator : IIncrementalGenerator
         "long?" => "Resp.RespParsers.NullableInt64",
         "float?" => "Resp.RespParsers.NullableSingle",
         "double?" => "Resp.RespParsers.NullableDouble",
+        "global::Resp.ResponseSummary" => "Resp.ResponseSummary.Parser",
         _ => null,
     };
-
     private enum TupleMode
     {
         AnonTuple,

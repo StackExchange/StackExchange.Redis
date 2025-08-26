@@ -19,11 +19,11 @@ public class BufferTests
         Assert.False(buffer.TryGetFirstCommittedSpan(false, out _));
 
         buffer.Write("hello world"u8);
-        Assert.False(buffer.CommittedIsEmpty);
+        Assert.False(buffer.CommittedIsEmpty, "should be empty");
         Assert.Equal(11, buffer.GetCommittedLength());
 
-        Assert.False(buffer.TryGetFirstCommittedSpan(true, out _));
-        Assert.True(buffer.TryGetFirstCommittedSpan(false, out var committed));
+        Assert.False(buffer.TryGetFirstCommittedSpan(true, out _), "should have rejected full");
+        Assert.True(buffer.TryGetFirstCommittedSpan(false, out var committed), "should have accepted partial");
         Assert.True(committed.SequenceEqual("hello world"u8));
         buffer.DiscardCommitted(11);
         Assert.True(buffer.CommittedIsEmpty);
@@ -99,6 +99,15 @@ public class BufferTests
                 }
             }
         }
+    }
+
+    [Fact]
+    public void SkipAggregate()
+    {
+        var reader = new RespReader("*1\r\n$3\r\nabc\r\n"u8); // ["abc"]
+        reader.MoveNext();
+        reader.SkipChildren();
+        Assert.False(reader.TryMoveNext());
     }
 
     [Theory]

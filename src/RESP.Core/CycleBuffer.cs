@@ -6,6 +6,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
+#pragma warning disable SA1205 // accessibility on partial - for debugging/test practicality
+
 namespace Resp;
 
 /// <summary>
@@ -23,10 +25,10 @@ namespace Resp;
 ///   - call <see cref="TryGetCommitted"/> to see if there is a single-span chunk; otherwise
 ///   - call <see cref="GetAllCommitted"/> to get the multi-span chunk
 ///   - (process none, some, or all of that data)
-///   - call <see cref="DiscardCommitted"/> to indicate how much data is no longer needed
+///   - call <see cref="DiscardCommitted(int)"/> to indicate how much data is no longer needed
 ///  Emphasis: no concurrency! This is intended for a single worker acting as both producer and consumer.
 /// </remarks>
-internal struct CycleBuffer
+partial struct CycleBuffer
 {
     // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud
     public static CycleBuffer Create(MemoryPool<byte>? pool = null, int pageSize = DefaultPageSize)
@@ -132,7 +134,29 @@ internal struct CycleBuffer
         }
     }
 
-    private void DiscardCommittedSlow(int count)
+    public void DiscardCommitted(long count)
+    {
+        DebugAssertValid();
+        // optimize for most common case, where we consume everything
+        if (ReferenceEquals(startSegment, endSegment)
+            & count == EndSegmentCommitted
+            & (endSegmentCommittedAndFirstTrimmedFlag & MSB) == 0) // checks sign *and* non-trimmed
+        {
+            // we are consuming all the data in the single segment; we can
+            // just reset that segment back to full size and re-use as-is;
+            // already checked MSB/trimmed, which means we don't need to do *anything*
+            // except push this back to zero
+            endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+            DebugAssertValid(0);
+            DebugCounters.OnDiscardFull(count);
+        }
+        else
+        {
+            DiscardCommittedSlow(count);
+        }
+    }
+
+    private void DiscardCommittedSlow(long count)
     {
         DebugCounters.OnDiscardPartial(count);
 #if DEBUG
@@ -167,9 +191,10 @@ internal struct CycleBuffer
                 else
                 {
                     // discard from the start
-                    segment.TrimStart(count);
-                    endSegmentLength -= count;
-                    EndSegmentCommitted -= count;
+                    int count32 = checked((int)count);
+                    segment.TrimStart(count32);
+                    endSegmentLength -= count32;
+                    EndSegmentCommitted -= count32;
                     FirstSegmentTrimmed = true;
 #if DEBUG
                     blame += ",partial-final";
@@ -185,7 +210,7 @@ internal struct CycleBuffer
 #if DEBUG
                 var len = segment.Length;
 #endif
-                segment.TrimStart(count);
+                segment.TrimStart((int)count);
                 FirstSegmentTrimmed = true;
                 Debug.Assert(segment.Length > 0, "parial trim should have left non-empty segment");
 #if DEBUG
@@ -250,7 +275,7 @@ internal struct CycleBuffer
             endSegmentLength == endSegment!.Length,
             $"end segment length is incorrect - expected {endSegmentLength}, got {endSegment.Length}");
         Debug.Assert(FirstSegmentTrimmed == startSegment.IsTrimmed(), "start segment trimmed is incorrect");
-        Debug.Assert(EndSegmentCommitted <= endSegmentLength);
+        Debug.Assert(EndSegmentCommitted <= endSegmentLength, "end segment is over-committed");
     }
 
     public long GetCommittedLength()
@@ -294,61 +319,6 @@ internal struct CycleBuffer
         // multi-page
         memory = startSegment!.Memory;
         return true;
-    }
-
-    /// <summary>
-    /// Writes a value to the buffer; comparable to <see cref="BuffersExtensions.Write{T}(IBufferWriter{T}, ReadOnlySpan{T})"/>.
-    /// </summary>
-    public void Write(ReadOnlySpan<byte> value)
-    {
-        int srcLength = value.Length;
-        while (srcLength != 0)
-        {
-            var target = GetUncommittedSpan(hint: srcLength);
-            var tgtLength = target.Length;
-            if (tgtLength >= srcLength)
-            {
-                value.CopyTo(target);
-                Commit(srcLength);
-                return;
-            }
-
-            value.Slice(0, tgtLength).CopyTo(target);
-            Commit(tgtLength);
-            value = value.Slice(tgtLength);
-            srcLength -= tgtLength;
-        }
-    }
-
-    /// <summary>
-    /// Writes a value to the buffer; comparable to <see cref="BuffersExtensions.Write{T}(IBufferWriter{T}, ReadOnlySpan{T})"/>.
-    /// </summary>
-    public void Write(in ReadOnlySequence<byte> value)
-    {
-        if (value.IsSingleSegment)
-        {
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
-            Write(value.FirstSpan);
-#else
-            Write(value.First.Span);
-#endif
-        }
-        else
-        {
-            WriteMultiSegment(ref this, in value);
-        }
-
-        static void WriteMultiSegment(ref CycleBuffer @this, in ReadOnlySequence<byte> value)
-        {
-            foreach (var segment in value)
-            {
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
-                  @this.Write(value.FirstSpan);
-#else
-                @this.Write(value.First.Span);
-#endif
-            }
-        }
     }
 
     /// <summary>
@@ -430,6 +400,15 @@ internal struct CycleBuffer
 
         // new segment, will always be entire
         return MemoryMarshal.AsMemory(GetNextSegment().Memory);
+    }
+
+    public int UncommittedAvailable
+    {
+        get
+        {
+            DebugAssertValid();
+            return endSegmentLength - EndSegmentCommitted;
+        }
     }
 
     private sealed class Segment : ReadOnlySequenceSegment<byte>
@@ -567,6 +546,65 @@ internal struct CycleBuffer
             var next = node.Next;
             node.Recycle();
             node = next;
+        }
+    }
+}
+
+// this can be shared between CycleBuffer and CycleBuffer.Simple
+partial struct CycleBuffer
+{
+    /// <summary>
+    /// Writes a value to the buffer; comparable to <see cref="BuffersExtensions.Write{T}(IBufferWriter{T}, ReadOnlySpan{T})"/>.
+    /// </summary>
+    public void Write(ReadOnlySpan<byte> value)
+    {
+        int srcLength = value.Length;
+        while (srcLength != 0)
+        {
+            var target = GetUncommittedSpan(hint: srcLength);
+            var tgtLength = target.Length;
+            if (tgtLength >= srcLength)
+            {
+                value.CopyTo(target);
+                Commit(srcLength);
+                return;
+            }
+
+            value.Slice(0, tgtLength).CopyTo(target);
+            Commit(tgtLength);
+            value = value.Slice(tgtLength);
+            srcLength -= tgtLength;
+        }
+    }
+
+    /// <summary>
+    /// Writes a value to the buffer; comparable to <see cref="BuffersExtensions.Write{T}(IBufferWriter{T}, ReadOnlySpan{T})"/>.
+    /// </summary>
+    public void Write(in ReadOnlySequence<byte> value)
+    {
+        if (value.IsSingleSegment)
+        {
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
+            Write(value.FirstSpan);
+#else
+            Write(value.First.Span);
+#endif
+        }
+        else
+        {
+            WriteMultiSegment(ref this, in value);
+        }
+
+        static void WriteMultiSegment(ref CycleBuffer @this, in ReadOnlySequence<byte> value)
+        {
+            foreach (var segment in value)
+            {
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
+                @this.Write(value.FirstSpan);
+#else
+                @this.Write(value.First.Span);
+#endif
+            }
         }
     }
 }

@@ -15,6 +15,7 @@ namespace Resp;
 public ref struct RespWriter
 {
     private readonly IBufferWriter<byte>? _target;
+
     [SuppressMessage("Style", "IDE0032:Use auto property", Justification = "Clarity")]
     private int _index;
 
@@ -23,19 +24,23 @@ public ref struct RespWriter
 #if NET7_0_OR_GREATER
     private ref byte StartOfBuffer;
     private int BufferLength;
+
     private ref byte WriteHead
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref StartOfBuffer, _index);
     }
+
     private Span<byte> Tail
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref StartOfBuffer, _index), BufferLength - _index);
     }
+
     private void WriteRawUnsafe(byte value) => Unsafe.Add(ref StartOfBuffer, _index++) = value;
 
-    private readonly ReadOnlySpan<byte> WrittenLocalBuffer => MemoryMarshal.CreateReadOnlySpan(ref StartOfBuffer, _index);
+    private readonly ReadOnlySpan<byte> WrittenLocalBuffer =>
+        MemoryMarshal.CreateReadOnlySpan(ref StartOfBuffer, _index);
 #else
     private Span<byte> _buffer;
     private readonly int BufferLength => _buffer.Length;
@@ -157,19 +162,20 @@ public ref struct RespWriter
 #else
                 _buffer = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
 #endif
-                #if DEBUG
+#if DEBUG
                 if (Available == 0)
                 {
                     Debugger.Break();
                 }
-                #endif
+#endif
                 Debug.Assert(Available > 0);
             }
         }
     }
 
     [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowFixedBufferExceeded() => throw new InvalidOperationException("Fixed buffer cannot be expanded");
+    private static void ThrowFixedBufferExceeded() =>
+        throw new InvalidOperationException("Fixed buffer cannot be expanded");
 
     /// <summary>
     /// Write raw RESP data to the output; no validation will occur.
@@ -215,12 +221,18 @@ public ref struct RespWriter
             if (mapped.IsEmpty) ThrowCommandUnavailable(command);
             command = mapped;
         }
+
         WriteBulkString(command);
 
         static void Throw() => throw new ArgumentOutOfRangeException(nameof(args));
-        static void ThrowEmptyCommand() => throw new ArgumentException(paramName: nameof(command), message: "Empty command specified.");
+
+        static void ThrowEmptyCommand() =>
+            throw new ArgumentException(paramName: nameof(command), message: "Empty command specified.");
+
         static void ThrowCommandUnavailable(ReadOnlySpan<byte> command)
-            => throw new ArgumentException(paramName: nameof(command), message: $"The command {Encoding.UTF8.GetString(command)} is not available.");
+            => throw new ArgumentException(
+                paramName: nameof(command),
+                message: $"The command {Encoding.UTF8.GetString(command)} is not available.");
     }
 
     /// <summary>
@@ -322,6 +334,54 @@ public ref struct RespWriter
     /// Write an integer as a bulk string.
     /// </summary>
     public void WriteBulkString(bool value) => WriteBulkString(value ? 1 : 0);
+
+    /// <summary>
+    /// Write a floating point as a bulk string.
+    /// </summary>
+    public void WriteBulkString(double value)
+    {
+        if (/*value == 0.0 | */ double.IsNaN(value) | double.IsInfinity(value))
+        {
+            WriteKnownDouble(ref this, value);
+
+            static void WriteKnownDouble(ref RespWriter writer, double value)
+            {
+                if (value == 0.0)
+                {
+                    writer.WriteRaw("$1\r\n0\r\n"u8);
+                }
+                else if (double.IsNaN(value))
+                {
+                    writer.WriteRaw("$3\r\nnan\r\n"u8);
+                }
+                else if (double.IsPositiveInfinity(value))
+                {
+                    writer.WriteRaw("$3\r\ninf\r\n"u8);
+                }
+                else if (double.IsNegativeInfinity(value))
+                {
+                    writer.WriteRaw("$4\r\n-inf\r\n"u8);
+                }
+                else
+                {
+                    Throw();
+                    static void Throw() => throw new ArgumentOutOfRangeException(nameof(value));
+                }
+            }
+        }
+        else
+        {
+            Debug.Assert(RespConstants.MaxProtocolBytesBytesNumber <= 32);
+            Span<byte> scratch = stackalloc byte[24];
+            if (!Utf8Formatter.TryFormat(value, scratch, out int bytes, G17))
+                ThrowFormatException();
+            WritePrefixedInteger(RespPrefix.BulkString, bytes);
+            WriteRaw(scratch.Slice(0, bytes));
+            WriteCrLf();
+        }
+    }
+
+    private static readonly StandardFormat G17 = new('G', 17);
 
     /// <summary>
     /// Write an integer as a bulk string.

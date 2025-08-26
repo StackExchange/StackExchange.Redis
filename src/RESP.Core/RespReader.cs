@@ -52,7 +52,7 @@ public ref partial struct RespReader
     private ReadOnlySequenceSegment<byte>? _tail; // the next tail node
     private long _remainingTailLength; // how much more can we consume from the tail?
 
-    public long ProtocolBytes => TotalAvailable;
+    public long ProtocolBytesRemaining => TotalAvailable;
 
     private readonly int CurrentAvailable => CurrentLength - _bufferIndex;
 
