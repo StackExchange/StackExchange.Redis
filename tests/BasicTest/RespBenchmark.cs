@@ -23,7 +23,7 @@ public partial class RespBenchmark : IDisposable
     public int ClientCount => _clients.Length;
 
     private readonly int _operationsPerClient, _pipelineDepth;
-    private readonly bool _multiplexed, _cancel;
+    private readonly bool _multiplexed, _cancel, _quiet;
     public const int DefaultPort = 6379, DefaultRequests = 100_000, DefaultPipelineDepth = 1, DefaultClients = 50;
     public const bool DefaultMultiplexed = false, DefaultCancel = false;
     public const string DefaultTests = "";
@@ -40,7 +40,8 @@ public partial class RespBenchmark : IDisposable
         int clients = DefaultClients,
         bool multiplexed = DefaultMultiplexed,
         bool cancel = DefaultCancel,
-        string tests = DefaultTests)
+        string tests = DefaultTests,
+        bool quiet = false)
     {
         if (clients <= 0) throw new ArgumentOutOfRangeException(nameof(clients));
         if (pipelineDepth <= 0) throw new ArgumentOutOfRangeException(nameof(pipelineDepth));
@@ -49,6 +50,7 @@ public partial class RespBenchmark : IDisposable
         _pipelineDepth = pipelineDepth;
         _multiplexed = multiplexed;
         _cancel = cancel;
+        _quiet = quiet;
         _connectionPool = new(count: multiplexed ? 1 : clients);
         _pairs = new (string, byte[])[10];
         if (!string.IsNullOrWhiteSpace(tests))
@@ -293,17 +295,25 @@ public partial class RespBenchmark : IDisposable
             description = $" {description}";
         }
 
-        Console.Write(
-            $"====== {name}{description} ====== (clients: {_clients.Length:#,##0}, ops: {TotalOperations:#,##0}");
-        if (_multiplexed)
+        if (_quiet)
         {
-            Console.Write(", mux");
+            Console.Write($"{name}: ");
         }
-        if (_pipelineDepth > 1)
+        else
         {
-            Console.Write($", pipeline: {_pipelineDepth:#,##0}");
+            Console.Write(
+                $"====== {name}{description} ====== (clients: {_clients.Length:#,##0}, ops: {TotalOperations:#,##0}");
+            if (_multiplexed)
+            {
+                Console.Write(", mux");
+            }
+            if (_pipelineDepth > 1)
+            {
+                Console.Write($", pipeline: {_pipelineDepth:#,##0}");
+            }
+            Console.WriteLine(")");
         }
-        Console.WriteLine(")");
+
         try
         {
             await CleanupAsync().ConfigureAwait(false);
@@ -315,21 +325,33 @@ public partial class RespBenchmark : IDisposable
 #if DEBUG
             DebugCounters.Flush();
 #endif
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            // optionally support cancellation, applied per-test
+            CancellationToken cancellationToken = CancellationToken.None;
+            using var cts = _cancel ? new CancellationTokenSource(TimeSpan.FromSeconds(20)) : null;
+            if (_cancel) cancellationToken = cts!.Token;
+
             var watch = Stopwatch.StartNew();
             foreach (var client in clients)
             {
-                pending[index++] = Task.Run(() => action(client.WithCancellationToken(cts.Token)));
+                pending[index++] = Task.Run(() => action(client.WithCancellationToken(cancellationToken)));
             }
 
             await Task.WhenAll(pending).ConfigureAwait(false);
             watch.Stop();
 
             var seconds = watch.Elapsed.TotalSeconds;
-            var rate = (TotalOperations / seconds) / 1000;
-            Console.WriteLine(
-                $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec");
-            if (typeof(T) != typeof(Void))
+            var rate = TotalOperations / seconds;
+            if (_quiet)
+            {
+                Console.WriteLine($"{rate:###,###,##0.00} requests per second");
+                return;
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate::###,###,##0.00} ops/sec");
+            }
+            if (typeof(T) != typeof(Void) && !_quiet)
             {
                 if (string.IsNullOrWhiteSpace(format))
                 {
@@ -342,74 +364,80 @@ public partial class RespBenchmark : IDisposable
         }
         catch (Exception ex)
         {
+            if (_quiet) Console.WriteLine();
             Console.Error.WriteLine(ex.Message);
         }
         finally
         {
 #if DEBUG
-            var counters = DebugCounters.Flush();
-
-            if (counters.WriteBytes != 0)
+            var counters = DebugCounters.Flush(); // flush even if not showing
+            if (_quiet)
             {
-                Console.Write($"Write: {FormatBytes(counters.WriteBytes)}");
-                if (counters.WriteCount != 0) Console.Write($"; {counters.WriteCount:#,##0} sync");
-                if (counters.AsyncWriteInlineCount != 0)
-                    Console.Write($"; {counters.AsyncWriteInlineCount:#,##0} async-inline");
-                if (counters.AsyncWriteCount != 0) Console.Write($"; {counters.AsyncWriteCount:#,##0} full-async");
-                Console.WriteLine();
-            }
-
-            if (counters.ReadBytes != 0)
-            {
-                Console.Write($"Read: {FormatBytes(counters.ReadBytes)}");
-                if (counters.ReadCount != 0) Console.Write($"; {counters.ReadCount:#,##0} sync");
-                if (counters.AsyncReadInlineCount != 0)
-                    Console.Write($"; {counters.AsyncReadInlineCount:#,##0} async-inline");
-                if (counters.AsyncReadCount != 0) Console.Write($"; {counters.AsyncReadCount:#,##0} full-async");
-                Console.WriteLine();
-            }
-
-            if (counters.DiscardAverage + counters.DiscardPartialCount != 0)
-            {
-                Console.Write($"Discard average: {FormatBytes(counters.DiscardAverage)}");
-                if (counters.DiscardFullCount != 0) Console.Write($"; {counters.DiscardFullCount} full");
-                if (counters.DiscardPartialCount != 0) Console.Write($"; {counters.DiscardPartialCount} partial");
-                Console.WriteLine();
-            }
-
-            if (counters.CopyOutCount != 0)
-            {
-                Console.WriteLine(
-                    $"Copy out: {FormatBytes(counters.CopyOutBytes)}; {counters.CopyOutCount:#,##0} times");
-            }
-
-            if (counters.PipelineFullAsyncCount != 0
-                | counters.PipelineSendAsyncCount != 0
-                | counters.PipelineFullSyncCount != 0)
-            {
-                Console.Write("Pipelining");
-                if (counters.PipelineFullSyncCount != 0) Console.Write($"; full sync: {counters.PipelineFullSyncCount:#,##0}");
-                if (counters.PipelineSendAsyncCount != 0) Console.Write($"; send async: {counters.PipelineSendAsyncCount:#,##0}");
-                if (counters.PipelineFullAsyncCount != 0) Console.Write($"; full async: {counters.PipelineFullAsyncCount:#,##0}");
-                Console.WriteLine();
-            }
-
-            static string FormatBytes(long bytes)
-            {
-                if (bytes > 1024 * 1024)
+                if (counters.WriteBytes != 0)
                 {
-                    return $"{bytes >> 20:#,##0} MiB";
+                    Console.Write($"Write: {FormatBytes(counters.WriteBytes)}");
+                    if (counters.WriteCount != 0) Console.Write($"; {counters.WriteCount:#,##0} sync");
+                    if (counters.AsyncWriteInlineCount != 0)
+                        Console.Write($"; {counters.AsyncWriteInlineCount:#,##0} async-inline");
+                    if (counters.AsyncWriteCount != 0) Console.Write($"; {counters.AsyncWriteCount:#,##0} full-async");
+                    Console.WriteLine();
                 }
 
-                if (bytes > 1024)
+                if (counters.ReadBytes != 0)
                 {
-                    return $"{bytes >> 10:#,##0} KiB";
+                    Console.Write($"Read: {FormatBytes(counters.ReadBytes)}");
+                    if (counters.ReadCount != 0) Console.Write($"; {counters.ReadCount:#,##0} sync");
+                    if (counters.AsyncReadInlineCount != 0)
+                        Console.Write($"; {counters.AsyncReadInlineCount:#,##0} async-inline");
+                    if (counters.AsyncReadCount != 0) Console.Write($"; {counters.AsyncReadCount:#,##0} full-async");
+                    Console.WriteLine();
                 }
 
-                return $"{bytes} B";
+                if (counters.DiscardAverage + counters.DiscardPartialCount != 0)
+                {
+                    Console.Write($"Discard average: {FormatBytes(counters.DiscardAverage)}");
+                    if (counters.DiscardFullCount != 0) Console.Write($"; {counters.DiscardFullCount} full");
+                    if (counters.DiscardPartialCount != 0) Console.Write($"; {counters.DiscardPartialCount} partial");
+                    Console.WriteLine();
+                }
+
+                if (counters.CopyOutCount != 0)
+                {
+                    Console.WriteLine(
+                        $"Copy out: {FormatBytes(counters.CopyOutBytes)}; {counters.CopyOutCount:#,##0} times");
+                }
+
+                if (counters.PipelineFullAsyncCount != 0
+                    | counters.PipelineSendAsyncCount != 0
+                    | counters.PipelineFullSyncCount != 0)
+                {
+                    Console.Write("Pipelining");
+                    if (counters.PipelineFullSyncCount != 0)
+                        Console.Write($"; full sync: {counters.PipelineFullSyncCount:#,##0}");
+                    if (counters.PipelineSendAsyncCount != 0)
+                        Console.Write($"; send async: {counters.PipelineSendAsyncCount:#,##0}");
+                    if (counters.PipelineFullAsyncCount != 0)
+                        Console.Write($"; full async: {counters.PipelineFullAsyncCount:#,##0}");
+                    Console.WriteLine();
+                }
+
+                static string FormatBytes(long bytes)
+                {
+                    if (bytes > 1024 * 1024)
+                    {
+                        return $"{bytes >> 20:#,##0} MiB";
+                    }
+
+                    if (bytes > 1024)
+                    {
+                        return $"{bytes >> 10:#,##0} KiB";
+                    }
+
+                    return $"{bytes} B";
+                }
             }
 #endif
-            Console.WriteLine();
+            if (!_quiet) Console.WriteLine();
         }
     }
 

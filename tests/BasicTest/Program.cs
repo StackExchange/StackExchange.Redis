@@ -26,7 +26,10 @@ namespace BasicTest
                 requests = RespBenchmark.DefaultRequests,
                 pipelineDepth = RespBenchmark.DefaultPipelineDepth;
             string tests = RespBenchmark.DefaultTests;
-            bool multiplexed = RespBenchmark.DefaultMultiplexed, cancel = RespBenchmark.DefaultCancel, loop = false;
+            bool multiplexed = RespBenchmark.DefaultMultiplexed,
+                cancel = RespBenchmark.DefaultCancel,
+                loop = false,
+                quiet = false;
             for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
@@ -58,6 +61,9 @@ namespace BasicTest
                     case "-l":
                         loop = true;
                         break;
+                    case "-q":
+                        quiet = true;
+                        break;
                     case "-t" when i != args.Length - 1:
                         tests = args[++i];
                         break;
@@ -71,7 +77,8 @@ namespace BasicTest
                 pipelineDepth: pipelineDepth,
                 multiplexed: multiplexed,
                 cancel: cancel,
-                tests: tests);
+                tests: tests,
+                quiet: quiet);
             await bench.RunAll(loop);
         }
         // private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
