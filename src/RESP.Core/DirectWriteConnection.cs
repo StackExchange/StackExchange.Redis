@@ -62,32 +62,42 @@ internal sealed class DirectWriteConnection : IRespConnection
             return false;
         }
 
+        // let's bypass a bunch of ldarg0 by hoisting the field-refs (this is **NOT** a struct copy; emphasis "ref")
+        ref RespScanState state = ref _readScanState;
+        ref CycleBuffer readBuffer = ref _readBuffer;
+
 #if DEBUG
-        string src = $"parse {bytesRead}";
+        string src = $"parse {readBuffer.GetCommittedLength()}+{bytesRead}-{state.TotalBytes}";
         try
 #endif
         {
             Debug.Assert(
-                bytesRead <= _readBuffer.UncommittedAvailable,
-                $"Insufficient bytes in {nameof(CommitAndParseFrames)}; got {bytesRead}, Available={_readBuffer.UncommittedAvailable}");
-            _readBuffer.Commit(bytesRead);
-
+                bytesRead <= readBuffer.UncommittedAvailable,
+                $"Insufficient bytes in {nameof(CommitAndParseFrames)}; got {bytesRead}, Available={readBuffer.UncommittedAvailable}");
+            readBuffer.Commit(bytesRead);
+#if DEBUG
+            src += $",total {readBuffer.GetCommittedLength()}";
+#endif
             var scanner = RespFrameScanner.Default;
 
             OperationStatus status = OperationStatus.NeedMoreData;
-            ref RespScanState state = ref _readScanState;
-            if (_readBuffer.TryGetCommitted(out var fullSpan))
+            if (readBuffer.TryGetCommitted(out var fullSpan))
             {
-#if DEBUG
-                src += $",span {fullSpan.Length}";
-#endif
-                Debug.Assert(!fullSpan.IsEmpty);
-
                 int fullyConsumed = 0;
                 var toParse = fullSpan.Slice((int)state.TotalBytes); // skip what we've already parsed
-                while (toParse.Length >= RespScanState.MinBytes
-                       && (status = scanner.TryRead(ref state, toParse)) == OperationStatus.Done)
+
+                Debug.Assert(!toParse.IsEmpty);
+                while (true)
                 {
+#if DEBUG
+                    src += $",span {toParse.Length}";
+#endif
+                    int totalBytesBefore = (int)state.TotalBytes;
+                    if (toParse.Length < RespScanState.MinBytes
+                        || (status = scanner.TryRead(ref state, toParse)) != OperationStatus.Done)
+                    {
+                        break;
+                    }
                     Debug.Assert(
                         state is
                         {
@@ -97,34 +107,41 @@ internal sealed class DirectWriteConnection : IRespConnection
 
                     // extract the frame
                     var bytes = (int)state.TotalBytes;
-
-                    // send the frame somewhere
-                    OnResponseFrame(state.Prefix, toParse.Slice(0, bytes), ref SharedNoLease);
+#if DEBUG
+                    src += $",frame {bytes}";
+#endif
+                    // send the frame somewhere (note this is the *full* frame, not just the bit we just parsed)
+                    OnResponseFrame(state.Prefix, fullSpan.Slice(fullyConsumed, bytes), ref SharedNoLease);
 
                     // update our buffers to the unread potions and reset for a new RESP frame
                     fullyConsumed += bytes;
-                    toParse = toParse.Slice(bytes);
+                    toParse = toParse.Slice(bytes - totalBytesBefore); // move past the extra bytes we just read
                     state = default;
                     status = OperationStatus.NeedMoreData;
                 }
 
-                _readBuffer.DiscardCommitted(fullyConsumed);
+                readBuffer.DiscardCommitted(fullyConsumed);
             }
             else // the same thing again, but this time with multi-segment sequence
             {
-                var fullSequence = _readBuffer.GetAllCommitted();
-#if DEBUG
-                src += $",ros {fullSequence.Length}";
-#endif
+                var fullSequence = readBuffer.GetAllCommitted();
                 Debug.Assert(
                     fullSequence is { IsEmpty: false, IsSingleSegment: false },
                     "non-trivial sequence expected");
 
                 long fullyConsumed = 0;
                 var toParse = fullSequence.Slice((int)state.TotalBytes); // skip what we've already parsed
-                while (toParse.Length >= RespScanState.MinBytes
-                       && (status = scanner.TryRead(ref state, toParse)) == OperationStatus.Done)
+                while (true)
                 {
+#if DEBUG
+                    src += $",ros {toParse.Length}";
+#endif
+                    int totalBytesBefore = (int)state.TotalBytes;
+                    if (toParse.Length < RespScanState.MinBytes
+                        || (status = scanner.TryRead(ref state, toParse)) != OperationStatus.Done)
+                    {
+                        break;
+                    }
                     Debug.Assert(
                         state is
                         {
@@ -134,18 +151,20 @@ internal sealed class DirectWriteConnection : IRespConnection
 
                     // extract the frame
                     var bytes = (int)state.TotalBytes;
-
-                    // send the frame somewhere
-                    OnResponseFrame(state.Prefix, toParse.Slice(0, bytes));
+#if DEBUG
+                    src += $",frame {bytes}";
+#endif
+                    // send the frame somewhere (note this is the *full* frame, not just the bit we just parsed)
+                    OnResponseFrame(state.Prefix, fullSequence.Slice(fullyConsumed, bytes));
 
                     // update our buffers to the unread potions and reset for a new RESP frame
                     fullyConsumed += bytes;
-                    toParse = toParse.Slice(bytes);
+                    toParse = toParse.Slice(bytes - totalBytesBefore); // move past the extra bytes we just read
                     state = default;
                     status = OperationStatus.NeedMoreData;
                 }
 
-                _readBuffer.DiscardCommitted(fullyConsumed);
+                readBuffer.DiscardCommitted(fullyConsumed);
             }
 
             if (status != OperationStatus.NeedMoreData)
@@ -191,17 +210,16 @@ internal sealed class DirectWriteConnection : IRespConnection
 
             Volatile.Write(ref _readStatus, READER_COMPLETED);
             _readBuffer.Release(); // clean exit, we can recycle
-            Console.WriteLine("Reader clean exit");
         }
         catch (Exception ex)
         {
+            Debugger.Break();
             Console.WriteLine($"Reader failed: {ex.Message}");
             OnReadException(ex);
             throw;
         }
         finally
         {
-            Console.WriteLine("Reader finally");
             OnReadAllFinally();
         }
     }
@@ -374,7 +392,6 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     private void TakeWriter()
     {
-        Debug.Assert(Volatile.Read(ref _writeStatus) == WRITER_AVAILABLE, "writer is not available");
         var status = Interlocked.CompareExchange(ref _writeStatus, WRITER_TAKEN, WRITER_AVAILABLE);
         if (status != WRITER_AVAILABLE) Throw(status);
         Debug.Assert(Volatile.Read(ref _writeStatus) == WRITER_TAKEN, "writer should be taken");
@@ -415,11 +432,11 @@ internal sealed class DirectWriteConnection : IRespConnection
             OnResponseUnavailable(message);
             return;
         }
+
+        DebugValidateSingleFrame(bytes.Span);
+        TakeWriter();
         try
         {
-            DebugValidateSingleFrame(bytes.Span);
-            TakeWriter();
-
             _outstanding.Enqueue(message);
             releaseRequest = false; // once we write, only release on success
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
@@ -431,8 +448,10 @@ internal sealed class DirectWriteConnection : IRespConnection
             ReleaseWriter();
             message.ReleaseRequest();
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Writer failed: {ex.Message}");
+            Debugger.Break();
             ReleaseWriter(WRITER_DOOMED);
             if (releaseRequest) message.ReleaseRequest();
             throw;
@@ -447,11 +466,11 @@ internal sealed class DirectWriteConnection : IRespConnection
             OnResponseUnavailable(message);
             return Task.CompletedTask;
         }
+
+        DebugValidateSingleFrame(bytes.Span);
+        TakeWriter();
         try
         {
-            DebugValidateSingleFrame(bytes.Span);
-            TakeWriter();
-
             _outstanding.Enqueue(message);
             releaseRequest = false; // once we write, only release on success
             var pendingWrite = tail.WriteAsync(bytes, cancellationToken);
@@ -472,8 +491,10 @@ internal sealed class DirectWriteConnection : IRespConnection
             message.ReleaseRequest();
             return Task.CompletedTask;
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"Writer failed: {ex.Message}");
+            Debugger.Break();
             ReleaseWriter(WRITER_DOOMED);
             if (releaseRequest) message.ReleaseRequest();
             throw;

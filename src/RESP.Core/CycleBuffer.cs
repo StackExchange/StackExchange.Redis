@@ -6,6 +6,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
+#pragma warning disable SA1205 // accessibility on partial - for debugging/test practicality
+
 namespace Resp;
 
 /// <summary>
@@ -26,7 +28,7 @@ namespace Resp;
 ///   - call <see cref="DiscardCommitted(int)"/> to indicate how much data is no longer needed
 ///  Emphasis: no concurrency! This is intended for a single worker acting as both producer and consumer.
 /// </remarks>
-internal struct CycleBuffer
+partial struct CycleBuffer
 {
     // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud
     public static CycleBuffer Create(MemoryPool<byte>? pool = null, int pageSize = DefaultPageSize)
@@ -320,61 +322,6 @@ internal struct CycleBuffer
     }
 
     /// <summary>
-    /// Writes a value to the buffer; comparable to <see cref="BuffersExtensions.Write{T}(IBufferWriter{T}, ReadOnlySpan{T})"/>.
-    /// </summary>
-    public void Write(ReadOnlySpan<byte> value)
-    {
-        int srcLength = value.Length;
-        while (srcLength != 0)
-        {
-            var target = GetUncommittedSpan(hint: srcLength);
-            var tgtLength = target.Length;
-            if (tgtLength >= srcLength)
-            {
-                value.CopyTo(target);
-                Commit(srcLength);
-                return;
-            }
-
-            value.Slice(0, tgtLength).CopyTo(target);
-            Commit(tgtLength);
-            value = value.Slice(tgtLength);
-            srcLength -= tgtLength;
-        }
-    }
-
-    /// <summary>
-    /// Writes a value to the buffer; comparable to <see cref="BuffersExtensions.Write{T}(IBufferWriter{T}, ReadOnlySpan{T})"/>.
-    /// </summary>
-    public void Write(in ReadOnlySequence<byte> value)
-    {
-        if (value.IsSingleSegment)
-        {
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
-            Write(value.FirstSpan);
-#else
-            Write(value.First.Span);
-#endif
-        }
-        else
-        {
-            WriteMultiSegment(ref this, in value);
-        }
-
-        static void WriteMultiSegment(ref CycleBuffer @this, in ReadOnlySequence<byte> value)
-        {
-            foreach (var segment in value)
-            {
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
-                  @this.Write(value.FirstSpan);
-#else
-                @this.Write(value.First.Span);
-#endif
-            }
-        }
-    }
-
-    /// <summary>
     /// Note that this chain is invalidated by any other operations; no concurrency.
     /// </summary>
     public ReadOnlySequence<byte> GetAllCommitted()
@@ -599,6 +546,65 @@ internal struct CycleBuffer
             var next = node.Next;
             node.Recycle();
             node = next;
+        }
+    }
+}
+
+// this can be shared between CycleBuffer and CycleBuffer.Simple
+partial struct CycleBuffer
+{
+    /// <summary>
+    /// Writes a value to the buffer; comparable to <see cref="BuffersExtensions.Write{T}(IBufferWriter{T}, ReadOnlySpan{T})"/>.
+    /// </summary>
+    public void Write(ReadOnlySpan<byte> value)
+    {
+        int srcLength = value.Length;
+        while (srcLength != 0)
+        {
+            var target = GetUncommittedSpan(hint: srcLength);
+            var tgtLength = target.Length;
+            if (tgtLength >= srcLength)
+            {
+                value.CopyTo(target);
+                Commit(srcLength);
+                return;
+            }
+
+            value.Slice(0, tgtLength).CopyTo(target);
+            Commit(tgtLength);
+            value = value.Slice(tgtLength);
+            srcLength -= tgtLength;
+        }
+    }
+
+    /// <summary>
+    /// Writes a value to the buffer; comparable to <see cref="BuffersExtensions.Write{T}(IBufferWriter{T}, ReadOnlySpan{T})"/>.
+    /// </summary>
+    public void Write(in ReadOnlySequence<byte> value)
+    {
+        if (value.IsSingleSegment)
+        {
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
+            Write(value.FirstSpan);
+#else
+            Write(value.First.Span);
+#endif
+        }
+        else
+        {
+            WriteMultiSegment(ref this, in value);
+        }
+
+        static void WriteMultiSegment(ref CycleBuffer @this, in ReadOnlySequence<byte> value)
+        {
+            foreach (var segment in value)
+            {
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
+                @this.Write(value.FirstSpan);
+#else
+                @this.Write(value.First.Span);
+#endif
+            }
         }
     }
 }
