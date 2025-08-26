@@ -19,10 +19,66 @@ namespace BasicTest
 {
     internal static class Program
     {
-        private static async Task Main(string[] args)
+        private static async Task<int> Main(string[] args)
         {
-            using var bench = new RespBenchmark(args);
-            await bench.RunAll();
+            try
+            {
+                bool useOld = false, useNew = false;
+                foreach (var arg in args)
+                {
+                    switch (arg)
+                    {
+                        case "--old":
+                            useOld = true;
+                            break;
+                        case "--new":
+                            useNew = true;
+                            break;
+                    }
+                }
+
+                var both = useOld & useNew;
+                if (!(useOld | useNew))
+                {
+                    useNew = true;
+                }
+
+                using var oldBench = useOld ? new OldCoreBenchmark(args) : null;
+                using var newBench = useNew ? new NewCoreBenchmark(args) : null;
+
+                bool loop = useOld ? oldBench.Loop : newBench.Loop;
+                do
+                {
+                    if (oldBench is not null)
+                    {
+                        if (newBench is not null)
+                        {
+                            Console.WriteLine("### old core ###");
+                        }
+
+                        await oldBench.RunAll().ConfigureAwait(false);
+                    }
+
+                    if (newBench is not null)
+                    {
+                        if (oldBench is not null)
+                        {
+                            Console.WriteLine("### new core ###");
+                        }
+
+                        await newBench.RunAll().ConfigureAwait(false);
+                    }
+                }
+                // ReSharper disable once LoopVariableIsNeverChangedInsideLoop
+                while (loop);
+
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex);
+                return -1;
+            }
         }
         // private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
     }
