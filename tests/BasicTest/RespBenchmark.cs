@@ -22,36 +22,80 @@ public partial class RespBenchmark : IDisposable
     private readonly RespContext[] _clients;
     public int ClientCount => _clients.Length;
 
-    private readonly int _operationsPerClient, _pipelineDepth;
-    private readonly bool _multiplexed, _cancel, _quiet;
-    public const int DefaultPort = 6379, DefaultRequests = 100_000, DefaultPipelineDepth = 1, DefaultClients = 50;
+    private readonly int _operationsPerClient;
+
     public const bool DefaultMultiplexed = false, DefaultCancel = false;
     public const string DefaultTests = "";
     private readonly byte[] _payload;
     private readonly (string Key, byte[] Value)[] _pairs;
 
-    private const string _key = "key:__rand_int__";
+    private const string
+        _getSetKey = "key:__rand_int__",
+        _counterKey = "counter:__rand_int__",
+        _listKey = "mylist",
+        _setKey = "myset",
+        _hashKey = "myhash",
+        _sortedSetKey = "myzset",
+        _streamKey = "mystream";
+
     private readonly HashSet<string> _tests = new(StringComparer.OrdinalIgnoreCase);
 
-    public RespBenchmark(
-        int port = DefaultPort,
-        int requests = DefaultRequests,
-        int pipelineDepth = DefaultPipelineDepth,
-        int clients = DefaultClients,
-        bool multiplexed = DefaultMultiplexed,
-        bool cancel = DefaultCancel,
-        string tests = DefaultTests,
-        bool quiet = false)
+    public int Port { get; } = 6379;
+    public int PipelineDepth { get; } = 1;
+    public bool Multiplexed { get; }
+    public bool SupportCancel { get; }
+    public bool Loop { get; }
+    public bool Quiet { get; }
+
+    public RespBenchmark(string[] args)
     {
-        if (clients <= 0) throw new ArgumentOutOfRangeException(nameof(clients));
-        if (pipelineDepth <= 0) throw new ArgumentOutOfRangeException(nameof(pipelineDepth));
+        int operations = 100_000;
+        int clients = 50;
+        string tests = "";
+        for (int i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "-p" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                    Port = tmp;
+                    break;
+                case "-c" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                    clients = tmp;
+                    break;
+                case "-n" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                    operations = tmp;
+                    break;
+                case "-P" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                    PipelineDepth = tmp;
+                    break;
+                case "+m":
+                    Multiplexed = true;
+                    break;
+                case "-m":
+                    Multiplexed = false;
+                    break;
+                case "+x":
+                    SupportCancel = true;
+                    break;
+                case "-c":
+                    SupportCancel = false;
+                    break;
+                case "-l":
+                    Loop = true;
+                    break;
+                case "-q":
+                    Quiet = true;
+                    break;
+                case "-t" when i != args.Length - 1:
+                    tests = args[++i];
+                    break;
+            }
+        }
+
         _payload = "abc"u8.ToArray();
-        _operationsPerClient = requests / clients;
-        _pipelineDepth = pipelineDepth;
-        _multiplexed = multiplexed;
-        _cancel = cancel;
-        _quiet = quiet;
-        _connectionPool = new(count: multiplexed ? 1 : clients);
+        _clients = new RespContext[clients];
+        _operationsPerClient = operations / ClientCount;
+        _connectionPool = new(count: Multiplexed ? 1 : clients);
         _pairs = new (string, byte[])[10];
         if (!string.IsNullOrWhiteSpace(tests))
         {
@@ -64,11 +108,10 @@ public partial class RespBenchmark : IDisposable
 
         for (var i = 0; i < 10; i++)
         {
-            _pairs[i] = ($"{_key}{i}", _payload);
+            _pairs[i] = ($"{"key:__rand_int__"}{i}", _payload);
         }
 
-        _clients = new RespContext[clients];
-        if (multiplexed)
+        if (Multiplexed)
         {
             var conn = _connectionPool.GetConnection().ForPipeline();
             var ctx = new RespContext(conn);
@@ -82,7 +125,7 @@ public partial class RespBenchmark : IDisposable
             for (int i = 0; i < clients; i++) // init all
             {
                 var conn = _connectionPool.GetConnection();
-                if (_pipelineDepth > 1)
+                if (PipelineDepth > 1)
                 {
                     conn = conn.ForPipeline();
                 }
@@ -101,33 +144,43 @@ public partial class RespBenchmark : IDisposable
         }
     }
 
-    public async Task RunAll(bool loop)
+    public async Task RunAll()
     {
         do
         {
             await InitAsync().ConfigureAwait(false);
             // await RunAsync(PingInline).ConfigureAwait(false);
-            await RunAsync(PingBulk).ConfigureAwait(false);
-            await RunAsync(Incr).ConfigureAwait(false);
-            await RunAsync(Get, GetInit).ConfigureAwait(false);
-            await RunAsync(Set).ConfigureAwait(false);
-            await RunAsync(LPush).ConfigureAwait(false);
-            await RunAsync(LRange100, LRangeInit450).ConfigureAwait(false);
-            await RunAsync(LRange300, LRangeInit450).ConfigureAwait(false);
-            await RunAsync(LRange500, LRangeInit450).ConfigureAwait(false);
-            await RunAsync(LPop, LPopInit).ConfigureAwait(false);
-            await RunAsync(SAdd).ConfigureAwait(false);
-            await RunAsync(SPop, SPopInit).ConfigureAwait(false);
-            await RunAsync(MSet).ConfigureAwait(false);
+            await RunAsync(null, PingBulk).ConfigureAwait(false);
+
+            await RunAsync(_getSetKey, Set).ConfigureAwait(false);
+            await RunAsync(_getSetKey, Get, GetInit).ConfigureAwait(false);
+            await RunAsync(_counterKey, Incr).ConfigureAwait(false);
+            await RunAsync(_listKey, LPush).ConfigureAwait(false);
+            await RunAsync(_listKey, RPush).ConfigureAwait(false);
+            await RunAsync(_listKey, LPop, LPopInit).ConfigureAwait(false);
+            await RunAsync(_listKey, RPop, LPopInit).ConfigureAwait(false);
+            await RunAsync(_setKey, SAdd).ConfigureAwait(false);
+            await RunAsync(_hashKey, HSet).ConfigureAwait(false);
+            await RunAsync(_setKey, SPop, SPopInit).ConfigureAwait(false);
+            await RunAsync(_sortedSetKey, ZAdd).ConfigureAwait(false);
+            await RunAsync(_sortedSetKey, ZPopMin, ZPopMinInit).ConfigureAwait(false);
+            await RunAsync(null, MSet).ConfigureAwait(false);
+            await RunAsync(_streamKey, XAdd).ConfigureAwait(false);
+
+            // leave until last, they're slower
+            await RunAsync(_listKey, LRange100, LRangeInit).ConfigureAwait(false);
+            await RunAsync(_listKey, LRange300, LRangeInit).ConfigureAwait(false);
+            await RunAsync(_listKey, LRange500, LRangeInit).ConfigureAwait(false);
+            await RunAsync(_listKey, LRange600, LRangeInit).ConfigureAwait(false);
+
             await CleanupAsync().ConfigureAwait(false);
         }
-        // ReSharper disable once LoopVariableIsNeverChangedInsideLoop
-        while (loop);
+        while (Loop);
     }
 
     private async Task<Void> Pipeline(Func<ValueTask> operation)
     {
-        if (_pipelineDepth == 1)
+        if (PipelineDepth == 1)
         {
             for (var i = 0; i < _operationsPerClient; i++)
             {
@@ -162,7 +215,7 @@ public partial class RespBenchmark : IDisposable
         try
         {
             T result = default;
-            if (_pipelineDepth == 1)
+            if (PipelineDepth == 1)
             {
                 for (; i < _operationsPerClient; i++)
                 {
@@ -205,69 +258,97 @@ public partial class RespBenchmark : IDisposable
     private Task<ResponseSummary> PingBulk(RespContext ctx) => Pipeline(() => ctx.PingAsync(_payload));
 
     [DisplayName("INCR")]
-    private Task<int> Incr(RespContext ctx) => Pipeline(() => ctx.IncrAsync(_key));
+    private Task<int> Incr(RespContext ctx) => Pipeline(() => ctx.IncrAsync(_counterKey));
 
     [DisplayName("GET")]
-    private Task<ResponseSummary> Get(RespContext ctx) => Pipeline(() => ctx.GetAsync(_key));
+    private Task<ResponseSummary> Get(RespContext ctx) => Pipeline(() => ctx.GetAsync(_getSetKey));
 
-    private Task GetInit(RespContext ctx) => ctx.SetAsync(_key, _payload).AsTask();
+    private Task GetInit(RespContext ctx) => ctx.SetAsync(_getSetKey, _payload).AsTask();
 
     [DisplayName("SET")]
-    private Task<Void> Set(RespContext ctx) => Pipeline(() => ctx.SetAsync(_key, _payload));
+    private Task<ResponseSummary> Set(RespContext ctx) => Pipeline(() => ctx.SetAsync(_getSetKey, _payload));
 
     [DisplayName("LPUSH")]
-    private Task<Void> LPush(RespContext ctx) => Pipeline(() => ctx.LPushAsync(_key, _payload));
+    private Task<int> LPush(RespContext ctx) => Pipeline(() => ctx.LPushAsync(_listKey, _payload));
 
-    [DisplayName("LRANGE_100"), Description("100 of 450")]
-    private Task<ResponseSummary> LRange100(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 99));
+    [DisplayName("RPUSH")]
+    private Task<int> RPush(RespContext ctx) => Pipeline(() => ctx.RPushAsync(_listKey, _payload));
 
-    [DisplayName("LRANGE_300"), Description("300 of 450")]
-    private Task<ResponseSummary> LRange300(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 299));
+    [DisplayName("LRANGE_100")]
+    private Task<ResponseSummary> LRange100(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_listKey, 0, 99));
 
-    [DisplayName("LRANGE_500"), Description("450 of 450")]
-    private Task<ResponseSummary> LRange500(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 499));
+    [DisplayName("LRANGE_300")]
+    private Task<ResponseSummary> LRange300(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_listKey, 0, 299));
+
+    [DisplayName("LRANGE_500")]
+    private Task<ResponseSummary> LRange500(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_listKey, 0, 499));
+
+    [DisplayName("LRANGE_600")]
+    private Task<ResponseSummary> LRange600(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_listKey, 0, 599));
 
     [DisplayName("LPOP")]
-    private Task<ResponseSummary> LPop(RespContext ctx) => Pipeline(() => ctx.LPopAsync(_key));
+    private Task<ResponseSummary> LPop(RespContext ctx) => Pipeline(() => ctx.LPopAsync(_listKey));
 
-    private async Task LPopInit(RespContext ctx)
+    [DisplayName("RPOP")]
+    private Task<ResponseSummary> RPop(RespContext ctx) => Pipeline(() => ctx.RPopAsync(_listKey));
+
+    private Task LPopInit(RespContext ctx) => ctx.LPushAsync(_listKey, _payload, TotalOperations).AsTask();
+
+    [DisplayName("SADD")]
+    private Task<int> SAdd(RespContext ctx) => Pipeline(() => ctx.SAddAsync(_setKey, "element:__rand_int__"));
+
+    [DisplayName("HSET")]
+    private Task<int> HSet(RespContext ctx) =>
+        Pipeline(() => ctx.HSetAsync(_hashKey, "element:__rand_int__", _payload));
+
+    [DisplayName("ZADD")]
+    private Task<int> ZAdd(RespContext ctx) => Pipeline(() => ctx.ZAddAsync(_sortedSetKey, 0, "element:__rand_int__"));
+
+    [DisplayName("ZPOPMIN")]
+    private Task<ResponseSummary> ZPopMin(RespContext ctx) => Pipeline(() => ctx.ZPopMinAsync(_sortedSetKey));
+
+    private async Task ZPopMinInit(RespContext ctx)
+    {
+        int ops = TotalOperations;
+        var rand = new Random();
+        for (int i = 0; i < ops; i++)
+        {
+            await ctx.ZAddAsync(_sortedSetKey, (rand.NextDouble() * 2000) - 1000, "element:__rand_int__")
+                .ConfigureAwait(false);
+        }
+    }
+
+    [DisplayName("SPOP")]
+    private Task<ResponseSummary> SPop(RespContext ctx) => Pipeline(() => ctx.SPopAsync(_setKey));
+
+    private async Task SPopInit(RespContext ctx)
     {
         int ops = TotalOperations;
         for (int i = 0; i < ops; i++)
         {
-            await ctx.LPushAsync(_key, _payload).ConfigureAwait(false);
-        }
-    }
-
-    [DisplayName("SADD")]
-    private Task<Void> SAdd(RespContext ctx) => Pipeline(() => ctx.SAddAsync(_key, _payload));
-
-    [DisplayName("SPOP")]
-    private Task<ResponseSummary> SPop(RespContext ctx) => Pipeline(() => ctx.SPopAsync(_key));
-
-    private async Task SPopInit(RespContext ctx)
-    {
-        int ops = TotalOperations + 5;
-        for (int i = 0; i < ops; i++)
-        {
-            await ctx.SAddAsync(_key, _payload).ConfigureAwait(false);
+            await ctx.SAddAsync(_setKey, "element:__rand_int__").ConfigureAwait(false);
         }
     }
 
     [DisplayName("MSET"), Description("10 keys")]
     private Task<Void> MSet(RespContext ctx) => Pipeline(() => ctx.MSetAsync(_pairs));
 
-    private async Task LRangeInit450(RespContext ctx)
+    private async Task LRangeInit(RespContext ctx)
     {
-        for (int i = 0; i < 450; i++)
+        for (int i = 0; i < TotalOperations; i++)
         {
-            await ctx.LPushAsync(_key, _payload).ConfigureAwait(false);
+            await ctx.LPushAsync(_listKey, _payload).ConfigureAwait(false);
         }
     }
+
+    [DisplayName("XADD")]
+    private Task<ResponseSummary> XAdd(RespContext ctx) =>
+        Pipeline(() => ctx.XAddAsync(_streamKey, "*", "myfield", _payload));
 
     private int TotalOperations => _operationsPerClient * _clients.Length;
 
     private async Task RunAsync<T>(
+        string key,
         Func<RespContext, Task<T>> action,
         Func<RespContext, Task> init = null,
         string format = "")
@@ -292,10 +373,10 @@ public partial class RespBenchmark : IDisposable
                 Description: { Length: > 0 }
             } da)
         {
-            description = $" ({description})";
+            description = $" ({da.Description})";
         }
 
-        if (_quiet)
+        if (Quiet)
         {
             Console.Write($"{name}:");
         }
@@ -303,21 +384,30 @@ public partial class RespBenchmark : IDisposable
         {
             Console.Write(
                 $"====== {name}{description} ====== (clients: {_clients.Length:#,##0}, ops: {TotalOperations:#,##0}");
-            if (_multiplexed)
+            if (Multiplexed)
             {
                 Console.Write(", mux");
             }
-            if (_pipelineDepth > 1)
+
+            if (PipelineDepth > 1)
             {
-                Console.Write($", pipeline: {_pipelineDepth:#,##0}");
+                Console.Write($", pipeline: {PipelineDepth:#,##0}");
             }
+
             Console.WriteLine(")");
         }
 
         try
         {
-            await CleanupAsync().ConfigureAwait(false);
-            if (init is not null) await init(_clients[0]).ConfigureAwait(false);
+            if (key is not null)
+            {
+                await _clients[0].DelAsync(key).ConfigureAwait(false);
+            }
+
+            if (init is not null)
+            {
+                await init(_clients[0]).ConfigureAwait(false);
+            }
 
             var clients = _clients;
             var pending = new Task<T>[clients.Length];
@@ -327,8 +417,8 @@ public partial class RespBenchmark : IDisposable
 #endif
             // optionally support cancellation, applied per-test
             CancellationToken cancellationToken = CancellationToken.None;
-            using var cts = _cancel ? new CancellationTokenSource(TimeSpan.FromSeconds(20)) : null;
-            if (_cancel) cancellationToken = cts!.Token;
+            using var cts = SupportCancel ? new CancellationTokenSource(TimeSpan.FromSeconds(20)) : null;
+            if (SupportCancel) cancellationToken = cts!.Token;
 
             var watch = Stopwatch.StartNew();
             foreach (var client in clients)
@@ -341,17 +431,18 @@ public partial class RespBenchmark : IDisposable
 
             var seconds = watch.Elapsed.TotalSeconds;
             var rate = TotalOperations / seconds;
-            if (_quiet)
+            if (Quiet)
             {
-                Console.WriteLine($"\t{rate:###,###,##0.00} requests per second");
+                Console.WriteLine($"\t{rate:###,###,##0} requests per second");
                 return;
             }
             else
             {
                 Console.WriteLine(
-                    $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate::###,###,##0.00} ops/sec");
+                    $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:###,###,##0} ops/sec");
             }
-            if (typeof(T) != typeof(Void) && !_quiet)
+
+            if (typeof(T) != typeof(Void) && !Quiet)
             {
                 if (string.IsNullOrWhiteSpace(format))
                 {
@@ -364,14 +455,14 @@ public partial class RespBenchmark : IDisposable
         }
         catch (Exception ex)
         {
-            if (_quiet) Console.WriteLine();
+            if (Quiet) Console.WriteLine();
             Console.Error.WriteLine(ex.Message);
         }
         finally
         {
 #if DEBUG
             var counters = DebugCounters.Flush(); // flush even if not showing
-            if (_quiet)
+            if (Quiet)
             {
                 if (counters.WriteBytes != 0)
                 {
@@ -437,7 +528,7 @@ public partial class RespBenchmark : IDisposable
                 }
             }
 #endif
-            if (!_quiet) Console.WriteLine();
+            if (!Quiet) Console.WriteLine();
         }
     }
 
@@ -446,7 +537,13 @@ public partial class RespBenchmark : IDisposable
         try
         {
             var client = _clients[0];
-            await client.DelAsync(_key).ConfigureAwait(false);
+            await client.DelAsync(_getSetKey).ConfigureAwait(false);
+            await client.DelAsync(_counterKey).ConfigureAwait(false);
+            await client.DelAsync(_listKey).ConfigureAwait(false);
+            await client.DelAsync(_setKey).ConfigureAwait(false);
+            await client.DelAsync(_hashKey).ConfigureAwait(false);
+            await client.DelAsync(_sortedSetKey).ConfigureAwait(false);
+            await client.DelAsync(_streamKey).ConfigureAwait(false);
             foreach (var pair in _pairs)
             {
                 await client.DelAsync(pair.Key).ConfigureAwait(false);
@@ -476,19 +573,50 @@ internal static partial class RedisCommands
     internal static partial ResponseSummary SPop(this in RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial void SAdd(this in RespContext ctx, string key, byte[] payload);
+    internal static partial int SAdd(this in RespContext ctx, string key, string payload);
 
     [RespCommand]
-    internal static partial void Set(this in RespContext ctx, string key, byte[] payload);
+    internal static partial ResponseSummary Set(this in RespContext ctx, string key, byte[] payload);
 
     [RespCommand]
-    internal static partial void LPush(this in RespContext ctx, string key, byte[] payload);
+    internal static partial int LPush(this in RespContext ctx, string key, byte[] payload);
+
+    [RespCommand(Formatter = "LPushFormatter.Instance")]
+    internal static partial void LPush(this in RespContext ctx, string key, byte[] payload, int count);
+
+    private sealed class LPushFormatter : IRespFormatter<(string Key, byte[] Payload, int Count)>
+    {
+        private LPushFormatter() { }
+        public static readonly LPushFormatter Instance = new();
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in (string Key, byte[] Payload, int Count) request)
+        {
+            writer.WriteCommand(command, request.Count + 1);
+            writer.WriteKey(request.Key);
+            for (int i = 0; i < request.Count; i++)
+            {
+                // duplicate for lazy bulk load
+                writer.WriteBulkString(request.Payload);
+            }
+        }
+    }
+
+    [RespCommand]
+    internal static partial int RPush(this in RespContext ctx, string key, byte[] payload);
 
     [RespCommand]
     internal static partial ResponseSummary LPop(this in RespContext ctx, string key);
 
     [RespCommand]
+    internal static partial ResponseSummary RPop(this in RespContext ctx, string key);
+
+    [RespCommand]
     internal static partial ResponseSummary LRange(this in RespContext ctx, string key, int start, int stop);
+
+    [RespCommand]
+    internal static partial int HSet(this in RespContext ctx, string key, string field, byte[] payload);
 
     [RespCommand]
     internal static partial ResponseSummary Ping(this in RespContext ctx, byte[] payload);
@@ -497,7 +625,21 @@ internal static partial class RedisCommands
     internal static partial int Incr(this in RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial void Del(this in RespContext ctx, string key);
+    internal static partial ResponseSummary Del(this in RespContext ctx, string key);
+
+    [RespCommand]
+    internal static partial ResponseSummary ZPopMin(this in RespContext ctx, string key);
+
+    [RespCommand]
+    internal static partial int ZAdd(this in RespContext ctx, string key, double score, string payload);
+
+    [RespCommand]
+    internal static partial ResponseSummary XAdd(
+        this in RespContext ctx,
+        string key,
+        string id,
+        string field,
+        byte[] value);
 
     [RespCommand]
     internal static partial ResponseSummary Get(this in RespContext ctx, string key);
@@ -510,7 +652,7 @@ internal static partial class RedisCommands
 
     internal static ValueTask<ResponseSummary> PingInlineAsync(this in global::Resp.RespContext ctx, byte[] payload)
         => ctx.Command("ping"u8, payload, InlinePingFormatter.Instance)
-            .AsValueTask<global::Resp.ResponseSummary>(ResponseSummary.Parser);
+            .AsValueTask(ResponseSummary.Parser);
 
     private sealed class InlinePingFormatter : IRespFormatter<byte[]>
     {

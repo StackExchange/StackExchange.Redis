@@ -21,65 +21,8 @@ namespace BasicTest
     {
         private static async Task Main(string[] args)
         {
-            int port = RespBenchmark.DefaultPort,
-                clients = RespBenchmark.DefaultClients,
-                requests = RespBenchmark.DefaultRequests,
-                pipelineDepth = RespBenchmark.DefaultPipelineDepth;
-            string tests = RespBenchmark.DefaultTests;
-            bool multiplexed = RespBenchmark.DefaultMultiplexed,
-                cancel = RespBenchmark.DefaultCancel,
-                loop = false,
-                quiet = false;
-            for (int i = 0; i < args.Length; i++)
-            {
-                switch (args[i])
-                {
-                    case "-p" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
-                        port = tmp;
-                        break;
-                    case "-c" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
-                        clients = tmp;
-                        break;
-                    case "-n" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
-                        requests = tmp;
-                        break;
-                    case "-P" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
-                        pipelineDepth = tmp;
-                        break;
-                    case "+m":
-                        multiplexed = true;
-                        break;
-                    case "-m":
-                        multiplexed = false;
-                        break;
-                    case "+x":
-                        cancel = true;
-                        break;
-                    case "-c":
-                        cancel = false;
-                        break;
-                    case "-l":
-                        loop = true;
-                        break;
-                    case "-q":
-                        quiet = true;
-                        break;
-                    case "-t" when i != args.Length - 1:
-                        tests = args[++i];
-                        break;
-                }
-            }
-
-            using var bench = new RespBenchmark(
-                port: port,
-                clients: clients,
-                requests: requests,
-                pipelineDepth: pipelineDepth,
-                multiplexed: multiplexed,
-                cancel: cancel,
-                tests: tests,
-                quiet: quiet);
-            await bench.RunAll(loop);
+            using var bench = new RespBenchmark(args);
+            await bench.RunAll();
         }
         // private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
     }
