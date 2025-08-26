@@ -59,6 +59,7 @@ public partial class RespBenchmark : IDisposable
                 if (!string.IsNullOrWhiteSpace(t)) _tests.Add(t);
             }
         }
+
         for (var i = 0; i < 10; i++)
         {
             _pairs[i] = ($"{_key}{i}", _payload);
@@ -149,34 +150,44 @@ public partial class RespBenchmark : IDisposable
 
     private async Task<T> Pipeline<T>(Func<ValueTask<T>> operation)
     {
-        T result = default;
-        if (_pipelineDepth == 1)
+        int i = 0;
+        try
         {
-            for (var i = 0; i < _operationsPerClient; i++)
+            T result = default;
+            if (_pipelineDepth == 1)
             {
-                result = await operation().ConfigureAwait(false);
+                for (; i < _operationsPerClient; i++)
+                {
+                    result = await operation().ConfigureAwait(false);
+                }
             }
-        }
-        else
-        {
-            var queue = new Queue<ValueTask<T>>(_operationsPerClient);
-            for (var i = 0; i < _operationsPerClient; i++)
+            else
             {
-                if (queue.Count == _operationsPerClient)
+                var queue = new Queue<ValueTask<T>>(_operationsPerClient);
+                for (; i < _operationsPerClient; i++)
+                {
+                    if (queue.Count == _operationsPerClient)
+                    {
+                        _ = await queue.Dequeue().ConfigureAwait(false);
+                    }
+
+                    queue.Enqueue(operation());
+                }
+
+                while (queue.Count > 0)
                 {
                     result = await queue.Dequeue().ConfigureAwait(false);
                 }
-
-                queue.Enqueue(operation());
             }
 
-            while (queue.Count > 0)
-            {
-                result = await queue.Dequeue().ConfigureAwait(false);
-            }
+            return result;
         }
-
-        return result;
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"{operation.Method.Name} failed after {i} operations: {ex.Message}",
+                ex);
+        }
     }
 
     [DisplayName("PING_BULK")]
@@ -210,7 +221,7 @@ public partial class RespBenchmark : IDisposable
 
     private async Task LPopInit(RespContext ctx)
     {
-        int ops = _operationsPerClient * _clients.Length;
+        int ops = TotalOperations;
         for (int i = 0; i < ops; i++)
         {
             await ctx.LPushAsync(_key, _payload).ConfigureAwait(false);
@@ -225,7 +236,7 @@ public partial class RespBenchmark : IDisposable
 
     private async Task SPopInit(RespContext ctx)
     {
-        int ops = (_operationsPerClient * _clients.Length) + 5;
+        int ops = TotalOperations + 5;
         for (int i = 0; i < ops; i++)
         {
             await ctx.SAddAsync(_key, _payload).ConfigureAwait(false);
@@ -242,6 +253,8 @@ public partial class RespBenchmark : IDisposable
             await ctx.LPushAsync(_key, _payload).ConfigureAwait(false);
         }
     }
+
+    private int TotalOperations => _operationsPerClient * _clients.Length;
 
     private async Task RunAsync<T>(
         Func<RespContext, Task<T>> action,
@@ -271,7 +284,8 @@ public partial class RespBenchmark : IDisposable
             description = $" {description}";
         }
 
-        Console.WriteLine($"====== {name}{description} ======");
+        Console.WriteLine(
+            $"====== {name}{description} ====== (clients: {_clients.Length}, ops: {TotalOperations}{(_multiplexed ? ", mux" : "")})");
         try
         {
             await CleanupAsync().ConfigureAwait(false);
@@ -293,14 +307,10 @@ public partial class RespBenchmark : IDisposable
             await Task.WhenAll(pending).ConfigureAwait(false);
             watch.Stop();
 
-            var totalOperations = _operationsPerClient * _clients.Length;
             var seconds = watch.Elapsed.TotalSeconds;
-            var rate = (totalOperations / seconds) / 1000;
+            var rate = (TotalOperations / seconds) / 1000;
             Console.WriteLine(
-                $"""
-                 {totalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec""
-                 {clients.Length:#,##0} parallel clients{(_multiplexed ? ", multiplexed" : "")}
-                 """);
+                $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec");
 #if DEBUG
             var counters = DebugCounters.Flush();
             Console.WriteLine(
