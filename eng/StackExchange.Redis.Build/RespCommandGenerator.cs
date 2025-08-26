@@ -317,7 +317,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             }
         }
 
-        StringBuilder NewLine() => sb.AppendLine().Append(' ', indent * 4);
+        StringBuilder NewLine() => sb.AppendLine().Append(' ', Math.Max(indent * 4, 0));
         NewLine().Append("using System;");
         NewLine().Append("using System.Threading.Tasks;");
         foreach (var grp in methods.GroupBy(l => (l.Namespace, l.TypeName, l.TypeModifiers)))
@@ -365,113 +365,106 @@ public class RespCommandGenerator : IIncrementalGenerator
 
             foreach (var method in grp)
             {
+                bool isSharedFormatter = false;
                 string? formatter = method.Formatter
-                                    ?? InbuiltFormatter(method.Parameters)
-                                    ?? (formatters.TryGetValue(method.Parameters, out var tmp)
-                                        ? $"{tmp.Name}.Default"
-                                        : null);
+                                    ?? InbuiltFormatter(method.Parameters);
+                if (formatter is null && formatters.TryGetValue(method.Parameters, out var tmp))
+                {
+                    formatter = $"{tmp.Name}.Default";
+                    isSharedFormatter = tmp.Shared;
+                }
 
                 // perform string escaping on the generated value (this includes the quotes, note)
                 var csValue = SyntaxFactory
                     .LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(method.Command))
                     .ToFullString();
 
-                sb = NewLine().Append(method.MethodModifiers).Append(' ')
-                    .Append(string.IsNullOrEmpty(method.ReturnType) ? "void" : method.ReturnType)
-                    .Append(' ').Append(method.MethodName).Append("(");
-                first = true;
-                foreach (var param in method.Parameters)
-                {
-                    if ((param.Flags & ParameterFlags.Parameter) == 0) continue;
-                    if (!first) sb.Append(", ");
-                    first = false;
+                WriteMethod(false);
+                WriteMethod(true);
 
-                    sb.Append(param.Modifiers).Append(param.Type).Append(' ').Append(param.Name);
-                }
-
-                var dataParameters = DataParameterCount(method.Parameters);
-                sb.Append(")");
-                indent++;
-                sb = NewLine().Append("=> ");
-                if (string.IsNullOrWhiteSpace(method.Context))
+                void WriteMethod(bool asAsync)
                 {
-                    sb.Append("throw new NotSupportedException(\"No RespContext available\");");
-                }
-                else
-                {
-                    sb.Append(method.Context).Append(".Command(").Append(csValue).Append("u8");
-                    if (dataParameters != 0)
+                    sb = NewLine().Append(asAsync ? RemovePartial(method.MethodModifiers) : method.MethodModifiers)
+                        .Append(' ');
+                    if (asAsync)
                     {
-                        sb.Append(", ");
-                        WriteTuple(method.Parameters, sb, TupleMode.Values);
-
-                        if (!string.IsNullOrWhiteSpace(formatter))
+                        sb.Append("ValueTask");
+                        if (!string.IsNullOrWhiteSpace(method.ReturnType))
                         {
-                            sb.Append(", ").Append(formatter);
+                            sb.Append('<').Append(method.ReturnType).Append('>');
                         }
                     }
-
-                    sb.Append(").Wait");
-                    if (!string.IsNullOrWhiteSpace(method.ReturnType))
+                    else
                     {
-                        sb.Append('<').Append(method.ReturnType).Append('>');
+                        sb.Append(string.IsNullOrEmpty(method.ReturnType) ? "void" : method.ReturnType);
                     }
 
-                    sb.Append("(").Append(method.Parser ?? InbuiltParser(method.ReturnType)).Append(");");
-                }
-
-                indent--;
-                NewLine();
-
-                sb = NewLine().Append(RemovePartial(method.MethodModifiers)).Append(" ValueTask");
-                if (!string.IsNullOrWhiteSpace(method.ReturnType))
-                {
-                    sb.Append('<').Append(method.ReturnType).Append('>');
-                }
-
-                sb.Append(' ').Append(method.MethodName).Append("Async(");
-                first = true;
-                foreach (var param in method.Parameters)
-                {
-                    if ((param.Flags & ParameterFlags.Parameter) == 0) continue;
-                    if (!first) sb.Append(", ");
-                    first = false;
-
-                    sb.Append(param.Modifiers).Append(param.Type).Append(' ').Append(param.Name);
-                }
-
-                sb.Append(")");
-                indent++;
-                sb = NewLine().Append("=> ");
-                if (string.IsNullOrWhiteSpace(method.Context))
-                {
-                    sb.Append("throw new NotSupportedException(\"No RespContext available\");");
-                }
-                else
-                {
-                    sb.Append(method.Context).Append(".Command(").Append(csValue).Append("u8");
-                    if (dataParameters != 0)
+                    sb.Append(' ').Append(method.MethodName).Append(asAsync ? "Async" : "").Append("(");
+                    first = true;
+                    foreach (var param in method.Parameters)
                     {
-                        sb.Append(", ");
-                        WriteTuple(method.Parameters, sb, TupleMode.Values);
+                        if ((param.Flags & ParameterFlags.Parameter) == 0) continue;
+                        if (!first) sb.Append(", ");
+                        first = false;
 
-                        if (!string.IsNullOrWhiteSpace(formatter))
+                        sb.Append(param.Modifiers).Append(param.Type).Append(' ').Append(param.Name);
+                    }
+
+                    var dataParameters = DataParameterCount(method.Parameters);
+                    sb.Append(")");
+                    indent++;
+                    sb = NewLine();
+                    var parser = method.Parser ?? InbuiltParser(method.ReturnType);
+                    if (method.Context is { Length: > 0 } & formatter is { Length: > 0 } & parser is { Length: > 0 })
+                    {
+                        sb.Append("// ");
+                    }
+
+                    sb.Append("=> ");
+                    if (string.IsNullOrWhiteSpace(method.Context))
+                    {
+                        sb.Append("throw new NotSupportedException(\"No RespContext available\");");
+                    }
+                    else
+                    {
+                        sb.Append(method.Context).Append(".Command(").Append(csValue).Append("u8");
+                        if (dataParameters != 0)
                         {
-                            sb.Append(", ").Append(formatter);
+                            sb.Append(", ");
+                            WriteTuple(method.Parameters, sb, TupleMode.Values);
+
+                            if (!string.IsNullOrWhiteSpace(formatter))
+                            {
+                                sb.Append(", ").Append(formatter);
+                            }
                         }
+
+                        sb.Append(asAsync ? ").AsValueTask" : ").Wait");
+                        if (!string.IsNullOrWhiteSpace(method.ReturnType))
+                        {
+                            sb.Append('<').Append(method.ReturnType).Append('>');
+                        }
+
+                        sb.Append("(").Append(parser).Append(");");
                     }
 
-                    sb.Append(").AsValueTask");
-                    if (!string.IsNullOrWhiteSpace(method.ReturnType))
+                    if (method.Context is { Length: > 0 } & formatter is { Length: > 0 } & parser is { Length: > 0 })
                     {
-                        sb.Append('<').Append(method.ReturnType).Append('>');
+                        sb = NewLine().Append("=> global::Resp.Message.Send").Append(asAsync ? "Async" : "")
+                            .Append('<');
+                        WriteTuple(
+                            method.Parameters,
+                            sb,
+                            isSharedFormatter ? TupleMode.SyntheticNames : TupleMode.NamedTuple);
+                        sb.Append(",").Append(method.ReturnType).Append(">(in ").Append(method.Context).Append(", ")
+                            .Append(csValue).Append("u8").Append(", ");
+                        WriteTuple(method.Parameters, sb, TupleMode.Values);
+                        sb.Append(", ").Append(formatter).Append(", ").Append(parser).Append(");");
                     }
 
-                    sb.Append("(").Append(method.Parser ?? InbuiltParser(method.ReturnType)).Append(");");
+                    indent--;
+                    NewLine();
                 }
-
-                indent--;
-                NewLine();
             }
 
             // handle any closing braces
@@ -672,6 +665,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         "global::Resp.ResponseSummary" => "Resp.ResponseSummary.Parser",
         _ => null,
     };
+
     private enum TupleMode
     {
         AnonTuple,
