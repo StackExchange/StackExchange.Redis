@@ -12,22 +12,22 @@ public readonly ref struct RespMessageBuilder<TRequest>(RespContext context, Rea
     private readonly TRequest _value = value; // cannot inline to .ctor because of "allows ref struct"
 
     public TResponse Wait<TResponse>()
-        => context.Send(_command, _value, formatter, RespParsers.Get<TResponse>());
+        => Message.Send(context, _command, _value, formatter, RespParsers.Get<TResponse>());
     public TResponse Wait<TResponse>(IRespParser<Void, TResponse> parser)
-        => context.Send(_command, _value, formatter, parser);
+        => Message.Send(context, _command, _value, formatter, parser);
 
     public void Wait()
-        => context.Send(_command, _value, formatter, RespParsers.Success);
+        => Message.Send(context, _command, _value, formatter, RespParsers.Success);
     public void Wait(IRespParser<Void, Void> parser)
-        => context.Send(_command, _value, formatter, parser);
+        => Message.Send(context, _command, _value, formatter, parser);
 
     public ValueTask<TResponse> AsValueTask<TResponse>()
-        => context.SendValueTaskAsync(_command, _value, formatter, RespParsers.Get<TResponse>());
+        => Message.SendAsync(context, _command, _value, formatter, RespParsers.Get<TResponse>());
     public ValueTask<TResponse> AsValueTask<TResponse>(IRespParser<Void, TResponse> parser)
-        => context.SendValueTaskAsync(_command, _value, formatter, parser);
+        => Message.SendAsync(context, _command, _value, formatter, parser);
 
     public ValueTask AsValueTask()
-        => context.SendValueTaskAsync(_command, _value, formatter, RespParsers.Success);
+        => Message.SendAsync(context, _command, _value, formatter, RespParsers.Success);
     public ValueTask AsValueTask(IRespParser<Void, Void> parser)
-        => context.SendValueTaskAsync(_command, _value, formatter, parser);
+        => Message.SendAsync(context, _command, _value, formatter, parser);
 }
