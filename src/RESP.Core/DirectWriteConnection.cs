@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -305,7 +306,7 @@ internal sealed class DirectWriteConnection : IRespConnection
     }
 
     [Conditional("DEBUG")]
-    private static void DebugOnValidateSingleFrame(ReadOnlySpan<byte> payload)
+    private static void DebugValidateSingleFrame(ReadOnlySpan<byte> payload)
     {
         var reader = new RespReader(payload);
         reader.MoveNext();
@@ -326,7 +327,7 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     private void OnResponseFrame(RespPrefix prefix, ReadOnlySpan<byte> payload, ref byte[]? lease)
     {
-        DebugOnValidateSingleFrame(payload);
+        DebugValidateSingleFrame(payload);
         if (prefix == RespPrefix.Push ||
             (prefix == RespPrefix.Array && Mode is RespMode.Resp2PubSub && !IsArrayPong(payload)))
         {
@@ -373,8 +374,10 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     private void TakeWriter()
     {
+        Debug.Assert(Volatile.Read(ref _writeStatus) == WRITER_AVAILABLE, "writer is not available");
         var status = Interlocked.CompareExchange(ref _writeStatus, WRITER_TAKEN, WRITER_AVAILABLE);
         if (status != WRITER_AVAILABLE) Throw(status);
+        Debug.Assert(Volatile.Read(ref _writeStatus) == WRITER_TAKEN, "writer should be taken");
 
         static void Throw(int status) => throw new InvalidOperationException(status switch
         {
@@ -394,13 +397,29 @@ internal sealed class DirectWriteConnection : IRespConnection
         Interlocked.CompareExchange(ref _writeStatus, status, WRITER_TAKEN);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void OnResponseUnavailable(IRespMessage message)
+    {
+        if (!message.IsCompleted)
+        {
+            // make sure they know something is wrong
+            message.TrySetException(new InvalidOperationException("Connection is not available"));
+        }
+    }
+
     public void Send(IRespMessage message)
     {
         bool releaseRequest = message.TryReserveRequest(out var bytes);
-        if (!releaseRequest) return;
-        TakeWriter();
+        if (!releaseRequest)
+        {
+            OnResponseUnavailable(message);
+            return;
+        }
         try
         {
+            DebugValidateSingleFrame(bytes.Span);
+            TakeWriter();
+
             _outstanding.Enqueue(message);
             releaseRequest = false; // once we write, only release on success
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
@@ -423,10 +442,16 @@ internal sealed class DirectWriteConnection : IRespConnection
     public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default)
     {
         bool releaseRequest = message.TryReserveRequest(out var bytes);
-        if (!releaseRequest) return Task.CompletedTask;
-        TakeWriter();
+        if (!releaseRequest)
+        {
+            OnResponseUnavailable(message);
+            return Task.CompletedTask;
+        }
         try
         {
+            DebugValidateSingleFrame(bytes.Span);
+            TakeWriter();
+
             _outstanding.Enqueue(message);
             releaseRequest = false; // once we write, only release on success
             var pendingWrite = tail.WriteAsync(bytes, cancellationToken);
