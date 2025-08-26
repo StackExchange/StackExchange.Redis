@@ -293,8 +293,17 @@ public partial class RespBenchmark : IDisposable
             description = $" {description}";
         }
 
-        Console.WriteLine(
-            $"====== {name}{description} ====== (clients: {_clients.Length:#,##0}, ops: {TotalOperations:#,##0}{(_multiplexed ? ", mux" : "")})");
+        Console.Write(
+            $"====== {name}{description} ====== (clients: {_clients.Length:#,##0}, ops: {TotalOperations:#,##0}");
+        if (_multiplexed)
+        {
+            Console.Write(", mux");
+        }
+        if (_pipelineDepth > 1)
+        {
+            Console.Write($", pipeline: {_pipelineDepth:#,##0}");
+        }
+        Console.WriteLine(")");
         try
         {
             await CleanupAsync().ConfigureAwait(false);
