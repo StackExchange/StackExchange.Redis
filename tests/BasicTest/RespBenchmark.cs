@@ -99,22 +99,28 @@ public partial class RespBenchmark : IDisposable
         }
     }
 
-    public async Task RunAll()
+    public async Task RunAll(bool loop)
     {
-        await InitAsync().ConfigureAwait(false);
-        await RunAsync(PingBulk).ConfigureAwait(false);
-        await RunAsync(Incr).ConfigureAwait(false);
-        await RunAsync(Get, GetInit).ConfigureAwait(false);
-        await RunAsync(Set).ConfigureAwait(false);
-        await RunAsync(LPush).ConfigureAwait(false);
-        await RunAsync(LRange100, LRangeInit450).ConfigureAwait(false);
-        await RunAsync(LRange300, LRangeInit450).ConfigureAwait(false);
-        await RunAsync(LRange500, LRangeInit450).ConfigureAwait(false);
-        await RunAsync(LPop, LPopInit).ConfigureAwait(false);
-        await RunAsync(SAdd).ConfigureAwait(false);
-        await RunAsync(SPop, SPopInit).ConfigureAwait(false);
-        await RunAsync(MSet).ConfigureAwait(false);
-        await CleanupAsync().ConfigureAwait(false);
+        do
+        {
+            await InitAsync().ConfigureAwait(false);
+            // await RunAsync(PingInline).ConfigureAwait(false);
+            await RunAsync(PingBulk).ConfigureAwait(false);
+            await RunAsync(Incr).ConfigureAwait(false);
+            await RunAsync(Get, GetInit).ConfigureAwait(false);
+            await RunAsync(Set).ConfigureAwait(false);
+            await RunAsync(LPush).ConfigureAwait(false);
+            await RunAsync(LRange100, LRangeInit450).ConfigureAwait(false);
+            await RunAsync(LRange300, LRangeInit450).ConfigureAwait(false);
+            await RunAsync(LRange500, LRangeInit450).ConfigureAwait(false);
+            await RunAsync(LPop, LPopInit).ConfigureAwait(false);
+            await RunAsync(SAdd).ConfigureAwait(false);
+            await RunAsync(SPop, SPopInit).ConfigureAwait(false);
+            await RunAsync(MSet).ConfigureAwait(false);
+            await CleanupAsync().ConfigureAwait(false);
+        }
+        // ReSharper disable once LoopVariableIsNeverChangedInsideLoop
+        while (loop);
     }
 
     private async Task<Void> Pipeline(Func<ValueTask> operation)
@@ -189,6 +195,9 @@ public partial class RespBenchmark : IDisposable
                 ex);
         }
     }
+
+    [DisplayName("PING_INLINE")]
+    private Task<ResponseSummary> PingInline(RespContext ctx) => Pipeline(() => ctx.PingInlineAsync(_payload));
 
     [DisplayName("PING_BULK")]
     private Task<ResponseSummary> PingBulk(RespContext ctx) => Pipeline(() => ctx.PingAsync(_payload));
@@ -368,9 +377,9 @@ public partial class RespBenchmark : IDisposable
 internal static partial class RedisCommands
 {
     [RespCommand]
-    internal static partial void Ping(this in RespContext ctx);
+    internal static partial ResponseSummary Ping(this in RespContext ctx);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    [RespCommand]
     internal static partial ResponseSummary SPop(this in RespContext ctx, string key);
 
     [RespCommand]
@@ -382,13 +391,13 @@ internal static partial class RedisCommands
     [RespCommand]
     internal static partial void LPush(this in RespContext ctx, string key, byte[] payload);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    [RespCommand]
     internal static partial ResponseSummary LPop(this in RespContext ctx, string key);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    [RespCommand]
     internal static partial ResponseSummary LRange(this in RespContext ctx, string key, int start, int stop);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    [RespCommand]
     internal static partial ResponseSummary Ping(this in RespContext ctx, byte[] payload);
 
     [RespCommand]
@@ -397,11 +406,32 @@ internal static partial class RedisCommands
     [RespCommand]
     internal static partial void Del(this in RespContext ctx, string key);
 
-    [RespCommand(Parser = RespCommandAttribute.Parsers.Summary)]
+    [RespCommand]
     internal static partial ResponseSummary Get(this in RespContext ctx, string key);
 
     [RespCommand(Formatter = "PairsFormatter.Instance")] // custom command formatter
     internal static partial void MSet(this in RespContext ctx, (string, byte[])[] pairs);
+
+    internal static ResponseSummary PingInline(this in RespContext ctx, byte[] payload)
+        => ctx.Command("ping"u8, payload, InlinePingFormatter.Instance).Wait(ResponseSummary.Parser);
+
+    internal static ValueTask<ResponseSummary> PingInlineAsync(this in global::Resp.RespContext ctx, byte[] payload)
+        => ctx.Command("ping"u8, payload, InlinePingFormatter.Instance)
+            .AsValueTask<global::Resp.ResponseSummary>(ResponseSummary.Parser);
+
+    private sealed class InlinePingFormatter : IRespFormatter<byte[]>
+    {
+        private InlinePingFormatter() { }
+        public static readonly InlinePingFormatter Instance = new();
+
+        public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in byte[] request)
+        {
+            writer.WriteRaw(command);
+            writer.WriteRaw(" "u8);
+            writer.WriteRaw(request);
+            writer.WriteRaw("\r\n"u8);
+        }
+    }
 
     private sealed class PairsFormatter : IRespFormatter<(string Key, byte[] Value)[]>
     {

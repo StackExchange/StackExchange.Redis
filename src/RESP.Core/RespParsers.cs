@@ -68,8 +68,9 @@ public static class RespParsers
     private sealed class Cache<TResponse>
     {
         public static IRespParser<Void, TResponse>? Instance =
-            (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ??
-            (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>);
+            (InbuiltCopyOutParsers.Default as IRespParser<Void, TResponse>) ?? // regular (may allocate, etc)
+            (InbuiltInlineParsers.Default as IRespParser<Void, TResponse>) ?? // inline
+            (ResponseSummary.Parser as IRespParser<Void, TResponse>); // inline+metadata
     }
 
     public static IRespParser<Void, TResponse> Get<TResponse>()
