@@ -180,8 +180,9 @@ internal sealed class DirectWriteConnection : IRespConnection
 #if DEBUG
         catch (Exception ex)
         {
-            Console.WriteLine($"{nameof(CommitAndParseFrames)}: {ex.Message}");
-            Console.WriteLine(src);
+            Debug.WriteLine($"{nameof(CommitAndParseFrames)}: {ex.Message}");
+            Debug.WriteLine(src);
+            Debugger.Break();
             throw;
         }
 #endif
@@ -213,8 +214,6 @@ internal sealed class DirectWriteConnection : IRespConnection
         }
         catch (Exception ex)
         {
-            Debugger.Break();
-            Console.WriteLine($"Reader failed: {ex.Message}");
             OnReadException(ex);
             throw;
         }
@@ -265,6 +264,7 @@ internal sealed class DirectWriteConnection : IRespConnection
     {
         Volatile.Write(ref _readStatus, READER_FAILED);
         Debug.WriteLine($"Reader failed: {ex.Message}");
+        Debugger.Break();
         while (_outstanding.TryDequeue(out var pending))
         {
             pending.TrySetException(ex);
