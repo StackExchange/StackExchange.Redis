@@ -218,13 +218,13 @@ public partial class RespBenchmark : IDisposable
     [DisplayName("LPUSH")]
     private Task<Void> LPush(RespContext ctx) => Pipeline(() => ctx.LPushAsync(_key, _payload));
 
-    [DisplayName("LRANGE_100"), Description("(100 of 450)")]
+    [DisplayName("LRANGE_100"), Description("100 of 450")]
     private Task<ResponseSummary> LRange100(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 99));
 
-    [DisplayName("LRANGE_300"), Description("(300 of 450)")]
+    [DisplayName("LRANGE_300"), Description("300 of 450")]
     private Task<ResponseSummary> LRange300(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 299));
 
-    [DisplayName("LRANGE_500"), Description("(450 of 450)")]
+    [DisplayName("LRANGE_500"), Description("450 of 450")]
     private Task<ResponseSummary> LRange500(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 499));
 
     [DisplayName("LPOP")]
@@ -254,7 +254,7 @@ public partial class RespBenchmark : IDisposable
         }
     }
 
-    [DisplayName("MSET (10 keys)")]
+    [DisplayName("MSET"), Description("10 keys")]
     private Task<Void> MSet(RespContext ctx) => Pipeline(() => ctx.MSetAsync(_pairs));
 
     private async Task LRangeInit450(RespContext ctx)
@@ -292,12 +292,12 @@ public partial class RespBenchmark : IDisposable
                 Description: { Length: > 0 }
             } da)
         {
-            description = $" {description}";
+            description = $" ({description})";
         }
 
         if (_quiet)
         {
-            Console.Write($"{name}: ");
+            Console.Write($"{name}:");
         }
         else
         {
@@ -343,7 +343,7 @@ public partial class RespBenchmark : IDisposable
             var rate = TotalOperations / seconds;
             if (_quiet)
             {
-                Console.WriteLine($"{rate:###,###,##0.00} requests per second");
+                Console.WriteLine($"\t{rate:###,###,##0.00} requests per second");
                 return;
             }
             else
