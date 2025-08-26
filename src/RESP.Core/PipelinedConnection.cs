@@ -46,16 +46,19 @@ internal class PipelinedConnection : IRespConnection
             haveLock = _semaphore.Wait(0);
             if (!haveLock)
             {
+                DebugCounters.OnPipelineFullAsync();
                 return FullAsync(this, message, cancellationToken);
             }
 
             var pending = _tail.SendAsync(message, cancellationToken);
             if (!pending.IsCompleted)
             {
+                DebugCounters.OnPipelineSendAsync();
                 haveLock = false; // transferring
                 return AwaitedWithLock(this, pending);
             }
 
+            DebugCounters.OnPipelineFullSync();
             pending.GetAwaiter().GetResult();
             return Task.CompletedTask;
         }

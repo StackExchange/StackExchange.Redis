@@ -21,16 +21,6 @@ public readonly ref struct RespMessageBuilder<TRequest>(RespContext context, Rea
     public void Wait(IRespParser<Void, Void> parser)
         => context.Send(_command, _value, formatter, parser);
 
-    public Task<TResponse> AsTask<TResponse>()
-        => context.SendTaskAsync(_command, _value, formatter, RespParsers.Get<TResponse>());
-    public Task<TResponse> AsTask<TResponse>(IRespParser<Void, TResponse> parser)
-        => context.SendTaskAsync(_command, _value, formatter, parser);
-
-    public Task AsTask()
-        => context.SendTaskAsync(_command, _value, formatter, RespParsers.Success);
-    public Task AsTask(IRespParser<Void, Void> parser)
-        => context.SendTaskAsync(_command, _value, formatter, parser);
-
     public ValueTask<TResponse> AsValueTask<TResponse>()
         => context.SendValueTaskAsync(_command, _value, formatter, RespParsers.Get<TResponse>());
     public ValueTask<TResponse> AsValueTask<TResponse>(IRespParser<Void, TResponse> parser)

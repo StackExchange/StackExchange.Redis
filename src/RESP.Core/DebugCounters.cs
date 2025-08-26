@@ -9,48 +9,54 @@ internal partial class DebugCounters
 #endif
 {
 #if DEBUG
-    private static int _tallyRead,
-        _tallyAsyncRead,
-        _tallyGrow,
-        _tallyShuffleCount,
+    private static int _tallyReadCount,
+        _tallyAsyncReadCount,
+        _tallyAsyncReadInlineCount,
+        _tallyWriteCount,
+        _tallyAsyncWriteCount,
+        _tallyAsyncWriteInlineCount,
         _tallyCopyOutCount,
         _tallyDiscardFullCount,
-        _tallyDiscardPartialCount;
+        _tallyDiscardPartialCount,
+        _tallyPipelineFullAsyncCount,
+        _tallyPipelineSendAsyncCount,
+        _tallyPipelineFullSyncCount;
 
-    private static long _tallyShuffleBytes, _tallyReadBytes, _tallyCopyOutBytes, _tallyDiscardAverage;
+    private static long _tallyWriteBytes, _tallyReadBytes, _tallyCopyOutBytes, _tallyDiscardAverage;
 #endif
     [Conditional("DEBUG")]
     internal static void OnRead(int bytes)
     {
 #if DEBUG
-        Interlocked.Increment(ref _tallyRead);
+        Interlocked.Increment(ref _tallyReadCount);
         if (bytes > 0) Interlocked.Add(ref _tallyReadBytes, bytes);
 #endif
     }
 
     [Conditional("DEBUG")]
-    internal static void OnAsyncRead(int bytes)
+    internal static void OnAsyncRead(int bytes, bool inline)
     {
 #if DEBUG
-        Interlocked.Increment(ref _tallyAsyncRead);
+        Interlocked.Increment(ref inline ? ref _tallyAsyncReadInlineCount : ref _tallyAsyncReadCount);
         if (bytes > 0) Interlocked.Add(ref _tallyReadBytes, bytes);
 #endif
     }
 
     [Conditional("DEBUG")]
-    internal static void OnGrow()
+    internal static void OnWrite(int bytes)
     {
 #if DEBUG
-        Interlocked.Increment(ref _tallyGrow);
+        Interlocked.Increment(ref _tallyWriteCount);
+        if (bytes > 0) Interlocked.Add(ref _tallyWriteBytes, bytes);
 #endif
     }
 
     [Conditional("DEBUG")]
-    internal static void OnShuffle(int bytes)
+    internal static void OnAsyncWrite(int bytes, bool inline)
     {
 #if DEBUG
-        Interlocked.Increment(ref _tallyShuffleCount);
-        if (bytes > 0) Interlocked.Add(ref _tallyShuffleBytes, bytes);
+        Interlocked.Increment(ref inline ? ref _tallyAsyncWriteInlineCount : ref _tallyAsyncWriteCount);
+        if (bytes > 0) Interlocked.Add(ref _tallyWriteBytes, bytes);
 #endif
     }
 
@@ -87,9 +93,34 @@ internal partial class DebugCounters
 #endif
     }
 
+    [Conditional("DEBUG")]
+    public static void OnPipelineFullAsync()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyPipelineFullAsyncCount);
+#endif
+    }
+
+    [Conditional("DEBUG")]
+    public static void OnPipelineSendAsync()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyPipelineSendAsyncCount);
+#endif
+    }
+
+    [Conditional("DEBUG")]
+    public static void OnPipelineFullSync()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyPipelineFullSyncCount);
+#endif
+    }
+
     private DebugCounters()
     {
     }
+
     public static DebugCounters Flush() => new();
 
 #if DEBUG
@@ -102,16 +133,22 @@ internal partial class DebugCounters
         // preferable to getting into a CEX squabble or requiring a lock - it is debug-only and just useful data
     }
 
-    public int Read { get; } = Interlocked.Exchange(ref _tallyRead, 0);
-    public int AsyncRead { get; } = Interlocked.Exchange(ref _tallyAsyncRead, 0);
+    public int ReadCount { get; } = Interlocked.Exchange(ref _tallyReadCount, 0);
+    public int AsyncReadCount { get; } = Interlocked.Exchange(ref _tallyAsyncReadCount, 0);
+    public int AsyncReadInlineCount { get; } = Interlocked.Exchange(ref _tallyAsyncReadInlineCount, 0);
     public long ReadBytes { get; } = Interlocked.Exchange(ref _tallyReadBytes, 0);
-    public int Grow { get; } = Interlocked.Exchange(ref _tallyGrow, 0);
-    public int ShuffleCount { get; } = Interlocked.Exchange(ref _tallyShuffleCount, 0);
-    public long ShuffleBytes { get; } = Interlocked.Exchange(ref _tallyShuffleBytes, 0);
+
+    public int WriteCount { get; } = Interlocked.Exchange(ref _tallyWriteCount, 0);
+    public int AsyncWriteCount { get; } = Interlocked.Exchange(ref _tallyAsyncWriteCount, 0);
+    public int AsyncWriteInlineCount { get; } = Interlocked.Exchange(ref _tallyAsyncWriteInlineCount, 0);
+    public long WriteBytes { get; } = Interlocked.Exchange(ref _tallyWriteBytes, 0);
     public int CopyOutCount { get; } = Interlocked.Exchange(ref _tallyCopyOutCount, 0);
     public long CopyOutBytes { get; } = Interlocked.Exchange(ref _tallyCopyOutBytes, 0);
     public long DiscardAverage { get; } = Interlocked.Exchange(ref _tallyDiscardAverage, 32);
     public int DiscardFullCount { get; } = Interlocked.Exchange(ref _tallyDiscardFullCount, 0);
     public int DiscardPartialCount { get; } = Interlocked.Exchange(ref _tallyDiscardPartialCount, 0);
+    public int PipelineFullAsyncCount { get; } = Interlocked.Exchange(ref _tallyPipelineFullAsyncCount, 0);
+    public int PipelineSendAsyncCount { get; } = Interlocked.Exchange(ref _tallyPipelineSendAsyncCount, 0);
+    public int PipelineFullSyncCount { get; } = Interlocked.Exchange(ref _tallyPipelineFullSyncCount, 0);
 #endif
 }

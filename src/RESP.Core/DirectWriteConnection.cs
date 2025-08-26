@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -175,8 +176,14 @@ internal sealed class DirectWriteConnection : IRespConnection
             do
             {
                 var buffer = _readBuffer.GetUncommittedMemory();
-                read = await tail.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-                DebugCounters.OnAsyncRead(read);
+                var pending = tail.ReadAsync(buffer, cancellationToken);
+#if DEBUG
+                bool inline = pending.IsCompleted;
+#endif
+                read = await pending.ConfigureAwait(false);
+#if DEBUG
+                DebugCounters.OnAsyncRead(read, inline);
+#endif
             }
             // another formatter glitch
             while (CommitAndParseFrames(read));
@@ -307,11 +314,13 @@ internal sealed class DirectWriteConnection : IRespConnection
         {
             throw new InvalidOperationException($"Unexpected trailing {reader.Prefix}");
         }
+
         if (reader.ProtocolBytesRemaining != 0)
         {
             var copy = reader; // leave reader alone for inspection
             var prefix = copy.TryMoveNext() ? copy.Prefix : RespPrefix.None;
-            throw new InvalidOperationException($"Unexpected additional {reader.ProtocolBytesRemaining} bytes remaining, {prefix}");
+            throw new InvalidOperationException(
+                $"Unexpected additional {reader.ProtocolBytesRemaining} bytes remaining, {prefix}");
         }
     }
 
@@ -399,6 +408,7 @@ internal sealed class DirectWriteConnection : IRespConnection
 #else
             tail.Write(bytes);
 #endif
+            DebugCounters.OnWrite(bytes.Length);
             ReleaseWriter();
             message.ReleaseRequest();
         }
@@ -422,10 +432,17 @@ internal sealed class DirectWriteConnection : IRespConnection
             var pendingWrite = tail.WriteAsync(bytes, cancellationToken);
             if (!pendingWrite.IsCompleted)
             {
-                return AwaitedSingleWithToken(this, pendingWrite, message);
+                return AwaitedSingleWithToken(
+                    this,
+                    pendingWrite,
+#if DEBUG
+                    bytes.Length,
+#endif
+                    message);
             }
 
             pendingWrite.GetAwaiter().GetResult();
+            DebugCounters.OnAsyncWrite(bytes.Length, true);
             ReleaseWriter();
             message.ReleaseRequest();
             return Task.CompletedTask;
@@ -440,12 +457,17 @@ internal sealed class DirectWriteConnection : IRespConnection
         static async Task AwaitedSingleWithToken(
             DirectWriteConnection @this,
             ValueTask pendingWrite,
+#if DEBUG
+            int length,
+#endif
             IRespMessage message)
         {
             try
             {
                 await pendingWrite.ConfigureAwait(false);
-
+#if DEBUG
+                DebugCounters.OnAsyncWrite(length, false);
+#endif
                 @this.ReleaseWriter();
                 message.ReleaseRequest();
             }

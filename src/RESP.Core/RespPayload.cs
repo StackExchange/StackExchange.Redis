@@ -673,23 +673,17 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
         return false;
     }
 
-    public ValueTask<TResponse> WaitTypedValueTaskAsync(CancellationToken cancellationToken = default)
+    public ValueTask<TResponse> WaitTypedAsync(CancellationToken cancellationToken = default)
     {
         RegisterForCancellation(cancellationToken);
         return new(this, _asyncCore.Version);
     }
 
-    public ValueTask WaitUntypedValueTaskAsync(CancellationToken cancellationToken = default)
+    public ValueTask WaitUntypedAsync(CancellationToken cancellationToken = default)
     {
         RegisterForCancellation(cancellationToken);
         return new(this, _asyncCore.Version);
     }
-
-    public Task<TResponse> WaitTypedTaskAsync(CancellationToken cancellationToken = default)
-        => WaitTypedValueTaskAsync(cancellationToken).AsTask();
-
-    public Task WaitUntypedTaskAsync(CancellationToken cancellationToken = default)
-        => WaitUntypedValueTaskAsync(cancellationToken).AsTask();
 
     public ValueTaskSourceStatus GetStatus(short token) => _asyncCore.GetStatus(token);
 

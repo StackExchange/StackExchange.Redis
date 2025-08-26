@@ -1,4 +1,6 @@
-﻿using System;
+﻿// #define PREFER_SYNC_WRITE // makes async calls use synchronous writes
+
+using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +14,7 @@ public interface IRespFormatter<TRequest>
 {
     void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in TRequest request);
 }
+
 public interface IRespSizeEstimator<TRequest> : IRespFormatter<TRequest>
 #if NET9_0_OR_GREATER
         where TRequest : allows ref struct
@@ -33,6 +36,7 @@ internal interface IRespInternalMessage : IRespMessage
 internal interface IRespInlineParser // if implemented, parsing is permitted on the IO thread
 {
 }
+
 public interface IRespMetadataParser // if implemented, the consumer must manually advance to the content
 {
 }
@@ -53,6 +57,7 @@ public abstract class RespCommandMap
         => Map(command).Length != 0;
 
     public static RespCommandMap Default { get; } = new DefaultRespCommandMap();
+
     private sealed class DefaultRespCommandMap : RespCommandMap
     {
         public override ReadOnlySpan<byte> Map(ReadOnlySpan<byte> command) => command;
@@ -106,12 +111,14 @@ public class RespConfiguration
                 SyncTimeout ?? DefaultSyncTimeout);
         }
     }
+
     private RespConfiguration(RespCommandMap respCommandMap, byte[] keyPrefix, TimeSpan syncTimeout)
     {
         RespCommandMap = respCommandMap;
         SyncTimeout = syncTimeout;
         _keyPrefix = keyPrefix; // create isolated copy
     }
+
     private readonly byte[] _keyPrefix;
 
     public RespCommandMap RespCommandMap { get; }
@@ -124,12 +131,17 @@ public class RespConfiguration
 /// <summary>
 /// Transient state for a RESP operation.
 /// </summary>
-public readonly struct RespContext(IRespConnection connection, int database = -1, CancellationToken cancellationToken = default)
+public readonly struct RespContext(
+    IRespConnection connection,
+    int database = -1,
+    CancellationToken cancellationToken = default)
 {
     public RespContext(IRespConnection connection) : this(connection, -1, CancellationToken.None)
     {
     }
-    public RespContext(IRespConnection connection, CancellationToken cancellationToken) : this(connection, -1, cancellationToken)
+
+    public RespContext(IRespConnection connection, CancellationToken cancellationToken)
+        : this(connection, -1, cancellationToken)
     {
     }
 
@@ -139,6 +151,7 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
 
     public RespMessageBuilder<T> Command<T>(ReadOnlySpan<byte> command, T value, IRespFormatter<T> formatter)
         => new(this, command, value, formatter);
+
     public RespMessageBuilder<Void> Command(ReadOnlySpan<byte> command)
         => new(this, command, Void.Instance, RespFormatters.Void);
 
@@ -163,16 +176,6 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
         return msg.WaitAndRecycle(connection.Configuration.SyncTimeout);
     }
 
-    public Task<TResponse> SendTaskAsync<TRequest, TResponse>(
-        scoped ReadOnlySpan<byte> command,
-        TRequest request,
-        IRespFormatter<TRequest> formatter,
-        IRespParser<Void, TResponse> parser)
-#if NET9_0_OR_GREATER
-    where TRequest : allows ref struct
-#endif
-        => SendAsync(command, request, formatter, parser, in Void.Instance).WaitTypedTaskAsync(cancellationToken);
-
     public ValueTask<TResponse> SendValueTaskAsync<TRequest, TResponse>(
         scoped ReadOnlySpan<byte> command,
         TRequest request,
@@ -181,17 +184,7 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
-        => SendAsync(command, request, formatter, parser, in Void.Instance).WaitTypedValueTaskAsync(cancellationToken);
-
-    public Task SendTaskAsync<TRequest>(
-        scoped ReadOnlySpan<byte> command,
-        TRequest request,
-        IRespFormatter<TRequest> formatter,
-        IRespParser<Void, Void> parser)
-#if NET9_0_OR_GREATER
-    where TRequest : allows ref struct
-#endif
-        => SendAsync(command, request, formatter, parser, in Void.Instance).WaitUntypedTaskAsync(cancellationToken);
+        => SendTypedAsync(command, request, formatter, parser, in Void.Instance, cancellationToken);
 
     public ValueTask SendValueTaskAsync<TRequest>(
         scoped ReadOnlySpan<byte> command,
@@ -201,14 +194,15 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
-        => SendAsync(command, request, formatter, parser, in Void.Instance).WaitUntypedValueTaskAsync(cancellationToken);
+        => SendUntypedAsync(command, request, formatter, parser, in Void.Instance, cancellationToken);
 
-    private AsyncInternalRespMessage<TState, TResponse> SendAsync<TRequest, TState, TResponse>(
+    private ValueTask<TResponse> SendTypedAsync<TRequest, TState, TResponse>(
         ReadOnlySpan<byte> command,
         TRequest request,
         IRespFormatter<TRequest> formatter,
         IRespParser<TState, TResponse> parser,
-        in TState state)
+        in TState state,
+        CancellationToken cancellationToken)
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
@@ -216,13 +210,64 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
         cancellationToken.ThrowIfCancellationRequested();
         var bytes = Serialize(RespCommandMap, command, request, formatter, out int length);
         var msg = AsyncInternalRespMessage<TState, TResponse>.Create(bytes, length, parser, in state);
+
+#if PREFER_SYNC_WRITE
         connection.Send(msg);
-        return msg;
+        return msg.WaitTypedAsync(cancellationToken);
+#else
+        var pending = connection.SendAsync(msg, cancellationToken);
+        if (!pending.IsCompleted) return Awaited(pending, msg, cancellationToken);
+        pending.GetAwaiter().GetResult();
+        return msg.WaitTypedAsync(cancellationToken);
+
+        static async ValueTask<TResponse> Awaited(Task pending, AsyncInternalRespMessage<TState, TResponse> msg, CancellationToken cancellationToken)
+        {
+            await pending.ConfigureAwait(false);
+            return await msg.WaitTypedAsync(cancellationToken).ConfigureAwait(false);
+        }
+#endif
+    }
+
+    private ValueTask SendUntypedAsync<TRequest, TState>(
+        ReadOnlySpan<byte> command,
+        TRequest request,
+        IRespFormatter<TRequest> formatter,
+        IRespParser<TState, Void> parser,
+        in TState state,
+        CancellationToken cancellationToken)
+#if NET9_0_OR_GREATER
+    where TRequest : allows ref struct
+#endif
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var bytes = Serialize(RespCommandMap, command, request, formatter, out int length);
+        var msg = AsyncInternalRespMessage<TState, Void>.Create(bytes, length, parser, in state);
+
+#if PREFER_SYNC_WRITE
+        connection.Send(msg);
+        return msg.WaitUntypedAsync(cancellationToken);
+#else
+        var pending = connection.SendAsync(msg, cancellationToken);
+        if (!pending.IsCompleted) return Awaited(pending, msg, cancellationToken);
+        pending.GetAwaiter().GetResult();
+        return msg.WaitUntypedAsync(cancellationToken);
+
+        static async ValueTask Awaited(Task pending, AsyncInternalRespMessage<TState, Void> msg, CancellationToken cancellationToken)
+        {
+            await pending.ConfigureAwait(false);
+            await msg.WaitUntypedAsync(cancellationToken).ConfigureAwait(false);
+        }
+#endif
     }
 
     public RespCommandMap RespCommandMap => connection.Configuration.RespCommandMap;
 
-    private static byte[] Serialize<TRequest>(RespCommandMap commandMap, ReadOnlySpan<byte> command, TRequest request, IRespFormatter<TRequest> formatter, out int length)
+    private static byte[] Serialize<TRequest>(
+        RespCommandMap commandMap,
+        ReadOnlySpan<byte> command,
+        TRequest request,
+        IRespFormatter<TRequest> formatter,
+        out int length)
 #if NET9_0_OR_GREATER
         where TRequest : allows ref struct
 #endif
@@ -232,6 +277,7 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
         {
             size = estimator.EstimateSize(command, request);
         }
+
         var buffer = AmbientBufferWriter.Get(size);
         try
         {
@@ -240,6 +286,7 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
             {
                 writer.CommandMap = commandMap;
             }
+
             formatter.Format(command, ref writer, request);
             writer.Flush();
             return buffer.Detach(out length);
@@ -260,6 +307,7 @@ public readonly struct RespContext(IRespConnection connection, int database = -1
     public RespContext WithConnection(IRespConnection connection)
         => new(connection, database, cancellationToken);
 }
+
 public static class RespConnectionExtensions
 {
     /// <summary>
@@ -269,7 +317,9 @@ public static class RespConnectionExtensions
         => connection is PipelinedConnection ? connection : new PipelinedConnection(connection);
 
     public static IRespConnection WithConfiguration(this IRespConnection connection, RespConfiguration configuration)
-        => ReferenceEquals(configuration, connection.Configuration) ? connection : new ConfiguredConnection(connection, configuration);
+        => ReferenceEquals(configuration, connection.Configuration)
+            ? connection
+            : new ConfiguredConnection(connection, configuration);
 
     private sealed class ConfiguredConnection(IRespConnection tail, RespConfiguration configuration) : IRespConnection
     {
@@ -285,6 +335,7 @@ public static class RespConnectionExtensions
 
         public void Send(IRespMessage message) => tail.Send(message);
 
-        public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default) => tail.SendAsync(message, cancellationToken);
+        public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default) =>
+            tail.SendAsync(message, cancellationToken);
     }
 }

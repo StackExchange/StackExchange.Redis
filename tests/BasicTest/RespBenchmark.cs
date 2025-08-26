@@ -294,7 +294,7 @@ public partial class RespBenchmark : IDisposable
         }
 
         Console.WriteLine(
-            $"====== {name}{description} ====== (clients: {_clients.Length}, ops: {TotalOperations}{(_multiplexed ? ", mux" : "")})");
+            $"====== {name}{description} ====== (clients: {_clients.Length:#,##0}, ops: {TotalOperations:#,##0}{(_multiplexed ? ", mux" : "")})");
         try
         {
             await CleanupAsync().ConfigureAwait(false);
@@ -320,13 +320,6 @@ public partial class RespBenchmark : IDisposable
             var rate = (TotalOperations / seconds) / 1000;
             Console.WriteLine(
                 $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec");
-#if DEBUG
-            var counters = DebugCounters.Flush();
-            Console.WriteLine(
-                $"Read (s/a/MiB): {counters.Read:#,##0}/{counters.AsyncRead:#,##0}/{counters.ReadBytes >> 20:#,##0}, Grow: {counters.Grow:#,##0}, Shuffle (count/MiB): {counters.ShuffleCount:#,##0}/{counters.ShuffleBytes >> 20:#,##0}, Copy out (count/MiB): {counters.CopyOutCount}/{counters.CopyOutBytes >> 20:#,##0}");
-            Console.WriteLine(
-                $"Discard (full/partial/avg): {counters.DiscardFullCount:#,##0}/{counters.DiscardPartialCount:#,##0}/{counters.DiscardAverage:#,##0}");
-#endif
             if (typeof(T) != typeof(Void))
             {
                 if (string.IsNullOrWhiteSpace(format))
@@ -344,6 +337,69 @@ public partial class RespBenchmark : IDisposable
         }
         finally
         {
+#if DEBUG
+            var counters = DebugCounters.Flush();
+
+            if (counters.WriteBytes != 0)
+            {
+                Console.Write($"Write: {FormatBytes(counters.WriteBytes)}");
+                if (counters.WriteCount != 0) Console.Write($"; {counters.WriteCount:#,##0} sync");
+                if (counters.AsyncWriteInlineCount != 0)
+                    Console.Write($"; {counters.AsyncWriteInlineCount:#,##0} async-inline");
+                if (counters.AsyncWriteCount != 0) Console.Write($"; {counters.AsyncWriteCount:#,##0} full-async");
+                Console.WriteLine();
+            }
+
+            if (counters.ReadBytes != 0)
+            {
+                Console.Write($"Read: {FormatBytes(counters.ReadBytes)}");
+                if (counters.ReadCount != 0) Console.Write($"; {counters.ReadCount:#,##0} sync");
+                if (counters.AsyncReadInlineCount != 0)
+                    Console.Write($"; {counters.AsyncReadInlineCount:#,##0} async-inline");
+                if (counters.AsyncReadCount != 0) Console.Write($"; {counters.AsyncReadCount:#,##0} full-async");
+                Console.WriteLine();
+            }
+
+            if (counters.DiscardAverage + counters.DiscardPartialCount != 0)
+            {
+                Console.Write($"Discard average: {FormatBytes(counters.DiscardAverage)}");
+                if (counters.DiscardFullCount != 0) Console.Write($"; {counters.DiscardFullCount} full");
+                if (counters.DiscardPartialCount != 0) Console.Write($"; {counters.DiscardPartialCount} partial");
+                Console.WriteLine();
+            }
+
+            if (counters.CopyOutCount != 0)
+            {
+                Console.WriteLine(
+                    $"Copy out: {FormatBytes(counters.CopyOutBytes)}; {counters.CopyOutCount:#,##0} times");
+            }
+
+            if (counters.PipelineFullAsyncCount != 0
+                | counters.PipelineSendAsyncCount != 0
+                | counters.PipelineFullSyncCount != 0)
+            {
+                Console.Write("Pipelining");
+                if (counters.PipelineFullSyncCount != 0) Console.Write($"; full sync: {counters.PipelineFullSyncCount:#,##0}");
+                if (counters.PipelineSendAsyncCount != 0) Console.Write($"; send async: {counters.PipelineSendAsyncCount:#,##0}");
+                if (counters.PipelineFullAsyncCount != 0) Console.Write($"; full async: {counters.PipelineFullAsyncCount:#,##0}");
+                Console.WriteLine();
+            }
+
+            static string FormatBytes(long bytes)
+            {
+                if (bytes > 1024 * 1024)
+                {
+                    return $"{bytes >> 20:#,##0} MiB";
+                }
+
+                if (bytes > 1024)
+                {
+                    return $"{bytes >> 10:#,##0} KiB";
+                }
+
+                return $"{bytes} B";
+            }
+#endif
             Console.WriteLine();
         }
     }
