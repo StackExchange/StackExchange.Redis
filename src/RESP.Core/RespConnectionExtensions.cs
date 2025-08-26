@@ -9,7 +9,7 @@ namespace Resp;
 
 public interface IRespFormatter<TRequest>
 #if NET9_0_OR_GREATER
-        where TRequest : allows ref struct
+    where TRequest : allows ref struct
 #endif
 {
     void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in TRequest request);
@@ -17,7 +17,7 @@ public interface IRespFormatter<TRequest>
 
 public interface IRespSizeEstimator<TRequest> : IRespFormatter<TRequest>
 #if NET9_0_OR_GREATER
-        where TRequest : allows ref struct
+    where TRequest : allows ref struct
 #endif
 {
     int EstimateSize(scoped ReadOnlySpan<byte> command, in TRequest request);
@@ -71,13 +71,16 @@ public abstract class RespCommandMap
 public class RespConfiguration
 {
     private static readonly TimeSpan DefaultSyncTimeout = TimeSpan.FromSeconds(10);
-    public static RespConfiguration Default { get; } = new(RespCommandMap.Default, [], DefaultSyncTimeout);
+
+    public static RespConfiguration Default { get; } = new(
+        RespCommandMap.Default, [], DefaultSyncTimeout, NullServiceProvider.Instance);
 
     public static Builder Create() => default; // for discoverability
 
     public struct Builder // intentionally mutable
     {
         public TimeSpan? SyncTimeout { get; set; }
+        public IServiceProvider? ServiceProvider { get; set; }
         public RespCommandMap? CommandMap { get; set; }
         public object? KeyPrefix { get; set; } // can be a string or byte[]
 
@@ -88,6 +91,10 @@ public class RespConfiguration
                 CommandMap = source.RespCommandMap;
                 SyncTimeout = source.SyncTimeout;
                 KeyPrefix = source.KeyPrefix.ToArray();
+                ServiceProvider = source.ServiceProvider;
+                // undo defaults
+                if (ReferenceEquals(CommandMap, RespCommandMap.Default)) CommandMap = null;
+                if (ReferenceEquals(ServiceProvider, NullServiceProvider.Instance)) ServiceProvider = null;
             }
         }
 
@@ -103,29 +110,45 @@ public class RespConfiguration
                 _ => throw new ArgumentException("KeyPrefix must be a string or byte[]", nameof(KeyPrefix)),
             };
 
-            if (prefix.Length == 0 && SyncTimeout is null && CommandMap is null) return Default;
+            if (prefix.Length == 0 & SyncTimeout is null & CommandMap is null & ServiceProvider is null) return Default;
 
             return new(
                 CommandMap ?? RespCommandMap.Default,
                 prefix,
-                SyncTimeout ?? DefaultSyncTimeout);
+                SyncTimeout ?? DefaultSyncTimeout,
+                ServiceProvider ?? NullServiceProvider.Instance);
         }
     }
 
-    private RespConfiguration(RespCommandMap respCommandMap, byte[] keyPrefix, TimeSpan syncTimeout)
+    private RespConfiguration(
+        RespCommandMap respCommandMap,
+        byte[] keyPrefix,
+        TimeSpan syncTimeout,
+        IServiceProvider serviceProvider)
     {
         RespCommandMap = respCommandMap;
         SyncTimeout = syncTimeout;
-        _keyPrefix = keyPrefix; // create isolated copy
+        _keyPrefix = (byte[])keyPrefix.Clone(); // create isolated copy
+        ServiceProvider = serviceProvider;
     }
 
     private readonly byte[] _keyPrefix;
-
+    public IServiceProvider ServiceProvider { get; }
     public RespCommandMap RespCommandMap { get; }
     public TimeSpan SyncTimeout { get; }
     public ReadOnlySpan<byte> KeyPrefix => _keyPrefix;
 
     public Builder AsBuilder() => new(this);
+
+    private sealed class NullServiceProvider : IServiceProvider
+    {
+        public static readonly NullServiceProvider Instance = new();
+        private NullServiceProvider() { }
+        public object? GetService(Type serviceType) => null;
+    }
+
+    internal T? GetService<T>() where T : class
+        => ServiceProvider.GetService(typeof(T)) as T;
 }
 
 /// <summary>

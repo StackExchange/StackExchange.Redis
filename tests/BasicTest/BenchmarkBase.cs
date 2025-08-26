@@ -358,7 +358,7 @@ public abstract class BenchmarkBase<TClient> : IDisposable
                     Console.WriteLine();
                 }
 
-                if (counters.DiscardAverage + counters.DiscardPartialCount != 0)
+                if (counters.DiscardFullCount + counters.DiscardPartialCount != 0)
                 {
                     Console.Write($"Discard average: {FormatBytes(counters.DiscardAverage)}");
                     if (counters.DiscardFullCount != 0) Console.Write($"; {counters.DiscardFullCount} full");

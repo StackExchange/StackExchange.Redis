@@ -15,7 +15,8 @@ internal sealed class DirectWriteConnection : IRespConnection
 {
     private bool _isDoomed;
     private RespScanState _readScanState = default;
-    private CycleBuffer _readBuffer = CycleBuffer.Create();
+
+    private CycleBuffer _readBuffer;
 
     public bool CanWrite => Volatile.Read(ref _readStatus) == WRITER_AVAILABLE;
 
@@ -32,6 +33,7 @@ internal sealed class DirectWriteConnection : IRespConnection
         Configuration = configuration;
         if (!(tail.CanRead && tail.CanWrite)) Throw();
         this.tail = tail;
+        _readBuffer = CycleBuffer.Create(configuration.GetService<MemoryPool<byte>>());
         if (asyncRead)
         {
             Reader = Task.Run(ReadAllAsync);
@@ -98,6 +100,7 @@ internal sealed class DirectWriteConnection : IRespConnection
                     {
                         break;
                     }
+
                     Debug.Assert(
                         state is
                         {
@@ -142,6 +145,7 @@ internal sealed class DirectWriteConnection : IRespConnection
                     {
                         break;
                     }
+
                     Debug.Assert(
                         state is
                         {
