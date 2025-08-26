@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
@@ -107,9 +108,13 @@ public class OldCoreBenchmark : BenchmarkBase<IDatabase>
     private Task<bool> MSet(IDatabase client) => Pipeline(() => client.StringSetAsync(_pairs));
     private Task<RedisValue> XAdd(IDatabase client) =>
         Pipeline(() => client.StreamAddAsync(_streamKey, "myfield", _payload));
+    [DisplayName("LRANGE_100")]
     private Task<int> LRange100(IDatabase client) => Pipeline(() => CountAsync(client.ListRangeAsync(_listKey, 0, 99)));
+    [DisplayName("LRANGE_300")]
     private Task<int> LRange300(IDatabase client) => Pipeline(() => CountAsync(client.ListRangeAsync(_listKey, 0, 299)));
+    [DisplayName("LRANGE_500")]
     private Task<int> LRange500(IDatabase client) => Pipeline(() => CountAsync(client.ListRangeAsync(_listKey, 0, 499)));
+    [DisplayName("LRANGE_600")]
     private Task<int> LRange600(IDatabase client) => Pipeline(() => CountAsync(client.ListRangeAsync(_listKey, 0, 599)));
 
     private static Task<int> CountAsync<T>(Task<T[]> task) => task.ContinueWith(t => t.Result.Length, TaskContinuationOptions.ExecuteSynchronously);

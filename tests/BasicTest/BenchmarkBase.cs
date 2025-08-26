@@ -336,7 +336,7 @@ public abstract class BenchmarkBase<TClient> : IDisposable
         {
 #if DEBUG
             var counters = DebugCounters.Flush(); // flush even if not showing
-            if (Quiet)
+            if (!Quiet)
             {
                 if (counters.WriteBytes != 0)
                 {
