@@ -12,7 +12,8 @@ namespace Resp;
 internal sealed class DirectWriteConnection : IRespConnection
 {
     private bool _isDoomed;
-    private ReadBuffer _readBuffer;
+    private RespScanState _readScanState = default;
+    private CycleBuffer _readBuffer = CycleBuffer.Create();
 
     public bool CanWrite => Volatile.Read(ref _readStatus) == WRITER_AVAILABLE;
 
@@ -41,43 +42,6 @@ internal sealed class DirectWriteConnection : IRespConnection
         static void Throw() => throw new ArgumentException("Stream must be readable and writable", nameof(tail));
     }
 
-    private void ReadAll()
-    {
-        var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Reader = tcs.Task;
-        try
-        {
-            while (true)
-            {
-                var buffer = _readBuffer.GetWriteBuffer();
-                var read = tail.Read(buffer.Array!, buffer.Offset, buffer.Count);
-                DebugCounters.OnRead(read);
-                if (!_readBuffer.OnRead(read)) break;
-            }
-
-            Volatile.Write(ref _readStatus, READER_COMPLETED);
-            _readBuffer.Release(); // clean exit, we can recycle
-            tcs.SetResult(null);
-        }
-        catch (Exception ex)
-        {
-            Volatile.Write(ref _readStatus, READER_FAILED);
-            Debug.WriteLine($"Reader failed: {ex.Message}");
-            tcs.SetResult(ex);
-        }
-        finally
-        {
-            Doom();
-            _readBuffer = default; // for GC purposes
-
-            // abandon anything in the queue
-            while (_outstanding.TryDequeue(out var pending))
-            {
-                pending.TrySetCanceled(CancellationToken.None);
-            }
-        }
-    }
-
     public RespMode Mode { get; set; } = RespMode.Resp2;
 
     public enum RespMode
@@ -87,84 +51,209 @@ internal sealed class DirectWriteConnection : IRespConnection
         Resp3,
     }
 
-    private async Task ReadAllAsync()
+    private static byte[]? SharedNoLease;
+
+    private bool CommitAndParseFrames(int bytesRead)
     {
-        try
+        if (bytesRead <= 0)
         {
-            CancellationToken cancellationToken = CancellationToken.None;
+            return false;
+        }
+
+#if DEBUG
+        string src = $"parse {bytesRead}";
+        try
+#endif
+        {
+            Debug.Assert(
+                bytesRead <= _readBuffer.UncommittedAvailable,
+                $"Insufficient bytes in {nameof(CommitAndParseFrames)}; got {bytesRead}, Available={_readBuffer.UncommittedAvailable}");
+            _readBuffer.Commit(bytesRead);
+
             var scanner = RespFrameScanner.Default;
 
-            RespScanState state = default;
             OperationStatus status = OperationStatus.NeedMoreData;
-
-            while (true) // main IO loop
+            ref RespScanState state = ref _readScanState;
+            if (_readBuffer.TryGetCommitted(out var fullSpan))
             {
-                var buffer = _readBuffer.GetWriteBuffer();
-#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
-                var read = await tail.ReadAsync(
-                        new(buffer.Array!, buffer.Offset, buffer.Count), cancellationToken)
-                    .ConfigureAwait(false);
-#else
-                var read = await tail.ReadAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken)
-                    .ConfigureAwait(false);
+#if DEBUG
+                src += $",span {fullSpan.Length}";
 #endif
-                DebugCounters.OnAsyncRead(read);
-                if (!_readBuffer.OnRead(read)) break;
-
-                var fullBuffer = _readBuffer.GetSpan();
-                var toParse = fullBuffer.Slice((int)state.TotalBytes); // skip what we've already parsed
+                Debug.Assert(!fullSpan.IsEmpty);
 
                 int fullyConsumed = 0;
-                while (toParse.Length >= RespScanState.MinBytes &&
-                       (status = scanner.TryRead(ref state, toParse)) == OperationStatus.Done)
+                var toParse = fullSpan.Slice((int)state.TotalBytes); // skip what we've already parsed
+                while (toParse.Length >= RespScanState.MinBytes
+                       && (status = scanner.TryRead(ref state, toParse)) == OperationStatus.Done)
                 {
                     Debug.Assert(
-                        state is { IsComplete: true, TotalBytes: >= RespScanState.MinBytes, Prefix: not RespPrefix.None },
+                        state is
+                        {
+                            IsComplete: true, TotalBytes: >= RespScanState.MinBytes, Prefix: not RespPrefix.None
+                        },
                         "Invalid RESP read state");
 
                     // extract the frame
                     var bytes = (int)state.TotalBytes;
 
                     // send the frame somewhere
-                    OnResponseFrame(state.Prefix, fullBuffer.Slice(fullyConsumed, bytes));
+                    OnResponseFrame(state.Prefix, toParse.Slice(0, bytes), ref SharedNoLease);
 
                     // update our buffers to the unread potions and reset for a new RESP frame
                     fullyConsumed += bytes;
-                    toParse = fullBuffer.Slice(fullyConsumed);
+                    toParse = toParse.Slice(bytes);
                     state = default;
                     status = OperationStatus.NeedMoreData;
                 }
 
-                _readBuffer.Consume(fullyConsumed);
+                _readBuffer.DiscardCommitted(fullyConsumed);
+            }
+            else // the same thing again, but this time with multi-segment sequence
+            {
+                var fullSequence = _readBuffer.GetAllCommitted();
+#if DEBUG
+                src += $",ros {fullSequence.Length}";
+#endif
+                Debug.Assert(
+                    fullSequence is { IsEmpty: false, IsSingleSegment: false },
+                    "non-trivial sequence expected");
 
-                if (status != OperationStatus.NeedMoreData)
+                long fullyConsumed = 0;
+                var toParse = fullSequence.Slice((int)state.TotalBytes); // skip what we've already parsed
+                while (toParse.Length >= RespScanState.MinBytes
+                       && (status = scanner.TryRead(ref state, toParse)) == OperationStatus.Done)
                 {
-                    ThrowStatus(status);
+                    Debug.Assert(
+                        state is
+                        {
+                            IsComplete: true, TotalBytes: >= RespScanState.MinBytes, Prefix: not RespPrefix.None
+                        },
+                        "Invalid RESP read state");
 
-                    static void ThrowStatus(OperationStatus status) =>
-                        throw new InvalidOperationException($"Unexpected operation status: {status}");
+                    // extract the frame
+                    var bytes = (int)state.TotalBytes;
+
+                    // send the frame somewhere
+                    OnResponseFrame(state.Prefix, toParse.Slice(0, bytes));
+
+                    // update our buffers to the unread potions and reset for a new RESP frame
+                    fullyConsumed += bytes;
+                    toParse = toParse.Slice(bytes);
+                    state = default;
+                    status = OperationStatus.NeedMoreData;
                 }
-            } // main IO loop - read the next chunk
+
+                _readBuffer.DiscardCommitted(fullyConsumed);
+            }
+
+            if (status != OperationStatus.NeedMoreData)
+            {
+                ThrowStatus(status);
+
+                static void ThrowStatus(OperationStatus status) =>
+                    throw new InvalidOperationException($"Unexpected operation status: {status}");
+            }
+
+            return true;
+        }
+#if DEBUG
+        catch (Exception ex)
+        {
+            Console.WriteLine($"{nameof(CommitAndParseFrames)}: {ex.Message}");
+            Console.WriteLine(src);
+            throw;
+        }
+#endif
+    }
+
+    private async Task ReadAllAsync()
+    {
+        try
+        {
+            CancellationToken cancellationToken = CancellationToken.None;
+            int read;
+            do
+            {
+                var buffer = _readBuffer.GetUncommittedMemory();
+                read = await tail.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                DebugCounters.OnAsyncRead(read);
+            }
+            // another formatter glitch
+            while (CommitAndParseFrames(read));
 
             Volatile.Write(ref _readStatus, READER_COMPLETED);
             _readBuffer.Release(); // clean exit, we can recycle
+            Console.WriteLine("Reader clean exit");
         }
         catch (Exception ex)
         {
-            Volatile.Write(ref _readStatus, READER_FAILED);
-            Debug.WriteLine($"Reader failed: {ex.Message}");
+            Console.WriteLine($"Reader failed: {ex.Message}");
+            OnReadException(ex);
             throw;
         }
         finally
         {
-            Doom();
-            _readBuffer = default; // for GC purposes
+            Console.WriteLine("Reader finally");
+            OnReadAllFinally();
+        }
+    }
 
-            // abandon anything in the queue
-            while (_outstanding.TryDequeue(out var pending))
+    private void ReadAll()
+    {
+        var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Reader = tcs.Task;
+        try
+        {
+            CancellationToken cancellationToken = CancellationToken.None;
+            int read;
+            do
             {
-                pending.TrySetCanceled(CancellationToken.None);
+#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+                var buffer = _readBuffer.GetUncommittedSpan();
+                read = tail.Read(buffer);
+#else
+                var buffer = _readBuffer.GetUncommittedMemory();
+                read = tail.Read(buffer);
+#endif
+                DebugCounters.OnRead(read);
             }
+            // another formatter glitch
+            while (CommitAndParseFrames(read));
+
+            Volatile.Write(ref _readStatus, READER_COMPLETED);
+            _readBuffer.Release(); // clean exit, we can recycle
+            tcs.TrySetResult(null);
+        }
+        catch (Exception ex)
+        {
+            tcs.TrySetException(ex);
+            OnReadException(ex);
+        }
+        finally
+        {
+            OnReadAllFinally();
+        }
+    }
+
+    private void OnReadException(Exception ex)
+    {
+        Volatile.Write(ref _readStatus, READER_FAILED);
+        Debug.WriteLine($"Reader failed: {ex.Message}");
+        while (_outstanding.TryDequeue(out var pending))
+        {
+            pending.TrySetException(ex);
+        }
+    }
+
+    private void OnReadAllFinally()
+    {
+        Doom();
+        _readBuffer.Release();
+
+        // abandon anything in the queue
+        while (_outstanding.TryDequeue(out var pending))
+        {
+            pending.TrySetCanceled(CancellationToken.None);
         }
     }
 
@@ -178,25 +267,69 @@ internal sealed class DirectWriteConnection : IRespConnection
         pong = RespConstants.UnsafeCpuUInt32("pong"u8),
         PONG = RespConstants.UnsafeCpuUInt32("PONG"u8);
 
-    private void OnOutOfBand(ReadOnlySpan<byte> payload)
+    private void OnOutOfBand(ReadOnlySpan<byte> payload, ref byte[]? lease)
     {
         throw new NotImplementedException(nameof(OnOutOfBand));
     }
 
-    private void OnResponseFrame(RespPrefix prefix, ReadOnlySpan<byte> payload)
+    private void OnResponseFrame(RespPrefix prefix, ReadOnlySequence<byte> payload)
     {
+        if (payload.IsSingleSegment)
+        {
+#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+            OnResponseFrame(prefix, payload.FirstSpan, ref SharedNoLease);
+#else
+            OnResponseFrame(prefix, payload.First.Span, ref SharedNoLease);
+#endif
+        }
+        else
+        {
+            var len = checked((int)payload.Length);
+            byte[]? oversized = ArrayPool<byte>.Shared.Rent(len);
+            payload.CopyTo(oversized);
+            OnResponseFrame(prefix, new(oversized, 0, len), ref oversized);
+
+            // the lease could have been claimed by the activation code (to prevent another memcpy); otherwise, free
+            if (oversized is not null)
+            {
+                ArrayPool<byte>.Shared.Return(oversized);
+            }
+        }
+    }
+
+    [Conditional("DEBUG")]
+    private static void DebugOnValidateSingleFrame(ReadOnlySpan<byte> payload)
+    {
+        var reader = new RespReader(payload);
+        reader.MoveNext();
+        reader.SkipChildren();
+        if (reader.TryMoveNext())
+        {
+            throw new InvalidOperationException($"Unexpected trailing {reader.Prefix}");
+        }
+        if (reader.ProtocolBytesRemaining != 0)
+        {
+            var copy = reader; // leave reader alone for inspection
+            var prefix = copy.TryMoveNext() ? copy.Prefix : RespPrefix.None;
+            throw new InvalidOperationException($"Unexpected additional {reader.ProtocolBytesRemaining} bytes remaining, {prefix}");
+        }
+    }
+
+    private void OnResponseFrame(RespPrefix prefix, ReadOnlySpan<byte> payload, ref byte[]? lease)
+    {
+        DebugOnValidateSingleFrame(payload);
         if (prefix == RespPrefix.Push ||
             (prefix == RespPrefix.Array && Mode is RespMode.Resp2PubSub && !IsArrayPong(payload)))
         {
             // out-of-band; pub/sub etc
-            OnOutOfBand(payload);
+            OnOutOfBand(payload, ref lease);
             return;
         }
 
         // request/response; match to inbound
         if (_outstanding.TryDequeue(out var pending))
         {
-            ActivationHelper.ProcessResponse(pending, payload);
+            ActivationHelper.ProcessResponse(pending, payload, ref lease);
         }
         else
         {

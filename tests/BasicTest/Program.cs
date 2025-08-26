@@ -21,8 +21,11 @@ namespace BasicTest
     {
         private static async Task Main(string[] args)
         {
-            int port = RespBenchmark.DefaultPort, clients = RespBenchmark.DefaultClients,
-                requests = RespBenchmark.DefaultRequests, pipelineDepth = RespBenchmark.DefaultPipelineDepth;
+            int port = RespBenchmark.DefaultPort,
+                clients = RespBenchmark.DefaultClients,
+                requests = RespBenchmark.DefaultRequests,
+                pipelineDepth = RespBenchmark.DefaultPipelineDepth;
+            string tests = RespBenchmark.DefaultTests;
             bool multiplexed = RespBenchmark.DefaultMultiplexed, cancel = RespBenchmark.DefaultCancel;
             for (int i = 0; i < args.Length; i++)
             {
@@ -52,19 +55,31 @@ namespace BasicTest
                     case "-c":
                         cancel = false;
                         break;
+                    case "-t" when i != args.Length - 1:
+                        tests = args[++i];
+                        break;
                 }
             }
-            using var bench = new RespBenchmark(port: port, clients: clients, requests: requests, pipelineDepth: pipelineDepth, multiplexed: multiplexed, cancel: cancel);
+
+            using var bench = new RespBenchmark(
+                port: port,
+                clients: clients,
+                requests: requests,
+                pipelineDepth: pipelineDepth,
+                multiplexed: multiplexed,
+                cancel: cancel,
+                tests: tests);
             await bench.RunAll();
         }
         // private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
     }
+
     internal class CustomConfig : ManualConfig
     {
         protected virtual Job Configure(Job j)
             => j.WithGcMode(new GcMode { Force = true })
-                // .With(InProcessToolchain.Instance)
-                ;
+        // .With(InProcessToolchain.Instance)
+        ;
 
         public CustomConfig()
         {
@@ -75,9 +90,11 @@ namespace BasicTest
             {
                 AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net472)));
             }
+
             AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core80)));
         }
     }
+
     internal class SlowConfig : CustomConfig
     {
         protected override Job Configure(Job j)
@@ -99,9 +116,9 @@ namespace BasicTest
         {
             // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
             pool = new();
-            #pragma warning disable CS0618 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
             customPool = new() { UseCustomNetworkStream = true };
-            #pragma warning restore CS0618 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
             // var options = ConfigurationOptions.Parse("127.0.0.1:6379");
             // connection = ConnectionMultiplexer.Connect(options);
             // db = connection.GetDatabase(3);
@@ -120,10 +137,12 @@ namespace BasicTest
         }
 
         public const string StringKey_S = "string", StringValue_S = "some suitably non-trivial value";
+
         public static readonly RedisKey GeoKey = "GeoTest",
             IncrByKey = "counter",
             StringKey_K = StringKey_S,
             HashKey = "hash";
+
         public static readonly RedisValue StringValue_V = StringValue_S;
 
         void IDisposable.Dispose()
@@ -156,6 +175,7 @@ namespace BasicTest
                 expected += x;
                 db.StringIncrement(IncrByKey, x, CommandFlags.FireAndForget);
             }
+
             int actual = (int)db.StringGet(IncrByKey);
             if (actual != expected) throw new InvalidOperationException($"expected: {expected}, actual: {actual}");
             return actual;
@@ -177,6 +197,7 @@ namespace BasicTest
                 expected += x;
                 await db.StringIncrementAsync(IncrByKey, x, CommandFlags.FireAndForget).ConfigureAwait(false);
             }
+
             int actual = (int)await db.StringGetAsync(IncrByKey).ConfigureAwait(false);
             if (actual != expected) throw new InvalidOperationException($"expected: {expected}, actual: {actual}");
             return actual;
@@ -189,11 +210,20 @@ namespace BasicTest
         public int ExecuteGeoRadius()
         {
             int total = 0;
+            const GeoRadiusOptions options = GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance |
+                                             GeoRadiusOptions.WithGeoHash;
             for (int i = 0; i < OperationsPerInvoke; i++)
             {
-                var results = db.GeoRadius(GeoKey, 15, 37, 200, GeoUnit.Kilometers, options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash);
+                var results = db.GeoRadius(
+                    GeoKey,
+                    15,
+                    37,
+                    200,
+                    GeoUnit.Kilometers,
+                    options: options);
                 total += results.Length;
             }
+
             return total;
         }
 
@@ -203,12 +233,22 @@ namespace BasicTest
         // [Benchmark(Description = "GEORADIUS/a", OperationsPerInvoke = COUNT)]
         public async Task<int> ExecuteGeoRadiusAsync()
         {
+            var options = GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance |
+                          GeoRadiusOptions.WithGeoHash;
             int total = 0;
             for (int i = 0; i < OperationsPerInvoke; i++)
             {
-                var results = await db.GeoRadiusAsync(GeoKey, 15, 37, 200, GeoUnit.Kilometers, options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash).ConfigureAwait(false);
+                var results = await db.GeoRadiusAsync(
+                        GeoKey,
+                        15,
+                        37,
+                        200,
+                        GeoUnit.Kilometers,
+                        options: options)
+                    .ConfigureAwait(false);
                 total += results.Length;
             }
+
             return total;
         }
 
@@ -464,6 +504,7 @@ namespace BasicTest
             mux?.Dispose();
             GC.SuppressFinalize(this);
         }
+
         public Issue898()
         {
             mux = ConnectionMultiplexer.Connect("127.0.0.1:6379");
@@ -471,6 +512,7 @@ namespace BasicTest
         }
 
         private const int Max = 100000;
+
         [Benchmark(OperationsPerInvoke = Max)]
         public void Load()
         {
@@ -479,6 +521,7 @@ namespace BasicTest
                 db.StringSet(i.ToString(), i);
             }
         }
+
         [Benchmark(OperationsPerInvoke = Max)]
         public async Task LoadAsync()
         {
@@ -487,6 +530,7 @@ namespace BasicTest
                 await db.StringSetAsync(i.ToString(), i).ConfigureAwait(false);
             }
         }
+
         [Benchmark(OperationsPerInvoke = Max)]
         public void Sample()
         {

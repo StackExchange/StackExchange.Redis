@@ -36,7 +36,7 @@ public readonly struct ResponseSummary(RespPrefix prefix, int length, long proto
 
         public ResponseSummary Parse(in Void state, ref RespReader reader)
         {
-            var protocolBytes = reader.ProtocolBytes;
+            var protocolBytes = reader.ProtocolBytesRemaining;
             int length = 0;
             if (reader.TryMoveNext())
             {

@@ -39,6 +39,61 @@ namespace System.IO
             }
         }
 
+        public static int Read(this Stream stream, Memory<byte> value)
+        {
+            if (MemoryMarshal.TryGetArray<byte>(value, out var segment))
+            {
+                return stream.Read(segment.Array!, segment.Offset, segment.Count);
+            }
+            else
+            {
+                var leased = ArrayPool<byte>.Shared.Rent(value.Length);
+                int bytes = stream.Read(leased, 0,  value.Length);
+                if (bytes > 0)
+                {
+                    leased.AsSpan(0, bytes).CopyTo(value.Span);
+                }
+                ArrayPool<byte>.Shared.Return(leased); // on success only
+                return bytes;
+            }
+        }
+
+        public static ValueTask<int> ReadAsync(this Stream stream, Memory<byte> value, CancellationToken cancellationToken)
+        {
+            if (MemoryMarshal.TryGetArray<byte>(value, out var segment))
+            {
+                return new(stream.ReadAsync(segment.Array!, segment.Offset, segment.Count, cancellationToken));
+            }
+            else
+            {
+                var leased = ArrayPool<byte>.Shared.Rent(value.Length);
+                var pending = stream.ReadAsync(leased, 0, value.Length, cancellationToken);
+                if (!pending.IsCompleted)
+                {
+                    return Awaited(pending, value, leased);
+                }
+
+                var bytes = pending.GetAwaiter().GetResult();
+                if (bytes > 0)
+                {
+                    leased.AsSpan(0, bytes).CopyTo(value.Span);
+                }
+                ArrayPool<byte>.Shared.Return(leased); // on success only
+                return new(bytes);
+
+                static async ValueTask<int> Awaited(Task<int> pending, Memory<byte> value, byte[] leased)
+                {
+                    var bytes = await pending.ConfigureAwait(false);
+                    if (bytes > 0)
+                    {
+                        leased.AsSpan(0, bytes).CopyTo(value.Span);
+                    }
+                    ArrayPool<byte>.Shared.Return(leased); // on success only
+                    return bytes;
+                }
+            }
+        }
+
         public static ValueTask WriteAsync(this Stream stream, ReadOnlyMemory<byte> value, CancellationToken cancellationToken)
         {
             if (MemoryMarshal.TryGetArray(value, out var segment))

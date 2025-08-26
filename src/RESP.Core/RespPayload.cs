@@ -170,11 +170,20 @@ internal static class ActivationHelper
         : IThreadPoolWorkItem
 #endif
     {
-        private WorkItem(byte[] payload, int length, IRespMessage message)
+        private WorkItem()
         {
-            this._payload = payload;
-            this._length = length;
-            this._message = message;
+#if NET5_0_OR_GREATER
+            Unsafe.SkipInit(out _payload);
+#else
+            _payload = [];
+#endif
+        }
+
+        private void Init(byte[] payload, int length, IRespMessage message)
+        {
+            _payload = payload;
+            _length = length;
+            _message = message;
         }
 
         private byte[] _payload;
@@ -182,21 +191,23 @@ internal static class ActivationHelper
         private IRespMessage? _message;
 
         private static WorkItem? _spare; // do NOT use ThreadStatic - different producer/consumer, no overlap
-        public static void UnsafeQueueUserWorkItem(IRespMessage message, ReadOnlySpan<byte> payload)
+
+        public static void UnsafeQueueUserWorkItem(
+            IRespMessage message,
+            ReadOnlySpan<byte> payload,
+            ref byte[]? lease)
         {
-            var oversized = ArrayPool<byte>.Shared.Rent(payload.Length);
-            payload.CopyTo(oversized);
-            var obj = Interlocked.Exchange(ref _spare, null);
-            if (obj is null)
+            if (lease is null)
             {
-                obj = new(oversized, payload.Length, message);
+                // we need to create our own copy of the data
+                lease = ArrayPool<byte>.Shared.Rent(payload.Length);
+                payload.CopyTo(lease);
             }
-            else
-            {
-                obj._payload = oversized;
-                obj._length = payload.Length;
-                obj._message = message;
-            }
+
+            var obj = Interlocked.Exchange(ref _spare, null) ?? new();
+            obj.Init(lease, payload.Length, message);
+            lease = null; // count as claimed
+
             DebugCounters.OnCopyOut(payload.Length);
 #if NETCOREAPP3_0_OR_GREATER
             ThreadPool.UnsafeQueueUserWorkItem(obj, false);
@@ -238,7 +249,7 @@ internal static class ActivationHelper
         }
     }
 
-    public static void ProcessResponse(IRespMessage? pending, ReadOnlySpan<byte> payload)
+    public static void ProcessResponse(IRespMessage? pending, ReadOnlySpan<byte> payload, ref byte[]? lease)
     {
         if (pending is null)
         {
@@ -250,7 +261,7 @@ internal static class ActivationHelper
         }
         else
         {
-            WorkItem.UnsafeQueueUserWorkItem(pending, payload);
+            WorkItem.UnsafeQueueUserWorkItem(pending, payload, ref lease);
         }
     }
 }
@@ -341,7 +352,11 @@ internal abstract class InternalRespMessageBase<TState, TResponse> : IRespIntern
         _requestRefCount = 0;
     }
 
-    protected void Reset(byte[] requestPayload, int requestLength, IRespParser<TState, TResponse>? parser, in TState state)
+    protected void Reset(
+        byte[] requestPayload,
+        int requestLength,
+        IRespParser<TState, TResponse>? parser,
+        in TState state)
     {
         _parser = parser;
         _state = state;
@@ -462,6 +477,7 @@ internal sealed class SyncInternalRespMessage<TState, TResponse> : InternalRespM
                 {
                     _spare = this;
                 }
+
                 return result;
             case SyncRespMessageStatus.Faulted:
                 throw _exception ?? new InvalidOperationException("Operation failed");
@@ -484,6 +500,7 @@ internal sealed class SyncInternalRespMessage<TState, TResponse> : InternalRespM
     }
 
     [ThreadStatic]
+    // this comment just to stop a weird formatter glitch
     private static SyncInternalRespMessage<TState, TResponse>? _spare;
 
     public static SyncInternalRespMessage<TState, TResponse> Create(
@@ -568,6 +585,7 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
     IValueTaskSource<TResponse>, IValueTaskSource
 {
     [ThreadStatic]
+    // this comment just to stop a weird formatter glitch
     private static AsyncInternalRespMessage<TState, TResponse>? _spare;
 
     // we need synchronization over multiple attempts (completion, cancellation, abort) trying
@@ -629,6 +647,7 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
             _asyncCore.SetResult(value);
             return true;
         }
+
         return false;
     }
 
@@ -639,6 +658,7 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
             _asyncCore.SetException(exception);
             return true;
         }
+
         return false;
     }
 
@@ -649,6 +669,7 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
             _asyncCore.SetException(new OperationCanceledException(cancellationToken));
             return true;
         }
+
         return false;
     }
 
@@ -657,6 +678,7 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
         RegisterForCancellation(cancellationToken);
         return new(this, _asyncCore.Version);
     }
+
     public ValueTask WaitUntypedValueTaskAsync(CancellationToken cancellationToken = default)
     {
         RegisterForCancellation(cancellationToken);
@@ -671,7 +693,11 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
 
     public ValueTaskSourceStatus GetStatus(short token) => _asyncCore.GetStatus(token);
 
-    public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+    public void OnCompleted(
+        Action<object?> continuation,
+        object? state,
+        short token,
+        ValueTaskSourceOnCompletedFlags flags)
         => _asyncCore.OnCompleted(continuation, state, token, flags);
 
     public TResponse GetResult(short token)

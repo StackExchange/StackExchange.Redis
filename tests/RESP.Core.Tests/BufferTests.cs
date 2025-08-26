@@ -101,6 +101,15 @@ public class BufferTests
         }
     }
 
+    [Fact]
+    public void SkipAggregate()
+    {
+        var reader = new RespReader("*1\r\n$3\r\nabc\r\n"u8); // ["abc"]
+        reader.MoveNext();
+        reader.SkipChildren();
+        Assert.False(reader.TryMoveNext());
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

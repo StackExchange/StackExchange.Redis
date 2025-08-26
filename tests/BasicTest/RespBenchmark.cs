@@ -7,6 +7,8 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using BenchmarkDotNet.Running;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Resp;
 using Void = Resp.Void;
 
@@ -24,10 +26,12 @@ public partial class RespBenchmark : IDisposable
     private readonly bool _multiplexed, _cancel;
     public const int DefaultPort = 6379, DefaultRequests = 100_000, DefaultPipelineDepth = 1, DefaultClients = 50;
     public const bool DefaultMultiplexed = false, DefaultCancel = false;
+    public const string DefaultTests = "";
     private readonly byte[] _payload;
     private readonly (string Key, byte[] Value)[] _pairs;
 
     private const string _key = "key:__rand_int__";
+    private readonly HashSet<string> _tests = new(StringComparer.OrdinalIgnoreCase);
 
     public RespBenchmark(
         int port = DefaultPort,
@@ -35,7 +39,8 @@ public partial class RespBenchmark : IDisposable
         int pipelineDepth = DefaultPipelineDepth,
         int clients = DefaultClients,
         bool multiplexed = DefaultMultiplexed,
-        bool cancel = DefaultCancel)
+        bool cancel = DefaultCancel,
+        string tests = DefaultTests)
     {
         if (clients <= 0) throw new ArgumentOutOfRangeException(nameof(clients));
         if (pipelineDepth <= 0) throw new ArgumentOutOfRangeException(nameof(pipelineDepth));
@@ -46,6 +51,14 @@ public partial class RespBenchmark : IDisposable
         _cancel = cancel;
         _connectionPool = new(count: multiplexed ? 1 : clients);
         _pairs = new (string, byte[])[10];
+        if (!string.IsNullOrWhiteSpace(tests))
+        {
+            foreach (var test in tests.Split(','))
+            {
+                var t = test.Trim();
+                if (!string.IsNullOrWhiteSpace(t)) _tests.Add(t);
+            }
+        }
         for (var i = 0; i < 10; i++)
         {
             _pairs[i] = ($"{_key}{i}", _payload);
@@ -183,13 +196,13 @@ public partial class RespBenchmark : IDisposable
     [DisplayName("LPUSH")]
     private Task<Void> LPush(RespContext ctx) => Pipeline(() => ctx.LPushAsync(_key, _payload));
 
-    [DisplayName("LRANGE_100 (100 of 450)")]
+    [DisplayName("LRANGE_100"), Description("(100 of 450)")]
     private Task<ResponseSummary> LRange100(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 99));
 
-    [DisplayName("LRANGE_300 (300 of 450)")]
+    [DisplayName("LRANGE_300"), Description("(300 of 450)")]
     private Task<ResponseSummary> LRange300(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 299));
 
-    [DisplayName("LRANGE_500 (450 of 450)")]
+    [DisplayName("LRANGE_500"), Description("(450 of 450)")]
     private Task<ResponseSummary> LRange500(RespContext ctx) => Pipeline(() => ctx.LRangeAsync(_key, 0, 499));
 
     [DisplayName("LPOP")]
@@ -240,11 +253,25 @@ public partial class RespBenchmark : IDisposable
         if (action.Method.GetCustomAttribute(typeof(DisplayNameAttribute)) is DisplayNameAttribute
             {
                 DisplayName: { Length: > 0 }
-            } attr)
+            } dna)
         {
-            name = attr.DisplayName;
+            name = dna.DisplayName;
         }
 
+        // skip test if not needed
+        if (_tests.Count != 0 && !_tests.Contains(name)) return;
+
+        // include additional test metadata
+        string description = "";
+        if (action.Method.GetCustomAttribute(typeof(DescriptionAttribute)) is DescriptionAttribute
+            {
+                Description: { Length: > 0 }
+            } da)
+        {
+            description = $" {description}";
+        }
+
+        Console.WriteLine($"====== {name}{description} ======");
         try
         {
             await CleanupAsync().ConfigureAwait(false);
@@ -271,7 +298,6 @@ public partial class RespBenchmark : IDisposable
             var rate = (totalOperations / seconds) / 1000;
             Console.WriteLine(
                 $"""
-                 ====== {name} ======
                  {totalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:0.00} kops/sec""
                  {clients.Length:#,##0} parallel clients{(_multiplexed ? ", multiplexed" : "")}
                  """);
@@ -292,17 +318,14 @@ public partial class RespBenchmark : IDisposable
                 T result = await pending[pending.Length - 1];
                 Console.WriteLine(format, result);
             }
-
-            Console.WriteLine();
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine(
-                $"""
-                 ====== {name} ======
-                 {ex.Message}
-
-                 """);
+            Console.Error.WriteLine(ex.Message);
+        }
+        finally
+        {
+            Console.WriteLine();
         }
     }
 

@@ -23,7 +23,7 @@ namespace Resp;
 ///   - call <see cref="TryGetCommitted"/> to see if there is a single-span chunk; otherwise
 ///   - call <see cref="GetAllCommitted"/> to get the multi-span chunk
 ///   - (process none, some, or all of that data)
-///   - call <see cref="DiscardCommitted"/> to indicate how much data is no longer needed
+///   - call <see cref="DiscardCommitted(int)"/> to indicate how much data is no longer needed
 ///  Emphasis: no concurrency! This is intended for a single worker acting as both producer and consumer.
 /// </remarks>
 internal struct CycleBuffer
@@ -132,7 +132,29 @@ internal struct CycleBuffer
         }
     }
 
-    private void DiscardCommittedSlow(int count)
+    public void DiscardCommitted(long count)
+    {
+        DebugAssertValid();
+        // optimize for most common case, where we consume everything
+        if (ReferenceEquals(startSegment, endSegment)
+            & count == EndSegmentCommitted
+            & (endSegmentCommittedAndFirstTrimmedFlag & MSB) == 0) // checks sign *and* non-trimmed
+        {
+            // we are consuming all the data in the single segment; we can
+            // just reset that segment back to full size and re-use as-is;
+            // already checked MSB/trimmed, which means we don't need to do *anything*
+            // except push this back to zero
+            endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+            DebugAssertValid(0);
+            DebugCounters.OnDiscardFull(count);
+        }
+        else
+        {
+            DiscardCommittedSlow(count);
+        }
+    }
+
+    private void DiscardCommittedSlow(long count)
     {
         DebugCounters.OnDiscardPartial(count);
 #if DEBUG
@@ -167,9 +189,10 @@ internal struct CycleBuffer
                 else
                 {
                     // discard from the start
-                    segment.TrimStart(count);
-                    endSegmentLength -= count;
-                    EndSegmentCommitted -= count;
+                    int count32 = checked((int)count);
+                    segment.TrimStart(count32);
+                    endSegmentLength -= count32;
+                    EndSegmentCommitted -= count32;
                     FirstSegmentTrimmed = true;
 #if DEBUG
                     blame += ",partial-final";
@@ -185,7 +208,7 @@ internal struct CycleBuffer
 #if DEBUG
                 var len = segment.Length;
 #endif
-                segment.TrimStart(count);
+                segment.TrimStart((int)count);
                 FirstSegmentTrimmed = true;
                 Debug.Assert(segment.Length > 0, "parial trim should have left non-empty segment");
 #if DEBUG
@@ -250,7 +273,7 @@ internal struct CycleBuffer
             endSegmentLength == endSegment!.Length,
             $"end segment length is incorrect - expected {endSegmentLength}, got {endSegment.Length}");
         Debug.Assert(FirstSegmentTrimmed == startSegment.IsTrimmed(), "start segment trimmed is incorrect");
-        Debug.Assert(EndSegmentCommitted <= endSegmentLength);
+        Debug.Assert(EndSegmentCommitted <= endSegmentLength, "end segment is over-committed");
     }
 
     public long GetCommittedLength()
@@ -430,6 +453,15 @@ internal struct CycleBuffer
 
         // new segment, will always be entire
         return MemoryMarshal.AsMemory(GetNextSegment().Memory);
+    }
+
+    public int UncommittedAvailable
+    {
+        get
+        {
+            DebugAssertValid();
+            return endSegmentLength - EndSegmentCommitted;
+        }
     }
 
     private sealed class Segment : ReadOnlySequenceSegment<byte>
