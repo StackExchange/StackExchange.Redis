@@ -413,21 +413,21 @@ public class RespCommandGenerator : IIncrementalGenerator
                     var dataParameters = DataParameterCount(method.Parameters);
                     sb.Append(")");
                     indent++;
-                    sb = NewLine();
-                    var parser = method.Parser ?? InbuiltParser(method.ReturnType);
-                    if (method.Context is { Length: > 0 } & formatter is { Length: > 0 } & parser is { Length: > 0 })
-                    {
-                        sb.Append("// ");
-                    }
 
-                    sb.Append("=> ");
+                    var parser = method.Parser ?? InbuiltParser(method.ReturnType);
+                    bool useDirectCall = method.Context is { Length: > 0 } & formatter is { Length: > 0 } &
+                                         parser is { Length: > 0 };
+
                     if (string.IsNullOrWhiteSpace(method.Context))
                     {
-                        sb.Append("throw new NotSupportedException(\"No RespContext available\");");
+                        NewLine().Append("=> throw new NotSupportedException(\"No RespContext available\");");
+                        useDirectCall = false;
                     }
-                    else
+                    else if (!(useDirectCall & asAsync))
                     {
-                        sb.Append(method.Context).Append(".Command(").Append(csValue).Append("u8");
+                        sb = NewLine();
+                        if (useDirectCall) sb.Append("// ");
+                        sb.Append("=> ").Append(method.Context).Append(".Command(").Append(csValue).Append("u8");
                         if (dataParameters != 0)
                         {
                             sb.Append(", ");
@@ -448,7 +448,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                         sb.Append("(").Append(parser).Append(");");
                     }
 
-                    if (method.Context is { Length: > 0 } & formatter is { Length: > 0 } & parser is { Length: > 0 })
+                    if (useDirectCall) // avoid the intermediate step when possible
                     {
                         sb = NewLine().Append("=> global::Resp.Message.Send").Append(asAsync ? "Async" : "")
                             .Append('<');
@@ -456,7 +456,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                             method.Parameters,
                             sb,
                             isSharedFormatter ? TupleMode.SyntheticNames : TupleMode.NamedTuple);
-                        sb.Append(",").Append(method.ReturnType).Append(">(in ").Append(method.Context).Append(", ")
+                        sb.Append(", ").Append(method.ReturnType).Append(">(").Append(method.Context).Append(", ")
                             .Append(csValue).Append("u8").Append(", ");
                         WriteTuple(method.Parameters, sb, TupleMode.Values);
                         sb.Append(", ").Append(formatter).Append(", ").Append(parser).Append(");");
