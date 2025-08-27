@@ -20,7 +20,11 @@ internal partial class DebugCounters
         _tallyDiscardPartialCount,
         _tallyPipelineFullAsyncCount,
         _tallyPipelineSendAsyncCount,
-        _tallyPipelineFullSyncCount;
+        _tallyPipelineFullSyncCount,
+        _tallyBatchWriteCount,
+        _tallyBatchWriteFullPageCount,
+        _tallyBatchWritePartialPageCount,
+        _tallyBatchWriteMessageCount;
 
     private static long _tallyWriteBytes, _tallyReadBytes, _tallyCopyOutBytes, _tallyDiscardAverage;
 #endif
@@ -30,6 +34,27 @@ internal partial class DebugCounters
 #if DEBUG
         Interlocked.Increment(ref _tallyReadCount);
         if (bytes > 0) Interlocked.Add(ref _tallyReadBytes, bytes);
+#endif
+    }
+
+    public static void OnBatchWrite(int messageCount)
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBatchWriteCount);
+        if (messageCount != 0) Interlocked.Add(ref _tallyBatchWriteMessageCount, messageCount);
+#endif
+    }
+
+    public static void OnBatchWriteFullPage()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBatchWriteFullPageCount);
+#endif
+    }
+    public static void OnBatchWritePartialPage()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBatchWritePartialPageCount);
 #endif
     }
 
@@ -150,5 +175,9 @@ internal partial class DebugCounters
     public int PipelineFullAsyncCount { get; } = Interlocked.Exchange(ref _tallyPipelineFullAsyncCount, 0);
     public int PipelineSendAsyncCount { get; } = Interlocked.Exchange(ref _tallyPipelineSendAsyncCount, 0);
     public int PipelineFullSyncCount { get; } = Interlocked.Exchange(ref _tallyPipelineFullSyncCount, 0);
+    public int BatchWriteCount { get; } = Interlocked.Exchange(ref _tallyBatchWriteCount, 0);
+    public int BatchWriteFullPageCount { get; } = Interlocked.Exchange(ref _tallyBatchWriteFullPageCount, 0);
+    public int BatchWritePartialPageCount { get; } = Interlocked.Exchange(ref _tallyBatchWritePartialPageCount, 0);
+    public int BatchWriteMessageCount { get; } = Interlocked.Exchange(ref _tallyBatchWriteMessageCount, 0);
 #endif
 }

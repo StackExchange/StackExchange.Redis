@@ -116,8 +116,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         {
             return () =>
             {
-                batch.Flush();
-                return default;
+                return new(batch.FlushAsync());
             };
         }
 

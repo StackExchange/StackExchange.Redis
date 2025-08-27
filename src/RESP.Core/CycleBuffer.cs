@@ -55,25 +55,7 @@ partial struct CycleBuffer
 
     private Segment? startSegment, endSegment;
 
-    private int endSegmentCommittedAndFirstTrimmedFlag, endSegmentLength;
-    private const int MSB = 1 << 31;
-
-    private int EndSegmentCommitted
-    {
-        get => endSegmentCommittedAndFirstTrimmedFlag & ~MSB;
-        // set: preserve MSB
-        set => endSegmentCommittedAndFirstTrimmedFlag = (value & ~MSB) | (endSegmentCommittedAndFirstTrimmedFlag & MSB);
-    }
-
-    private bool FirstSegmentTrimmed
-    {
-        get => (endSegmentCommittedAndFirstTrimmedFlag & MSB) != 0;
-        set
-        {
-            if (value) endSegmentCommittedAndFirstTrimmedFlag |= MSB;
-            else endSegmentCommittedAndFirstTrimmedFlag &= ~MSB;
-        }
-    }
+    private int endSegmentCommitted, endSegmentLength;
 
     public bool TryGetCommitted(out ReadOnlySpan<byte> span)
     {
@@ -84,7 +66,7 @@ partial struct CycleBuffer
             return false;
         }
 
-        span = startSegment is null ? default : startSegment.Memory.Span.Slice(start: 0, length: EndSegmentCommitted);
+        span = startSegment is null ? default : startSegment.Memory.Span.Slice(start: 0, length: endSegmentCommitted);
         return true;
     }
 
@@ -101,15 +83,15 @@ partial struct CycleBuffer
             return;
         }
 
-        var available = endSegmentLength - EndSegmentCommitted;
+        var available = endSegmentLength - endSegmentCommitted;
         if (count > available) Throw();
-        EndSegmentCommitted += count;
+        endSegmentCommitted += count;
         DebugAssertValid();
 
         static void Throw() => throw new ArgumentOutOfRangeException(nameof(count));
     }
 
-    public bool CommittedIsEmpty => ReferenceEquals(startSegment, endSegment) & EndSegmentCommitted == 0;
+    public bool CommittedIsEmpty => ReferenceEquals(startSegment, endSegment) & endSegmentCommitted == 0;
 
     /// <summary>
     /// Marks committed data as fully consumed; it will no longer appear in later calls to <see cref="GetAllCommitted"/>.
@@ -119,16 +101,23 @@ partial struct CycleBuffer
         DebugAssertValid();
         // optimize for most common case, where we consume everything
         if (ReferenceEquals(startSegment, endSegment)
-            & count == EndSegmentCommitted
-            & (endSegmentCommittedAndFirstTrimmedFlag & MSB) == 0) // checks sign *and* non-trimmed
+            & count == endSegmentCommitted
+            & count > 0)
         {
-            // we are consuming all the data in the single segment; we can
-            // just reset that segment back to full size and re-use as-is;
-            // already checked MSB/trimmed, which means we don't need to do *anything*
-            // except push this back to zero
-            endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+            /*
+            we are consuming all the data in the single segment; we can
+            just reset that segment back to full size and re-use as-is;
+            note that we also know that there must *be* a segment
+            for the count check to pass
+            */
+            endSegmentCommitted = 0;
+            endSegmentLength = endSegment!.Untrim(expandBackwards: true);
             DebugAssertValid(0);
             DebugCounters.OnDiscardFull(count);
+        }
+        else if (count == 0)
+        {
+            // nothing to do
         }
         else
         {
@@ -141,16 +130,18 @@ partial struct CycleBuffer
         DebugAssertValid();
         // optimize for most common case, where we consume everything
         if (ReferenceEquals(startSegment, endSegment)
-            & count == EndSegmentCommitted
-            & (endSegmentCommittedAndFirstTrimmedFlag & MSB) == 0) // checks sign *and* non-trimmed
+            & count == endSegmentCommitted
+            & count > 0) // checks sign *and* non-trimmed
         {
-            // we are consuming all the data in the single segment; we can
-            // just reset that segment back to full size and re-use as-is;
-            // already checked MSB/trimmed, which means we don't need to do *anything*
-            // except push this back to zero
-            endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+            // see <see cref="DiscardCommitted(int)"/> for logic
+            endSegmentCommitted = 0;
+            endSegmentLength = endSegment!.Untrim(expandBackwards: true);
             DebugAssertValid(0);
             DebugCounters.OnDiscardFull(count);
+        }
+        else if (count == 0)
+        {
+            // nothing to do
         }
         else
         {
@@ -175,17 +166,10 @@ partial struct CycleBuffer
             if (ReferenceEquals(segment, endSegment))
             {
                 // first==final==only segment
-                if (count == endSegmentCommittedAndFirstTrimmedFlag) // note already checked sign, so: not trimmed
-                {
-                    endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
-#if DEBUG
-                    blame += ",full-final (u)";
-#endif
-                }
-                else if (count == EndSegmentCommitted)
+                if (count == endSegmentCommitted)
                 {
                     endSegmentLength = startSegment!.Untrim();
-                    endSegmentCommittedAndFirstTrimmedFlag = 0; // = untrimmed and unused
+                    endSegmentCommitted = 0; // = untrimmed and unused
 #if DEBUG
                     blame += ",full-final (t)";
 #endif
@@ -196,8 +180,7 @@ partial struct CycleBuffer
                     int count32 = checked((int)count);
                     segment.TrimStart(count32);
                     endSegmentLength -= count32;
-                    EndSegmentCommitted -= count32;
-                    FirstSegmentTrimmed = true;
+                    endSegmentCommitted -= count32;
 #if DEBUG
                     blame += ",partial-final";
 #endif
@@ -213,7 +196,6 @@ partial struct CycleBuffer
                 var len = segment.Length;
 #endif
                 segment.TrimStart((int)count);
-                FirstSegmentTrimmed = true;
                 Debug.Assert(segment.Length > 0, "parial trim should have left non-empty segment");
 #if DEBUG
                 Debug.Assert(segment.Length == len - count, "trim failure");
@@ -228,7 +210,6 @@ partial struct CycleBuffer
                 count -= segment.Length;
                 startSegment =
                     segment.ResetAndGetNext(); // we already did a ref-check, so we know this isn't going past endSegment
-                FirstSegmentTrimmed = false;
                 endSegment!.AppendOrRecycle(segment, maxDepth: 2);
                 DebugAssertValid();
 #if DEBUG
@@ -267,7 +248,7 @@ partial struct CycleBuffer
         if (startSegment is null)
         {
             Debug.Assert(
-                endSegmentLength == 0 & endSegmentCommittedAndFirstTrimmedFlag == 0,
+                endSegmentLength == 0 & endSegmentCommitted == 0,
                 "un-init state should be zero");
             return;
         }
@@ -276,8 +257,7 @@ partial struct CycleBuffer
         Debug.Assert(
             endSegmentLength == endSegment!.Length,
             $"end segment length is incorrect - expected {endSegmentLength}, got {endSegment.Length}");
-        Debug.Assert(FirstSegmentTrimmed == startSegment.IsTrimmed(), "start segment trimmed is incorrect");
-        Debug.Assert(EndSegmentCommitted <= endSegmentLength, "end segment is over-committed");
+        Debug.Assert(endSegmentCommitted <= endSegmentLength, $"end segment is over-committed - {endSegmentCommitted} of {endSegmentLength}");
 
         // check running indices
         startSegment?.DebugAssertValidChain();
@@ -288,17 +268,27 @@ partial struct CycleBuffer
         DebugAssertValid();
         if (ReferenceEquals(startSegment, endSegment))
         {
-            return EndSegmentCommitted;
+            return endSegmentCommitted;
         }
 
         // note that the start-segment is pre-trimmed; we don't need to account for an offset on the left
-        return (endSegment!.RunningIndex + EndSegmentCommitted) - startSegment!.RunningIndex;
+        return (endSegment!.RunningIndex + endSegmentCommitted) - startSegment!.RunningIndex;
     }
 
-    public bool TryGetFirstCommittedSpan(bool fullOnly, out ReadOnlySpan<byte> span)
+    /// <summary>
+    /// When used with <see cref="TryGetFirstCommittedSpan"/>, this means "any non-empty buffer".
+    /// </summary>
+    public const int GetAnything = 0;
+
+    /// <summary>
+    /// When used with <see cref="TryGetFirstCommittedSpan"/>, this means "any full buffer".
+    /// </summary>
+    public const int GetFullPagesOnly = -1;
+
+    public bool TryGetFirstCommittedSpan(int minBytes, out ReadOnlySpan<byte> span)
     {
         DebugAssertValid();
-        if (TryGetFirstCommittedMemory(fullOnly, out var memory))
+        if (TryGetFirstCommittedMemory(minBytes, out var memory))
         {
             span = memory.Span;
             return true;
@@ -308,26 +298,41 @@ partial struct CycleBuffer
         return false;
     }
 
-    public bool TryGetFirstCommittedMemory(bool fullOnly, out ReadOnlyMemory<byte> memory)
+    /// <summary>
+    /// The minLength arg: -ve means "full segments only" (useful when buffering outbound network data to avoid
+    /// packet fragmentation); otherwise, it is the minimum length we want.
+    /// </summary>
+    public bool TryGetFirstCommittedMemory(int minBytes, out ReadOnlyMemory<byte> memory)
     {
+        if (minBytes == 0) minBytes = 1; // success always means "at least something"
         DebugAssertValid();
         if (ReferenceEquals(startSegment, endSegment))
         {
             // single page
-            if (EndSegmentCommitted == 0)
+            var available = endSegmentCommitted;
+            if (available == 0)
             {
                 // empty (includes uninitialized)
                 memory = default;
                 return false;
             }
 
-            memory = startSegment!.Memory.Slice(start: 0, length: EndSegmentCommitted);
-            return !fullOnly | EndSegmentCommitted == endSegmentLength;
+            memory = startSegment!.Memory;
+            var memLength = memory.Length;
+            if (available == memLength)
+            {
+                // full segment; is it enough to make the caller happy?
+                return available >= minBytes;
+            }
+
+            // partial segment (and we know it isn't empty)
+            memory = memory.Slice(start: 0, length: available);
+            return available >= minBytes & minBytes > 0; // last check here applies the -ve logic
         }
 
-        // multi-page
+        // multi-page; hand out the first page (which is, by definition: full)
         memory = startSegment!.Memory;
-        return true;
+        return memory.Length >= minBytes;
     }
 
     /// <summary>
@@ -340,13 +345,13 @@ partial struct CycleBuffer
             // single segment, fine
             return startSegment is null
                 ? default
-                : new ReadOnlySequence<byte>(startSegment.Memory.Slice(start: 0, length: EndSegmentCommitted));
+                : new ReadOnlySequence<byte>(startSegment.Memory.Slice(start: 0, length: endSegmentCommitted));
         }
 
 #if PARSE_DETAIL
         long length = GetCommittedLength();
 #endif
-        ReadOnlySequence<byte> ros = new(startSegment!, 0, endSegment!, EndSegmentCommitted);
+        ReadOnlySequence<byte> ros = new(startSegment!, 0, endSegment!, endSegmentCommitted);
 #if PARSE_DETAIL
         Debug.Assert(ros.Length == length, $"length mismatch: calculated {length}, actual {ros.Length}");
 #endif
@@ -358,9 +363,9 @@ partial struct CycleBuffer
         DebugAssertValid();
         if (endSegment is not null)
         {
-            endSegment.TrimEnd(EndSegmentCommitted);
-            Debug.Assert(endSegment.Length == EndSegmentCommitted, "trim failure");
-            endSegmentLength = EndSegmentCommitted;
+            endSegment.TrimEnd(endSegmentCommitted);
+            Debug.Assert(endSegment.Length == endSegmentCommitted, "trim failure");
+            endSegmentLength = endSegmentCommitted;
             DebugAssertValid();
 
             var spare = endSegment.Next;
@@ -369,7 +374,7 @@ partial struct CycleBuffer
                 // we already have a dangling segment; just update state
                 endSegment.DebugAssertValidChain();
                 endSegment = spare;
-                EndSegmentCommitted = 0;
+                endSegmentCommitted = 0;
                 endSegmentLength = spare.Length;
                 DebugAssertValid();
                 return spare;
@@ -387,7 +392,7 @@ partial struct CycleBuffer
         }
 
         endSegment.Append(newSegment);
-        EndSegmentCommitted = 0;
+        endSegmentCommitted = 0;
         endSegmentLength = newSegment.Length;
         endSegment = newSegment;
         DebugAssertValid();
@@ -410,7 +415,6 @@ partial struct CycleBuffer
         if (segment is not null)
         {
             var memory = segment.Memory;
-            var endSegmentCommitted = EndSegmentCommitted;
             if (endSegmentCommitted != 0) memory = memory.Slice(start: endSegmentCommitted);
             if (hint <= 0) // allow anything non-empty
             {
@@ -431,7 +435,7 @@ partial struct CycleBuffer
         get
         {
             DebugAssertValid();
-            return endSegmentLength - EndSegmentCommitted;
+            return endSegmentLength - endSegmentCommitted;
         }
     }
 
@@ -440,6 +444,15 @@ partial struct CycleBuffer
         private Segment() { }
         private IMemoryOwner<byte> _lease = NullLease.Instance;
         private static Segment? _spare;
+        private Flags _flags;
+
+        [Flags]
+        private enum Flags
+        {
+            None = 0,
+            StartTrim = 1 << 0,
+            EndTrim = 1 << 2,
+        }
 
         public static Segment Create(IMemoryOwner<byte> lease)
         {
@@ -489,6 +502,7 @@ partial struct CycleBuffer
             if (delta != 0)
             {
                 // buffer wasn't fully used; trim
+                _flags |= Flags.EndTrim;
                 Memory = Memory.Slice(0, newLength);
                 ApplyChainDelta(-delta);
                 DebugAssertValidChain();
@@ -497,9 +511,13 @@ partial struct CycleBuffer
 
         public void TrimStart(int remove)
         {
-            Memory = Memory.Slice(start: remove);
-            RunningIndex += remove; // so that ROS length keeps working
-            DebugAssertValidChain();
+            if (remove != 0)
+            {
+                _flags |= Flags.StartTrim;
+                Memory = Memory.Slice(start: remove);
+                RunningIndex += remove; // so that ROS length keeps working; note we *don't* need to adjust the chain
+                DebugAssertValidChain();
+            }
         }
 
         public new Segment? Next
@@ -513,6 +531,7 @@ partial struct CycleBuffer
             var next = Next;
             Next = null;
             RunningIndex = 0;
+            _flags = Flags.None;
             Memory = _lease.Memory; // reset, in case we trimmed it
             DebugAssertValidChain();
             return next;
@@ -526,6 +545,7 @@ partial struct CycleBuffer
             Next = null;
             Memory = default;
             RunningIndex = 0;
+            _flags = Flags.None;
             Interlocked.Exchange(ref _spare, this);
             DebugAssertValidChain();
         }
@@ -542,19 +562,35 @@ partial struct CycleBuffer
         /// <summary>
         /// Undo any trimming, returning the new full capacity.
         /// </summary>
-        public int Untrim()
+        public int Untrim(bool expandBackwards = false)
         {
             var fullMemory = _lease.Memory;
             var fullLength = fullMemory.Length;
             var delta = fullLength - Length;
             if (delta != 0)
             {
+                _flags &= ~(Flags.StartTrim | Flags.EndTrim);
                 Memory = fullMemory;
-                ApplyChainDelta(delta);
+                if (expandBackwards & RunningIndex >= delta)
+                {
+                    // push our origin earlier; only valid if
+                    // we're the first segment, otherwise
+                    // we break someone-else's chain
+                    RunningIndex -= delta;
+                }
+                else
+                {
+                    // push everyone else later
+                    ApplyChainDelta(delta);
+                }
+
                 DebugAssertValidChain();
             }
             return fullLength;
         }
+
+        public bool StartTrimmed => (_flags & Flags.StartTrim) != 0;
+        public bool EndTrimmed => (_flags & Flags.EndTrim) != 0;
 
         [Conditional("DEBUG")]
         public void DebugAssertValidChain([CallerMemberName] string blame = "")
@@ -573,8 +609,6 @@ partial struct CycleBuffer
                     $"Critical running index corruption in dangling chain, from '{blame}', segment {index}");
             }
         }
-
-        public bool IsTrimmed() => Length < _lease.Memory.Length;
 
         public void AppendOrRecycle(Segment segment, int maxDepth)
         {
@@ -603,7 +637,7 @@ partial struct CycleBuffer
     {
         var node = startSegment;
         startSegment = endSegment = null;
-        endSegmentCommittedAndFirstTrimmedFlag = endSegmentLength = 0;
+        endSegmentCommitted = endSegmentLength = 0;
         while (node is not null)
         {
             var next = node.Next;

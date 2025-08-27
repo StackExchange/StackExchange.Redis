@@ -479,6 +479,18 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     Console.WriteLine();
                 }
 
+                if (counters.BatchWriteCount != 0)
+                {
+                    Console.Write($"Batching; {counters.BatchWriteCount:#,##0} batches");
+                    if (counters.BatchWriteFullPageCount != 0)
+                        Console.Write($"; {counters.BatchWriteFullPageCount:#,###,##0} full pages");
+                    if (counters.BatchWritePartialPageCount != 0)
+                        Console.Write($"; {counters.BatchWritePartialPageCount:#,###,##0} partial pages");
+                    if (counters.BatchWriteMessageCount != 0)
+                        Console.Write($"; {counters.BatchWriteMessageCount:#,###,##0} messages");
+                    Console.WriteLine();
+                }
+
                 static string FormatBytes(long bytes)
                 {
                     const long K = 1024, M = K * K, G = M * K, T = G * K;

@@ -159,6 +159,9 @@ public readonly struct RespContext(
     int database = -1,
     CancellationToken cancellationToken = default)
 {
+    /// <inheritdoc/>
+    public override string ToString() => connection?.ToString() ?? "(null)";
+
     public RespContext(IRespConnection connection) : this(connection, -1, CancellationToken.None)
     {
     }

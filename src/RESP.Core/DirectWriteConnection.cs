@@ -1,4 +1,5 @@
 // #define PARSE_DETAIL // additional trace info in CommitAndParseFrames
+
 #if DEBUG
 #define PARSE_DETAIL // always enable this in debug builds
 #endif
@@ -20,7 +21,7 @@ internal sealed class DirectWriteConnection : IRespConnection
 {
     private bool _isDoomed;
     private RespScanState _readScanState;
-    private CycleBuffer _readBuffer;
+    private CycleBuffer _readBuffer, _writeBuffer;
 
     public bool CanWrite => Volatile.Read(ref _readStatus) == WRITER_AVAILABLE;
 
@@ -37,7 +38,9 @@ internal sealed class DirectWriteConnection : IRespConnection
         Configuration = configuration;
         if (!(tail.CanRead && tail.CanWrite)) Throw();
         this.tail = tail;
-        _readBuffer = CycleBuffer.Create(configuration.GetService<MemoryPool<byte>>());
+        var memoryPool = configuration.GetService<MemoryPool<byte>>();
+        _readBuffer = CycleBuffer.Create(memoryPool);
+        _writeBuffer = CycleBuffer.Create(memoryPool);
         if (asyncRead)
         {
             Reader = Task.Run(ReadAllAsync);
@@ -436,7 +439,7 @@ internal sealed class DirectWriteConnection : IRespConnection
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void OnResponseUnavailable(IRespMessage message)
+    private void OnRequestUnavailable(IRespMessage message)
     {
         if (!message.IsCompleted)
         {
@@ -450,7 +453,7 @@ internal sealed class DirectWriteConnection : IRespConnection
         bool releaseRequest = message.TryReserveRequest(out var bytes);
         if (!releaseRequest)
         {
-            OnResponseUnavailable(message);
+            OnRequestUnavailable(message);
             return;
         }
 
@@ -481,10 +484,57 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     public void Send(ReadOnlySpan<IRespMessage> messages)
     {
-        // lazy and temporary - we should pack these on the stream
-        foreach (var message in messages)
+        switch (messages.Length)
         {
-            Send(message);
+            case 0:
+                return;
+            case 1:
+                Send(messages[0]);
+                return;
+        }
+
+        TakeWriter();
+        IRespMessage? toRelease = null;
+        try
+        {
+            foreach (var message in messages)
+            {
+                if (message.TryReserveRequest(out var bytes))
+                {
+                    toRelease = message;
+                }
+                else
+                {
+                    OnRequestUnavailable(message);
+                    continue;
+                }
+
+                DebugValidateSingleFrame(bytes.Span);
+                _outstanding.Enqueue(message);
+                toRelease = null; // once we write, only release on success
+#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+                tail.Write(bytes.Span);
+#else
+                tail.Write(bytes);
+#endif
+                DebugCounters.OnWrite(bytes.Length);
+                ReleaseWriter();
+                message.ReleaseRequest();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Writer failed: {ex.Message}");
+            ActivationHelper.DebugBreak();
+            ReleaseWriter(WRITER_DOOMED);
+            toRelease?.ReleaseRequest();
+            foreach (var message in messages)
+            {
+                // assume all bad
+                message.TrySetException(ex);
+            }
+
+            throw;
         }
     }
 
@@ -493,7 +543,7 @@ internal sealed class DirectWriteConnection : IRespConnection
         bool releaseRequest = message.TryReserveRequest(out var bytes);
         if (!releaseRequest)
         {
-            OnResponseUnavailable(message);
+            OnRequestUnavailable(message);
             return Task.CompletedTask;
         }
 
@@ -557,21 +607,88 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     public Task SendAsync(ReadOnlyMemory<IRespMessage> messages)
     {
-        return messages.Length switch
+        switch (messages.Length)
         {
-            0 => Task.CompletedTask,
-            1 => SendAsync(messages.Span[0]),
-            _ => SendMultiple(this, messages),
-        };
+            case 0:
+                return Task.CompletedTask;
+            case 1:
+                return SendAsync(messages.Span[0]);
+            default:
+                return CombineAndSendMultipleAsync(this, messages);
+        }
+    }
 
-        static async Task SendMultiple(DirectWriteConnection @this, ReadOnlyMemory<IRespMessage> messages)
+    private async Task CombineAndSendMultipleAsync(DirectWriteConnection @this, ReadOnlyMemory<IRespMessage> messages)
+    {
+        TakeWriter();
+        IRespMessage? toRelease = null;
+        int definitelySent = 0;
+        try
         {
-            // lazy and temporary - we should pack these on the stream
-            var length = messages.Length;
+            int length = messages.Length;
             for (int i = 0; i < length; i++)
             {
-                await @this.SendAsync(messages.Span[i]).ConfigureAwait(false);
+                var message = messages.Span[i];
+                if (!message.TryReserveRequest(out var bytes))
+                {
+                    OnRequestUnavailable(message);
+                    continue; // skip this message
+                }
+
+                toRelease = message;
+                // append to the scratch and consider written (even though we haven't actually)
+                _writeBuffer.Write(bytes.Span);
+                toRelease = null;
+                message.ReleaseRequest();
+                @this._outstanding.Enqueue(message);
+
+                // do we have any full segments? if so, write them and narrow "messages"
+                if (_writeBuffer.TryGetFirstCommittedMemory(CycleBuffer.GetFullPagesOnly, out var memory))
+                {
+                    do
+                    {
+                        var pending = tail.WriteAsync(memory, CancellationToken.None);
+                        DebugCounters.OnAsyncWrite(memory.Length, inline: pending.IsCompleted);
+                        await pending.ConfigureAwait(false);
+                        DebugCounters.OnBatchWriteFullPage();
+
+                        _writeBuffer.DiscardCommitted(memory.Length); // mark the data as no longer needed
+                    }
+                    // and if one buffer was full, we might have multiple (think: "large BLOB outbound")
+                    while (_writeBuffer.TryGetFirstCommittedMemory(CycleBuffer.GetFullPagesOnly, out memory));
+
+                    definitelySent = i + 1; // for exception handling: no need to doom these if later fails
+                }
             }
+
+            // and send any remaining data
+            while (_writeBuffer.TryGetFirstCommittedMemory(CycleBuffer.GetAnything, out var memory))
+            {
+                var pending = tail.WriteAsync(memory, CancellationToken.None);
+                DebugCounters.OnAsyncWrite(memory.Length, inline: pending.IsCompleted);
+                await pending.ConfigureAwait(false);
+                DebugCounters.OnBatchWritePartialPage();
+
+                _writeBuffer.DiscardCommitted(memory.Length); // mark the data as no longer needed
+            }
+
+            Debug.Assert(_writeBuffer.CommittedIsEmpty, "should have written everything");
+
+            ReleaseWriter();
+            DebugCounters.OnBatchWrite(messages.Length);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Writer failed: {ex.Message}");
+            ActivationHelper.DebugBreak();
+            ReleaseWriter(WRITER_DOOMED);
+            toRelease?.ReleaseRequest();
+            foreach (var message in messages.Span.Slice(start: definitelySent))
+            {
+                message.TrySetException(ex);
+            }
+
+            throw;
         }
     }
 

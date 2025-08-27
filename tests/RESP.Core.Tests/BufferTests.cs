@@ -16,37 +16,37 @@ public class BufferTests
         CycleBuffer buffer = CycleBuffer.Create();
         Assert.True(buffer.CommittedIsEmpty);
         Assert.Equal(0, buffer.GetCommittedLength());
-        Assert.False(buffer.TryGetFirstCommittedSpan(false, out _));
+        Assert.False(buffer.TryGetFirstCommittedSpan(0, out _));
 
         buffer.Write("hello world"u8);
         Assert.False(buffer.CommittedIsEmpty, "should be empty");
         Assert.Equal(11, buffer.GetCommittedLength());
 
-        Assert.False(buffer.TryGetFirstCommittedSpan(true, out _), "should have rejected full");
-        Assert.True(buffer.TryGetFirstCommittedSpan(false, out var committed), "should have accepted partial");
+        Assert.False(buffer.TryGetFirstCommittedSpan(-1, out _), "should have rejected full");
+        Assert.True(buffer.TryGetFirstCommittedSpan(0, out var committed), "should have accepted partial");
         Assert.True(committed.SequenceEqual("hello world"u8));
         buffer.DiscardCommitted(11);
         Assert.True(buffer.CommittedIsEmpty);
         Assert.Equal(0, buffer.GetCommittedLength());
-        Assert.False(buffer.TryGetFirstCommittedSpan(false, out _));
+        Assert.False(buffer.TryGetFirstCommittedSpan(0, out _));
 
         // now partial consume
         buffer.Write("partial consume"u8);
         Assert.False(buffer.CommittedIsEmpty);
         Assert.Equal(15, buffer.GetCommittedLength());
 
-        Assert.False(buffer.TryGetFirstCommittedSpan(true, out _));
-        Assert.True(buffer.TryGetFirstCommittedSpan(false, out committed));
+        Assert.False(buffer.TryGetFirstCommittedSpan(-1, out _));
+        Assert.True(buffer.TryGetFirstCommittedSpan(0, out committed));
         Assert.True(committed.SequenceEqual("partial consume"u8));
         buffer.DiscardCommitted(8);
         Assert.False(buffer.CommittedIsEmpty);
         Assert.Equal(7, buffer.GetCommittedLength());
-        Assert.True(buffer.TryGetFirstCommittedSpan(false, out committed));
+        Assert.True(buffer.TryGetFirstCommittedSpan(0, out committed));
         Assert.True(committed.SequenceEqual("consume"u8));
         buffer.DiscardCommitted(7);
         Assert.True(buffer.CommittedIsEmpty);
         Assert.Equal(0, buffer.GetCommittedLength());
-        Assert.False(buffer.TryGetFirstCommittedSpan(false, out _));
+        Assert.False(buffer.TryGetFirstCommittedSpan(0, out _));
         buffer.Release();
     }
 
@@ -148,7 +148,7 @@ public class BufferTests
         }
         else
         {
-            while (buffer.TryGetFirstCommittedSpan(true, out var span))
+            while (buffer.TryGetFirstCommittedSpan(0, out var span))
             {
                 var take = rand.Next(span.Length) + 1;
                 var slice = span.Slice(0, take);
