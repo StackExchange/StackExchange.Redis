@@ -350,6 +350,10 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
             {
                 Console.Write(", mux");
             }
+            if (SupportCancel)
+            {
+                Console.Write(", cancel");
+            }
 
             if (PipelineDepth > 1)
             {
