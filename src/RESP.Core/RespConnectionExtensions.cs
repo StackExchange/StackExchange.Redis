@@ -194,6 +194,9 @@ public readonly struct RespContext(
 
     public RespContext WithConnection(IRespConnection connection)
         => new(connection, database, cancellationToken);
+
+    public RespContext CreateBatch()
+        => new(connection.CreateBatch(), database, cancellationToken);
 }
 
 public static class RespConnectionExtensions
@@ -208,6 +211,9 @@ public static class RespConnectionExtensions
         => ReferenceEquals(configuration, connection.Configuration)
             ? connection
             : new ConfiguredConnection(connection, configuration);
+
+    public static IRespConnection CreateBatch(this IRespConnection connection, int sizeHint = 0)
+        => new BatchConnection(connection, sizeHint);
 
     private sealed class ConfiguredConnection(IRespConnection tail, RespConfiguration configuration) : IRespConnection
     {

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -22,6 +23,20 @@ public abstract class BenchmarkBase : IDisposable
         _sortedSetKey = "myzset",
         _streamKey = "mystream";
 
+    public PipelineStrategy PipelineMode { get; } = PipelineStrategy.Batch; // the default, for parity with how redis-benchmark works
+
+    public enum PipelineStrategy
+    {
+        /// <summary>
+        /// Build a batch of operations, send them all at once.
+        /// </summary>
+        Batch,
+
+        /// <summary>
+        /// Use a queue to pipeline operations - when we hit the pipeline depth, we pop one, push one, await the popped
+        /// </summary>
+        Queue,
+    }
     private readonly HashSet<string> _tests = new(StringComparer.OrdinalIgnoreCase);
     protected bool RunTest(string name) => _tests.Count == 0 || _tests.Contains(name);
     public virtual void Dispose() { }
@@ -80,6 +95,12 @@ public abstract class BenchmarkBase : IDisposable
                 case "-t" when i != args.Length - 1:
                     tests = args[++i];
                     break;
+                case "--batch":
+                    PipelineMode = PipelineStrategy.Batch;
+                    break;
+                case "--queue":
+                    PipelineMode = PipelineStrategy.Queue;
+                    break;
             }
         }
 
@@ -99,23 +120,26 @@ public abstract class BenchmarkBase : IDisposable
 
     public abstract Task RunAll();
 
-    protected Task<Void> Pipeline(Func<Task> operation) => Pipeline(() => new ValueTask(operation()));
-    protected Task<T> Pipeline<T>(Func<Task<T>> operation) => Pipeline(() => new ValueTask<T>(operation()));
+    protected static readonly Func<ValueTask>
+        NoFlush = () => throw new NotSupportedException("Not a batch; cannot flush");
 
-    protected async Task<Void> Pipeline(Func<ValueTask> operation)
+    protected Task<Void> Pipeline(Func<Task> operation, Func<ValueTask> flush) => Pipeline(() => new ValueTask(operation()), flush);
+    protected Task<T> Pipeline<T>(Func<Task<T>> operation, Func<ValueTask> flush) => Pipeline(() => new ValueTask<T>(operation()), flush);
+
+    protected async Task<Void> Pipeline(Func<ValueTask> operation, Func<ValueTask> flush)
     {
         var opsPerClient = OperationsPerClient;
         int i = 0;
         try
         {
-            if (PipelineDepth == 1)
+            if (PipelineDepth <= 1)
             {
                 for (; i < opsPerClient; i++)
                 {
                     await operation().ConfigureAwait(false);
                 }
             }
-            else
+            else if (PipelineMode == PipelineStrategy.Queue)
             {
                 var queue = new Queue<ValueTask>(opsPerClient);
                 for (; i < opsPerClient; i++)
@@ -133,6 +157,35 @@ public abstract class BenchmarkBase : IDisposable
                     await queue.Dequeue().ConfigureAwait(false);
                 }
             }
+            else if (PipelineMode == PipelineStrategy.Batch)
+            {
+                int count = 0;
+                if (flush is null) throw new InvalidOperationException("Flush is required for batch mode");
+                var oversized = ArrayPool<ValueTask>.Shared.Rent(PipelineDepth);
+                for (; i < opsPerClient; i++)
+                {
+                    oversized[count++] = operation();
+                    if (count == PipelineDepth)
+                    {
+                        await flush().ConfigureAwait(false);
+                        for (int j = 0; j < count; j++)
+                        {
+                            await oversized[j].ConfigureAwait(false);
+                        }
+                        count = 0;
+                    }
+                }
+                await flush().ConfigureAwait(false);
+                for (int j = 0; j < count; j++)
+                {
+                    await oversized[j].ConfigureAwait(false);
+                }
+                ArrayPool<ValueTask>.Shared.Return(oversized);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unexpected pipeline mode: {PipelineMode}");
+            }
         }
         catch (Exception ex)
         {
@@ -142,7 +195,7 @@ public abstract class BenchmarkBase : IDisposable
         return Void.Instance;
     }
 
-    protected async Task<T> Pipeline<T>(Func<ValueTask<T>> operation)
+    protected async Task<T> Pipeline<T>(Func<ValueTask<T>> operation, Func<ValueTask> flush)
     {
         var opsPerClient = OperationsPerClient;
         int i = 0;
@@ -156,7 +209,7 @@ public abstract class BenchmarkBase : IDisposable
                     result = await operation().ConfigureAwait(false);
                 }
             }
-            else
+            else if (PipelineMode == PipelineStrategy.Queue)
             {
                 var queue = new Queue<ValueTask<T>>(opsPerClient);
                 for (; i < opsPerClient; i++)
@@ -174,6 +227,35 @@ public abstract class BenchmarkBase : IDisposable
                     result = await queue.Dequeue().ConfigureAwait(false);
                 }
             }
+            else if (PipelineMode == PipelineStrategy.Batch)
+            {
+                int count = 0;
+                if (flush is null) throw new InvalidOperationException("Flush is required for batch mode");
+                var oversized = ArrayPool<ValueTask<T>>.Shared.Rent(PipelineDepth);
+                for (; i < opsPerClient; i++)
+                {
+                    oversized[count++] = operation();
+                    if (count == PipelineDepth)
+                    {
+                        await flush().ConfigureAwait(false);
+                        for (int j = 0; j < count; j++)
+                        {
+                            result = await oversized[j].ConfigureAwait(false);
+                        }
+                        count = 0;
+                    }
+                }
+                await flush().ConfigureAwait(false);
+                for (int j = 0; j < count; j++)
+                {
+                    result = await oversized[j].ConfigureAwait(false);
+                }
+                ArrayPool<ValueTask<T>>.Shared.Return(oversized);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unexpected pipeline mode: {PipelineMode}");
+            }
         }
         catch (Exception ex)
         {
@@ -190,6 +272,8 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
     protected virtual Task OnCleanupAsync(TClient client) => Task.CompletedTask;
 
     protected virtual Task InitAsync(TClient client) => Task.CompletedTask;
+
+    protected virtual Func<ValueTask> GetFlush(TClient client) => NoFlush;
 
     public async Task CleanupAsync()
     {
@@ -223,9 +307,11 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
     protected virtual TClient WithCancellation(TClient client, CancellationToken cancellationToken) => client;
     protected abstract Task Delete(TClient client, string key);
 
+    protected abstract TClient CreateBatch(TClient client);
+
     protected async Task RunAsync<T>(
         string key,
-        Func<TClient, Task<T>> action,
+        Func<TClient, Func<ValueTask>, Task<T>> action,
         Func<TClient, Task> init = null,
         string format = "")
     {
@@ -267,7 +353,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
             if (PipelineDepth > 1)
             {
-                Console.Write($", pipeline: {PipelineDepth:#,##0}");
+                Console.Write($", {PipelineMode}: {PipelineDepth:#,##0}");
             }
 
             Console.WriteLine(")");
@@ -299,7 +385,12 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
             for (int i = 0; i < ClientCount; i++)
             {
                 var client = GetClient(i);
-                pending[index++] = Task.Run(() => action(WithCancellation(client, cancellationToken)));
+                if (PipelineMode == PipelineStrategy.Batch && PipelineDepth > 1)
+                {
+                    client = CreateBatch(client);
+                }
+                var flush = GetFlush(client);
+                pending[index++] = Task.Run(() => action(WithCancellation(client, cancellationToken), flush));
             }
 
             await Task.WhenAll(pending).ConfigureAwait(false);

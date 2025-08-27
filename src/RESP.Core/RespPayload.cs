@@ -733,7 +733,33 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
 
     public ValueTask<TResponse> WaitTypedAsync() => new(this, _asyncCore.Version);
 
+    internal ValueTask<TResponse> WaitTypedAsync(Task send)
+    {
+        if (!send.IsCompleted) return Awaited(send, this);
+        send.GetAwaiter().GetResult();
+        return new(this, _asyncCore.Version);
+
+        static async ValueTask<TResponse> Awaited(Task task, AsyncInternalRespMessage<TState, TResponse> @this)
+        {
+            await task.ConfigureAwait(false);
+            return await @this.WaitTypedAsync().ConfigureAwait(false);
+        }
+    }
+
     public ValueTask WaitUntypedAsync() => new(this, _asyncCore.Version);
+
+    internal ValueTask WaitUntypedAsync(Task send)
+    {
+        if (!send.IsCompleted) return Awaited(send, this);
+        send.GetAwaiter().GetResult();
+        return new(this, _asyncCore.Version);
+
+        static async ValueTask Awaited(Task task, AsyncInternalRespMessage<TState, TResponse> @this)
+        {
+            await task.ConfigureAwait(false);
+            await @this.WaitUntypedAsync().ConfigureAwait(false);
+        }
+    }
 
     public ValueTaskSourceStatus GetStatus(short token) => _asyncCore.GetStatus(token);
 

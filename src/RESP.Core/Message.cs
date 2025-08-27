@@ -65,8 +65,7 @@ public static class Message
             parser,
             in Void.Instance,
             context.CancellationToken);
-        context.Connection.Send(msg);
-        return msg.WaitTypedAsync();
+        return msg.WaitTypedAsync(context.Connection.SendAsync(msg));
     }
 
     public static ValueTask<TResponse> SendAsync<TRequest, TState, TResponse>(
@@ -87,8 +86,7 @@ public static class Message
             parser,
             in state,
             context.CancellationToken);
-        context.Connection.Send(msg);
-        return msg.WaitTypedAsync();
+        return msg.WaitTypedAsync(context.Connection.SendAsync(msg));
     }
 
     public static void Send<TRequest>(
@@ -151,8 +149,7 @@ public static class Message
             parser,
             in Void.Instance,
             context.CancellationToken);
-        context.Connection.Send(msg);
-        return msg.WaitUntypedAsync();
+        return msg.WaitUntypedAsync(context.Connection.SendAsync(msg));
     }
 
     public static ValueTask SendAsync<TRequest, TState>(
@@ -173,8 +170,7 @@ public static class Message
             parser,
             in state,
             context.CancellationToken);
-        context.Connection.Send(msg);
-        return msg.WaitUntypedAsync();
+        return msg.WaitUntypedAsync(context.Connection.SendAsync(msg));
     }
 
     private static byte[] Serialize<TRequest>(
