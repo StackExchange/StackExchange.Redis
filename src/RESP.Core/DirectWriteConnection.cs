@@ -1,4 +1,4 @@
-#define PARSE_DETAIL // additional trace info in CommitAndParseFrames
+// #define PARSE_DETAIL // additional trace info in CommitAndParseFrames
 #if DEBUG
 #define PARSE_DETAIL // always enable this in debug builds
 #endif
@@ -19,8 +19,7 @@ namespace Resp;
 internal sealed class DirectWriteConnection : IRespConnection
 {
     private bool _isDoomed;
-    private RespScanState _readScanState = default;
-
+    private RespScanState _readScanState;
     private CycleBuffer _readBuffer;
 
     public bool CanWrite => Volatile.Read(ref _readStatus) == WRITER_AVAILABLE;

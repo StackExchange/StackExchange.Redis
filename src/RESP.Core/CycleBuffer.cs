@@ -561,13 +561,16 @@ partial struct CycleBuffer
         {
             var node = this;
             var runningIndex = RunningIndex;
+            int index = 0;
             while (node.Next is { } next)
             {
+                index++;
                 var nextRunningIndex = runningIndex + node.Length;
-                if (nextRunningIndex != next.RunningIndex) ThrowRunningIndex(blame);
+                if (nextRunningIndex != next.RunningIndex) ThrowRunningIndex(blame, index);
                 node = next;
-                static void ThrowRunningIndex(string blame) => throw new InvalidOperationException(
-                    $"Critical running index corruption in dangling chain, from '{blame}'");
+                runningIndex = nextRunningIndex;
+                static void ThrowRunningIndex(string blame, int index) => throw new InvalidOperationException(
+                    $"Critical running index corruption in dangling chain, from '{blame}', segment {index}");
             }
         }
 
