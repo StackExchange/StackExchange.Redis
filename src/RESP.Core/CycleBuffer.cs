@@ -27,6 +27,8 @@ namespace Resp;
 ///   - (process none, some, or all of that data)
 ///   - call <see cref="DiscardCommitted(int)"/> to indicate how much data is no longer needed
 ///  Emphasis: no concurrency! This is intended for a single worker acting as both producer and consumer.
+///
+/// There is a *lot* of validation in debug mode; we want to be super sure that we don't corrupt buffer state.
 /// </remarks>
 partial struct CycleBuffer
 {
@@ -277,53 +279,8 @@ partial struct CycleBuffer
         Debug.Assert(FirstSegmentTrimmed == startSegment.IsTrimmed(), "start segment trimmed is incorrect");
         Debug.Assert(EndSegmentCommitted <= endSegmentLength, "end segment is over-committed");
 
-        /*
-        check running indices; note that *for this*, we don't stop at endSegment; technically we
-        could say "we only guarantee correctness up to the end segment", but that's getting into
-        dangerous areas IMO; safer to keep the chain valid
-        */
-        var node = startSegment;
-        if (node is not null)
-        {
-            int segmentIndex = 0;
-            var runningIndex = node.RunningIndex; // once we've started discarding segments, we don't start at zero
-            while (node.Next is { } next)
-            {
-                ++segmentIndex;
-                var expected = runningIndex + node.Length;
-                if (expected != next.RunningIndex)
-                {
-                    Debug.Assert(
-                        next.RunningIndex == expected, // we already know this will fail; but the following is quite expensive!
-                        $"running-index corruption in chain at segment {segmentIndex} (in-use region is 0..{FindIndex(startSegment, endSegment)} of {Count(startSegment)}, byte-index [{startSegment.RunningIndex}..{endSegment.RunningIndex + EndSegmentCommitted}]); expected {expected}, got {next.RunningIndex}");
-                }
-
-                runningIndex = expected;
-                node = next;
-            }
-        }
-
-        static int Count(Segment? node)
-        {
-            int count = 0;
-            while (node is not null)
-            {
-                node = node.Next;
-                count++;
-            }
-            return count;
-        }
-        static int FindIndex(Segment? from, Segment find)
-        {
-            int index = 0;
-            while (from is not null)
-            {
-                if (ReferenceEquals(from, find)) return index;
-                from = from.Next;
-                index++;
-            }
-            return index;
-        }
+        // check running indices
+        startSegment?.DebugAssertValidChain();
     }
 
     public long GetCommittedLength()
@@ -402,13 +359,15 @@ partial struct CycleBuffer
         if (endSegment is not null)
         {
             endSegment.TrimEnd(EndSegmentCommitted);
-            endSegmentLength = endSegment.Length;
+            Debug.Assert(endSegment.Length == EndSegmentCommitted, "trim failure");
+            endSegmentLength = EndSegmentCommitted;
             DebugAssertValid();
 
             var spare = endSegment.Next;
             if (spare is not null)
             {
                 // we already have a dangling segment; just update state
+                endSegment.DebugAssertValidChain();
                 endSegment = spare;
                 EndSegmentCommitted = 0;
                 endSegmentLength = spare.Length;
@@ -508,6 +467,20 @@ partial struct CycleBuffer
             Debug.Assert(next.Next is null && next.RunningIndex == 0, "inbound next segment is already in a chain");
             next.RunningIndex = RunningIndex + Length;
             Next = next;
+            DebugAssertValidChain();
+        }
+
+        private void ApplyChainDelta(int delta)
+        {
+            if (delta != 0)
+            {
+                var node = Next;
+                while (node is not null)
+                {
+                    node.RunningIndex += delta;
+                    node = node.Next;
+                }
+            }
         }
 
         public void TrimEnd(int newLength)
@@ -517,14 +490,8 @@ partial struct CycleBuffer
             {
                 // buffer wasn't fully used; trim
                 Memory = Memory.Slice(0, newLength);
-
-                // fix any trailing running-indices (otherwise length math is wrong)
-                var next = Next;
-                while (next is not null)
-                {
-                    next.RunningIndex -= delta;
-                    next = next.Next;
-                }
+                ApplyChainDelta(-delta);
+                DebugAssertValidChain();
             }
         }
 
@@ -532,6 +499,7 @@ partial struct CycleBuffer
         {
             Memory = Memory.Slice(start: remove);
             RunningIndex += remove; // so that ROS length keeps working
+            DebugAssertValidChain();
         }
 
         public new Segment? Next
@@ -546,6 +514,7 @@ partial struct CycleBuffer
             Next = null;
             RunningIndex = 0;
             Memory = _lease.Memory; // reset, in case we trimmed it
+            DebugAssertValidChain();
             return next;
         }
 
@@ -558,6 +527,7 @@ partial struct CycleBuffer
             Memory = default;
             RunningIndex = 0;
             Interlocked.Exchange(ref _spare, this);
+            DebugAssertValidChain();
         }
 
         private sealed class NullLease : IMemoryOwner<byte>
@@ -572,7 +542,34 @@ partial struct CycleBuffer
         /// <summary>
         /// Undo any trimming, returning the new full capacity.
         /// </summary>
-        public int Untrim() => (Memory = _lease.Memory).Length;
+        public int Untrim()
+        {
+            var fullMemory = _lease.Memory;
+            var fullLength = fullMemory.Length;
+            var delta = fullLength - Length;
+            if (delta != 0)
+            {
+                Memory = fullMemory;
+                ApplyChainDelta(delta);
+                DebugAssertValidChain();
+            }
+            return fullLength;
+        }
+
+        [Conditional("DEBUG")]
+        public void DebugAssertValidChain([CallerMemberName] string blame = "")
+        {
+            var node = this;
+            var runningIndex = RunningIndex;
+            while (node.Next is { } next)
+            {
+                var nextRunningIndex = runningIndex + node.Length;
+                if (nextRunningIndex != next.RunningIndex) ThrowRunningIndex(blame);
+                node = next;
+                static void ThrowRunningIndex(string blame) => throw new InvalidOperationException(
+                    $"Critical running index corruption in dangling chain, from '{blame}'");
+            }
+        }
 
         public bool IsTrimmed() => Length < _lease.Memory.Length;
 
