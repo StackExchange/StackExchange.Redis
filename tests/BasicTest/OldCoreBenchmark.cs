@@ -8,6 +8,8 @@ namespace BasicTest;
 
 public class OldCoreBenchmark : BenchmarkBase<IDatabase>
 {
+    public override string ToString() => "legacy SE.Redis";
+
     private readonly IConnectionMultiplexer _connectionMultiplexer;
     private readonly IDatabase _client;
     private readonly KeyValuePair<RedisKey, RedisValue>[] _pairs;

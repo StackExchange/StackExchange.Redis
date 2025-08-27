@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -23,61 +24,63 @@ namespace BasicTest
         {
             try
             {
-                bool useOld = false, useNew = false;
+                List<BenchmarkBase> benchmarks = [];
                 foreach (var arg in args)
                 {
                     switch (arg)
                     {
                         case "--old":
-                            useOld = true;
+                            benchmarks.Add(new OldCoreBenchmark(args));
                             break;
                         case "--new":
-                            useNew = true;
+                            benchmarks.Add(new NewCoreBenchmark(args));
                             break;
                     }
                 }
 
-                var both = useOld & useNew;
-                if (!(useOld | useNew))
+                if (benchmarks.Count == 0)
                 {
-                    useNew = true;
+                    benchmarks.Add(new NewCoreBenchmark(args));
                 }
 
-                using var oldBench = useOld ? new OldCoreBenchmark(args) : null;
-                using var newBench = useNew ? new NewCoreBenchmark(args) : null;
-
-                bool loop = useOld ? oldBench.Loop : newBench.Loop;
                 do
                 {
-                    if (oldBench is not null)
+                    foreach (var bench in benchmarks)
                     {
-                        if (newBench is not null)
+                        if (benchmarks.Count > 1)
                         {
-                            Console.WriteLine("### old core ###");
+                            Console.WriteLine($"### {bench} ###");
                         }
-
-                        await oldBench.RunAll().ConfigureAwait(false);
-                    }
-
-                    if (newBench is not null)
-                    {
-                        if (oldBench is not null)
-                        {
-                            Console.WriteLine("### new core ###");
-                        }
-
-                        await newBench.RunAll().ConfigureAwait(false);
+                        await bench.RunAll().ConfigureAwait(false);
                     }
                 }
                 // ReSharper disable once LoopVariableIsNeverChangedInsideLoop
-                while (loop);
+                while (benchmarks[0].Loop);
 
                 return 0;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine(ex);
+                WriteException(ex);
                 return -1;
+            }
+        }
+        internal static void WriteException(Exception ex)
+        {
+            while (ex is not null)
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine($"{ex.GetType().Name}: {ex.Message}");
+                Console.Error.WriteLine($"\t{ex.StackTrace}");
+                var data = ex.Data;
+                if (data is not null)
+                {
+                    foreach (var key in data.Keys)
+                    {
+                        Console.Error.WriteLine($"\t{key}: {data[key]}");
+                    }
+                }
+                ex = ex.InnerException;
             }
         }
         // private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -146,25 +147,24 @@ public interface IRespMessage
     /// </summary>
     void ReleaseRequest();
 
-    bool TrySetCanceled(CancellationToken cancellationToken);
+    bool TrySetCanceled(CancellationToken cancellationToken = default);
     bool TrySetException(Exception exception);
 
     /// <summary>
     /// Parse the response and complete the request.
     /// </summary>
     void ProcessResponse(ref RespReader reader);
+
+    /// <summary>
+    /// Cancellation associated with this message. Note that this <b>should not</b> typically be used to
+    /// cancel IO operations (for example sockets), as that would break the entire stream - however, it
+    /// can be used to interrupt intermediate processing before it is submitted.
+    /// </summary>
+    CancellationToken CancellationToken { get; }
 }
 
 internal static class ActivationHelper
 {
-    private static readonly Action<object?> CancellationCallback =
-        static state => ((IRespMessage)state!).TrySetCanceled(CancellationToken.None);
-
-    public static CancellationTokenRegistration RegisterForCancellation(
-        IRespMessage message,
-        CancellationToken cancellationToken)
-        => cancellationToken.Register(CancellationCallback, message);
-
     private sealed class WorkItem
 #if NETCOREAPP3_0_OR_GREATER
         : IThreadPoolWorkItem
@@ -264,6 +264,33 @@ internal static class ActivationHelper
             WorkItem.UnsafeQueueUserWorkItem(pending, payload, ref lease);
         }
     }
+
+    private static readonly Action<object?> CancellationCallback = static state
+        => ((IRespMessage)state!).TrySetCanceled();
+
+    public static CancellationTokenRegistration RegisterForCancellation(
+        IRespMessage message,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return cancellationToken.Register(CancellationCallback, message);
+    }
+
+    [Conditional("DEBUG")]
+    public static void DebugBreak()
+    {
+#if DEBUG
+        if (Debugger.IsAttached) Debugger.Break();
+#endif
+    }
+
+    [Conditional("DEBUG")]
+    public static void DebugBreakIf(bool condition)
+    {
+#if DEBUG
+        if (condition && Debugger.IsAttached) Debugger.Break();
+#endif
+    }
 }
 
 internal abstract class InternalRespMessageBase<TState, TResponse> : IRespInternalMessage
@@ -272,6 +299,8 @@ internal abstract class InternalRespMessageBase<TState, TResponse> : IRespIntern
     private byte[] _requestPayload = [];
     private int _requestLength, _requestRefCount = 1;
     private TState _state = default!;
+    private CancellationToken _cancellationToken;
+    private CancellationTokenRegistration _cancellationTokenRegistration;
 
     public abstract bool IsCompleted { get; }
 
@@ -322,7 +351,7 @@ internal abstract class InternalRespMessageBase<TState, TResponse> : IRespIntern
 
     protected abstract bool TrySetResult(TResponse value);
     public abstract bool TrySetException(Exception exception);
-    public abstract bool TrySetCanceled(CancellationToken cancellationToken);
+    public abstract bool TrySetCanceled(CancellationToken cancellationToken = default);
 
     // ReSharper disable once SuspiciousTypeConversion.Global
     public bool AllowInlineParsing => _parser is null or IRespInlineParser;
@@ -343,6 +372,15 @@ internal abstract class InternalRespMessageBase<TState, TResponse> : IRespIntern
         }
     }
 
+    public CancellationToken CancellationToken => _cancellationToken;
+
+    protected void UnregisterCancellation()
+    {
+        var reg = _cancellationTokenRegistration;
+        _cancellationTokenRegistration = default;
+        reg.Dispose();
+    }
+
     protected void Reset()
     {
         _parser = null;
@@ -350,19 +388,29 @@ internal abstract class InternalRespMessageBase<TState, TResponse> : IRespIntern
         _requestLength = 0;
         _requestPayload = [];
         _requestRefCount = 0;
+        _cancellationToken = CancellationToken.None;
+        _cancellationTokenRegistration = default;
     }
 
-    protected void Reset(
+    protected void Init(
         byte[] requestPayload,
         int requestLength,
         IRespParser<TState, TResponse>? parser,
-        in TState state)
+        in TState state,
+        CancellationToken cancellationToken)
     {
+        if (cancellationToken.CanBeCanceled)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
+        }
+
         _parser = parser;
         _state = state;
         _requestPayload = requestPayload;
         _requestLength = requestLength;
         _requestRefCount = 1;
+        _cancellationToken = cancellationToken;
     }
 }
 
@@ -407,12 +455,18 @@ internal sealed class SyncInternalRespMessage<TState, TResponse> : InternalRespM
     {
         if (Volatile.Read(ref _status) == SyncRespMessageStatus.Pending)
         {
+            var newStatus = exception switch
+            {
+                TimeoutException => SyncRespMessageStatus.Timeout,
+                OperationCanceledException => SyncRespMessageStatus.Cancelled,
+                _ => SyncRespMessageStatus.Faulted,
+            };
             lock (this)
             {
                 if (_status == SyncRespMessageStatus.Pending)
                 {
                     _exception = exception;
-                    _status = SyncRespMessageStatus.Faulted;
+                    _status = newStatus;
                     Monitor.PulseAll(this);
                     return true;
                 }
@@ -422,15 +476,22 @@ internal sealed class SyncInternalRespMessage<TState, TResponse> : InternalRespM
         return false;
     }
 
-    public override bool TrySetCanceled(CancellationToken cancellationToken)
+    public override bool TrySetCanceled(CancellationToken cancellationToken = default)
     {
         if (Volatile.Read(ref _status) == SyncRespMessageStatus.Pending)
         {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                // if the inbound token was not cancelled: use our own
+                cancellationToken = CancellationToken;
+            }
+
             lock (this)
             {
                 if (_status == SyncRespMessageStatus.Pending)
                 {
                     _status = SyncRespMessageStatus.Cancelled;
+                    _exception = new OperationCanceledException(cancellationToken);
                     Monitor.PulseAll(this);
                     return true;
                 }
@@ -482,9 +543,9 @@ internal sealed class SyncInternalRespMessage<TState, TResponse> : InternalRespM
             case SyncRespMessageStatus.Faulted:
                 throw _exception ?? new InvalidOperationException("Operation failed");
             case SyncRespMessageStatus.Cancelled:
-                throw new OperationCanceledException();
+                throw _exception ?? new OperationCanceledException(CancellationToken);
             case SyncRespMessageStatus.Timeout:
-                throw new TimeoutException();
+                throw _exception ?? new TimeoutException();
             default:
                 throw new InvalidOperationException($"Unexpected status: {status}");
         }
@@ -507,11 +568,12 @@ internal sealed class SyncInternalRespMessage<TState, TResponse> : InternalRespM
         byte[] requestPayload,
         int requestLength,
         IRespParser<TState, TResponse>? parser,
-        in TState state)
+        in TState state,
+        CancellationToken cancellationToken)
     {
         var obj = _spare ?? new();
         _spare = null;
-        obj.Reset(requestPayload, requestLength, parser, in state);
+        obj.Init(requestPayload, requestLength, parser, in state, cancellationToken);
 
         return obj;
     }
@@ -592,22 +654,12 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
     // to signal the MRTCS
     private int _completedFlag;
 
-    private void RegisterForCancellation(CancellationToken cancellationToken)
-    {
-        if (cancellationToken.CanBeCanceled)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
-        }
-    }
-
     private bool SetCompleted(bool withSuccess = false)
     {
         if (Interlocked.CompareExchange(ref _completedFlag, 1, 0) == 0)
         {
             // stop listening for CT notifications
-            _cancellationTokenRegistration.Dispose();
-            _cancellationTokenRegistration = default;
+            UnregisterCancellation();
 
             // configure threading model; failure can be triggered from any thread - *always*
             // dispatch to pool; in the success case, we're either on the IO thread
@@ -626,17 +678,17 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
         byte[] requestPayload,
         int requestLength,
         IRespParser<TState, TResponse>? parser,
-        in TState state)
+        in TState state,
+        CancellationToken cancellationToken)
     {
         var obj = _spare ?? new();
         _spare = null;
         obj._asyncCore.RunContinuationsAsynchronously = true;
-        obj.Reset(requestPayload, requestLength, parser, in state);
+        obj.Init(requestPayload, requestLength, parser, in state, cancellationToken);
         return obj;
     }
 
     private ManualResetValueTaskSourceCore<TResponse> _asyncCore;
-    private CancellationTokenRegistration _cancellationTokenRegistration;
 
     public override bool IsCompleted => Volatile.Read(ref _completedFlag) == 1;
 
@@ -662,10 +714,16 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
         return false;
     }
 
-    public override bool TrySetCanceled(CancellationToken cancellationToken)
+    public override bool TrySetCanceled(CancellationToken cancellationToken = default)
     {
         if (SetCompleted())
         {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                // if the inbound token was not cancelled: use our own
+                cancellationToken = CancellationToken;
+            }
+
             _asyncCore.SetException(new OperationCanceledException(cancellationToken));
             return true;
         }
@@ -673,17 +731,9 @@ internal sealed class AsyncInternalRespMessage<TState, TResponse> : InternalResp
         return false;
     }
 
-    public ValueTask<TResponse> WaitTypedAsync(CancellationToken cancellationToken = default)
-    {
-        RegisterForCancellation(cancellationToken);
-        return new(this, _asyncCore.Version);
-    }
+    public ValueTask<TResponse> WaitTypedAsync() => new(this, _asyncCore.Version);
 
-    public ValueTask WaitUntypedAsync(CancellationToken cancellationToken = default)
-    {
-        RegisterForCancellation(cancellationToken);
-        return new(this, _asyncCore.Version);
-    }
+    public ValueTask WaitUntypedAsync() => new(this, _asyncCore.Version);
 
     public ValueTaskSourceStatus GetStatus(short token) => _asyncCore.GetStatus(token);
 

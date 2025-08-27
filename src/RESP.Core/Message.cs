@@ -16,7 +16,12 @@ public static class Message
 #endif
     {
         var bytes = Serialize(context.RespCommandMap, command, request, formatter, out int length);
-        var msg = SyncInternalRespMessage<Void, TResponse>.Create(bytes, length, parser, in Void.Instance);
+        var msg = SyncInternalRespMessage<Void, TResponse>.Create(
+            bytes,
+            length,
+            parser,
+            in Void.Instance,
+            context.CancellationToken);
         context.Connection.Send(msg);
         return msg.WaitAndRecycle(context.Connection.Configuration.SyncTimeout);
     }
@@ -33,7 +38,12 @@ public static class Message
 #endif
     {
         var bytes = Serialize(context.RespCommandMap, command, in request, formatter, out int length);
-        var msg = SyncInternalRespMessage<TState, TResponse>.Create(bytes, length, parser, in state);
+        var msg = SyncInternalRespMessage<TState, TResponse>.Create(
+            bytes,
+            length,
+            parser,
+            in state,
+            context.CancellationToken);
         context.Connection.Send(msg);
         return msg.WaitAndRecycle(context.Connection.Configuration.SyncTimeout);
     }
@@ -49,9 +59,14 @@ public static class Message
 #endif
     {
         var bytes = Serialize(context.RespCommandMap, command, request, formatter, out int length);
-        var msg = AsyncInternalRespMessage<Void, TResponse>.Create(bytes, length, parser, in Void.Instance);
+        var msg = AsyncInternalRespMessage<Void, TResponse>.Create(
+            bytes,
+            length,
+            parser,
+            in Void.Instance,
+            context.CancellationToken);
         context.Connection.Send(msg);
-        return msg.WaitTypedAsync(context.CancellationToken);
+        return msg.WaitTypedAsync();
     }
 
     public static ValueTask<TResponse> SendAsync<TRequest, TState, TResponse>(
@@ -66,9 +81,14 @@ public static class Message
 #endif
     {
         var bytes = Serialize(context.RespCommandMap, command, in request, formatter, out int length);
-        var msg = AsyncInternalRespMessage<TState, TResponse>.Create(bytes, length, parser, in state);
+        var msg = AsyncInternalRespMessage<TState, TResponse>.Create(
+            bytes,
+            length,
+            parser,
+            in state,
+            context.CancellationToken);
         context.Connection.Send(msg);
-        return msg.WaitTypedAsync(context.CancellationToken);
+        return msg.WaitTypedAsync();
     }
 
     public static void Send<TRequest>(
@@ -82,7 +102,12 @@ public static class Message
 #endif
     {
         var bytes = Serialize(context.RespCommandMap, command, request, formatter, out int length);
-        var msg = SyncInternalRespMessage<Void, Void>.Create(bytes, length, parser, in Void.Instance);
+        var msg = SyncInternalRespMessage<Void, Void>.Create(
+            bytes,
+            length,
+            parser,
+            in Void.Instance,
+            context.CancellationToken);
         context.Connection.Send(msg);
         msg.WaitAndRecycle(context.Connection.Configuration.SyncTimeout);
     }
@@ -99,7 +124,12 @@ public static class Message
 #endif
     {
         var bytes = Serialize(context.RespCommandMap, command, in request, formatter, out int length);
-        var msg = SyncInternalRespMessage<TState, Void>.Create(bytes, length, parser, in state);
+        var msg = SyncInternalRespMessage<TState, Void>.Create(
+            bytes,
+            length,
+            parser,
+            in state,
+            context.CancellationToken);
         context.Connection.Send(msg);
         msg.WaitAndRecycle(context.Connection.Configuration.SyncTimeout);
     }
@@ -115,9 +145,14 @@ public static class Message
 #endif
     {
         var bytes = Serialize(context.RespCommandMap, command, request, formatter, out int length);
-        var msg = AsyncInternalRespMessage<Void, Void>.Create(bytes, length, parser, in Void.Instance);
+        var msg = AsyncInternalRespMessage<Void, Void>.Create(
+            bytes,
+            length,
+            parser,
+            in Void.Instance,
+            context.CancellationToken);
         context.Connection.Send(msg);
-        return msg.WaitUntypedAsync(context.CancellationToken);
+        return msg.WaitUntypedAsync();
     }
 
     public static ValueTask SendAsync<TRequest, TState>(
@@ -132,9 +167,14 @@ public static class Message
 #endif
     {
         var bytes = Serialize(context.RespCommandMap, command, in request, formatter, out int length);
-        var msg = AsyncInternalRespMessage<TState, Void>.Create(bytes, length, parser, in state);
+        var msg = AsyncInternalRespMessage<TState, Void>.Create(
+            bytes,
+            length,
+            parser,
+            in state,
+            context.CancellationToken);
         context.Connection.Send(msg);
-        return msg.WaitUntypedAsync(context.CancellationToken);
+        return msg.WaitUntypedAsync();
     }
 
     private static byte[] Serialize<TRequest>(

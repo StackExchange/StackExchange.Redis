@@ -1,3 +1,8 @@
+#define PARSE_DETAIL // additional trace info in CommitAndParseFrames
+#if DEBUG
+#define PARSE_DETAIL // always enable this in debug builds
+#endif
+
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -68,16 +73,20 @@ internal sealed class DirectWriteConnection : IRespConnection
         ref RespScanState state = ref _readScanState;
         ref CycleBuffer readBuffer = ref _readBuffer;
 
-#if DEBUG
-        string src = $"parse {readBuffer.GetCommittedLength()}+{bytesRead}-{state.TotalBytes}";
+#if PARSE_DETAIL
+        string src = $"parse {bytesRead}";
         try
 #endif
         {
+            Debug.Assert(readBuffer.GetCommittedLength() >= 0, "multi-segment running-indices are corrupt");
+#if PARSE_DETAIL
+            src += $" ({readBuffer.GetCommittedLength()}+{bytesRead}-{state.TotalBytes})";
+#endif
             Debug.Assert(
                 bytesRead <= readBuffer.UncommittedAvailable,
                 $"Insufficient bytes in {nameof(CommitAndParseFrames)}; got {bytesRead}, Available={readBuffer.UncommittedAvailable}");
             readBuffer.Commit(bytesRead);
-#if DEBUG
+#if PARSE_DETAIL
             src += $",total {readBuffer.GetCommittedLength()}";
 #endif
             var scanner = RespFrameScanner.Default;
@@ -91,7 +100,7 @@ internal sealed class DirectWriteConnection : IRespConnection
                 Debug.Assert(!toParse.IsEmpty);
                 while (true)
                 {
-#if DEBUG
+#if PARSE_DETAIL
                     src += $",span {toParse.Length}";
 #endif
                     int totalBytesBefore = (int)state.TotalBytes;
@@ -110,7 +119,7 @@ internal sealed class DirectWriteConnection : IRespConnection
 
                     // extract the frame
                     var bytes = (int)state.TotalBytes;
-#if DEBUG
+#if PARSE_DETAIL
                     src += $",frame {bytes}";
 #endif
                     // send the frame somewhere (note this is the *full* frame, not just the bit we just parsed)
@@ -136,7 +145,7 @@ internal sealed class DirectWriteConnection : IRespConnection
                 var toParse = fullSequence.Slice((int)state.TotalBytes); // skip what we've already parsed
                 while (true)
                 {
-#if DEBUG
+#if PARSE_DETAIL
                     src += $",ros {toParse.Length}";
 #endif
                     int totalBytesBefore = (int)state.TotalBytes;
@@ -155,7 +164,7 @@ internal sealed class DirectWriteConnection : IRespConnection
 
                     // extract the frame
                     var bytes = (int)state.TotalBytes;
-#if DEBUG
+#if PARSE_DETAIL
                     src += $",frame {bytes}";
 #endif
                     // send the frame somewhere (note this is the *full* frame, not just the bit we just parsed)
@@ -181,13 +190,13 @@ internal sealed class DirectWriteConnection : IRespConnection
 
             return true;
         }
-#if DEBUG
+#if PARSE_DETAIL
         catch (Exception ex)
         {
             Debug.WriteLine($"{nameof(CommitAndParseFrames)}: {ex.Message}");
             Debug.WriteLine(src);
-            Debugger.Break();
-            throw;
+            ActivationHelper.DebugBreak();
+            throw new InvalidOperationException($"{src} lead to {ex.Message}", ex);
         }
 #endif
     }
@@ -196,12 +205,11 @@ internal sealed class DirectWriteConnection : IRespConnection
     {
         try
         {
-            CancellationToken cancellationToken = CancellationToken.None;
             int read;
             do
             {
                 var buffer = _readBuffer.GetUncommittedMemory();
-                var pending = tail.ReadAsync(buffer, cancellationToken);
+                var pending = tail.ReadAsync(buffer, CancellationToken.None);
 #if DEBUG
                 bool inline = pending.IsCompleted;
 #endif
@@ -233,7 +241,6 @@ internal sealed class DirectWriteConnection : IRespConnection
         Reader = tcs.Task;
         try
         {
-            CancellationToken cancellationToken = CancellationToken.None;
             int read;
             do
             {
@@ -266,9 +273,10 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     private void OnReadException(Exception ex)
     {
+        _fault ??= ex;
         Volatile.Write(ref _readStatus, READER_FAILED);
         Debug.WriteLine($"Reader failed: {ex.Message}");
-        Debugger.Break();
+        ActivationHelper.DebugBreak();
         while (_outstanding.TryDequeue(out var pending))
         {
             pending.TrySetException(ex);
@@ -397,16 +405,26 @@ internal sealed class DirectWriteConnection : IRespConnection
     private void TakeWriter()
     {
         var status = Interlocked.CompareExchange(ref _writeStatus, WRITER_TAKEN, WRITER_AVAILABLE);
-        if (status != WRITER_AVAILABLE) Throw(status);
+        if (status != WRITER_AVAILABLE) ThrowWriterNotAvailable();
         Debug.Assert(Volatile.Read(ref _writeStatus) == WRITER_TAKEN, "writer should be taken");
+    }
 
-        static void Throw(int status) => throw new InvalidOperationException(status switch
+    private void ThrowWriterNotAvailable()
+    {
+        var fault = Volatile.Read(ref _fault);
+        var status = Volatile.Read(ref _writeStatus);
+        var msg = status switch
         {
             WRITER_TAKEN => "A write operation is already in progress; concurrent writes are not supported.",
+            WRITER_DOOMED when fault is not null => "This connection is terminated; no further writes are possible: " +
+                                                    fault.Message,
             WRITER_DOOMED => "This connection is terminated; no further writes are possible.",
-            _ => $"Unknown writer status: {status}",
-        });
+            _ => $"Unexpected writer status: {status}",
+        };
+        throw fault is null ? new InvalidOperationException(msg) : new InvalidOperationException(msg, fault);
     }
+
+    private Exception? _fault;
 
     private void ReleaseWriter(int status = WRITER_AVAILABLE)
     {
@@ -455,14 +473,23 @@ internal sealed class DirectWriteConnection : IRespConnection
         catch (Exception ex)
         {
             Debug.WriteLine($"Writer failed: {ex.Message}");
-            Debugger.Break();
+            ActivationHelper.DebugBreak();
             ReleaseWriter(WRITER_DOOMED);
             if (releaseRequest) message.ReleaseRequest();
             throw;
         }
     }
 
-    public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default)
+    public void Send(ReadOnlySpan<IRespMessage> messages)
+    {
+        // lazy and temporary - we should pack these on the stream
+        foreach (var message in messages)
+        {
+            Send(message);
+        }
+    }
+
+    public Task SendAsync(IRespMessage message)
     {
         bool releaseRequest = message.TryReserveRequest(out var bytes);
         if (!releaseRequest)
@@ -477,7 +504,7 @@ internal sealed class DirectWriteConnection : IRespConnection
         {
             _outstanding.Enqueue(message);
             releaseRequest = false; // once we write, only release on success
-            var pendingWrite = tail.WriteAsync(bytes, cancellationToken);
+            var pendingWrite = tail.WriteAsync(bytes, CancellationToken.None);
             if (!pendingWrite.IsCompleted)
             {
                 return AwaitedSingleWithToken(
@@ -498,7 +525,7 @@ internal sealed class DirectWriteConnection : IRespConnection
         catch (Exception ex)
         {
             Debug.WriteLine($"Writer failed: {ex.Message}");
-            Debugger.Break();
+            ActivationHelper.DebugBreak();
             ReleaseWriter(WRITER_DOOMED);
             if (releaseRequest) message.ReleaseRequest();
             throw;
@@ -529,6 +556,26 @@ internal sealed class DirectWriteConnection : IRespConnection
         }
     }
 
+    public Task SendAsync(ReadOnlyMemory<IRespMessage> messages)
+    {
+        return messages.Length switch
+        {
+            0 => Task.CompletedTask,
+            1 => SendAsync(messages.Span[0]),
+            _ => SendMultiple(this, messages),
+        };
+
+        static async Task SendMultiple(DirectWriteConnection @this, ReadOnlyMemory<IRespMessage> messages)
+        {
+            // lazy and temporary - we should pack these on the stream
+            var length = messages.Length;
+            for (int i = 0; i < length; i++)
+            {
+                await @this.SendAsync(messages.Span[i]).ConfigureAwait(false);
+            }
+        }
+    }
+
     private void Doom()
     {
         _isDoomed = true; // without a reader, there's no point writing
@@ -537,9 +584,12 @@ internal sealed class DirectWriteConnection : IRespConnection
 
     public void Dispose()
     {
+        _fault ??= new ObjectDisposedException(ToString());
         Doom();
         tail.Dispose();
     }
+
+    public override string ToString() => nameof(DirectWriteConnection);
 
     public ValueTask DisposeAsync()
     {

@@ -9,6 +9,8 @@ namespace BasicTest;
 
 public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
 {
+    public override string ToString() => "new IO core";
+
     private readonly RespConnectionPool _connectionPool;
 
     private readonly RespContext[] _clients;

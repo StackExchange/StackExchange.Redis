@@ -162,13 +162,7 @@ public ref struct RespWriter
 #else
                 _buffer = _target.GetSpan(Math.Max(sizeHint, MIN_BUFFER));
 #endif
-#if DEBUG
-                if (Available == 0)
-                {
-                    Debugger.Break();
-                }
-#endif
-                Debug.Assert(Available > 0);
+                ActivationHelper.DebugBreakIf(Available == 0);
             }
         }
     }

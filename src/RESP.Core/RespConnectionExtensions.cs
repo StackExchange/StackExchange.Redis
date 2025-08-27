@@ -222,8 +222,11 @@ public static class RespConnectionExtensions
         public int Outstanding => tail.Outstanding;
 
         public void Send(IRespMessage message) => tail.Send(message);
+        public void Send(ReadOnlySpan<IRespMessage> messages) => tail.Send(messages);
 
-        public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default) =>
-            tail.SendAsync(message, cancellationToken);
+        public Task SendAsync(IRespMessage message) =>
+            tail.SendAsync(message);
+
+        public Task SendAsync(ReadOnlyMemory<IRespMessage> messages) => tail.SendAsync(messages);
     }
 }

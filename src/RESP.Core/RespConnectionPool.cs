@@ -128,10 +128,22 @@ public sealed class RespConnectionPool : IDisposable
             tail.Send(message);
         }
 
-        public Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default)
+        public void Send(ReadOnlySpan<IRespMessage> messages)
         {
             ThrowIfDisposed();
-            return tail.SendAsync(message, cancellationToken);
+            tail.Send(messages);
+        }
+
+        public Task SendAsync(IRespMessage message)
+        {
+            ThrowIfDisposed();
+            return tail.SendAsync(message);
+        }
+
+        public Task SendAsync(ReadOnlyMemory<IRespMessage> messages)
+        {
+            ThrowIfDisposed();
+            return tail.SendAsync(messages);
         }
     }
 }

@@ -11,7 +11,7 @@ using Void = Resp.Void;
 // influenced by redis-benchmark, see .md file
 namespace BasicTest;
 
-public abstract class BenchmarkBase<TClient> : IDisposable
+public abstract class BenchmarkBase : IDisposable
 {
     protected const string
         _getSetKey = "key:__rand_int__",
@@ -23,6 +23,7 @@ public abstract class BenchmarkBase<TClient> : IDisposable
         _streamKey = "mystream";
 
     private readonly HashSet<string> _tests = new(StringComparer.OrdinalIgnoreCase);
+    protected bool RunTest(string name) => _tests.Count == 0 || _tests.Contains(name);
     public virtual void Dispose() { }
     public int Port { get; } = 6379;
     public int PipelineDepth { get; } = 1;
@@ -98,40 +99,9 @@ public abstract class BenchmarkBase<TClient> : IDisposable
 
     public abstract Task RunAll();
 
-    public async Task CleanupAsync()
-    {
-        try
-        {
-            var client = GetClient(0);
-            await Delete(client, _getSetKey).ConfigureAwait(false);
-            await Delete(client, _counterKey).ConfigureAwait(false);
-            await Delete(client, _listKey).ConfigureAwait(false);
-            await Delete(client, _setKey).ConfigureAwait(false);
-            await Delete(client, _hashKey).ConfigureAwait(false);
-            await Delete(client, _sortedSetKey).ConfigureAwait(false);
-            await Delete(client, _streamKey).ConfigureAwait(false);
-            await OnCleanupAsync(client).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Cleanup: {ex.Message}");
-        }
-    }
-
-    protected virtual Task OnCleanupAsync(TClient client) => Task.CompletedTask;
-
-    protected virtual Task InitAsync(TClient client) => Task.CompletedTask;
-
-    public async Task InitAsync()
-    {
-        for (int i = 0; i < ClientCount; i++)
-        {
-            await InitAsync(GetClient(i)).ConfigureAwait(false);
-        }
-    }
-
     protected Task<Void> Pipeline(Func<Task> operation) => Pipeline(() => new ValueTask(operation()));
     protected Task<T> Pipeline<T>(Func<Task<T>> operation) => Pipeline(() => new ValueTask<T>(operation()));
+
     protected async Task<Void> Pipeline(Func<ValueTask> operation)
     {
         var opsPerClient = OperationsPerClient;
@@ -163,24 +133,22 @@ public abstract class BenchmarkBase<TClient> : IDisposable
                     await queue.Dequeue().ConfigureAwait(false);
                 }
             }
-
-            return Void.Instance;
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException(
-                $"{operation.Method.Name} failed after {i} operations: {ex.Message}",
-                ex);
+            Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
+            Program.WriteException(ex);
         }
+        return Void.Instance;
     }
 
     protected async Task<T> Pipeline<T>(Func<ValueTask<T>> operation)
     {
         var opsPerClient = OperationsPerClient;
         int i = 0;
+        T result = default;
         try
         {
-            T result = default;
             if (PipelineDepth == 1)
             {
                 for (; i < opsPerClient; i++)
@@ -206,14 +174,48 @@ public abstract class BenchmarkBase<TClient> : IDisposable
                     result = await queue.Dequeue().ConfigureAwait(false);
                 }
             }
-
-            return result;
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException(
-                $"{operation.Method.Name} failed after {i} operations: {ex.Message}",
-                ex);
+            Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
+            Program.WriteException(ex);
+        }
+
+        return result;
+    }
+}
+
+public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args)
+{
+    protected virtual Task OnCleanupAsync(TClient client) => Task.CompletedTask;
+
+    protected virtual Task InitAsync(TClient client) => Task.CompletedTask;
+
+    public async Task CleanupAsync()
+    {
+        try
+        {
+            var client = GetClient(0);
+            await Delete(client, _getSetKey).ConfigureAwait(false);
+            await Delete(client, _counterKey).ConfigureAwait(false);
+            await Delete(client, _listKey).ConfigureAwait(false);
+            await Delete(client, _setKey).ConfigureAwait(false);
+            await Delete(client, _hashKey).ConfigureAwait(false);
+            await Delete(client, _sortedSetKey).ConfigureAwait(false);
+            await Delete(client, _streamKey).ConfigureAwait(false);
+            await OnCleanupAsync(client).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Cleanup: {ex.Message}");
+        }
+    }
+
+    public async Task InitAsync()
+    {
+        for (int i = 0; i < ClientCount; i++)
+        {
+            await InitAsync(GetClient(i)).ConfigureAwait(false);
         }
     }
 
@@ -238,7 +240,7 @@ public abstract class BenchmarkBase<TClient> : IDisposable
         }
 
         // skip test if not needed
-        if (_tests.Count != 0 && !_tests.Contains(name)) return;
+        if (!RunTest(name)) return;
 
         // include additional test metadata
         string description = "";
@@ -388,17 +390,13 @@ public abstract class BenchmarkBase<TClient> : IDisposable
 
                 static string FormatBytes(long bytes)
                 {
-                    if (bytes > 1024 * 1024)
-                    {
-                        return $"{bytes >> 20:#,##0} MiB";
-                    }
+                    const long K = 1024, M = K * K, G = M * K, T = G * K;
 
-                    if (bytes > 1024)
-                    {
-                        return $"{bytes >> 10:#,##0} KiB";
-                    }
-
-                    return $"{bytes} B";
+                    if (bytes < K) return $"{bytes:#,##0} B";
+                    if (bytes < M) return $"{bytes / (double)K:#,##0.00} KiB";
+                    if (bytes < G) return $"{bytes / (double)M:#,##0.00} MiB";
+                    if (bytes < T) return $"{bytes / (double)G:#,##0.00} GiB";
+                    return $"{bytes / (double)T:#,##0.00} TiB"; // I think we can stop there...
                 }
             }
 #endif

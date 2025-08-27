@@ -276,14 +276,66 @@ partial struct CycleBuffer
             $"end segment length is incorrect - expected {endSegmentLength}, got {endSegment.Length}");
         Debug.Assert(FirstSegmentTrimmed == startSegment.IsTrimmed(), "start segment trimmed is incorrect");
         Debug.Assert(EndSegmentCommitted <= endSegmentLength, "end segment is over-committed");
+
+        /*
+        check running indices; note that *for this*, we don't stop at endSegment; technically we
+        could say "we only guarantee correctness up to the end segment", but that's getting into
+        dangerous areas IMO; safer to keep the chain valid
+        */
+        var node = startSegment;
+        if (node is not null)
+        {
+            int segmentIndex = 0;
+            var runningIndex = node.RunningIndex; // once we've started discarding segments, we don't start at zero
+            while (node.Next is { } next)
+            {
+                ++segmentIndex;
+                var expected = runningIndex + node.Length;
+                if (expected != next.RunningIndex)
+                {
+                    Debug.Assert(
+                        next.RunningIndex == expected, // we already know this will fail; but the following is quite expensive!
+                        $"running-index corruption in chain at segment {segmentIndex} (in-use region is 0..{FindIndex(startSegment, endSegment)} of {Count(startSegment)}, byte-index [{startSegment.RunningIndex}..{endSegment.RunningIndex + EndSegmentCommitted}]); expected {expected}, got {next.RunningIndex}");
+                }
+
+                runningIndex = expected;
+                node = next;
+            }
+        }
+
+        static int Count(Segment? node)
+        {
+            int count = 0;
+            while (node is not null)
+            {
+                node = node.Next;
+                count++;
+            }
+            return count;
+        }
+        static int FindIndex(Segment? from, Segment find)
+        {
+            int index = 0;
+            while (from is not null)
+            {
+                if (ReferenceEquals(from, find)) return index;
+                from = from.Next;
+                index++;
+            }
+            return index;
+        }
     }
 
     public long GetCommittedLength()
     {
         DebugAssertValid();
-        return ReferenceEquals(startSegment, endSegment)
-            ? EndSegmentCommitted
-            : GetAllCommitted().Length;
+        if (ReferenceEquals(startSegment, endSegment))
+        {
+            return EndSegmentCommitted;
+        }
+
+        // note that the start-segment is pre-trimmed; we don't need to account for an offset on the left
+        return (endSegment!.RunningIndex + EndSegmentCommitted) - startSegment!.RunningIndex;
     }
 
     public bool TryGetFirstCommittedSpan(bool fullOnly, out ReadOnlySpan<byte> span)
@@ -334,40 +386,53 @@ partial struct CycleBuffer
                 : new ReadOnlySequence<byte>(startSegment.Memory.Slice(start: 0, length: EndSegmentCommitted));
         }
 
-        Debug.Assert(startSegment is not null, "end segment is unexpectedly null");
-        return new(startSegment, 0, endSegment!, EndSegmentCommitted);
+#if PARSE_DETAIL
+        long length = GetCommittedLength();
+#endif
+        ReadOnlySequence<byte> ros = new(startSegment!, 0, endSegment!, EndSegmentCommitted);
+#if PARSE_DETAIL
+        Debug.Assert(ros.Length == length, $"length mismatch: calculated {length}, actual {ros.Length}");
+#endif
+        return ros;
     }
 
     private Segment GetNextSegment()
     {
         DebugAssertValid();
-        var spare = endSegment?.Next;
-        if (spare is not null) // we already have an unused segment; just update our state
+        if (endSegment is not null)
         {
-            endSegment!.TrimEnd(EndSegmentCommitted);
-            endSegment = spare;
-            EndSegmentCommitted = 0;
-            endSegmentLength = spare.Length;
+            endSegment.TrimEnd(EndSegmentCommitted);
+            endSegmentLength = endSegment.Length;
             DebugAssertValid();
-            return spare;
+
+            var spare = endSegment.Next;
+            if (spare is not null)
+            {
+                // we already have a dangling segment; just update state
+                endSegment = spare;
+                EndSegmentCommitted = 0;
+                endSegmentLength = spare.Length;
+                DebugAssertValid();
+                return spare;
+            }
         }
 
-        Segment segment = Segment.Create(Pool.Rent(PageSize));
+        Segment newSegment = Segment.Create(Pool.Rent(PageSize));
         if (endSegment is null)
         {
-            Debug.Assert(startSegment is null & EndSegmentCommitted == 0, "invalid empty state");
-            endSegmentLength = segment.Length;
-            endSegment = startSegment = segment;
+            // tabula rasa
+            endSegmentLength = newSegment.Length;
+            endSegment = startSegment = newSegment;
             DebugAssertValid();
-            return segment;
+            return newSegment;
         }
 
-        endSegment.Append(EndSegmentCommitted, segment);
+        endSegment.Append(newSegment);
         EndSegmentCommitted = 0;
-        endSegmentLength = segment.Length;
-        endSegment = segment;
+        endSegmentLength = newSegment.Length;
+        endSegment = newSegment;
         DebugAssertValid();
-        return segment;
+        return newSegment;
     }
 
     /// <summary>
@@ -437,13 +502,11 @@ partial struct CycleBuffer
 
         public int Length => Memory.Length;
 
-        public void Append(int committedBytes, Segment next)
+        public void Append(Segment next)
         {
             Debug.Assert(Next is null, "current segment already has a next");
-            Debug.Assert(next.Next is null && next.RunningIndex == 0, "inbound next segment is in a chain");
-            TrimEnd(committedBytes);
-            Debug.Assert(Length == committedBytes, "should be the committed size");
-            next.RunningIndex = this.RunningIndex + committedBytes;
+            Debug.Assert(next.Next is null && next.RunningIndex == 0, "inbound next segment is already in a chain");
+            next.RunningIndex = RunningIndex + Length;
             Next = next;
         }
 

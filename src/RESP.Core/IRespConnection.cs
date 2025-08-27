@@ -11,5 +11,8 @@ public interface IRespConnection : IDisposable, IAsyncDisposable
     int Outstanding { get; }
 
     void Send(IRespMessage message);
-    Task SendAsync(IRespMessage message, CancellationToken cancellationToken = default);
+    void Send(ReadOnlySpan<IRespMessage> messages);
+
+    Task SendAsync(IRespMessage message);
+    Task SendAsync(ReadOnlyMemory<IRespMessage> messages);
 }
