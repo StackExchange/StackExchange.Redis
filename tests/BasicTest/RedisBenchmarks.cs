@@ -4,6 +4,9 @@ using BenchmarkDotNet.Attributes;
 #if !TEST_BASELINE
 using Resp;
 using RESPite.Redis;
+#if !PREVIEW_LANGVER
+using RESPite.Redis.Alt; // needed for AsStrings() etc
+#endif
 #endif
 using StackExchange.Redis;
 
@@ -195,7 +198,11 @@ public class RedisBenchmarks : IDisposable
     public void StringSet_Core()
     {
         using var conn = pool.GetConnection();
-        var s = conn.Context.Strings;
+#if PREVIEW_LANGVER
+        ref readonly RedisStrings s = ref conn.Context.Strings;
+#else
+        var s = conn.Context.AsStrings();
+#endif
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
             s.Set(StringKey_S, StringValue_S);
@@ -209,7 +216,11 @@ public class RedisBenchmarks : IDisposable
     public void StringGet_Core()
     {
         using var conn = pool.GetConnection();
-        var s = conn.Context.Strings;
+#if PREVIEW_LANGVER
+        ref readonly RedisStrings s = ref conn.Context.Strings;
+#else
+        var s = conn.Context.AsStrings();
+#endif
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
             s.Get(StringKey_S);
@@ -223,7 +234,11 @@ public class RedisBenchmarks : IDisposable
     public void StringSet_Pipelined_Core()
     {
         using var conn = pool.GetConnection().ForPipeline();
-        var s = conn.Context.Strings;
+#if PREVIEW_LANGVER
+        ref readonly RedisStrings s = ref conn.Context.Strings;
+#else
+        var s = conn.Context.AsStrings();
+#endif
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
             s.Set(StringKey_S, StringValue_S);
@@ -237,10 +252,14 @@ public class RedisBenchmarks : IDisposable
     public async Task StringSet_Pipelined_Core_Async()
     {
         using var conn = pool.GetConnection().ForPipeline();
-        var s = conn.Context.Strings;
+        var ctx = conn.Context;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            await s.SetAsync(StringKey_S, StringValue_S);
+#if PREVIEW_LANGVER
+            await ctx.Strings.SetAsync(StringKey_S, StringValue_S);
+#else
+            await ctx.AsStrings().SetAsync(StringKey_S, StringValue_S);
+#endif
         }
     }
 
@@ -251,7 +270,11 @@ public class RedisBenchmarks : IDisposable
     public void StringGet_Pipelined_Core()
     {
         using var conn = pool.GetConnection().ForPipeline();
-        var s = conn.Context.Strings;
+#if PREVIEW_LANGVER
+        ref readonly RedisStrings s = ref conn.Context.Strings;
+#else
+        var s = conn.Context.AsStrings();
+#endif
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
             s.Get(StringKey_S);
@@ -265,10 +288,14 @@ public class RedisBenchmarks : IDisposable
     public async Task StringGet_Pipelined_Core_Async()
     {
         using var conn = pool.GetConnection().ForPipeline();
-        var s = conn.Context.Strings;
+        var ctx = conn.Context;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            await s.GetAsync(StringKey_S);
+#if PREVIEW_LANGVER
+            await ctx.Strings.GetAsync(StringKey_S);
+#else
+            await ctx.AsStrings().GetAsync(StringKey_S);
+#endif
         }
     }
 #endif
@@ -323,7 +350,11 @@ public class RedisBenchmarks : IDisposable
     public int IncrBy_New_Pipelined()
     {
         using var conn = pool.GetConnection().ForPipeline();
-        var s = conn.Context.Strings;
+#if PREVIEW_LANGVER
+        ref readonly RedisStrings s = ref conn.Context.Strings;
+#else
+        var s = conn.Context.AsStrings();
+#endif
         int value = 0;
         s.Set(StringKey_S, value);
         for (int i = 0; i < OperationsPerInvoke; i++)
@@ -341,12 +372,20 @@ public class RedisBenchmarks : IDisposable
     public async Task<int> IncrBy_New_Pipelined_Async()
     {
         using var conn = pool.GetConnection().ForPipeline();
-        var s = conn.Context.Strings;
+        var ctx = conn.Context;
         int value = 0;
-        s.Set(StringKey_S, value);
+#if PREVIEW_LANGVER
+        await ctx.Strings.SetAsync(StringKey_S, value);
+#else
+        await ctx.AsStrings().SetAsync(StringKey_S, value);
+#endif
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            value = await s.IncrAsync(StringKey_K);
+#if PREVIEW_LANGVER
+            value = await ctx.Strings.IncrAsync(StringKey_K);
+#else
+            value = await ctx.AsStrings().IncrAsync(StringKey_K);
+#endif
         }
 
         return value;
@@ -359,7 +398,11 @@ public class RedisBenchmarks : IDisposable
     public int IncrBy_New()
     {
         using var conn = pool.GetConnection();
-        var s = conn.Context.Strings;
+#if PREVIEW_LANGVER
+        ref readonly RedisStrings s = ref conn.Context.Strings;
+#else
+        var s = conn.Context.AsStrings();
+#endif
         int value = 0;
         s.Set(StringKey_S, value);
         for (int i = 0; i < OperationsPerInvoke; i++)
@@ -377,7 +420,11 @@ public class RedisBenchmarks : IDisposable
     public int IncrBy_New_Pipelined_Custom()
     {
         using var conn = customPool.GetConnection().ForPipeline();
-        var s = conn.Context.Strings;
+#if PREVIEW_LANGVER
+        ref readonly RedisStrings s = ref conn.Context.Strings;
+#else
+        var s = conn.Context.AsStrings();
+#endif
         int value = 0;
         s.Set(StringKey_S, value);
         for (int i = 0; i < OperationsPerInvoke; i++)
@@ -395,7 +442,11 @@ public class RedisBenchmarks : IDisposable
     public int IncrBy_New_Custom()
     {
         using var conn = customPool.GetConnection();
-        var s = conn.Context.Strings;
+#if PREVIEW_LANGVER
+        ref readonly RedisStrings s = ref conn.Context.Strings;
+#else
+        var s = conn.Context.AsStrings();
+#endif
         int value = 0;
         s.Set(StringKey_S, value);
         for (int i = 0; i < OperationsPerInvoke; i++)

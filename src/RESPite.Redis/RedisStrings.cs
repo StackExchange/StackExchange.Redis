@@ -2,6 +2,10 @@
 using System.Threading.Tasks;
 using Resp;
 
+#if !PREVIEW_LANGVER
+using RESPite.Redis.Alt;
+#endif
+
 namespace RESPite.Redis;
 
 // note that members may also be added as extensions if necessary
@@ -10,8 +14,13 @@ public readonly partial struct RedisStrings(in RespContext context)
     private readonly RespContext _context = context;
 
     // re-expose del
+#if PREVIEW_LANGVER
     public void Del(string key) => _context.Keys.Del(key);
     public ValueTask DelAsync(string key) => _context.Keys.DelAsync(key);
+#else
+    public void Del(string key) => _context.AsKeys().Del(key);
+    public ValueTask DelAsync(string key) => _context.AsKeys().DelAsync(key);
+#endif
 
     [RespCommand]
     public partial int Append(string key, string value);

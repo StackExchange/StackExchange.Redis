@@ -1,5 +1,6 @@
 ﻿using System.Threading.Tasks;
 using RESPite.Redis;
+using RESPite.Redis.Alt; // needed for AsStrings() etc
 using Xunit;
 using FactAttribute = StackExchange.Redis.Tests.FactAttribute;
 
@@ -13,12 +14,13 @@ public class RedisStringsIntegrationTests(ConnectionFixture fixture, ITestOutput
     {
         var key = Me();
 
-        using var conn = GetConnection(out var context);
+        using var conn = GetConnection();
+        var ctx = conn.Context;
         for (int i = 0; i < 5; i++)
         {
-            context.Strings.Incr(key);
+            ctx.AsStrings().Incr(key);
         }
-        var result = context.Strings.GetInt32(key);
+        var result = ctx.AsStrings().GetInt32(key);
         Assert.Equal(5, result);
     }
 
@@ -27,12 +29,13 @@ public class RedisStringsIntegrationTests(ConnectionFixture fixture, ITestOutput
     {
         var key = Me();
 
-        await using var conn = GetConnection(out var context);
+        await using var conn = GetConnection();
+        var ctx = conn.Context;
         for (int i = 0; i < 5; i++)
         {
-            await context.Strings.IncrAsync(key);
+            await ctx.AsStrings().IncrAsync(key);
         }
-        var result = await context.Strings.GetInt32Async(key);
+        var result = await ctx.AsStrings().GetInt32Async(key);
         Assert.Equal(5, result);
     }
 }

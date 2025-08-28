@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
   </PropertyGroup>
 
 </Project>

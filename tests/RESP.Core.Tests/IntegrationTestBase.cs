@@ -1,18 +1,18 @@
 ﻿using System.Runtime.CompilerServices;
 using Resp;
 using RESPite.Redis;
+using RESPite.Redis.Alt;
 using Xunit;
 
 namespace RESP.Core.Tests;
 
 public abstract class IntegrationTestBase(ConnectionFixture fixture, ITestOutputHelper log)
 {
-    public IRespConnection GetConnection(out RespContext context, [CallerMemberName] string caller = "")
+    public IRespConnection GetConnection([CallerMemberName] string caller = "")
     {
+         var conn = fixture.GetConnection(); // includes cancellation from the test
          // most of the time, they'll be using a key from Me(), so: pre-emptively nuke it
-         var conn = fixture.GetConnection();
-         context = conn.Context.WithCancellationToken(TestContext.Current.CancellationToken);
-         context.Keys.Del(caller);
+         conn.Context.AsKeys().Del(caller);
          return conn;
     }
 

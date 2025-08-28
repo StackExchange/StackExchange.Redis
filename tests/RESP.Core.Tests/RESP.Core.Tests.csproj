@@ -6,7 +6,6 @@
     <IsPackable>false</IsPackable>
     <SignAssembly>true</SignAssembly>
     <OutputType>Exe</OutputType>
-    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>

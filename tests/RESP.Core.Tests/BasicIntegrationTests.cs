@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Resp;
 using RESPite.Redis;
+using RESPite.Redis.Alt; // needed for AsStrings() etc
 using Xunit;
 
 namespace RESP.Core.Tests;
@@ -36,13 +37,13 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
     [InlineData(100)]
     public void Ping(int count)
     {
-        using var conn = GetConnection(out var context);
+        using var conn = GetConnection();
+        var ctx = conn.Context;
         for (int i = 0; i < count; i++)
         {
-            var s = context.Strings;
             var key = $"{Me()}{i}";
-            s.Set(key, $"def{i}");
-            var val = s.Get(key);
+            ctx.AsStrings().Set(key, $"def{i}");
+            var val = ctx.AsStrings().Get(key);
             Assert.Equal($"def{i}", val);
         }
     }
@@ -54,14 +55,13 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
     public async Task PingAsync(int count)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var conn = GetConnection(out var context);
+        await using var conn = GetConnection();
         for (int i = 0; i < count; i++)
         {
-            var ctx = context.WithCancellationToken(cts.Token);
-            var s = ctx.Strings;
+            var ctx = conn.Context.WithCancellationToken(cts.Token);
             var key = $"{Me()}{i}";
-            await s.SetAsync(key, $"def{i}");
-            var val = await s.GetAsync(key);
+            await ctx.AsStrings().SetAsync(key, $"def{i}");
+            var val = await ctx.AsStrings().GetAsync(key);
             Assert.Equal($"def{i}", val);
         }
     }
@@ -76,18 +76,16 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
     public async Task PingPipelinedAsync(int count, bool forPipeline)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        RespContext context;
-        await using var conn =
-            forPipeline ? GetConnection(out context).ForPipeline() : GetConnection(out context);
+
+        await using var conn = forPipeline ? GetConnection().ForPipeline() : GetConnection();
 
         ValueTask<string?>[] tasks = new ValueTask<string?>[count];
         for (int i = 0; i < count; i++)
         {
-            RespContext ctx = context.WithCancellationToken(cts.Token);
-            var s = ctx.Strings;
+            RespContext ctx = conn.Context.WithCancellationToken(cts.Token);
             var key = $"{Me()}{i}";
-            _ = s.SetAsync(key, $"def{i}");
-            tasks[i] = s.GetAsync(key);
+            _ = ctx.AsStrings().SetAsync(key, $"def{i}");
+            tasks[i] = ctx.AsStrings().GetAsync(key);
         }
 
         for (int i = 0; i < count; i++)

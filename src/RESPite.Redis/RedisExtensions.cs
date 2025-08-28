@@ -5,6 +5,7 @@ namespace RESPite.Redis;
 
 public static class RedisExtensions
 {
+#if PREVIEW_LANGVER
     extension(in RespContext context)
     {
         // since this is valid...
@@ -17,4 +18,5 @@ public static class RedisExtensions
         public ref readonly RedisKeys Keys
             => ref Unsafe.As<RespContext, RedisKeys>(ref Unsafe.AsRef(in context));
     }
+#endif
 }

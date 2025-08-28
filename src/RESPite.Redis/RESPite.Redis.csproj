@@ -3,8 +3,8 @@
   <PropertyGroup>
     <SignAssembly>true</SignAssembly>
     <TargetFrameworks>net461;netstandard2.0;net8.0</TargetFrameworks>
-    <LangVersion>preview</LangVersion>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

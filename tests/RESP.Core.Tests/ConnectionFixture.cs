@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using System.Threading;
 using Resp;
 using RESP.Core.Tests;
 using Xunit;
@@ -14,5 +15,6 @@ public class ConnectionFixture : IDisposable
 
     public void Dispose() => _pool.Dispose();
 
-    public IRespConnection GetConnection() => _pool.GetConnection();
+    public IRespConnection GetConnection()
+        => _pool.GetConnection(cancellationToken: TestContext.Current.CancellationToken);
 }

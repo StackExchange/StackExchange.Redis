@@ -235,7 +235,7 @@ public readonly struct RespContext
 
     internal static RespContext For(IRespConnection connection)
 #pragma warning disable CS0618 // Type or member is obsolete
-        => new RespContext(connection);
+        => new(connection);
 #pragma warning restore CS0618 // Type or member is obsolete
 }
 

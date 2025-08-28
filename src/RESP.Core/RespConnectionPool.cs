@@ -51,15 +51,25 @@ public sealed class RespConnectionPool : IDisposable
         _configuration = configuration ?? RespConfiguration.Default;
     }
 
-    public IRespConnection GetConnection()
+    /// <summary>
+    /// Borrow a connection from the pool.
+    /// </summary>
+    /// <param name="database">The database to override in the context of the leased connection.</param>
+    /// <param name="cancellationToken">The cancellation token to override in the context of the leased connection.</param>
+    public IRespConnection GetConnection(int? database = null, CancellationToken? cancellationToken = null)
     {
         ThrowIfDisposed();
+        if (cancellationToken.HasValue)
+        {
+            cancellationToken.GetValueOrDefault().ThrowIfCancellationRequested();
+        }
+
         if (!_pool.TryDequeue(out var connection))
         {
             connection = _createConnection(_configuration);
         }
 
-        return new PoolWrapper(this, connection);
+        return new PoolWrapper(this, connection, database, cancellationToken);
     }
 
     private void ThrowIfDisposed()
@@ -114,11 +124,18 @@ public sealed class RespConnectionPool : IDisposable
 
         public ref readonly RespContext Context => ref _context;
 
-        public PoolWrapper(RespConnectionPool pool, IRespConnection tail)
+        public PoolWrapper(
+            RespConnectionPool pool,
+            IRespConnection tail,
+            int? database,
+            CancellationToken? cancellationToken)
         {
             _pool = pool;
             _tail = tail;
             _context = RespContext.For(this);
+            if (database.HasValue) _context = _context.WithDatabase(database.GetValueOrDefault());
+            if (cancellationToken.HasValue)
+                _context = _context.WithCancellationToken(cancellationToken.GetValueOrDefault());
         }
 
         public void Dispose()

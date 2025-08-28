@@ -6,7 +6,6 @@
     <AssemblyName>BasicTest</AssemblyName>
     <OutputType>Exe</OutputType>
     <PackageId>BasicTest</PackageId>
-    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
