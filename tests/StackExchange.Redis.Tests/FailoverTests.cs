@@ -217,7 +217,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         await sub.PingAsync();
         await Task.Delay(200).ConfigureAwait(false);
 
-        var counter1 = Thread.VolatileRead(ref counter);
+        var counter1 = Volatile.Read(ref counter);
         Log($"Expecting 1 message, got {counter1}");
         Assert.Equal(1, counter1);
 
@@ -274,9 +274,9 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
 
         // Give it a few seconds to get our messages
         Log("Waiting for 2 messages");
-        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => Thread.VolatileRead(ref counter) == 2);
+        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => Volatile.Read(ref counter) == 2);
 
-        var counter2 = Thread.VolatileRead(ref counter);
+        var counter2 = Volatile.Read(ref counter);
         Log($"Expecting 2 messages, got {counter2}");
         Assert.Equal(2, counter2);
 

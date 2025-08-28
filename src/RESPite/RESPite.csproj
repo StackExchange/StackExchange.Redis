@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <SignAssembly>true</SignAssembly>
-    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net6.0;net8.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net461;netstandard2.0;net472;net6.0;net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS1591</NoWarn>

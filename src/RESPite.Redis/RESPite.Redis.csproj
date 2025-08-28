@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <SignAssembly>true</SignAssembly>
-    <TargetFrameworks>netstandard2.0;net472;net8.0</TargetFrameworks>
+    <TargetFrameworks>net461;netstandard2.0;net8.0</TargetFrameworks>
     <LangVersion>preview</LangVersion>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
