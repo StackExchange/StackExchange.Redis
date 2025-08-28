@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net481;net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net481;net8.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <SignAssembly>true</SignAssembly>
@@ -17,8 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\RESP.Core\RESP.Core.csproj" />
+    <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" />
     <ProjectReference Include="..\..\src\RESPite.Redis\RESPite.Redis.csproj" />
+    <ProjectReference Include="..\..\src\RESP.Core\RESP.Core.csproj" />
     <ProjectReference Include="..\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj" />
   </ItemGroup>
 </Project>

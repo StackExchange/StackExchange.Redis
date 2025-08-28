@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if !TEST_BASELINE
+using System;
 using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,7 +41,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         if (Multiplexed)
         {
             var conn = _connectionPool.GetConnection().ForPipeline();
-            var ctx = new RespContext(conn);
+            var ctx = conn.Context;
             for (int i = 0; i < ClientCount; i++) // init all
             {
                 _clients[i] = ctx;
@@ -56,7 +57,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
                     conn = conn.ForPipeline();
                 }
 
-                _clients[i] = new(conn);
+                _clients[i] = conn.Context;
             }
         }
     }
@@ -108,7 +109,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         await CleanupAsync().ConfigureAwait(false);
     }
 
-    protected override RespContext CreateBatch(RespContext client) => client.CreateBatch();
+    protected override RespContext CreateBatch(RespContext client) => client.CreateBatch().Context;
 
     protected override Func<ValueTask> GetFlush(RespContext client)
     {
@@ -334,3 +335,4 @@ internal static partial class RedisCommands
         }
     }
 }
+#endif

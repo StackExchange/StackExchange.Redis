@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Resp;
-using Resp.RedisCommands;
+using RESPite.Redis;
 using Xunit;
 
 namespace RESP.Core.Tests;
@@ -40,7 +39,7 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
         using var conn = GetConnection(out var context);
         for (int i = 0; i < count; i++)
         {
-            var s = conn.Strings();
+            var s = context.Strings;
             var key = $"{Me()}{i}";
             s.Set(key, $"def{i}");
             var val = s.Get(key);
@@ -59,7 +58,7 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
         for (int i = 0; i < count; i++)
         {
             var ctx = context.WithCancellationToken(cts.Token);
-            var s = ctx.Strings();
+            var s = ctx.Strings;
             var key = $"{Me()}{i}";
             await s.SetAsync(key, $"def{i}");
             var val = await s.GetAsync(key);
@@ -85,7 +84,7 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
         for (int i = 0; i < count; i++)
         {
             RespContext ctx = context.WithCancellationToken(cts.Token);
-            var s = ctx.Strings();
+            var s = ctx.Strings;
             var key = $"{Me()}{i}";
             _ = s.SetAsync(key, $"def{i}");
             tasks[i] = s.GetAsync(key);

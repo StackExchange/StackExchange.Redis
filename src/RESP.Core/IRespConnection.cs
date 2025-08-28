@@ -10,6 +10,11 @@ public interface IRespConnection : IDisposable, IAsyncDisposable
     bool CanWrite { get; }
     int Outstanding { get; }
 
+    /// <summary>
+    /// Gets the default context associates with this connection.
+    /// </summary>
+    ref readonly RespContext Context { get; }
+
     void Send(IRespMessage message);
     void Send(ReadOnlySpan<IRespMessage> messages);
 

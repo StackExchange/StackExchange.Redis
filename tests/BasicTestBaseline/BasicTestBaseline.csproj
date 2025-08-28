@@ -6,12 +6,11 @@
     <AssemblyName>BasicTestBaseline</AssemblyName>
     <OutputType>Exe</OutputType>
     <PackageId>BasicTestBaseline</PackageId>
-    <!--<RuntimeIdentifiers>win7-x64</RuntimeIdentifiers>-->
     <DefineConstants>$(DefineConstants);TEST_BASELINE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\BasicTest\Program.cs" Link="Program.cs" />
+    <Compile Include="..\BasicTest\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,7 +18,6 @@
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="System.Collections.Immutable" />
     <PackageReference Include="System.Reflection.Metadata" />
-    <ProjectReference Include="..\..\src\RESP.Core\RESP.Core.csproj" />
   </ItemGroup>
 
 </Project>

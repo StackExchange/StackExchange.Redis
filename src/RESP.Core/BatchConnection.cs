@@ -18,15 +18,18 @@ internal sealed class BatchConnection : IBatchConnection
     private bool _isDisposed;
     private readonly List<IRespMessage> _unsent;
     private readonly IRespConnection _tail;
+    private readonly RespContext _context;
 
-    public BatchConnection(IRespConnection tail, int sizeHint)
+    public BatchConnection(in RespContext context, int sizeHint)
     {
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract - an abundance of caution
+        var tail = context.Connection;
         if (tail is not { CanWrite: true }) ThrowNonWritable();
         if (tail is BatchConnection) ThrowBatch();
 
         _unsent = sizeHint <= 0 ? [] : new List<IRespMessage>(sizeHint);
         _tail = tail!;
+        _context = context.WithConnection(this);
         static void ThrowBatch() => throw new ArgumentException("Nested batches are not supported", nameof(tail));
 
         static void ThrowNonWritable() =>
@@ -76,6 +79,8 @@ internal sealed class BatchConnection : IBatchConnection
             }
         }
     }
+
+    public ref readonly RespContext Context => ref _context;
 
     private const string SyncMessage = "Batch connections do not support synchronous sends";
     public void Send(IRespMessage message) => throw new NotSupportedException(SyncMessage);

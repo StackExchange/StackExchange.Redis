@@ -22,7 +22,8 @@ internal sealed class DirectWriteConnection : IRespConnection
     private bool _isDoomed;
     private RespScanState _readScanState;
     private CycleBuffer _readBuffer, _writeBuffer;
-
+    private readonly RespContext _context;
+    public ref readonly RespContext Context => ref _context;
     public bool CanWrite => Volatile.Read(ref _readStatus) == WRITER_AVAILABLE;
 
     public int Outstanding => _outstanding.Count;
@@ -49,6 +50,8 @@ internal sealed class DirectWriteConnection : IRespConnection
         {
             new Thread(ReadAll).Start();
         }
+
+        _context = RespContext.For(this);
 
         static void Throw() => throw new ArgumentException("Stream must be readable and writable", nameof(tail));
     }

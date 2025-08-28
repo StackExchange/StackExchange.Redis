@@ -7,8 +7,15 @@ namespace Resp;
 internal class PipelinedConnection : IRespConnection
 {
     private readonly IRespConnection _tail;
+    private readonly RespContext _context;
     private readonly SemaphoreSlim _semaphore = new(1);
-    public PipelinedConnection(IRespConnection tail) => this._tail = tail;
+
+    public ref readonly RespContext Context => ref _context;
+    public PipelinedConnection(in RespContext tail)
+    {
+            _tail = tail.Connection;
+            _context = tail.WithConnection(this);
+    }
 
     public void Dispose()
     {

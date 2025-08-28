@@ -11,7 +11,7 @@ public abstract class IntegrationTestBase(ConnectionFixture fixture, ITestOutput
     {
          // most of the time, they'll be using a key from Me(), so: pre-emptively nuke it
          var conn = fixture.GetConnection();
-         context = new(conn, TestContext.Current.CancellationToken);
+         context = conn.Context.WithCancellationToken(TestContext.Current.CancellationToken);
          context.Keys.Del(caller);
          return conn;
     }

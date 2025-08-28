@@ -23,22 +23,30 @@ public sealed class RespConnectionPool : IDisposable
     private readonly Func<RespConfiguration, IRespConnection> _createConnection;
     private readonly int _count;
 
-    public RespConnectionPool(Func<RespConfiguration, IRespConnection> createConnection, RespConfiguration? configuration = null, int count = RespConnectionPool.DefaultCount)
+    public RespConnectionPool(
+        Func<RespConfiguration, IRespConnection> createConnection,
+        RespConfiguration? configuration = null,
+        int count = RespConnectionPool.DefaultCount)
     {
         _createConnection = createConnection;
         _count = count;
         _configuration = configuration ?? RespConfiguration.Default;
     }
 
-    public RespConnectionPool(IPAddress? address = null, int port = 6379, RespConfiguration? configuration = null, int count = DefaultCount)
+    public RespConnectionPool(
+        IPAddress? address = null,
+        int port = 6379,
+        RespConfiguration? configuration = null,
+        int count = DefaultCount)
         : this(new IPEndPoint(address ?? IPAddress.Loopback, port), configuration, count)
     {
     }
+
     public RespConnectionPool(EndPoint endPoint, RespConfiguration? configuration = null, int count = DefaultCount)
     {
-        #pragma warning disable CS0618 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
         _createConnection = config => CreateConnection(config, endPoint, UseCustomNetworkStream);
-        #pragma warning restore CS0618 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
         _count = count;
         _configuration = configuration ?? RespConfiguration.Default;
     }
@@ -50,6 +58,7 @@ public sealed class RespConnectionPool : IDisposable
         {
             connection = _createConnection(_configuration);
         }
+
         return new PoolWrapper(this, connection);
     }
 
@@ -96,20 +105,34 @@ public sealed class RespConnectionPool : IDisposable
         }
     }
 
-    private sealed class PoolWrapper(RespConnectionPool pool, IRespConnection tail) : IRespConnection
+    private sealed class PoolWrapper : IRespConnection
     {
         private bool _isDisposed;
+        private readonly RespConnectionPool _pool;
+        private readonly IRespConnection _tail;
+        private readonly RespContext _context;
+
+        public ref readonly RespContext Context => ref _context;
+
+        public PoolWrapper(RespConnectionPool pool, IRespConnection tail)
+        {
+            _pool = pool;
+            _tail = tail;
+            _context = RespContext.For(this);
+        }
+
         public void Dispose()
         {
             _isDisposed = true;
-            pool.Return(tail);
+            _pool.Return(_tail);
         }
 
-        public bool CanWrite => !_isDisposed && tail.CanWrite;
+        public bool CanWrite => !_isDisposed && _tail.CanWrite;
 
-        public int Outstanding => tail.Outstanding;
+        public int Outstanding => _tail.Outstanding;
 
-        public RespConfiguration Configuration => tail.Configuration;
+        public RespConfiguration Configuration => _tail.Configuration;
+
         private void ThrowIfDisposed()
         {
             if (_isDisposed) Throw();
@@ -125,25 +148,25 @@ public sealed class RespConnectionPool : IDisposable
         public void Send(IRespMessage message)
         {
             ThrowIfDisposed();
-            tail.Send(message);
+            _tail.Send(message);
         }
 
         public void Send(ReadOnlySpan<IRespMessage> messages)
         {
             ThrowIfDisposed();
-            tail.Send(messages);
+            _tail.Send(messages);
         }
 
         public Task SendAsync(IRespMessage message)
         {
             ThrowIfDisposed();
-            return tail.SendAsync(message);
+            return _tail.SendAsync(message);
         }
 
         public Task SendAsync(ReadOnlyMemory<IRespMessage> messages)
         {
             ThrowIfDisposed();
-            return tail.SendAsync(messages);
+            return _tail.SendAsync(messages);
         }
     }
 }

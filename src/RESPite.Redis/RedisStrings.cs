@@ -75,4 +75,16 @@ public readonly partial struct RedisStrings(in RespContext context)
 
     [RespCommand]
     public partial double IncrByFloat(string key, double value);
+
+    [RespCommand]
+    public partial void Set(string key, string value);
+
+    [RespCommand]
+    public partial void Set(string key, ReadOnlyMemory<byte> value);
+
+    [RespCommand]
+    public partial void Set(string key, int value);
+
+    [RespCommand]
+    public partial void Set(string key, double value);
 }

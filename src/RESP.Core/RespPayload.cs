@@ -1,138 +1,13 @@
 using System;
 using System.Buffers;
 using System.Diagnostics;
-using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using Resp.RedisCommands;
 
 namespace Resp;
 
-// public abstract class RespPayload : IDisposable
-// {
-//     public virtual Task WaitAsync() => Task.CompletedTask;
-//     public virtual void Wait(TimeSpan timeout) { }
-//
-//     private bool _isDisposed;
-//
-//     public void Dispose()
-//     {
-//         if (!_isDisposed)
-//         {
-//             _isDisposed = true;
-//             Dispose(true);
-//         }
-//     }
-//
-//     protected abstract void Dispose(bool disposing);
-//     protected abstract ReadOnlySequence<byte> GetPayload();
-//
-//     /// <inheritdoc/>
-//     public override string ToString() => _isDisposed ? "(disposed)" : $"{GetPayload().Length} bytes";
-//
-//     public ReadOnlySequence<byte> Payload
-//     {
-//         get
-//         {
-//             if (_isDisposed) ThrowDisposed(this);
-//             return GetPayload();
-//
-//             static void ThrowDisposed(RespPayload obj) => throw new ObjectDisposedException(obj.GetType().Name);
-//         }
-//     }
-//
-//     /// <summary>
-//     /// Ensure that this is a valid RESP payload and contains the expected number of top-level elements.
-//     /// </summary>
-//     /// <param name="checkError">Whether to check for error replies.</param>
-//     public void Validate(bool checkError = true)
-//     {
-//         RespReader reader = new(Payload);
-//         int count = 0;
-//         while (reader.TryMoveNext(checkError))
-//         {
-//             reader.SkipChildren();
-//             count++;
-//         }
-//
-//         if (count != 1)
-//         {
-//             throw new InvalidOperationException($"Expected single message, found {count}");
-//         }
-//     }
-//
-//     internal static RespPayload Create<TRequest>(
-//         scoped ReadOnlySpan<byte> command,
-//         in TRequest request,
-//         IRespFormatter<TRequest> formatter)
-//     {
-//         int size = 0;
-//         if (formatter is IRespSizeEstimator<TRequest> estimator)
-//         {
-//             size = estimator.EstimateSize(command, request);
-//         }
-//         var buffer = AmbientBufferWriter.Get(size);
-//         try
-//         {
-//             var writer = new RespWriter(buffer);
-//             formatter.Format(command, ref writer, request);
-//             writer.Flush();
-//             var payload = buffer.Detach(out int length);
-//             return disposeOnWrite
-//                 ? new DisposeOnWriteRespPayload(payload, length)
-//                 : new ArrayPoolRespPayload(payload, length);
-//         }
-//         catch
-//         {
-//             buffer.Reset();
-//             throw;
-//         }
-//     }
-//
-//     internal TResponse ParseAndDispose<TResponse>(IRespParser<TResponse>? parser = null, TimeSpan timeout = default)
-//     {
-//         try
-//         {
-//             Wait(timeout);
-//             parser ??= DefaultParsers.Get<TResponse>();
-//             var reader = new RespReader(Payload);
-//             // ReSharper disable once SuspiciousTypeConversion.Global
-//             if (parser is not IRespMetadataParser)
-//             {
-//                 reader.MoveNext(); // move to content by default
-//             }
-//             return parser.Parse(ref reader);
-//         }
-//         finally
-//         {
-//             Dispose();
-//         }
-//     }
-//
-//     internal TResponse ParseAndDispose<TRequest, TResponse>(in TRequest request, IRespParser<TRequest, TResponse> parser)
-//     {
-//         try
-//         {
-//             var reader = new RespReader(Payload);
-//             // ReSharper disable once SuspiciousTypeConversion.Global
-//             if (parser is not IRespMetadataParser)
-//             {
-//                 reader.MoveNext(); // move to content by default
-//             }
-//             return parser.Parse(in request, ref reader);
-//         }
-//         finally
-//         {
-//             Dispose();
-//         }
-//     }
-//
-//     public static RespPayload Create(ReadOnlyMemory<byte> payload) => new ReadOnlyMemoryRespPayload(payload);
-//     public static RespPayload Create(ReadOnlySequence<byte> payload) =>
-//         payload.IsSingleSegment ? new ReadOnlyMemoryRespPayload(payload.First) : new ReadOnlySequenceRespPayload(payload);
-// }
 public interface IRespMessage
 {
     /// <summary>

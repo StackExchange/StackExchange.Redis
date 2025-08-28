@@ -1,6 +1,7 @@
 ﻿// #define PREFER_SYNC_WRITE // makes async calls use synchronous writes
 
 using System;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -154,26 +155,45 @@ public class RespConfiguration
 /// <summary>
 /// Transient state for a RESP operation.
 /// </summary>
-public readonly struct RespContext(
-    IRespConnection connection,
-    int database = -1,
-    CancellationToken cancellationToken = default)
+public readonly struct RespContext
 {
-    /// <inheritdoc/>
-    public override string ToString() => connection?.ToString() ?? "(null)";
+    private readonly IRespConnection _connection;
+    private readonly int _database;
+    private readonly CancellationToken _cancellationToken;
 
+    private const string CtorUsageWarning = $"The context from {nameof(IRespConnection)}.{nameof(IRespConnection.Context)} should be preferred, using {nameof(WithCancellationToken)} etc as necessary.";
+
+    /// <inheritdoc/>
+    public override string ToString() => _connection?.ToString() ?? "(null)";
+
+    [Obsolete(CtorUsageWarning)]
     public RespContext(IRespConnection connection) : this(connection, -1, CancellationToken.None)
     {
     }
 
+    [Obsolete(CtorUsageWarning)]
     public RespContext(IRespConnection connection, CancellationToken cancellationToken)
         : this(connection, -1, cancellationToken)
     {
     }
 
-    public IRespConnection Connection => connection;
-    public int Database => database;
-    public CancellationToken CancellationToken => cancellationToken;
+    /// <summary>
+    /// Transient state for a RESP operation.
+    /// </summary>
+    [Obsolete(CtorUsageWarning)]
+    public RespContext(
+        IRespConnection connection,
+        int database = -1,
+        CancellationToken cancellationToken = default)
+    {
+        _connection = connection;
+        _database = database;
+        _cancellationToken = cancellationToken;
+    }
+
+    public IRespConnection Connection => _connection;
+    public int Database => _database;
+    public CancellationToken CancellationToken => _cancellationToken;
 
     public RespMessageBuilder<T> Command<T>(ReadOnlySpan<byte> command, T value, IRespFormatter<T> formatter)
         => new(this, command, value, formatter);
@@ -187,19 +207,36 @@ public readonly struct RespContext(
     public RespMessageBuilder<byte[]> Command(ReadOnlySpan<byte> command, byte[] value, bool isKey)
         => new(this, command, value, RespFormatters.ByteArray(isKey));
 
-    public RespCommandMap RespCommandMap => connection.Configuration.RespCommandMap;
+    public RespCommandMap RespCommandMap => _connection.Configuration.RespCommandMap;
 
     public RespContext WithCancellationToken(CancellationToken cancellationToken)
-        => new(connection, database, cancellationToken);
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RespContext clone = this;
+        Unsafe.AsRef(in clone._cancellationToken) = cancellationToken;
+        return clone;
+    }
 
     public RespContext WithDatabase(int database)
-        => new(connection, database, cancellationToken);
+    {
+        RespContext clone = this;
+        Unsafe.AsRef(in clone._database) = database;
+        return clone;
+    }
 
     public RespContext WithConnection(IRespConnection connection)
-        => new(connection, database, cancellationToken);
+    {
+        RespContext clone = this;
+        Unsafe.AsRef(in clone._connection) = connection;
+        return clone;
+    }
 
-    public RespContext CreateBatch()
-        => new(connection.CreateBatch(), database, cancellationToken);
+    public IBatchConnection CreateBatch(int sizeHint = 0) => new BatchConnection(in this, sizeHint);
+
+    internal static RespContext For(IRespConnection connection)
+#pragma warning disable CS0618 // Type or member is obsolete
+        => new RespContext(connection);
+#pragma warning restore CS0618 // Type or member is obsolete
 }
 
 public static class RespConnectionExtensions
@@ -208,34 +245,43 @@ public static class RespConnectionExtensions
     /// Enforces stricter ordering guarantees, so that unawaited async operations cannot cause overlapping writes.
     /// </summary>
     public static IRespConnection ForPipeline(this IRespConnection connection)
-        => connection is PipelinedConnection ? connection : new PipelinedConnection(connection);
+        => connection is PipelinedConnection ? connection : new PipelinedConnection(in connection.Context);
 
     public static IRespConnection WithConfiguration(this IRespConnection connection, RespConfiguration configuration)
         => ReferenceEquals(configuration, connection.Configuration)
             ? connection
             : new ConfiguredConnection(connection, configuration);
 
-    public static IRespConnection CreateBatch(this IRespConnection connection, int sizeHint = 0)
-        => new BatchConnection(connection, sizeHint);
-
-    private sealed class ConfiguredConnection(IRespConnection tail, RespConfiguration configuration) : IRespConnection
+    private sealed class ConfiguredConnection : IRespConnection
     {
-        public void Dispose() => tail.Dispose();
+        private readonly IRespConnection _tail;
+        private readonly RespConfiguration _configuration;
+        private readonly RespContext _context;
 
-        public ValueTask DisposeAsync() => tail.DisposeAsync();
+        public ref readonly RespContext Context => ref _context;
+        public ConfiguredConnection(IRespConnection tail, RespConfiguration configuration)
+        {
+            _tail = tail;
+            _configuration = configuration;
+            _context = RespContext.For(this);
+        }
 
-        public RespConfiguration Configuration => configuration;
+        public void Dispose() => _tail.Dispose();
 
-        public bool CanWrite => tail.CanWrite;
+        public ValueTask DisposeAsync() => _tail.DisposeAsync();
 
-        public int Outstanding => tail.Outstanding;
+        public RespConfiguration Configuration => _configuration;
 
-        public void Send(IRespMessage message) => tail.Send(message);
-        public void Send(ReadOnlySpan<IRespMessage> messages) => tail.Send(messages);
+        public bool CanWrite => _tail.CanWrite;
+
+        public int Outstanding => _tail.Outstanding;
+
+        public void Send(IRespMessage message) => _tail.Send(message);
+        public void Send(ReadOnlySpan<IRespMessage> messages) => _tail.Send(messages);
 
         public Task SendAsync(IRespMessage message) =>
-            tail.SendAsync(message);
+            _tail.SendAsync(message);
 
-        public Task SendAsync(ReadOnlyMemory<IRespMessage> messages) => tail.SendAsync(messages);
+        public Task SendAsync(ReadOnlyMemory<IRespMessage> messages) => _tail.SendAsync(messages);
     }
 }
