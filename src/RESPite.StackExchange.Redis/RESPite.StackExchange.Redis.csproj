@@ -9,4 +9,12 @@
     <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs">
+      <Link>NullableHacks.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs">
+      <Link>SkipLocalsInit.cs</Link>
+    </Compile>
+  </ItemGroup>
 </Project>

@@ -10,15 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RESP.Core\RESP.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Compile Update="RespOperationT.cs">
       <DependentUpon>RespOperation.cs</DependentUpon>
-    </Compile>
-    <Compile Update="IRespParser_Typed_Stateful.cs">
-      <DependentUpon>IRespParser_Typed.cs</DependentUpon>
     </Compile>
     <Compile Update="Internal\IRespMessage.cs">
       <DependentUpon>RespMessage.cs</DependentUpon>
@@ -28,6 +21,33 @@
     </Compile>
     <Compile Update="Internal\RespMessageBase_Typed.cs">
       <DependentUpon>RespMessageBaseT.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.AggregateEnumerator.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Debug.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.ScalarEnumerator.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Span.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Utils.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\FrameworkShims.cs">
+      <Link>FrameworkShims.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs">
+      <Link>NullableHacks.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs">
+      <Link>SkipLocalsInit.cs</Link>
     </Compile>
   </ItemGroup>
 

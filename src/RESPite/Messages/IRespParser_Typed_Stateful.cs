@@ -1,4 +1,4 @@
-﻿namespace RESPite;
+﻿namespace RESPite.Messages;
 
 public interface IRespParser<TState, out TResponse>
 {

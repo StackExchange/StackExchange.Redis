@@ -12,4 +12,12 @@
     <ProjectReference Include="..\..\src\RESP.Core\RESP.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs">
+      <Link>NullableHacks.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs">
+      <Link>SkipLocalsInit.cs</Link>
+    </Compile>
+  </ItemGroup>
 </Project>

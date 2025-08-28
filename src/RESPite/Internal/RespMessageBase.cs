@@ -2,10 +2,11 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks.Sources;
+using RESPite.Messages;
 
 namespace RESPite.Internal;
 
-internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSource<TResponse>
+internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSource<TResponse>
 {
     private CancellationToken _cancellationToken;
     private CancellationTokenRegistration _cancellationTokenRegistration;
@@ -14,14 +15,61 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
     private object? _requestOwner;
 
     private int _requestRefCount;
-    private ManualResetValueTaskSourceCore<TResponse> _asyncCore;
     private int _flags;
+    private ManualResetValueTaskSourceCore<TResponse> _asyncCore;
 
     private const int
         Flag_Sent = 1 << 0, // the request has been sent
         Flag_OutcomeKnown = 1 << 1, // controls which code flow gets to set an outcome
         Flag_Complete = 1 << 2, // indicates whether all follow-up has completed
-        Flag_NoPulse = 1 << 3; // don't pulse when completing - either async, or timeout
+        Flag_NoPulse = 1 << 4, // don't pulse when completing - either async, or timeout
+        Flag_Parser = 1 << 5, // we have a parser
+        Flag_MetadataParser = 1 << 6, // the parser wants to consume metadata
+        Flag_InlineParser = 1 << 7; // we can safely use the parser on the IO thread
+
+    protected abstract TResponse Parse(ref RespReader reader);
+
+    protected RespMessageBase<TResponse> InitParser(object? parser)
+    {
+        if (parser is not null)
+        {
+            int flags = Flag_Parser;
+            if (parser is IRespMetadataParser) flags |= Flag_MetadataParser;
+            if (parser is IRespInlineParser) flags |= Flag_InlineParser;
+            SetFlag(flags);
+        }
+
+        return this;
+    }
+
+    public bool TrySetResult(scoped ReadOnlySpan<byte> payload) => throw new NotImplementedException();
+
+    public bool TrySetResult(ReadOnlySequence<byte> response)
+    {
+        Debug.Assert(GetStatus(_asyncCore.Version) == ValueTaskSourceStatus.Pending);
+        if (HasFlag(Flag_OutcomeKnown)) return false;
+        var flags = _flags & (Flag_MetadataParser | Flag_Parser);
+        switch (flags)
+        {
+            case Flag_Parser:
+            case Flag_Parser | Flag_MetadataParser:
+                try
+                {
+                    RespReader reader = new(response);
+                    if ((flags & Flag_MetadataParser) == 0)
+                    {
+                        reader.MoveNext();
+                    }
+                    return TrySetResult(Parse(ref reader));
+                }
+                catch (Exception ex)
+                {
+                    return TrySetException(ex);
+                }
+            default:
+                return TrySetResult(default(TResponse)!);
+        }
+    }
 
     private bool SetFlag(int flag)
     {
@@ -45,18 +93,22 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
     // in the "any" sense
     private bool HasFlag(int flag) => (Volatile.Read(ref _flags) & flag) != 0;
 
-    public void Init(byte[] oversized, int offset, int length, ArrayPool<byte>? pool)
+    public RespMessageBase<TResponse> SetRequest(byte[] oversized, int offset, int length, ArrayPool<byte>? pool)
     {
+        Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
         _request = new ReadOnlyMemory<byte>(oversized, offset, length);
         _requestOwner = pool;
         _requestRefCount = 1;
+        return this;
     }
 
-    public void Init(IMemoryOwner<byte> owner, int offset, int length)
+    public RespMessageBase<TResponse> SetRequest(ReadOnlyMemory<byte> request, IDisposable? owner = null)
     {
-        _request = owner.Memory.Slice(offset, length);
+        Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
+        _request = request;
         _requestOwner = owner;
         _requestRefCount = 1;
+        return this;
     }
 
     private void UnregisterCancellation()
@@ -66,7 +118,7 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
         _cancellationToken = CancellationToken.None;
     }
 
-    public void Reset()
+    public virtual void Reset()
     {
         Debug.Assert(
             _asyncCore.GetStatus(_asyncCore.Version) == ValueTaskSourceStatus.Succeeded,
@@ -80,13 +132,12 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
         _flags = 0;
     }
 
-    public bool TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent = true)
+    public bool TryReserveRequest(out ReadOnlyMemory<byte> payload, bool recordSent = true)
     {
         payload = default;
         while (true) // need to take reservation
         {
-            // check completion (and the token)
-            if (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending) return false;
+            Debug.Assert(_asyncCore.GetStatus(_asyncCore.Version) == ValueTaskSourceStatus.Pending);
 
             var oldCount = Volatile.Read(ref _requestRefCount);
             if (oldCount == 0) return false;
@@ -102,19 +153,19 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
         return true;
     }
 
-    public void ReleaseRequest(short token)
+    public void ReleaseRequest()
     {
-        if (!TryReleaseRequest(token)) ThrowReleased();
+        if (!TryReleaseRequest()) ThrowReleased();
 
         static void ThrowReleased() =>
             throw new InvalidOperationException("The request payload has already been released");
     }
 
-    private bool TryReleaseRequest(short token) // bool here means "it wasn't already zero"; it doesn't mean "it became zero"
+    private bool
+        TryReleaseRequest() // bool here means "it wasn't already zero"; it doesn't mean "it became zero"
     {
         while (true)
         {
-            CheckToken(token);
             var oldCount = Volatile.Read(ref _requestRefCount);
             if (oldCount == 0) return false;
             if (Interlocked.CompareExchange(ref _requestRefCount, oldCount - 1, oldCount) == oldCount)
@@ -128,10 +179,12 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
                             pool.Return(segment.Array!);
                         }
                     }
-                    if (_requestOwner is IMemoryOwner<byte> owner)
+
+                    if (_requestOwner is IDisposable owner)
                     {
                         owner.Dispose();
                     }
+
                     _request = default;
                     _requestOwner = null;
                 }
@@ -172,50 +225,22 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
                 "This command has not yet been sent; awaiting is not possible. If this is a transaction or batch, you must execute that first.");
     }
 
-    public void OnCompleted(Action<object?> continuation, object? state, short token,
+    public void OnCompleted(
+        Action<object?> continuation,
+        object? state,
+        short token,
         ValueTaskSourceOnCompletedFlags flags)
     {
         _asyncCore.OnCompleted(continuation, state, token, flags);
         SetFlag(Flag_NoPulse); // async doesn't need to be pulsed
     }
 
-    public bool TryCancel(short token, CancellationToken cancellationToken = default)
-    {
-        if (!TrySetOutcomeKnown(token)) return false;
-        if (!cancellationToken.IsCancellationRequested)
-        {
-            // use our own token if nothing more specific supplied
-            cancellationToken = _cancellationToken;
-        }
-
-        return TrySetException(token, new OperationCanceledException(cancellationToken));
-    }
-
-    public bool TrySetException(short token, Exception exception)
-    {
-        if (!TrySetOutcomeKnown(token)) return false; // first winner only
-        _asyncCore.SetException(exception);
-        SetFlag(Flag_Complete);
-
-        // for safety, always take the lock unless we know they've actively exited
-        if (!HasFlag(Flag_NoPulse))
-        {
-            lock (this)
-            {
-                Monitor.PulseAll(this);
-            }
-        }
-
-        return true;
-    }
-
     // spoof untyped on top of typed
     void IValueTaskSource.GetResult(short token) => _ = GetResult(token);
     void IRespMessage.Wait(short token, TimeSpan timeout) => _ = Wait(token, timeout);
 
-    private bool TrySetOutcomeKnown(short token)
+    private bool TrySetOutcomeKnown()
     {
-        CheckToken(token);
         if (!SetFlag(Flag_OutcomeKnown)) return false;
         UnregisterCancellation();
         return true;
@@ -230,29 +255,93 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
             bool isTimeout = false;
             lock (this)
             {
-                if (!HasFlag(Flag_Complete))
+                switch (Volatile.Read(ref _flags) & Flag_Complete | Flag_NoPulse)
                 {
-                    if (timeout == TimeSpan.Zero)
-                    {
-                        Monitor.Wait(this);
-                    }
-                    else if (!Monitor.Wait(this, timeout))
-                    {
-                        isTimeout = true;
-                        SetFlag(Flag_NoPulse);
-                    }
+                    case Flag_NoPulse | Flag_Complete:
+                    case Flag_Complete:
+                        break; // fine, we're complete
+                    case 0:
+                        // THIS IS OUR EXPECTED BRANCH; not complete, and will pulse
+                        if (timeout == TimeSpan.Zero)
+                        {
+                            Monitor.Wait(this);
+                        }
+                        else if (!Monitor.Wait(this, timeout))
+                        {
+                            isTimeout = true;
+                            SetFlag(Flag_NoPulse); // no point in being woken, we're exiting
+                        }
+
+                        break;
+                    case Flag_NoPulse:
+                        ThrowWillNotPulse();
+                        break;
                 }
             }
 
             UnregisterCancellation();
-            if (isTimeout && TrySetOutcomeKnown(token))
-            {
-                _asyncCore.SetException(new TimeoutException());
-                SetFlag(Flag_Complete);
-            }
+            if (isTimeout) TrySetTimeout();
         }
 
         return GetResult(token);
+
+        static void ThrowWillNotPulse() => throw new InvalidOperationException(
+            "This operation cannot be waited because it entered async/await mode - most likely by calling AsTask()");
+    }
+
+    private bool TrySetResult(TResponse response)
+    {
+        if (!TrySetOutcomeKnown()) return false;
+
+        _asyncCore.SetResult(response);
+        SetFullyComplete();
+        return true;
+    }
+
+    private bool TrySetTimeout()
+    {
+        if (!TrySetOutcomeKnown()) return false;
+
+        _asyncCore.SetException(new TimeoutException());
+        SetFullyComplete();
+        return true;
+    }
+
+    public bool TrySetCanceled(CancellationToken cancellationToken = default)
+    {
+        if (!TrySetOutcomeKnown()) return false;
+        if (!cancellationToken.IsCancellationRequested)
+        {
+            // use our own token if nothing more specific supplied
+            cancellationToken = _cancellationToken;
+        }
+
+        _asyncCore.SetException(new OperationCanceledException(cancellationToken));
+        SetFullyComplete();
+        return true;
+    }
+
+    public bool TrySetException(Exception exception)
+    {
+        if (!TrySetOutcomeKnown()) return false; // first winner only
+        _asyncCore.SetException(exception);
+        SetFullyComplete();
+        return true;
+    }
+
+    private void SetFullyComplete()
+    {
+        var pulse = !HasFlag(Flag_NoPulse);
+        SetFlag(Flag_Complete | Flag_NoPulse);
+
+        // for safety, always take the lock unless we know they've actively exited
+        if (pulse)
+        {
+            lock (this)
+            {
+                Monitor.PulseAll(this);
+            }
+        }
     }
 
     public TResponse GetResult(short token)

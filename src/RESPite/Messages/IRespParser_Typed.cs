@@ -1,4 +1,4 @@
-﻿namespace RESPite;
+﻿namespace RESPite.Messages;
 
 /// <summary>
 /// Parses a RESP response into a typed value of type <typeparamref name="TResponse"/>.

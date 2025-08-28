@@ -19,11 +19,11 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     private readonly short _token;
     private readonly bool _disableCaptureContext; // default is false, so: bypass
 
-    internal RespOperation(IRespMessage message, short token)
+    internal RespOperation(IRespMessage message, short token, bool disableCaptureContext = false)
     {
         _message = message;
         _token = token;
-        Unsafe.SkipInit(out _disableCaptureContext);
+        _disableCaptureContext = disableCaptureContext;
     }
 
     private IRespMessage Message => _message ?? ThrowNoMessage();
@@ -96,10 +96,4 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         Unsafe.AsRef(in clone._disableCaptureContext) = !continueOnCapturedContext;
         return clone;
     }
-
-    internal bool TrySetException(Exception exception) => Message.TrySetException(_token, exception);
-
-    internal bool TryCancel(CancellationToken cancellationToken = default) => Message.TryCancel(_token, cancellationToken);
-    internal bool TryReserveRequest(out ReadOnlyMemory<byte> payload, bool recordSent = true) => Message.TryReserveRequest(_token, out payload);
-    internal void ReleaseRequest() => Message.ReleaseRequest(_token);
 }

@@ -5,9 +5,13 @@ namespace RESPite.Internal;
 
 internal interface IRespMessage : IValueTaskSource
 {
+    // We only use token for the public-exposed (indirectly) APIs, i.e. "get the result"; for
+    // the "set the result" side, trust that we're not idiots.
     void Wait(short token, TimeSpan timeout);
-    bool TryCancel(short token, CancellationToken cancellationToken = default);
-    bool TrySetException(short token, Exception exception);
-    bool TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent = true);
-    void ReleaseRequest(short token);
+    bool TrySetCanceled(CancellationToken cancellationToken = default);
+    bool TrySetException(Exception exception);
+    bool TryReserveRequest(out ReadOnlyMemory<byte> payload, bool recordSent = true);
+    void ReleaseRequest();
+    bool TrySetResult(scoped ReadOnlySpan<byte> payload);
+    bool TrySetResult(ReadOnlySequence<byte> payload);
 }
