@@ -13,4 +13,22 @@
     <ProjectReference Include="..\RESP.Core\RESP.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Update="RespOperationT.cs">
+      <DependentUpon>RespOperation.cs</DependentUpon>
+    </Compile>
+    <Compile Update="IRespParser_Typed_Stateful.cs">
+      <DependentUpon>IRespParser_Typed.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\IRespMessage.cs">
+      <DependentUpon>RespMessage.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespMessageBase_Typed_Stateful.cs">
+      <DependentUpon>RespMessageBaseT.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespMessageBase_Typed.cs">
+      <DependentUpon>RespMessageBaseT.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
 </Project>
