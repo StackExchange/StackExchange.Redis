@@ -4,7 +4,7 @@ using Resp;
 namespace RESPite.Redis;
 
 // note that members may also be added as extensions if necessary
-public partial struct RedisKeys(in RespContext context)
+public readonly partial struct RedisKeys(in RespContext context)
 {
     private readonly RespContext _context = context;
 
