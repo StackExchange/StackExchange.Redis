@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks.Sources;
 
 namespace RESPite.Internal;
@@ -120,11 +121,19 @@ internal abstract class RespMessageBaseT<TResponse> : IRespMessage, IValueTaskSo
             {
                 if (oldCount == 1) // we were the last one; recycle
                 {
-                    _parser = null;
-                    var arr = _requestPayload;
-                    _requestLength = 0;
-                    _requestPayload = [];
-                    ArrayPool<byte>.Shared.Return(arr);
+                    if (_requestOwner is ArrayPool<byte> pool)
+                    {
+                        if (MemoryMarshal.TryGetArray(_request, out var segment))
+                        {
+                            pool.Return(segment.Array!);
+                        }
+                    }
+                    if (_requestOwner is IMemoryOwner<byte> owner)
+                    {
+                        owner.Dispose();
+                    }
+                    _request = default;
+                    _requestOwner = null;
                 }
 
                 return true;
