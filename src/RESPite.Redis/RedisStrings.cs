@@ -44,7 +44,7 @@ public readonly partial struct RedisStrings(in RespContext context)
     {
         public const string Formatter = $"{nameof(ExpiryTimeSpanFormatter)}.{nameof(Instance)}";
 
-        public static readonly ExpiryTimeSpanFormatter Instance = new ExpiryTimeSpanFormatter();
+        public static readonly ExpiryTimeSpanFormatter Instance = new();
 
         public void Format(
             scoped ReadOnlySpan<byte> command,
