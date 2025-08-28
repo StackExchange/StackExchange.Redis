@@ -44,16 +44,19 @@ public ref struct RespWriter
 #else
     private Span<byte> _buffer;
     private readonly int BufferLength => _buffer.Length;
+
     private readonly ref byte StartOfBuffer
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref MemoryMarshal.GetReference(_buffer);
     }
+
     private readonly ref byte WriteHead
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), _index);
     }
+
     private readonly Span<byte> Tail => _buffer.Slice(_index);
     private void WriteRawUnsafe(byte value) => _buffer[_index++] = value;
 
@@ -239,7 +242,19 @@ public ref struct RespWriter
     /// Write a key as a bulk string.
     /// </summary>
     /// <param name="value">The key to write.</param>
+    public void WriteKey(ReadOnlyMemory<byte> value) => WriteBulkString(value.Span);
+
+    /// <summary>
+    /// Write a key as a bulk string.
+    /// </summary>
+    /// <param name="value">The key to write.</param>
     public void WriteKey(scoped ReadOnlySpan<char> value) => WriteBulkString(value);
+
+    /// <summary>
+    /// Write a key as a bulk string.
+    /// </summary>
+    /// <param name="value">The key to write.</param>
+    public void WriteKey(ReadOnlyMemory<char> value) => WriteBulkString(value.Span);
 
     /// <summary>
     /// Write a key as a bulk string.
@@ -251,7 +266,20 @@ public ref struct RespWriter
     /// Write a key as a bulk string.
     /// </summary>
     /// <param name="value">The key to write.</param>
-    public void WriteKey(byte[] value) => WriteBulkString(value);
+    public void WriteKey(byte[] value) => WriteBulkString(value.AsSpan());
+
+    /// <summary>
+    /// Write a payload as a bulk string.
+    /// </summary>
+    /// <param name="value">The payload to write.</param>
+    public void WriteBulkString(byte[] value) => WriteBulkString(value.AsSpan());
+
+    /// <summary>
+    /// Write a payload as a bulk string.
+    /// </summary>
+    /// <param name="value">The payload to write.</param>
+    public void WriteBulkString(ReadOnlyMemory<byte> value)
+        => WriteBulkString(value.Span);
 
     /// <summary>
     /// Write a payload as a bulk string.
@@ -334,7 +362,7 @@ public ref struct RespWriter
     /// </summary>
     public void WriteBulkString(double value)
     {
-        if (/*value == 0.0 | */ double.IsNaN(value) | double.IsInfinity(value))
+        if (value == 0.0 | double.IsNaN(value) | double.IsInfinity(value))
         {
             WriteKnownDouble(ref this, value);
 
@@ -444,6 +472,7 @@ public ref struct RespWriter
     }
 
     private static void ThrowFormatException() => throw new FormatException();
+
     private void WritePrefixedInteger(RespPrefix prefix, int length)
     {
         if (Available >= RespConstants.MaxProtocolBytesIntegerInt32)
@@ -459,14 +488,17 @@ public ref struct RespWriter
                 {
                     ThrowFormatException();
                 }
+
                 _index += bytesWritten;
             }
+
             WriteCrLfUnsafe();
         }
         else
         {
             WriteViaStack(ref this, prefix, length);
         }
+
         static void WriteViaStack(ref RespWriter respWriter, RespPrefix prefix, int length)
         {
             Debug.Assert(RespConstants.MaxProtocolBytesIntegerInt32 <= 16);
@@ -482,9 +514,11 @@ public ref struct RespWriter
             {
                 ThrowFormatException();
             }
+
             Unsafe.WriteUnaligned(ref buffer[payloadLength + 1], RespConstants.CrLfUInt16);
             respWriter.WriteRaw(buffer.Slice(0, payloadLength + 3));
         }
+
         bool writeToStack = Available < RespConstants.MaxProtocolBytesIntegerInt32;
 
         Span<byte> target = writeToStack ? stackalloc byte[16] : Tail;
@@ -504,7 +538,8 @@ public ref struct RespWriter
 
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
     // ReSharper disable once NotResolvedInText
-    private static void ThrowNull() => throw new ArgumentNullException("value", "Null values cannot be sent from client to server");
+    private static void ThrowNull() =>
+        throw new ArgumentNullException("value", "Null values cannot be sent from client to server");
 
     internal void WriteBulkStringUnoptimized(string? value)
     {
@@ -527,9 +562,16 @@ public ref struct RespWriter
             {
                 WriteUtf8Slow(value.AsSpan(), byteCount);
             }
+
             WriteCrLf();
         }
     }
+
+    /// <summary>
+    /// Write a payload as a bulk string.
+    /// </summary>
+    /// <param name="value">The payload to write.</param>
+    public void WriteBulkString(ReadOnlyMemory<char> value) => WriteBulkString(value.Span);
 
     /// <summary>
     /// Write a payload as a bulk string.
@@ -603,6 +645,7 @@ public ref struct RespWriter
             remaining -= bytesUsed;
             FlushAndGetBuffer(Math.Min(remaining, MAX_BUFFER_HINT));
         }
+        // until done...
         while (!completed);
 
         if (remaining != 0)
@@ -614,6 +657,7 @@ public ref struct RespWriter
             _index += bytesUsed;
             remaining -= bytesUsed;
         }
+
         enc.Reset();
         Debug.Assert(remaining == 0);
     }
@@ -791,6 +835,7 @@ public ref struct RespWriter
                     return;
             }
         }
+
         WritePrefixedInteger(RespPrefix.Array, count);
     }
 
@@ -838,6 +883,7 @@ public ref struct RespWriter
                     return;
             }
         }
+
         WritePrefixedInteger(RespPrefix.BulkString, count);
     }
 
@@ -862,5 +908,6 @@ public ref struct RespWriter
     internal void DebugResetIndex() => _index = 0;
 
     [ThreadStatic]
+    // used for multi-chunk encoding
     private static Encoder? _perThreadEncoder;
 }

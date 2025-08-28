@@ -8,7 +8,7 @@ using Xunit;
 
 namespace RESP.Core.Tests;
 
-public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : TestBase(fixture, log)
+public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper log) : IntegrationTestBase(fixture, log)
 {
     [Fact]
     public void Format()
@@ -31,15 +31,13 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
         Assert.Equal("abc", value);
     }
 
-    private static string Me([CallerMemberName] string? caller = null) => caller ?? "unknown";
-
     [Theory]
     [InlineData(1)]
     [InlineData(5)]
     [InlineData(100)]
     public void Ping(int count)
     {
-        using var conn = GetConnection();
+        using var conn = GetConnection(out var context);
         for (int i = 0; i < count; i++)
         {
             var s = conn.Strings();
@@ -57,10 +55,10 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
     public async Task PingAsync(int count)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var conn = GetConnection();
+        await using var conn = GetConnection(out var context);
         for (int i = 0; i < count; i++)
         {
-            var ctx = new RespContext(conn, cts.Token);
+            var ctx = context.WithCancellationToken(cts.Token);
             var s = ctx.Strings();
             var key = $"{Me()}{i}";
             await s.SetAsync(key, $"def{i}");
@@ -79,13 +77,14 @@ public class BasicTests(ConnectionFixture fixture, ITestOutputHelper log) : Test
     public async Task PingPipelinedAsync(int count, bool forPipeline)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        RespContext context;
         await using var conn =
-            forPipeline ? GetConnection().ForPipeline() : GetConnection();
+            forPipeline ? GetConnection(out context).ForPipeline() : GetConnection(out context);
 
         ValueTask<string?>[] tasks = new ValueTask<string?>[count];
         for (int i = 0; i < count; i++)
         {
-            RespContext ctx = new(conn, cts.Token);
+            RespContext ctx = context.WithCancellationToken(cts.Token);
             var s = ctx.Strings();
             var key = $"{Me()}{i}";
             _ = s.SetAsync(key, $"def{i}");
