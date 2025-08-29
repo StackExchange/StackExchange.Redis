@@ -671,6 +671,7 @@ public class RespCommandGenerator : IIncrementalGenerator
     private static string? InbuiltParser(string type, bool explicitSuccess = false) => type switch
     {
         "" when explicitSuccess => RespParsersPrefix + "Success",
+        "bool" => RespParsersPrefix + "Success",
         "string" => RespParsersPrefix + "String",
         "int" => RespParsersPrefix + "Int32",
         "long" => RespParsersPrefix + "Int64",
@@ -680,7 +681,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         "long?" => RespParsersPrefix + "NullableInt64",
         "float?" => RespParsersPrefix + "NullableSingle",
         "double?" => RespParsersPrefix + "NullableDouble",
-        "global::Resp.ResponseSummary" => RespParsersPrefix + "ResponseSummary.Parser",
+        "global::RESPite.RespParsers.ResponseSummary" => RespParsersPrefix + "ResponseSummary.Parser",
         _ => null,
     };
 
