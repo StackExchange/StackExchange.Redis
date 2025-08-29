@@ -1,0 +1,136 @@
+﻿using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks.Sources;
+using RESPite.Internal;
+using RESPite.Messages;
+
+namespace RESPite;
+
+/// <summary>
+/// Represents a RESP operation that returns a value of type <typeparamref name="T"/>.
+/// This works almost identically to <see cref="ValueTask{T}"/> when based on
+/// <see cref="IValueTaskSource{T}"/>, and the usage semantics are the same. In particular,
+/// note that a value can only be consumed once. Unlike <see cref="ValueTask{T}"/>, the
+/// value can be awaited synchronously if required.
+/// </summary>
+/// <typeparam name="T">The type of value returned by the operation.</typeparam>
+public readonly struct RespOperation<T>
+{
+    // it is important that this layout remains identical between RespOperation and RespOperation<T>
+    private readonly RespMessageBase<T> _message;
+    private readonly short _token;
+    private readonly bool _disableCaptureContext;
+
+    internal RespOperation(RespMessageBase<T> message, bool disableCaptureContext = false)
+    {
+        _message = message;
+        _token = message.Token;
+        _disableCaptureContext = disableCaptureContext;
+    }
+
+    internal IRespMessage Message => _message ?? RespOperation.ThrowNoMessage();
+    private RespMessageBase<T> TypedMessage => _message ?? (RespMessageBase<T>)RespOperation.ThrowNoMessage();
+
+    /// <summary>
+    /// Treats this operation as an untyped <see cref="RespOperation"/>.
+    /// </summary>
+    #if PREVIEW_LANGVER
+    [Obsolete($"When possible, prefer .Untyped")]
+    #endif
+    public static implicit operator RespOperation(in RespOperation<T> operation)
+        => Unsafe.As<RespOperation<T>, RespOperation>(ref Unsafe.AsRef(in operation));
+
+    /// <summary>
+    /// Treats this operation as an untyped <see cref="ValueTask{T}"/>.
+    /// </summary>
+    public static implicit operator ValueTask<T>(in RespOperation<T> operation)
+        => new(operation.TypedMessage, operation._token);
+
+    /// <summary>
+    /// Treats this operation as a <see cref="ValueTask"/>.
+    /// </summary>
+    public static implicit operator ValueTask(in RespOperation<T> operation)
+        => new(operation.TypedMessage, operation._token);
+
+    /// <inheritdoc cref="ValueTask.AsTask()"/>
+    public Task<T> AsTask()
+    {
+        ValueTask<T> vt = this;
+        return vt.AsTask();
+    }
+
+    /// <inheritdoc cref="Task.Wait(TimeSpan)"/>
+    public T Wait(TimeSpan timeout = default)
+        => TypedMessage.Wait(_token, timeout);
+
+    /// <inheritdoc cref="ValueTask.IsCompleted"/>
+    public bool IsCompleted => TypedMessage.GetStatus(_token) != ValueTaskSourceStatus.Pending;
+
+    /// <inheritdoc cref="ValueTask.IsCompletedSuccessfully"/>
+    public bool IsCompletedSuccessfully => TypedMessage.GetStatus(_token) == ValueTaskSourceStatus.Succeeded;
+
+    /// <inheritdoc cref="ValueTask.IsFaulted"/>
+    public bool IsFaulted => TypedMessage.GetStatus(_token) == ValueTaskSourceStatus.Faulted;
+
+    /// <inheritdoc cref="ValueTask.IsCanceled"/>
+    public bool IsCanceled => TypedMessage.GetStatus(_token) == ValueTaskSourceStatus.Canceled;
+
+    /// <inheritdoc cref="ValueTaskAwaiter.OnCompleted(Action)"/>
+    /// <see cref="INotifyCompletion.OnCompleted(Action)"/>
+    public void OnCompleted(Action continuation)
+    {
+        // UseSchedulingContext === continueOnCapturedContext, always add FlowExecutionContext
+        var flags = _disableCaptureContext
+            ? ValueTaskSourceOnCompletedFlags.FlowExecutionContext
+            : ValueTaskSourceOnCompletedFlags.FlowExecutionContext |
+              ValueTaskSourceOnCompletedFlags.UseSchedulingContext;
+        TypedMessage.OnCompleted(RespOperation.InvokeState, continuation, _token, flags);
+    }
+
+    /// <inheritdoc cref="ICriticalNotifyCompletion.UnsafeOnCompleted(Action)"/>
+    public void UnsafeOnCompleted(Action continuation)
+    {
+        // UseSchedulingContext === continueOnCapturedContext
+        var flags = _disableCaptureContext
+            ? ValueTaskSourceOnCompletedFlags.None
+            : ValueTaskSourceOnCompletedFlags.UseSchedulingContext;
+        TypedMessage.OnCompleted(RespOperation.InvokeState, continuation, _token, flags);
+    }
+
+    /// <inheritdoc cref="ValueTaskAwaiter.GetResult"/>
+    public T GetResult() => TypedMessage.GetResult(_token);
+
+    /// <inheritdoc cref="ValueTask.GetAwaiter()"/>
+    public RespOperation<T> GetAwaiter() => this;
+
+    /// <inheritdoc cref="ValueTask.ConfigureAwait(bool)"/>
+    public RespOperation<T> ConfigureAwait(bool continueOnCapturedContext)
+    {
+        var clone = this;
+        Unsafe.AsRef(in clone._disableCaptureContext) = !continueOnCapturedContext;
+        return clone;
+    }
+
+    /// <summary>
+    /// Create a disconnected <see cref="RespOperation"/> with a RESP parser; this is only intended for testing purposes.
+    /// </summary>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public static RespOperation<T> Create(IRespParser<T>? parser, out RespOperation.Remote remote)
+    {
+        var msg = RespMessage<T>.Get(parser);
+        remote = new(msg);
+        return new RespOperation<T>(msg);
+    }
+
+    /// <summary>
+    /// Create a disconnected <see cref="RespOperation"/> with a stateful RESP parser; this is only intended for testing purposes.
+    /// </summary>
+    /// <typeparam name="TState">The state used by the parser.</typeparam>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public static RespOperation<T> Create<TState>(in TState state, IRespParser<TState, T>? parser, out RespOperation.Remote remote)
+    {
+        var msg = RespMessage<TState, T>.Get(in state, parser);
+        remote = new(msg);
+        return new RespOperation<T>(msg);
+    }
+}

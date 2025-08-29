@@ -16,9 +16,9 @@ namespace StackExchange.Redis
     {
         private readonly ServerEndPoint server;
 
-        internal RedisServer(ServerEndPoint server, object? asyncState) : base(server.Multiplexer, asyncState)
+        internal RedisServer(ConnectionMultiplexer multiplexer, ServerEndPoint server, object? asyncState) : base(multiplexer, asyncState)
         {
-            this.server = server; // definitely can't be null because .Multiplexer in base call
+            this.server = server ?? throw new ArgumentNullException(nameof(server));
         }
 
         int IServer.DatabaseCount => server.Databases;
@@ -1042,20 +1042,6 @@ namespace StackExchange.Redis
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
-            return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-        }
-
-        public RedisResult Execute(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-        {
-            var db = multiplexer.ApplyDefaultDatabase(database ?? -1);
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, db, flags, command, args);
-            return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-        }
-
-        public Task<RedisResult> ExecuteAsync(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-        {
-            var db = multiplexer.ApplyDefaultDatabase(database ?? -1);
-            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, db, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 

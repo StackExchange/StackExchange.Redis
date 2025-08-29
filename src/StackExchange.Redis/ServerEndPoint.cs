@@ -71,12 +71,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private RedisServer? _defaultServer;
-        public RedisServer GetRedisServer(object? asyncState)
-            => asyncState is null
-            ? (_defaultServer ??= new RedisServer(this, null)) // reuse and memoize
-            : new RedisServer(this, asyncState);
-
         public EndPoint EndPoint { get; }
 
         public ClusterConfiguration? ClusterConfiguration { get; private set; }
@@ -719,7 +713,7 @@ namespace StackExchange.Redis
         }
 
         internal int LastInfoReplicationCheckSecondsAgo =>
-            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000;
+            unchecked(Environment.TickCount - Volatile.Read(ref lastInfoReplicationCheckTicks)) / 1000;
 
         private EndPoint? primaryEndPoint;
         public EndPoint? PrimaryEndPoint

@@ -30,19 +30,19 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 #pragma warning restore CS0618
         await UntilConditionAsync(
             TimeSpan.FromSeconds(10),
-            () => Thread.VolatileRead(ref b) == 1
-               && Thread.VolatileRead(ref c) == 1
-               && Thread.VolatileRead(ref d) == 1);
-        Assert.Equal(0, Thread.VolatileRead(ref a));
-        Assert.Equal(1, Thread.VolatileRead(ref b));
-        Assert.Equal(1, Thread.VolatileRead(ref c));
-        Assert.Equal(1, Thread.VolatileRead(ref d));
+            () => Volatile.Read(ref b) == 1
+               && Volatile.Read(ref c) == 1
+               && Volatile.Read(ref d) == 1);
+        Assert.Equal(0, Volatile.Read(ref a));
+        Assert.Equal(1, Volatile.Read(ref b));
+        Assert.Equal(1, Volatile.Read(ref c));
+        Assert.Equal(1, Volatile.Read(ref d));
 
 #pragma warning disable CS0618
         pub.Publish("*bcd", "efg");
 #pragma warning restore CS0618
-        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Thread.VolatileRead(ref a) == 1);
-        Assert.Equal(1, Thread.VolatileRead(ref a));
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref a) == 1);
+        Assert.Equal(1, Volatile.Read(ref a));
     }
 
     [Theory]
@@ -86,7 +86,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         {
             Assert.Empty(received);
         }
-        Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
+        Assert.Equal(0, Volatile.Read(ref secondHandler));
 #pragma warning disable CS0618
         var count = sub.Publish(pubChannel, "def");
 #pragma warning restore CS0618
@@ -99,8 +99,8 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             Assert.Single(received);
         }
         // Give handler firing a moment
-        await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
-        Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
+        await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Volatile.Read(ref secondHandler) == 1);
+        Assert.Equal(1, Volatile.Read(ref secondHandler));
 
         // unsubscribe from first; should still see second
 #pragma warning disable CS0618
@@ -113,9 +113,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             Assert.Single(received);
         }
 
-        await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 2);
+        await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Volatile.Read(ref secondHandler) == 2);
 
-        var secondHandlerCount = Thread.VolatileRead(ref secondHandler);
+        var secondHandlerCount = Volatile.Read(ref secondHandler);
         Log("Expecting 2 from second handler, got: " + secondHandlerCount);
         Assert.Equal(2, secondHandlerCount);
         Assert.Equal(1, count);
@@ -130,7 +130,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         {
             Assert.Single(received);
         }
-        secondHandlerCount = Thread.VolatileRead(ref secondHandler);
+        secondHandlerCount = Volatile.Read(ref secondHandler);
         Log("Expecting 2 from second handler, got: " + secondHandlerCount);
         Assert.Equal(2, secondHandlerCount);
         Assert.Equal(0, count);
@@ -170,7 +170,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         {
             Assert.Empty(received);
         }
-        Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
+        Assert.Equal(0, Volatile.Read(ref secondHandler));
         await PingAsync(pub, sub).ForAwait();
         var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
         await PingAsync(pub, sub).ForAwait();
@@ -182,7 +182,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         {
             Assert.Single(received);
         }
-        Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
+        Assert.Equal(1, Volatile.Read(ref secondHandler));
 
         sub.Unsubscribe(key);
         count = sub.Publish(key, "ghi", CommandFlags.FireAndForget);
@@ -241,7 +241,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         {
             Assert.Empty(received);
         }
-        Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
+        Assert.Equal(0, Volatile.Read(ref secondHandler));
 
         await PingAsync(pub, sub).ForAwait();
         var count = sub.Publish(RedisChannel.Literal("abc"), "def");
@@ -254,8 +254,8 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         }
 
         // Give reception a bit, the handler could be delayed under load
-        await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Thread.VolatileRead(ref secondHandler) == 1);
-        Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
+        await UntilConditionAsync(TimeSpan.FromSeconds(2), () => Volatile.Read(ref secondHandler) == 1);
+        Assert.Equal(1, Volatile.Read(ref secondHandler));
 
 #pragma warning disable CS0618
         sub.Unsubscribe("a*c");

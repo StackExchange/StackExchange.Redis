@@ -1,0 +1,2 @@
+#nullable enable
+Resp.RespReader.ParseBytes<T>(System.IFormatProvider? formatProvider = null) -> T

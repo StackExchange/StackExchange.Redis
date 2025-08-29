@@ -261,8 +261,8 @@ namespace StackExchange.Redis
         private readonly WeakReference _bridge;
         public PhysicalBridge? BridgeCouldBeNull => (PhysicalBridge?)_bridge.Target;
 
-        public long LastReadSecondsAgo => unchecked(Environment.TickCount - Thread.VolatileRead(ref lastReadTickCount)) / 1000;
-        public long LastWriteSecondsAgo => unchecked(Environment.TickCount - Thread.VolatileRead(ref lastWriteTickCount)) / 1000;
+        public long LastReadSecondsAgo => unchecked(Environment.TickCount - Volatile.Read(ref lastReadTickCount)) / 1000;
+        public long LastWriteSecondsAgo => unchecked(Environment.TickCount - Volatile.Read(ref lastWriteTickCount)) / 1000;
 
         private bool IncludeDetailInExceptions => BridgeCouldBeNull?.Multiplexer.RawConfig.IncludeDetailInExceptions ?? false;
 
@@ -418,8 +418,8 @@ namespace StackExchange.Redis
 
                 if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
                 {
-                    int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
-                        lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
+                    int now = Environment.TickCount, lastRead = Volatile.Read(ref lastReadTickCount), lastWrite = Volatile.Read(ref lastWriteTickCount),
+                        lastBeat = Volatile.Read(ref lastBeatTickCount);
 
                     int unansweredWriteTime = 0;
                     lock (_writtenAwaitingResponse)
@@ -434,7 +434,7 @@ namespace StackExchange.Redis
                     var exMessage = new StringBuilder(failureType.ToString());
 
                     // If the reason for the shutdown was we asked for the socket to die, don't log it as an error (only informational)
-                    weAskedForThis = Thread.VolatileRead(ref clientSentQuit) != 0;
+                    weAskedForThis = Volatile.Read(ref clientSentQuit) != 0;
 
                     var pipe = connectingPipe ?? _ioPipe;
                     if (pipe is SocketConnection sc)
@@ -906,7 +906,7 @@ namespace StackExchange.Redis
         internal void RecordQuit()
         {
             // don't blame redis if we fired the first shot
-            Thread.VolatileWrite(ref clientSentQuit, 1);
+            Volatile.Write(ref clientSentQuit, 1);
             (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
         }
 
@@ -1959,7 +1959,7 @@ namespace StackExchange.Redis
             {
                 _readStatus = ReadStatus.Faulted;
                 // this CEX is just a hardcore "seriously, read the actual value" - there's no
-                // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
+                // convenient "Volatile.Read<T>(ref T field) where T : class", and I don't
                 // want to make the field volatile just for this one place that needs it
                 if (isReading)
                 {

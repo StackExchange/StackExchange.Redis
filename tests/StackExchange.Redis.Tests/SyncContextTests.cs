@@ -118,11 +118,11 @@ namespace StackExchange.Redis.Tests
                 _log = log;
                 SetSynchronizationContext(this);
             }
-            public int OpCount => Thread.VolatileRead(ref _opCount);
+            public int OpCount => Volatile.Read(ref _opCount);
             private int _opCount;
             private void Incr() => Interlocked.Increment(ref _opCount);
 
-            public void Reset() => Thread.VolatileWrite(ref _opCount, 0);
+            public void Reset() => Volatile.Write(ref _opCount, 0);
 
             public override string ToString() => $"Sync context ({(IsCurrent ? "active" : "inactive")}): {OpCount}";
 

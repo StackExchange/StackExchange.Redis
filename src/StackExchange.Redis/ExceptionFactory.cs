@@ -107,7 +107,7 @@ namespace StackExchange.Redis
                 serverSnapshot = new ServerEndPoint[] { server };
             }
 
-            var innerException = PopulateInnerExceptions(serverSnapshot == default ? multiplexer.GetServerSnapshot() : serverSnapshot);
+            var innerException = PopulateInnerExceptions(serverSnapshot.IsEmpty ? multiplexer.GetServerSnapshot() : serverSnapshot);
 
             // Try to get a useful error message for the user.
             long attempts = multiplexer._connectAttemptCount, completions = multiplexer._connectCompletedCount;

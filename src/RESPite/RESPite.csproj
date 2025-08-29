@@ -1,0 +1,60 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <TargetFrameworks>net461;netstandard2.0;net472;net6.0;net8.0;net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces"  />
+    <PackageReference Include="System.Buffers"/>
+    <PackageReference Include="System.Memory"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="RespOperationT.cs">
+      <DependentUpon>RespOperation.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\IRespMessage.cs">
+      <DependentUpon>RespMessage.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespMessageBase_Typed_Stateful.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespMessageBase_Typed.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.AggregateEnumerator.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Debug.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.ScalarEnumerator.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Span.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Utils.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\FrameworkShims.cs">
+      <Link>FrameworkShims.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs">
+      <Link>NullableHacks.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs">
+      <Link>SkipLocalsInit.cs</Link>
+    </Compile>
+  </ItemGroup>
+
+</Project>

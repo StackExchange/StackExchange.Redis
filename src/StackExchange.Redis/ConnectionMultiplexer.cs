@@ -58,17 +58,17 @@ namespace StackExchange.Redis
 
         private int lastReconfigiureTicks = Environment.TickCount;
         internal long LastReconfigureSecondsAgo =>
-            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastReconfigiureTicks)) / 1000;
+            unchecked(Environment.TickCount - Volatile.Read(ref lastReconfigiureTicks)) / 1000;
 
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
         internal long LastHeartbeatSecondsAgo =>
             pulse is null
             ? -1
-            : unchecked(Environment.TickCount - Thread.VolatileRead(ref lastHeartbeatTicks)) / 1000;
+            : unchecked(Environment.TickCount - Volatile.Read(ref lastHeartbeatTicks)) / 1000;
 
         private static int lastGlobalHeartbeatTicks = Environment.TickCount;
         internal static long LastGlobalHeartbeatSecondsAgo =>
-            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000;
+            unchecked(Environment.TickCount - Volatile.Read(ref lastGlobalHeartbeatTicks)) / 1000;
 
         /// <inheritdoc cref="ConfigurationOptions.IncludeDetailInExceptions"/>
         [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]
@@ -210,7 +210,7 @@ namespace StackExchange.Redis
             {
                 throw ExceptionFactory.AdminModeNotEnabled(RawConfig.IncludeDetailInExceptions, cmd, null, server);
             }
-            var srv = server.GetRedisServer(null);
+            var srv = new RedisServer(this, server, null);
             if (!srv.IsConnected)
             {
                 throw ExceptionFactory.NoConnectionAvailable(this, null, server, GetServerSnapshot(), command: cmd);
@@ -1229,21 +1229,7 @@ namespace StackExchange.Redis
                 throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
             }
             var server = servers[endpoint] as ServerEndPoint ?? throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
-            return server.GetRedisServer(asyncState);
-        }
-
-        /// <inheritdoc cref="IConnectionMultiplexer.GetServer(RedisKey, object, CommandFlags)"/>
-#pragma warning disable RS0026
-        public IServer GetServer(RedisKey key, object? asyncState = null, CommandFlags flags = CommandFlags.None)
-#pragma warning restore RS0026
-        {
-            // We'll spoof the GET command for this; we're not supporting ad-hoc access to the pub/sub channel, because: bad things.
-            // Any read-only-replica vs writable-primary concerns should be managed by the caller via "flags"; the default is PreferPrimary.
-            // Note that ServerSelectionStrategy treats "null" (default) keys as NoSlot, aka Any.
-            return (SelectServer(RedisCommand.GET, flags, key) ?? Throw()).GetRedisServer(asyncState);
-
-            [DoesNotReturn]
-            static ServerEndPoint Throw() => throw new InvalidOperationException("It was not possible to resolve a connection to the server owning the specified key");
+            return new RedisServer(this, server, asyncState);
         }
 
         /// <summary>
@@ -1255,7 +1241,7 @@ namespace StackExchange.Redis
             var result = new IServer[snapshot.Length];
             for (var i = 0; i < snapshot.Length; i++)
             {
-                result[i] = snapshot[i].GetRedisServer(null);
+                result[i] = new RedisServer(this, snapshot[i], null);
             }
             return result;
         }

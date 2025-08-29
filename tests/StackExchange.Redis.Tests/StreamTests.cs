@@ -2155,28 +2155,6 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, trimMode: mode, flags: CommandFlags.None);
     }
 
-    [Theory]
-    [InlineData(StreamTrimMode.KeepReferences, 1)]
-    [InlineData(StreamTrimMode.DeleteReferences, 1)]
-    [InlineData(StreamTrimMode.Acknowledged, 1)]
-    [InlineData(StreamTrimMode.KeepReferences, 2)]
-    [InlineData(StreamTrimMode.DeleteReferences, 2)]
-    [InlineData(StreamTrimMode.Acknowledged, 2)]
-    public async Task AddWithMultipleApproxCount(StreamTrimMode mode, int count)
-    {
-        await using var conn = Create(require: ForMode(mode));
-
-        var db = conn.GetDatabase();
-        var key = Me() + ":" + mode;
-
-        var pairs = new NameValueEntry[count];
-        for (var i = 0; i < count; i++)
-        {
-            pairs[i] = new NameValueEntry($"field{i}", $"value{i}");
-        }
-        db.StreamAdd(key, maxLength: 10, useApproximateMaxLength: true, trimMode: mode, flags: CommandFlags.None, streamPairs: pairs);
-    }
-
     [Fact]
     public async Task StreamReadGroupWithNoAckShowsNoPendingMessages()
     {

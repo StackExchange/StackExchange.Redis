@@ -2,11 +2,10 @@
 
   <PropertyGroup>
     <Description>StackExchange.Redis.BasicTest .NET Core</Description>
-    <TargetFrameworks>net472;net8.0</TargetFrameworks>
+    <TargetFrameworks>net472;net8.0;net9.0</TargetFrameworks>
     <AssemblyName>BasicTest</AssemblyName>
     <OutputType>Exe</OutputType>
     <PackageId>BasicTest</PackageId>
-    <!--<RuntimeIdentifiers>win7-x64</RuntimeIdentifiers>-->
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +14,10 @@
     <PackageReference Include="System.Reflection.Metadata" />
     
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+    <ProjectReference Include="..\..\src\RESP.Core\RESP.Core.csproj" />
+    <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" />
+    <ProjectReference Include="..\..\src\RESPite.Redis\RESPite.Redis.csproj" />
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

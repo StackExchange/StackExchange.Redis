@@ -52,7 +52,7 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
     {
         public TestWrapperLogger Logger { get; } = new TestWrapperLogger(logger);
 
-        public void AddProvider(ILoggerProvider provider) { }
+        public void AddProvider(ILoggerProvider provider) => throw new NotImplementedException();
         public ILogger CreateLogger(string categoryName) => Logger;
         public void Dispose() { }
     }
@@ -81,9 +81,9 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
     private class TestMultiLogger(params ILogger[] loggers) : ILogger
     {
 #if NET8_0_OR_GREATER
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => throw new NotImplementedException();
 #else
-        public IDisposable BeginScope<TState>(TState state) => null!;
+        public IDisposable BeginScope<TState>(TState state) => throw new NotImplementedException();
 #endif
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
@@ -105,9 +105,9 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
             (_logLevel, _output) = (logLevel, output);
 
 #if NET8_0_OR_GREATER
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => throw new NotImplementedException();
 #else
-        public IDisposable BeginScope<TState>(TState state) => null!;
+        public IDisposable BeginScope<TState>(TState state) => throw new NotImplementedException();
 #endif
         public bool IsEnabled(LogLevel logLevel) => logLevel >= _logLevel;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)

@@ -24,7 +24,7 @@ namespace StackExchange.Redis.Profiling
         {
             if (command == null) return;
 
-            object? cur = Thread.VolatileRead(ref _untypedHead);
+            object? cur = Volatile.Read(ref _untypedHead);
             while (true)
             {
                 command.NextElement = (ProfiledCommand?)cur;
