@@ -1,8 +1,6 @@
-﻿using System.ComponentModel;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks.Sources;
 using RESPite.Internal;
-using RESPite.Messages;
 
 namespace RESPite;
 
@@ -109,28 +107,5 @@ public readonly struct RespOperation<T>
         var clone = this;
         Unsafe.AsRef(in clone._disableCaptureContext) = !continueOnCapturedContext;
         return clone;
-    }
-
-    /// <summary>
-    /// Create a disconnected <see cref="RespOperation"/> with a RESP parser; this is only intended for testing purposes.
-    /// </summary>
-    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-    public static RespOperation<T> Create(IRespParser<T>? parser, out RespOperation.Remote remote)
-    {
-        var msg = RespMessage<T>.Get(parser);
-        remote = new(msg);
-        return new RespOperation<T>(msg);
-    }
-
-    /// <summary>
-    /// Create a disconnected <see cref="RespOperation"/> with a stateful RESP parser; this is only intended for testing purposes.
-    /// </summary>
-    /// <typeparam name="TState">The state used by the parser.</typeparam>
-    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-    public static RespOperation<T> Create<TState>(in TState state, IRespParser<TState, T>? parser, out RespOperation.Remote remote)
-    {
-        var msg = RespMessage<TState, T>.Get(in state, parser);
-        remote = new(msg);
-        return new RespOperation<T>(msg);
     }
 }

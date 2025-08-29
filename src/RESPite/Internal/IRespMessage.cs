@@ -15,4 +15,5 @@ internal interface IRespMessage : IValueTaskSource
     void ReleaseRequest();
     bool AllowInlineParsing { get; }
     short Token { get; }
+    void OnSent(short token);
 }

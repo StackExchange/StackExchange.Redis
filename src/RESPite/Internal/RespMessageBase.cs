@@ -128,6 +128,15 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     // in the "any" sense
     private bool HasFlag(int flag) => (Volatile.Read(ref _flags) & flag) != 0;
 
+    public void OnSent(short token)
+    {
+        if (GetStatus(token) != ValueTaskSourceStatus.Pending || _requestRefCount != 0 || !SetFlag(Flag_Sent))
+        {
+            throw new InvalidOperationException(
+                "Operation must be in a pending, unsent state with no request payload. ");
+        }
+    }
+
     public RespMessageBase<TResponse> Init(byte[] oversized, int offset, int length, ArrayPool<byte>? pool, CancellationToken cancellation)
     {
         DebugAssertPending();

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks.Sources;
 using RESPite.Internal;
+using RESPite.Messages;
 
 namespace RESPite;
 
@@ -116,6 +117,11 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
             _token = message.Token;
         }
 
+        /// <summary>
+        /// Record the operation as sent.
+        /// </summary>
+        public void OnSent() => _message.OnSent(_token);
+
         /// <inheritdoc cref="TaskCompletionSource{TResult}.TrySetCanceled(CancellationToken)"/>
         public bool TrySetCanceled(CancellationToken cancellationToken = default)
             => _message.TrySetCanceled(_token);
@@ -133,5 +139,44 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         /// <remarks>The parser provided during creation is used to process the result.</remarks>
         public bool TrySetResult(in ReadOnlySequence<byte> response)
             => _message.TrySetResult(_token, response);
+    }
+
+    /// <summary>
+    /// Create a disconnected <see cref="RespOperation"/> without a RESP parser; this is only intended for testing purposes.
+    /// </summary>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public static RespOperation Create(out Remote remote)
+    {
+        var msg = RespMessage<bool>.Get(null);
+        remote = new(msg);
+        return new RespOperation(msg);
+    }
+
+    /// <summary>
+    /// Create a disconnected <see cref="RespOperation"/> with a stateless RESP parser; this is only intended for testing purposes.
+    /// </summary>
+    /// <typeparam name="TResult">The result of the operation.</typeparam>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public static RespOperation<TResult> Create<TResult>(IRespParser<TResult> parser, out Remote remote)
+    {
+        var msg = RespMessage<TResult>.Get(parser);
+        remote = new(msg);
+        return new RespOperation<TResult>(msg);
+    }
+
+    /// <summary>
+    /// Create a disconnected <see cref="RespOperation"/> with a stateful RESP parser; this is only intended for testing purposes.
+    /// </summary>
+    /// <typeparam name="TState">The state used by the parser.</typeparam>
+    /// <typeparam name="TResult">The result of the operation.</typeparam>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public static RespOperation<TResult> Create<TState, TResult>(
+        in TState state,
+        IRespParser<TState, TResult> parser,
+        out Remote remote)
+    {
+        var msg = RespMessage<TState, TResult>.Get(in state, parser);
+        remote = new(msg);
+        return new RespOperation<TResult>(msg);
     }
 }
