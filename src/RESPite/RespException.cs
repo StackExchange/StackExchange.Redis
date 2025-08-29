@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Resp;
+﻿namespace RESPite;
 
 /// <summary>
 /// Represents a RESP error message.

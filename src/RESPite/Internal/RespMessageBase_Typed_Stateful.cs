@@ -6,27 +6,28 @@ namespace RESPite.Internal;
 internal sealed class RespMessage<TState, TResponse> : RespMessageBase<TResponse>
 {
     private TState _state;
-    private IRespParser<TState, TResponse> _parser;
-
-    private RespMessage()
+    private IRespParser<TState, TResponse>? _parser;
+    [ThreadStatic]
+    // used for object recycling of the async machinery
+    private static RespMessage<TState, TResponse>? _threadStaticSpare;
+    internal static RespMessage<TState, TResponse> Get(in TState state, IRespParser<TState, TResponse>? parser)
     {
-        Unsafe.SkipInit(out _state);
-        Unsafe.SkipInit(out _parser);
+        RespMessage<TState, TResponse> obj = _threadStaticSpare ?? new();
+        _threadStaticSpare = null;
+        obj._state = state;
+        obj._parser = parser;
+        obj.InitParser(parser);
+        return obj;
     }
 
-    protected override TResponse Parse(ref RespReader reader) => _parser.Parse(in _state, ref reader);
+    private RespMessage() => Unsafe.SkipInit(out _state);
 
-    private RespMessageBase<TResponse> Init(TState state, IRespParser<TState, TResponse> parser)
-    {
-        _state = state;
-        _parser = parser;
-        return InitParser(parser);
-    }
+    protected override TResponse Parse(ref RespReader reader) => _parser!.Parse(in _state, ref reader);
 
-    public override void Reset()
+    public override void Reset(bool recycle)
     {
         _state = default!;
         _parser = null!;
-        base.Reset();
+        base.Reset(recycle);
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks.Sources;
 using RESPite.Internal;
@@ -19,14 +20,14 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     private readonly short _token;
     private readonly bool _disableCaptureContext; // default is false, so: bypass
 
-    internal RespOperation(IRespMessage message, short token, bool disableCaptureContext = false)
+    internal RespOperation(IRespMessage message, bool disableCaptureContext = false)
     {
         _message = message;
-        _token = token;
+        _token = message.Token;
         _disableCaptureContext = disableCaptureContext;
     }
 
-    private IRespMessage Message => _message ?? ThrowNoMessage();
+    internal IRespMessage Message => _message ?? ThrowNoMessage();
 
     internal static IRespMessage ThrowNoMessage()
         => throw new InvalidOperationException($"{nameof(RespOperation)} is not correctly initialized");
@@ -60,9 +61,12 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     /// <inheritdoc cref="ValueTask.IsCanceled"/>
     public bool IsCanceled => Message.GetStatus(_token) == ValueTaskSourceStatus.Canceled;
 
+    internal short Token => _token;
+
     internal static readonly Action<object?> InvokeState = static state => ((Action)state!).Invoke();
 
     /// <inheritdoc cref="ValueTaskAwaiter.OnCompleted(Action)"/>
+    /// <see cref="INotifyCompletion.OnCompleted(Action)"/>
     public void OnCompleted(Action continuation)
     {
         // UseSchedulingContext === continueOnCapturedContext, always add FlowExecutionContext
@@ -73,7 +77,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         Message.OnCompleted(InvokeState, continuation, _token, flags);
     }
 
-    /// <inheritdoc cref="ICriticalNotifyCompletion.OnCompleted(Action)"/>
+    /// <inheritdoc cref="ICriticalNotifyCompletion.UnsafeOnCompleted(Action)"/>
     public void UnsafeOnCompleted(Action continuation)
     {
         // UseSchedulingContext === continueOnCapturedContext
@@ -95,5 +99,39 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         var clone = this;
         Unsafe.AsRef(in clone._disableCaptureContext) = !continueOnCapturedContext;
         return clone;
+    }
+
+    /// <summary>
+    /// Provides a mechanism to control the outcome of a <see cref="RespOperation"/>; this is mostly
+    /// intended for testing purposes. It is broadly comparable to <see cref="TaskCompletionSource{TResult}"/>.
+    /// </summary>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct Remote
+    {
+        private readonly IRespMessage _message;
+        private readonly short _token;
+        internal Remote(IRespMessage message)
+        {
+            _message = message;
+            _token = message.Token;
+        }
+
+        /// <inheritdoc cref="TaskCompletionSource{TResult}.TrySetCanceled(CancellationToken)"/>
+        public bool TrySetCanceled(CancellationToken cancellationToken = default)
+            => _message.TrySetCanceled(_token);
+
+        /// <inheritdoc cref="TaskCompletionSource{TResult}.TrySetException(Exception)"/>
+        public bool TrySetException(Exception exception)
+            => _message.TrySetException(_token, exception);
+
+        /// <inheritdoc cref="TaskCompletionSource{TResult}.TrySetResult(TResult)"/>
+        /// <remarks>The parser provided during creation is used to process the result.</remarks>
+        public bool TrySetResult(scoped ReadOnlySpan<byte> response)
+            => _message.TrySetResult(_token, response);
+
+        /// <inheritdoc cref="TaskCompletionSource{TResult}.TrySetResult(TResult)"/>
+        /// <remarks>The parser provided during creation is used to process the result.</remarks>
+        public bool TrySetResult(in ReadOnlySequence<byte> response)
+            => _message.TrySetResult(_token, response);
     }
 }

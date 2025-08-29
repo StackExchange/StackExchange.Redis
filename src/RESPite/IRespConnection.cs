@@ -1,8 +1,4 @@
-﻿using System;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace RESPite;
+﻿namespace RESPite;
 
 public interface IRespConnection : IDisposable, IAsyncDisposable
 {
@@ -15,7 +11,9 @@ public interface IRespConnection : IDisposable, IAsyncDisposable
     /// </summary>
     ref readonly RespContext Context { get; }
 
-    void Send(RespOperation message);
+    void Send(in RespOperation message);
+    void Send(ReadOnlySpan<RespOperation> message);
 
-    Task SendAsync(RespOperation message);
+    Task SendAsync(in RespOperation message);
+    Task SendAsync(ReadOnlyMemory<RespOperation> message);
 }

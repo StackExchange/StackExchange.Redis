@@ -1,29 +1,30 @@
-﻿using System.Runtime.CompilerServices;
-using System.Threading.Tasks.Sources;
-using RESPite.Messages;
+﻿using RESPite.Messages;
 
 namespace RESPite.Internal;
 
 internal sealed class RespMessage<TResponse> : RespMessageBase<TResponse>
 {
-    private IRespParser<TResponse> _parser;
+    private IRespParser<TResponse>? _parser;
+    [ThreadStatic]
+    // used for object recycling of the async machinery
+    private static RespMessage<TResponse>? _threadStaticSpare;
 
-    private RespMessage()
+    internal static RespMessage<TResponse> Get(IRespParser<TResponse>? parser)
     {
-        Unsafe.SkipInit(out _parser);
+        RespMessage<TResponse> obj = _threadStaticSpare ?? new();
+        _threadStaticSpare = null;
+        obj._parser = parser;
+        obj.InitParser(parser);
+        return obj;
     }
 
-    private RespMessageBase<TResponse> Init(IRespParser<TResponse> parser)
-    {
-        _parser = parser;
-        return InitParser(parser);
-    }
+    private RespMessage() { }
 
-    protected override TResponse Parse(ref RespReader reader) => _parser.Parse(ref reader);
+    protected override TResponse Parse(ref RespReader reader) => _parser!.Parse(ref reader);
 
-    public override void Reset()
+    public override void Reset(bool recycle)
     {
         _parser = null!;
-        base.Reset();
+        base.Reset(recycle);
     }
 }

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace RESPite.Messages;
+﻿namespace RESPite.Messages;
 
 /// <summary>
 /// Allows attribute data to be parsed conveniently.

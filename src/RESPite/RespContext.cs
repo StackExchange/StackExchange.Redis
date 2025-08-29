@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using RESPite.Connections;
 
 namespace RESPite;
 
@@ -44,7 +45,7 @@ public readonly struct RespContext
     public IRespConnection Connection => _connection;
     public int Database => _database;
     public CancellationToken CancellationToken => _cancellationToken;
-
+/*
     public RespMessageBuilder<T> Command<T>(ReadOnlySpan<byte> command, T value, IRespFormatter<T> formatter)
         => new(this, command, value, formatter);
 
@@ -56,6 +57,7 @@ public readonly struct RespContext
 
     public RespMessageBuilder<byte[]> Command(ReadOnlySpan<byte> command, byte[] value, bool isKey)
         => new(this, command, value, RespFormatters.ByteArray(isKey));
+        */
 
     public RespCommandMap RespCommandMap => _connection.Configuration.RespCommandMap;
 

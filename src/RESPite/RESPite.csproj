@@ -17,10 +17,10 @@
       <DependentUpon>RespMessage.cs</DependentUpon>
     </Compile>
     <Compile Update="Internal\RespMessageBase_Typed_Stateful.cs">
-      <DependentUpon>RespMessageBaseT.cs</DependentUpon>
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
     </Compile>
     <Compile Update="Internal\RespMessageBase_Typed.cs">
-      <DependentUpon>RespMessageBaseT.cs</DependentUpon>
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
     </Compile>
     <Compile Update="Messages\RespReader.AggregateEnumerator.cs">
       <DependentUpon>RespReader.cs</DependentUpon>

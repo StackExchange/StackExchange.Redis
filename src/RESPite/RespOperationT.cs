@@ -1,6 +1,8 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks.Sources;
 using RESPite.Internal;
+using RESPite.Messages;
 
 namespace RESPite;
 
@@ -15,25 +17,28 @@ namespace RESPite;
 public readonly struct RespOperation<T>
 {
     // it is important that this layout remains identical between RespOperation and RespOperation<T>
-    private readonly RespMessage<T> _message;
+    private readonly RespMessageBase<T> _message;
     private readonly short _token;
     private readonly bool _disableCaptureContext;
 
-    internal RespOperation(RespMessage<T> message, short token, bool disableCaptureContext = false)
+    internal RespOperation(RespMessageBase<T> message, bool disableCaptureContext = false)
     {
         _message = message;
-        _token = token;
+        _token = message.Token;
         _disableCaptureContext = disableCaptureContext;
     }
 
-    internal IRespMessage Message => _message ?? (RespMessage<T>)RespOperation.ThrowNoMessage();
-    private RespMessage<T> TypedMessage => _message ?? (RespMessage<T>)RespOperation.ThrowNoMessage();
+    internal IRespMessage Message => _message ?? RespOperation.ThrowNoMessage();
+    private RespMessageBase<T> TypedMessage => _message ?? (RespMessageBase<T>)RespOperation.ThrowNoMessage();
 
     /// <summary>
     /// Treats this operation as an untyped <see cref="RespOperation"/>.
     /// </summary>
+    #if PREVIEW_LANGVER
+    [Obsolete($"When possible, prefer .Untyped")]
+    #endif
     public static implicit operator RespOperation(in RespOperation<T> operation)
-        => Unsafe.As<RespOperation<T>, RespOperation>(ref Unsafe.AsRef(operation));
+        => Unsafe.As<RespOperation<T>, RespOperation>(ref Unsafe.AsRef(in operation));
 
     /// <summary>
     /// Treats this operation as an untyped <see cref="ValueTask{T}"/>.
@@ -71,6 +76,7 @@ public readonly struct RespOperation<T>
     public bool IsCanceled => TypedMessage.GetStatus(_token) == ValueTaskSourceStatus.Canceled;
 
     /// <inheritdoc cref="ValueTaskAwaiter.OnCompleted(Action)"/>
+    /// <see cref="INotifyCompletion.OnCompleted(Action)"/>
     public void OnCompleted(Action continuation)
     {
         // UseSchedulingContext === continueOnCapturedContext, always add FlowExecutionContext
@@ -81,7 +87,7 @@ public readonly struct RespOperation<T>
         TypedMessage.OnCompleted(RespOperation.InvokeState, continuation, _token, flags);
     }
 
-    /// <inheritdoc cref="ICriticalNotifyCompletion.OnCompleted(Action)"/>
+    /// <inheritdoc cref="ICriticalNotifyCompletion.UnsafeOnCompleted(Action)"/>
     public void UnsafeOnCompleted(Action continuation)
     {
         // UseSchedulingContext === continueOnCapturedContext
@@ -103,5 +109,28 @@ public readonly struct RespOperation<T>
         var clone = this;
         Unsafe.AsRef(in clone._disableCaptureContext) = !continueOnCapturedContext;
         return clone;
+    }
+
+    /// <summary>
+    /// Create a disconnected <see cref="RespOperation"/> with a RESP parser; this is only intended for testing purposes.
+    /// </summary>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public static RespOperation<T> Create(IRespParser<T>? parser, out RespOperation.Remote remote)
+    {
+        var msg = RespMessage<T>.Get(parser);
+        remote = new(msg);
+        return new RespOperation<T>(msg);
+    }
+
+    /// <summary>
+    /// Create a disconnected <see cref="RespOperation"/> with a stateful RESP parser; this is only intended for testing purposes.
+    /// </summary>
+    /// <typeparam name="TState">The state used by the parser.</typeparam>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+    public static RespOperation<T> Create<TState>(in TState state, IRespParser<TState, T>? parser, out RespOperation.Remote remote)
+    {
+        var msg = RespMessage<TState, T>.Get(in state, parser);
+        remote = new(msg);
+        return new RespOperation<T>(msg);
     }
 }

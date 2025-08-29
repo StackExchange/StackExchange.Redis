@@ -1,4 +1,6 @@
-﻿namespace RESPite;
+﻿using System.Text;
+
+namespace RESPite;
 
 /// <summary>
 /// Over-arching configuration for a RESP system.
@@ -42,7 +44,7 @@ public class RespConfiguration
                 string s => Encoding.UTF8.GetBytes(s),
                 byte[] { Length: 0 } => [],
                 byte[] b => b.AsSpan().ToArray(), // create isolated copy for mutability reasons
-                _ => throw new ArgumentException("KeyPrefix must be a string or byte[]", nameof(KeyPrefix)),
+                _ => throw new ArgumentException($"{nameof(KeyPrefix)} must be a string or byte[]", nameof(KeyPrefix)),
             };
 
             if (prefix.Length == 0 & SyncTimeout is null & CommandMap is null & ServiceProvider is null) return Default;
