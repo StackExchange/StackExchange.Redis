@@ -15,5 +15,6 @@ internal interface IRespMessage : IValueTaskSource
     void ReleaseRequest();
     bool AllowInlineParsing { get; }
     short Token { get; }
+    ref readonly CancellationToken CancellationToken { get; }
     void OnSent(short token);
 }

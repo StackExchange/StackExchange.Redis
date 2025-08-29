@@ -27,6 +27,8 @@ public readonly struct RespOperation<T>
     }
 
     internal IRespMessage Message => _message ?? RespOperation.ThrowNoMessage();
+    public CancellationToken CancellationToken => Message.CancellationToken;
+
     private RespMessageBase<T> TypedMessage => _message ?? (RespMessageBase<T>)RespOperation.ThrowNoMessage();
 
     /// <summary>

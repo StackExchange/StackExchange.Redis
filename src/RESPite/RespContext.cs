@@ -1,5 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using RESPite.Connections;
+using RESPite.Connections.Internal;
+using RESPite.Messages;
 
 namespace RESPite;
 
@@ -8,9 +10,14 @@ namespace RESPite;
 /// </summary>
 public readonly struct RespContext
 {
+    public static ref readonly RespContext Null => ref NullConnection.Instance.Context;
+
     private readonly IRespConnection _connection;
-    private readonly int _database;
     private readonly CancellationToken _cancellationToken;
+    private readonly int _database;
+
+    private readonly int _flags;
+    private const int FlagsDisableCaptureContext = 1 << 0;
 
     private const string CtorUsageWarning = $"The context from {nameof(IRespConnection)}.{nameof(IRespConnection.Context)} should be preferred, using {nameof(WithCancellationToken)} etc as necessary.";
 
@@ -45,19 +52,6 @@ public readonly struct RespContext
     public IRespConnection Connection => _connection;
     public int Database => _database;
     public CancellationToken CancellationToken => _cancellationToken;
-/*
-    public RespMessageBuilder<T> Command<T>(ReadOnlySpan<byte> command, T value, IRespFormatter<T> formatter)
-        => new(this, command, value, formatter);
-
-    public RespMessageBuilder<Void> Command(ReadOnlySpan<byte> command)
-        => new(this, command, Void.Instance, RespFormatters.Void);
-
-    public RespMessageBuilder<string> Command(ReadOnlySpan<byte> command, string value, bool isKey)
-        => new(this, command, value, RespFormatters.String(isKey));
-
-    public RespMessageBuilder<byte[]> Command(ReadOnlySpan<byte> command, byte[] value, bool isKey)
-        => new(this, command, value, RespFormatters.ByteArray(isKey));
-        */
 
     public RespCommandMap RespCommandMap => _connection.Configuration.RespCommandMap;
 
@@ -80,6 +74,15 @@ public readonly struct RespContext
     {
         RespContext clone = this;
         Unsafe.AsRef(in clone._connection) = connection;
+        return clone;
+    }
+
+    public RespContext ConfigureAwait(bool continueOnCapturedContext)
+    {
+        RespContext clone = this;
+        Unsafe.AsRef(in clone._flags) = continueOnCapturedContext
+            ? _flags & ~FlagsDisableCaptureContext
+            : _flags | FlagsDisableCaptureContext;
         return clone;
     }
 

@@ -1,15 +1,20 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using RESPite;
 using Xunit;
 
 namespace RESP.Core.Tests;
 
+[SuppressMessage(
+    "Usage",
+    "xUnit1031:Do not use blocking task operations in test method",
+    Justification = "This isn't actually async; we're testing an awaitable.")]
 public class OperationUnitTests
 {
     [Fact]
     public void CanCreateAndCompleteOperation()
     {
-        var op = RespOperation<int>.Create(null, out var remote);
+        var op = RespOperation.Create(out var remote);
         // initial state
         Assert.False(op.IsCanceled);
         Assert.False(op.IsCompleted);
@@ -31,7 +36,7 @@ public class OperationUnitTests
         Assert.False(remote.TrySetException(null!));
 
         // can get result
-        _ = op.GetResult();
+        op.GetResult();
 
         // but only once, after that: bad things
         Assert.Throws<NullReferenceException>(() => op.GetResult());

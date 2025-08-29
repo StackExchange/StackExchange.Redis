@@ -136,6 +136,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RESPite.Redis", "src\RESPit
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RESPite.StackExchange.Redis", "src\RESPite.StackExchange.Redis\RESPite.StackExchange.Redis.csproj", "{A5580114-C236-494E-851C-A21E3DB86FC8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RESPite.Benchmark", "src\RESPite.Benchmark\RESPite.Benchmark.csproj", "{3725A78B-B6B5-4379-9DE0-37A180ADE95A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -218,6 +220,10 @@ Global
 		{A5580114-C236-494E-851C-A21E3DB86FC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A5580114-C236-494E-851C-A21E3DB86FC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A5580114-C236-494E-851C-A21E3DB86FC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3725A78B-B6B5-4379-9DE0-37A180ADE95A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3725A78B-B6B5-4379-9DE0-37A180ADE95A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3725A78B-B6B5-4379-9DE0-37A180ADE95A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3725A78B-B6B5-4379-9DE0-37A180ADE95A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -246,6 +252,7 @@ Global
 		{F8762EE5-3461-4F6B-8C24-C876B6D9E637} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
 		{3A92C2E7-3033-4FDF-8DDC-5DF43D290537} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
 		{A5580114-C236-494E-851C-A21E3DB86FC8} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
+		{3725A78B-B6B5-4379-9DE0-37A180ADE95A} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {193AA352-6748-47C1-A5FC-C9AA6B5F000B}

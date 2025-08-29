@@ -6,24 +6,11 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-#if TEST_BASELINE
-using Void = BasicTest.Void;
-
-#else
-using Resp;
-using Void = Resp.Void;
-#endif
+using RESPite;
 
 // influenced by redis-benchmark, see .md file
-namespace BasicTest;
+namespace RESPite.Benchmark;
 
-#if TEST_BASELINE
-public readonly struct Void
-{
-    private static readonly Void _instance;
-    public static ref readonly Void Instance => ref _instance;
-}
-#endif
 public abstract class BenchmarkBase : IDisposable
 {
     protected const string
@@ -137,13 +124,13 @@ public abstract class BenchmarkBase : IDisposable
     protected static readonly Func<ValueTask>
         NoFlush = () => throw new NotSupportedException("Not a batch; cannot flush");
 
-    protected Task<Void> Pipeline(Func<Task> operation, Func<ValueTask> flush) =>
+    protected Task Pipeline(Func<Task> operation, Func<ValueTask> flush) =>
         Pipeline(() => new ValueTask(operation()), flush);
 
-    protected Task<T> Pipeline<T>(Func<Task<T>> operation, Func<ValueTask> flush) =>
+    protected Task<T?> Pipeline<T>(Func<Task<T>> operation, Func<ValueTask> flush) =>
         Pipeline(() => new ValueTask<T>(operation()), flush);
 
-    protected async Task<Void> Pipeline(Func<ValueTask> operation, Func<ValueTask> flush)
+    protected async Task Pipeline(Func<ValueTask> operation, Func<ValueTask> flush)
     {
         var opsPerClient = OperationsPerClient;
         int i = 0;
@@ -212,15 +199,13 @@ public abstract class BenchmarkBase : IDisposable
             Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
             Program.WriteException(ex);
         }
-
-        return Void.Instance;
     }
 
-    protected async Task<T> Pipeline<T>(Func<ValueTask<T>> operation, Func<ValueTask> flush)
+    protected async Task<T?> Pipeline<T>(Func<ValueTask<T>> operation, Func<ValueTask> flush)
     {
         var opsPerClient = OperationsPerClient;
         int i = 0;
-        T result = default;
+        T? result = default;
         try
         {
             if (PipelineDepth == 1)
@@ -334,9 +319,9 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
     protected abstract TClient CreateBatch(TClient client);
 
     protected async Task RunAsync<T>(
-        string key,
+        string? key,
         Func<TClient, Func<ValueTask>, Task<T>> action,
-        Func<TClient, Task> init = null,
+        Func<TClient, Task>? init = null,
         string format = "")
     {
         string name = action.Method.Name;
@@ -402,8 +387,8 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
             var pending = new Task<T>[ClientCount];
             int index = 0;
-#if DEBUG && !TEST_BASELINE
-            DebugCounters.Flush();
+#if DEBUG
+            Internal.DebugCounters.Flush();
 #endif
             // optionally support cancellation, applied per-test
             CancellationToken cancellationToken = CancellationToken.None;
@@ -439,7 +424,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:###,###,##0} ops/sec");
             }
 
-            if (typeof(T) != typeof(Void) && !Quiet)
+            if (!Quiet)
             {
                 if (string.IsNullOrWhiteSpace(format))
                 {
@@ -458,7 +443,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         finally
         {
 #if DEBUG && !TEST_BASELINE
-            var counters = DebugCounters.Flush(); // flush even if not showing
+            var counters = Internal.DebugCounters.Flush(); // flush even if not showing
             if (!Quiet)
             {
                 if (counters.WriteBytes != 0)

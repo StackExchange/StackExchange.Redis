@@ -1,7 +1,7 @@
 ﻿using System.Buffers;
 using System.Runtime.InteropServices;
 
-namespace RESPite.Connections;
+namespace RESPite.Connections.Internal;
 
 internal sealed class BatchConnection : IBatchConnection
 {

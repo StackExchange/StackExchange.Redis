@@ -63,6 +63,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     public bool IsCanceled => Message.GetStatus(_token) == ValueTaskSourceStatus.Canceled;
 
     internal short Token => _token;
+    public ref readonly CancellationToken CancellationToken => ref Message.CancellationToken;
 
     internal static readonly Action<object?> InvokeState = static state => ((Action)state!).Invoke();
 

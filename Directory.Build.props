@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- enables C# vNext features-->
-    <PreviewLangVersion>true</PreviewLangVersion>
+    <PreviewLangVersion>false</PreviewLangVersion>
 
     <VersionPrefix>2.0.0</VersionPrefix>
     <Copyright>2014 - $([System.DateTime]::Now.Year) Stack Exchange, Inc.</Copyright>

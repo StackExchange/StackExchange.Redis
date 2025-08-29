@@ -4,7 +4,7 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
-namespace BasicTest;
+namespace RESPite.Benchmark;
 
 public class OldCoreBenchmark : BenchmarkBase<IDatabaseAsync>
 {

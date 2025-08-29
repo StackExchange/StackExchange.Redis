@@ -104,7 +104,11 @@ public class RespCommandGenerator : IIncrementalGenerator
         string? formatter = null, parser = null;
         foreach (var attrib in method.GetAttributes())
         {
-            if (attrib.AttributeClass?.Name == "RespCommandAttribute")
+            if (attrib.AttributeClass is
+                {
+                    Name: "RespCommandAttribute",
+                    ContainingNamespace: { Name: "RESPite", ContainingNamespace.IsGlobalNamespace: true }
+                })
             {
                 if (attrib.ConstructorArguments.Length == 1)
                 {
@@ -221,7 +225,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             => type is INamedTypeSymbol
             {
                 Name: "RespContext",
-                ContainingNamespace: { Name: "Resp", ContainingNamespace.IsGlobalNamespace: true }
+                ContainingNamespace: { Name: "RESPite", ContainingNamespace.IsGlobalNamespace: true }
             };
 
         var syntax = (MethodDeclarationSyntax)ctx.Node;
@@ -258,9 +262,15 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         foreach (var attrib in param.GetAttributes())
         {
-            if (attrib.AttributeClass?.Name == "KeyAttribute") return true;
+            if (attrib.AttributeClass is
+                {
+                    Name: "KeyAttribute",
+                    ContainingNamespace: { Name: "RESPite", ContainingNamespace.IsGlobalNamespace: true }
+                })
+            {
+                return true;
+            }
         }
-
         return false;
     }
 
@@ -414,10 +424,11 @@ public class RespCommandGenerator : IIncrementalGenerator
                     sb.Append(")");
                     indent++;
 
-                    var parser = method.Parser ?? InbuiltParser(method.ReturnType);
+                    var parser = method.Parser ?? InbuiltParser(method.ReturnType, explicitSuccess: true);
                     bool useDirectCall = method.Context is { Length: > 0 } & formatter is { Length: > 0 } &
                                          parser is { Length: > 0 };
 
+                    useDirectCall = false; // disable for now
                     if (string.IsNullOrWhiteSpace(method.Context))
                     {
                         NewLine().Append("=> throw new NotSupportedException(\"No RespContext available\");");
@@ -439,7 +450,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                             }
                         }
 
-                        sb.Append(asAsync ? ").AsValueTask" : ").Wait");
+                        sb.Append(asAsync ? ").Send" : ").Wait");
                         if (!string.IsNullOrWhiteSpace(method.ReturnType))
                         {
                             sb.Append('<').Append(method.ReturnType).Append('>');
@@ -450,7 +461,9 @@ public class RespCommandGenerator : IIncrementalGenerator
 
                     if (useDirectCall) // avoid the intermediate step when possible
                     {
-                        sb = NewLine().Append("=> global::Resp.Message.Send").Append(asAsync ? "Async" : "")
+                        /*
+                        sb = NewLine().Append("=> ").Append(context).A "global::RESPite.Messages.something.Send")
+                            .Append(asAsync ? "Async" : "")
                             .Append('<');
                         WriteTuple(
                             method.Parameters,
@@ -460,6 +473,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                             .Append(csValue).Append("u8").Append(", ");
                         WriteTuple(method.Parameters, sb, TupleMode.Values);
                         sb.Append(", ").Append(formatter).Append(", ").Append(parser).Append(");");
+                        */
                     }
 
                     indent--;
@@ -484,7 +498,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             var names = tuple.Value.Shared ? TupleMode.SyntheticNames : TupleMode.NamedTuple;
 
             NewLine();
-            sb = NewLine().Append("sealed file class ").Append(name).Append(" : Resp.IRespFormatter<");
+            sb = NewLine().Append("sealed file class ").Append(name).Append(" : global::RESPite.Messages.IRespFormatter<");
             WriteTuple(parameters, sb, names);
             sb.Append('>');
             NewLine().Append("{");
@@ -493,7 +507,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             NewLine();
 
             sb = NewLine()
-                .Append("public void Format(scoped ReadOnlySpan<byte> command, ref Resp.RespWriter writer, in ");
+                .Append("public void Format(scoped ReadOnlySpan<byte> command, ref global::RESPite.Messages.RespWriter writer, in ");
             WriteTuple(parameters, sb, names);
             sb.Append(" request)");
             NewLine().Append("{");
@@ -639,30 +653,34 @@ public class RespCommandGenerator : IIncrementalGenerator
         return count;
     }
 
+    private const string RespFormattersPrefix = "global::RESPite.RespFormatters.";
+
     private static string? InbuiltFormatter(string type, bool isKey) => type switch
     {
-        "string" => isKey ? "Resp.RespFormatters.Key.String" : "Resp.RespFormatters.Value.String",
-        "byte[]" => isKey ? "Resp.RespFormatters.Key.ByteArray" : "Resp.RespFormatters.Value.ByteArray",
-        "int" => "Resp.RespFormatters.Int32",
-        "long" => "Resp.RespFormatters.Int64",
-        "float" => "Resp.RespFormatters.Single",
-        "double" => "Resp.RespFormatters.Double",
+        "string" => isKey ? (RespFormattersPrefix + "Key.String") : (RespFormattersPrefix + "Value.String"),
+        "byte[]" => isKey ? (RespFormattersPrefix + "Key.ByteArray") : (RespFormattersPrefix + "Value.ByteArray"),
+        "int" => RespFormattersPrefix + "Int32",
+        "long" => RespFormattersPrefix + "Int64",
+        "float" => RespFormattersPrefix + "Single",
+        "double" => RespFormattersPrefix + "Double",
         _ => null,
     };
 
+    private const string RespParsersPrefix = "global::RESPite.RespParsers.";
+
     private static string? InbuiltParser(string type, bool explicitSuccess = false) => type switch
     {
-        "" when explicitSuccess => "Resp.RespParsers.Success",
-        "string" => "Resp.RespParsers.String",
-        "int" => "Resp.RespParsers.Int32",
-        "long" => "Resp.RespParsers.Int64",
-        "float" => "Resp.RespParsers.Single",
-        "double" => "Resp.RespParsers.Double",
-        "int?" => "Resp.RespParsers.NullableInt32",
-        "long?" => "Resp.RespParsers.NullableInt64",
-        "float?" => "Resp.RespParsers.NullableSingle",
-        "double?" => "Resp.RespParsers.NullableDouble",
-        "global::Resp.ResponseSummary" => "Resp.ResponseSummary.Parser",
+        "" when explicitSuccess => RespParsersPrefix + "Success",
+        "string" => RespParsersPrefix + "String",
+        "int" => RespParsersPrefix + "Int32",
+        "long" => RespParsersPrefix + "Int64",
+        "float" => RespParsersPrefix + "Single",
+        "double" => RespParsersPrefix + "Double",
+        "int?" => RespParsersPrefix + "NullableInt32",
+        "long?" => RespParsersPrefix + "NullableInt64",
+        "float?" => RespParsersPrefix + "NullableSingle",
+        "double?" => RespParsersPrefix + "NullableDouble",
+        "global::Resp.ResponseSummary" => RespParsersPrefix + "ResponseSummary.Parser",
         _ => null,
     };
 

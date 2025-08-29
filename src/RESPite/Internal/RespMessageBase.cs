@@ -17,6 +17,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private int _requestRefCount;
     private int _flags;
     private ManualResetValueTaskSourceCore<TResponse> _asyncCore;
+    public ref readonly CancellationToken CancellationToken => ref _cancellationToken;
 
     private const int
         Flag_Sent = 1 << 0, // the request has been sent
