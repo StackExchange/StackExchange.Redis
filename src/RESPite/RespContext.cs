@@ -85,7 +85,7 @@ public readonly struct RespContext
             // (which is also why we can't risk TryReset+pool)
             Unsafe.AsRef(in _source) = null;
             Unsafe.AsRef(in Context._cancellationToken) = AlreadyCanceled;
-            src?.Dispose();
+            src?.Dispose(); // question: should we cancel on EOL? suggest we defer to CTS on that
         }
 
         private static readonly CancellationToken AlreadyCanceled = CreateCancelledToken();
