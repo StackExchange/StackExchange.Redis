@@ -20,6 +20,8 @@ internal sealed class RespMessage<TState, TResponse> : RespMessageBase<TResponse
         return obj;
     }
 
+    protected override void Recycle() => _threadStaticSpare = this;
+
     private RespMessage() => Unsafe.SkipInit(out _state);
 
     protected override TResponse Parse(ref RespReader reader) => _parser!.Parse(in _state, ref reader);

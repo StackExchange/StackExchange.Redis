@@ -129,4 +129,25 @@ public class OperationUnitTests
         var allocs = after - before;
         Debug.Assert(allocs < 2, $"allocations: {allocs}");
     }
+
+    [Fact]
+    public async Task CanCreateAndCompleteWithoutLeaking_Async()
+    {
+        var threadId = Environment.CurrentManagedThreadId;
+        int before = RespOperation.DebugPerThreadMessageAllocations;
+        for (int i = 0; i < 100; i++)
+        {
+            var op = RespOperation.Create(out var remote, CancellationToken);
+            remote.OnSent();
+            remote.TrySetResult(default);
+            Assert.True(op.IsCompleted);
+            await op;
+        }
+        int after = RespOperation.DebugPerThreadMessageAllocations;
+        var allocs = after - before;
+        Debug.Assert(allocs < 2, $"allocations: {allocs}");
+
+        // do not expect thread switch
+        Assert.Equal(threadId, Environment.CurrentManagedThreadId);
+    }
 }

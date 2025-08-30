@@ -193,7 +193,10 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         _requestRefCount = 0;
         _flags = 0;
         _asyncCore.Reset();
+        if (recycle) Recycle();
     }
+
+    protected abstract void Recycle();
 
     public bool TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent = true)
     {
