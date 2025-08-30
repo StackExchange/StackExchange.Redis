@@ -91,8 +91,8 @@ var db = conn.Context.WithDatabase(4).WithCancellationToken(request.Cancellation
 ```
 
 If you're thinking "Wait - if `RespContext` carries cancellation, does `WithCancellationToken(...)` *replace*
-the cancellation, or *combine* the two cancellations?", then: have a cookie. The answer is "replace", but we can also combine
-- noting that now we need to scope that to a lifetime:
+the cancellation, or *combine* the two cancellations?", then: have a cookie. The answer is "replace", but we can also
+combine multiple cancellations, noting that now we need to scope that to a *lifetime*:
 
 ``` c#
 using var lifetime = db.WithDatabaseWithLinkedCancellationToken(anotherCancellationToken);
