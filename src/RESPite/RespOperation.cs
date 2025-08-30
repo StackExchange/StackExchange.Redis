@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks.Sources;
 using RESPite.Internal;
@@ -16,6 +17,23 @@ namespace RESPite;
 /// </summary>
 public readonly struct RespOperation : ICriticalNotifyCompletion
 {
+#if DEBUG
+    [ThreadStatic]
+    // how many resp-operations have we chewed through?
+    private static int _debugPerThreadMessageAllocations;
+    internal static int DebugPerThreadMessageAllocations => _debugPerThreadMessageAllocations;
+#else
+    internal static int DebugPerThreadMessageAllocations => 0;
+#endif
+
+    [Conditional("DEBUG")]
+    internal static void DebugOnAllocateMessage()
+    {
+#if DEBUG
+        _debugPerThreadMessageAllocations++;
+#endif
+    }
+
     // it is important that this layout remains identical between RespOperation and RespOperation<T>
     private readonly IRespMessage _message;
     private readonly short _token;
@@ -40,11 +58,9 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         => new(operation.Message, operation._token);
 
     /// <inheritdoc cref="ValueTask.AsTask()"/>
-    public Task AsTask()
-    {
-        ValueTask vt = this;
-        return vt.AsTask();
-    }
+    public Task AsTask() => new ValueTask(Message, _token).AsTask();
+
+    public ValueTask AsValueTask() => new(Message, _token);
 
     /// <inheritdoc cref="Task.Wait(TimeSpan)"/>
     public void Wait(TimeSpan timeout = default)
@@ -112,6 +128,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     {
         private readonly IRespMessage _message;
         private readonly short _token;
+
         internal Remote(IRespMessage message)
         {
             _message = message;
@@ -146,9 +163,10 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     /// Create a disconnected <see cref="RespOperation"/> without a RESP parser; this is only intended for testing purposes.
     /// </summary>
     [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-    public static RespOperation Create(out Remote remote)
+    public static RespOperation Create(out Remote remote, CancellationToken token = default)
     {
-        var msg = RespMessage<bool>.Get(null);
+        var msg = RespMessage<bool>.Get(null)
+            .Init(null, 0, 0, null, token);
         remote = new(msg);
         return new RespOperation(msg);
     }

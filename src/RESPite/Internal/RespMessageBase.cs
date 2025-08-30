@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks.Sources;
 using RESPite.Messages;
@@ -8,6 +9,8 @@ namespace RESPite.Internal;
 
 internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSource<TResponse>
 {
+    protected RespMessageBase() => RespOperation.DebugOnAllocateMessage();
+
     private CancellationToken _cancellationToken;
     private CancellationTokenRegistration _cancellationTokenRegistration;
 
@@ -46,7 +49,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     [Conditional("DEBUG")]
     private void DebugAssertPending() => Debug.Assert(
-        GetStatus(_asyncCore.Version) == ValueTaskSourceStatus.Pending & !HasFlag(Flag_OutcomeKnown),
+        _asyncCore.GetStatus(_asyncCore.Version) == ValueTaskSourceStatus.Pending & !HasFlag(Flag_OutcomeKnown),
         "Message should be in a pending state");
 
     public bool TrySetResult(short token, scoped ReadOnlySpan<byte> response)
@@ -131,20 +134,25 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     public void OnSent(short token)
     {
-        if (GetStatus(token) != ValueTaskSourceStatus.Pending || _requestRefCount != 0 || !SetFlag(Flag_Sent))
+        if (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending || _requestRefCount != 0 || !SetFlag(Flag_Sent))
         {
             throw new InvalidOperationException(
                 "Operation must be in a pending, unsent state with no request payload. ");
         }
     }
 
-    public RespMessageBase<TResponse> Init(byte[] oversized, int offset, int length, ArrayPool<byte>? pool, CancellationToken cancellation)
+    public RespMessageBase<TResponse> Init(byte[]? oversized, int offset, int length, ArrayPool<byte>? pool, CancellationToken cancellation)
     {
         DebugAssertPending();
         Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
-        _request = new ReadOnlyMemory<byte>(oversized, offset, length);
-        _requestOwner = pool;
-        _requestRefCount = 1;
+
+        if (oversized is not null)
+        {
+            _requestOwner = pool;
+            _request = new ReadOnlyMemory<byte>(oversized, offset, length);
+            _requestRefCount = 1;
+        }
+
         if (cancellation.CanBeCanceled)
         {
             _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellation);
@@ -250,19 +258,25 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         }
     }
 
-    ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _asyncCore.GetStatus(token);
-    ValueTaskSourceStatus IValueTaskSource<TResponse>.GetStatus(short token) => _asyncCore.GetStatus(token);
-
-    /* if they're awaiting our object directly (i.e. we don't need to worry about Task<T> pre-checking things),
-     then we can tell them that a message hasn't been sent, for example transactions / batches */
+    /* asking about the status too early is usually a very bad sign that they're doing
+     something like awaiting a message in a transaction that hasn't been sent */
     public ValueTaskSourceStatus GetStatus(short token)
     {
         // we'd rather see a token error, so check that first
         // (in reality, we expect the token to be right almost always)
         var status = _asyncCore.GetStatus(token);
-        if (!HasFlag(Flag_Sent)) ThrowNotSent();
+        if ((status == ValueTaskSourceStatus.Pending & !HasFlag(Flag_Sent)) && TrySetExceptionNotSent())
+        {
+            status = ValueTaskSourceStatus.Faulted;
+            Debug.Assert(_asyncCore.GetStatus(token) == ValueTaskSourceStatus.Faulted, "should be faulted");
+        }
         return status;
     }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private bool TrySetExceptionNotSent()
+        => TrySetException(new InvalidOperationException(
+            "This command has not yet been sent; awaiting is not possible. If this is a transaction or batch, you must execute that first."));
 
     private void CheckToken(short token)
     {
@@ -271,10 +285,6 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             _ = _asyncCore.GetStatus(token); // get consistent exception message
         }
     }
-
-    private static void ThrowNotSent()
-        => throw new InvalidOperationException(
-            "This command has not yet been sent; awaiting is not possible. If this is a transaction or batch, you must execute that first.");
 
     public void OnCompleted(
         Action<object?> continuation,
@@ -307,7 +317,10 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             case Flag_Complete | Flag_Sent: // already complete
                 return GetResult(token);
             default:
-                ThrowNotSent();
+                if (TrySetExceptionNotSent())
+                {
+                    return GetResult(token);
+                }
                 break;
         }
 

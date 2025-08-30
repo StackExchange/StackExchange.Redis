@@ -53,11 +53,9 @@ public readonly struct RespOperation<T>
         => new(operation.TypedMessage, operation._token);
 
     /// <inheritdoc cref="ValueTask.AsTask()"/>
-    public Task<T> AsTask()
-    {
-        ValueTask<T> vt = this;
-        return vt.AsTask();
-    }
+    public Task<T> AsTask() => new ValueTask<T>(TypedMessage, _token).AsTask();
+
+    public ValueTask<T> AsValueTask() => new(TypedMessage, _token);
 
     /// <inheritdoc cref="Task.Wait(TimeSpan)"/>
     public T Wait(TimeSpan timeout = default)
