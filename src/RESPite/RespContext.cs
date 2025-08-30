@@ -53,7 +53,7 @@ public readonly struct RespContext
     public int Database => _database;
     public CancellationToken CancellationToken => _cancellationToken;
 
-    public RespCommandMap RespCommandMap => _connection.Configuration.RespCommandMap;
+    public RespCommandMap CommandMap => _connection.Configuration.CommandMap;
 
     public RespContext WithCancellationToken(CancellationToken cancellationToken)
     {

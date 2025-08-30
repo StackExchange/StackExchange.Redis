@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using Resp;
 
 namespace RESPite.Redis.Alt; // legacy fallback for down-level compilers
 

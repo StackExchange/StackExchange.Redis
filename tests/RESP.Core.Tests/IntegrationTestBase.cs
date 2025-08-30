@@ -1,6 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
-using Resp;
-using RESPite.Redis;
+using RESPite;
 using RESPite.Redis.Alt;
 using Xunit;
 

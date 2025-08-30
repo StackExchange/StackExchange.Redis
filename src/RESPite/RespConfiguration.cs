@@ -25,7 +25,7 @@ public class RespConfiguration
         {
             if (source is not null)
             {
-                CommandMap = source.RespCommandMap;
+                CommandMap = source.CommandMap;
                 SyncTimeout = source.SyncTimeout;
                 KeyPrefix = source.KeyPrefix.ToArray();
                 ServiceProvider = source.ServiceProvider;
@@ -58,12 +58,12 @@ public class RespConfiguration
     }
 
     private RespConfiguration(
-        RespCommandMap respCommandMap,
+        RespCommandMap commandMap,
         byte[] keyPrefix,
         TimeSpan syncTimeout,
         IServiceProvider serviceProvider)
     {
-        RespCommandMap = respCommandMap;
+        CommandMap = commandMap;
         SyncTimeout = syncTimeout;
         _keyPrefix = (byte[])keyPrefix.Clone(); // create isolated copy
         ServiceProvider = serviceProvider;
@@ -71,7 +71,7 @@ public class RespConfiguration
 
     private readonly byte[] _keyPrefix;
     public IServiceProvider ServiceProvider { get; }
-    public RespCommandMap RespCommandMap { get; }
+    public RespCommandMap CommandMap { get; }
     public TimeSpan SyncTimeout { get; }
     public ReadOnlySpan<byte> KeyPrefix => _keyPrefix;
 

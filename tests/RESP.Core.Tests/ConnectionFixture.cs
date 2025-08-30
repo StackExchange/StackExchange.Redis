@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Net;
-using System.Threading;
-using Resp;
 using RESP.Core.Tests;
+using RESPite;
+using RESPite.Connections;
 using Xunit;
 
 [assembly: AssemblyFixture(typeof(ConnectionFixture))]
@@ -16,5 +16,8 @@ public class ConnectionFixture : IDisposable
     public void Dispose() => _pool.Dispose();
 
     public IRespConnection GetConnection()
-        => _pool.GetConnection(cancellationToken: TestContext.Current.CancellationToken);
+    {
+        var template = _pool.Template.WithCancellationToken(TestContext.Current.CancellationToken);
+        return _pool.GetConnection(template);
+    }
 }

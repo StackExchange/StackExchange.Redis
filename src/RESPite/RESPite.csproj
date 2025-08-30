@@ -16,6 +16,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="RESP.Core.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Update="RespOperationT.cs">
       <DependentUpon>RespOperation.cs</DependentUpon>
     </Compile>

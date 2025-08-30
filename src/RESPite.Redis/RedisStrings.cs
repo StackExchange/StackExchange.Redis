@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Resp;
+using RESPite.Messages;
 
 #if !PREVIEW_LANGVER
 using RESPite.Redis.Alt;

@@ -2,8 +2,8 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Threading;
-using System.Xml.XPath;
-using Resp;
+using RESPite.Internal;
+using RESPite.Messages;
 using Xunit;
 
 namespace RESP.Core.Tests;

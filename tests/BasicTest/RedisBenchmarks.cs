@@ -2,7 +2,8 @@
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 #if !TEST_BASELINE
-using Resp;
+using RESPite;
+using RESPite.Connections;
 using RESPite.Redis;
 #if !PREVIEW_LANGVER
 using RESPite.Redis.Alt; // needed for AsStrings() etc
@@ -19,7 +20,7 @@ public class RedisBenchmarks : IDisposable
     private ConnectionMultiplexer connection;
     private IDatabase db;
 #if !TEST_BASELINE
-    private Resp.RespConnectionPool pool, customPool;
+    private RespConnectionPool pool, customPool;
 #endif
 
     [GlobalSetup]
@@ -233,7 +234,7 @@ public class RedisBenchmarks : IDisposable
     // [Benchmark(Description = "PC StringSet/s", OperationsPerInvoke = COUNT)]
     public void StringSet_Pipelined_Core()
     {
-        using var conn = pool.GetConnection().ForPipeline();
+        using var conn = pool.GetConnection().Synchronized();
 #if PREVIEW_LANGVER
         ref readonly RedisStrings s = ref conn.Context.Strings;
 #else
@@ -251,7 +252,7 @@ public class RedisBenchmarks : IDisposable
     // [Benchmark(Description = "PCA StringSet/s", OperationsPerInvoke = COUNT)]
     public async Task StringSet_Pipelined_Core_Async()
     {
-        using var conn = pool.GetConnection().ForPipeline();
+        using var conn = pool.GetConnection().Synchronized();
         var ctx = conn.Context;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
@@ -269,7 +270,7 @@ public class RedisBenchmarks : IDisposable
     // [Benchmark(Description = "PC StringGet/s", OperationsPerInvoke = COUNT)]
     public void StringGet_Pipelined_Core()
     {
-        using var conn = pool.GetConnection().ForPipeline();
+        using var conn = pool.GetConnection().Synchronized();
 #if PREVIEW_LANGVER
         ref readonly RedisStrings s = ref conn.Context.Strings;
 #else
@@ -287,7 +288,7 @@ public class RedisBenchmarks : IDisposable
     // [Benchmark(Description = "PCA StringGet/s", OperationsPerInvoke = COUNT)]
     public async Task StringGet_Pipelined_Core_Async()
     {
-        using var conn = pool.GetConnection().ForPipeline();
+        using var conn = pool.GetConnection().Synchronized();
         var ctx = conn.Context;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
@@ -349,7 +350,7 @@ public class RedisBenchmarks : IDisposable
     [Benchmark(Description = "new incr /p", OperationsPerInvoke = OperationsPerInvoke)]
     public int IncrBy_New_Pipelined()
     {
-        using var conn = pool.GetConnection().ForPipeline();
+        using var conn = pool.GetConnection().Synchronized();
 #if PREVIEW_LANGVER
         ref readonly RedisStrings s = ref conn.Context.Strings;
 #else
@@ -371,7 +372,7 @@ public class RedisBenchmarks : IDisposable
     [Benchmark(Description = "new incr /p/a", OperationsPerInvoke = OperationsPerInvoke)]
     public async Task<int> IncrBy_New_Pipelined_Async()
     {
-        using var conn = pool.GetConnection().ForPipeline();
+        using var conn = pool.GetConnection().Synchronized();
         var ctx = conn.Context;
         int value = 0;
 #if PREVIEW_LANGVER
@@ -419,7 +420,7 @@ public class RedisBenchmarks : IDisposable
     // [Benchmark(Description = "new incr /pc", OperationsPerInvoke = OperationsPerInvoke)]
     public int IncrBy_New_Pipelined_Custom()
     {
-        using var conn = customPool.GetConnection().ForPipeline();
+        using var conn = customPool.GetConnection().Synchronized();
 #if PREVIEW_LANGVER
         ref readonly RedisStrings s = ref conn.Context.Strings;
 #else

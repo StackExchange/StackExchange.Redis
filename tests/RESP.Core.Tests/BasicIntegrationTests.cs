@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Resp;
+using RESPite;
+using RESPite.Connections;
+using RESPite.Messages;
 using RESPite.Redis;
 using RESPite.Redis.Alt; // needed for AsStrings() etc
 using Xunit;
@@ -26,7 +28,7 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
         ReadOnlySpan<byte> buffer = "$3\r\nabc\r\n"u8;
         var reader = new RespReader(buffer);
         reader.MoveNext();
-        var value = RespParsers.String.Parse(in Resp.Void.Instance, ref reader);
+        var value = RespParsers.String.Parse(ref reader);
         reader.DemandEnd();
         Assert.Equal("abc", value);
     }
@@ -77,7 +79,7 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        await using var conn = forPipeline ? GetConnection().ForPipeline() : GetConnection();
+        await using var conn = forPipeline ? GetConnection().Synchronized() : GetConnection();
 
         ValueTask<string?>[] tasks = new ValueTask<string?>[count];
         for (int i = 0; i < count; i++)

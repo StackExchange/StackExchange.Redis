@@ -21,6 +21,8 @@ public sealed class RespConnectionPool : IDisposable
     private readonly int _count;
     private readonly RespContext _defaultTemplate;
 
+    public ref readonly RespContext Template => ref _defaultTemplate;
+
     public RespConnectionPool(
         in RespContext template,
         Func<RespConfiguration, IRespConnection> createConnection,

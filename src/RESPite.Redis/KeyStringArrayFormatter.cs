@@ -1,5 +1,6 @@
 ﻿using System;
-using Resp;
+using RESPite;
+using RESPite.Messages;
 
 namespace RESPite.Redis;
 

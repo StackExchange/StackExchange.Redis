@@ -28,7 +28,7 @@ namespace RESPite.Internal;
 ///
 /// There is a *lot* of validation in debug mode; we want to be super sure that we don't corrupt buffer state.
 /// </remarks>
-partial struct CycleBuffer
+internal partial struct CycleBuffer
 {
     // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud
     public static CycleBuffer Create(MemoryPool<byte>? pool = null, int pageSize = DefaultPageSize)
