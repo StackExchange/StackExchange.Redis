@@ -42,29 +42,32 @@ public readonly struct RespContext
     /// represents the lifetime of the combined operation, and should be
     /// disposed when complete.
     /// </summary>
-    public Lifetime WithLinkedCancellationToken(CancellationToken cancellationToken)
+    public Lifetime WithCombineCancellationToken(CancellationToken cancellationToken)
     {
         if (!cancellationToken.CanBeCanceled
             || cancellationToken == CancellationToken)
         {
             // would have no effect
             CancellationToken.ThrowIfCancellationRequested();
-            return new(null, in this, CancellationToken);
+            return new(in this, null);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         if (!CancellationToken.CanBeCanceled)
         {
             // we don't currently have cancellation; no need for a link
-            return new(null, in this, cancellationToken);
+            return new(in this, null, cancellationToken);
         }
 
         CancellationToken.ThrowIfCancellationRequested();
         var src = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, CancellationToken);
-        return new(src, in this, src.Token);
+        return new(in this, src, src.Token);
     }
 
-    public Lifetime WithTimeout(TimeSpan timeout)
+    public Lifetime WithCombine(IDisposable lifetime)
+        => new(in this, lifetime);
+
+    public Lifetime WithCombineTimeout(TimeSpan timeout)
     {
         if (timeout <= TimeSpan.Zero) Throw();
         CancellationTokenSource src;
@@ -78,9 +81,10 @@ public readonly struct RespContext
         {
             src = new CancellationTokenSource(timeout);
         }
+
         static void Throw() => throw new ArgumentOutOfRangeException(nameof(timeout));
 
-        return new Lifetime(src, in this, src.Token);
+        return new Lifetime(in this, src, src.Token);
     }
 
     public readonly struct Lifetime : IDisposable
@@ -91,10 +95,16 @@ public readonly struct RespContext
 
         private readonly IDisposable? _source;
 
-        internal Lifetime(IDisposable? source, in RespContext context, CancellationToken cancellationToken)
+        internal Lifetime(in RespContext context, IDisposable? source)
         {
+            Context = context;
             _source = source;
+        }
+
+        internal Lifetime(in RespContext context, IDisposable? source, CancellationToken cancellationToken)
+        {
             Context = context; // snapshot, we can now mutate this locally
+            _source = source;
             Unsafe.AsRef(in Context.CancellationToken) = cancellationToken;
         }
 

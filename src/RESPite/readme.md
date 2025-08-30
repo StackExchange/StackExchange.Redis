@@ -95,7 +95,7 @@ the cancellation, or *combine* the two cancellations?", then: have a cookie. The
 combine multiple cancellations, noting that now we need to scope that to a *lifetime*:
 
 ``` c#
-using var lifetime = db.WithDatabaseWithLinkedCancellationToken(anotherCancellationToken);
+using var lifetime = db.WithDatabase(4).WithCombineCancellationToken(anotherCancellationToken);
 // use lifetime.Context for commands
 ```
 
@@ -103,9 +103,18 @@ This will automatically do the most appropriate thing based on whether neither, 
 are cancellable. We can do the same thing with a timeout:
 
 ``` c#
-using var lifetime = db.WithTimeout(TimeSpan.FromSeconds(5));
+using var lifetime = db.WithCombineTimeout(TimeSpan.FromSeconds(5));
 // use lifetime.Context for commands
 ```
 
 Note that this timeout applies to the *lifetime*, not individual operations (i.e. if we loop forever
-performing fast operations: it  will still cancel after five seconds).`
+performing fast operations: it  will still cancel after five seconds). From the name
+`WithCombineTimeout`, you can probably guess that this works *in addition to* the
+existing cancellation state. Help yourself to another cookie.
+
+## Summary
+
+With the combination of `RespConnection` for the long-lived connection,
+`RespContext` for the transient local configuration (via various `With*` methods),
+and our automatically generated `[RespCommand]` methods: we can easily and
+efficiently talk to a range of RESP databases.~~~~
