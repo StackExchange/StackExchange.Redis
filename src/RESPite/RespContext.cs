@@ -26,12 +26,76 @@ public readonly struct RespContext
 
     public RespCommandMap CommandMap => _connection.Configuration.CommandMap;
 
+    /// <summary>
+    /// REPLACES the <see cref="CancellationToken"/> associated with this context.
+    /// </summary>
     public RespContext WithCancellationToken(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         RespContext clone = this;
         Unsafe.AsRef(in clone._cancellationToken) = cancellationToken;
         return clone;
+    }
+
+    /// <summary>
+    /// COMBINES the <see cref="CancellationToken"/> associated with this context
+    /// with an additional cancellation. The returned <see cref="Lifetime"/>
+    /// represents the lifetime of the combined operation, and should be
+    /// disposed when complete.
+    /// </summary>
+    public Lifetime WithLinkedCancellationToken(CancellationToken cancellationToken)
+    {
+        if (!cancellationToken.CanBeCanceled
+            || cancellationToken == _cancellationToken)
+        {
+            // would have no effect
+            return new(null, in this, _cancellationToken);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_cancellationToken.CanBeCanceled)
+        {
+            // we don't currently have cancellation; no need for a link
+            return new(null, in this, cancellationToken);
+        }
+
+        var src = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cancellationToken);
+        return new(src, in this, src.Token);
+    }
+
+    public readonly struct Lifetime : IDisposable
+    {
+        // Unusual public field; a ref-readonly would be preferable, but by-ref props have restrictions on structs.
+        // We would rather avoid the copy semantics associated with a regular property getter.
+        public readonly RespContext Context;
+
+        private readonly CancellationTokenSource? _source;
+
+        internal Lifetime(CancellationTokenSource? source, in RespContext context, CancellationToken cancellationToken)
+        {
+            _source = source;
+            Context = context; // snapshot, we can now mutate this locally
+            Unsafe.AsRef(in Context._cancellationToken) = cancellationToken;
+        }
+
+        public void Dispose()
+        {
+            var src = _source;
+            // best effort cleanup, noting that copies may exist
+            // (which is also why we can't risk TryReset+pool)
+            Unsafe.AsRef(in _source) = null;
+            Unsafe.AsRef(in Context._cancellationToken) = AlreadyCanceled;
+            src?.Dispose();
+        }
+
+        private static readonly CancellationToken AlreadyCanceled = CreateCancelledToken();
+
+        private static CancellationToken CreateCancelledToken()
+        {
+            CancellationTokenSource cts = new();
+            cts.Cancel();
+            return cts.Token;
+        }
     }
 
     public RespContext WithDatabase(int database)
