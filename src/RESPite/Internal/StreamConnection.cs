@@ -7,18 +7,18 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net.Mime;
 using System.Runtime.CompilerServices;
 using RESPite.Messages;
 
 namespace RESPite.Internal;
 
-internal sealed class StreamConnection : IRespConnection
+internal sealed class StreamConnection : RespConnection
 {
     private bool _isDoomed;
     private RespScanState _readScanState;
     private CycleBuffer _readBuffer, _writeBuffer;
-    private readonly RespContext _context;
-    public ref readonly RespContext Context => ref _context;
+
     public bool CanWrite => Volatile.Read(ref _readStatus) == WRITER_AVAILABLE;
 
     public int Outstanding => _outstanding.Count;
@@ -27,14 +27,13 @@ internal sealed class StreamConnection : IRespConnection
 
     private readonly Stream tail;
     private ConcurrentQueue<RespOperation> _outstanding = new();
-    public RespConfiguration Configuration { get; }
 
-    public StreamConnection(RespConfiguration configuration, Stream tail, bool asyncRead = true)
+    public StreamConnection(in RespContext context, RespConfiguration configuration, Stream tail, bool asyncRead = true)
+        : base(context, configuration)
     {
-        Configuration = configuration;
         if (!(tail.CanRead && tail.CanWrite)) Throw();
         this.tail = tail;
-        var memoryPool = configuration.GetService<MemoryPool<byte>>();
+        var memoryPool = Configuration.GetService<MemoryPool<byte>>();
         _readBuffer = CycleBuffer.Create(memoryPool);
         _writeBuffer = CycleBuffer.Create(memoryPool);
         if (asyncRead)
@@ -46,9 +45,11 @@ internal sealed class StreamConnection : IRespConnection
             new Thread(ReadAll).Start();
         }
 
-        _context = RespContext.For(this);
-
         static void Throw() => throw new ArgumentException("Stream must be readable and writable", nameof(tail));
+    }
+    public StreamConnection(RespConfiguration configuration, Stream tail, bool asyncRead = true)
+        : this(RespContext.Null, configuration, tail, asyncRead)
+    {
     }
 
     public RespMode Mode { get; set; } = RespMode.Resp2;
@@ -446,7 +447,7 @@ internal sealed class StreamConnection : IRespConnection
         }
     }
 
-    public void Send(in RespOperation message)
+    public override void Send(in RespOperation message)
     {
         bool releaseRequest = message.Message.TryReserveRequest(message.Token, out var bytes);
         if (!releaseRequest)
@@ -480,7 +481,7 @@ internal sealed class StreamConnection : IRespConnection
         }
     }
 
-    public void Send(ReadOnlySpan<RespOperation> messages)
+    internal override void Send(ReadOnlySpan<RespOperation> messages)
     {
         switch (messages.Length)
         {
@@ -536,7 +537,7 @@ internal sealed class StreamConnection : IRespConnection
         }
     }
 
-    public Task SendAsync(in RespOperation message)
+    public override Task SendAsync(in RespOperation message)
     {
         bool releaseRequest = message.Message.TryReserveRequest(message.Token, out var bytes);
         if (!releaseRequest)
@@ -603,7 +604,7 @@ internal sealed class StreamConnection : IRespConnection
         }
     }
 
-    public Task SendAsync(ReadOnlyMemory<RespOperation> messages)
+    internal override Task SendAsync(ReadOnlyMemory<RespOperation> messages)
     {
         switch (messages.Length)
         {
@@ -696,21 +697,24 @@ internal sealed class StreamConnection : IRespConnection
         Interlocked.CompareExchange(ref _writeStatus, WRITER_DOOMED, WRITER_AVAILABLE);
     }
 
-    public void Dispose()
+    protected override void OnDispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _fault ??= new ObjectDisposedException(ToString());
+            Doom();
+            tail.Dispose();
+        }
+    }
+
+    protected override ValueTask OnDisposeAsync()
     {
         _fault ??= new ObjectDisposedException(ToString());
         Doom();
-        tail.Dispose();
-    }
-
-    public override string ToString() => nameof(StreamConnection);
-
-    public ValueTask DisposeAsync()
-    {
 #if COREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
         return tail.DisposeAsync().AsTask();
 #else
-        Dispose();
+        tail.Dispose();
         return default;
 #endif
     }

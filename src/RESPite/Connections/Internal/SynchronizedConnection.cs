@@ -2,42 +2,32 @@
 
 namespace RESPite.Connections.Internal;
 
-internal sealed class SynchronizedConnection : IRespConnection
+internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorConnection(tail)
 {
-    private readonly IRespConnection _tail;
-    private readonly RespContext _context;
     private readonly SemaphoreSlim _semaphore = new(1);
 
-    public ref readonly RespContext Context => ref _context;
-
-    public SynchronizedConnection(in RespContext tail)
+    protected override void OnDispose(bool disposing)
     {
-        _tail = tail.Connection;
-        _context = tail.WithConnection(this);
+        if (disposing)
+        {
+            _semaphore.Dispose();
+        }
+        base.OnDispose(disposing);
     }
 
-    public void Dispose()
+    protected override ValueTask OnDisposeAsync()
     {
         _semaphore.Dispose();
-        _tail.Dispose();
+        return base.OnDisposeAsync();
     }
 
-    public ValueTask DisposeAsync()
+    internal override bool IsHealthy => _semaphore.CurrentCount > 0 & base.IsHealthy;
+    public override void Send(in RespOperation message)
     {
-        _semaphore.Dispose();
-        return _tail.DisposeAsync();
-    }
-
-    public RespConfiguration Configuration => _tail.Configuration;
-    public bool CanWrite => _semaphore.CurrentCount > 0 && _tail.CanWrite;
-    public int Outstanding => _tail.Outstanding;
-
-    public void Send(in RespOperation message)
-    {
-        _semaphore.Wait(message.CancellationToken);
         try
         {
-            _tail.Send(message);
+            _semaphore.Wait(message.CancellationToken);
+            Tail.Send(message);
         }
         catch (Exception ex)
         {
@@ -50,7 +40,7 @@ internal sealed class SynchronizedConnection : IRespConnection
         }
     }
 
-    public void Send(ReadOnlySpan<RespOperation> messages)
+    internal override void Send(ReadOnlySpan<RespOperation> messages)
     {
         switch (messages.Length)
         {
@@ -60,14 +50,14 @@ internal sealed class SynchronizedConnection : IRespConnection
                 return;
         }
 
-        _semaphore.Wait(messages[0].CancellationToken);
         try
         {
-            _tail.Send(messages);
+            _semaphore.Wait(messages[0].CancellationToken);
+            Tail.Send(messages);
         }
         catch (Exception ex)
         {
-            TrySetException(messages, ex);
+            MarkFaulted(messages, ex);
             throw;
         }
         finally
@@ -76,7 +66,7 @@ internal sealed class SynchronizedConnection : IRespConnection
         }
     }
 
-    public Task SendAsync(in RespOperation message)
+    public override Task SendAsync(in RespOperation message)
     {
         bool haveLock = false;
         try
@@ -88,7 +78,7 @@ internal sealed class SynchronizedConnection : IRespConnection
                 return FullAsync(this, message);
             }
 
-            var pending = _tail.SendAsync(message);
+            var pending = Tail.SendAsync(message);
             if (!pending.IsCompleted)
             {
                 DebugCounters.OnPipelineSendAsync();
@@ -124,7 +114,7 @@ internal sealed class SynchronizedConnection : IRespConnection
 
             try
             {
-                await @this._tail.SendAsync(message).ConfigureAwait(false);
+                await @this.Tail.SendAsync(message).ConfigureAwait(false);
             }
             finally
             {
@@ -145,15 +135,7 @@ internal sealed class SynchronizedConnection : IRespConnection
         }
     }
 
-    private static void TrySetException(ReadOnlySpan<RespOperation> messages, Exception ex)
-    {
-        foreach (var message in messages)
-        {
-            message.Message.TrySetException(message.Token, ex);
-        }
-    }
-
-    public Task SendAsync(ReadOnlyMemory<RespOperation> messages)
+    internal override Task SendAsync(ReadOnlyMemory<RespOperation> messages)
     {
         switch (messages.Length)
         {
@@ -171,7 +153,7 @@ internal sealed class SynchronizedConnection : IRespConnection
                 return FullAsync(this, messages);
             }
 
-            var pending = _tail.SendAsync(messages);
+            var pending = Tail.SendAsync(messages);
             if (!pending.IsCompleted)
             {
                 DebugCounters.OnPipelineSendAsync();
@@ -185,7 +167,7 @@ internal sealed class SynchronizedConnection : IRespConnection
         }
         catch (Exception ex)
         {
-            TrySetException(messages.Span, ex);
+            MarkFaulted(messages.Span, ex);
             throw;
         }
         finally
@@ -200,11 +182,11 @@ internal sealed class SynchronizedConnection : IRespConnection
             {
                 await @this._semaphore.WaitAsync(messages.Span[0].CancellationToken).ConfigureAwait(false);
                 haveLock = true;
-                await @this._tail.SendAsync(messages).ConfigureAwait(false);
+                await @this.Tail.SendAsync(messages).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                TrySetException(messages.Span, ex);
+                MarkFaulted(messages.Span, ex);
                 throw;
             }
             finally

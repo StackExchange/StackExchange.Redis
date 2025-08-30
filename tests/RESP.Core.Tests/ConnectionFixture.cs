@@ -15,7 +15,7 @@ public class ConnectionFixture : IDisposable
 
     public void Dispose() => _pool.Dispose();
 
-    public IRespConnection GetConnection()
+    public RespConnection GetConnection()
     {
         var template = _pool.Template.WithCancellationToken(TestContext.Current.CancellationToken);
         return _pool.GetConnection(template);

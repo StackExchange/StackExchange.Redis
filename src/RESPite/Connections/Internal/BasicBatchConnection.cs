@@ -1,65 +1,60 @@
 ﻿using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace RESPite.Connections.Internal;
 
-internal sealed class BatchConnection : IBatchConnection
+/// <summary>
+/// Holds basic RespOperation, queue and release - turns
+/// multiple send/send-many calls into a single send-many call.
+/// </summary>
+internal sealed class BasicBatchConnection : RespBatch
 {
-    private bool _isDisposed;
     private readonly List<RespOperation> _unsent;
-    private readonly IRespConnection _tail;
-    private readonly RespContext _context;
 
-    public BatchConnection(in RespContext context, int sizeHint)
+    public BasicBatchConnection(in RespContext context, int sizeHint) : base(context)
     {
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract - an abundance of caution
-        var tail = context.Connection;
-        if (tail is not { CanWrite: true }) ThrowNonWritable();
-        if (tail is BatchConnection) ThrowBatch();
+        // ack: yes, I know we won't spot every recursive+decorated scenario
+        if (Tail is BasicBatchConnection) ThrowNestedBatch();
 
         _unsent = sizeHint <= 0 ? [] : new List<RespOperation>(sizeHint);
-        _tail = tail!;
-        _context = context.WithConnection(this);
-        static void ThrowBatch() => throw new ArgumentException("Nested batches are not supported", nameof(tail));
 
-        static void ThrowNonWritable() =>
-            throw new ArgumentException("A writable connection is required", nameof(tail));
+        static void ThrowNestedBatch() => throw new ArgumentException("Nested batches are not supported", nameof(context));
     }
 
-    public void Dispose()
+    protected override void OnDispose(bool disposing)
     {
-        lock (_unsent)
+        if (disposing)
         {
-            /* everyone else checks disposal inside the lock, so:
-             once we've set this, we can be sure that no more
-             items will be added */
-            _isDisposed = true;
-        }
+            lock (_unsent)
+            {
+                /* everyone else checks disposal inside the lock;
+                 the base type already marked as disposed, so:
+                 once we're past this point, we can be sure that no more
+                 items will be added */
+                Debug.Assert(IsDisposed);
+            }
 #if NET5_0_OR_GREATER
-        var span = CollectionsMarshal.AsSpan(_unsent);
-        foreach (var message in span)
-        {
-            message.Message.TrySetException(message.Token, new ObjectDisposedException(ToString()));
-        }
+            var span = CollectionsMarshal.AsSpan(_unsent);
+            foreach (var message in span)
+            {
+                message.Message.TrySetException(message.Token, CreateObjectDisposedException());
+            }
 #else
-        foreach (var message in _unsent)
-        {
-            message.Message.TrySetException(message.Token, new ObjectDisposedException(ToString()));
-        }
+            foreach (var message in _unsent)
+            {
+                message.Message.TrySetException(message.Token, CreateObjectDisposedException());
+            }
 #endif
-        _unsent.Clear();
+            _unsent.Clear();
+        }
+
+        base.OnDispose(disposing);
     }
 
-    public ValueTask DisposeAsync()
-    {
-        Dispose();
-        return default;
-    }
+    internal override bool IsHealthy => base.IsHealthy & Tail.IsHealthy;
 
-    public RespConfiguration Configuration => _tail.Configuration;
-    public bool CanWrite => _tail.CanWrite;
-
-    public int Outstanding
+    internal override int OutstandingOperations
     {
         get
         {
@@ -70,31 +65,16 @@ internal sealed class BatchConnection : IBatchConnection
         }
     }
 
-    public ref readonly RespContext Context => ref _context;
-
-    private const string SyncMessage = "Batch connections do not support synchronous sends";
-    public void Send(in RespOperation message) => throw new NotSupportedException(SyncMessage);
-
-    public void Send(ReadOnlySpan<RespOperation> messages) => throw new NotSupportedException(SyncMessage);
-
-    private void ThrowIfDisposed()
-    {
-        if (_isDisposed) Throw();
-        static void Throw() => throw new ObjectDisposedException(nameof(BatchConnection));
-    }
-
-    public Task SendAsync(in RespOperation message)
+    public override void Send(in RespOperation message)
     {
         lock (_unsent)
         {
             ThrowIfDisposed();
             _unsent.Add(message);
         }
-
-        return Task.CompletedTask;
     }
 
-    public Task SendAsync(ReadOnlyMemory<RespOperation> messages)
+    internal override void Send(ReadOnlySpan<RespOperation> messages)
     {
         if (messages.Length != 0)
         {
@@ -102,7 +82,7 @@ internal sealed class BatchConnection : IBatchConnection
             {
                 ThrowIfDisposed();
 #if NET8_0_OR_GREATER
-                _unsent.AddRange(messages.Span); // internally optimized
+                _unsent.AddRange(messages); // internally optimized
 #else
                 // two-step; first ensure capacity, then add in loop
 #if NET6_0_OR_GREATER
@@ -118,15 +98,13 @@ internal sealed class BatchConnection : IBatchConnection
                     _unsent.Capacity = newCapacity;
                 }
 #endif
-                foreach (var message in messages.Span)
+                foreach (var message in messages)
                 {
                     _unsent.Add(message);
                 }
 #endif
             }
         }
-
-        return Task.CompletedTask;
     }
 
     private int Flush(out RespOperation[] oversized, out RespOperation single)
@@ -156,17 +134,17 @@ internal sealed class BatchConnection : IBatchConnection
         }
     }
 
-    public Task FlushAsync()
+    public override Task FlushAsync()
     {
         var count = Flush(out var oversized, out var single);
         return count switch
         {
             0 => Task.CompletedTask,
-            1 => _tail.SendAsync(single!),
-            _ => SendAndRecycleAsync(_tail, oversized, count),
+            1 => Tail.SendAsync(single!),
+            _ => SendAndRecycleAsync(Tail, oversized, count),
         };
 
-        static async Task SendAndRecycleAsync(IRespConnection tail, RespOperation[] oversized, int count)
+        static async Task SendAndRecycleAsync(RespConnection tail, RespOperation[] oversized, int count)
         {
             try
             {
@@ -185,7 +163,7 @@ internal sealed class BatchConnection : IBatchConnection
         }
     }
 
-    public void Flush()
+    public override void Flush()
     {
         var count = Flush(out var oversized, out var single);
         switch (count)
@@ -193,13 +171,13 @@ internal sealed class BatchConnection : IBatchConnection
             case 0:
                 return;
             case 1:
-                _tail.Send(single!);
+                Tail.Send(single!);
                 return;
         }
 
         try
         {
-            _tail.Send(oversized.AsSpan(0, count));
+            Tail.Send(oversized.AsSpan(0, count));
         }
         catch (Exception ex)
         {

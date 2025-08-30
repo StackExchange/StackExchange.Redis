@@ -7,7 +7,7 @@ namespace RESP.Core.Tests;
 
 public abstract class IntegrationTestBase(ConnectionFixture fixture, ITestOutputHelper log)
 {
-    public IRespConnection GetConnection([CallerMemberName] string caller = "")
+    public RespConnection GetConnection([CallerMemberName] string caller = "")
     {
          var conn = fixture.GetConnection(); // includes cancellation from the test
          // most of the time, they'll be using a key from Me(), so: pre-emptively nuke it

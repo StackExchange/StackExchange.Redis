@@ -16,8 +16,8 @@ public sealed class RespConnectionPool : IDisposable
     [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
     public bool UseCustomNetworkStream { get; set; }
 
-    private readonly ConcurrentQueue<IRespConnection> _pool = [];
-    private readonly Func<RespConfiguration, IRespConnection> _createConnection;
+    private readonly ConcurrentQueue<RespConnection> _pool = [];
+    private readonly Func<RespConfiguration, RespConnection> _createConnection;
     private readonly int _count;
     private readonly RespContext _defaultTemplate;
 
@@ -25,7 +25,7 @@ public sealed class RespConnectionPool : IDisposable
 
     public RespConnectionPool(
         in RespContext template,
-        Func<RespConfiguration, IRespConnection> createConnection,
+        Func<RespConfiguration, RespConnection> createConnection,
         int count = DefaultCount)
     {
         _createConnection = createConnection;
@@ -37,7 +37,7 @@ public sealed class RespConnectionPool : IDisposable
     }
 
     public RespConnectionPool(
-        Func<RespConfiguration, IRespConnection> createConnection,
+        Func<RespConfiguration, RespConnection> createConnection,
         int count = DefaultCount) : this(RespContext.Null, createConnection, count)
     {
     }
@@ -71,14 +71,14 @@ public sealed class RespConnectionPool : IDisposable
     /// <summary>
     /// Borrow a connection from the pool, using the default template.
     /// </summary>
-    public IRespConnection GetConnection() => GetConnection(in _defaultTemplate);
+    public RespConnection GetConnection() => GetConnection(in _defaultTemplate);
 
     /// <summary>
     /// Borrow a connection from the pool.
     /// </summary>
     /// <param name="template">The template context to use for the leased connection; everything except the connection
     /// will be inherited by the new context.</param>
-    public IRespConnection GetConnection(in RespContext template)
+    public RespConnection GetConnection(in RespContext template)
     {
         ThrowIfDisposed();
         template.CancellationToken.ThrowIfCancellationRequested();
@@ -87,8 +87,7 @@ public sealed class RespConnectionPool : IDisposable
         {
             connection = _createConnection(template.Connection.Configuration);
         }
-
-        return new PoolWrapper(this, connection, in template);
+        return new PoolWrapper(this, template.WithConnection(connection));
     }
 
     private void ThrowIfDisposed()
@@ -106,9 +105,9 @@ public sealed class RespConnectionPool : IDisposable
         }
     }
 
-    private void Return(IRespConnection tail)
+    private void Return(RespConnection tail)
     {
-        if (_isDisposed || !tail.CanWrite || _pool.Count >= _count)
+        if (_isDisposed || !tail.IsHealthy || _pool.Count >= _count)
         {
             tail.Dispose();
         }
@@ -118,7 +117,7 @@ public sealed class RespConnectionPool : IDisposable
         }
     }
 
-    private static IRespConnection CreateConnection(RespConfiguration config, EndPoint endpoint)
+    private static RespConnection CreateConnection(RespConfiguration config, EndPoint endpoint)
     {
         Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         socket.NoDelay = true;
@@ -126,71 +125,43 @@ public sealed class RespConnectionPool : IDisposable
         return new StreamConnection(config, new NetworkStream(socket));
     }
 
-    private sealed class PoolWrapper : IRespConnection
+    private sealed class PoolWrapper(
+        RespConnectionPool pool,
+        in RespContext tail) : DecoratorConnection(tail)
     {
-        private bool _isDisposed;
-        private readonly RespConnectionPool _pool;
-        private readonly IRespConnection _tail;
-        private readonly RespContext _context;
+        protected override bool OwnsConnection => false;
 
-        public ref readonly RespContext Context => ref _context;
-
-        public PoolWrapper(
-            RespConnectionPool pool,
-            IRespConnection tail,
-            in RespContext template)
+        protected override void OnDispose(bool disposing)
         {
-            _pool = pool;
-            _tail = tail;
-            _context = template.WithConnection(this);
+            if (disposing)
+            {
+                pool.Return(Tail);
+            }
+            base.OnDispose(disposing);
         }
 
-        public void Dispose()
-        {
-            _isDisposed = true;
-            _pool.Return(_tail);
-        }
-
-        public bool CanWrite => !_isDisposed && _tail.CanWrite;
-
-        public int Outstanding => _tail.Outstanding;
-
-        public RespConfiguration Configuration => _tail.Configuration;
-
-        private void ThrowIfDisposed()
-        {
-            if (_isDisposed) Throw();
-            static void Throw() => throw new ObjectDisposedException(nameof(PoolWrapper));
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            Dispose();
-            return default;
-        }
-
-        public void Send(in RespOperation message)
+        public override void Send(in RespOperation message)
         {
             ThrowIfDisposed();
-            _tail.Send(message);
+            Tail.Send(message);
         }
 
-        public void Send(ReadOnlySpan<RespOperation> messages)
+        internal override void Send(ReadOnlySpan<RespOperation> messages)
         {
             ThrowIfDisposed();
-            _tail.Send(messages);
+            Tail.Send(messages);
         }
 
-        public Task SendAsync(in RespOperation message)
+        public override Task SendAsync(in RespOperation message)
         {
             ThrowIfDisposed();
-            return _tail.SendAsync(message);
+            return Tail.SendAsync(message);
         }
 
-        public Task SendAsync(ReadOnlyMemory<RespOperation> messages)
+        internal override Task SendAsync(ReadOnlyMemory<RespOperation> messages)
         {
             ThrowIfDisposed();
-            return _tail.SendAsync(messages);
+            return Tail.SendAsync(messages);
         }
     }
 }

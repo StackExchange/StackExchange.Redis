@@ -112,7 +112,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
 
     protected override Func<ValueTask> GetFlush(RespContext client)
     {
-        if (client.Connection is IBatchConnection batch)
+        if (client.Connection is RespBatch batch)
         {
             return () =>
             {
