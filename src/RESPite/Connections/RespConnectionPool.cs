@@ -64,7 +64,7 @@ public sealed class RespConnectionPool : IDisposable
     }
 
     public RespConnectionPool(in RespContext template, EndPoint endPoint, int count = DefaultCount)
-        : this(template, config => CreateConnection(config, endPoint), count)
+        : this(template, config => RespConnection.Create(endPoint, config), count)
     {
     }
 
@@ -115,14 +115,6 @@ public sealed class RespConnectionPool : IDisposable
         {
             _pool.Enqueue(tail);
         }
-    }
-
-    private static RespConnection CreateConnection(RespConfiguration config, EndPoint endpoint)
-    {
-        Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        socket.NoDelay = true;
-        socket.Connect(endpoint);
-        return new StreamConnection(config, new NetworkStream(socket));
     }
 
     private sealed class PoolWrapper(
