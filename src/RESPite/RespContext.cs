@@ -89,9 +89,9 @@ public readonly struct RespContext
         // We would rather avoid the copy semantics associated with a regular property getter.
         public readonly RespContext Context;
 
-        private readonly CancellationTokenSource? _source;
+        private readonly IDisposable? _source;
 
-        internal Lifetime(CancellationTokenSource? source, in RespContext context, CancellationToken cancellationToken)
+        internal Lifetime(IDisposable? source, in RespContext context, CancellationToken cancellationToken)
         {
             _source = source;
             Context = context; // snapshot, we can now mutate this locally

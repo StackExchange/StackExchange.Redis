@@ -78,22 +78,34 @@ for *both* the synchronous and asynchronous versions! We can supply our own canc
 
 ``` c#
 var ctx = conn.Context.WithCancellationToken(request.CancellationToken);
+// use ctx for commands
 ```
 
 Now `ctx` is not just the *default* context - it has the cancellation token we supplied, and it is used
-everywhere automatically! If you're thinking "Wait - does that *replace* the cancellation, or
-*combine* the two cancellations?", then: have a cookie. The answer is "replace", but we can also combine
+everywhere automatically! The `RespContext` type is cheap and allocation-free; it has no lifetime etc - it
+is just a bundle of state required for RESP operations. We can freely `With...` them:
+
+``` c#
+var db = conn.Context.WithDatabase(4).WithCancellationToken(request.CancellationToken);
+// use db for commands
+```
+
+If you're thinking "Wait - if `RespContext` carries cancellation, does `WithCancellationToken(...)` *replace*
+the cancellation, or *combine* the two cancellations?", then: have a cookie. The answer is "replace", but we can also combine
 - noting that now we need to scope that to a lifetime:
 
 ``` c#
-using var lifetime = conn.Context.WithLinkedCancellationToken(request.CancellationToken);
+using var lifetime = db.WithDatabaseWithLinkedCancellationToken(anotherCancellationToken);
 // use lifetime.Context for commands
 ```
 
 This will automatically do the most appropriate thing based on whether neither, one, or both tokens
-are cancellable. We can do the same thing with a timeout!
+are cancellable. We can do the same thing with a timeout:
 
 ``` c#
-using var lifetime = conn.Context.WithTimeout(TimeSpan.FromSeconds(5));
+using var lifetime = db.WithTimeout(TimeSpan.FromSeconds(5));
 // use lifetime.Context for commands
 ```
+
+Note that this timeout applies to the *lifetime*, not individual operations (i.e. if we loop forever
+performing fast operations: it  will still cancel after five seconds).`
