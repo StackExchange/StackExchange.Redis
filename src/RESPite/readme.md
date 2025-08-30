@@ -117,4 +117,4 @@ existing cancellation state. Help yourself to another cookie.
 With the combination of `RespConnection` for the long-lived connection,
 `RespContext` for the transient local configuration (via various `With*` methods),
 and our automatically generated `[RespCommand]` methods: we can easily and
-efficiently talk to a range of RESP databases.~~~~
+efficiently talk to a range of RESP databases.
