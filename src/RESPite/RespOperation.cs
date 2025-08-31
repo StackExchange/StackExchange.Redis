@@ -21,6 +21,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     [ThreadStatic]
     // how many resp-operations have we chewed through?
     private static int _debugPerThreadMessageAllocations;
+
     internal static int DebugPerThreadMessageAllocations => _debugPerThreadMessageAllocations;
 #else
     internal static int DebugPerThreadMessageAllocations => 0;
@@ -46,6 +47,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         _disableCaptureContext = disableCaptureContext;
     }
 
+    public bool IsSent => Message.IsSent(_token);
     internal IRespMessage Message => _message ?? ThrowNoMessage();
 
     internal static IRespMessage ThrowNoMessage()
@@ -92,7 +94,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
             ? ValueTaskSourceOnCompletedFlags.FlowExecutionContext
             : ValueTaskSourceOnCompletedFlags.FlowExecutionContext |
               ValueTaskSourceOnCompletedFlags.UseSchedulingContext;
-        Message.OnCompleted(InvokeState, continuation, _token, flags);
+        Message.OnCompletedWithNotSentDetection(InvokeState, continuation, _token, flags);
     }
 
     /// <inheritdoc cref="ICriticalNotifyCompletion.UnsafeOnCompleted(Action)"/>
@@ -102,7 +104,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         var flags = _disableCaptureContext
             ? ValueTaskSourceOnCompletedFlags.None
             : ValueTaskSourceOnCompletedFlags.UseSchedulingContext;
-        Message.OnCompleted(InvokeState, continuation, _token, flags);
+        Message.OnCompletedWithNotSentDetection(InvokeState, continuation, _token, flags);
     }
 
     /// <inheritdoc cref="ValueTaskAwaiter.GetResult"/>
@@ -135,10 +137,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
             _token = message.Token;
         }
 
-        /// <summary>
-        /// Record the operation as sent.
-        /// </summary>
-        public void OnSent() => _message.OnSent(_token);
+        public bool IsTokenMatch => _token == _message.Token;
 
         /// <inheritdoc cref="TaskCompletionSource{TResult}.TrySetCanceled(CancellationToken)"/>
         public bool TrySetCanceled(CancellationToken cancellationToken = default)
@@ -163,10 +162,12 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     /// Create a disconnected <see cref="RespOperation"/> without a RESP parser; this is only intended for testing purposes.
     /// </summary>
     [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-    public static RespOperation Create(out Remote remote, CancellationToken token = default)
+    public static RespOperation Create(
+        out Remote remote,
+        bool sent = true,
+        CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<bool>.Get(null)
-            .Init(null, 0, 0, null, token);
+        var msg = RespMessage<bool>.Get(null).Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation(msg);
     }
@@ -176,9 +177,13 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     /// </summary>
     /// <typeparam name="TResult">The result of the operation.</typeparam>
     [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-    public static RespOperation<TResult> Create<TResult>(IRespParser<TResult> parser, out Remote remote)
+    public static RespOperation<TResult> Create<TResult>(
+        IRespParser<TResult>? parser,
+        out Remote remote,
+        bool sent = true,
+        CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<TResult>.Get(parser);
+        var msg = RespMessage<TResult>.Get(parser).Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation<TResult>(msg);
     }
@@ -191,10 +196,12 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
     public static RespOperation<TResult> Create<TState, TResult>(
         in TState state,
-        IRespParser<TState, TResult> parser,
-        out Remote remote)
+        IRespParser<TState, TResult>? parser,
+        out Remote remote,
+        bool sent = true,
+        CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<TState, TResult>.Get(in state, parser);
+        var msg = RespMessage<TState, TResult>.Get(in state, parser).Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation<TResult>(msg);
     }

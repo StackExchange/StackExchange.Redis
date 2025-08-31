@@ -36,10 +36,16 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     protected void InitParser(object? parser)
     {
-        if (parser is not null)
+        if (parser is null)
+        {
+            SetFlag(Flag_InlineParser); // F+F
+        }
+        else
         {
             int flags = Flag_Parser;
+            // detect parsers that want to manually parse attributes, errors, etc.
             if (parser is IRespMetadataParser) flags |= Flag_MetadataParser;
+            // detect fast, internal, non-allocating parsers (int, bool, etc.)
             if (parser is IRespInlineParser) flags |= Flag_InlineParser;
             SetFlag(flags);
         }
@@ -47,14 +53,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     public bool AllowInlineParsing => HasFlag(Flag_InlineParser);
 
-    [Conditional("DEBUG")]
-    private void DebugAssertPending() => Debug.Assert(
-        _asyncCore.GetStatus(_asyncCore.Version) == ValueTaskSourceStatus.Pending & !HasFlag(Flag_OutcomeKnown),
-        "Message should be in a pending state");
-
     public bool TrySetResult(short token, scoped ReadOnlySpan<byte> response)
     {
-        DebugAssertPending();
         if (HasFlag(Flag_OutcomeKnown) | _asyncCore.Version != token) return false;
         var flags = _flags & (Flag_MetadataParser | Flag_Parser);
         switch (flags)
@@ -69,22 +69,27 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
                         reader.MoveNext();
                     }
 
-                    return TrySetResult(Parse(ref reader));
+                    return TrySetResultPrecheckedToken(Parse(ref reader));
                 }
                 catch (Exception ex)
                 {
-                    return TrySetException(ex);
+                    return TrySetExceptionPrecheckedToken(ex);
                 }
             default:
-                return TrySetResult(default(TResponse)!);
+                return TrySetResultPrecheckedToken(default(TResponse)!);
         }
     }
 
     public short Token => _asyncCore.Version;
 
+    public bool IsSent(short token)
+    {
+        CheckToken(token);
+        return HasFlag(Flag_Sent);
+    }
+
     public bool TrySetResult(short token, in ReadOnlySequence<byte> response)
     {
-        DebugAssertPending();
         if (HasFlag(Flag_OutcomeKnown) | _asyncCore.Version != token) return false;
         var flags = _flags & (Flag_MetadataParser | Flag_Parser);
         switch (flags)
@@ -99,14 +104,14 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
                         reader.MoveNext();
                     }
 
-                    return TrySetResult(Parse(ref reader));
+                    return TrySetResultPrecheckedToken(Parse(ref reader));
                 }
                 catch (Exception ex)
                 {
-                    return TrySetException(ex);
+                    return TrySetExceptionPrecheckedToken(ex);
                 }
             default:
-                return TrySetResult(default(TResponse)!);
+                return TrySetResultPrecheckedToken(default(TResponse)!);
         }
     }
 
@@ -132,18 +137,26 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     // in the "any" sense
     private bool HasFlag(int flag) => (Volatile.Read(ref _flags) & flag) != 0;
 
-    public void OnSent(short token)
+    public RespMessageBase<TResponse> Init(bool sent, CancellationToken cancellationToken)
     {
-        if (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending || _requestRefCount != 0 || !SetFlag(Flag_Sent))
+        Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
+        if (sent) SetFlag(Flag_Sent);
+        if (cancellationToken.CanBeCanceled)
         {
-            throw new InvalidOperationException(
-                "Operation must be in a pending, unsent state with no request payload. ");
+            _cancellationToken = cancellationToken;
+            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
         }
+
+        return this;
     }
 
-    public RespMessageBase<TResponse> Init(byte[]? oversized, int offset, int length, ArrayPool<byte>? pool, CancellationToken cancellation)
+    public RespMessageBase<TResponse> Init(
+        byte[]? oversized,
+        int offset,
+        int length,
+        ArrayPool<byte>? pool,
+        CancellationToken cancellationToken)
     {
-        DebugAssertPending();
         Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
 
         if (oversized is not null)
@@ -153,24 +166,28 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             _requestRefCount = 1;
         }
 
-        if (cancellation.CanBeCanceled)
+        if (cancellationToken.CanBeCanceled)
         {
-            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellation);
+            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
         }
+
         return this;
     }
 
-    public RespMessageBase<TResponse> SetRequest(ReadOnlyMemory<byte> request, IDisposable? owner, CancellationToken cancellation)
+    public RespMessageBase<TResponse> SetRequest(
+        ReadOnlyMemory<byte> request,
+        IDisposable? owner,
+        CancellationToken cancellationToken)
     {
-        DebugAssertPending();
         Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
         _request = request;
         _requestOwner = owner;
         _requestRefCount = 1;
-        if (cancellation.CanBeCanceled)
+        if (cancellationToken.CanBeCanceled)
         {
-            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellation);
+            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
         }
+
         return this;
     }
 
@@ -210,6 +227,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
                 payload = default;
                 return false;
             }
+
             if (Interlocked.CompareExchange(ref _requestRefCount, checked(oldCount + 1), oldCount) == oldCount)
             {
                 if (recordSent) SetFlag(Flag_Sent);
@@ -264,22 +282,23 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /* asking about the status too early is usually a very bad sign that they're doing
      something like awaiting a message in a transaction that hasn't been sent */
     public ValueTaskSourceStatus GetStatus(short token)
+        => _asyncCore.GetStatus(token);
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ThrowNotSent(short token)
     {
-        // we'd rather see a token error, so check that first
-        // (in reality, we expect the token to be right almost always)
-        var status = _asyncCore.GetStatus(token);
-        if ((status == ValueTaskSourceStatus.Pending & !HasFlag(Flag_Sent)) && TrySetExceptionNotSent())
-        {
-            status = ValueTaskSourceStatus.Faulted;
-            Debug.Assert(_asyncCore.GetStatus(token) == ValueTaskSourceStatus.Faulted, "should be faulted");
-        }
-        return status;
+        CheckToken(token); // prefer a token explanation
+        throw new InvalidOperationException(
+            "This command has not yet been sent; waiting is not possible. If this is a transaction or batch, you must execute that first.");
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private bool TrySetExceptionNotSent()
-        => TrySetException(new InvalidOperationException(
+    private void SetNotSentAsync(short token)
+    {
+        CheckToken(token);
+        TrySetExceptionPrecheckedToken(new InvalidOperationException(
             "This command has not yet been sent; awaiting is not possible. If this is a transaction or batch, you must execute that first."));
+    }
 
     private void CheckToken(short token)
     {
@@ -289,25 +308,49 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         }
     }
 
+    // this is used from Task/ValueTask; we can't avoid that - in theory
+    // we *coiuld* sort of make it work for ValueTask, but if anyone
+    // calls .AsTask() on it, it would fail
     public void OnCompleted(
         Action<object?> continuation,
         object? state,
         short token,
         ValueTaskSourceOnCompletedFlags flags)
     {
-        _asyncCore.OnCompleted(continuation, state, token, flags);
         SetFlag(Flag_NoPulse); // async doesn't need to be pulsed
+        _asyncCore.OnCompleted(continuation, state, token, flags);
+    }
+
+    public void OnCompletedWithNotSentDetection(
+        Action<object?> continuation,
+        object? state,
+        short token,
+        ValueTaskSourceOnCompletedFlags flags)
+    {
+        if (!HasFlag(Flag_Sent)) SetNotSentAsync(token);
+        SetFlag(Flag_NoPulse); // async doesn't need to be pulsed
+        _asyncCore.OnCompleted(continuation, state, token, flags);
     }
 
     // spoof untyped on top of typed
     void IValueTaskSource.GetResult(short token) => _ = GetResult(token);
     void IRespMessage.Wait(short token, TimeSpan timeout) => _ = Wait(token, timeout);
 
-    private bool TrySetOutcomeKnown()
+    private bool TrySetOutcomeKnown(short token, bool withSuccess)
+        => _asyncCore.Version == token && TrySetOutcomeKnownPrecheckedToken(withSuccess);
+
+    private bool TrySetOutcomeKnownPrecheckedToken(bool withSuccess)
     {
-        DebugAssertPending();
         if (!SetFlag(Flag_OutcomeKnown)) return false;
         UnregisterCancellation();
+
+        // configure threading model; failure can be triggered from any thread - *always*
+        // dispatch to pool; in the success case, we're either on the IO thread
+        // (if inline-parsing is enabled) - in which case, yes: dispatch - or we've
+        // already jumped to a pool thread for the parse step. So: the only
+        // time we want to complete inline is success and not inline-parsing.
+        _asyncCore.RunContinuationsAsynchronously = !withSuccess | AllowInlineParsing;
+
         return true;
     }
 
@@ -320,10 +363,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             case Flag_Complete | Flag_Sent: // already complete
                 return GetResult(token);
             default:
-                if (TrySetExceptionNotSent())
-                {
-                    return GetResult(token);
-                }
+                ThrowNotSent(token); // always throws
                 break;
         }
 
@@ -356,7 +396,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         }
 
         UnregisterCancellation();
-        if (isTimeout) TrySetTimeout();
+        if (isTimeout) TrySetTimeoutPrecheckedToken();
 
         return GetResult(token);
 
@@ -364,18 +404,18 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             "This operation cannot be waited because it entered async/await mode - most likely by calling AsTask()");
     }
 
-    private bool TrySetResult(TResponse response)
+    private bool TrySetResultPrecheckedToken(TResponse response)
     {
-        if (!TrySetOutcomeKnown()) return false;
+        if (!TrySetOutcomeKnownPrecheckedToken(true)) return false;
 
         _asyncCore.SetResult(response);
         SetFullyComplete(success: true);
         return true;
     }
 
-    private bool TrySetTimeout()
+    private bool TrySetTimeoutPrecheckedToken()
     {
-        if (!TrySetOutcomeKnown()) return false;
+        if (!TrySetOutcomeKnownPrecheckedToken(false)) return false;
 
         _asyncCore.SetException(new TimeoutException());
         SetFullyComplete(success: false);
@@ -389,26 +429,28 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             // use our own token if nothing more specific supplied
             cancellationToken = _cancellationToken;
         }
-        return TrySetCanceled(cancellationToken);
+
+        return token == _asyncCore.Version && TrySetCanceledPrecheckedToken(cancellationToken);
     }
 
-    // this is the path used by cancellation registration callbacks; always use our own token
-    void IRespMessage.TrySetCanceled() => TrySetCanceled(_cancellationToken);
+    // this is the path used by cancellation registration callbacks; always use our own
+    // cancellation token, and we must trust the version token
+    void IRespMessage.TrySetCanceled() => TrySetCanceledPrecheckedToken(_cancellationToken);
 
-    private bool TrySetCanceled(CancellationToken cancellationToken)
+    private bool TrySetCanceledPrecheckedToken(CancellationToken cancellationToken)
     {
-        if (!TrySetOutcomeKnown()) return false;
+        if (!TrySetOutcomeKnownPrecheckedToken(false)) return false;
         _asyncCore.SetException(new OperationCanceledException(cancellationToken));
         SetFullyComplete(success: false);
         return true;
     }
 
     public bool TrySetException(short token, Exception exception)
-        => token == _asyncCore.Version && TrySetException(exception);
+        => token == _asyncCore.Version && TrySetExceptionPrecheckedToken(exception);
 
-    private bool TrySetException(Exception exception)
+    private bool TrySetExceptionPrecheckedToken(Exception exception)
     {
-        if (!TrySetOutcomeKnown()) return false; // first winner only
+        if (!TrySetOutcomeKnownPrecheckedToken(false)) return false; // first winner only
         _asyncCore.SetException(exception);
         SetFullyComplete(success: false);
         return true;
