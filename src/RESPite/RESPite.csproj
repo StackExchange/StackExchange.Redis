@@ -46,6 +46,15 @@
     <Compile Update="Messages\RespReader.Utils.cs">
       <DependentUpon>RespReader.cs</DependentUpon>
     </Compile>
+    <Compile Update="Internal\SynchronizedBlockBufferSerializer.cs">
+      <DependentUpon>BlockBufferSerializer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\ThreadLocalBlockBufferSerializer.cs">
+      <DependentUpon>BlockBufferSerializer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\BlockBuffer.cs">
+      <DependentUpon>BlockBufferSerializer.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

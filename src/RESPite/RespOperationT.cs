@@ -82,8 +82,10 @@ public readonly struct RespOperation<T>
             ? ValueTaskSourceOnCompletedFlags.FlowExecutionContext
             : ValueTaskSourceOnCompletedFlags.FlowExecutionContext |
               ValueTaskSourceOnCompletedFlags.UseSchedulingContext;
-        TypedMessage.OnCompleted(RespOperation.InvokeState, continuation, _token, flags);
+        TypedMessage.OnCompletedWithNotSentDetection(RespOperation.InvokeState, continuation, _token, flags);
     }
+
+    public bool IsSent => TypedMessage.IsSent(_token);
 
     /// <inheritdoc cref="ICriticalNotifyCompletion.UnsafeOnCompleted(Action)"/>
     public void UnsafeOnCompleted(Action continuation)
@@ -92,7 +94,7 @@ public readonly struct RespOperation<T>
         var flags = _disableCaptureContext
             ? ValueTaskSourceOnCompletedFlags.None
             : ValueTaskSourceOnCompletedFlags.UseSchedulingContext;
-        TypedMessage.OnCompleted(RespOperation.InvokeState, continuation, _token, flags);
+        TypedMessage.OnCompletedWithNotSentDetection(RespOperation.InvokeState, continuation, _token, flags);
     }
 
     /// <inheritdoc cref="ValueTaskAwaiter.GetResult"/>

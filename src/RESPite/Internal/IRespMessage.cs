@@ -16,5 +16,11 @@ internal interface IRespMessage : IValueTaskSource
     bool AllowInlineParsing { get; }
     short Token { get; }
     ref readonly CancellationToken CancellationToken { get; }
-    void OnSent(short token);
+    bool IsSent(short token);
+
+    void OnCompletedWithNotSentDetection(
+        Action<object?> continuation,
+        object? state,
+        short token,
+        ValueTaskSourceOnCompletedFlags flags);
 }

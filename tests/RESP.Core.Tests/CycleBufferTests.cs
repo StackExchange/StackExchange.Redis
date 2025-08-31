@@ -8,7 +8,7 @@ using Xunit;
 
 namespace RESP.Core.Tests;
 
-public class BufferTests
+public class CycleBufferTests
 {
     [Fact]
     public void SimpleUsage()
