@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -9,12 +10,26 @@ namespace RESPite;
 
 public abstract class RespConnection : IDisposable, IAsyncDisposable
 {
+    public sealed class RespConnectionErrorEventArgs(Exception exception, [CallerMemberName] string operation = "") : EventArgs
+    {
+        public Exception Exception { get; } = exception;
+        public string Operation { get; } = operation;
+    }
+
     private bool _isDisposed;
     internal bool IsDisposed => _isDisposed;
 
     private readonly RespContext _context;
     public ref readonly RespContext Context => ref _context;
     public RespConfiguration Configuration { get; }
+    public abstract event EventHandler<RespConnectionErrorEventArgs>? ConnectionError;
+    private protected static void OnConnectionError(
+        EventHandler<RespConnectionErrorEventArgs>? handler,
+        Exception exception,
+        [CallerMemberName] string operation = "")
+    {
+        handler?.Invoke(null, new(exception, operation));
+    }
 
     internal virtual bool IsHealthy => !_isDisposed;
 
@@ -43,7 +58,9 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
         var conn = tail.Connection;
         if (conn is not { IsHealthy: true })
         {
-            ThrowUnhealthy();
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (conn is null) ThrowNullTail(); // trust no-one
+            else conn.ThrowIfUnhealthy();
         }
 
         Configuration = configuration ?? conn.Configuration;
@@ -54,8 +71,14 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
         NonDefaultCommandMap = ReferenceEquals(commandMap, RespCommandMap.Default) ? null : commandMap;
         SyncTimeout = Configuration.SyncTimeout; // snapshot to reduce indirection
 
-        static void ThrowUnhealthy() =>
-            throw new ArgumentException("A healthy tail connection is required.", nameof(tail));
+        [DoesNotReturn]
+        static void ThrowNullTail() =>
+            throw new ArgumentException("No tail connection provided.", nameof(tail));
+    }
+
+    internal virtual void ThrowIfUnhealthy()
+    {
+        if (_isDisposed) ThrowDisposed();
     }
 
     // this is atypical - only for use when creating null connections

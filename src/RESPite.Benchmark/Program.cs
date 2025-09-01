@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace RESPite.Benchmark;
@@ -54,8 +55,10 @@ internal static class Program
         }
     }
 
-    internal static void WriteException(Exception? ex)
+    internal static void WriteException(Exception? ex, [CallerMemberName] string operation = "")
     {
+        Console.Error.WriteLine();
+        Console.Error.WriteLine($"### EXCEPTION: {operation}");
         while (ex is not null)
         {
             Console.Error.WriteLine();
@@ -73,5 +76,6 @@ internal static class Program
 
             ex = ex.InnerException;
         }
+        Console.Error.WriteLine();
     }
 }

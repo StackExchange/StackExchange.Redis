@@ -52,8 +52,6 @@ internal sealed class BasicBatchConnection : RespBatch
         base.OnDispose(disposing);
     }
 
-    internal override bool IsHealthy => base.IsHealthy & Tail.IsHealthy;
-
     internal override int OutstandingOperations
     {
         get
@@ -134,15 +132,25 @@ internal sealed class BasicBatchConnection : RespBatch
         }
     }
 
+    public override event EventHandler<RespConnectionErrorEventArgs>? ConnectionError;
+
     public override Task FlushAsync()
     {
-        var count = Flush(out var oversized, out var single);
-        return count switch
+        try
         {
-            0 => Task.CompletedTask,
-            1 => Tail.WriteAsync(single!),
-            _ => SendAndRecycleAsync(Tail, oversized, count),
-        };
+            var count = Flush(out var oversized, out var single);
+            return count switch
+            {
+                0 => Task.CompletedTask,
+                1 => Tail.WriteAsync(single!),
+                _ => SendAndRecycleAsync(Tail, oversized, count),
+            };
+        }
+        catch (Exception ex)
+        {
+            OnConnectionError(ConnectionError, ex);
+            throw;
+        }
 
         static async Task SendAndRecycleAsync(RespConnection tail, RespOperation[] oversized, int count)
         {
@@ -153,26 +161,43 @@ internal sealed class BasicBatchConnection : RespBatch
             }
             catch (Exception ex)
             {
-                foreach (var message in oversized.AsSpan(0, count))
-                {
-                    message.Message.TrySetException(message.Token, ex);
-                }
-
+                TrySetException(oversized.AsSpan(0, count), ex);
                 throw;
             }
         }
     }
 
+    private static void TrySetException(ReadOnlySpan<RespOperation> messages, Exception ex)
+    {
+        foreach (var message in messages)
+        {
+            message.Message.TrySetException(message.Token, ex);
+        }
+    }
+
     public override void Flush()
     {
-        var count = Flush(out var oversized, out var single);
-        switch (count)
+        string operation = nameof(Flush);
+        int count;
+        RespOperation[] oversized;
+        RespOperation single;
+        try
         {
-            case 0:
-                return;
-            case 1:
-                Tail.Write(single!);
-                return;
+            count = Flush(out oversized, out single);
+            switch (count)
+            {
+                case 0:
+                    return;
+                case 1:
+                    operation = nameof(Tail.Write);
+                    Tail.Write(single!);
+                    return;
+            }
+        }
+        catch (Exception ex)
+        {
+            OnConnectionError(ConnectionError, ex, operation);
+            throw;
         }
 
         try
@@ -181,11 +206,7 @@ internal sealed class BasicBatchConnection : RespBatch
         }
         catch (Exception ex)
         {
-            foreach (var message in oversized.AsSpan(0, count))
-            {
-                message.Message.TrySetException(message.Token, ex);
-            }
-
+            TrySetException(oversized.AsSpan(0, count), ex);
             throw;
         }
         finally

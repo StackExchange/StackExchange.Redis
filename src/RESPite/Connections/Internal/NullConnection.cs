@@ -26,4 +26,12 @@ internal sealed class NullConnection : RespConnection
         Write(message);
         return Task.CompletedTask;
     }
+
+    public override event EventHandler<RespConnectionErrorEventArgs>? ConnectionError
+    {
+        add { }
+        remove { }
+    }
+
+    internal override void ThrowIfUnhealthy() { }
 }

@@ -14,7 +14,6 @@
     <NoPublicApi>True</NoPublicApi>
     <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>
     <SignAssembly>false</SignAssembly>
-    <RollForward>LatestMajor</RollForward>
   </PropertyGroup>
 
   <ItemGroup>

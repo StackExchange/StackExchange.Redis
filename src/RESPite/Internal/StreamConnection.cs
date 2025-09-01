@@ -1,4 +1,4 @@
-#define PARSE_DETAIL // additional trace info in CommitAndParseFrames
+// #define PARSE_DETAIL // additional trace info in CommitAndParseFrames
 
 #if DEBUG
 #define PARSE_DETAIL // always enable this in debug builds
@@ -46,6 +46,7 @@ internal sealed class StreamConnection : RespConnection
 
         static void Throw() => throw new ArgumentException("Stream must be readable and writable", nameof(tail));
     }
+
     public StreamConnection(RespConfiguration configuration, Stream tail, bool asyncRead = true)
         : this(RespContext.Null, configuration, tail, asyncRead)
     {
@@ -271,7 +272,15 @@ internal sealed class StreamConnection : RespConnection
         }
     }
 
-    private void OnReadException(Exception ex)
+    internal override void ThrowIfUnhealthy()
+    {
+        if (_fault is { } fault) Throw(fault);
+        base.ThrowIfUnhealthy();
+
+        static void Throw(Exception fault) => throw new InvalidOperationException("Connection is unhealthy", fault);
+    }
+
+    private void OnReadException(Exception ex, [CallerMemberName] string operation = "")
     {
         _fault ??= ex;
         Volatile.Write(ref _readStatus, READER_FAILED);
@@ -281,6 +290,8 @@ internal sealed class StreamConnection : RespConnection
         {
             pending.Message.TrySetException(pending.Token, ex);
         }
+
+        OnConnectionError(ConnectionError, ex, operation);
     }
 
     private void OnReadAllFinally()
@@ -476,6 +487,7 @@ internal sealed class StreamConnection : RespConnection
             ActivationHelper.DebugBreak();
             ReleaseWriter(WRITER_DOOMED);
             if (releaseRequest) message.Message.ReleaseRequest();
+            OnConnectionError(ConnectionError, ex);
             throw;
         }
     }
@@ -532,6 +544,7 @@ internal sealed class StreamConnection : RespConnection
                 message.Message.TrySetException(message.Token, ex);
             }
 
+            OnConnectionError(ConnectionError, ex);
             throw;
         }
     }
@@ -575,6 +588,7 @@ internal sealed class StreamConnection : RespConnection
             ActivationHelper.DebugBreak();
             ReleaseWriter(WRITER_DOOMED);
             if (releaseRequest) message.Message.ReleaseRequest();
+            OnConnectionError(ConnectionError, ex);
             throw;
         }
 
@@ -595,9 +609,10 @@ internal sealed class StreamConnection : RespConnection
                 @this.ReleaseWriter();
                 message.ReleaseRequest();
             }
-            catch
+            catch (Exception ex)
             {
                 @this.ReleaseWriter(WRITER_DOOMED);
+                OnConnectionError(@this.ConnectionError, ex, $"{nameof(WriteAsync)}:{nameof(AwaitedSingleWithToken)}");
                 throw;
             }
         }
@@ -615,6 +630,8 @@ internal sealed class StreamConnection : RespConnection
                 return CombineAndSendMultipleAsync(this, messages);
         }
     }
+
+    public override event EventHandler<RespConnectionErrorEventArgs>? ConnectionError; // use simple handler
 
     private async Task CombineAndSendMultipleAsync(StreamConnection @this, ReadOnlyMemory<RespOperation> messages)
     {
@@ -686,6 +703,7 @@ internal sealed class StreamConnection : RespConnection
                 message.Message.TrySetException(message.Token, ex);
             }
 
+            OnConnectionError(ConnectionError, ex);
             throw;
         }
     }

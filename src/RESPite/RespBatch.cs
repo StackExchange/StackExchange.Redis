@@ -11,4 +11,12 @@ public abstract class RespBatch : RespConnection
 
     public abstract Task FlushAsync();
     public abstract void Flush();
+
+    internal override void ThrowIfUnhealthy()
+    {
+        Tail.ThrowIfUnhealthy();
+        base.ThrowIfUnhealthy();
+    }
+
+    internal override bool IsHealthy => base.IsHealthy & Tail.IsHealthy;
 }

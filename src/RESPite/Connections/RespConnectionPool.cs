@@ -23,6 +23,12 @@ public sealed class RespConnectionPool : IDisposable
 
     public ref readonly RespContext Template => ref _defaultTemplate;
 
+    public event EventHandler<RespConnection.RespConnectionErrorEventArgs>? ConnectionError;
+    private void OnConnectionError(object? sender, RespConnection.RespConnectionErrorEventArgs e)
+        => ConnectionError?.Invoke(this, e); // mask sender
+
+    private readonly EventHandler<RespConnection.RespConnectionErrorEventArgs> _onConnectionError;
+
     public RespConnectionPool(
         in RespContext template,
         Func<RespConfiguration, RespConnection> createConnection,
@@ -34,6 +40,7 @@ public sealed class RespConnectionPool : IDisposable
         // swap out the connection for a dummy (retaining the configuration)
         var configuredConnection = NullConnection.WithConfiguration(template.Connection.Configuration);
         _defaultTemplate = template.WithConnection(configuredConnection);
+        _onConnectionError = OnConnectionError;
     }
 
     public RespConnectionPool(
@@ -86,6 +93,7 @@ public sealed class RespConnectionPool : IDisposable
         if (!_pool.TryDequeue(out var connection))
         {
             connection = _createConnection(template.Connection.Configuration);
+            connection.ConnectionError += _onConnectionError;
         }
         return new PoolWrapper(this, template.WithConnection(connection));
     }
@@ -123,6 +131,12 @@ public sealed class RespConnectionPool : IDisposable
     {
         protected override bool OwnsConnection => false;
 
+        private const string ConnectionErrorNotSupportedMessage = $"{nameof(ConnectionError)} events are not supported on pooled connections; use {nameof(RespConnectionPool)}.{nameof(RespConnectionPool.ConnectionError)} instead";
+        public override event EventHandler<RespConnectionErrorEventArgs>? ConnectionError
+        {
+            add => throw new NotSupportedException(ConnectionErrorNotSupportedMessage);
+            remove => throw new NotSupportedException(ConnectionErrorNotSupportedMessage);
+        }
         protected override void OnDispose(bool disposing)
         {
             if (disposing)

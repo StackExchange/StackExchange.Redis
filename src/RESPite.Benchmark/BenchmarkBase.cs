@@ -369,6 +369,10 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
             {
                 Console.Write($", {PipelineMode}: {PipelineDepth:#,##0}");
             }
+            else
+            {
+                Console.Write(", sequential");
+            }
 
             Console.WriteLine(")");
         }

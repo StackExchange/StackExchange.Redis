@@ -10,6 +10,8 @@ internal abstract class DecoratorConnection : RespConnection
         Tail = tail.Connection;
     }
 
+    internal override void ThrowIfUnhealthy() => Tail.ThrowIfUnhealthy();
+
     protected virtual bool OwnsConnection => true;
 
     internal override bool IsHealthy => base.IsHealthy & Tail.IsHealthy;
@@ -32,4 +34,36 @@ internal abstract class DecoratorConnection : RespConnection
     public override Task WriteAsync(in RespOperation message) => Tail.WriteAsync(in message);
 
     internal override Task WriteAsync(ReadOnlyMemory<RespOperation> messages) => Tail.WriteAsync(messages);
+
+    private event EventHandler<RespConnectionErrorEventArgs>? PrivateConnectionError; // to wrap "sender"
+    private EventHandler<RespConnectionErrorEventArgs>? _onConnectionError; // local lazy callback
+    public override event EventHandler<RespConnectionErrorEventArgs>? ConnectionError
+    {
+        add
+        {
+            if (value is not null)
+            {
+                if (PrivateConnectionError is null)
+                {
+                    Tail.ConnectionError += _onConnectionError ??= OnConnectionError;
+                }
+
+                PrivateConnectionError += value;
+            }
+        }
+        remove
+        {
+            if (value is not null)
+            {
+                PrivateConnectionError -= value;
+                if (PrivateConnectionError is null) // last unsubscribe
+                {
+                    Tail.ConnectionError -= _onConnectionError;
+                }
+            }
+        }
+    }
+
+    private void OnConnectionError(object? sender, RespConnectionErrorEventArgs e)
+        => PrivateConnectionError?.Invoke(this, e); // mask sender
 }

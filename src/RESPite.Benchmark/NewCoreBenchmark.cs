@@ -30,6 +30,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         _clients = new RespContext[ClientCount];
 
         _connectionPool = new(count: Multiplexed ? 1 : ClientCount);
+        _connectionPool.ConnectionError += (sender, args) => Program.WriteException(args.Exception, args.Operation);
         _pairs = new (string, byte[])[10];
 
         for (var i = 0; i < 10; i++)
