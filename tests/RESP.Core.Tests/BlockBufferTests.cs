@@ -33,12 +33,13 @@ public class BlockBufferTests(ITestOutputHelper log)
         var b = buffer.Serialize("get"u8, "def", RespFormatters.Key.String, out var blockB);
         var c = buffer.Serialize("get"u8, "ghi", RespFormatters.Key.String, out var blockC);
         buffer.Clear();
+#if DEBUG
         Assert.Equal(1, buffer.CountAdded);
         Assert.Equal(3, buffer.CountMessages);
         Assert.Equal(66, buffer.CountMessageBytes); // contents shown/verified below
         Assert.Equal(0, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
-
+#endif
         // check the payloads
         Log(a.Span);
         Assert.True(a.Span.SequenceEqual("*2\r\n$3\r\nget\r\n$3\r\nabc\r\n"u8));
@@ -48,21 +49,27 @@ public class BlockBufferTests(ITestOutputHelper log)
         Assert.True(c.Span.SequenceEqual("*2\r\n$3\r\nget\r\n$3\r\nghi\r\n"u8));
         blockA?.Dispose();
         blockB?.Dispose();
+#if DEBUG
         Assert.Equal(0, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
+#endif
         blockC?.Dispose();
+#if DEBUG
         Assert.Equal(1, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
+#endif
     }
 
     [Fact]
     public void CanWriteLotsOfBuffers_WithCheapReset() // when messages are consumed before more are added
     {
         var buffer = BlockBufferSerializer.Create();
+#if DEBUG
         Assert.Equal(0, buffer.CountAdded);
         Assert.Equal(0, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
         Assert.Equal(0, buffer.CountMessages);
+#endif
         for (int i = 0; i < 5000; i++)
         {
             var a = buffer.Serialize("get"u8, "abc", RespFormatters.Key.String, out var blockA);
@@ -83,16 +90,19 @@ public class BlockBufferTests(ITestOutputHelper log)
             Assert.Same(aSegment.Array, bSegment.Array);
             Assert.Same(aSegment.Array, cSegment.Array);
         }
+#if DEBUG
         Assert.Equal(1, buffer.CountAdded);
         Assert.Equal(0, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
         Assert.Equal(15_000, buffer.CountMessages);
-
+#endif
         buffer.Clear();
+#if DEBUG
         Assert.Equal(1, buffer.CountAdded);
         Assert.Equal(1, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
         Assert.Equal(15_000, buffer.CountMessages);
+#endif
     }
 
     [Fact]
@@ -100,10 +110,12 @@ public class BlockBufferTests(ITestOutputHelper log)
     {
         var buffer = BlockBufferSerializer.Create();
         List<IDisposable> blocks = new(15_000);
+#if DEBUG
         Assert.Equal(0, buffer.CountAdded);
         Assert.Equal(0, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
         Assert.Equal(0, buffer.CountMessages);
+#endif
         for (int i = 0; i < 5000; i++)
         {
             _ = buffer.Serialize("get"u8, "abc", RespFormatters.Key.String, out var block);
@@ -113,23 +125,31 @@ public class BlockBufferTests(ITestOutputHelper log)
             _ = buffer.Serialize("get"u8, "ghi", RespFormatters.Key.String, out block);
             if (block is not null) blocks.Add(block);
         }
-        // Each buffer is 2048 by default, so: 93 per buffer; at least 162 buffers.
-        // In reality, we apply some round-ups and minimum buffer sizes, which pushes it a little higher, but: not much.
-        Assert.Equal(15_000, buffer.CountMessages);
-        Assert.Equal(171, buffer.CountAdded);
-        Assert.Equal(0, buffer.CountRecycled);
-        Assert.Equal(0, buffer.CountLeaked);
 
-        buffer.Clear();
+        // Each buffer is 2048 by default, so: 93 per buffer; at least 162 buffers (looking at CountAdded).
+        // In reality, we apply some round-ups and minimum buffer sizes, which pushes it a little higher, but: not much.
+        // However, the runtime can also choose to issue bigger leases than we expect, pushing it down! What matters
+        // isn't the specific number, but: that it isn't huge.
+#if DEBUG
         Assert.Equal(15_000, buffer.CountMessages);
-        Assert.Equal(171, buffer.CountAdded);
+        Assert.True(buffer.CountAdded < 200, "too many buffers used");
         Assert.Equal(0, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
+#endif
+        buffer.Clear();
+#if DEBUG
+        Assert.Equal(15_000, buffer.CountMessages);
+        Assert.True(buffer.CountAdded < 200, "too many buffers used");
+        Assert.Equal(0, buffer.CountRecycled);
+        Assert.Equal(0, buffer.CountLeaked);
+#endif
 
         foreach (var block in blocks) block.Dispose();
+#if DEBUG
         Assert.Equal(15_000, buffer.CountMessages);
-        Assert.Equal(171, buffer.CountAdded);
-        Assert.Equal(171, buffer.CountRecycled);
+        Assert.True(buffer.CountAdded < 200, "too many buffers used");
+        Assert.Equal(buffer.CountAdded, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
+#endif
     }
 }
