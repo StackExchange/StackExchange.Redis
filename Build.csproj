@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.Build.Traversal/3.0.2">
   <ItemGroup>
+    <ProjectReference Include="eng\**\*.csproj" />
     <ProjectReference Include="src\**\*.csproj" />
     <ProjectReference Include="tests\**\*.csproj" />
     <ProjectReference Include="toys\**\*.csproj" />

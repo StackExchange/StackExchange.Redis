@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="RESP.Core.Tests" />
+    <None Include="../../eng/StackExchange.Redis.Build/bin/$(Configuration)/netstandard2.0/StackExchange.Redis.Build.dll" Pack="true" PackagePath="analyzers/dotnet" Visible="true" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="RespOperationT.cs">
