@@ -610,6 +610,7 @@ internal partial struct CycleBuffer
 
         public void AppendOrRecycle(Segment segment, int maxDepth)
         {
+            segment.Memory.DebugScramble();
             var node = this;
             while (maxDepth-- > 0 && node is not null)
             {

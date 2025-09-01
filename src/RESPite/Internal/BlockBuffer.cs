@@ -52,6 +52,7 @@ internal abstract partial class BlockBufferSerializer
             var count = Volatile.Read(ref _refCount);
             if (count == 0)
             {
+                _buffer.DebugScramble();
                 _arrayPool.Return(_buffer);
 #if DEBUG
                 GC.SuppressFinalize(this);
@@ -172,6 +173,7 @@ internal abstract partial class BlockBufferSerializer
                 // copy the existing data (we always expect some, since we've clamped extraBytes to be
                 // much smaller than the default buffer size)
                 NonFinalizedData.CopyTo(newArray);
+                _buffer.DebugScramble();
                 _arrayPool.Return(_buffer);
                 _buffer = newArray;
                 return true;

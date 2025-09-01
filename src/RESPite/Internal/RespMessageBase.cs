@@ -258,6 +258,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             {
                 if (oldCount == 1) // we were the last one; recycle
                 {
+                    _request.DebugScramble();
                     if (_requestOwner is IDisposable owner)
                     {
                         owner.Dispose();
