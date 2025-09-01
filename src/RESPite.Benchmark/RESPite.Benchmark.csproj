@@ -20,5 +20,6 @@
     <ProjectReference Include="..\RESPite\RESPite.csproj"/>
     <PackageReference Include="StackExchange.Redis"/>
     <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    <None Include="readme.md" Pack="true" PackagePath="/"/>
   </ItemGroup>
 </Project>
