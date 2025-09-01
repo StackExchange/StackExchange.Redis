@@ -18,7 +18,11 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
 
     internal virtual bool IsHealthy => !_isDisposed;
 
-    internal virtual int OutstandingOperations { get; }
+    internal virtual BlockBufferSerializer Serializer => BlockBufferSerializer.Shared;
+
+    internal abstract int OutstandingOperations { get; }
+    internal readonly RespCommandMap? NonDefaultCommandMap; // prevent checking this each write
+    public TimeSpan SyncTimeout { get; }
 
     private static EndPoint? _defaultEndPoint; // do not expose externally; vexingly mutable
     private static EndPoint DefaultEndPoint => _defaultEndPoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
@@ -44,6 +48,11 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
 
         Configuration = configuration ?? conn.Configuration;
         _context = tail.WithConnection(this);
+
+        // hoist and pre-check the command map once per connection
+        var commandMap = Configuration.CommandMap;
+        NonDefaultCommandMap = ReferenceEquals(commandMap, RespCommandMap.Default) ? null : commandMap;
+        SyncTimeout = Configuration.SyncTimeout; // snapshot to reduce indirection
 
         static void ThrowUnhealthy() =>
             throw new ArgumentException("A healthy tail connection is required.", nameof(tail));
@@ -91,16 +100,16 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
         return default;
     }
 
-    public abstract void Send(in RespOperation message);
+    public abstract void Write(in RespOperation message);
 
-    internal virtual void Send(ReadOnlySpan<RespOperation> messages)
+    internal virtual void Write(ReadOnlySpan<RespOperation> messages)
     {
         int i = 0;
         try
         {
             for (i = 0; i < messages.Length; i++)
             {
-                Send(messages[i]);
+                Write(messages[i]);
             }
         }
         catch (Exception ex)
@@ -110,18 +119,18 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
         }
     }
 
-    public virtual Task SendAsync(in RespOperation message)
+    public virtual Task WriteAsync(in RespOperation message)
     {
-        Send(message);
+        Write(message);
         return Task.CompletedTask;
     }
 
-    internal virtual Task SendAsync(ReadOnlyMemory<RespOperation> messages)
+    internal virtual Task WriteAsync(ReadOnlyMemory<RespOperation> messages)
     {
         switch (messages.Length)
         {
             case 0: return Task.CompletedTask;
-            case 1: return SendAsync(messages.Span[0]);
+            case 1: return WriteAsync(messages.Span[0]);
         }
 
         int i = 0;
@@ -129,7 +138,7 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
         {
             for (; i < messages.Length; i++)
             {
-                var pending = SendAsync(messages.Span[i]);
+                var pending = WriteAsync(messages.Span[i]);
                 if (!pending.IsCompleted)
                     return Awaited(this, pending, messages.Slice(i));
                 pending.GetAwaiter().GetResult();
@@ -151,7 +160,7 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
                 await pending.ConfigureAwait(false);
                 for (i = 1; i < messages.Length; i++)
                 {
-                    await connection.SendAsync(messages.Span[i]).ConfigureAwait(false);
+                    await connection.WriteAsync(messages.Span[i]).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)

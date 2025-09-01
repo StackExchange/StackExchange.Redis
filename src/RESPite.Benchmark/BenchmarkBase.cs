@@ -506,6 +506,26 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     Console.WriteLine();
                 }
 
+                if (counters.BufferCreatedCount != 0 ||
+                    counters.BufferRecycledCount != 0 | counters.BufferMessageCount != 0)
+                {
+                    Console.Write("Buffers");
+                    if (counters.BufferCreatedCount != 0)
+                    {
+                        Console.Write(
+                            $"; created: {counters.BufferCreatedCount:#,###,##0}, {FormatBytes(counters.BufferTotalBytes)}");
+                        // always write recycled count - it being zero is important
+                        Console.Write($"; recycled: {counters.BufferRecycledCount:#,###,##0}");
+                    }
+
+                    if (counters.BufferMessageCount != 0)
+                    {
+                        Console.Write(
+                            $"; {counters.BufferMessageCount:#,###,##0} messages, {FormatBytes(counters.BufferMessageBytes)}");
+                    }
+                    Console.WriteLine();
+                }
+
                 static string FormatBytes(long bytes)
                 {
                     const long K = 1024, M = K * K, G = M * K, T = G * K;

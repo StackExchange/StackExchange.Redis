@@ -19,9 +19,8 @@ internal sealed class StreamConnection : RespConnection
     private RespScanState _readScanState;
     private CycleBuffer _readBuffer, _writeBuffer;
 
-    public bool CanWrite => Volatile.Read(ref _readStatus) == WRITER_AVAILABLE;
-
-    public int Outstanding => _outstanding.Count;
+    internal override int OutstandingOperations => _outstanding.Count;
+    internal override bool IsHealthy => !_isDoomed;
 
     public Task Reader { get; private set; } = Task.CompletedTask;
 
@@ -447,7 +446,7 @@ internal sealed class StreamConnection : RespConnection
         }
     }
 
-    public override void Send(in RespOperation message)
+    public override void Write(in RespOperation message)
     {
         bool releaseRequest = message.Message.TryReserveRequest(message.Token, out var bytes);
         if (!releaseRequest)
@@ -481,14 +480,14 @@ internal sealed class StreamConnection : RespConnection
         }
     }
 
-    internal override void Send(ReadOnlySpan<RespOperation> messages)
+    internal override void Write(ReadOnlySpan<RespOperation> messages)
     {
         switch (messages.Length)
         {
             case 0:
                 return;
             case 1:
-                Send(messages[0]);
+                Write(messages[0]);
                 return;
         }
 
@@ -537,7 +536,7 @@ internal sealed class StreamConnection : RespConnection
         }
     }
 
-    public override Task SendAsync(in RespOperation message)
+    public override Task WriteAsync(in RespOperation message)
     {
         bool releaseRequest = message.Message.TryReserveRequest(message.Token, out var bytes);
         if (!releaseRequest)
@@ -604,14 +603,14 @@ internal sealed class StreamConnection : RespConnection
         }
     }
 
-    internal override Task SendAsync(ReadOnlyMemory<RespOperation> messages)
+    internal override Task WriteAsync(ReadOnlyMemory<RespOperation> messages)
     {
         switch (messages.Length)
         {
             case 0:
                 return Task.CompletedTask;
             case 1:
-                return SendAsync(messages.Span[0]);
+                return WriteAsync(messages.Span[0]);
             default:
                 return CombineAndSendMultipleAsync(this, messages);
         }

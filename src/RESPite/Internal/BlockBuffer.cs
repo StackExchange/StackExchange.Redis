@@ -13,6 +13,7 @@ internal abstract partial class BlockBufferSerializer
         {
             _arrayPool = parent._arrayPool;
             _buffer = _arrayPool.Rent(minCapacity);
+            DebugCounters.OnBufferCapacity(_buffer.Length);
 #if DEBUG
             _parent = parent;
             parent.DebugBufferCreated();
@@ -145,6 +146,9 @@ internal abstract partial class BlockBufferSerializer
             _writeOffset = _finalizedOffset;
             Debug.Assert(IsNonCommittedEmpty);
             Dispose(); // decrement the observer
+            #if DEBUG
+            DebugCounters.OnBufferCompleted(_finalizedCount, _finalizedOffset);
+            #endif
         }
 
         private void CopyFrom(Span<byte> source)
@@ -163,6 +167,8 @@ internal abstract partial class BlockBufferSerializer
             {
                 // we're already on the boundary - don't scrimp; just do the math from the end of the buffer
                 byte[] newArray = _arrayPool.Rent(_buffer.Length + extraBytes);
+                DebugCounters.OnBufferCapacity(newArray.Length - _buffer.Length); // account for extra only
+
                 // copy the existing data (we always expect some, since we've clamped extraBytes to be
                 // much smaller than the default buffer size)
                 NonFinalizedData.CopyTo(newArray);

@@ -15,6 +15,7 @@ internal partial class BlockBufferSerializer
 
         // use lock-based synchronization
         public override ReadOnlyMemory<byte> Serialize<TRequest>(
+            RespCommandMap? commandMap,
             ReadOnlySpan<byte> command,
             in TRequest request,
             IRespFormatter<TRequest> formatter,
@@ -28,7 +29,7 @@ internal partial class BlockBufferSerializer
                 // add a timeout - just to avoid surprises (since people can write their own formatters)
                 Monitor.TryEnter(this, LockTimeout, ref haveLock);
                 if (!haveLock) ThrowTimeout();
-                return base.Serialize(command, in request, formatter, out block);
+                return base.Serialize(commandMap, command, in request, formatter, out block);
             }
             finally
             {

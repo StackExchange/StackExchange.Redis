@@ -25,11 +25,11 @@ internal abstract class DecoratorConnection : RespConnection
 
     // Note that default behaviour *does not* add a dispose check, as it
     // assumes that the connection is "owned", and therefore the tail will throw.
-    public override void Send(in RespOperation message) => Tail.Send(message);
+    public override void Write(in RespOperation message) => Tail.Write(message);
 
-    internal override void Send(ReadOnlySpan<RespOperation> messages) => Tail.Send(messages);
+    internal override void Write(ReadOnlySpan<RespOperation> messages) => Tail.Write(messages);
 
-    public override Task SendAsync(in RespOperation message) => Tail.SendAsync(in message);
+    public override Task WriteAsync(in RespOperation message) => Tail.WriteAsync(in message);
 
-    internal override Task SendAsync(ReadOnlyMemory<RespOperation> messages) => Tail.SendAsync(messages);
+    internal override Task WriteAsync(ReadOnlyMemory<RespOperation> messages) => Tail.WriteAsync(messages);
 }

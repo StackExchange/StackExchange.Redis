@@ -30,6 +30,7 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
     public void Clear() => BlockBuffer.Clear(this);
 
     public virtual ReadOnlyMemory<byte> Serialize<TRequest>(
+        RespCommandMap? commandMap,
         ReadOnlySpan<byte> command,
         in TRequest request,
         IRespFormatter<TRequest> formatter,
@@ -41,6 +42,7 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
         try
         {
             var writer = new RespWriter(this);
+            writer.CommandMap = commandMap;
             formatter.Format(command, ref writer, request);
             writer.Flush();
             return BlockBuffer.FinalizeMessage(this, out block);
@@ -60,11 +62,21 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
     public int CountAdded => Volatile.Read(ref _countAdded);
     public int CountMessages => Volatile.Read(ref _countMessages);
     public long CountMessageBytes => Volatile.Read(ref _countMessageBytes);
+
     private void DebugBufferLeaked() => Interlocked.Increment(ref _countLeaked);
 
-    private void DebugBufferRecycled() => Interlocked.Increment(ref _countRecycled);
+    private void DebugBufferRecycled()
+    {
+        Interlocked.Increment(ref _countRecycled);
+        DebugCounters.OnBufferRecycled();
+    }
 
-    private void DebugBufferCreated() => Interlocked.Increment(ref _countAdded);
+    private void DebugBufferCreated()
+    {
+        Interlocked.Increment(ref _countAdded);
+        DebugCounters.OnBufferCreated();
+    }
+
     private void DebugMessageFinalized(int bytes)
     {
         Interlocked.Increment(ref _countMessages);

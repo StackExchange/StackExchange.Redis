@@ -29,9 +29,9 @@ public class BlockBufferTests(ITestOutputHelper log)
     public void CanCreateAndWriteSimpleBuffer()
     {
         var buffer = BlockBufferSerializer.Create();
-        var a = buffer.Serialize("get"u8, "abc", RespFormatters.Key.String, out var blockA);
-        var b = buffer.Serialize("get"u8, "def", RespFormatters.Key.String, out var blockB);
-        var c = buffer.Serialize("get"u8, "ghi", RespFormatters.Key.String, out var blockC);
+        var a = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String, out var blockA);
+        var b = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String, out var blockB);
+        var c = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String, out var blockC);
         buffer.Clear();
 #if DEBUG
         Assert.Equal(1, buffer.CountAdded);
@@ -72,9 +72,9 @@ public class BlockBufferTests(ITestOutputHelper log)
 #endif
         for (int i = 0; i < 5000; i++)
         {
-            var a = buffer.Serialize("get"u8, "abc", RespFormatters.Key.String, out var blockA);
-            var b = buffer.Serialize("get"u8, "def", RespFormatters.Key.String, out var blockB);
-            var c = buffer.Serialize("get"u8, "ghi", RespFormatters.Key.String, out var blockC);
+            var a = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String, out var blockA);
+            var b = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String, out var blockB);
+            var c = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String, out var blockC);
             blockA?.Dispose();
             blockB?.Dispose();
             blockC?.Dispose();
@@ -118,11 +118,11 @@ public class BlockBufferTests(ITestOutputHelper log)
 #endif
         for (int i = 0; i < 5000; i++)
         {
-            _ = buffer.Serialize("get"u8, "abc", RespFormatters.Key.String, out var block);
+            _ = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String, out var block);
             if (block is not null) blocks.Add(block);
-            _ = buffer.Serialize("get"u8, "def", RespFormatters.Key.String, out block);
+            _ = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String, out block);
             if (block is not null) blocks.Add(block);
-            _ = buffer.Serialize("get"u8, "ghi", RespFormatters.Key.String, out block);
+            _ = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String, out block);
             if (block is not null) blocks.Add(block);
         }
 

@@ -23,10 +23,19 @@ internal partial class DebugCounters
         _tallyBatchWriteCount,
         _tallyBatchWriteFullPageCount,
         _tallyBatchWritePartialPageCount,
-        _tallyBatchWriteMessageCount;
+        _tallyBatchWriteMessageCount,
+        _tallyBufferCreatedCount,
+        _tallyBufferRecycledCount,
+        _tallyBufferMessageCount;
 
-    private static long _tallyWriteBytes, _tallyReadBytes, _tallyCopyOutBytes, _tallyDiscardAverage;
+    private static long _tallyWriteBytes,
+        _tallyReadBytes,
+        _tallyCopyOutBytes,
+        _tallyDiscardAverage,
+        _tallyBufferMessageBytes,
+        _tallyBufferTotalBytes;
 #endif
+
     [Conditional("DEBUG")]
     internal static void OnRead(int bytes)
     {
@@ -50,6 +59,7 @@ internal partial class DebugCounters
         Interlocked.Increment(ref _tallyBatchWriteFullPageCount);
 #endif
     }
+
     public static void OnBatchWritePartialPage()
     {
 #if DEBUG
@@ -141,6 +151,38 @@ internal partial class DebugCounters
 #endif
     }
 
+    [Conditional("DEBUG")]
+    public static void OnBufferCreated()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBufferCreatedCount);
+#endif
+    }
+
+    [Conditional("DEBUG")]
+    public static void OnBufferRecycled()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBufferRecycledCount);
+#endif
+    }
+
+    [Conditional("DEBUG")]
+    public static void OnBufferCompleted(int messageCount, int messageBytes)
+    {
+#if DEBUG
+        Interlocked.Add(ref _tallyBufferMessageCount, messageCount);
+        Interlocked.Add(ref _tallyBufferMessageBytes, messageBytes);
+#endif
+    }
+
+    public static void OnBufferCapacity(int bytes)
+    {
+#if DEBUG
+        Interlocked.Add(ref _tallyBufferTotalBytes, bytes);
+#endif
+    }
+
     private DebugCounters()
     {
     }
@@ -178,5 +220,11 @@ internal partial class DebugCounters
     public int BatchWriteFullPageCount { get; } = Interlocked.Exchange(ref _tallyBatchWriteFullPageCount, 0);
     public int BatchWritePartialPageCount { get; } = Interlocked.Exchange(ref _tallyBatchWritePartialPageCount, 0);
     public int BatchWriteMessageCount { get; } = Interlocked.Exchange(ref _tallyBatchWriteMessageCount, 0);
+
+    public int BufferCreatedCount { get; } = Interlocked.Exchange(ref _tallyBufferCreatedCount, 0);
+    public int BufferRecycledCount { get; } = Interlocked.Exchange(ref _tallyBufferRecycledCount, 0);
+    public int BufferMessageCount { get; } = Interlocked.Exchange(ref _tallyBufferMessageCount, 0);
+    public long BufferMessageBytes { get; } = Interlocked.Exchange(ref _tallyBufferMessageBytes, 0);
+    public long BufferTotalBytes { get; } = Interlocked.Exchange(ref _tallyBufferTotalBytes, 0);
 #endif
 }

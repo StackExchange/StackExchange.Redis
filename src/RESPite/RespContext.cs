@@ -1,5 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using RESPite.Connections.Internal;
+using RESPite.Internal;
+using RESPite.Messages;
 
 namespace RESPite;
 
@@ -23,7 +25,8 @@ public readonly struct RespContext
     public RespConnection Connection => _connection;
     public int Database => _database;
 
-    public RespCommandMap CommandMap => _connection.Configuration.CommandMap;
+    public RespCommandMap CommandMap => _connection.NonDefaultCommandMap ?? RespCommandMap.Default;
+    public TimeSpan SyncTimeout => _connection.SyncTimeout;
 
     /// <summary>
     /// REPLACES the <see cref="System.Threading.CancellationToken"/> associated with this context.

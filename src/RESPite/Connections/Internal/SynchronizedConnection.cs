@@ -22,12 +22,12 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
     }
 
     internal override bool IsHealthy => _semaphore.CurrentCount > 0 & base.IsHealthy;
-    public override void Send(in RespOperation message)
+    public override void Write(in RespOperation message)
     {
         try
         {
             _semaphore.Wait(message.CancellationToken);
-            Tail.Send(message);
+            Tail.Write(message);
         }
         catch (Exception ex)
         {
@@ -40,20 +40,20 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
         }
     }
 
-    internal override void Send(ReadOnlySpan<RespOperation> messages)
+    internal override void Write(ReadOnlySpan<RespOperation> messages)
     {
         switch (messages.Length)
         {
             case 0: return;
             case 1:
-                Send(messages[0]);
+                Write(messages[0]);
                 return;
         }
 
         try
         {
             _semaphore.Wait(messages[0].CancellationToken);
-            Tail.Send(messages);
+            Tail.Write(messages);
         }
         catch (Exception ex)
         {
@@ -66,7 +66,7 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
         }
     }
 
-    public override Task SendAsync(in RespOperation message)
+    public override Task WriteAsync(in RespOperation message)
     {
         bool haveLock = false;
         try
@@ -78,7 +78,7 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
                 return FullAsync(this, message);
             }
 
-            var pending = Tail.SendAsync(message);
+            var pending = Tail.WriteAsync(message);
             if (!pending.IsCompleted)
             {
                 DebugCounters.OnPipelineSendAsync();
@@ -114,7 +114,7 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
 
             try
             {
-                await @this.Tail.SendAsync(message).ConfigureAwait(false);
+                await @this.Tail.WriteAsync(message).ConfigureAwait(false);
             }
             finally
             {
@@ -135,12 +135,12 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
         }
     }
 
-    internal override Task SendAsync(ReadOnlyMemory<RespOperation> messages)
+    internal override Task WriteAsync(ReadOnlyMemory<RespOperation> messages)
     {
         switch (messages.Length)
         {
             case 0: return Task.CompletedTask;
-            case 1: return SendAsync(messages.Span[0]);
+            case 1: return WriteAsync(messages.Span[0]);
         }
 
         bool haveLock = false;
@@ -153,7 +153,7 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
                 return FullAsync(this, messages);
             }
 
-            var pending = Tail.SendAsync(messages);
+            var pending = Tail.WriteAsync(messages);
             if (!pending.IsCompleted)
             {
                 DebugCounters.OnPipelineSendAsync();
@@ -182,7 +182,7 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
             {
                 await @this._semaphore.WaitAsync(messages.Span[0].CancellationToken).ConfigureAwait(false);
                 haveLock = true;
-                await @this.Tail.SendAsync(messages).ConfigureAwait(false);
+                await @this.Tail.WriteAsync(messages).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

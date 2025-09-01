@@ -65,7 +65,7 @@ internal sealed class BasicBatchConnection : RespBatch
         }
     }
 
-    public override void Send(in RespOperation message)
+    public override void Write(in RespOperation message)
     {
         lock (_unsent)
         {
@@ -74,7 +74,7 @@ internal sealed class BasicBatchConnection : RespBatch
         }
     }
 
-    internal override void Send(ReadOnlySpan<RespOperation> messages)
+    internal override void Write(ReadOnlySpan<RespOperation> messages)
     {
         if (messages.Length != 0)
         {
@@ -140,7 +140,7 @@ internal sealed class BasicBatchConnection : RespBatch
         return count switch
         {
             0 => Task.CompletedTask,
-            1 => Tail.SendAsync(single!),
+            1 => Tail.WriteAsync(single!),
             _ => SendAndRecycleAsync(Tail, oversized, count),
         };
 
@@ -148,7 +148,7 @@ internal sealed class BasicBatchConnection : RespBatch
         {
             try
             {
-                await tail.SendAsync(oversized.AsMemory(0, count)).ConfigureAwait(false);
+                await tail.WriteAsync(oversized.AsMemory(0, count)).ConfigureAwait(false);
                 ArrayPool<RespOperation>.Shared.Return(oversized); // only on success, in case captured
             }
             catch (Exception ex)
@@ -171,13 +171,13 @@ internal sealed class BasicBatchConnection : RespBatch
             case 0:
                 return;
             case 1:
-                Tail.Send(single!);
+                Tail.Write(single!);
                 return;
         }
 
         try
         {
-            Tail.Send(oversized.AsSpan(0, count));
+            Tail.Write(oversized.AsSpan(0, count));
         }
         catch (Exception ex)
         {

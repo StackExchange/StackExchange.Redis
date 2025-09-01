@@ -132,28 +132,28 @@ public sealed class RespConnectionPool : IDisposable
             base.OnDispose(disposing);
         }
 
-        public override void Send(in RespOperation message)
+        public override void Write(in RespOperation message)
         {
             ThrowIfDisposed();
-            Tail.Send(message);
+            Tail.Write(message);
         }
 
-        internal override void Send(ReadOnlySpan<RespOperation> messages)
+        internal override void Write(ReadOnlySpan<RespOperation> messages)
         {
             ThrowIfDisposed();
-            Tail.Send(messages);
+            Tail.Write(messages);
         }
 
-        public override Task SendAsync(in RespOperation message)
+        public override Task WriteAsync(in RespOperation message)
         {
             ThrowIfDisposed();
-            return Tail.SendAsync(message);
+            return Tail.WriteAsync(message);
         }
 
-        internal override Task SendAsync(ReadOnlyMemory<RespOperation> messages)
+        internal override Task WriteAsync(ReadOnlyMemory<RespOperation> messages)
         {
             ThrowIfDisposed();
-            return Tail.SendAsync(messages);
+            return Tail.WriteAsync(messages);
         }
     }
 }

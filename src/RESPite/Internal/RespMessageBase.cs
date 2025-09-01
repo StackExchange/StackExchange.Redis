@@ -139,6 +139,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     public RespMessageBase<TResponse> Init(bool sent, CancellationToken cancellationToken)
     {
+        Debug.Assert(_flags == 0, "flags should be zero");
         Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
         if (sent) SetFlag(Flag_Sent);
         if (cancellationToken.CanBeCanceled)
@@ -157,8 +158,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         ArrayPool<byte>? pool,
         CancellationToken cancellationToken)
     {
+        Debug.Assert(_flags == 0, "flags should be zero");
         Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
-
         if (oversized is not null)
         {
             _requestOwner = pool;
@@ -174,7 +175,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         return this;
     }
 
-    public RespMessageBase<TResponse> SetRequest(
+    public RespMessageBase<TResponse> Init(
         ReadOnlyMemory<byte> request,
         IDisposable? owner,
         CancellationToken cancellationToken)
@@ -257,19 +258,17 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             {
                 if (oldCount == 1) // we were the last one; recycle
                 {
-                    if (_requestOwner is ArrayPool<byte> pool)
+                    if (_requestOwner is IDisposable owner)
+                    {
+                        owner.Dispose();
+                    }
+                    else if (_requestOwner is ArrayPool<byte> pool)
                     {
                         if (MemoryMarshal.TryGetArray(_request, out var segment))
                         {
                             pool.Return(segment.Array!);
                         }
                     }
-
-                    if (_requestOwner is IDisposable owner)
-                    {
-                        owner.Dispose();
-                    }
-
                     _request = default;
                     _requestOwner = null;
                 }
@@ -317,6 +316,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         short token,
         ValueTaskSourceOnCompletedFlags flags)
     {
+        CheckToken(token);
         SetFlag(Flag_NoPulse); // async doesn't need to be pulsed
         _asyncCore.OnCompleted(continuation, state, token, flags);
     }
@@ -327,6 +327,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         short token,
         ValueTaskSourceOnCompletedFlags flags)
     {
+        CheckToken(token);
         if (!HasFlag(Flag_Sent)) SetNotSentAsync(token);
         SetFlag(Flag_NoPulse); // async doesn't need to be pulsed
         _asyncCore.OnCompleted(continuation, state, token, flags);
@@ -343,6 +344,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         if (!SetFlag(Flag_OutcomeKnown)) return false;
         UnregisterCancellation();
+        TryReleaseRequest(); // we won't be needing this again
 
         // configure threading model; failure can be triggered from any thread - *always*
         // dispatch to pool; in the success case, we're either on the IO thread
@@ -371,7 +373,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         CheckToken(token);
         lock (this)
         {
-            switch (Volatile.Read(ref _flags) & Flag_Complete | Flag_NoPulse)
+            switch (Volatile.Read(ref _flags) & (Flag_Complete | Flag_NoPulse))
             {
                 case Flag_NoPulse | Flag_Complete:
                 case Flag_Complete:

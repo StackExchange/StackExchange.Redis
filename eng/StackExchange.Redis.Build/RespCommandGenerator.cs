@@ -428,7 +428,6 @@ public class RespCommandGenerator : IIncrementalGenerator
                     bool useDirectCall = method.Context is { Length: > 0 } & formatter is { Length: > 0 } &
                                          parser is { Length: > 0 };
 
-                    useDirectCall = false; // disable for now
                     if (string.IsNullOrWhiteSpace(method.Context))
                     {
                         NewLine().Append("=> throw new NotSupportedException(\"No RespContext available\");");
@@ -461,19 +460,29 @@ public class RespCommandGenerator : IIncrementalGenerator
 
                     if (useDirectCall) // avoid the intermediate step when possible
                     {
-                        /*
-                        sb = NewLine().Append("=> ").Append(context).A "global::RESPite.Messages.something.Send")
-                            .Append(asAsync ? "Async" : "")
+                        sb = NewLine().Append("=> ").Append(method.Context).Append(".Send")
                             .Append('<');
                         WriteTuple(
                             method.Parameters,
                             sb,
                             isSharedFormatter ? TupleMode.SyntheticNames : TupleMode.NamedTuple);
-                        sb.Append(", ").Append(method.ReturnType).Append(">(").Append(method.Context).Append(", ")
-                            .Append(csValue).Append("u8").Append(", ");
+                        if (!string.IsNullOrWhiteSpace(method.ReturnType))
+                        {
+                            sb.Append(", ").Append(method.ReturnType);
+                        }
+                        sb.Append(">(").Append(csValue).Append("u8").Append(", ");
                         WriteTuple(method.Parameters, sb, TupleMode.Values);
-                        sb.Append(", ").Append(formatter).Append(", ").Append(parser).Append(");");
-                        */
+                        sb.Append(", ").Append(formatter).Append(", ").Append(parser).Append(")");
+                        if (asAsync)
+                        {
+                            sb.Append(".AsValueTask()");
+                        }
+                        else
+                        {
+                            sb.Append(".Wait(").Append(method.Context).Append(".SyncTimeout)");
+                        }
+
+                        sb.Append(";");
                     }
 
                     indent--;
