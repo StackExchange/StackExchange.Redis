@@ -1557,15 +1557,19 @@ public ref partial struct RespReader
     public readonly bool ReadBoolean()
     {
         var span = Buffer(stackalloc byte[2]);
-        if (span.Length == 1)
+        switch (span.Length)
         {
-            switch (span[0])
-            {
-                case (byte)'0' when Prefix == RespPrefix.Integer: return false;
-                case (byte)'1' when Prefix == RespPrefix.Integer: return true;
-                case (byte)'f' when Prefix == RespPrefix.Boolean: return false;
-                case (byte)'t' when Prefix == RespPrefix.Boolean: return true;
-            }
+            case 1:
+                switch (span[0])
+                {
+                    case (byte)'0' when Prefix == RespPrefix.Integer: return false;
+                    case (byte)'1' when Prefix == RespPrefix.Integer: return true;
+                    case (byte)'f' when Prefix == RespPrefix.Boolean: return false;
+                    case (byte)'t' when Prefix == RespPrefix.Boolean: return true;
+                }
+
+                break;
+            case 2 when Prefix == RespPrefix.SimpleString && IsOK(): return true;
         }
         ThrowFormatException();
         return false;

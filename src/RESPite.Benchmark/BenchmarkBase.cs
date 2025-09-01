@@ -442,7 +442,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         catch (Exception ex)
         {
             if (Quiet) Console.WriteLine();
-            Console.Error.WriteLine(ex.Message);
+            Program.WriteException(ex, name);
         }
         finally
         {

@@ -231,7 +231,7 @@ internal static partial class RedisCommands
     internal static partial int LPush(this in RespContext ctx, string key, byte[] payload);
 
     [RespCommand(Formatter = "LPushFormatter.Instance")]
-    internal static partial void LPush(this in RespContext ctx, string key, byte[] payload, int count);
+    internal static partial int LPush(this in RespContext ctx, string key, byte[] payload, int count);
 
     private sealed class LPushFormatter : IRespFormatter<(string Key, byte[] Payload, int Count)>
     {

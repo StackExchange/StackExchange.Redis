@@ -185,7 +185,7 @@ internal abstract partial class BlockBufferSerializer
             if (count == 0) return;
             if (count < 0) ThrowOutOfRange();
             var buffer = parent.Buffer;
-            if (buffer is null || buffer.Available <= count) ThrowOutOfRange();
+            if (buffer is null || buffer.Available < count) ThrowOutOfRange();
             buffer._writeOffset += count;
 
             [DoesNotReturn]
