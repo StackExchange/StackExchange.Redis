@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'">
@@ -17,6 +18,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="RESP.Core.Tests" />
+    <None Include="readme.md" Pack="true" PackagePath="/"/>
     <None Include="../../eng/StackExchange.Redis.Build/bin/$(Configuration)/netstandard2.0/StackExchange.Redis.Build.dll" Pack="true" PackagePath="analyzers/dotnet" Visible="true" />
   </ItemGroup>
   <ItemGroup>
