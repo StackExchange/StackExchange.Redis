@@ -173,7 +173,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         bool sent = true,
         CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<bool>.Get(null);
+        var msg = RespStatelessMessage<bool>.Get(null);
         msg.Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation(msg);
@@ -190,7 +190,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         bool sent = true,
         CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<TResult>.Get(parser);
+        var msg = RespStatelessMessage<TResult>.Get(parser);
         msg.Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation<TResult>(msg);
@@ -209,7 +209,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         bool sent = true,
         CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<TState, TResult>.Get(in state, parser);
+        var msg = RespStatefulMessage<TState, TResult>.Get(in state, parser);
         msg.Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation<TResult>(msg);

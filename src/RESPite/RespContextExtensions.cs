@@ -197,7 +197,7 @@ public static class RespContextExtensions
         var conn = context.Connection;
         var memory =
             conn.Serializer.Serialize(conn.NonDefaultCommandMap, command, request, formatter);
-        var msg = RespMessage<bool>.Get(parser);
+        var msg = RespStatelessMessage<bool>.Get(parser);
         msg.Init(memory, context.CancellationToken);
         return new(msg);
     }
@@ -215,7 +215,7 @@ public static class RespContextExtensions
         var conn = context.Connection;
         var memory =
             conn.Serializer.Serialize(conn.NonDefaultCommandMap, command, request, formatter);
-        var msg = RespMessage<TResponse>.Get(parser);
+        var msg = RespStatelessMessage<TResponse>.Get(parser);
         msg.Init(memory, context.CancellationToken);
         return new(msg);
     }
@@ -233,7 +233,7 @@ public static class RespContextExtensions
     {
         var conn = context.Connection;
         var memory = conn.Serializer.Serialize(conn.NonDefaultCommandMap, command, request, formatter);
-        var msg = RespMessage<TState, TResponse>.Get(in state, parser);
+        var msg = RespStatefulMessage<TState, TResponse>.Get(in state, parser);
         msg.Init(memory, context.CancellationToken);
         return new(msg);
     }

@@ -7,6 +7,11 @@ public abstract class RespBatch : RespConnection
     private protected RespBatch(in RespContext tail) : base(tail)
     {
         Tail = tail.Connection;
+        // ack: yes, I know we won't spot every recursive+decorated scenario
+        if (Tail is RespBatch) ThrowNestedBatch();
+
+        static void ThrowNestedBatch() =>
+            throw new ArgumentException("Nested batches are not supported", nameof(tail));
     }
 
     public abstract Task FlushAsync();

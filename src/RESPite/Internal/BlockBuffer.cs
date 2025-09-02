@@ -48,6 +48,12 @@ internal abstract partial class BlockBufferSerializer
             if (Interlocked.Decrement(ref _refCount) <= 0) Recycle();
         }
 
+        public void AddRef()
+        {
+            if (!TryAddRef()) Throw();
+            static void Throw() => throw new ObjectDisposedException(nameof(BlockBuffer));
+        }
+
         public bool TryAddRef()
         {
             int count;
@@ -148,7 +154,7 @@ internal abstract partial class BlockBufferSerializer
 
             // the ~emperor~ buffer is dead; long live the ~emperor~ buffer
             parent.Buffer = newBuffer;
-            buffer.MarkComplete();
+            buffer.MarkComplete(parent);
             return newBuffer;
         }
 
@@ -158,16 +164,33 @@ internal abstract partial class BlockBufferSerializer
             if (parent.Buffer is { } buffer)
             {
                 parent.Buffer = null;
-                buffer.MarkComplete();
+                buffer.MarkComplete(parent);
             }
         }
 
-        private void MarkComplete()
+        public static ReadOnlyMemory<byte> RetainCurrent(BlockBufferSerializer parent)
+        {
+            if (parent.Buffer is { } buffer && buffer._finalizedOffset != 0)
+            {
+                parent.Buffer = null;
+                buffer.AddRef();
+                return buffer.CreateMemory(0, buffer._finalizedOffset);
+            }
+            // nothing useful to detach!
+            return default;
+        }
+
+        private void MarkComplete(BlockBufferSerializer parent)
         {
             // record that the old buffer no longer logically has any non-committed bytes (mostly just for ToString())
             _writeOffset = _finalizedOffset;
             Debug.Assert(IsNonCommittedEmpty);
-            Release(); // decrement the observer
+
+            // see if the caller wants to take ownership of the segment
+            if (_finalizedOffset != 0 && !parent.ClaimSegment(CreateMemory(0, _finalizedOffset)))
+            {
+                Release(); // decrement the observer
+            }
 #if DEBUG
             DebugCounters.OnBufferCompleted(_finalizedCount, _finalizedOffset);
 #endif
@@ -284,6 +307,35 @@ internal abstract partial class BlockBufferSerializer
         {
             segment = new ArraySegment<byte>(_array);
             return true;
+        }
+
+        internal static void Release(in ReadOnlySequence<byte> request)
+        {
+            if (request.IsSingleSegment)
+            {
+                if (MemoryMarshal.TryGetMemoryManager<byte, BlockBuffer>(
+                        request.First, out var block))
+                {
+                    block.Release();
+                }
+            }
+            else
+            {
+                ReleaseMultiBlock(in request);
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            static void ReleaseMultiBlock(in ReadOnlySequence<byte> request)
+            {
+                foreach (var segment in request)
+                {
+                    if (MemoryMarshal.TryGetMemoryManager<byte, BlockBuffer>(
+                            segment, out var block))
+                    {
+                        block.Release();
+                    }
+                }
+            }
         }
     }
 }

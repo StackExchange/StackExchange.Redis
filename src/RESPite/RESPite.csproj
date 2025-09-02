@@ -25,15 +25,6 @@
     <Compile Update="RespOperationT.cs">
       <DependentUpon>RespOperation.cs</DependentUpon>
     </Compile>
-    <Compile Update="Internal\IRespMessage.cs">
-      <DependentUpon>RespMessage.cs</DependentUpon>
-    </Compile>
-    <Compile Update="Internal\RespMessageBase_Typed_Stateful.cs">
-      <DependentUpon>RespMessageBase.cs</DependentUpon>
-    </Compile>
-    <Compile Update="Internal\RespMessageBase_Typed.cs">
-      <DependentUpon>RespMessageBase.cs</DependentUpon>
-    </Compile>
     <Compile Update="Messages\RespReader.AggregateEnumerator.cs">
       <DependentUpon>RespReader.cs</DependentUpon>
     </Compile>
@@ -57,6 +48,30 @@
     </Compile>
     <Compile Update="Internal\BlockBuffer.cs">
       <DependentUpon>BlockBufferSerializer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespMessageBaseT.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespStatefulMessage.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespStatelessMessage.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Connections\Internal\MergingBatchConnection.cs">
+      <DependentUpon>BufferingBatchConnection.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Connections\Internal\BasicBatchConnection.cs">
+      <DependentUpon>BufferingBatchConnection.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespMultiMessage.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Connections\Internal\ConfiguredConnection.cs">
+      <DependentUpon>DecoratorConnection.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Connections\Internal\SynchronizedConnection.cs">
+      <DependentUpon>DecoratorConnection.cs</DependentUpon>
     </Compile>
   </ItemGroup>
 

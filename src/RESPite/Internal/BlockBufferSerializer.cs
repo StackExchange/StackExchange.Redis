@@ -27,7 +27,9 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
 
     void IBufferWriter<byte>.Advance(int count) => BlockBuffer.Advance(this, count);
 
-    public void Clear() => BlockBuffer.Clear(this);
+    public virtual void Clear() => BlockBuffer.Clear(this);
+
+    internal virtual ReadOnlySequence<byte> Flush() => throw new NotSupportedException();
 
     public virtual ReadOnlyMemory<byte> Serialize<TRequest>(
         RespCommandMap? commandMap,
@@ -52,6 +54,8 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
             throw;
         }
     }
+
+    protected virtual bool ClaimSegment(ReadOnlyMemory<byte> segment) => false;
 
 #if DEBUG
     private int _countAdded, _countRecycled, _countLeaked, _countMessages;
