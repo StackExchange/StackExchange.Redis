@@ -18,8 +18,7 @@ internal partial class BlockBufferSerializer
             RespCommandMap? commandMap,
             ReadOnlySpan<byte> command,
             in TRequest request,
-            IRespFormatter<TRequest> formatter,
-            out IDisposable? block)
+            IRespFormatter<TRequest> formatter)
         {
             bool haveLock = false;
             try // note that "lock" unrolls to something very similar; we're not adding anything unusual here
@@ -29,7 +28,7 @@ internal partial class BlockBufferSerializer
                 // add a timeout - just to avoid surprises (since people can write their own formatters)
                 Monitor.TryEnter(this, LockTimeout, ref haveLock);
                 if (!haveLock) ThrowTimeout();
-                return base.Serialize(commandMap, command, in request, formatter, out block);
+                return base.Serialize(commandMap, command, in request, formatter);
             }
             finally
             {

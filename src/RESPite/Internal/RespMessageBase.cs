@@ -15,7 +15,6 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private CancellationTokenRegistration _cancellationTokenRegistration;
 
     private ReadOnlyMemory<byte> _request;
-    private object? _requestOwner;
 
     private int _requestRefCount;
     private int _flags;
@@ -152,37 +151,11 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     }
 
     public RespMessageBase<TResponse> Init(
-        byte[]? oversized,
-        int offset,
-        int length,
-        ArrayPool<byte>? pool,
-        CancellationToken cancellationToken)
-    {
-        Debug.Assert(_flags == 0, "flags should be zero");
-        Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
-        if (oversized is not null)
-        {
-            _requestOwner = pool;
-            _request = new ReadOnlyMemory<byte>(oversized, offset, length);
-            _requestRefCount = 1;
-        }
-
-        if (cancellationToken.CanBeCanceled)
-        {
-            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
-        }
-
-        return this;
-    }
-
-    public RespMessageBase<TResponse> Init(
         ReadOnlyMemory<byte> request,
-        IDisposable? owner,
         CancellationToken cancellationToken)
     {
         Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
         _request = request;
-        _requestOwner = owner;
         _requestRefCount = 1;
         if (cancellationToken.CanBeCanceled)
         {
@@ -207,7 +180,6 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         // note we only reset on success, and on
         // success we've already unregistered cancellation
         _request = default;
-        _requestOwner = null;
         _requestRefCount = 0;
         _flags = 0;
         _asyncCore.Reset();
@@ -259,19 +231,11 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
                 if (oldCount == 1) // we were the last one; recycle
                 {
                     _request.DebugScramble();
-                    if (_requestOwner is IDisposable owner)
+                    if (MemoryMarshal.TryGetMemoryManager<byte, BlockBufferSerializer.BlockBuffer>(_request, out var block))
                     {
-                        owner.Dispose();
-                    }
-                    else if (_requestOwner is ArrayPool<byte> pool)
-                    {
-                        if (MemoryMarshal.TryGetArray(_request, out var segment))
-                        {
-                            pool.Return(segment.Array!);
-                        }
+                        block.Release();
                     }
                     _request = default;
-                    _requestOwner = null;
                 }
 
                 return true;

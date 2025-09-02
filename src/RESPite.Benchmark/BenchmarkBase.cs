@@ -519,7 +519,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                         Console.Write(
                             $"; created: {counters.BufferCreatedCount:#,###,##0}, {FormatBytes(counters.BufferTotalBytes)}");
                         // always write recycled count - it being zero is important
-                        Console.Write($"; recycled: {counters.BufferRecycledCount:#,###,##0}");
+                        Console.Write($"; recycled: {counters.BufferRecycledCount:#,###,##0}, {FormatBytes(counters.BufferRecycledBytes)}");
                     }
 
                     if (counters.BufferMessageCount != 0)
@@ -527,6 +527,8 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                         Console.Write(
                             $"; {counters.BufferMessageCount:#,###,##0} messages, {FormatBytes(counters.BufferMessageBytes)}");
                     }
+                    Console.Write(
+                        $"; max working {FormatBytes(counters.BufferMaxOutstandingBytes)}; {counters.BufferPinCount:#,###,##0} pins; {counters.BufferLeakCount:#,###,##0} leaks");
                     Console.WriteLine();
                 }
 

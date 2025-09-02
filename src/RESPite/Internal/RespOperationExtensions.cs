@@ -33,6 +33,9 @@ internal static class RespOperationExtensions
         => MemoryMarshal.AsMemory(value).Span.Fill(42);
 
     [Conditional("DEBUG")]
-    internal static void DebugScramble(this byte[] value)
-        => value.AsSpan().Fill(42);
+    internal static void DebugScramble(this byte[]? value)
+    {
+        if (value is not null)
+            value.AsSpan().Fill(42);
+    }
 }

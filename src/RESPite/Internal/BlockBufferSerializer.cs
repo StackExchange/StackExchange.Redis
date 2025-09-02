@@ -33,8 +33,7 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
         RespCommandMap? commandMap,
         ReadOnlySpan<byte> command,
         in TRequest request,
-        IRespFormatter<TRequest> formatter,
-        out IDisposable? block)
+        IRespFormatter<TRequest> formatter)
 #if NET9_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
@@ -45,7 +44,7 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
             writer.CommandMap = commandMap;
             formatter.Format(command, ref writer, request);
             writer.Flush();
-            return BlockBuffer.FinalizeMessage(this, out block);
+            return BlockBuffer.FinalizeMessage(this);
         }
         catch
         {
@@ -63,20 +62,24 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
     public int CountMessages => Volatile.Read(ref _countMessages);
     public long CountMessageBytes => Volatile.Read(ref _countMessageBytes);
 
+    [Conditional("DEBUG")]
     private void DebugBufferLeaked() => Interlocked.Increment(ref _countLeaked);
 
-    private void DebugBufferRecycled()
+    [Conditional("DEBUG")]
+    private void DebugBufferRecycled(int length)
     {
         Interlocked.Increment(ref _countRecycled);
-        DebugCounters.OnBufferRecycled();
+        DebugCounters.OnBufferRecycled(length);
     }
 
+    [Conditional("DEBUG")]
     private void DebugBufferCreated()
     {
         Interlocked.Increment(ref _countAdded);
         DebugCounters.OnBufferCreated();
     }
 
+    [Conditional("DEBUG")]
     private void DebugMessageFinalized(int bytes)
     {
         Interlocked.Increment(ref _countMessages);

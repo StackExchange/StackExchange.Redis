@@ -26,13 +26,17 @@ internal partial class DebugCounters
         _tallyBatchWriteMessageCount,
         _tallyBufferCreatedCount,
         _tallyBufferRecycledCount,
-        _tallyBufferMessageCount;
+        _tallyBufferMessageCount,
+        _tallyBufferPinCount,
+        _tallyBufferLeakCount;
 
     private static long _tallyWriteBytes,
         _tallyReadBytes,
         _tallyCopyOutBytes,
         _tallyDiscardAverage,
         _tallyBufferMessageBytes,
+        _tallyBufferRecycledBytes,
+        _tallyBufferMaxOutstandingBytes,
         _tallyBufferTotalBytes;
 #endif
 
@@ -160,10 +164,24 @@ internal partial class DebugCounters
     }
 
     [Conditional("DEBUG")]
-    public static void OnBufferRecycled()
+    public static void OnBufferRecycled(int messageBytes)
     {
 #if DEBUG
         Interlocked.Increment(ref _tallyBufferRecycledCount);
+        var now = Interlocked.Add(ref _tallyBufferRecycledBytes, messageBytes);
+        var outstanding = Volatile.Read(ref _tallyBufferMessageBytes) - now;
+
+        while (true)
+        {
+            var oldOutstanding = Volatile.Read(ref _tallyBufferMaxOutstandingBytes);
+            // loop until either it isn't an increase, or we successfully perform
+            // the swap
+            if (outstanding <= oldOutstanding
+                || Interlocked.CompareExchange(
+                    ref _tallyBufferMaxOutstandingBytes,
+                    outstanding,
+                    oldOutstanding) == oldOutstanding) break;
+        }
 #endif
     }
 
@@ -183,11 +201,31 @@ internal partial class DebugCounters
 #endif
     }
 
+    public static void OnBufferPinned()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBufferPinCount);
+#endif
+    }
+
+    public static void OnBufferLeaked()
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBufferLeakCount);
+#endif
+    }
+
     private DebugCounters()
     {
     }
 
-    public static DebugCounters Flush() => new();
+    public static DebugCounters Flush()
+    {
+        #if DEBUG
+        BlockBufferSerializer.Shared.Clear(); // release any outstanding buffers
+        #endif
+        return new();
+    }
 
 #if DEBUG
     private static void EstimatedMovingRangeAverage(ref long field, long value)
@@ -223,8 +261,12 @@ internal partial class DebugCounters
 
     public int BufferCreatedCount { get; } = Interlocked.Exchange(ref _tallyBufferCreatedCount, 0);
     public int BufferRecycledCount { get; } = Interlocked.Exchange(ref _tallyBufferRecycledCount, 0);
+    public long BufferRecycledBytes { get; } = Interlocked.Exchange(ref _tallyBufferRecycledBytes, 0);
+    public long BufferMaxOutstandingBytes { get; } = Interlocked.Exchange(ref _tallyBufferMaxOutstandingBytes, 0);
     public int BufferMessageCount { get; } = Interlocked.Exchange(ref _tallyBufferMessageCount, 0);
     public long BufferMessageBytes { get; } = Interlocked.Exchange(ref _tallyBufferMessageBytes, 0);
     public long BufferTotalBytes { get; } = Interlocked.Exchange(ref _tallyBufferTotalBytes, 0);
+    public int BufferPinCount { get; } = Interlocked.Exchange(ref _tallyBufferPinCount, 0);
+    public int BufferLeakCount { get; } = Interlocked.Exchange(ref _tallyBufferLeakCount, 0);
 #endif
 }

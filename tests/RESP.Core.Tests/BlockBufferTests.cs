@@ -29,9 +29,9 @@ public class BlockBufferTests(ITestOutputHelper log)
     public void CanCreateAndWriteSimpleBuffer()
     {
         var buffer = BlockBufferSerializer.Create();
-        var a = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String, out var blockA);
-        var b = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String, out var blockB);
-        var c = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String, out var blockC);
+        var a = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String);
+        var b = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String);
+        var c = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String);
         buffer.Clear();
 #if DEBUG
         Assert.Equal(1, buffer.CountAdded);
@@ -47,17 +47,23 @@ public class BlockBufferTests(ITestOutputHelper log)
         Assert.True(b.Span.SequenceEqual("*2\r\n$3\r\nget\r\n$3\r\ndef\r\n"u8));
         Log(c.Span);
         Assert.True(c.Span.SequenceEqual("*2\r\n$3\r\nget\r\n$3\r\nghi\r\n"u8));
-        blockA?.Dispose();
-        blockB?.Dispose();
+        AssertRelease(a);
+        AssertRelease(b);
 #if DEBUG
         Assert.Equal(0, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
 #endif
-        blockC?.Dispose();
+        AssertRelease(c);
 #if DEBUG
         Assert.Equal(1, buffer.CountRecycled);
         Assert.Equal(0, buffer.CountLeaked);
 #endif
+    }
+
+    private static void AssertRelease(ReadOnlyMemory<byte> buffer)
+    {
+        Assert.True(MemoryMarshal.TryGetMemoryManager<byte, BlockBufferSerializer.BlockBuffer>(buffer, out var manager));
+        manager.Release();
     }
 
     [Fact]
@@ -72,12 +78,9 @@ public class BlockBufferTests(ITestOutputHelper log)
 #endif
         for (int i = 0; i < 5000; i++)
         {
-            var a = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String, out var blockA);
-            var b = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String, out var blockB);
-            var c = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String, out var blockC);
-            blockA?.Dispose();
-            blockB?.Dispose();
-            blockC?.Dispose();
+            var a = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String);
+            var b = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String);
+            var c = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String);
             Assert.True(MemoryMarshal.TryGetArray(a, out var aSegment));
             Assert.True(MemoryMarshal.TryGetArray(b, out var bSegment));
             Assert.True(MemoryMarshal.TryGetArray(c, out var cSegment));
@@ -89,6 +92,9 @@ public class BlockBufferTests(ITestOutputHelper log)
             Assert.Equal(22, cSegment.Count);
             Assert.Same(aSegment.Array, bSegment.Array);
             Assert.Same(aSegment.Array, cSegment.Array);
+            AssertRelease(a);
+            AssertRelease(b);
+            AssertRelease(c);
         }
 #if DEBUG
         Assert.Equal(1, buffer.CountAdded);
@@ -109,7 +115,7 @@ public class BlockBufferTests(ITestOutputHelper log)
     public void CanWriteLotsOfBuffers()
     {
         var buffer = BlockBufferSerializer.Create();
-        List<IDisposable> blocks = new(15_000);
+        List<ReadOnlyMemory<byte>> blocks = new(15_000);
 #if DEBUG
         Assert.Equal(0, buffer.CountAdded);
         Assert.Equal(0, buffer.CountRecycled);
@@ -118,12 +124,12 @@ public class BlockBufferTests(ITestOutputHelper log)
 #endif
         for (int i = 0; i < 5000; i++)
         {
-            _ = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String, out var block);
-            if (block is not null) blocks.Add(block);
-            _ = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String, out block);
-            if (block is not null) blocks.Add(block);
-            _ = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String, out block);
-            if (block is not null) blocks.Add(block);
+            var block = buffer.Serialize(null, "get"u8, "abc", RespFormatters.Key.String);
+            blocks.Add(block);
+            block = buffer.Serialize(null, "get"u8, "def", RespFormatters.Key.String);
+            blocks.Add(block);
+            block = buffer.Serialize(null, "get"u8, "ghi", RespFormatters.Key.String);
+            blocks.Add(block);
         }
 
         // Each buffer is 2048 by default, so: 93 per buffer; at least 162 buffers (looking at CountAdded).
@@ -144,7 +150,7 @@ public class BlockBufferTests(ITestOutputHelper log)
         Assert.Equal(0, buffer.CountLeaked);
 #endif
 
-        foreach (var block in blocks) block.Dispose();
+        foreach (var block in blocks) AssertRelease(block);
 #if DEBUG
         Assert.Equal(15_000, buffer.CountMessages);
         Assert.True(buffer.CountAdded < 200, "too many buffers used");

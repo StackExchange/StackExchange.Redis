@@ -2,18 +2,19 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace RESPite.Internal;
 
 internal abstract partial class BlockBufferSerializer
 {
-    private protected sealed class BlockBuffer : IDisposable
+    internal sealed class BlockBuffer : MemoryManager<byte>
     {
         private BlockBuffer(BlockBufferSerializer parent, int minCapacity)
         {
             _arrayPool = parent._arrayPool;
-            _buffer = _arrayPool.Rent(minCapacity);
-            DebugCounters.OnBufferCapacity(_buffer.Length);
+            _array = _arrayPool.Rent(minCapacity);
+            DebugCounters.OnBufferCapacity(_array.Length);
 #if DEBUG
             _parent = parent;
             parent.DebugBufferCreated();
@@ -23,7 +24,7 @@ internal abstract partial class BlockBufferSerializer
         private int _refCount = 1;
         private int _finalizedOffset, _writeOffset;
         private readonly ArrayPool<byte> _arrayPool;
-        private byte[] _buffer;
+        private byte[] _array;
 #if DEBUG
         private int _finalizedCount;
         private BlockBufferSerializer _parent;
@@ -35,15 +36,30 @@ internal abstract partial class BlockBufferSerializer
 #endif
             $"{_finalizedOffset} finalized bytes; writing: {NonFinalizedData.Length} bytes, {Available} available; observers: {_refCount}";
 
-        private int Available => _buffer.Length - _writeOffset;
-        public Memory<byte> UncommittedMemory => _buffer.AsMemory(_writeOffset);
-        public Span<byte> UncommittedSpan => _buffer.AsSpan(_writeOffset);
+        // only used when filling; _buffer should be non-null
+        private int Available => _array.Length - _writeOffset;
+        public Memory<byte> UncommittedMemory => _array.AsMemory(_writeOffset);
+        public Span<byte> UncommittedSpan => _array.AsSpan(_writeOffset);
 
         // decrease ref-count; dispose if necessary
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Dispose()
+        public void Release()
         {
             if (Interlocked.Decrement(ref _refCount) <= 0) Recycle();
+        }
+
+        public bool TryAddRef()
+        {
+            int count;
+            do
+            {
+                count = Volatile.Read(ref _refCount);
+                if (count <= 0) return false;
+            }
+            // repeat until we can successfully swap/incr
+            while (Interlocked.CompareExchange(ref _refCount, count + 1, count) != count);
+
+            return true;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)] // called rarely vs Dispose
@@ -52,22 +68,27 @@ internal abstract partial class BlockBufferSerializer
             var count = Volatile.Read(ref _refCount);
             if (count == 0)
             {
-                _buffer.DebugScramble();
-                _arrayPool.Return(_buffer);
+                _array.DebugScramble();
 #if DEBUG
-                GC.SuppressFinalize(this);
-                _parent.DebugBufferRecycled();
+                GC.SuppressFinalize(this); // only have a finalizer in debug
+                _parent.DebugBufferRecycled(_array.Length);
 #endif
+                _arrayPool.Return(_array);
+                _array = [];
             }
 
             Debug.Assert(count == 0, $"over-disposal? count={count}");
         }
 
 #if DEBUG
+#pragma warning disable CA2015 // Adding a finalizer to a type derived from MemoryManager<T> may permit memory to be freed while it is still in use by a Span<T>
+        // (the above is fine because we don't actually release anything - just a counter)
         ~BlockBuffer()
         {
             _parent.DebugBufferLeaked();
+            DebugCounters.OnBufferLeaked();
         }
+#pragma warning restore CA2015
 #endif
 
         public static BlockBuffer GetBuffer(BlockBufferSerializer parent, int sizeHint)
@@ -93,7 +114,7 @@ internal abstract partial class BlockBufferSerializer
                 _writeOffset = _finalizedOffset = 0; // swipe left
             }
 
-            return _buffer.Length - _writeOffset;
+            return _array.Length - _writeOffset;
         }
 
         private static BlockBuffer GetBufferSlow(BlockBufferSerializer parent, int minBytes)
@@ -146,10 +167,10 @@ internal abstract partial class BlockBufferSerializer
             // record that the old buffer no longer logically has any non-committed bytes (mostly just for ToString())
             _writeOffset = _finalizedOffset;
             Debug.Assert(IsNonCommittedEmpty);
-            Dispose(); // decrement the observer
-            #if DEBUG
+            Release(); // decrement the observer
+#if DEBUG
             DebugCounters.OnBufferCompleted(_finalizedCount, _finalizedOffset);
-            #endif
+#endif
         }
 
         private void CopyFrom(Span<byte> source)
@@ -158,7 +179,7 @@ internal abstract partial class BlockBufferSerializer
             _writeOffset += source.Length;
         }
 
-        private Span<byte> NonFinalizedData => _buffer.AsSpan(
+        private Span<byte> NonFinalizedData => _array.AsSpan(
             _finalizedOffset, _writeOffset - _finalizedOffset);
 
         private bool TryResizeFor(int extraBytes)
@@ -167,15 +188,15 @@ internal abstract partial class BlockBufferSerializer
                 Volatile.Read(ref _refCount) == 1) // and no-one else is looking (we already tried reset)
             {
                 // we're already on the boundary - don't scrimp; just do the math from the end of the buffer
-                byte[] newArray = _arrayPool.Rent(_buffer.Length + extraBytes);
-                DebugCounters.OnBufferCapacity(newArray.Length - _buffer.Length); // account for extra only
+                byte[] newArray = _arrayPool.Rent(_array.Length + extraBytes);
+                DebugCounters.OnBufferCapacity(newArray.Length - _array.Length); // account for extra only
 
                 // copy the existing data (we always expect some, since we've clamped extraBytes to be
                 // much smaller than the default buffer size)
                 NonFinalizedData.CopyTo(newArray);
-                _buffer.DebugScramble();
-                _arrayPool.Return(_buffer);
-                _buffer = newArray;
+                _array.DebugScramble();
+                _arrayPool.Return(_array);
+                _array = newArray;
                 return true;
             }
 
@@ -200,24 +221,23 @@ internal abstract partial class BlockBufferSerializer
             _finalizedOffset = _writeOffset;
         }
 
-        private ReadOnlyMemory<byte> Finalize(out IDisposable? block)
+        private ReadOnlyMemory<byte> FinalizeBlock()
         {
             var length = _writeOffset - _finalizedOffset;
             Debug.Assert(length > 0, "already checked this in FinalizeMessage!");
-            ReadOnlyMemory<byte> chunk = new(_buffer, _finalizedOffset, length);
+            var chunk = CreateMemory(_finalizedOffset, length);
             _finalizedOffset = _writeOffset; // move the write head
 #if DEBUG
             _finalizedCount++;
             _parent.DebugMessageFinalized(length);
 #endif
             Interlocked.Increment(ref _refCount); // add an observer
-            block = this;
             return chunk;
         }
 
         private bool IsNonCommittedEmpty => _finalizedOffset == _writeOffset;
 
-        public static ReadOnlyMemory<byte> FinalizeMessage(BlockBufferSerializer parent, out IDisposable? block)
+        public static ReadOnlyMemory<byte> FinalizeMessage(BlockBufferSerializer parent)
         {
             var buffer = parent.Buffer;
             if (buffer is null || buffer.IsNonCommittedEmpty)
@@ -226,18 +246,44 @@ internal abstract partial class BlockBufferSerializer
                 if (buffer is not null) buffer._finalizedCount++;
                 parent.DebugMessageFinalized(0);
 #endif
-                return DefaultFinalize(out block);
+                return default;
             }
 
-            return buffer.Finalize(out block);
+            return buffer.FinalizeBlock();
         }
 
-        // very rare: means either no buffer *ever*, or we're finalizing an empty message (which isn't valid RESP!)
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ReadOnlyMemory<byte> DefaultFinalize(out IDisposable? block)
+        // MemoryManager<byte> pieces
+        protected override void Dispose(bool disposing)
         {
-            block = null;
-            return default;
+            if (disposing) Release();
+        }
+
+        public override Span<byte> GetSpan() => _array;
+        public int Length => _array.Length;
+
+        // base version is CreateMemory(GetSpan().Length); avoid that GetSpan()
+        public override Memory<byte> Memory => CreateMemory(_array.Length);
+
+        public override unsafe MemoryHandle Pin(int elementIndex = 0)
+        {
+            // We *could* be cute and use a shared pin - but that's a *lot*
+            // of work (synchronization), requires extra storage, and for an
+            // API that is very unlikely; hence: we'll use per-call GC pins.
+            GCHandle handle = GCHandle.Alloc(_array, GCHandleType.Pinned);
+            DebugCounters.OnBufferPinned(); // prove how unlikely this is
+            byte* ptr = (byte*)handle.AddrOfPinnedObject();
+            // note no IPinnable in the MemoryHandle;
+            return new MemoryHandle(ptr + elementIndex, handle);
+        }
+
+        // This would only be called if we passed out a MemoryHandle with ourselves
+        // as IPinnable (in Pin), which: we don't.
+        public override void Unpin() => throw new NotSupportedException();
+
+        protected override bool TryGetArray(out ArraySegment<byte> segment)
+        {
+            segment = new ArraySegment<byte>(_array);
+            return true;
         }
     }
 }
