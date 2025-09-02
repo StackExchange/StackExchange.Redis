@@ -453,7 +453,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                 if (counters.WriteBytes != 0)
                 {
                     Console.Write($"Write: {FormatBytes(counters.WriteBytes)}");
-                    if (counters.WriteCount != 0) Console.Write($"; {counters.WriteCount:#,##0} sync");
+                    if (counters.SyncWriteCount != 0) Console.Write($"; {counters.SyncWriteCount:#,##0} sync");
                     if (counters.AsyncWriteInlineCount != 0)
                         Console.Write($"; {counters.AsyncWriteInlineCount:#,##0} async-inline");
                     if (counters.AsyncWriteCount != 0) Console.Write($"; {counters.AsyncWriteCount:#,##0} full-async");

@@ -31,7 +31,7 @@ internal sealed class SynchronizedConnection(in RespContext tail) : DecoratorCon
         }
         catch (Exception ex)
         {
-            message.Message.TrySetException(message.Token, ex);
+            message.TrySetException(ex);
             throw;
         }
         finally

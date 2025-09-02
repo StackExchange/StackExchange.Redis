@@ -26,10 +26,9 @@ public readonly struct RespOperation<T>
         _disableCaptureContext = disableCaptureContext;
     }
 
-    internal IRespMessage Message => _message ?? RespOperation.ThrowNoMessage();
     public CancellationToken CancellationToken => Message.CancellationToken;
 
-    private RespMessageBase<T> TypedMessage => _message ?? (RespMessageBase<T>)RespOperation.ThrowNoMessage();
+    private RespMessageBase<T> Message => _message ?? (RespMessageBase<T>)RespOperation.ThrowNoMessage();
 
     /// <summary>
     /// Treats this operation as an untyped <see cref="RespOperation"/>.
@@ -44,34 +43,34 @@ public readonly struct RespOperation<T>
     /// Treats this operation as an untyped <see cref="ValueTask{T}"/>.
     /// </summary>
     public static implicit operator ValueTask<T>(in RespOperation<T> operation)
-        => new(operation.TypedMessage, operation._token);
+        => new(operation.Message, operation._token);
 
     /// <summary>
     /// Treats this operation as a <see cref="ValueTask"/>.
     /// </summary>
     public static implicit operator ValueTask(in RespOperation<T> operation)
-        => new(operation.TypedMessage, operation._token);
+        => new(operation.Message, operation._token);
 
     /// <inheritdoc cref="ValueTask.AsTask()"/>
-    public Task<T> AsTask() => new ValueTask<T>(TypedMessage, _token).AsTask();
+    public Task<T> AsTask() => new ValueTask<T>(Message, _token).AsTask();
 
-    public ValueTask<T> AsValueTask() => new(TypedMessage, _token);
+    public ValueTask<T> AsValueTask() => new(Message, _token);
 
     /// <inheritdoc cref="Task.Wait(TimeSpan)"/>
     public T Wait(TimeSpan timeout = default)
-        => TypedMessage.Wait(_token, timeout);
+        => Message.Wait(_token, timeout);
 
     /// <inheritdoc cref="ValueTask.IsCompleted"/>
-    public bool IsCompleted => TypedMessage.GetStatus(_token) != ValueTaskSourceStatus.Pending;
+    public bool IsCompleted => Message.GetStatus(_token) != ValueTaskSourceStatus.Pending;
 
     /// <inheritdoc cref="ValueTask.IsCompletedSuccessfully"/>
-    public bool IsCompletedSuccessfully => TypedMessage.GetStatus(_token) == ValueTaskSourceStatus.Succeeded;
+    public bool IsCompletedSuccessfully => Message.GetStatus(_token) == ValueTaskSourceStatus.Succeeded;
 
     /// <inheritdoc cref="ValueTask.IsFaulted"/>
-    public bool IsFaulted => TypedMessage.GetStatus(_token) == ValueTaskSourceStatus.Faulted;
+    public bool IsFaulted => Message.GetStatus(_token) == ValueTaskSourceStatus.Faulted;
 
     /// <inheritdoc cref="ValueTask.IsCanceled"/>
-    public bool IsCanceled => TypedMessage.GetStatus(_token) == ValueTaskSourceStatus.Canceled;
+    public bool IsCanceled => Message.GetStatus(_token) == ValueTaskSourceStatus.Canceled;
 
     /// <inheritdoc cref="ValueTaskAwaiter.OnCompleted(Action)"/>
     /// <see cref="INotifyCompletion.OnCompleted(Action)"/>
@@ -82,10 +81,10 @@ public readonly struct RespOperation<T>
             ? ValueTaskSourceOnCompletedFlags.FlowExecutionContext
             : ValueTaskSourceOnCompletedFlags.FlowExecutionContext |
               ValueTaskSourceOnCompletedFlags.UseSchedulingContext;
-        TypedMessage.OnCompletedWithNotSentDetection(RespOperation.InvokeState, continuation, _token, flags);
+        Message.OnCompletedWithNotSentDetection(RespOperation.InvokeState, continuation, _token, flags);
     }
 
-    public bool IsSent => TypedMessage.IsSent(_token);
+    public bool IsSent => Message.IsSent(_token);
 
     /// <inheritdoc cref="ICriticalNotifyCompletion.UnsafeOnCompleted(Action)"/>
     public void UnsafeOnCompleted(Action continuation)
@@ -94,11 +93,11 @@ public readonly struct RespOperation<T>
         var flags = _disableCaptureContext
             ? ValueTaskSourceOnCompletedFlags.None
             : ValueTaskSourceOnCompletedFlags.UseSchedulingContext;
-        TypedMessage.OnCompletedWithNotSentDetection(RespOperation.InvokeState, continuation, _token, flags);
+        Message.OnCompletedWithNotSentDetection(RespOperation.InvokeState, continuation, _token, flags);
     }
 
     /// <inheritdoc cref="ValueTaskAwaiter.GetResult"/>
-    public T GetResult() => TypedMessage.GetResult(_token);
+    public T GetResult() => Message.GetResult(_token);
 
     /// <inheritdoc cref="ValueTask.GetAwaiter()"/>
     public RespOperation<T> GetAwaiter() => this;

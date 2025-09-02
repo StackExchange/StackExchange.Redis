@@ -222,7 +222,7 @@ internal sealed class StreamConnection : RespConnection
             // another formatter glitch
             while (CommitAndParseFrames(read));
 
-            Volatile.Write(ref _readStatus, READER_COMPLETED);
+            Volatile.Write(ref _readStatus, ReaderCompleted);
             _readBuffer.Release(); // clean exit, we can recycle
         }
         catch (Exception ex)
@@ -257,7 +257,7 @@ internal sealed class StreamConnection : RespConnection
             // another formatter glitch
             while (CommitAndParseFrames(read));
 
-            Volatile.Write(ref _readStatus, READER_COMPLETED);
+            Volatile.Write(ref _readStatus, ReaderCompleted);
             _readBuffer.Release(); // clean exit, we can recycle
             tcs.TrySetResult(null);
         }
@@ -283,7 +283,7 @@ internal sealed class StreamConnection : RespConnection
     private void OnReadException(Exception ex, [CallerMemberName] string operation = "")
     {
         _fault ??= ex;
-        Volatile.Write(ref _readStatus, READER_FAILED);
+        Volatile.Write(ref _readStatus, ReaderFailed);
         Debug.WriteLine($"Reader failed: {ex.Message}");
         ActivationHelper.DebugBreak();
         while (_outstanding.TryDequeue(out var pending))
@@ -352,6 +352,31 @@ internal sealed class StreamConnection : RespConnection
         var reader = new RespReader(payload);
         reader.MoveNext();
         reader.SkipChildren();
+
+        if (reader.TryMoveNext())
+        {
+            throw new InvalidOperationException($"Unexpected trailing {reader.Prefix}");
+        }
+
+        if (reader.ProtocolBytesRemaining != 0)
+        {
+            var copy = reader; // leave reader alone for inspection
+            var prefix = copy.TryMoveNext() ? copy.Prefix : RespPrefix.None;
+            throw new InvalidOperationException(
+                $"Unexpected additional {reader.ProtocolBytesRemaining} bytes remaining, {prefix}");
+        }
+    }
+
+    [Conditional("DEBUG")]
+    private static void DebugValidateFrameCount(in ReadOnlySequence<byte> payload, int count)
+    {
+        var reader = new RespReader(payload);
+        while (count-- > 0)
+        {
+            reader.MoveNext();
+            reader.SkipChildren();
+        }
+
         if (reader.TryMoveNext())
         {
             throw new InvalidOperationException($"Unexpected trailing {reader.Prefix}");
@@ -410,14 +435,14 @@ internal sealed class StreamConnection : RespConnection
     }
 
     private int _writeStatus, _readStatus;
-    private const int WRITER_AVAILABLE = 0, WRITER_TAKEN = 1, WRITER_DOOMED = 2;
-    private const int READER_ACTIVE = 0, READER_FAILED = 1, READER_COMPLETED = 2;
+    private const int WriterAvailable = 0, WriterTaken = 1, WriterDoomed = 2;
+    private const int ReaderActive = 0, ReaderFailed = 1, ReaderCompleted = 2;
 
     private void TakeWriter()
     {
-        var status = Interlocked.CompareExchange(ref _writeStatus, WRITER_TAKEN, WRITER_AVAILABLE);
-        if (status != WRITER_AVAILABLE) ThrowWriterNotAvailable();
-        Debug.Assert(Volatile.Read(ref _writeStatus) == WRITER_TAKEN, "writer should be taken");
+        var status = Interlocked.CompareExchange(ref _writeStatus, WriterTaken, WriterAvailable);
+        if (status != WriterAvailable) ThrowWriterNotAvailable();
+        Debug.Assert(Volatile.Read(ref _writeStatus) == WriterTaken, "writer should be taken");
     }
 
     private void ThrowWriterNotAvailable()
@@ -426,10 +451,10 @@ internal sealed class StreamConnection : RespConnection
         var status = Volatile.Read(ref _writeStatus);
         var msg = status switch
         {
-            WRITER_TAKEN => "A write operation is already in progress; concurrent writes are not supported.",
-            WRITER_DOOMED when fault is not null => "This connection is terminated; no further writes are possible: " +
+            WriterTaken => "A write operation is already in progress; concurrent writes are not supported.",
+            WriterDoomed when fault is not null => "This connection is terminated; no further writes are possible: " +
                                                     fault.Message,
-            WRITER_DOOMED => "This connection is terminated; no further writes are possible.",
+            WriterDoomed => "This connection is terminated; no further writes are possible.",
             _ => $"Unexpected writer status: {status}",
         };
         throw fault is null ? new InvalidOperationException(msg) : new InvalidOperationException(msg, fault);
@@ -437,14 +462,14 @@ internal sealed class StreamConnection : RespConnection
 
     private Exception? _fault;
 
-    private void ReleaseWriter(int status = WRITER_AVAILABLE)
+    private void ReleaseWriter(int status = WriterAvailable)
     {
-        if (status == WRITER_AVAILABLE && _isDoomed)
+        if (status == WriterAvailable && _isDoomed)
         {
-            status = WRITER_DOOMED;
+            status = WriterDoomed;
         }
 
-        Interlocked.CompareExchange(ref _writeStatus, status, WRITER_TAKEN);
+        Interlocked.CompareExchange(ref _writeStatus, status, WriterTaken);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -453,7 +478,7 @@ internal sealed class StreamConnection : RespConnection
         if (!message.IsCompleted)
         {
             // make sure they know something is wrong
-            message.Message.TrySetException(message.Token, new InvalidOperationException("Request is not available"));
+            message.TrySetException(new InvalidOperationException("Request is not available"));
         }
     }
 
@@ -466,18 +491,26 @@ internal sealed class StreamConnection : RespConnection
             return;
         }
 
-        DebugValidateSingleFrame(bytes.Span);
+        DebugValidateFrameCount(bytes, message.MessageCount);
         TakeWriter();
         try
         {
             _outstanding.Enqueue(message);
             releaseRequest = false; // once we write, only release on success
+            if (bytes.IsSingleSegment)
+            {
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
-            tail.Write(bytes.Span);
+                tail.Write(bytes.FirstSpan);
 #else
-            tail.Write(bytes);
+                tail.Write(bytes.First);
 #endif
-            DebugCounters.OnWrite(bytes.Length);
+                DebugCounters.OnSyncWrite(bytes.First.Length);
+            }
+            else
+            {
+                WriteMultiSegment(tail, in bytes);
+            }
+
             ReleaseWriter();
             message.Message.ReleaseRequest();
         }
@@ -485,10 +518,33 @@ internal sealed class StreamConnection : RespConnection
         {
             Debug.WriteLine($"Writer failed: {ex.Message}");
             ActivationHelper.DebugBreak();
-            ReleaseWriter(WRITER_DOOMED);
+            ReleaseWriter(WriterDoomed);
             if (releaseRequest) message.Message.ReleaseRequest();
             OnConnectionError(ConnectionError, ex);
             throw;
+        }
+    }
+
+    private static void WriteMultiSegment(Stream tail, in ReadOnlySequence<byte> payload)
+    {
+        foreach (var segment in payload)
+        {
+#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+            tail.Write(segment.Span);
+#else
+            tail.Write(segment);
+#endif
+            DebugCounters.OnSyncWrite(segment.Length);
+        }
+    }
+
+    private static async ValueTask WriteMultiSegmentAsync(Stream tail, ReadOnlySequence<byte> payload)
+    {
+        foreach (var segment in payload)
+        {
+            var pending = tail.WriteAsync(segment, CancellationToken.None);
+            DebugCounters.OnAsyncWrite(segment.Length, pending.IsCompleted);
+            await pending.ConfigureAwait(false);
         }
     }
 
@@ -504,7 +560,7 @@ internal sealed class StreamConnection : RespConnection
         }
 
         TakeWriter();
-        IRespMessage? toRelease = null;
+        RespMessageBase? toRelease = null;
         try
         {
             foreach (var message in messages)
@@ -519,15 +575,23 @@ internal sealed class StreamConnection : RespConnection
                     continue;
                 }
 
-                DebugValidateSingleFrame(bytes.Span);
+                DebugValidateFrameCount(bytes, message.MessageCount);
                 _outstanding.Enqueue(message);
                 toRelease = null; // once we write, only release on success
+                if (bytes.IsSingleSegment)
+                {
 #if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
-                tail.Write(bytes.Span);
+                    tail.Write(bytes.FirstSpan);
 #else
-                tail.Write(bytes);
+                    tail.Write(bytes.First);
 #endif
-                DebugCounters.OnWrite(bytes.Length);
+                    DebugCounters.OnSyncWrite(bytes.First.Length);
+                }
+                else
+                {
+                    WriteMultiSegment(tail, in bytes);
+                }
+
                 ReleaseWriter();
                 message.Message.ReleaseRequest();
             }
@@ -536,7 +600,7 @@ internal sealed class StreamConnection : RespConnection
         {
             Debug.WriteLine($"Writer failed: {ex.Message}");
             ActivationHelper.DebugBreak();
-            ReleaseWriter(WRITER_DOOMED);
+            ReleaseWriter(WriterDoomed);
             toRelease?.ReleaseRequest();
             foreach (var message in messages)
             {
@@ -558,26 +622,27 @@ internal sealed class StreamConnection : RespConnection
             return Task.CompletedTask;
         }
 
-        DebugValidateSingleFrame(bytes.Span);
-        TakeWriter();
+        DebugValidateFrameCount(bytes, message.MessageCount);
         try
         {
             _outstanding.Enqueue(message);
             releaseRequest = false; // once we write, only release on success
-            var pendingWrite = tail.WriteAsync(bytes, CancellationToken.None);
-            if (!pendingWrite.IsCompleted)
+            ValueTask pendingWrite;
+            if (bytes.IsSingleSegment)
             {
-                return AwaitedSingleWithToken(
-                    this,
-                    pendingWrite,
-#if DEBUG
-                    bytes.Length,
-#endif
-                    message.Message);
+                pendingWrite = tail.WriteAsync(bytes.First, CancellationToken.None);
+                DebugCounters.OnAsyncWrite(bytes.First.Length, pendingWrite.IsCompleted);
+            }
+            else
+            {
+                pendingWrite = WriteMultiSegmentAsync(tail, bytes);
             }
 
+            if (!pendingWrite.IsCompleted)
+            {
+                return AwaitedSingleWithToken(this, pendingWrite, message.Message);
+            }
             pendingWrite.GetAwaiter().GetResult();
-            DebugCounters.OnAsyncWrite(bytes.Length, true);
             ReleaseWriter();
             message.Message.ReleaseRequest();
             return Task.CompletedTask;
@@ -586,7 +651,7 @@ internal sealed class StreamConnection : RespConnection
         {
             Debug.WriteLine($"Writer failed: {ex.Message}");
             ActivationHelper.DebugBreak();
-            ReleaseWriter(WRITER_DOOMED);
+            ReleaseWriter(WriterDoomed);
             if (releaseRequest) message.Message.ReleaseRequest();
             OnConnectionError(ConnectionError, ex);
             throw;
@@ -595,23 +660,17 @@ internal sealed class StreamConnection : RespConnection
         static async Task AwaitedSingleWithToken(
             StreamConnection @this,
             ValueTask pendingWrite,
-#if DEBUG
-            int length,
-#endif
-            IRespMessage message)
+            RespMessageBase message)
         {
             try
             {
                 await pendingWrite.ConfigureAwait(false);
-#if DEBUG
-                DebugCounters.OnAsyncWrite(length, false);
-#endif
                 @this.ReleaseWriter();
                 message.ReleaseRequest();
             }
             catch (Exception ex)
             {
-                @this.ReleaseWriter(WRITER_DOOMED);
+                @this.ReleaseWriter(WriterDoomed);
                 OnConnectionError(@this.ConnectionError, ex, $"{nameof(WriteAsync)}:{nameof(AwaitedSingleWithToken)}");
                 throw;
             }
@@ -636,7 +695,7 @@ internal sealed class StreamConnection : RespConnection
     private async Task CombineAndSendMultipleAsync(StreamConnection @this, ReadOnlyMemory<RespOperation> messages)
     {
         TakeWriter();
-        IRespMessage? toRelease = null;
+        RespMessageBase? toRelease = null;
         int definitelySent = 0;
         try
         {
@@ -650,9 +709,10 @@ internal sealed class StreamConnection : RespConnection
                     continue; // skip this message
                 }
 
+                DebugValidateFrameCount(bytes, message.MessageCount);
                 toRelease = message.Message;
                 // append to the scratch and consider written (even though we haven't actually)
-                _writeBuffer.Write(bytes.Span);
+                _writeBuffer.Write(bytes);
                 toRelease = null;
                 message.Message.ReleaseRequest();
                 @this._outstanding.Enqueue(message);
@@ -696,7 +756,7 @@ internal sealed class StreamConnection : RespConnection
         {
             Debug.WriteLine($"Writer failed: {ex.Message}");
             ActivationHelper.DebugBreak();
-            ReleaseWriter(WRITER_DOOMED);
+            ReleaseWriter(WriterDoomed);
             toRelease?.ReleaseRequest();
             foreach (var message in messages.Span.Slice(start: definitelySent))
             {
@@ -711,7 +771,7 @@ internal sealed class StreamConnection : RespConnection
     private void Doom()
     {
         _isDoomed = true; // without a reader, there's no point writing
-        Interlocked.CompareExchange(ref _writeStatus, WRITER_DOOMED, WRITER_AVAILABLE);
+        Interlocked.CompareExchange(ref _writeStatus, WriterDoomed, WriterAvailable);
     }
 
     protected override void OnDispose(bool disposing)

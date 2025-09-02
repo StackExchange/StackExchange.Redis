@@ -43,7 +43,7 @@ internal sealed class BasicBatchConnection : RespBatch
 #else
             foreach (var message in _unsent)
             {
-                message.Message.TrySetException(message.Token, CreateObjectDisposedException());
+                message.TrySetException(CreateObjectDisposedException());
             }
 #endif
             _unsent.Clear();

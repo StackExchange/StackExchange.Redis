@@ -36,11 +36,11 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     }
 
     // it is important that this layout remains identical between RespOperation and RespOperation<T>
-    private readonly IRespMessage _message;
+    private readonly RespMessageBase _message;
     private readonly short _token;
     private readonly bool _disableCaptureContext; // default is false, so: bypass
 
-    internal RespOperation(IRespMessage message, bool disableCaptureContext = false)
+    internal RespOperation(RespMessageBase message, bool disableCaptureContext = false)
     {
         _message = message;
         _token = message.Token;
@@ -48,9 +48,9 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     }
 
     public bool IsSent => Message.IsSent(_token);
-    internal IRespMessage Message => _message ?? ThrowNoMessage();
+    internal RespMessageBase Message => _message ?? ThrowNoMessage();
 
-    internal static IRespMessage ThrowNoMessage()
+    internal static RespMessageBase ThrowNoMessage()
         => throw new InvalidOperationException($"{nameof(RespOperation)} is not correctly initialized");
 
     /// <summary>
@@ -66,7 +66,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
 
     /// <inheritdoc cref="Task.Wait(TimeSpan)"/>
     public void Wait(TimeSpan timeout = default)
-        => Message.Wait(_token, timeout);
+        => Message.WaitVoid(_token, timeout);
 
     /// <inheritdoc cref="ValueTask.IsCompleted"/>
     public bool IsCompleted => Message.GetStatus(_token) != ValueTaskSourceStatus.Pending;
@@ -80,8 +80,14 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     /// <inheritdoc cref="ValueTask.IsCanceled"/>
     public bool IsCanceled => Message.GetStatus(_token) == ValueTaskSourceStatus.Canceled;
 
-    internal short Token => _token;
     public ref readonly CancellationToken CancellationToken => ref Message.CancellationToken;
+
+    internal short Token => _token;
+    internal int MessageCount => Message.MessageCount;
+    internal bool TrySetException(Exception exception) => Message.TrySetException(_token, exception);
+    internal bool TrySetCancelled(CancellationToken cancellationToken = default) => Message.TrySetCanceled(_token, cancellationToken);
+    internal bool TryReserveRequest(out ReadOnlySequence<byte> payload, bool recordSent = true) => Message.TryReserveRequest(_token, out payload, recordSent);
+    internal void ReleaseRequest() => Message.ReleaseRequest();
 
     internal static readonly Action<object?> InvokeState = static state => ((Action)state!).Invoke();
 
@@ -108,7 +114,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     }
 
     /// <inheritdoc cref="ValueTaskAwaiter.GetResult"/>
-    public void GetResult() => Message.GetResult(_token);
+    public void GetResult() => Message.GetResultVoid(_token);
 
     /// <inheritdoc cref="ValueTask.GetAwaiter()"/>
     public RespOperation GetAwaiter() => this;
@@ -128,10 +134,10 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct Remote
     {
-        private readonly IRespMessage _message;
+        private readonly RespMessageBase _message;
         private readonly short _token;
 
-        internal Remote(IRespMessage message)
+        internal Remote(RespMessageBase message)
         {
             _message = message;
             _token = message.Token;
@@ -167,7 +173,8 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         bool sent = true,
         CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<bool>.Get(null).Init(sent, cancellationToken);
+        var msg = RespMessage<bool>.Get(null);
+        msg.Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation(msg);
     }
@@ -183,7 +190,8 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         bool sent = true,
         CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<TResult>.Get(parser).Init(sent, cancellationToken);
+        var msg = RespMessage<TResult>.Get(parser);
+        msg.Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation<TResult>(msg);
     }
@@ -201,7 +209,8 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         bool sent = true,
         CancellationToken cancellationToken = default)
     {
-        var msg = RespMessage<TState, TResult>.Get(in state, parser).Init(sent, cancellationToken);
+        var msg = RespMessage<TState, TResult>.Get(in state, parser);
+        msg.Init(sent, cancellationToken);
         remote = new(msg);
         return new RespOperation<TResult>(msg);
     }

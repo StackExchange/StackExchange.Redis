@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -31,6 +32,22 @@ internal static class RespOperationExtensions
     [Conditional("DEBUG")]
     internal static void DebugScramble(this ReadOnlyMemory<byte> value)
         => MemoryMarshal.AsMemory(value).Span.Fill(42);
+
+    [Conditional("DEBUG")]
+    internal static void DebugScramble(this ReadOnlySequence<byte> value)
+    {
+        if (value.IsSingleSegment)
+        {
+            value.First.DebugScramble();
+        }
+        else
+        {
+            foreach (var segment in value)
+            {
+                segment.DebugScramble();
+            }
+        }
+    }
 
     [Conditional("DEBUG")]
     internal static void DebugScramble(this byte[]? value)

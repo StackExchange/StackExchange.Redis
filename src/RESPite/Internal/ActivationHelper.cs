@@ -1,6 +1,5 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 
 namespace RESPite.Internal;
 
@@ -14,7 +13,7 @@ internal static class ActivationHelper
         private WorkItem()
         {
 #if NET5_0_OR_GREATER
-            Unsafe.SkipInit(out _payload);
+            System.Runtime.CompilerServices.Unsafe.SkipInit(out _payload);
 #else
             _payload = [];
 #endif
@@ -69,16 +68,18 @@ internal static class ActivationHelper
             _payload = [];
             _length = 0;
             Interlocked.Exchange(ref _spare, this);
-            message.Message.TrySetResult(message.Token, new ReadOnlySpan<byte>(payload, 0, length));
+            var msg = message;
+            msg.Message.TrySetResult(msg.Token, new ReadOnlySpan<byte>(payload, 0, length));
             ArrayPool<byte>.Shared.Return(payload);
         }
     }
 
     public static void ProcessResponse(in RespOperation pending, ReadOnlySpan<byte> payload, ref byte[]? lease)
     {
-        if (pending.Message.AllowInlineParsing)
+        var msg = pending.Message;
+        if (msg.AllowInlineParsing)
         {
-            pending.Message.TrySetResult(pending.Token, payload);
+            msg.TrySetResult(pending.Token, payload);
         }
         else
         {
@@ -87,10 +88,10 @@ internal static class ActivationHelper
     }
 
     private static readonly Action<object?> CancellationCallback = static state
-        => ((IRespMessage)state!).TrySetCanceled();
+        => ((RespMessageBase)state!).TrySetCanceledTrustToken();
 
     public static CancellationTokenRegistration RegisterForCancellation(
-        IRespMessage message,
+        RespMessageBase message,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

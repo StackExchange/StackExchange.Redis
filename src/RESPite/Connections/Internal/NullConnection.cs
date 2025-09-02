@@ -18,7 +18,7 @@ internal sealed class NullConnection : RespConnection
     private const string SendErrorMessage = "Null connections do not support sending messages.";
     public override void Write(in RespOperation message)
     {
-        message.Message.TrySetException(message.Token, new NotSupportedException(SendErrorMessage));
+        message.TrySetException(new NotSupportedException(SendErrorMessage));
     }
 
     public override Task WriteAsync(in RespOperation message)

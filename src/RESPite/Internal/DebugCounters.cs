@@ -11,7 +11,7 @@ internal partial class DebugCounters
     private static int _tallyReadCount,
         _tallyAsyncReadCount,
         _tallyAsyncReadInlineCount,
-        _tallyWriteCount,
+        _tallySyncWriteCount,
         _tallyAsyncWriteCount,
         _tallyAsyncWriteInlineCount,
         _tallyCopyOutCount,
@@ -81,10 +81,10 @@ internal partial class DebugCounters
     }
 
     [Conditional("DEBUG")]
-    internal static void OnWrite(int bytes)
+    internal static void OnSyncWrite(int bytes)
     {
 #if DEBUG
-        Interlocked.Increment(ref _tallyWriteCount);
+        Interlocked.Increment(ref _tallySyncWriteCount);
         if (bytes > 0) Interlocked.Add(ref _tallyWriteBytes, bytes);
 #endif
     }
@@ -242,7 +242,7 @@ internal partial class DebugCounters
     public int AsyncReadInlineCount { get; } = Interlocked.Exchange(ref _tallyAsyncReadInlineCount, 0);
     public long ReadBytes { get; } = Interlocked.Exchange(ref _tallyReadBytes, 0);
 
-    public int WriteCount { get; } = Interlocked.Exchange(ref _tallyWriteCount, 0);
+    public int SyncWriteCount { get; } = Interlocked.Exchange(ref _tallySyncWriteCount, 0);
     public int AsyncWriteCount { get; } = Interlocked.Exchange(ref _tallyAsyncWriteCount, 0);
     public int AsyncWriteInlineCount { get; } = Interlocked.Exchange(ref _tallyAsyncWriteInlineCount, 0);
     public long WriteBytes { get; } = Interlocked.Exchange(ref _tallyWriteBytes, 0);
