@@ -109,78 +109,82 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         await CleanupAsync().ConfigureAwait(false);
     }
 
-    protected override RespContext CreateBatch(RespContext client) => client.CreateBatch().Context;
+    protected override RespContext CreateBatch(RespContext client) => client.CreateBatch(PipelineDepth).Context;
 
-    protected override Func<ValueTask> GetFlush(RespContext client)
+    protected override ValueTask Flush(RespContext client)
     {
         if (client.Connection is RespBatch batch)
         {
-            return () =>
-            {
-                return new(batch.FlushAsync());
-            };
+            return new(batch.FlushAsync());
         }
 
-        return base.GetFlush(client);
+        return default;
+    }
+
+    protected override void PrepareBatch(RespContext client, int count)
+    {
+        if (client.Connection is RespBatch batch)
+        {
+            batch.EnsureCapacity(count);
+        }
     }
 
     [DisplayName("PING_INLINE")]
-    private Task<RespParsers.ResponseSummary> PingInline(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.PingInlineAsync(_payload), flush);
+    private ValueTask<RespParsers.ResponseSummary> PingInline(RespContext ctx) => ctx.PingInlineAsync(_payload);
 
     [DisplayName("PING_BULK")]
-    private Task<RespParsers.ResponseSummary> PingBulk(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.PingAsync(_payload), flush);
+    private ValueTask<RespParsers.ResponseSummary> PingBulk(RespContext ctx) => ctx.PingAsync(_payload);
 
     [DisplayName("INCR")]
-    private Task<int> Incr(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.IncrAsync(_counterKey), flush);
+    private ValueTask<int> Incr(RespContext ctx) => ctx.IncrAsync(_counterKey);
 
     [DisplayName("GET")]
-    private Task<RespParsers.ResponseSummary> Get(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.GetAsync(_getSetKey), flush);
+    private ValueTask<RespParsers.ResponseSummary> Get(RespContext ctx) => ctx.GetAsync(_getSetKey);
 
-    private Task GetInit(RespContext ctx) => ctx.SetAsync(_getSetKey, _payload).AsTask();
+    private ValueTask GetInit(RespContext ctx) => ctx.SetAsync(_getSetKey, _payload).AsUntypedValueTask();
 
     [DisplayName("SET")]
-    private Task<RespParsers.ResponseSummary> Set(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.SetAsync(_getSetKey, _payload), flush);
+    private ValueTask<RespParsers.ResponseSummary> Set(RespContext ctx) => ctx.SetAsync(_getSetKey, _payload);
 
     [DisplayName("LPUSH")]
-    private Task<int> LPush(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.LPushAsync(_listKey, _payload), flush);
+    private ValueTask<int> LPush(RespContext ctx) => ctx.LPushAsync(_listKey, _payload);
 
     [DisplayName("RPUSH")]
-    private Task<int> RPush(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.RPushAsync(_listKey, _payload), flush);
+    private ValueTask<int> RPush(RespContext ctx) => ctx.RPushAsync(_listKey, _payload);
 
     [DisplayName("LRANGE_100")]
-    private Task<RespParsers.ResponseSummary> LRange100(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.LRangeAsync(_listKey, 0, 99), flush);
+    private ValueTask<RespParsers.ResponseSummary> LRange100(RespContext ctx) => ctx.LRangeAsync(_listKey, 0, 99);
 
     [DisplayName("LRANGE_300")]
-    private Task<RespParsers.ResponseSummary> LRange300(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.LRangeAsync(_listKey, 0, 299), flush);
+    private ValueTask<RespParsers.ResponseSummary> LRange300(RespContext ctx) => ctx.LRangeAsync(_listKey, 0, 299);
 
     [DisplayName("LRANGE_500")]
-    private Task<RespParsers.ResponseSummary> LRange500(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.LRangeAsync(_listKey, 0, 499), flush);
+    private ValueTask<RespParsers.ResponseSummary> LRange500(RespContext ctx) => ctx.LRangeAsync(_listKey, 0, 499);
 
     [DisplayName("LRANGE_600")]
-    private Task<RespParsers.ResponseSummary> LRange600(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.LRangeAsync(_listKey, 0, 599), flush);
+    private ValueTask<RespParsers.ResponseSummary> LRange600(RespContext ctx) => ctx.LRangeAsync(_listKey, 0, 599);
 
     [DisplayName("LPOP")]
-    private Task<RespParsers.ResponseSummary> LPop(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.LPopAsync(_listKey), flush);
+    private ValueTask<RespParsers.ResponseSummary> LPop(RespContext ctx) => ctx.LPopAsync(_listKey);
 
     [DisplayName("RPOP")]
-    private Task<RespParsers.ResponseSummary> RPop(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.RPopAsync(_listKey), flush);
+    private ValueTask<RespParsers.ResponseSummary> RPop(RespContext ctx) => ctx.RPopAsync(_listKey);
 
-    private Task LPopInit(RespContext ctx) => ctx.LPushAsync(_listKey, _payload, TotalOperations).AsTask();
+    private ValueTask LPopInit(RespContext ctx) => ctx.LPushAsync(_listKey, _payload, TotalOperations).AsUntypedValueTask();
 
     [DisplayName("SADD")]
-    private Task<int> SAdd(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.SAddAsync(_setKey, "element:__rand_int__"), flush);
+    private ValueTask<int> SAdd(RespContext ctx) => ctx.SAddAsync(_setKey, "element:__rand_int__");
 
     [DisplayName("HSET")]
-    private Task<int> HSet(RespContext ctx, Func<ValueTask> flush) =>
-        Pipeline(() => ctx.HSetAsync(_hashKey, "element:__rand_int__", _payload), flush);
+    private ValueTask<int> HSet(RespContext ctx) => ctx.HSetAsync(_hashKey, "element:__rand_int__", _payload);
 
     [DisplayName("ZADD")]
-    private Task<int> ZAdd(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.ZAddAsync(_sortedSetKey, 0, "element:__rand_int__"), flush);
+    private ValueTask<int> ZAdd(RespContext ctx) => ctx.ZAddAsync(_sortedSetKey, 0, "element:__rand_int__");
 
     [DisplayName("ZPOPMIN")]
-    private Task<RespParsers.ResponseSummary> ZPopMin(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.ZPopMinAsync(_sortedSetKey), flush);
+    private ValueTask<RespParsers.ResponseSummary> ZPopMin(RespContext ctx) => ctx.ZPopMinAsync(_sortedSetKey);
 
-    private async Task ZPopMinInit(RespContext ctx)
+    private async ValueTask ZPopMinInit(RespContext ctx)
     {
         int ops = TotalOperations;
         var rand = new Random();
@@ -192,9 +196,9 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     }
 
     [DisplayName("SPOP")]
-    private Task<RespParsers.ResponseSummary> SPop(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.SPopAsync(_setKey), flush);
+    private ValueTask<RespParsers.ResponseSummary> SPop(RespContext ctx) => ctx.SPopAsync(_setKey);
 
-    private async Task SPopInit(RespContext ctx)
+    private async ValueTask SPopInit(RespContext ctx)
     {
         int ops = TotalOperations;
         for (int i = 0; i < ops; i++)
@@ -204,13 +208,12 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     }
 
     [DisplayName("MSET"), Description("10 keys")]
-    private Task<bool> MSet(RespContext ctx, Func<ValueTask> flush) => Pipeline(() => ctx.MSetAsync(_pairs), flush);
+    private ValueTask<bool> MSet(RespContext ctx) => ctx.MSetAsync(_pairs);
 
-    private Task LRangeInit(RespContext ctx) => ctx.LPushAsync(_listKey, _payload, TotalOperations).AsTask();
+    private ValueTask LRangeInit(RespContext ctx) => ctx.LPushAsync(_listKey, _payload, TotalOperations).AsUntypedValueTask();
 
     [DisplayName("XADD")]
-    private Task<RespParsers.ResponseSummary> XAdd(RespContext ctx, Func<ValueTask> flush) =>
-        Pipeline(() => ctx.XAddAsync(_streamKey, "*", "myfield", _payload), flush);
+    private ValueTask<RespParsers.ResponseSummary> XAdd(RespContext ctx) => ctx.XAddAsync(_streamKey, "*", "myfield", _payload);
 }
 
 internal static partial class RedisCommands

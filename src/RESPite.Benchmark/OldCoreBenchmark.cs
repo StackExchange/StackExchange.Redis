@@ -76,115 +76,134 @@ public class OldCoreBenchmark : BenchmarkBase<IDatabaseAsync>
 
     protected override IDatabaseAsync CreateBatch(IDatabaseAsync client) => ((IDatabase)client).CreateBatch();
 
-    protected override Func<ValueTask> GetFlush(IDatabaseAsync client)
+    protected override ValueTask Flush(IDatabaseAsync client)
     {
         if (client is IBatch batch)
         {
-            return () =>
-            {
-                batch.Execute();
-                return default;
-            };
+            batch.Execute();
         }
-        return GetFlush(client);
+
+        return default;
     }
 
     [DisplayName("GET")]
-    private Task<int> Get(IDatabaseAsync client, Func<ValueTask> flush) => Pipeline(() => GetAndMeasureString(client), flush);
+    private ValueTask<int> Get(IDatabaseAsync client) => GetAndMeasureString(client);
 
-    private async Task<int> GetAndMeasureString(IDatabaseAsync client)
+    private async ValueTask<int> GetAndMeasureString(IDatabaseAsync client)
     {
         using var lease = await client.StringGetLeaseAsync(_getSetKey).ConfigureAwait(false);
         return lease?.Length ?? -1;
     }
 
     [DisplayName("SET")]
-    private Task<bool> Set(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.StringSetAsync(_getSetKey, _payload), flush);
+    private ValueTask<bool> Set(IDatabaseAsync client) => client.StringSetAsync(_getSetKey, _payload).AsValueTask();
 
-    private Task GetInit(IDatabaseAsync client) => client.StringSetAsync(_getSetKey, _payload);
+    private ValueTask GetInit(IDatabaseAsync client) =>
+        client.StringSetAsync(_getSetKey, _payload).AsUntypedValueTask();
 
-    private Task PingInline(IDatabaseAsync client, Func<ValueTask> flush) => Pipeline(() => client.PingAsync(), flush);
+    private ValueTask<TimeSpan> PingInline(IDatabaseAsync client) => client.PingAsync().AsValueTask();
 
     [DisplayName("PING_BULK")]
-    private Task<TimeSpan> PingBulk(IDatabaseAsync client, Func<ValueTask> flush) => Pipeline(() => client.PingAsync(), flush);
+    private ValueTask<TimeSpan> PingBulk(IDatabaseAsync client) => client.PingAsync().AsValueTask();
 
     [DisplayName("INCR")]
-    private Task<long> Incr(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.StringIncrementAsync(_counterKey), flush);
+    private ValueTask<long> Incr(IDatabaseAsync client) => client.StringIncrementAsync(_counterKey).AsValueTask();
 
     [DisplayName("HSET")]
-    private Task<bool> HSet(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.HashSetAsync(_hashKey, "element:__rand_int__", _payload), flush);
+    private ValueTask<bool> HSet(IDatabaseAsync client) =>
+        client.HashSetAsync(_hashKey, "element:__rand_int__", _payload).AsValueTask();
 
     [DisplayName("SADD")]
-    private Task<bool> SAdd(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.SetAddAsync(_setKey, "element:__rand_int__"), flush);
+    private ValueTask<bool> SAdd(IDatabaseAsync client) =>
+        client.SetAddAsync(_setKey, "element:__rand_int__").AsValueTask();
 
     [DisplayName("LPUSH")]
-    private Task<long> LPush(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.ListLeftPushAsync(_listKey, _payload), flush);
+    private ValueTask<long> LPush(IDatabaseAsync client) => client.ListLeftPushAsync(_listKey, _payload).AsValueTask();
 
     [DisplayName("RPUSH")]
-    private Task<long> RPush(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.ListRightPushAsync(_listKey, _payload), flush);
+    private ValueTask<long> RPush(IDatabaseAsync client) => client.ListRightPushAsync(_listKey, _payload).AsValueTask();
 
     [DisplayName("LPOP")]
-    private Task<RedisValue> LPop(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.ListLeftPopAsync(_listKey), flush);
+    private ValueTask<RedisValue> LPop(IDatabaseAsync client) => client.ListLeftPopAsync(_listKey).AsValueTask();
 
     [DisplayName("RPOP")]
-    private Task<RedisValue> RPop(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.ListRightPopAsync(_listKey), flush);
+    private ValueTask<RedisValue> RPop(IDatabaseAsync client) => client.ListRightPopAsync(_listKey).AsValueTask();
 
-    private Task LPopInit(IDatabaseAsync client) => client.ListLeftPushAsync(_listKey, _payload);
+    private ValueTask LPopInit(IDatabaseAsync client) =>
+        client.ListLeftPushAsync(_listKey, _payload).AsUntypedValueTask();
 
     [DisplayName("SPOP")]
-    private Task<RedisValue> SPop(IDatabaseAsync client, Func<ValueTask> flush) => Pipeline(() => client.SetPopAsync(_setKey), flush);
-    private Task SPopInit(IDatabaseAsync client) => client.SetAddAsync(_setKey, "element:__rand_int__");
+    private ValueTask<RedisValue> SPop(IDatabaseAsync client) => client.SetPopAsync(_setKey).AsValueTask();
+
+    private ValueTask SPopInit(IDatabaseAsync client) =>
+        client.SetAddAsync(_setKey, "element:__rand_int__").AsUntypedValueTask();
 
     [DisplayName("ZADD")]
-    private Task<bool> ZAdd(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.SortedSetAddAsync(_sortedSetKey, "element:__rand_int__", 0), flush);
+    private ValueTask<bool> ZAdd(IDatabaseAsync client) =>
+        client.SortedSetAddAsync(_sortedSetKey, "element:__rand_int__", 0).AsValueTask();
 
     [DisplayName("ZPOPMIN")]
-    private Task<int> ZPopMin(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => CountAsync(client.SortedSetPopAsync(_sortedSetKey, 1)), flush);
+    private ValueTask<int> ZPopMin(IDatabaseAsync client) => CountAsync(client.SortedSetPopAsync(_sortedSetKey, 1));
 
-    private Task ZPopMinInit(IDatabaseAsync client) => client.SortedSetAddAsync(_sortedSetKey, "element:__rand_int__", 0);
+    private async ValueTask ZPopMinInit(IDatabaseAsync client)
+    {
+        int ops = TotalOperations;
+        var rand = new Random();
+        for (int i = 0; i < ops; i++)
+        {
+            await client.SortedSetAddAsync(_sortedSetKey, "element:__rand_int__", (rand.NextDouble() * 2000) - 1000)
+                .ConfigureAwait(false);
+        }
+    }
 
     [DisplayName("MSET")]
-    private Task<bool> MSet(IDatabaseAsync client, Func<ValueTask> flush) => Pipeline(() => client.StringSetAsync(_pairs), flush);
+    private ValueTask<bool> MSet(IDatabaseAsync client) => client.StringSetAsync(_pairs).AsValueTask();
 
     [DisplayName("XADD")]
-    private Task<RedisValue> XAdd(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => client.StreamAddAsync(_streamKey, "myfield", _payload), flush);
+    private ValueTask<RedisValue> XAdd(IDatabaseAsync client) =>
+        client.StreamAddAsync(_streamKey, "myfield", _payload).AsValueTask();
 
     [DisplayName("LRANGE_100")]
-    private Task<int> LRange100(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => CountAsync(client.ListRangeAsync(_listKey, 0, 99)), flush);
+    private ValueTask<int> LRange100(IDatabaseAsync client) => CountAsync(client.ListRangeAsync(_listKey, 0, 99));
 
     [DisplayName("LRANGE_300")]
-    private Task<int> LRange300(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => CountAsync(client.ListRangeAsync(_listKey, 0, 299)), flush);
+    private ValueTask<int> LRange300(IDatabaseAsync client) => CountAsync(client.ListRangeAsync(_listKey, 0, 299));
 
     [DisplayName("LRANGE_500")]
-    private Task<int> LRange500(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => CountAsync(client.ListRangeAsync(_listKey, 0, 499)), flush);
+    private ValueTask<int> LRange500(IDatabaseAsync client) => CountAsync(client.ListRangeAsync(_listKey, 0, 499));
 
     [DisplayName("LRANGE_600")]
-    private Task<int> LRange600(IDatabaseAsync client, Func<ValueTask> flush) =>
-        Pipeline(() => CountAsync(client.ListRangeAsync(_listKey, 0, 599)), flush);
+    private ValueTask<int> LRange600(IDatabaseAsync client) =>
+        CountAsync(client.ListRangeAsync(_listKey, 0, 599));
 
-    private static Task<int> CountAsync<T>(Task<T[]> task) =>
-        task.ContinueWith(t => t.Result.Length, TaskContinuationOptions.ExecuteSynchronously);
+    private static ValueTask<int> CountAsync<T>(Task<T[]> task) => task.ContinueWith(
+        t => t.Result.Length, TaskContinuationOptions.ExecuteSynchronously).AsValueTask();
 
-    private async Task LRangeInit(IDatabaseAsync client)
+    private async ValueTask LRangeInit(IDatabaseAsync client)
     {
         var ops = TotalOperations;
         for (int i = 0; i < ops; i++)
         {
             await client.ListLeftPushAsync(_listKey, _payload);
+        }
+    }
+}
+
+internal static class TaskExtensions
+{
+    public static ValueTask<T> AsValueTask<T>(this Task<T> task) => new(task);
+    public static ValueTask AsUntypedValueTask(this Task task) => new(task);
+    public static ValueTask AsValueTask<T>(this Task task) => new(task);
+
+    public static ValueTask AsUntypedValueTask<T>(this ValueTask<T> task)
+    {
+        if (!task.IsCompleted) return Awaited(task);
+        task.GetAwaiter().GetResult();
+        return default;
+
+        static async ValueTask Awaited(ValueTask<T> task)
+        {
+            await task.ConfigureAwait(false);
         }
     }
 }

@@ -19,4 +19,11 @@ public abstract class RespBatch : RespConnection
     }
 
     internal override bool IsHealthy => base.IsHealthy & Tail.IsHealthy;
+
+    /// <summary>
+    /// Suggests that the batch should ensure it has enough capacity for the given number of additional operations.
+    /// Note that this contrasts with <see cref="List{T}"/>, where the number provided
+    /// is the total number of elements.
+    /// </summary>
+    public virtual void EnsureCapacity(int additionalCount) { }
 }

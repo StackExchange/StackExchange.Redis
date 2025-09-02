@@ -19,6 +19,11 @@ internal abstract class DecoratorConnection : RespConnection
 
     protected override void OnDispose(bool disposing)
     {
+        if (PrivateConnectionError is not null)
+        {
+            PrivateConnectionError = null; // force unsubscribe
+            Tail.ConnectionError -= _onConnectionError;
+        }
         if (disposing & OwnsConnection) Tail.Dispose();
     }
 

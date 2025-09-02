@@ -28,7 +28,8 @@ internal partial class DebugCounters
         _tallyBufferRecycledCount,
         _tallyBufferMessageCount,
         _tallyBufferPinCount,
-        _tallyBufferLeakCount;
+        _tallyBufferLeakCount,
+        _tallyBatchGrowCount;
 
     private static long _tallyWriteBytes,
         _tallyReadBytes,
@@ -37,7 +38,8 @@ internal partial class DebugCounters
         _tallyBufferMessageBytes,
         _tallyBufferRecycledBytes,
         _tallyBufferMaxOutstandingBytes,
-        _tallyBufferTotalBytes;
+        _tallyBufferTotalBytes,
+        _tallyBatchGrowCopyCount;
 #endif
 
     [Conditional("DEBUG")]
@@ -46,6 +48,14 @@ internal partial class DebugCounters
 #if DEBUG
         Interlocked.Increment(ref _tallyReadCount);
         if (bytes > 0) Interlocked.Add(ref _tallyReadBytes, bytes);
+#endif
+    }
+
+    public static void OnBatchGrow(int count)
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBatchGrowCount);
+        if (count > 0) Interlocked.Add(ref _tallyBatchGrowCopyCount, count);
 #endif
     }
 
@@ -258,6 +268,8 @@ internal partial class DebugCounters
     public int BatchWriteFullPageCount { get; } = Interlocked.Exchange(ref _tallyBatchWriteFullPageCount, 0);
     public int BatchWritePartialPageCount { get; } = Interlocked.Exchange(ref _tallyBatchWritePartialPageCount, 0);
     public int BatchWriteMessageCount { get; } = Interlocked.Exchange(ref _tallyBatchWriteMessageCount, 0);
+    public int BatchGrowCount { get; } = Interlocked.Exchange(ref _tallyBatchGrowCount, 0);
+    public long BatchGrowCopyCount { get; } = Interlocked.Exchange(ref _tallyBatchGrowCopyCount, 0);
 
     public int BufferCreatedCount { get; } = Interlocked.Exchange(ref _tallyBufferCreatedCount, 0);
     public int BufferRecycledCount { get; } = Interlocked.Exchange(ref _tallyBufferRecycledCount, 0);

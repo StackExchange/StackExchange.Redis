@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite;
 
 // influenced by redis-benchmark, see .md file
 namespace RESPite.Benchmark;
@@ -120,160 +119,6 @@ public abstract class BenchmarkBase : IDisposable
     }
 
     public abstract Task RunAll();
-
-    protected static readonly Func<ValueTask>
-        NoFlush = () => throw new NotSupportedException("Not a batch; cannot flush");
-
-    protected Task Pipeline(Func<Task> operation, Func<ValueTask> flush) =>
-        Pipeline(() => new ValueTask(operation()), flush);
-
-    protected Task<T?> Pipeline<T>(Func<Task<T>> operation, Func<ValueTask> flush) =>
-        Pipeline(() => new ValueTask<T>(operation()), flush);
-
-    protected async Task Pipeline(Func<ValueTask> operation, Func<ValueTask> flush)
-    {
-        var opsPerClient = OperationsPerClient;
-        int i = 0;
-        try
-        {
-            if (PipelineDepth <= 1)
-            {
-                for (; i < opsPerClient; i++)
-                {
-                    await operation().ConfigureAwait(false);
-                }
-            }
-            else if (PipelineMode == PipelineStrategy.Queue)
-            {
-                var queue = new Queue<ValueTask>(opsPerClient);
-                for (; i < opsPerClient; i++)
-                {
-                    if (queue.Count == opsPerClient)
-                    {
-                        await queue.Dequeue().ConfigureAwait(false);
-                    }
-
-                    queue.Enqueue(operation());
-                }
-
-                while (queue.Count > 0)
-                {
-                    await queue.Dequeue().ConfigureAwait(false);
-                }
-            }
-            else if (PipelineMode == PipelineStrategy.Batch)
-            {
-                int count = 0;
-                if (flush is null) throw new InvalidOperationException("Flush is required for batch mode");
-                var oversized = ArrayPool<ValueTask>.Shared.Rent(PipelineDepth);
-                for (; i < opsPerClient; i++)
-                {
-                    oversized[count++] = operation();
-                    if (count == PipelineDepth)
-                    {
-                        await flush().ConfigureAwait(false);
-                        for (int j = 0; j < count; j++)
-                        {
-                            await oversized[j].ConfigureAwait(false);
-                        }
-
-                        count = 0;
-                    }
-                }
-
-                await flush().ConfigureAwait(false);
-                for (int j = 0; j < count; j++)
-                {
-                    await oversized[j].ConfigureAwait(false);
-                }
-
-                ArrayPool<ValueTask>.Shared.Return(oversized);
-            }
-            else
-            {
-                throw new InvalidOperationException($"Unexpected pipeline mode: {PipelineMode}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
-            Program.WriteException(ex);
-        }
-    }
-
-    protected async Task<T?> Pipeline<T>(Func<ValueTask<T>> operation, Func<ValueTask> flush)
-    {
-        var opsPerClient = OperationsPerClient;
-        int i = 0;
-        T? result = default;
-        try
-        {
-            if (PipelineDepth == 1)
-            {
-                for (; i < opsPerClient; i++)
-                {
-                    result = await operation().ConfigureAwait(false);
-                }
-            }
-            else if (PipelineMode == PipelineStrategy.Queue)
-            {
-                var queue = new Queue<ValueTask<T>>(opsPerClient);
-                for (; i < opsPerClient; i++)
-                {
-                    if (queue.Count == opsPerClient)
-                    {
-                        _ = await queue.Dequeue().ConfigureAwait(false);
-                    }
-
-                    queue.Enqueue(operation());
-                }
-
-                while (queue.Count > 0)
-                {
-                    result = await queue.Dequeue().ConfigureAwait(false);
-                }
-            }
-            else if (PipelineMode == PipelineStrategy.Batch)
-            {
-                int count = 0;
-                if (flush is null) throw new InvalidOperationException("Flush is required for batch mode");
-                var oversized = ArrayPool<ValueTask<T>>.Shared.Rent(PipelineDepth);
-                for (; i < opsPerClient; i++)
-                {
-                    oversized[count++] = operation();
-                    if (count == PipelineDepth)
-                    {
-                        await flush().ConfigureAwait(false);
-                        for (int j = 0; j < count; j++)
-                        {
-                            result = await oversized[j].ConfigureAwait(false);
-                        }
-
-                        count = 0;
-                    }
-                }
-
-                await flush().ConfigureAwait(false);
-                for (int j = 0; j < count; j++)
-                {
-                    result = await oversized[j].ConfigureAwait(false);
-                }
-
-                ArrayPool<ValueTask<T>>.Shared.Return(oversized);
-            }
-            else
-            {
-                throw new InvalidOperationException($"Unexpected pipeline mode: {PipelineMode}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
-            Program.WriteException(ex);
-        }
-
-        return result;
-    }
 }
 
 public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args)
@@ -281,8 +126,6 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
     protected virtual Task OnCleanupAsync(TClient client) => Task.CompletedTask;
 
     protected virtual Task InitAsync(TClient client) => Task.CompletedTask;
-
-    protected virtual Func<ValueTask> GetFlush(TClient client) => NoFlush;
 
     public async Task CleanupAsync()
     {
@@ -304,6 +147,160 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         }
     }
 
+    protected virtual ValueTask Flush(TClient client) => default;
+    protected virtual void PrepareBatch(TClient client, int count) { }
+
+    private async Task<DBNull> PipelineUntyped(
+        TClient client,
+        Func<TClient, ValueTask> operation)
+    {
+        var opsPerClient = OperationsPerClient;
+        int i = 0;
+        try
+        {
+            if (PipelineDepth <= 1)
+            {
+                for (; i < opsPerClient; i++)
+                {
+                    await operation(client).ConfigureAwait(false);
+                }
+            }
+            else if (PipelineMode == PipelineStrategy.Queue)
+            {
+                var queue = new Queue<ValueTask>(opsPerClient);
+                for (; i < opsPerClient; i++)
+                {
+                    if (queue.Count == opsPerClient)
+                    {
+                        await queue.Dequeue().ConfigureAwait(false);
+                    }
+
+                    queue.Enqueue(operation(client));
+                }
+
+                while (queue.Count > 0)
+                {
+                    await queue.Dequeue().ConfigureAwait(false);
+                }
+            }
+            else if (PipelineMode == PipelineStrategy.Batch)
+            {
+                int count = 0;
+                var oversized = ArrayPool<ValueTask>.Shared.Rent(PipelineDepth);
+                PrepareBatch(client, Math.Min(opsPerClient, PipelineDepth));
+                for (; i < opsPerClient; i++)
+                {
+                    oversized[count++] = operation(client);
+                    if (count == PipelineDepth)
+                    {
+                        await Flush(client).ConfigureAwait(false);
+                        PrepareBatch(client, Math.Min(opsPerClient - i, PipelineDepth));
+                        for (int j = 0; j < count; j++)
+                        {
+                            await oversized[j].ConfigureAwait(false);
+                        }
+
+                        count = 0;
+                    }
+                }
+
+                await Flush(client).ConfigureAwait(false);
+                for (int j = 0; j < count; j++)
+                {
+                    await oversized[j].ConfigureAwait(false);
+                }
+
+                ArrayPool<ValueTask>.Shared.Return(oversized);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unexpected pipeline mode: {PipelineMode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
+            Program.WriteException(ex);
+        }
+
+        return DBNull.Value;
+    }
+
+    private async Task<T> PipelineTyped<T>(TClient client, Func<TClient, ValueTask<T>> operation)
+    {
+        var opsPerClient = OperationsPerClient;
+        int i = 0;
+        T result = default!;
+        try
+        {
+            if (PipelineDepth == 1)
+            {
+                for (; i < opsPerClient; i++)
+                {
+                    result = await operation(client).ConfigureAwait(false);
+                }
+            }
+            else if (PipelineMode == PipelineStrategy.Queue)
+            {
+                var queue = new Queue<ValueTask<T>>(opsPerClient);
+                for (; i < opsPerClient; i++)
+                {
+                    if (queue.Count == opsPerClient)
+                    {
+                        _ = await queue.Dequeue().ConfigureAwait(false);
+                    }
+
+                    queue.Enqueue(operation(client));
+                }
+
+                while (queue.Count > 0)
+                {
+                    result = await queue.Dequeue().ConfigureAwait(false);
+                }
+            }
+            else if (PipelineMode == PipelineStrategy.Batch)
+            {
+                int count = 0;
+                var oversized = ArrayPool<ValueTask<T>>.Shared.Rent(PipelineDepth);
+                PrepareBatch(client, Math.Min(opsPerClient, PipelineDepth));
+                for (; i < opsPerClient; i++)
+                {
+                    oversized[count++] = operation(client);
+                    if (count == PipelineDepth)
+                    {
+                        await Flush(client).ConfigureAwait(false);
+                        PrepareBatch(client, Math.Min(opsPerClient - i, PipelineDepth));
+                        for (int j = 0; j < count; j++)
+                        {
+                            result = await oversized[j].ConfigureAwait(false);
+                        }
+
+                        count = 0;
+                    }
+                }
+
+                await Flush(client).ConfigureAwait(false);
+                for (int j = 0; j < count; j++)
+                {
+                    result = await oversized[j].ConfigureAwait(false);
+                }
+
+                ArrayPool<ValueTask<T>>.Shared.Return(oversized);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unexpected pipeline mode: {PipelineMode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
+            Program.WriteException(ex);
+        }
+
+        return result;
+    }
+
     public async Task InitAsync()
     {
         for (int i = 0; i < ClientCount; i++)
@@ -318,15 +315,37 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
     protected abstract TClient CreateBatch(TClient client);
 
-    protected async Task RunAsync<T>(
+    protected Task RunAsync<T>(
         string? key,
-        Func<TClient, Func<ValueTask>, Task<T>> action,
-        Func<TClient, Task>? init = null,
+        Func<TClient, ValueTask<T>> action,
+        Func<TClient, ValueTask>? init = null,
+        string format = "")
+        => RunAsyncCore<T>(
+            key,
+            action,
+            client => action(client).AsUntypedValueTask(),
+            client => PipelineTyped<T>(client, action),
+            init,
+            format);
+
+    protected Task RunAsync(
+        string? key,
+        Func<TClient, ValueTask> action,
+        Func<TClient, ValueTask>? init = null,
+        string format = "")
+        => RunAsyncCore<DBNull>(key, action, action, client => PipelineUntyped(client, action), init, format);
+
+    protected async Task RunAsyncCore<T>(
+        string? key,
+        Delegate underlyingAction,
+        Func<TClient, ValueTask> test,
+        Func<TClient, Task<T>> pipeline,
+        Func<TClient, ValueTask>? init = null,
         string format = "")
     {
-        string name = action.Method.Name;
+        string name = underlyingAction.Method.Name;
 
-        if (action.Method.GetCustomAttribute(typeof(DisplayNameAttribute)) is DisplayNameAttribute
+        if (underlyingAction.Method.GetCustomAttribute(typeof(DisplayNameAttribute)) is DisplayNameAttribute
             {
                 DisplayName: { Length: > 0 }
             } dna)
@@ -339,7 +358,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
         // include additional test metadata
         string description = "";
-        if (action.Method.GetCustomAttribute(typeof(DescriptionAttribute)) is DescriptionAttribute
+        if (underlyingAction.Method.GetCustomAttribute(typeof(DescriptionAttribute)) is DescriptionAttribute
             {
                 Description: { Length: > 0 }
             } da)
@@ -377,11 +396,23 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
             Console.WriteLine(")");
         }
 
+        bool didNotRun = false;
         try
         {
             if (key is not null)
             {
                 await Delete(GetClient(0), key).ConfigureAwait(false);
+            }
+
+            try
+            {
+                await test(GetClient(0)).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"\t{ex.Message}");
+                didNotRun = true;
+                return;
             }
 
             if (init is not null)
@@ -408,8 +439,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     client = CreateBatch(client);
                 }
 
-                var flush = GetFlush(client);
-                pending[index++] = Task.Run(() => action(WithCancellation(client, cancellationToken), flush));
+                pending[index++] = Task.Run(() => pipeline(WithCancellation(client, cancellationToken)));
             }
 
             await Task.WhenAll(pending).ConfigureAwait(false);
@@ -428,7 +458,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:###,###,##0} ops/sec");
             }
 
-            if (!Quiet)
+            if (!Quiet & typeof(T) != typeof(DBNull))
             {
                 if (string.IsNullOrWhiteSpace(format))
                 {
@@ -446,9 +476,10 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         }
         finally
         {
-#if DEBUG && !TEST_BASELINE
+            _ = didNotRun;
+#if DEBUG
             var counters = Internal.DebugCounters.Flush(); // flush even if not showing
-            if (!Quiet)
+            if (!Quiet & !didNotRun)
             {
                 if (counters.WriteBytes != 0)
                 {
@@ -510,6 +541,12 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     Console.WriteLine();
                 }
 
+                if (counters.BatchGrowCount != 0)
+                {
+                    Console.WriteLine(
+                        $"Batch growth; {counters.BatchGrowCount:#,##0} events, {counters.BatchGrowCopyCount:#,###,##0} elements copied");
+                }
+
                 if (counters.BufferCreatedCount != 0 ||
                     counters.BufferRecycledCount != 0 | counters.BufferMessageCount != 0)
                 {
@@ -519,7 +556,8 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                         Console.Write(
                             $"; created: {counters.BufferCreatedCount:#,###,##0}, {FormatBytes(counters.BufferTotalBytes)}");
                         // always write recycled count - it being zero is important
-                        Console.Write($"; recycled: {counters.BufferRecycledCount:#,###,##0}, {FormatBytes(counters.BufferRecycledBytes)}");
+                        Console.Write(
+                            $"; recycled: {counters.BufferRecycledCount:#,###,##0}, {FormatBytes(counters.BufferRecycledBytes)}");
                     }
 
                     if (counters.BufferMessageCount != 0)
@@ -527,6 +565,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                         Console.Write(
                             $"; {counters.BufferMessageCount:#,###,##0} messages, {FormatBytes(counters.BufferMessageBytes)}");
                     }
+
                     Console.Write(
                         $"; max working {FormatBytes(counters.BufferMaxOutstandingBytes)}; {counters.BufferPinCount:#,###,##0} pins; {counters.BufferLeakCount:#,###,##0} leaks");
                     Console.WriteLine();

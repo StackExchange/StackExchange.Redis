@@ -1,6 +1,8 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using RESPite.Internal;
 
 namespace RESPite.Connections.Internal;
 
@@ -10,23 +12,27 @@ namespace RESPite.Connections.Internal;
 /// </summary>
 internal sealed class BasicBatchConnection : RespBatch
 {
-    private readonly List<RespOperation> _unsent;
+    private RespOperation[] _buffer;
+    private int _count = 0;
+
+    private object SyncLock => this;
 
     public BasicBatchConnection(in RespContext context, int sizeHint) : base(context)
     {
         // ack: yes, I know we won't spot every recursive+decorated scenario
         if (Tail is BasicBatchConnection) ThrowNestedBatch();
 
-        _unsent = sizeHint <= 0 ? [] : new List<RespOperation>(sizeHint);
+        _buffer = sizeHint <= 0 ? [] : ArrayPool<RespOperation>.Shared.Rent(sizeHint);
 
-        static void ThrowNestedBatch() => throw new ArgumentException("Nested batches are not supported", nameof(context));
+        static void ThrowNestedBatch() =>
+            throw new ArgumentException("Nested batches are not supported", nameof(context));
     }
 
     protected override void OnDispose(bool disposing)
     {
         if (disposing)
         {
-            lock (_unsent)
+            lock (SyncLock)
             {
                 /* everyone else checks disposal inside the lock;
                  the base type already marked as disposed, so:
@@ -34,101 +40,107 @@ internal sealed class BasicBatchConnection : RespBatch
                  items will be added */
                 Debug.Assert(IsDisposed);
             }
-#if NET5_0_OR_GREATER
-            var span = CollectionsMarshal.AsSpan(_unsent);
+
+            var buffer = _buffer;
+            _buffer = [];
+            var span = buffer.AsSpan(0, _count);
             foreach (var message in span)
             {
                 message.Message.TrySetException(message.Token, CreateObjectDisposedException());
             }
-#else
-            foreach (var message in _unsent)
-            {
-                message.TrySetException(CreateObjectDisposedException());
-            }
-#endif
-            _unsent.Clear();
+
+            ArrayPool<RespOperation>.Shared.Return(buffer);
+            ConnectionError = null;
         }
 
         base.OnDispose(disposing);
     }
 
-    internal override int OutstandingOperations
+    internal override int OutstandingOperations => _count; // always a thread-race, no point locking
+
+    public override void Write(in RespOperation message)
     {
-        get
+        lock (SyncLock)
         {
-            lock (_unsent)
+            ThrowIfDisposed();
+            EnsureSpaceForLocked(1);
+            _buffer[_count++] = message;
+        }
+    }
+
+    public override void EnsureCapacity(int additionalCount)
+    {
+        if (additionalCount > _buffer.Length - _count)
+        {
+            lock (SyncLock)
             {
-                return _unsent.Count;
+                EnsureSpaceForLocked(additionalCount);
             }
         }
     }
 
-    public override void Write(in RespOperation message)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureSpaceForLocked(int add)
     {
-        lock (_unsent)
-        {
-            ThrowIfDisposed();
-            _unsent.Add(message);
-        }
+        var required = _count + add;
+        if (_buffer.Length < required) GrowLocked(required);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void GrowLocked(int required)
+    {
+        const int maxLength = 0X7FFFFFC7; // not directly available on down-level runtimes :(
+        var newCapacity = _buffer.Length * 2; // try doubling
+        if ((uint)newCapacity > maxLength) newCapacity = maxLength; // account for max
+        if (newCapacity < required) newCapacity = required; // in case doubling wasn't enough
+
+        var newBuffer = ArrayPool<RespOperation>.Shared.Rent(newCapacity);
+        DebugCounters.OnBatchGrow(_count);
+        _buffer.AsSpan(0, _count).CopyTo(newBuffer);
+        ArrayPool<RespOperation>.Shared.Return(_buffer);
+        _buffer = newBuffer;
     }
 
     internal override void Write(ReadOnlySpan<RespOperation> messages)
     {
         if (messages.Length != 0)
         {
-            lock (_unsent)
+            lock (SyncLock)
             {
                 ThrowIfDisposed();
-#if NET8_0_OR_GREATER
-                _unsent.AddRange(messages); // internally optimized
-#else
-                // two-step; first ensure capacity, then add in loop
-#if NET6_0_OR_GREATER
-                _unsent.EnsureCapacity(_unsent.Count + messages.Length);
-#else
-                var required = _unsent.Count + messages.Length;
-                if (_unsent.Capacity < required)
-                {
-                    const int maxLength = 0X7FFFFFC7; // not directly available on down-level runtimes :(
-                    var newCapacity = _unsent.Capacity * 2; // try doubling
-                    if ((uint)newCapacity > maxLength) newCapacity = maxLength; // account for max
-                    if (newCapacity < required) newCapacity = required; // in case doubling wasn't enough
-                    _unsent.Capacity = newCapacity;
-                }
-#endif
-                foreach (var message in messages)
-                {
-                    _unsent.Add(message);
-                }
-#endif
+                EnsureSpaceForLocked(messages.Length);
+                messages.CopyTo(_buffer.AsSpan(_count));
+                _count += messages.Length;
             }
         }
     }
 
     private int Flush(out RespOperation[] oversized, out RespOperation single)
     {
-        lock (_unsent)
+        lock (SyncLock)
         {
-            var count = _unsent.Count;
-            switch (count)
+            var count = _count;
+            switch (_count)
             {
                 case 0:
+                    // nothing to do, keep our local buffer
                     oversized = [];
                     single = default;
-                    break;
+                    return 0;
                 case 1:
+                    // but keep our local buffer, just reset the count
                     oversized = [];
-                    single = _unsent[0];
-                    break;
+                    single = _buffer[0];
+                    _count = 0;
+                    return 1;
                 default:
-                    oversized = ArrayPool<RespOperation>.Shared.Rent(count);
+                    // hand the caller our buffer, and reset
+                    oversized = _buffer;
                     single = default;
-                    _unsent.CopyTo(oversized);
-                    break;
+                    _buffer = []; // we *expect* people to only flush once, so: don't rent a new one
+                    _count = 0;
+                    return count;
             }
-
-            _unsent.Clear();
-            return count;
         }
     }
 
