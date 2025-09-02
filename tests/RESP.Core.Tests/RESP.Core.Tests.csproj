@@ -19,5 +19,6 @@
     <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" />
     <ProjectReference Include="..\..\src\RESPite.Redis\RESPite.Redis.csproj" />
     <ProjectReference Include="..\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj" />
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

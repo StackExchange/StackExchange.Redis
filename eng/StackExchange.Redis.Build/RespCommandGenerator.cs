@@ -328,8 +328,9 @@ public class RespCommandGenerator : IIncrementalGenerator
         }
 
         StringBuilder NewLine() => sb.AppendLine().Append(' ', Math.Max(indent * 4, 0));
-        NewLine().Append("using System;");
-        NewLine().Append("using System.Threading.Tasks;");
+        NewLine().Append("using global::RESPite;");
+        NewLine().Append("using global::System;");
+        NewLine().Append("using global::System.Threading.Tasks;");
         foreach (var grp in methods.GroupBy(l => (l.Namespace, l.TypeName, l.TypeModifiers)))
         {
             NewLine();
