@@ -7,6 +7,16 @@ namespace RESP.Core.Tests;
 public partial class BatchTests
 {
     [Fact]
+    public async Task TestInfrastructure()
+    {
+        using var server = new TestServer();
+        var pending = FooAsync(server.Context);
+        server.AssertSent("*1\r\n$3\r\nfoo\r\n"u8);
+        Assert.False(pending.IsCompleted);
+        server.Respond(":42\r\n"u8);
+        Assert.Equal(42, await pending);
+    }
+    [Fact]
     public async Task SimpleBatching()
     {
         // todo: create a manually controlled data pipe
