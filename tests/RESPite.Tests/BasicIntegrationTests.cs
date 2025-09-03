@@ -37,6 +37,7 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
     [InlineData(1)]
     [InlineData(5)]
     [InlineData(100)]
+    [InlineData(1000)]
     public void Ping(int count)
     {
         using var conn = GetConnection();
@@ -54,6 +55,7 @@ public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper 
     [InlineData(1)]
     [InlineData(5)]
     [InlineData(100)]
+    [InlineData(1000)]
     public async Task PingAsync(int count)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));

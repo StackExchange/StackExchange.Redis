@@ -22,8 +22,11 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
     {
         if (token != _asyncCore.Version) // use cheap test
         {
-            _ = _asyncCore.GetStatus(token); // get consistent exception message
+            // note that _asyncCore just gives a default InvalidOperationException message; let's see if we can do better
+            ThrowInvalidToken();
         }
+        static void ThrowInvalidToken() => throw new InvalidOperationException(
+            $"The {nameof(RespOperation)} token is invalid; the most likely cause is awaiting an operation multiple times.");
     }
 
     // this is used from Task/ValueTask; we can't avoid that - in theory
@@ -117,7 +120,7 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         return true;
     }
 
-    private TResponse ThrowFailure(short token)
+    private TResponse ThrowFailureWithCleanup(short token)
     {
         try
         {
@@ -130,10 +133,40 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         }
     }
 
+    private static void ThrowSentNotComplete() => throw new InvalidOperationException(
+        "This operation has been sent but has not yet completed; the result is not available.");
+
     public TResponse GetResult(short token)
     {
         // failure uses some try/catch logic, let's put that to one side
-        if (HasFlag(StateFlags.Doomed)) return ThrowFailure(token);
+        CheckToken(token);
+        if (HasFlag(StateFlags.Doomed)) return ThrowFailureWithCleanup(token);
+
+#if DEBUG // more detail
+        // Failure uses some try/catch logic, let's put that to one side, and concentrate on success.
+        // Also, note that we use OutcomeKnown, not Complete, because it might be an inline callback,
+        // in which case we need the caller to be able to get the result *right now*.
+        var flags = Flags & (StateFlags.OutcomeKnown | StateFlags.Doomed | StateFlags.IsSent);
+        switch (flags)
+        {
+            // anything doomed
+            case StateFlags.OutcomeKnown | StateFlags.Doomed | StateFlags.IsSent:
+            case StateFlags.Doomed | StateFlags.IsSent:
+            case StateFlags.OutcomeKnown | StateFlags.Doomed:
+            case StateFlags.Doomed:
+                return ThrowFailureWithCleanup(token);
+            // not complete, but sent
+            case StateFlags.IsSent when _asyncCore.GetStatus(token) == ValueTaskSourceStatus.Pending:
+                ThrowSentNotComplete();
+                break;
+            // not sent
+            case 0:
+                ThrowNotSent(token);
+                break;
+            // everything else is success
+        }
+#endif
+
         var result = _asyncCore.GetResult(token);
         /*
          If we get here, we're successful; increment "version"/"token" *immediately*. Technically
