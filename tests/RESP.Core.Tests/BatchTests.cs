@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using RESPite;
 using Xunit;
 
@@ -20,18 +21,30 @@ public partial class BatchTests
     {
         using var server = new TestServer();
         // prepare a batch
-        var batch = server.Context.CreateBatch();
-        var b = TestAsync(batch.Context, 1);
-        var c = TestAsync(batch.Context, 2);
-        var d = TestAsync(batch.Context, 3);
+        ValueTask<int> a, b, c, d, e, f;
+        using (var batch = server.Context.CreateBatch())
+        {
+            b = TestAsync(batch.Context, 1);
+            c = TestAsync(batch.Context, 2);
+            d = TestAsync(batch.Context, 3);
 
-        // we want to sandwich the batch between two regular operations
-        var a = TestAsync(server.Context, 0); // uses SERVER
-        Assert.True(a.Unwrap().IsSent);
-        Assert.False(d.Unwrap().IsSent);
-        await batch.FlushAsync(); // uses BATCH
+            // we want to sandwich the batch between two regular operations
+            a = TestAsync(server.Context, 0); // uses SERVER
+            Assert.True(a.Unwrap().IsSent);
+            Assert.False(d.Unwrap().IsSent);
+            await batch.FlushAsync(); // uses BATCH
+
+            // await something not flushed, inside the scope of the batch
+            f = TestAsync(batch.Context, 10);
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await f);
+
+            // and try one that escapes the batch (should be disposed)
+            f = TestAsync(batch.Context, 10); // never flushed, intentionally
+        }
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await f);
+
         Assert.True(d.Unwrap().IsSent);
-        var e = TestAsync(server.Context, 4); // uses SERVER again
+        e = TestAsync(server.Context, 4); // uses SERVER again
 
         // check what was sent
         server.AssertSent("*2\r\n$4\r\ntest\r\n$1\r\n0\r\n"u8);
