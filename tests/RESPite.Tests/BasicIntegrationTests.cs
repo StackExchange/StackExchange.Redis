@@ -8,7 +8,7 @@ using RESPite.Redis;
 using RESPite.Redis.Alt; // needed for AsStrings() etc
 using Xunit;
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 public class BasicIntegrationTests(ConnectionFixture fixture, ITestOutputHelper log) : IntegrationTestBase(fixture, log)
 {

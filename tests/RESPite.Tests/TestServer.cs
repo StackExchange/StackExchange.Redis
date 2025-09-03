@@ -8,7 +8,7 @@ using RESPite;
 using RESPite.Internal;
 using Xunit;
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 internal sealed class TestServer : IDisposable
 {

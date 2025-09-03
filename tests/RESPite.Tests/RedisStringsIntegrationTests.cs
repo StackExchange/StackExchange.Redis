@@ -4,7 +4,7 @@ using RESPite.Redis.Alt; // needed for AsStrings() etc
 using Xunit;
 using FactAttribute = StackExchange.Redis.Tests.FactAttribute;
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 public class RedisStringsIntegrationTests(ConnectionFixture fixture, ITestOutputHelper log)
     : IntegrationTestBase(fixture, log)

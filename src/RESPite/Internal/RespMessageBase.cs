@@ -17,49 +17,53 @@ internal abstract class RespMessageBase : IValueTaskSource
     private ReadOnlySequence<byte> _request;
     public ref readonly CancellationToken CancellationToken => ref _cancellationToken;
 
-    protected const int
-        Flag_Sent = 1 << 0, // the request has been sent
-        Flag_OutcomeKnown = 1 << 1, // controls which code flow gets to set an outcome
-        Flag_Complete = 1 << 2, // indicates whether all follow-up has completed
-        Flag_NoPulse = 1 << 4, // don't pulse when completing - either async, or timeout
-        Flag_Parser = 1 << 5, // we have a parser
-        Flag_MetadataParser = 1 << 6, // the parser wants to consume metadata
-        Flag_InlineParser = 1 << 7, // we can safely use the parser on the IO thread
-        Flag_Doomed = 1 << 8; // something went wrong, do not recycle
+    [Flags]
+    protected enum StateFlags : int
+    {
+        None = 0,
+        IsSent = 1 << 0, // the request has been sent
+        OutcomeKnown = 1 << 1, // controls which code flow gets to set an outcome
+        Complete = 1 << 2, // indicates whether all follow-up has completed
+        NoPulse = 1 << 4, // don't pulse when completing - either async, or timeout
+        Doomed = 1 << 5, // something went wrong, do not recycle
+        HasParser = 1 << 6, // we have a parser
+        MetadataParser = 1 << 7, // the parser wants to consume metadata
+        InlineParser = 1 << 8, // we can safely use the parser on the IO thread
+    }
 
-    protected int Flags => Volatile.Read(ref _flags);
+    protected StateFlags Flags => (StateFlags)Volatile.Read(ref _flags);
     public virtual int MessageCount => 1;
 
     protected void InitParser(object? parser)
     {
         if (parser is null)
         {
-            SetFlag(Flag_InlineParser); // F+F
+            SetFlag(StateFlags.InlineParser); // F+F
         }
         else
         {
-            int flags = Flag_Parser;
+            var flags = StateFlags.HasParser;
             // detect parsers that want to manually parse attributes, errors, etc.
-            if (parser is IRespMetadataParser) flags |= Flag_MetadataParser;
+            if (parser is IRespMetadataParser) flags |= StateFlags.MetadataParser;
             // detect fast, internal, non-allocating parsers (int, bool, etc.)
-            if (parser is IRespInlineParser) flags |= Flag_InlineParser;
+            if (parser is IRespInlineParser) flags |= StateFlags.InlineParser;
             SetFlag(flags);
         }
     }
 
-    public bool AllowInlineParsing => HasFlag(Flag_InlineParser);
+    public bool AllowInlineParsing => HasFlag(StateFlags.InlineParser);
 
     public bool TrySetResult(short token, ref RespReader reader)
     {
-        if (HasFlag(Flag_OutcomeKnown) | Token != token) return false;
-        var flags = _flags & (Flag_MetadataParser | Flag_Parser);
+        var flags = Flags & (StateFlags.MetadataParser | StateFlags.HasParser | StateFlags.OutcomeKnown);
+        if ((flags & StateFlags.OutcomeKnown) != 0 | Token != token) return false;
         switch (flags)
         {
-            case Flag_Parser:
-            case Flag_Parser | Flag_MetadataParser:
+            case StateFlags.HasParser:
+            case StateFlags.HasParser | StateFlags.MetadataParser:
                 try
                 {
-                    if ((flags & Flag_MetadataParser) == 0)
+                    if ((flags & StateFlags.MetadataParser) == 0)
                     {
                         reader.MoveNext();
                     }
@@ -101,36 +105,36 @@ internal abstract class RespMessageBase : IValueTaskSource
     public bool IsSent(short token)
     {
         CheckToken(token);
-        return HasFlag(Flag_Sent);
+        return HasFlag(StateFlags.IsSent);
     }
 
-    protected bool SetFlag(int flag)
+    protected bool SetFlag(StateFlags flag)
     {
         Debug.Assert(flag != 0, "trying to set a zero flag");
 #if NET5_0_OR_GREATER
-        return (Interlocked.Or(ref _flags, flag) & flag) == 0;
+        return (Interlocked.Or(ref _flags, (int)flag) & (int)flag) == 0;
 #else
         while (true)
         {
             var oldValue = Volatile.Read(ref _flags);
-            var newValue = oldValue | flag;
+            var newValue = oldValue | (int)flag;
             if (oldValue == newValue ||
                 Interlocked.CompareExchange(ref _flags, newValue, oldValue) == oldValue)
             {
-                return (oldValue & flag) == 0;
+                return (oldValue & (int)flag) == 0;
             }
         }
 #endif
     }
 
     // in the "any" sense
-    protected bool HasFlag(int flag) => (Volatile.Read(ref _flags) & flag) != 0;
+    protected bool HasFlag(StateFlags flag) => (Volatile.Read(ref _flags) & (int)flag) != 0;
 
     public void Init(bool sent, CancellationToken cancellationToken)
     {
-        Debug.Assert(_flags == 0, "flags should be zero");
+        Debug.Assert(Flags is 0 or StateFlags.InlineParser, $"flags should be zero; got {Flags}");
         Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
-        if (sent) SetFlag(Flag_Sent);
+        if (sent) SetFlag(StateFlags.IsSent);
         if (cancellationToken.CanBeCanceled)
         {
             _cancellationToken = cancellationToken;
@@ -195,7 +199,7 @@ internal abstract class RespMessageBase : IValueTaskSource
 
             if (Interlocked.CompareExchange(ref _requestRefCount, checked(oldCount + 1), oldCount) == oldCount)
             {
-                if (recordSent) SetFlag(Flag_Sent);
+                if (recordSent) SetFlag(StateFlags.IsSent);
 
                 payload = _request;
                 return true;
@@ -254,7 +258,7 @@ internal abstract class RespMessageBase : IValueTaskSource
 
     protected bool TrySetOutcomeKnownPrecheckedToken(bool withSuccess)
     {
-        if (!SetFlag(Flag_OutcomeKnown)) return false;
+        if (!SetFlag(StateFlags.OutcomeKnown)) return false;
         UnregisterCancellation();
         TryReleaseRequest(); // we won't be needing this again
 
@@ -310,10 +314,10 @@ internal abstract class RespMessageBase : IValueTaskSource
 
     protected void SetFullyComplete(bool success)
     {
-        var pulse = !HasFlag(Flag_NoPulse);
+        var pulse = !HasFlag(StateFlags.NoPulse);
         SetFlag(success
-            ? (Flag_Complete | Flag_NoPulse)
-            : (Flag_Complete | Flag_NoPulse | Flag_Doomed));
+            ? (StateFlags.Complete | StateFlags.NoPulse)
+            : (StateFlags.Complete | StateFlags.NoPulse | StateFlags.Doomed));
 
         // for safety, always take the lock unless we know they've actively exited
         if (pulse)

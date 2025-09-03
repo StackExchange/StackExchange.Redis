@@ -36,7 +36,7 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         ValueTaskSourceOnCompletedFlags flags)
     {
         CheckToken(token);
-        SetFlag(Flag_NoPulse); // async doesn't need to be pulsed
+        SetFlag(StateFlags.NoPulse); // async doesn't need to be pulsed
         _asyncCore.OnCompleted(continuation, state, token, flags);
     }
 
@@ -47,8 +47,8 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         ValueTaskSourceOnCompletedFlags flags)
     {
         CheckToken(token);
-        if (!HasFlag(Flag_Sent)) SetNotSentAsync(token);
-        SetFlag(Flag_NoPulse); // async doesn't need to be pulsed
+        if (!HasFlag(StateFlags.IsSent)) SetNotSentAsync(token);
+        SetFlag(StateFlags.NoPulse); // async doesn't need to be pulsed
         _asyncCore.OnCompleted(continuation, state, token, flags);
     }
 
@@ -60,11 +60,11 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
 
     public TResponse Wait(short token, TimeSpan timeout)
     {
-        switch (Flags & (Flag_Complete | Flag_Sent))
+        switch (Flags & (StateFlags.Complete | StateFlags.IsSent))
         {
-            case Flag_Sent: // this is the normal case
+            case StateFlags.IsSent: // this is the normal case
                 break;
-            case Flag_Complete | Flag_Sent: // already complete
+            case StateFlags.Complete | StateFlags.IsSent: // already complete
                 return GetResult(token);
             default:
                 ThrowNotSent(token); // always throws
@@ -75,10 +75,10 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         CheckToken(token);
         lock (this)
         {
-            switch (Flags & (Flag_Complete | Flag_NoPulse))
+            switch (Flags & (StateFlags.Complete | StateFlags.NoPulse))
             {
-                case Flag_NoPulse | Flag_Complete:
-                case Flag_Complete:
+                case StateFlags.NoPulse | StateFlags.Complete:
+                case StateFlags.Complete:
                     break; // fine, we're complete
                 case 0:
                     // THIS IS OUR EXPECTED BRANCH; not complete, and will pulse
@@ -89,11 +89,11 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
                     else if (!Monitor.Wait(this, timeout))
                     {
                         isTimeout = true;
-                        SetFlag(Flag_NoPulse); // no point in being woken, we're exiting
+                        SetFlag(StateFlags.NoPulse); // no point in being woken, we're exiting
                     }
 
                     break;
-                case Flag_NoPulse:
+                case StateFlags.NoPulse:
                     ThrowWillNotPulse();
                     break;
             }
@@ -133,7 +133,7 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
     public TResponse GetResult(short token)
     {
         // failure uses some try/catch logic, let's put that to one side
-        if (HasFlag(Flag_Doomed)) return ThrowFailure(token);
+        if (HasFlag(StateFlags.Doomed)) return ThrowFailure(token);
         var result = _asyncCore.GetResult(token);
         /*
          If we get here, we're successful; increment "version"/"token" *immediately*. Technically

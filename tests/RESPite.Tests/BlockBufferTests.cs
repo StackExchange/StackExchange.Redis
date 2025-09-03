@@ -6,7 +6,7 @@ using RESPite;
 using RESPite.Internal;
 using Xunit;
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 public class BlockBufferTests(ITestOutputHelper log)
 {

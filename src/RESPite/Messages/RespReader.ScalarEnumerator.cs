@@ -47,7 +47,7 @@ public ref partial struct RespReader
             _tail = _reader._tail;
             _offset = CurrentLength = 0;
             _remaining = _reader._length;
-            if (_reader.TotalAvailable < _remaining) ThrowEOF();
+            if (_reader.TotalAvailable < _remaining) ThrowEof();
         }
 
         /// <inheritdoc cref="IEnumerator.MoveNext"/>
@@ -68,7 +68,7 @@ public ref partial struct RespReader
                     }
 
                     // otherwise, we expect more tail data
-                    if (_tail is null) ThrowEOF();
+                    if (_tail is null) ThrowEof();
 
                     _current = _tail.Memory.Span;
                     _offset = 0;

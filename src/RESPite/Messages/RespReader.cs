@@ -160,7 +160,7 @@ public ref partial struct RespReader
         var reader = Clone();
         while (true)
         {
-            if (!reader.TryMoveNext()) ThrowEOF();
+            if (!reader.TryMoveNext()) ThrowEof();
             if (reader.Prefix == RespPrefix.StreamTerminator)
             {
                 return count;
@@ -234,7 +234,7 @@ public ref partial struct RespReader
     {
         while (IsStreamingScalar)
         {
-            if (!TryReadNext()) ThrowEOF();
+            if (!TryReadNext()) ThrowEof();
         }
         if (TryReadNext())
         {
@@ -284,7 +284,7 @@ public ref partial struct RespReader
     {
         while (IsStreamingScalar) // close out the current streaming scalar
         {
-            if (!TryReadNextSkipAttributes()) ThrowEOF();
+            if (!TryReadNextSkipAttributes()) ThrowEof();
         }
 
         if (TryReadNextSkipAttributes())
@@ -305,7 +305,7 @@ public ref partial struct RespReader
     {
         while (IsStreamingScalar) // close out the current streaming scalar
         {
-            if (!TryReadNextSkipAttributes()) ThrowEOF();
+            if (!TryReadNextSkipAttributes()) ThrowEof();
         }
 
         if (TryReadNextSkipAttributes())
@@ -328,7 +328,7 @@ public ref partial struct RespReader
     {
         while (IsStreamingScalar) // close out the current streaming scalar
         {
-            if (!TryReadNextSkipAttributes()) ThrowEOF();
+            if (!TryReadNextSkipAttributes()) ThrowEof();
         }
 
         if (TryReadNextProcessAttributes(respAttributeReader, ref attributes))
@@ -360,7 +360,7 @@ public ref partial struct RespReader
     /// <exception cref="RespException">If the data contains an explicit error element.</exception>
     public void MoveNext()
     {
-        if (!TryMoveNext()) ThrowEOF();
+        if (!TryMoveNext()) ThrowEof();
     }
 
     /// <summary>
@@ -373,7 +373,7 @@ public ref partial struct RespReader
     /// <typeparam name="T">The type of data represented by this reader.</typeparam>
     public void MoveNext<T>(RespAttributeReader<T> respAttributeReader, ref T attributes)
     {
-        if (!TryMoveNext(respAttributeReader, ref attributes)) ThrowEOF();
+        if (!TryMoveNext(respAttributeReader, ref attributes)) ThrowEof();
     }
 
     private bool MoveNextStreamingScalar()
@@ -392,7 +392,7 @@ public ref partial struct RespReader
                     return _length > 0;
                 }
             }
-            ThrowEOF(); // we should have found something!
+            ThrowEof(); // we should have found something!
         }
         return false;
     }
@@ -479,7 +479,7 @@ public ref partial struct RespReader
             default:
                 // something more complex
                 RespScanState state = new(in this);
-                if (!state.TryRead(ref this, out _)) ThrowEOF();
+                if (!state.TryRead(ref this, out _)) ThrowEof();
                 break;
         }
     }
@@ -1245,6 +1245,21 @@ public ref partial struct RespReader
     /// <param name="value">The payload value to verify.</param>
     public readonly bool Is(ReadOnlySpan<byte> value)
         => TryGetSpan(out var span) ? span.SequenceEqual(value) : IsSlow(value);
+
+    /// <summary>
+    /// Indicates whether the current element is a scalar with a value that matches the provided <paramref name="value"/>.
+    /// </summary>
+    /// <param name="value">The payload value to verify.</param>
+    public readonly bool Is(ReadOnlySpan<char> value)
+    {
+        var bytes = RespConstants.UTF8.GetMaxByteCount(value.Length);
+        byte[]? oversized = null;
+        Span<byte> buffer = bytes <= 128 ? stackalloc byte[128] : (oversized = ArrayPool<byte>.Shared.Rent(bytes));
+        bytes = RespConstants.UTF8.GetBytes(value, buffer);
+        bool result = Is(buffer.Slice(0, bytes));
+        if (oversized is not null) ArrayPool<byte>.Shared.Return(oversized);
+        return result;
+    }
 
     internal readonly bool IsInlneCpuUInt32(uint value)
     {

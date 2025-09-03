@@ -144,7 +144,7 @@ public ref partial struct RespReader
 
         public void DemandNext()
         {
-            if (!MoveNext()) ThrowEOF();
+            if (!MoveNext()) ThrowEof();
             Value.MoveNext(); // skip any attributes etc
         }
 
@@ -158,7 +158,7 @@ public ref partial struct RespReader
         {
             for (int i = 0; i < target.Length; i++)
             {
-                if (!MoveNext()) ThrowEOF();
+                if (!MoveNext()) ThrowEof();
 
                 Value.MoveNext(); // skip any attributes etc
                 target[i] = projection(ref Value);

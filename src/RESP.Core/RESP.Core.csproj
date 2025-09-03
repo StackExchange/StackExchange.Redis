@@ -47,7 +47,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="StackExchange.Redis.Benchmarks" />
     <InternalsVisibleTo Include="StackExchange.Redis.Tests" />
-    <InternalsVisibleTo Include="RESP.Core.Tests" />
+    <InternalsVisibleTo Include="RESPite.Tests" />
   </ItemGroup>
 
   <ItemGroup>

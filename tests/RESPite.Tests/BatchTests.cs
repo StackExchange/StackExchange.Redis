@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using RESPite;
 using Xunit;
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 public partial class BatchTests
 {
@@ -16,7 +16,7 @@ public partial class BatchTests
         await TestServer.Execute(ctx => BarAsync(ctx), "*1\r\n$3\r\nbar\r\n", "+OK\r\n");
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 500)] // this should be very fast unless something is very wrong
     public async Task SimpleBatching()
     {
         // server setup
@@ -76,6 +76,13 @@ public partial class BatchTests
         Assert.Equal(7, await c);
         Assert.Equal(8, await d);
         Assert.Equal(9, await e);
+
+        // but can only be awaited once
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await a);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await b);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await c);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await d);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await e);
     }
 
     [RespCommand]

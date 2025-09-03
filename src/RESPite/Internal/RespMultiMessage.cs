@@ -18,7 +18,7 @@ internal sealed class RespMultiMessage : RespMessageBase<int>
         _threadStaticSpare = null;
         obj._oversized = oversized;
         obj._count = count;
-        obj.SetFlag(Flag_Parser | Flag_MetadataParser);
+        obj.SetFlag(StateFlags.HasParser | StateFlags.MetadataParser);
         return obj;
     }
 

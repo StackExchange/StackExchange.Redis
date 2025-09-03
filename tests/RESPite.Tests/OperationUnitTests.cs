@@ -7,7 +7,7 @@ using RESPite;
 using Xunit;
 using Xunit.Internal;
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 [SuppressMessage(
     "Usage",
@@ -51,6 +51,7 @@ public class OperationUnitTests
             var ex = Assert.Throws<InvalidOperationException>(() => awaiter.GetResult());
             Assert.Contains("This command has not yet been sent", ex.Message);
         }
+
         Assert.Throws<InvalidOperationException>(() => awaiter.GetResult());
     }
 
@@ -88,6 +89,7 @@ public class OperationUnitTests
             var ex = Assert.Throws<InvalidOperationException>(() => awaiter.GetResult());
             Assert.Contains("This command has not yet been sent", ex.Message);
         }
+
         Assert.Throws<InvalidOperationException>(() => awaiter.GetResult());
     }
 
@@ -125,6 +127,7 @@ public class OperationUnitTests
             var ex = Assert.Throws<InvalidOperationException>(() => awaiter.GetResult());
             Assert.Contains("This command has not yet been sent", ex.Message);
         }
+
         Assert.Throws<InvalidOperationException>(() => awaiter.GetResult());
     }
 
@@ -152,9 +155,7 @@ public class OperationUnitTests
         cts.CancelAfter(100);
         var op = RespOperation.Create(out var remote, false, cts.Token);
         var ex = await Assert.ThrowsAsync<OperationCanceledException>(async () => await op.AsValueTask());
-        Assert.True(ex.CancellationToken.IsCancellationRequested, "CT token should be intact");
-        Assert.True(cts.Token != CancellationToken, "should not be test CT");
-        Assert.True(cts.Token == ex.CancellationToken, "should be local CT");
+        AssertCT(ex.CancellationToken, cts.Token);
     }
 
     [Fact(Timeout = 1000)]
@@ -163,10 +164,18 @@ public class OperationUnitTests
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
         cts.CancelAfter(100);
         var op = RespOperation.Create(out var remote, false, cts.Token);
-        var ex = await Assert.ThrowsAsync<OperationCanceledException>(async () => await op.AsTask());
-        Assert.True(ex.CancellationToken.IsCancellationRequested, "CT token should be intact");
-        Assert.True(cts.Token != CancellationToken, "should not be test CT");
-        Assert.True(cts.Token == ex.CancellationToken, "should be local CT");
+        var ex = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await op.AsTask());
+        AssertCT(ex.CancellationToken, cts.Token);
+    }
+
+    private static void AssertCT(CancellationToken actual, CancellationToken expected)
+    {
+        string problems = "";
+        if (actual == CancellationToken.None) problems += "default;";
+        if (!actual.IsCancellationRequested) problems += "not cancelled;";
+        if (actual == CancellationToken) problems += "test CT;";
+        if (actual != expected) problems += "not local CT";
+        Assert.Empty(problems.TrimEnd(';'));
     }
 
     [Fact(Timeout = 1000)]

@@ -97,7 +97,7 @@ public ref partial struct RespReader
         => throw new InvalidOperationException("RESP protocol failure: " + message); // protocol exception?
 
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
-    internal static void ThrowEOF() => throw new EndOfStreamException();
+    internal static void ThrowEof() => throw new EndOfStreamException();
 
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
     private static void ThrowFormatException() => throw new FormatException();
@@ -218,7 +218,7 @@ public ref partial struct RespReader
             }
         }
         while (TryMoveToNextSegment());
-        ThrowEOF();
+        ThrowEof();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -298,7 +298,7 @@ public ref partial struct RespReader
         return ToString();
     }
 
-    internal int GetInitialScanCount(out ushort streamingAggregateDepth)
+    internal readonly int GetInitialScanCount(out ushort streamingAggregateDepth)
     {
         // this is *similar* to GetDelta, but: without any discount for attributes
         switch (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming))

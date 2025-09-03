@@ -6,7 +6,7 @@ using RESPite.Internal;
 using RESPite.Messages;
 using Xunit;
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 public class CycleBufferTests
 {

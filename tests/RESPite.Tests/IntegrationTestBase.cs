@@ -3,7 +3,7 @@ using RESPite;
 using RESPite.Redis.Alt;
 using Xunit;
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 public abstract class IntegrationTestBase(ConnectionFixture fixture, ITestOutputHelper log)
 {

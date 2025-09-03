@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Net;
-using RESP.Core.Tests;
-using RESPite;
 using RESPite.Connections;
 using Xunit;
 
-[assembly: AssemblyFixture(typeof(ConnectionFixture))]
+[assembly: AssemblyFixture(typeof(RESPite.Tests.ConnectionFixture))]
 
-namespace RESP.Core.Tests;
+namespace RESPite.Tests;
 
 public class ConnectionFixture : IDisposable
 {
