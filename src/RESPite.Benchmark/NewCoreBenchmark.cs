@@ -247,7 +247,8 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         var client = GetClient(clientId);
         var depth = PipelineDepth;
         int localCount = 0;
-        long lastValue = client.GetInt32(_counterKey);
+        long lastValue = await client.GetInt32Async(_counterKey).ConfigureAwait(false),
+            currentValue = lastValue;
         var previous = DateTime.UtcNow;
 
         void Tick()
@@ -255,10 +256,9 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
             DateTime now;
             if (clientId == 0 && ((now = DateTime.Now) - previous).TotalSeconds >= 1)
             {
-                var newValue = client.GetInt32(_counterKey);
-                Console.WriteLine($"{newValue - lastValue} ops in {now - previous}");
+                Console.WriteLine($"{currentValue - lastValue} ops in {now - previous}");
                 previous = now;
-                lastValue = newValue;
+                lastValue = currentValue;
                 localCount = 0;
             }
         }
@@ -285,9 +285,10 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
                     }
 
                     await batch.FlushAsync().ConfigureAwait(false);
+                    batch.EnsureCapacity(depth); // batches don't assume re-use
                     for (int i = 0; i < depth; i++)
                     {
-                        await pending[i].ConfigureAwait(false);
+                        currentValue = await pending[i].ConfigureAwait(false);
                     }
 
                     localCount += depth;
