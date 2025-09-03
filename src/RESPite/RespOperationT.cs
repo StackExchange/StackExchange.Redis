@@ -12,7 +12,7 @@ namespace RESPite;
 /// value can be awaited synchronously if required.
 /// </summary>
 /// <typeparam name="T">The type of value returned by the operation.</typeparam>
-public readonly struct RespOperation<T>
+public readonly struct RespOperation<T> : ICriticalNotifyCompletion
 {
     // it is important that this layout remains identical between RespOperation and RespOperation<T>
     private readonly RespMessageBase<T> _message;

@@ -16,34 +16,49 @@ public partial class BatchTests
         await TestServer.Execute(ctx => BarAsync(ctx), "*1\r\n$3\r\nbar\r\n", "+OK\r\n");
     }
 
-    [Fact]
+    [Fact(Timeout = 1000)]
     public async Task SimpleBatching()
     {
+        // server setup
         using var server = new TestServer();
+        var cancellationToken = server.Context.CancellationToken;
+        Assert.Equal(TestContext.Current.CancellationToken, cancellationToken); // check server has CT
+        Assert.True(cancellationToken.CanBeCanceled);
+
         // prepare a batch
         ValueTask<int> a, b, c, d, e, f;
         using (var batch = server.Context.CreateBatch())
         {
+            Assert.Equal(cancellationToken, batch.Context.CancellationToken); // check the batch inherited CT
+
             b = TestAsync(batch.Context, 1);
+            Assert.Equal(cancellationToken, b.AsRespOperation().CancellationToken); // check batch ops inherit CT
             c = TestAsync(batch.Context, 2);
             d = TestAsync(batch.Context, 3);
 
             // we want to sandwich the batch between two regular operations
             a = TestAsync(server.Context, 0); // uses SERVER
-            Assert.True(a.Unwrap().IsSent);
-            Assert.False(d.Unwrap().IsSent);
+            Assert.Equal(cancellationToken, a.AsRespOperation().CancellationToken); // check server ops inherit CT
+            Assert.True(a.AsRespOperation().IsSent);
+            Assert.False(d.AsRespOperation().IsSent);
             await batch.FlushAsync(); // uses BATCH
 
             // await something not flushed, inside the scope of the batch
             f = TestAsync(batch.Context, 10);
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await f);
 
-            // and try one that escapes the batch (should be disposed)
+            // Because of https://github.com/dotnet/runtime/issues/119232, we can't detect unsent operations
+            // in ValueTask/Task (technically we could for ValueTask[T], but it would break .AsTask()), but
+            // we can check the unwrapped handling.
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await f.AsRespOperation());
+            Assert.StartsWith("This command has not yet been sent", ex.Message);
+
+            // and try one that escapes the batch (should get disposed)
             f = TestAsync(batch.Context, 10); // never flushed, intentionally
         }
+        // we *can* safely await if the batch is disposed
         await Assert.ThrowsAsync<ObjectDisposedException>(async () => await f);
 
-        Assert.True(d.Unwrap().IsSent);
+        Assert.True(d.AsRespOperation().IsSent);
         e = TestAsync(server.Context, 4); // uses SERVER again
 
         // check what was sent

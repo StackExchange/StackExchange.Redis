@@ -140,16 +140,7 @@ internal abstract class RespMessageBase : IValueTaskSource
 
     public void Init(
         ReadOnlyMemory<byte> request,
-        CancellationToken cancellationToken)
-    {
-        Debug.Assert(_requestRefCount == 0, "trying to set a request more than once");
-        _request = new(request);
-        _requestRefCount = 1;
-        if (cancellationToken.CanBeCanceled)
-        {
-            _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
-        }
-    }
+        CancellationToken cancellationToken) => Init(new ReadOnlySequence<byte>(request), cancellationToken);
 
     public void Init(
         ReadOnlySequence<byte> request,
@@ -160,6 +151,7 @@ internal abstract class RespMessageBase : IValueTaskSource
         _requestRefCount = 1;
         if (cancellationToken.CanBeCanceled)
         {
+            _cancellationToken = cancellationToken;
             _cancellationTokenRegistration = ActivationHelper.RegisterForCancellation(this, cancellationToken);
         }
     }
