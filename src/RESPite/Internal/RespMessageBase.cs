@@ -95,6 +95,7 @@ internal abstract class RespMessageBase : IValueTaskSource
 
     public abstract short Token { get; }
 
+    [Obsolete("Prefer de-virtualized version via CheckTokenCore")]
     private protected abstract void CheckToken(short token);
 
     private protected abstract ValueTaskSourceStatus OwnStatus { get; }
@@ -103,7 +104,9 @@ internal abstract class RespMessageBase : IValueTaskSource
 
     public bool IsSent(short token)
     {
+#pragma warning disable CS0618 // can't access CheckTokenCore in base-class
         CheckToken(token);
+#pragma warning restore CS0618
         return HasFlag(StateFlags.IsSent);
     }
 
@@ -236,7 +239,9 @@ internal abstract class RespMessageBase : IValueTaskSource
     [MethodImpl(MethodImplOptions.NoInlining)]
     protected void ThrowNotSent(short token)
     {
+#pragma warning disable CS0618 // can't access CheckTokenCore in base-class
         CheckToken(token); // prefer a token explanation
+#pragma warning restore CS0618
         throw new InvalidOperationException(
             "This command has not yet been sent; waiting is not possible. If this is a transaction or batch, you must execute that first.");
     }
@@ -244,7 +249,9 @@ internal abstract class RespMessageBase : IValueTaskSource
     [MethodImpl(MethodImplOptions.NoInlining)]
     protected void SetNotSentAsync(short token)
     {
+#pragma warning disable CS0618 // can't access CheckTokenCore in base-class
         CheckToken(token);
+#pragma warning restore CS0618
         TrySetExceptionPrecheckedToken(new InvalidOperationException(
             "This command has not yet been sent; awaiting is not possible. If this is a transaction or batch, you must execute that first."));
     }

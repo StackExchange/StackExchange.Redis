@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks.Sources;
+﻿using System.Runtime.CompilerServices;
+using System.Threading.Tasks.Sources;
 using RESPite.Messages;
 
 namespace RESPite.Internal;
@@ -16,9 +17,13 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
     /* asking about the status too early is usually a very bad sign that they're doing
      something like awaiting a message in a transaction that hasn't been sent */
     public override ValueTaskSourceStatus GetStatus(short token)
-        => _asyncCore.GetStatus(token);
+    {
+        CheckTokenCore(token);
+        return _asyncCore.GetStatus(token);
+    }
 
-    private protected override void CheckToken(short token)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CheckTokenCore(short token)
     {
         if (token != _asyncCore.Version) // use cheap test
         {
@@ -29,6 +34,9 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
             $"The {nameof(RespOperation)} token is invalid; the most likely cause is awaiting an operation multiple times.");
     }
 
+    [Obsolete("Prefer de-virtualized version via " + nameof(CheckTokenCore))]
+    private protected override void CheckToken(short token) => CheckTokenCore(token);
+
     // this is used from Task/ValueTask; we can't avoid that - in theory
     // we *coiuld* sort of make it work for ValueTask, but if anyone
     // calls .AsTask() on it, it would fail
@@ -38,7 +46,7 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         short token,
         ValueTaskSourceOnCompletedFlags flags)
     {
-        CheckToken(token);
+        CheckTokenCore(token);
         SetFlag(StateFlags.NoPulse); // async doesn't need to be pulsed
         _asyncCore.OnCompleted(continuation, state, token, flags);
     }
@@ -49,7 +57,7 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         short token,
         ValueTaskSourceOnCompletedFlags flags)
     {
-        CheckToken(token);
+        CheckTokenCore(token);
         if (!HasFlag(StateFlags.IsSent)) SetNotSentAsync(token);
         SetFlag(StateFlags.NoPulse); // async doesn't need to be pulsed
         _asyncCore.OnCompleted(continuation, state, token, flags);
@@ -75,7 +83,7 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         }
 
         bool isTimeout = false;
-        CheckToken(token);
+        CheckTokenCore(token);
         lock (this)
         {
             switch (Flags & (StateFlags.Complete | StateFlags.NoPulse))
@@ -122,8 +130,15 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
 
     private TResponse ThrowFailureWithCleanup(short token)
     {
+        var status = GetStatus(token);
         try
         {
+            if (status == ValueTaskSourceStatus.Pending)
+            {
+                if (!HasFlag(StateFlags.IsSent)) ThrowNotSent(_asyncCore.Version);
+                throw new InvalidOperationException(
+                    "This operation has been sent but has not yet completed; the result is not available.");
+            }
             return _asyncCore.GetResult(token);
         }
         finally
@@ -133,40 +148,14 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
         }
     }
 
-    private static void ThrowSentNotComplete() => throw new InvalidOperationException(
-        "This operation has been sent but has not yet completed; the result is not available.");
-
     public TResponse GetResult(short token)
     {
         // failure uses some try/catch logic, let's put that to one side
-        CheckToken(token);
-        if (HasFlag(StateFlags.Doomed)) return ThrowFailureWithCleanup(token);
-
-#if DEBUG // more detail
-        // Failure uses some try/catch logic, let's put that to one side, and concentrate on success.
-        // Also, note that we use OutcomeKnown, not Complete, because it might be an inline callback,
-        // in which case we need the caller to be able to get the result *right now*.
-        var flags = Flags & (StateFlags.OutcomeKnown | StateFlags.Doomed | StateFlags.IsSent);
-        switch (flags)
+        // (it is very tempting to peek inside GetStatus with UnsafeAccessor...)
+        if (_asyncCore.Version != token || _asyncCore.GetStatus(token) != ValueTaskSourceStatus.Succeeded)
         {
-            // anything doomed
-            case StateFlags.OutcomeKnown | StateFlags.Doomed | StateFlags.IsSent:
-            case StateFlags.Doomed | StateFlags.IsSent:
-            case StateFlags.OutcomeKnown | StateFlags.Doomed:
-            case StateFlags.Doomed:
-                return ThrowFailureWithCleanup(token);
-            // not complete, but sent
-            case StateFlags.IsSent when _asyncCore.GetStatus(token) == ValueTaskSourceStatus.Pending:
-                ThrowSentNotComplete();
-                break;
-            // not sent
-            case 0:
-                ThrowNotSent(token);
-                break;
-            // everything else is success
+            return ThrowFailureWithCleanup(token);
         }
-#endif
-
         var result = _asyncCore.GetResult(token);
         /*
          If we get here, we're successful; increment "version"/"token" *immediately*. Technically
