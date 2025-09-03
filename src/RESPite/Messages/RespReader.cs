@@ -1231,9 +1231,12 @@ public ref partial struct RespReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal readonly bool IsOK() // go mad with this, because it is used so often
     {
-        return TryGetSpan(out var span) && span.Length == 2
-                ? Unsafe.ReadUnaligned<ushort>(ref UnsafeCurrent) == RespConstants.OKUInt16
-                : IsSlow(RespConstants.OKBytes);
+        if (TryGetSpan(out var span) && span.Length == 2)
+        {
+            var u16 = Unsafe.ReadUnaligned<ushort>(ref UnsafeCurrent);
+            return u16 == RespConstants.OKUInt16 | u16 == RespConstants.OKUInt16_LC;
+        }
+        return IsSlow(RespConstants.OKBytes, RespConstants.OKBytes_LC);
     }
 
     /// <summary>
@@ -1278,6 +1281,9 @@ public ref partial struct RespReader
         ReadOnlySpan<byte> span = [value];
         return IsSlow(span);
     }
+
+    private readonly bool IsSlow(ReadOnlySpan<byte> testValue0, ReadOnlySpan<byte> testValue2)
+        => IsSlow(testValue0) || IsSlow(testValue2);
 
     private readonly bool IsSlow(ReadOnlySpan<byte> testValue)
     {

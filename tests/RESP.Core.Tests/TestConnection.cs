@@ -12,14 +12,8 @@ namespace RESP.Core.Tests;
 
 internal sealed class TestServer : IDisposable
 {
-    public void Dispose()
-    {
-        _stream?.Dispose();
-        Connection?.Dispose();
-    }
     private readonly TestRespServerStream _stream = new();
     public RespConnection Connection { get; }
-    public ref readonly RespContext Context => ref Connection.Context;
 
     public TestServer(RespConfiguration? configuration = null)
     {
@@ -28,8 +22,152 @@ internal sealed class TestServer : IDisposable
             configuration ?? RespConfiguration.Default,
             _stream);
     }
+
+    public void Dispose()
+    {
+        _stream?.Dispose();
+        Connection?.Dispose();
+    }
+
+    public static ValueTask<T> Execute<T>(
+        Func<RespContext, ValueTask<T>> operation,
+        ReadOnlySpan<byte> request,
+        ReadOnlySpan<byte> response)
+        => ExecuteCore(operation, request, response);
+
+    // intended for use with [InlineData("...")] scenarios
+    public static ValueTask<T> Execute<T>(
+        Func<RespContext, ValueTask<T>> operation,
+        string request,
+        string response)
+    {
+        var lease = Encode(request, response, out var reqSpan, out var respSpan);
+        return ExecuteCore(operation, reqSpan, respSpan, lease);
+    }
+
+    private static byte[] Encode(
+        string request,
+        string response,
+        out ReadOnlySpan<byte> requestSpan,
+        out ReadOnlySpan<byte> responseSpan)
+    {
+        var byteCount = Encoding.UTF8.GetByteCount(request) + Encoding.UTF8.GetByteCount(response);
+        var lease = ArrayPool<byte>.Shared.Rent(byteCount);
+        var reqLen = Encoding.UTF8.GetBytes(request.AsSpan(), lease.AsSpan());
+        var respLen = Encoding.UTF8.GetBytes(response.AsSpan(), lease.AsSpan(reqLen));
+        requestSpan = lease.AsSpan(0, reqLen);
+        responseSpan = lease.AsSpan(reqLen, respLen);
+        return lease;
+    }
+
+    private static ValueTask<T> ExecuteCore<T>(
+        Func<RespContext, ValueTask<T>> operation,
+        ReadOnlySpan<byte> request,
+        ReadOnlySpan<byte> response,
+        byte[]? lease = null)
+    {
+        bool disposeServer = true;
+        TestServer? server = null;
+        try
+        {
+            server = new TestServer();
+            var pending = operation(server.Context);
+            server.AssertSent(request);
+            Assert.False(pending.IsCompleted);
+            server.Respond(response);
+            disposeServer = false;
+            return AwaitAndDispose(server, pending);
+        }
+        finally
+        {
+            if (disposeServer) server?.Dispose();
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+        }
+
+        static async ValueTask<T> AwaitAndDispose(TestServer server, ValueTask<T> pending)
+        {
+            using (server)
+            {
+                return await pending.ConfigureAwait(false);
+            }
+        }
+    }
+
+    public static ValueTask Execute<T>(
+        Func<RespContext, ValueTask<T>> operation,
+        ReadOnlySpan<byte> request,
+        ReadOnlySpan<byte> response,
+        T expected)
+        => AwaitAndValidate(Execute<T>(operation, request, response), expected);
+
+    // intended for use with [InlineData("...")] scenarios
+    public static ValueTask Execute<T>(
+        Func<RespContext, ValueTask<T>> operation,
+        string request,
+        string response,
+        T expected)
+        => AwaitAndValidate(Execute<T>(operation, request, response), expected);
+
+    public static ValueTask Execute(
+        Func<RespContext, ValueTask> operation,
+        ReadOnlySpan<byte> request,
+        ReadOnlySpan<byte> response)
+        => ExecuteCore(operation, request, response);
+
+    // intended for use with [InlineData("...")] scenarios
+    public static ValueTask Execute(
+        Func<RespContext, ValueTask> operation,
+        string request,
+        string response)
+    {
+        var lease = Encode(request, response, out var reqSpan, out var respSpan);
+        return ExecuteCore(operation, reqSpan, respSpan, lease);
+    }
+
+    private static ValueTask ExecuteCore(
+        Func<RespContext, ValueTask> operation,
+        ReadOnlySpan<byte> request,
+        ReadOnlySpan<byte> response,
+        byte[]? lease = null)
+    {
+        bool disposeServer = true;
+        TestServer? server = null;
+        try
+        {
+            server = new TestServer();
+            var pending = operation(server.Context);
+            server.AssertSent(request);
+            Assert.False(pending.IsCompleted);
+            server.Respond(response);
+            disposeServer = false;
+            return AwaitAndDispose(server, pending);
+        }
+        finally
+        {
+            if (disposeServer) server?.Dispose();
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+        }
+
+        static async ValueTask AwaitAndDispose(TestServer server, ValueTask pending)
+        {
+            using (server)
+            {
+                await pending.ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async ValueTask AwaitAndValidate<T>(ValueTask<T> pending, T expected)
+    {
+        var actual = await pending.ConfigureAwait(false);
+        Assert.Equal(expected, actual);
+    }
+
+    public ref readonly RespContext Context => ref Connection.Context;
+
     public void Respond(ReadOnlySpan<byte> serverToClient) => _stream.Respond(serverToClient);
     public void AssertSent(ReadOnlySpan<byte> clientToServer) => _stream.AssertSent(clientToServer);
+
     private sealed class TestRespServerStream : Stream
     {
         private bool _disposed, _closed;
@@ -122,7 +260,8 @@ internal sealed class TestServer : IDisposable
 
         private readonly object OutboundLock = new object(), InboundLock = new object();
 
-        private CycleBuffer _outbound = CycleBuffer.Create(MemoryPool<byte>.Shared), _inbound = CycleBuffer.Create(MemoryPool<byte>.Shared);
+        private CycleBuffer _outbound = CycleBuffer.Create(MemoryPool<byte>.Shared),
+            _inbound = CycleBuffer.Create(MemoryPool<byte>.Shared);
 
         private void WriteCore(ReadOnlySpan<byte> source)
         {
@@ -160,7 +299,9 @@ internal sealed class TestServer : IDisposable
             lock (OutboundLock)
             {
                 var available = _outbound.GetCommittedLength();
-                Assert.True(available >= clientToServer.Length, $"expected {clientToServer.Length} bytes, {available} available");
+                Assert.True(
+                    available >= clientToServer.Length,
+                    $"expected {clientToServer.Length} bytes, {available} available");
                 while (!clientToServer.IsEmpty)
                 {
                     Assert.True(_outbound.TryGetFirstCommittedSpan(1, out var received), "should have data available");
@@ -170,10 +311,11 @@ internal sealed class TestServer : IDisposable
                     var yBytes = received.Slice(0, take);
                     if (!xBytes.SequenceEqual(yBytes))
                     {
-                        var xText = Encoding.UTF8.GetString(xBytes);
-                        var yText = Encoding.UTF8.GetString(yBytes);
-                        Assert.Fail($"Data mismatch; expected '{xText}', got '{yText}'");
+                        var xText = Encoding.UTF8.GetString(xBytes).Replace("\r\n", "\\r\\n");
+                        var yText = Encoding.UTF8.GetString(yBytes).Replace("\r\n", "\\r\\n");
+                        Assert.Equal(xText, yText);
                     }
+
                     _outbound.DiscardCommitted(take);
                     clientToServer = clientToServer.Slice(take);
                 }

@@ -9,12 +9,10 @@ public partial class BatchTests
     [Fact]
     public async Task TestInfrastructure()
     {
-        using var server = new TestServer();
-        var pending = FooAsync(server.Context);
-        server.AssertSent("*1\r\n$3\r\nfoo\r\n"u8);
-        Assert.False(pending.IsCompleted);
-        server.Respond(":42\r\n"u8);
-        Assert.Equal(42, await pending);
+        await TestServer.Execute(ctx => FooAsync(ctx), "*1\r\n$3\r\nfoo\r\n"u8, ":42\r\n"u8, 42);
+        await TestServer.Execute(ctx => FooAsync(ctx), "*1\r\n$3\r\nfoo\r\n", ":42\r\n", 42);
+        await TestServer.Execute(ctx => BarAsync(ctx), "*1\r\n$3\r\nbar\r\n"u8, "+ok\r\n"u8);
+        await TestServer.Execute(ctx => BarAsync(ctx), "*1\r\n$3\r\nbar\r\n", "+OK\r\n");
     }
     [Fact]
     public async Task SimpleBatching()
@@ -39,4 +37,6 @@ public partial class BatchTests
 
     [RespCommand]
     private static partial int Foo(in RespContext ctx);
+    [RespCommand]
+    private static partial void Bar(in RespContext ctx);
 }

@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-
+// ReSharper disable InconsistentNaming
 namespace RESPite.Internal;
 
 internal static class RespConstants
@@ -13,8 +13,10 @@ internal static class RespConstants
 
     public static readonly ushort CrLfUInt16 = UnsafeCpuUInt16(CrlfBytes);
 
+    public static ReadOnlySpan<byte> OKBytes_LC => "ok"u8;
     public static ReadOnlySpan<byte> OKBytes => "OK"u8;
     public static readonly ushort OKUInt16 = UnsafeCpuUInt16(OKBytes);
+    public static readonly ushort OKUInt16_LC = UnsafeCpuUInt16(OKBytes_LC);
 
     public static readonly uint BulkStringStreaming = UnsafeCpuUInt32("$?\r\n"u8);
     public static readonly uint BulkStringNull = UnsafeCpuUInt32("$-1\r"u8);
