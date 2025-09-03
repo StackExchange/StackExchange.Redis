@@ -19,10 +19,12 @@ internal static class Program
                     case "--old":
                         benchmarks.Add(new OldCoreBenchmark(args));
                         break;
-
                     case "--new":
                         benchmarks.Add(new NewCoreBenchmark(args));
                         break;
+                    case "--basic":
+                        await BasicLoopAsync(args);
+                        return 0;
                 }
             }
 
@@ -46,6 +48,10 @@ internal static class Program
             // ReSharper disable once LoopVariableIsNeverChangedInsideLoop
             while (benchmarks[0].Loop);
 
+            foreach (var bench in benchmarks)
+            {
+                bench.Dispose();
+            }
             return 0;
         }
         catch (Exception ex)
@@ -53,6 +59,12 @@ internal static class Program
             WriteException(ex);
             return -1;
         }
+    }
+
+    private static Task<int> BasicLoopAsync(string[] args)
+    {
+        using var bench = new NewCoreBenchmark(args);
+        return bench.RunBasicLoopAsync();
     }
 
     internal static void WriteException(Exception? ex, [CallerMemberName] string operation = "")

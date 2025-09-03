@@ -170,7 +170,8 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     [DisplayName("RPOP")]
     private ValueTask<RespParsers.ResponseSummary> RPop(RespContext ctx) => ctx.RPopAsync(_listKey);
 
-    private ValueTask LPopInit(RespContext ctx) => ctx.LPushAsync(_listKey, _payload, TotalOperations).AsUntypedValueTask();
+    private ValueTask LPopInit(RespContext ctx) =>
+        ctx.LPushAsync(_listKey, _payload, TotalOperations).AsUntypedValueTask();
 
     [DisplayName("SADD")]
     private ValueTask<int> SAdd(RespContext ctx) => ctx.SAddAsync(_setKey, "element:__rand_int__");
@@ -210,10 +211,91 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     [DisplayName("MSET"), Description("10 keys")]
     private ValueTask<bool> MSet(RespContext ctx) => ctx.MSetAsync(_pairs);
 
-    private ValueTask LRangeInit(RespContext ctx) => ctx.LPushAsync(_listKey, _payload, TotalOperations).AsUntypedValueTask();
+    private ValueTask LRangeInit(RespContext ctx) =>
+        ctx.LPushAsync(_listKey, _payload, TotalOperations).AsUntypedValueTask();
 
     [DisplayName("XADD")]
-    private ValueTask<RespParsers.ResponseSummary> XAdd(RespContext ctx) => ctx.XAddAsync(_streamKey, "*", "myfield", _payload);
+    private ValueTask<RespParsers.ResponseSummary> XAdd(RespContext ctx) =>
+        ctx.XAddAsync(_streamKey, "*", "myfield", _payload);
+
+    public async Task<int> RunBasicLoopAsync()
+    {
+        var client = GetClient(0);
+        _ = await client.DelAsync(_counterKey).ConfigureAwait(false);
+
+        if (ClientCount <= 1)
+        {
+            await RunBasicLoopAsync(0);
+        }
+        else
+        {
+            Task[] tasks = new Task[ClientCount];
+            for (int i = 0; i < ClientCount; i++)
+            {
+                var loopSnapshot = i;
+                tasks[i] = Task.Run(() => RunBasicLoopAsync(loopSnapshot));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        return 0;
+    }
+
+    public async Task RunBasicLoopAsync(int clientId)
+    {
+        var client = GetClient(clientId);
+        var depth = PipelineDepth;
+        int localCount = 0;
+        long lastValue = client.GetInt32(_counterKey);
+        var previous = DateTime.UtcNow;
+
+        void Tick()
+        {
+            DateTime now;
+            if (clientId == 0 && ((now = DateTime.Now) - previous).TotalSeconds >= 1)
+            {
+                var newValue = client.GetInt32(_counterKey);
+                Console.WriteLine($"{newValue - lastValue} ops in {now - previous}");
+                previous = now;
+                lastValue = newValue;
+                localCount = 0;
+            }
+        }
+        if (depth <= 1)
+        {
+            while (true)
+            {
+                await client.IncrAsync(_counterKey).ConfigureAwait(false);
+
+                if (++localCount >= 1000) Tick();
+            }
+        }
+        else
+        {
+            ValueTask<int>[] pending = new ValueTask<int>[depth];
+            using (var batch = client.CreateBatch(depth))
+            {
+                var ctx = batch.Context;
+                while (true)
+                {
+                    for (int i = 0; i < depth; i++)
+                    {
+                        pending[i] = ctx.IncrAsync(_counterKey);
+                    }
+
+                    await batch.FlushAsync().ConfigureAwait(false);
+                    for (int i = 0; i < depth; i++)
+                    {
+                        await pending[i].ConfigureAwait(false);
+                    }
+
+                    localCount += depth;
+                    if (localCount >= 1000) Tick();
+                }
+            }
+        }
+    }
 }
 
 internal static partial class RedisCommands
@@ -240,6 +322,7 @@ internal static partial class RedisCommands
     {
         private LPushFormatter() { }
         public static readonly LPushFormatter Instance = new();
+
         public void Format(
             scoped ReadOnlySpan<byte> command,
             ref RespWriter writer,
@@ -265,7 +348,8 @@ internal static partial class RedisCommands
     internal static partial RespParsers.ResponseSummary RPop(this in RespContext ctx, string key);
 
     [RespCommand]
-    internal static partial RespParsers.ResponseSummary LRange(this in RespContext ctx, string key, int start, int stop);
+    internal static partial RespParsers.ResponseSummary
+        LRange(this in RespContext ctx, string key, int start, int stop);
 
     [RespCommand]
     internal static partial int HSet(this in RespContext ctx, string key, string field, byte[] payload);
@@ -284,6 +368,9 @@ internal static partial class RedisCommands
 
     [RespCommand]
     internal static partial int ZAdd(this in RespContext ctx, string key, double score, string payload);
+
+    [RespCommand("get")]
+    internal static partial int GetInt32(this in RespContext ctx, string key);
 
     [RespCommand]
     internal static partial RespParsers.ResponseSummary XAdd(
