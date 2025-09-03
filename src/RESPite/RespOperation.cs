@@ -220,4 +220,10 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         remote = new(msg);
         return new RespOperation<TResult>(msg);
     }
+
+    internal void OnSent() => Message.OnSent(Token);
+
+    internal bool TryGetSubMessages(out ReadOnlySpan<RespOperation> operations)
+        => Message.TryGetSubMessages(Token, out operations);
+    internal bool TrySetResultAfterUnloadingSubMessages() => Message.TrySetResultAfterUnloadingSubMessages(Token);
 }

@@ -482,6 +482,37 @@ internal sealed class StreamConnection : RespConnection
         }
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void EnqueueMultiMessage(in RespOperation operation, ReadOnlySpan<RespOperation> operations)
+    {
+        // This typically *does not* include the batch message itself.
+        DebugCounters.OnMultiMessageWrite(operations.Length);
+        foreach (var message in operations)
+        {
+            _outstanding.Enqueue(message);
+        }
+        // The root message typically gets completed here - on the receiving side, all
+        // we see is N unrelated inbound messages; the batch terminates at write.
+        if (!operation.TrySetResultAfterUnloadingSubMessages())
+        {
+            _outstanding.Enqueue(operation);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void Enqueue(in RespOperation operation)
+    {
+        if (operation.TryGetSubMessages(out var operations))
+        {
+            // rare path - multi-message batch
+            EnqueueMultiMessage(in operation, operations);
+        }
+        else
+        {
+            _outstanding.Enqueue(operation);
+        }
+    }
+
     public override void Write(in RespOperation message)
     {
         bool releaseRequest = message.Message.TryReserveRequest(message.Token, out var bytes);
@@ -495,7 +526,7 @@ internal sealed class StreamConnection : RespConnection
         TakeWriter();
         try
         {
-            _outstanding.Enqueue(message);
+            Enqueue(in message);
             releaseRequest = false; // once we write, only release on success
             if (bytes.IsSingleSegment)
             {
@@ -576,7 +607,7 @@ internal sealed class StreamConnection : RespConnection
                 }
 
                 DebugValidateFrameCount(bytes, message.MessageCount);
-                _outstanding.Enqueue(message);
+                Enqueue(in message);
                 toRelease = null; // once we write, only release on success
                 if (bytes.IsSingleSegment)
                 {
@@ -625,7 +656,7 @@ internal sealed class StreamConnection : RespConnection
         DebugValidateFrameCount(bytes, message.MessageCount);
         try
         {
-            _outstanding.Enqueue(message);
+            Enqueue(in message);
             releaseRequest = false; // once we write, only release on success
             ValueTask pendingWrite;
             if (bytes.IsSingleSegment)
@@ -715,7 +746,7 @@ internal sealed class StreamConnection : RespConnection
                 _writeBuffer.Write(bytes);
                 toRelease = null;
                 message.Message.ReleaseRequest();
-                @this._outstanding.Enqueue(message);
+                @this.Enqueue(in message);
 
                 // do we have any full segments? if so, write them and narrow "messages"
                 if (_writeBuffer.TryGetFirstCommittedMemory(CycleBuffer.GetFullPagesOnly, out var memory))

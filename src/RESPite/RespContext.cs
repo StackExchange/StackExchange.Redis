@@ -1,7 +1,7 @@
-﻿using System.Runtime.CompilerServices;
+﻿#define MULTI_BATCH // use combining batches, rather than simple batches
+
+using System.Runtime.CompilerServices;
 using RESPite.Connections.Internal;
-using RESPite.Internal;
-using RESPite.Messages;
 
 namespace RESPite;
 
@@ -154,5 +154,10 @@ public readonly struct RespContext
         return clone;
     }
 
-    public RespBatch CreateBatch(int sizeHint = 0) => new BasicBatchConnection(in this, sizeHint);
+    public RespBatch CreateBatch(int sizeHint = 0)
+    #if MULTI_BATCH
+        => new MergingBatchConnection(in this, sizeHint);
+    #else
+        => new BasicBatchConnection(in this, sizeHint);
+    #endif
 }

@@ -119,7 +119,7 @@ internal abstract class RespMessageBase<TResponse> : RespMessageBase, IValueTask
             "This operation cannot be waited because it entered async/await mode - most likely by calling AsTask()");
     }
 
-    private bool TrySetResultPrecheckedToken(TResponse response)
+    protected bool TrySetResultPrecheckedToken(TResponse response)
     {
         if (!TrySetOutcomeKnownPrecheckedToken(true)) return false;
 

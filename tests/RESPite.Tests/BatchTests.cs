@@ -58,14 +58,16 @@ public partial class BatchTests
         // we *can* safely await if the batch is disposed
         await Assert.ThrowsAsync<ObjectDisposedException>(async () => await f);
 
-        Assert.True(d.AsRespOperation().IsSent);
-        e = TestAsync(server.Context, 4); // uses SERVER again
-
         // check what was sent
         server.AssertSent("*2\r\n$4\r\ntest\r\n$1\r\n0\r\n"u8);
         server.AssertSent("*2\r\n$4\r\ntest\r\n$1\r\n1\r\n"u8);
         server.AssertSent("*2\r\n$4\r\ntest\r\n$1\r\n2\r\n"u8);
         server.AssertSent("*2\r\n$4\r\ntest\r\n$1\r\n3\r\n"u8);
+
+        server.AssertAllSent(); // that's everything
+
+        Assert.True(d.AsRespOperation().IsSent, "batch ops should report as sent");
+        e = TestAsync(server.Context, 4); // uses SERVER again
         server.AssertSent("*2\r\n$4\r\ntest\r\n$1\r\n4\r\n"u8);
         server.AssertAllSent(); // that's everything
 

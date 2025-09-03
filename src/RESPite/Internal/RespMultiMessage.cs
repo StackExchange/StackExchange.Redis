@@ -1,4 +1,6 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using RESPite.Connections.Internal;
 using RESPite.Messages;
 
 namespace RESPite.Internal;
@@ -6,11 +8,13 @@ namespace RESPite.Internal;
 internal sealed class RespMultiMessage : RespMessageBase<int>
 {
     private RespOperation[] _oversized;
-    private int _count = 0;
+    private int _count;
 
     [ThreadStatic]
     // used for object recycling of the async machinery
     private static RespMultiMessage? _threadStaticSpare;
+
+    private ReadOnlySpan<RespOperation> Operations => new(_oversized, 0, _count);
 
     internal static RespMultiMessage Get(RespOperation[] oversized, int count)
     {
@@ -18,8 +22,26 @@ internal sealed class RespMultiMessage : RespMessageBase<int>
         _threadStaticSpare = null;
         obj._oversized = oversized;
         obj._count = count;
-        obj.SetFlag(StateFlags.HasParser | StateFlags.MetadataParser);
         return obj;
+    }
+
+    public override bool TryGetSubMessages(short token, out ReadOnlySpan<RespOperation> operations)
+    {
+        operations = token == Token ? Operations : default;
+        return true; // always return true; this means that flush gets called
+    }
+
+    public override bool TrySetResultAfterUnloadingSubMessages(short token)
+    {
+        if (token == Token && TrySetResultPrecheckedToken(_count))
+        {
+            // release the buffer immediately - it isn't needed any more
+            _count = 0;
+            BufferingBatchConnection.Return(ref _oversized);
+            return true;
+        }
+
+        return false;
     }
 
     protected override void Recycle() => _threadStaticSpare = this;
@@ -27,50 +49,26 @@ internal sealed class RespMultiMessage : RespMessageBase<int>
     private RespMultiMessage() => Unsafe.SkipInit(out _oversized);
 
     protected override int Parse(ref RespReader reader)
-        => MultiMessageParser.Default.Parse(new ReadOnlySpan<RespOperation>(_oversized, 0, _count), ref reader);
+    {
+        Debug.Fail("Not expecting to see results, since unrolled during write");
+        return _count;
+    }
+
+    protected override void OnSent()
+    {
+        base.OnSent();
+        foreach (var op in Operations)
+        {
+            op.OnSent();
+        }
+    }
 
     protected override void Reset(bool recycle)
     {
-        _oversized = [];
         _count = 0;
+        BufferingBatchConnection.Return(ref _oversized);
         base.Reset(recycle);
     }
 
     public override int MessageCount => _count;
-
-    private sealed class MultiMessageParser
-    {
-        private MultiMessageParser() { }
-        public static readonly MultiMessageParser Default = new();
-
-        public int Parse(ReadOnlySpan<RespOperation> operations, ref RespReader reader)
-        {
-            int count = 0;
-            foreach (var op in operations)
-            {
-                // we need to give each sub-operation an isolated reader - no bleeding
-                // data between misbehaving readers (for example, that don't consume
-                // all of their data)
-                var clone = reader; // track the start position
-                if (!reader.TryMoveNext(checkError: false)) ThrowEOF(); // we definitely expected enough for all
-
-                reader.SkipChildren(); // track the end position (for scalar, this is "move past current")
-
-                // now clamp this sub-reader, passing *that* to the operation
-                clone.TrimToTotal(reader.BytesConsumed);
-                if (op.Message.TrySetResult(op.Token, ref clone))
-                {
-                    // track how many we successfully processed, ignoring things
-                    // that, for example, failed due to cancellation before we got here
-                    count++;
-                }
-            }
-
-            if (reader.TryMoveNext()) ThrowTrailing();
-            return count;
-
-            static void ThrowTrailing() => throw new FormatException("Unexpected trailing data");
-            static void ThrowEOF() => throw new EndOfStreamException();
-        }
-    }
 }

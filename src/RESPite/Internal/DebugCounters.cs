@@ -29,7 +29,10 @@ internal partial class DebugCounters
         _tallyBufferMessageCount,
         _tallyBufferPinCount,
         _tallyBufferLeakCount,
-        _tallyBatchGrowCount;
+        _tallyBatchGrowCount,
+        _tallyBatchBufferLeaseCount,
+        _tallyBatchBufferReturnCount,
+        _tallyBatchMultiRootMessageCount;
 
     private static long _tallyWriteBytes,
         _tallyReadBytes,
@@ -39,7 +42,9 @@ internal partial class DebugCounters
         _tallyBufferRecycledBytes,
         _tallyBufferMaxOutstandingBytes,
         _tallyBufferTotalBytes,
-        _tallyBatchGrowCopyCount;
+        _tallyBatchGrowCopyCount,
+        _tallyBatchBufferElementsOutstanding,
+        _tallyBatchMultiChildMessageCount;
 #endif
 
     [Conditional("DEBUG")]
@@ -78,6 +83,30 @@ internal partial class DebugCounters
     {
 #if DEBUG
         Interlocked.Increment(ref _tallyBatchWritePartialPageCount);
+#endif
+    }
+
+    public static void OnBatchBufferLease(int length)
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBatchBufferLeaseCount);
+        Interlocked.Add(ref _tallyBatchBufferElementsOutstanding, length);
+#endif
+    }
+
+    public static void OnBatchBufferReturn(int length)
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBatchBufferReturnCount);
+        Interlocked.Add(ref _tallyBatchBufferElementsOutstanding, -length);
+#endif
+    }
+
+    public static void OnMultiMessageWrite(int length)
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallyBatchMultiRootMessageCount);
+        Interlocked.Add(ref _tallyBatchMultiChildMessageCount, length);
 #endif
     }
 
@@ -270,6 +299,11 @@ internal partial class DebugCounters
     public int BatchWriteMessageCount { get; } = Interlocked.Exchange(ref _tallyBatchWriteMessageCount, 0);
     public int BatchGrowCount { get; } = Interlocked.Exchange(ref _tallyBatchGrowCount, 0);
     public long BatchGrowCopyCount { get; } = Interlocked.Exchange(ref _tallyBatchGrowCopyCount, 0);
+    public int BatchBufferLeaseCount { get; } = Interlocked.Exchange(ref _tallyBatchBufferLeaseCount, 0);
+    public int BatchBufferReturnCount { get; } = Interlocked.Exchange(ref _tallyBatchBufferReturnCount, 0);
+    public long BatchBufferElementsOutstanding { get; } = Interlocked.Exchange(ref _tallyBatchBufferElementsOutstanding, 0);
+    public int BatchMultiRootMessageCount { get; } = Interlocked.Exchange(ref _tallyBatchMultiRootMessageCount, 0);
+    public long BatchMultiChildMessageCount { get; } = Interlocked.Exchange(ref _tallyBatchMultiChildMessageCount, 0);
 
     public int BufferCreatedCount { get; } = Interlocked.Exchange(ref _tallyBufferCreatedCount, 0);
     public int BufferRecycledCount { get; } = Interlocked.Exchange(ref _tallyBufferRecycledCount, 0);

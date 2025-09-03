@@ -269,7 +269,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     if (count == PipelineDepth)
                     {
                         await Flush(client).ConfigureAwait(false);
-                        PrepareBatch(client, Math.Min(opsPerClient - i, PipelineDepth));
+                        PrepareBatch(client, Math.Min(opsPerClient - (i + 1), PipelineDepth));
                         for (int j = 0; j < count; j++)
                         {
                             result = await oversized[j].ConfigureAwait(false);
@@ -545,6 +545,14 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                 {
                     Console.WriteLine(
                         $"Batch growth; {counters.BatchGrowCount:#,##0} events, {counters.BatchGrowCopyCount:#,###,##0} elements copied");
+                }
+
+                if (counters.BatchBufferLeaseCount != 0 | counters.BatchMultiRootMessageCount != 0)
+                {
+                    Console.Write($"Multi-message batching: {counters.BatchMultiRootMessageCount:#,###,##0} batches, {counters.BatchMultiChildMessageCount:#,###,##0} sub-messages");
+                    if (counters.BatchBufferLeaseCount != 0)
+                        Console.Write($"; {counters.BatchBufferLeaseCount:#,###,##0} blocks leased, {counters.BatchBufferReturnCount:#,###,##0} blocks returned, {counters.BatchBufferElementsOutstanding:#,###,##0} elements outstanding");
+                    Console.WriteLine();
                 }
 
                 if (counters.BufferCreatedCount != 0 ||

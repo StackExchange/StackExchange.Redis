@@ -10,7 +10,26 @@ namespace RESPite.Connections.Internal;
 /// </summary>
 internal abstract class BufferingBatchConnection(in RespContext context, int sizeHint) : RespBatch(context)
 {
-    private RespOperation[] _buffer = sizeHint <= 0 ? [] : ArrayPool<RespOperation>.Shared.Rent(sizeHint);
+    internal static void Return(ref RespOperation[] buffer)
+    {
+        if (buffer.Length != 0)
+        {
+            DebugCounters.OnBatchBufferReturn(buffer.Length);
+            ArrayPool<RespOperation>.Shared.Return(buffer);
+            buffer = [];
+        }
+    }
+
+    private static RespOperation[] Rent(int sizeHint)
+    {
+        if (sizeHint <= 0) return [];
+        var arr = ArrayPool<RespOperation>.Shared.Rent(sizeHint);
+        DebugCounters.OnBatchBufferLease(arr.Length);
+        return arr;
+    }
+
+    private RespOperation[] _buffer = Rent(sizeHint);
+
     private int _count = 0;
 
     protected object SyncLock => this;
@@ -36,7 +55,7 @@ internal abstract class BufferingBatchConnection(in RespContext context, int siz
                 message.Message.TrySetException(message.Token, CreateObjectDisposedException());
             }
 
-            ArrayPool<RespOperation>.Shared.Return(buffer);
+            Return(ref buffer);
             ConnectionError = null;
         }
 
@@ -81,10 +100,10 @@ internal abstract class BufferingBatchConnection(in RespContext context, int siz
         if ((uint)newCapacity > maxLength) newCapacity = maxLength; // account for max
         if (newCapacity < required) newCapacity = required; // in case doubling wasn't enough
 
-        var newBuffer = ArrayPool<RespOperation>.Shared.Rent(newCapacity);
+        var newBuffer = Rent(newCapacity);
         DebugCounters.OnBatchGrow(_count);
         _buffer.AsSpan(0, _count).CopyTo(newBuffer);
-        ArrayPool<RespOperation>.Shared.Return(_buffer);
+        Return(ref _buffer);
         _buffer = newBuffer;
     }
 

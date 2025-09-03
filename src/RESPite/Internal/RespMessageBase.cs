@@ -78,6 +78,17 @@ internal abstract class RespMessageBase : IValueTaskSource
         }
     }
 
+    // if this is a multi-message type, then when adding to the "sent awaiting resport" queue,
+    // instead of adding the message, we add the sub-messages **instead** (and not the root message)
+    public virtual bool TryGetSubMessages(short token, out ReadOnlySpan<RespOperation> operations)
+    {
+        operations = default;
+        return false;
+    }
+
+    // if this is a multi-message type, this does cleanup after TryGetSubMessages has been consumed
+    public virtual bool TrySetResultAfterUnloadingSubMessages(short token) => false;
+
     public bool TrySetResult(short token, scoped ReadOnlySpan<byte> response)
     {
         RespReader reader = new(response);
@@ -186,6 +197,14 @@ internal abstract class RespMessageBase : IValueTaskSource
     protected abstract void Recycle();
     protected abstract void NextToken();
 
+    internal void OnSent(short token)
+    {
+        // only if our token matches, but: don't throw
+        if (token == Token) OnSent();
+    }
+
+    protected virtual void OnSent() => SetFlag(StateFlags.IsSent);
+
     public bool TryReserveRequest(short token, out ReadOnlySequence<byte> payload, bool recordSent = true)
     {
         while (true) // redo in case of CEX failure
@@ -201,7 +220,7 @@ internal abstract class RespMessageBase : IValueTaskSource
 
             if (Interlocked.CompareExchange(ref _requestRefCount, checked(oldCount + 1), oldCount) == oldCount)
             {
-                if (recordSent) SetFlag(StateFlags.IsSent);
+                if (recordSent) OnSent();
 
                 payload = _request;
                 return true;
