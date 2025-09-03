@@ -29,7 +29,7 @@ internal sealed class RespMultiMessage : RespMessageBase<int>
     protected override int Parse(ref RespReader reader)
         => MultiMessageParser.Default.Parse(new ReadOnlySpan<RespOperation>(_oversized, 0, _count), ref reader);
 
-    public override void Reset(bool recycle)
+    protected override void Reset(bool recycle)
     {
         _oversized = [];
         _count = 0;

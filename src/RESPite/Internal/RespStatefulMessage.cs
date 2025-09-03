@@ -26,7 +26,7 @@ internal sealed class RespStatefulMessage<TState, TResponse> : RespMessageBase<T
 
     protected override TResponse Parse(ref RespReader reader) => _parser!.Parse(in _state, ref reader);
 
-    public override void Reset(bool recycle)
+    protected override void Reset(bool recycle)
     {
         _state = default!;
         _parser = null!;

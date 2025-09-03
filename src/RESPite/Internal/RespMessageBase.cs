@@ -1,7 +1,6 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks.Sources;
 using RESPite.Messages;
 
@@ -18,7 +17,7 @@ internal abstract class RespMessageBase : IValueTaskSource
     public ref readonly CancellationToken CancellationToken => ref _cancellationToken;
 
     [Flags]
-    protected enum StateFlags : int
+    protected enum StateFlags
     {
         None = 0,
         IsSent = 1 << 0, // the request has been sent
@@ -167,7 +166,7 @@ internal abstract class RespMessageBase : IValueTaskSource
         _cancellationToken = CancellationToken.None;
     }
 
-    public virtual void Reset(bool recycle)
+    protected virtual void Reset(bool recycle)
     {
         Debug.Assert(
             !recycle || OwnStatus == ValueTaskSourceStatus.Succeeded,
@@ -253,6 +252,7 @@ internal abstract class RespMessageBase : IValueTaskSource
     // spoof untyped on top of typed
     void IValueTaskSource.GetResult(short token) => GetResultVoid(token);
 
+    // ReSharper disable once UnusedMember.Local
     private bool TrySetOutcomeKnown(short token, bool withSuccess)
         => Token == token && TrySetOutcomeKnownPrecheckedToken(withSuccess);
 
