@@ -9,6 +9,10 @@ public static class RespFormatters
     public static IRespFormatter<byte[]> ByteArray(bool isKey) => isKey ? Key.ByteArray : Value.ByteArray;
     public static IRespFormatter<ReadOnlyMemory<byte>> Bytes(bool isKey) => isKey ? Key.Bytes : Value.Bytes;
     public static IRespFormatter<bool> Empty => EmptyFormatter.Instance;
+    public static IRespFormatter<int> Int32 => Value.Formatter.Default;
+    public static IRespFormatter<long> Int64 => Value.Formatter.Default;
+    public static IRespFormatter<float> Single => Value.Formatter.Default;
+    public static IRespFormatter<int> Double => Value.Formatter.Default;
 
     public static class Key
     {
@@ -16,8 +20,11 @@ public static class RespFormatters
         public static IRespFormatter<string> String => Formatter.Default;
         public static IRespFormatter<ReadOnlyMemory<char>> Chars => Formatter.Default;
         public static IRespFormatter<byte[]> ByteArray => Formatter.Default;
+
         public static IRespFormatter<ReadOnlyMemory<byte>> Bytes => Formatter.Default;
         // ReSharper restore MemberHidesStaticFromOuterClass
+
+        // (just to fix an auto-format glitch)
         internal sealed class Formatter : IRespFormatter<string>, IRespFormatter<byte[]>,
             IRespFormatter<ReadOnlyMemory<char>>, IRespFormatter<ReadOnlyMemory<byte>>
         {
@@ -29,16 +36,19 @@ public static class RespFormatters
                 writer.WriteCommand(command, 1);
                 writer.WriteKey(value);
             }
+
             public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in byte[] value)
             {
                 writer.WriteCommand(command, 1);
                 writer.WriteKey(value);
             }
+
             public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in ReadOnlyMemory<char> value)
             {
                 writer.WriteCommand(command, 1);
                 writer.WriteKey(value);
             }
+
             public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in ReadOnlyMemory<byte> value)
             {
                 writer.WriteCommand(command, 1);
@@ -53,10 +63,15 @@ public static class RespFormatters
         public static IRespFormatter<string> String => Formatter.Default;
         public static IRespFormatter<ReadOnlyMemory<char>> Chars => Formatter.Default;
         public static IRespFormatter<byte[]> ByteArray => Formatter.Default;
+
         public static IRespFormatter<ReadOnlyMemory<byte>> Bytes => Formatter.Default;
         // ReSharper restore MemberHidesStaticFromOuterClass
+
+        // (just to fix an auto-format glitch)
         internal sealed class Formatter : IRespFormatter<string>, IRespFormatter<byte[]>,
-            IRespFormatter<ReadOnlyMemory<char>>, IRespFormatter<ReadOnlyMemory<byte>>
+            IRespFormatter<ReadOnlyMemory<char>>, IRespFormatter<ReadOnlyMemory<byte>>,
+            IRespFormatter<int>, IRespFormatter<long>,
+            IRespFormatter<float>, IRespFormatter<double>
         {
             private Formatter() { }
             public static readonly Formatter Default = new();
@@ -66,17 +81,44 @@ public static class RespFormatters
                 writer.WriteCommand(command, 1);
                 writer.WriteBulkString(value);
             }
+
             public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in byte[] value)
             {
                 writer.WriteCommand(command, 1);
                 writer.WriteBulkString(value);
             }
+
             public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in ReadOnlyMemory<char> value)
             {
                 writer.WriteCommand(command, 1);
                 writer.WriteBulkString(value);
             }
+
             public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in ReadOnlyMemory<byte> value)
+            {
+                writer.WriteCommand(command, 1);
+                writer.WriteBulkString(value);
+            }
+
+            public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in int value)
+            {
+                writer.WriteCommand(command, 1);
+                writer.WriteBulkString(value);
+            }
+
+            public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in long value)
+            {
+                writer.WriteCommand(command, 1);
+                writer.WriteBulkString(value);
+            }
+
+            public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in float value)
+            {
+                writer.WriteCommand(command, 1);
+                writer.WriteBulkString(value);
+            }
+
+            public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in double value)
             {
                 writer.WriteCommand(command, 1);
                 writer.WriteBulkString(value);
@@ -88,6 +130,7 @@ public static class RespFormatters
     {
         private EmptyFormatter() { }
         public static readonly EmptyFormatter Instance = new();
+
         public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in bool value)
         {
             writer.WriteCommand(command, 0);

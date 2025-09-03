@@ -72,7 +72,7 @@ internal sealed class TestServer : IDisposable
         {
             server = new TestServer();
             var pending = operation(server.Context);
-            server.AssertSent(request);
+            server.AssertSent(request, final: true);
             Assert.False(pending.IsCompleted);
             server.Respond(response);
             disposeServer = false;
@@ -136,7 +136,7 @@ internal sealed class TestServer : IDisposable
         {
             server = new TestServer();
             var pending = operation(server.Context);
-            server.AssertSent(request);
+            server.AssertSent(request, final: true);
             Assert.False(pending.IsCompleted);
             server.Respond(response);
             disposeServer = false;
@@ -166,7 +166,14 @@ internal sealed class TestServer : IDisposable
     public ref readonly RespContext Context => ref Connection.Context;
 
     public void Respond(ReadOnlySpan<byte> serverToClient) => _stream.Respond(serverToClient);
-    public void AssertSent(ReadOnlySpan<byte> clientToServer) => _stream.AssertSent(clientToServer);
+
+    public void AssertSent(ReadOnlySpan<byte> clientToServer, bool final = false)
+    {
+        _stream.AssertSent(clientToServer);
+        if (final) _stream.AssertAllSent();
+    }
+
+    public void AssertAllSent() => _stream.AssertAllSent();
 
     private sealed class TestRespServerStream : Stream
     {
@@ -290,6 +297,18 @@ internal sealed class TestServer : IDisposable
             return default;
         }
 #endif
+
+        // verifies that there is no more request data unaccounted for
+        public void AssertAllSent()
+        {
+            bool empty;
+            lock (OutboundLock)
+            {
+                empty = _outbound.CommittedIsEmpty;
+            }
+
+            Assert.True(empty);
+        }
 
         /// <summary>
         /// Verifies and discards outbound data.

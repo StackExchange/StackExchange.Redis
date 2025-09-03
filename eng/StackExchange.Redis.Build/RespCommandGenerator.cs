@@ -673,6 +673,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         "long" => RespFormattersPrefix + "Int64",
         "float" => RespFormattersPrefix + "Single",
         "double" => RespFormattersPrefix + "Double",
+        "" => RespFormattersPrefix + "Empty",
         _ => null,
     };
 

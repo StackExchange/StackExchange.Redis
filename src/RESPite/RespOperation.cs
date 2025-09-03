@@ -40,6 +40,12 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     private readonly short _token;
     private readonly bool _disableCaptureContext; // default is false, so: bypass
 
+    internal RespOperation(RespMessageBase message, short token, bool disableCaptureContext)
+    {
+        _message = message;
+        _token = token;
+        _disableCaptureContext = disableCaptureContext;
+    }
     internal RespOperation(RespMessageBase message, bool disableCaptureContext = false)
     {
         _message = message;
