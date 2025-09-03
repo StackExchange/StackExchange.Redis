@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using RESPite;
 using Xunit;
 using Xunit.Internal;
@@ -158,6 +159,57 @@ public class OperationUnitTests
         AssertCT(ex.CancellationToken, cts.Token);
     }
 
+    [Fact]
+    public void CoreValueTaskToTaskSupportsCancellation()
+    {
+        // The purpose of this test is to show that there are some inherent limitations in netfx
+        // regarding IVTS:AsTask (compared with modern .NET), specifically:
+        // - it manifests as TaskCanceledException instead of OperationCanceledException
+        // - the token is not propagated correctly - it comes back as .None
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var ta = new TestAwaitable();
+        var task = ta.AsValueTask().AsTask();
+        Assert.Equal(TaskStatus.WaitingForActivation, task.Status);
+        ta.Cancel(cts.Token);
+        Assert.Equal(TaskStatus.Canceled, task.Status);
+        // ReSharper disable once MethodSupportsCancellation - this task is not incomplete
+#pragma warning disable xUnit1051
+        // use awaiter to unroll aggregate exception
+#if NETFRAMEWORK
+        var ex = Assert.Throws<TaskCanceledException>(() => task.GetAwaiter().GetResult());
+#else
+        var ex = Assert.Throws<OperationCanceledException>(() => task.GetAwaiter().GetResult());
+#endif
+#pragma warning restore xUnit1051
+        var summary = SummarizeCT(ex.CancellationToken, cts.Token);
+
+#if NETFRAMEWORK // I *wish* this wasn't the case, but: wishes are free
+        Assert.Equal(
+            CancellationProblems.DefaultToken | CancellationProblems.NotCanceled
+            | CancellationProblems.CannotBeCanceled | CancellationProblems.NotExpectedToken,
+            summary);
+#else
+        Assert.Equal(CancellationProblems.None, summary);
+#endif
+    }
+
+    private class TestAwaitable : IValueTaskSource
+    {
+        private ManualResetValueTaskSourceCore<int> _core;
+        public ValueTask AsValueTask() => new(this, _core.Version);
+        public void GetResult(short token) => _core.GetResult(token);
+        public void Cancel(CancellationToken token) => _core.SetException(new OperationCanceledException(token));
+        public ValueTaskSourceStatus GetStatus(short token) => _core.GetStatus(token);
+
+        public void OnCompleted(
+            Action<object?> continuation,
+            object? state,
+            short token,
+            ValueTaskSourceOnCompletedFlags flags)
+            => _core.OnCompleted(continuation, state, token, flags);
+    }
+
     [Fact(Timeout = 1000)]
     public async Task UnsentNotDetected_Task_Async()
     {
@@ -165,18 +217,38 @@ public class OperationUnitTests
         cts.CancelAfter(100);
         var op = RespOperation.Create(out var remote, false, cts.Token);
         var ex = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await op.AsTask());
+
+        #if NETFRAMEWORK // see CoreValueTaskToTaskSupportsCancellation for more context
+        Assert.Equal(CancellationToken.None, ex.CancellationToken);
+        #else
         AssertCT(ex.CancellationToken, cts.Token);
+        #endif
+    }
+
+    [Flags]
+    private enum CancellationProblems
+    {
+        None = 0,
+        DefaultToken = 1 << 0,
+        NotCanceled = 1 << 1,
+        CannotBeCanceled = 1 << 2,
+        TestInfrastuctureToken = 1 << 3,
+        NotExpectedToken = 1 << 4,
+    }
+
+    private static CancellationProblems SummarizeCT(CancellationToken actual, CancellationToken expected)
+    {
+        CancellationProblems problems = 0;
+        if (actual == CancellationToken.None) problems |= CancellationProblems.DefaultToken;
+        if (!actual.IsCancellationRequested) problems |= CancellationProblems.NotCanceled;
+        if (!actual.CanBeCanceled) problems |= CancellationProblems.CannotBeCanceled;
+        if (actual == CancellationToken) problems |= CancellationProblems.TestInfrastuctureToken;
+        if (actual != expected) problems |= CancellationProblems.NotExpectedToken;
+        return problems;
     }
 
     private static void AssertCT(CancellationToken actual, CancellationToken expected)
-    {
-        string problems = "";
-        if (actual == CancellationToken.None) problems += "default;";
-        if (!actual.IsCancellationRequested) problems += "not cancelled;";
-        if (actual == CancellationToken) problems += "test CT;";
-        if (actual != expected) problems += "not local CT";
-        Assert.Empty(problems.TrimEnd(';'));
-    }
+        => Assert.Equal(CancellationProblems.None, SummarizeCT(actual, expected));
 
     [Fact(Timeout = 1000)]
     public void CanCreateAndCompleteOperation()
