@@ -206,6 +206,19 @@ internal enum RedisCommand
     UNSUBSCRIBE,
     UNWATCH,
 
+    VADD,
+    VCARD,
+    VDIM,
+    VEMB,
+    VGETATTR,
+    VINFO,
+    VISMEMBER,
+    VLINKS,
+    VRANDMEMBER,
+    VREM,
+    VSETATTR,
+    VSIM,
+
     WATCH,
 
     XACK,
@@ -352,6 +365,9 @@ internal static class RedisCommandExtensions
             case RedisCommand.SWAPDB:
             case RedisCommand.TOUCH:
             case RedisCommand.UNLINK:
+            case RedisCommand.VADD:
+            case RedisCommand.VREM:
+            case RedisCommand.VSETATTR:
             case RedisCommand.XAUTOCLAIM:
             case RedisCommand.ZADD:
             case RedisCommand.ZDIFFSTORE:
@@ -499,6 +515,15 @@ internal static class RedisCommandExtensions
             case RedisCommand.ZSCORE:
             case RedisCommand.ZUNION:
             case RedisCommand.UNKNOWN:
+            case RedisCommand.VCARD:
+            case RedisCommand.VDIM:
+            case RedisCommand.VEMB:
+            case RedisCommand.VGETATTR:
+            case RedisCommand.VINFO:
+            case RedisCommand.VISMEMBER:
+            case RedisCommand.VLINKS:
+            case RedisCommand.VRANDMEMBER:
+            case RedisCommand.VSIM:
             // Writable commands, but allowed for the writable-replicas scenario
             case RedisCommand.COPY:
             case RedisCommand.GEOADD:

@@ -10,4 +10,7 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
     <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" Condition=" '$(DEVCONTAINER)' != 'true' " />
   </ItemGroup>
+  <ItemGroup>
+    <Analyzer Include="..\..\eng\StackExchange.Redis.Build\bin\$(Configuration)\netstandard2.0\StackExchange.Redis.Build.dll" />
+  </ItemGroup>
 </Project>

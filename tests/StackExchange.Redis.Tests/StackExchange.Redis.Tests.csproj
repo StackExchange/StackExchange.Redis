@@ -30,5 +30,6 @@
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="System.IO.Compression" />
     <PackageReference Include="System.IO.Pipelines" />
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

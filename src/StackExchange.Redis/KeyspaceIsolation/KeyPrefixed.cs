@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal class KeyPrefixed<TInner> : IDatabaseAsync where TInner : IDatabaseAsync
+    internal partial class KeyPrefixed<TInner> : IDatabaseAsync where TInner : IDatabaseAsync
     {
         internal KeyPrefixed(TInner inner, byte[] keyPrefix)
         {
