@@ -90,35 +90,10 @@ public partial interface IDatabaseAsync
         string jsonAttributes,
         CommandFlags flags = CommandFlags.None);
 
-    /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearchByVector(RedisKey, ReadOnlyMemory{float}, int?, bool, bool, double?, int?, string?, int?, bool, bool, CommandFlags)"/>
+    /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearch(RedisKey, VectorSetSimilaritySearchRequest, CommandFlags)"/>
     [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-    Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByVectorAsync(
+    Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchAsync(
         RedisKey key,
-        ReadOnlyMemory<float> vector,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
-        CommandFlags flags = CommandFlags.None);
-
-    /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearchByMember(RedisKey, RedisValue, int?, bool, bool, double?, int?, string?, int?, bool, bool, CommandFlags)"/>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-    Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByMemberAsync(
-        RedisKey key,
-        RedisValue member,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
+        VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None);
 }

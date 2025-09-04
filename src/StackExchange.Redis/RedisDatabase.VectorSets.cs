@@ -94,67 +94,13 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
-    public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByVector(
+    public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(
         RedisKey key,
-        ReadOnlyMemory<float> vector,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
+        VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None)
     {
-        var msg = new VectorSetSimilaritySearchMessage(
-            Database,
-            flags,
-            key,
-            RedisValue.Null,
-            vector,
-            count,
-            withScores,
-            withAttributes,
-            epsilon,
-            searchExplorationFactor,
-            filterExpression,
-            maxFilteringEffort,
-            useExactSearch,
-            disableThreading);
-        return ExecuteSync(msg, msg.GetResultProcessor());
-    }
-
-    public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByMember(
-        RedisKey key,
-        RedisValue member,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
-        CommandFlags flags = CommandFlags.None)
-    {
-        var msg = new VectorSetSimilaritySearchMessage(
-            Database,
-            flags,
-            key,
-            member,
-            ReadOnlyMemory<float>.Empty,
-            count,
-            withScores,
-            withAttributes,
-            epsilon,
-            searchExplorationFactor,
-            filterExpression,
-            maxFilteringEffort,
-            useExactSearch,
-            disableThreading);
+        if (query == null) throw new ArgumentNullException(nameof(query));
+        var msg = query.ToMessage(key, Database, flags);
         return ExecuteSync(msg, msg.GetResultProcessor());
     }
 
@@ -247,67 +193,13 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 
-    public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByVectorAsync(
+    public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchAsync(
         RedisKey key,
-        ReadOnlyMemory<float> vector,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
+        VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None)
     {
-        var msg = new VectorSetSimilaritySearchMessage(
-            Database,
-            flags,
-            key,
-            RedisValue.Null,
-            vector,
-            count,
-            withScores,
-            withAttributes,
-            epsilon,
-            searchExplorationFactor,
-            filterExpression,
-            maxFilteringEffort,
-            useExactSearch,
-            disableThreading);
-        return ExecuteAsync(msg, msg.GetResultProcessor());
-    }
-
-    public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByMemberAsync(
-        RedisKey key,
-        RedisValue member,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
-        CommandFlags flags = CommandFlags.None)
-    {
-        var msg = new VectorSetSimilaritySearchMessage(
-            Database,
-            flags,
-            key,
-            member,
-            ReadOnlyMemory<float>.Empty,
-            count,
-            withScores,
-            withAttributes,
-            epsilon,
-            searchExplorationFactor,
-            filterExpression,
-            maxFilteringEffort,
-            useExactSearch,
-            disableThreading);
+        if (query == null) throw new ArgumentNullException(nameof(query));
+        var msg = query.ToMessage(key, Database, flags);
         return ExecuteAsync(msg, msg.GetResultProcessor());
     }
 }

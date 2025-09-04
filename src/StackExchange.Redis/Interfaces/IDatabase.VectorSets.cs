@@ -182,63 +182,13 @@ public partial interface IDatabase
     /// Find similar vectors using vector similarity search.
     /// </summary>
     /// <param name="key">The key of the vectorset.</param>
-    /// <param name="vector">The query vector.</param>
-    /// <param name="count">The number of similar vectors to return (COUNT parameter).</param>
-    /// <param name="withScores">Whether to include similarity scores in the results (WITHSCORES parameter).</param>
-    /// <param name="withAttributes">Whether to include JSON attributes in the results (WITHATTRIBS parameter).</param>
-    /// <param name="epsilon">Optional similarity threshold - only return elements with similarity >= (1 - epsilon) (EPSILON parameter).</param>
-    /// <param name="searchExplorationFactor">Optional search exploration factor for better recall (EF parameter).</param>
-    /// <param name="filterExpression">Optional filter expression to restrict results (FILTER parameter); <see href="https://redis.io/docs/latest/develop/data-types/vector-sets/filtered-search/"/>.</param>
-    /// <param name="maxFilteringEffort">Optional maximum filtering attempts (FILTER-EF parameter).</param>
-    /// <param name="useExactSearch">Whether to use exact linear scan instead of HNSW (TRUTH parameter).</param>
-    /// <param name="disableThreading">Whether to run search in main thread (NOTHREAD parameter).</param>
+    /// <param name="query">The query to execute.</param>
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>Similar vectors with their similarity scores.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vsim"/></remarks>
     [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-    Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByVector(
+    Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(
         RedisKey key,
-        ReadOnlyMemory<float> vector,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
-        CommandFlags flags = CommandFlags.None);
-
-    /// <summary>
-    /// Find similar vectors to an existing member.
-    /// </summary>
-    /// <param name="key">The key of the vectorset.</param>
-    /// <param name="member">The member to find similar vectors for.</param>
-    /// <param name="count">The number of similar vectors to return (COUNT parameter).</param>
-    /// <param name="withScores">Whether to include similarity scores in the results (WITHSCORES parameter).</param>
-    /// <param name="withAttributes">Whether to include JSON attributes in the results (WITHATTRIBS parameter).</param>
-    /// <param name="epsilon">Optional similarity threshold - only return elements with similarity >= (1 - epsilon) (EPSILON parameter).</param>
-    /// <param name="searchExplorationFactor">Optional search exploration factor for better recall (EF parameter).</param>
-    /// <param name="filterExpression">Optional filter expression to restrict results (FILTER parameter).</param>
-    /// <param name="maxFilteringEffort">Optional maximum filtering attempts (FILTER-EF parameter).</param>
-    /// <param name="useExactSearch">Whether to use exact linear scan instead of HNSW (TRUTH parameter).</param>
-    /// <param name="disableThreading">Whether to run search in main thread (NOTHREAD parameter).</param>
-    /// <param name="flags">The flags to use for this operation.</param>
-    /// <returns>Similar vectors with their similarity scores.</returns>
-    /// <remarks><seealso href="https://redis.io/commands/vsim"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-    Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByMember(
-        RedisKey key,
-        RedisValue member,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
+        VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None);
 }

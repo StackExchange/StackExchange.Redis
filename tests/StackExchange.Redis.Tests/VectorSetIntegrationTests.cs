@@ -20,7 +20,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var key = Me();
 
         // Clean up any existing data
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f };
 
@@ -44,7 +44,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f };
         var attributes = """{"category":"test","id":123}""";
@@ -68,7 +68,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f };
         var attributes = """{"category":"test","id":123}""";
@@ -98,7 +98,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var length = await db.VectorSetLengthAsync(key);
         Assert.Equal(0, length);
@@ -111,7 +111,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector1 = new float[] { 1.0f, 2.0f, 3.0f };
         var vector2 = new float[] { 4.0f, 5.0f, 6.0f };
@@ -130,7 +130,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
         await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
@@ -148,7 +148,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f };
         if (suppressFp32) VectorSetAddMessage.SuppressFp32();
@@ -177,7 +177,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var originalVector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f };
         if (suppressFp32) VectorSetAddMessage.SuppressFp32();
@@ -212,7 +212,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f };
         await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
@@ -237,7 +237,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
         await db.VectorSetAddAsync(key, "element1", vector.AsMemory(), quantization: quantization);
@@ -262,7 +262,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector1 = new float[] { 1.0f, 2.0f, 3.0f };
         var vector2 = new float[] { 4.0f, 5.0f, 6.0f };
@@ -281,7 +281,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector1 = new float[] { 1.0f, 2.0f, 3.0f };
         var vector2 = new float[] { 4.0f, 5.0f, 6.0f };
@@ -310,7 +310,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var disambiguator = (withScores ? 1 : 0) + (withAttributes ? 2 : 0);
         var key = Me() + disambiguator;
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         // Add some test vectors
         var vector1 = new float[] { 1.0f, 0.0f, 0.0f };
@@ -323,12 +323,12 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
 
         // Search for vectors similar to vector1
         using var results =
-            await db.VectorSetSimilaritySearchByVectorAsync(
+            await db.VectorSetSimilaritySearchAsync(
                 key,
-                vector1.AsMemory(),
-                count: 2,
-                withScores: withScores,
-                withAttributes: withAttributes);
+                new()
+                {
+                    Vector = vector1.AsMemory(), Count = 2, WithScores = withScores, WithAttributes = withAttributes,
+                });
 
         Assert.NotNull(results);
         foreach (var result in results.Span)
@@ -366,7 +366,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var disambiguator = (withScores ? 1 : 0) + (withAttributes ? 2 : 0);
         var key = Me() + disambiguator;
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector1 = new float[] { 1.0f, 0.0f, 0.0f };
         var vector2 = new float[] { 0.0f, 1.0f, 0.0f };
@@ -375,12 +375,12 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         await db.VectorSetAddAsync(key, "element2", vector2.AsMemory(), attributesJson: """{"category":"y"}""");
 
         using var results =
-            await db.VectorSetSimilaritySearchByMemberAsync(
+            await db.VectorSetSimilaritySearchAsync(
                 key,
-                "element1",
-                count: 1,
-                withScores: withScores,
-                withAttributes: withAttributes);
+                new()
+                {
+                    Member = "element1", Count = 1, WithScores = withScores, WithAttributes = withAttributes,
+                });
 
         Assert.NotNull(results);
         foreach (var result in results.Span)
@@ -415,7 +415,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         Random rand = new Random();
 
@@ -443,13 +443,16 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
 
         ScrambleVector();
         using var results =
-            await db.VectorSetSimilaritySearchByVectorAsync(
+            await db.VectorSetSimilaritySearchAsync(
                 key,
-                vector,
-                count: 100,
-                withScores: true,
-                withAttributes: true,
-                filterExpression: ".id >= 30");
+                new()
+                {
+                    Vector = vector,
+                    Count = 100,
+                    WithScores = true,
+                    WithAttributes = true,
+                    FilterExpression = ".id >= 30",
+                });
 
         Assert.NotNull(results);
         foreach (var result in results.Span)
@@ -484,6 +487,65 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("    ")]
+    [InlineData(".id >= 30")]
+    public async Task VectorSetSimilaritySearch_TestFilterValues(string? filterExpression)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+
+        Random rand = new Random();
+
+        float[] vector = new float[50];
+
+        void ScrambleVector()
+        {
+            var arr = vector;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                arr[i] = (float)rand.NextDouble();
+            }
+        }
+
+        string[] regions = new[] { "us-west", "us-east", "eu-west", "eu-east", "ap-south", "ap-north" };
+        for (int i = 0; i < 100; i++)
+        {
+            var region = regions[rand.Next(regions.Length)];
+            var json = JsonConvert.SerializeObject(new { id = i, region });
+            ScrambleVector();
+            await db.VectorSetAddAsync(key, $"element{i}", vector, attributesJson: json);
+        }
+
+        ScrambleVector();
+        using var results =
+            await db.VectorSetSimilaritySearchAsync(
+                key,
+                new()
+                {
+                    Vector = vector,
+                    Count = 100,
+                    WithScores = true,
+                    WithAttributes = true,
+                    FilterExpression = filterExpression,
+                });
+
+        Assert.NotNull(results);
+        foreach (var result in results.Span)
+        {
+            Log(result.ToString());
+        }
+
+        Log($"Total matches: {results.Span.Length}");
+        // we're not interested in the specific results; we're just checking that the
+        // filter expression was added and parsed without exploding about arg mismatch
+    }
+
     [Fact]
     public async Task VectorSetSetAttributesJson()
     {
@@ -491,7 +553,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new float[] { 1.0f, 2.0f, 3.0f };
         await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
@@ -518,7 +580,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         // Add some vectors that should be linked
         var vector1 = new float[] { 1.0f, 0.0f, 0.0f };
@@ -552,7 +614,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var db = conn.GetDatabase();
         var key = Me();
 
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         // Add some vectors with known relationships
         var vector1 = new float[] { 1.0f, 0.0f, 0.0f };

@@ -55,33 +55,9 @@ internal sealed partial class KeyPrefixedDatabase
     public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetSetAttributesJson(ToInner(key), member, jsonAttributes, flags);
 
-    public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByVector(
+    public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(
         RedisKey key,
-        ReadOnlyMemory<float> vector,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
+        VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None) =>
-        Inner.VectorSetSimilaritySearchByVector(ToInner(key), vector, count, withScores, withAttributes, epsilon, searchExplorationFactor, filterExpression, maxFilteringEffort, useExactSearch, disableThreading, flags);
-
-    public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearchByMember(
-        RedisKey key,
-        RedisValue member,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
-        CommandFlags flags = CommandFlags.None) =>
-        Inner.VectorSetSimilaritySearchByMember(ToInner(key), member, count, withScores, withAttributes, epsilon, searchExplorationFactor, filterExpression, maxFilteringEffort, useExactSearch, disableThreading, flags);
+        Inner.VectorSetSimilaritySearch(ToInner(key), query, flags);
 }

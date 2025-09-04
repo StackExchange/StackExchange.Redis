@@ -58,33 +58,9 @@ internal partial class KeyPrefixed<TInner>
     public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetSetAttributesJsonAsync(ToInner(key), member, jsonAttributes, flags);
 
-    public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByVectorAsync(
+    public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchAsync(
         RedisKey key,
-        ReadOnlyMemory<float> vector,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
+        VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None) =>
-        Inner.VectorSetSimilaritySearchByVectorAsync(ToInner(key), vector, count, withScores, withAttributes, epsilon, searchExplorationFactor, filterExpression, maxFilteringEffort, useExactSearch, disableThreading, flags);
-
-    public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchByMemberAsync(
-        RedisKey key,
-        RedisValue member,
-        int? count = null,
-        bool withScores = false,
-        bool withAttributes = false,
-        double? epsilon = null,
-        int? searchExplorationFactor = null,
-        string? filterExpression = null,
-        int? maxFilteringEffort = null,
-        bool useExactSearch = false,
-        bool disableThreading = false,
-        CommandFlags flags = CommandFlags.None) =>
-        Inner.VectorSetSimilaritySearchByMemberAsync(ToInner(key), member, count, withScores, withAttributes, epsilon, searchExplorationFactor, filterExpression, maxFilteringEffort, useExactSearch, disableThreading, flags);
+        Inner.VectorSetSimilaritySearchAsync(ToInner(key), query, flags);
 }

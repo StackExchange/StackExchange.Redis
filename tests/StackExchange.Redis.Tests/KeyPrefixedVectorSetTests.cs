@@ -171,42 +171,41 @@ namespace StackExchange.Redis.Tests
         {
             var vector = new[] { 1.0f, 2.0f, 3.0f }.AsMemory();
 
-            prefixed.VectorSetSimilaritySearchByVector(
+            var query = new VectorSetSimilaritySearchRequest
+            {
+                Vector = vector,
+            };
+            prefixed.VectorSetSimilaritySearch(
                 "vectorset",
-                vector);
-            mock.Received().VectorSetSimilaritySearchByVector(
+                query);
+            mock.Received().VectorSetSimilaritySearch(
                 "prefix:vectorset",
-                vector);
+                query);
         }
 
         [Fact]
         public void VectorSetSimilaritySearchByMember()
         {
-            prefixed.VectorSetSimilaritySearchByMember(
+            var query = new VectorSetSimilaritySearchRequest
+            {
+                Member = "member1",
+                Count = 5,
+                WithScores = true,
+                WithAttributes = true,
+                Epsilon = 0.1,
+                SearchExplorationFactor = 400,
+                FilterExpression = "category='test'",
+                MaxFilteringEffort = 1000,
+                UseExactSearch = true,
+                DisableThreading = true,
+            };
+            prefixed.VectorSetSimilaritySearch(
                 "vectorset",
-                "member1",
-                5,
-                true,
-                true,
-                0.1,
-                400,
-                "category='test'",
-                1000,
-                true,
-                true,
+                query,
                 CommandFlags.FireAndForget);
-            mock.Received().VectorSetSimilaritySearchByMember(
+            mock.Received().VectorSetSimilaritySearch(
                 "prefix:vectorset",
-                "member1",
-                5,
-                true,
-                true,
-                0.1,
-                400,
-                "category='test'",
-                1000,
-                true,
-                true,
+                query,
                 CommandFlags.FireAndForget);
         }
 
@@ -216,10 +215,14 @@ namespace StackExchange.Redis.Tests
             var vector = new[] { 1.0f, 2.0f }.AsMemory();
 
             // Test that default parameters work correctly
-            prefixed.VectorSetSimilaritySearchByVector("vectorset", vector);
-            mock.Received().VectorSetSimilaritySearchByVector(
+            var query = new VectorSetSimilaritySearchRequest
+            {
+                Vector = vector,
+            };
+            prefixed.VectorSetSimilaritySearch("vectorset", query);
+            mock.Received().VectorSetSimilaritySearch(
                 "prefix:vectorset",
-                vector);
+                query);
         }
     }
 }

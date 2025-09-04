@@ -5,34 +5,16 @@ namespace StackExchange.Redis;
 internal sealed class VectorSetSimilaritySearchMessage(
     int db,
     CommandFlags flags,
+    VectorSetSimilaritySearchMessage.VsimFlags vsimFlags,
     RedisKey key,
     RedisValue member,
     ReadOnlyMemory<float> vector,
-    int? count,
-    bool withScores,
-    bool withAttributes,
-    double? epsilon,
-    int? searchExplorationFactor,
+    int count,
+    double epsilon,
+    int searchExplorationFactor,
     string? filterExpression,
-    int? maxFilteringEffort,
-    bool useExactSearch,
-    bool disableThreading) : Message(db, flags, RedisCommand.VSIM)
+    int maxFilteringEffort) : Message(db, flags, RedisCommand.VSIM)
 {
-    private readonly VsimFlags _flags =
-        (count.HasValue ? VsimFlags.Count : 0) |
-        (withScores ? VsimFlags.WithScores : 0) |
-        (withAttributes ? VsimFlags.WithAttributes : 0) |
-        (useExactSearch ? VsimFlags.UseExactSearch : 0) |
-        (disableThreading ? VsimFlags.DisableThreading : 0) |
-        (epsilon.HasValue ? VsimFlags.Epsilon : 0) |
-        (searchExplorationFactor.HasValue ? VsimFlags.SearchExplorationFactor : 0) |
-        (maxFilteringEffort.HasValue ? VsimFlags.MaxFilteringEffort : 0);
-
-    private readonly double _epsilon = epsilon.GetValueOrDefault();
-    private readonly int _count = count.GetValueOrDefault();
-    private readonly int _searchExplorationFactor = searchExplorationFactor.GetValueOrDefault();
-    private readonly int _maxFilteringEffort = maxFilteringEffort.GetValueOrDefault();
-
     public ResultProcessor<Lease<VectorSetSimilaritySearchResult>?> GetResultProcessor() => VectorSetSimilaritySearchProcessor.Instance;
     private sealed class VectorSetSimilaritySearchProcessor : ResultProcessor<Lease<VectorSetSimilaritySearchResult>?>
     {
@@ -111,7 +93,7 @@ internal sealed class VectorSetSimilaritySearchMessage(
     }
 
     [Flags]
-    private enum VsimFlags
+    internal enum VsimFlags
     {
         None = 0,
         Count = 1 << 0,
@@ -122,9 +104,10 @@ internal sealed class VectorSetSimilaritySearchMessage(
         Epsilon = 1 << 5,
         SearchExplorationFactor = 1 << 6,
         MaxFilteringEffort = 1 << 7,
+        FilterExpression = 1 << 8,
     }
 
-    private bool HasFlag(VsimFlags flag) => (_flags & flag) != 0;
+    private bool HasFlag(VsimFlags flag) => (vsimFlags & flag) != 0;
 
     public override int ArgCount => GetArgCount(VectorSetAddMessage.UseFp32);
 
@@ -141,7 +124,7 @@ internal sealed class VectorSetSimilaritySearchMessage(
         if (HasFlag(VsimFlags.Count)) argCount += 2; // [COUNT {count}]
         if (HasFlag(VsimFlags.Epsilon)) argCount += 2; // [EPSILON {epsilon}]
         if (HasFlag(VsimFlags.SearchExplorationFactor)) argCount += 2; // [EF {search-exploration-factor}]
-        if (filterExpression is not null) argCount += 2; // [FILTER {filterExpression}]
+        if (HasFlag(VsimFlags.FilterExpression)) argCount += 2; // [FILTER {filterExpression}]
         if (HasFlag(VsimFlags.MaxFilteringEffort)) argCount += 2; // [FILTER-EF {max-filtering-effort}]
         if (HasFlag(VsimFlags.UseExactSearch)) argCount++; // [TRUTH]
         if (HasFlag(VsimFlags.DisableThreading)) argCount++; // [NOTHREAD]
@@ -196,22 +179,22 @@ internal sealed class VectorSetSimilaritySearchMessage(
         if (HasFlag(VsimFlags.Count))
         {
             physical.WriteBulkString("COUNT"u8);
-            physical.WriteBulkString(_count);
+            physical.WriteBulkString(count);
         }
 
         if (HasFlag(VsimFlags.Epsilon))
         {
             physical.WriteBulkString("EPSILON"u8);
-            physical.WriteBulkString(_epsilon);
+            physical.WriteBulkString(epsilon);
         }
 
         if (HasFlag(VsimFlags.SearchExplorationFactor))
         {
             physical.WriteBulkString("EF"u8);
-            physical.WriteBulkString(_searchExplorationFactor);
+            physical.WriteBulkString(searchExplorationFactor);
         }
 
-        if (filterExpression is not null)
+        if (HasFlag(VsimFlags.FilterExpression))
         {
             physical.WriteBulkString("FILTER"u8);
             physical.WriteBulkString(filterExpression);
@@ -220,7 +203,7 @@ internal sealed class VectorSetSimilaritySearchMessage(
         if (HasFlag(VsimFlags.MaxFilteringEffort))
         {
             physical.WriteBulkString("FILTER-EF"u8);
-            physical.WriteBulkString(_maxFilteringEffort);
+            physical.WriteBulkString(maxFilteringEffort);
         }
 
         if (HasFlag(VsimFlags.UseExactSearch))
@@ -236,87 +219,4 @@ internal sealed class VectorSetSimilaritySearchMessage(
 
     public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
         => serverSelectionStrategy.HashSlot(key);
-
-    /*
-     private int GetArgCount(bool useFp32)
-     {
-         var count = 4; // key, element and either "FP32 {vector}" or VALUES {num}"
-         if (reducedDimensions.HasValue) count += 2; // [REDUCE {dim}]
-
-         if (!useFp32) count += values.Length; // {vector} in the VALUES case
-
-         if (useCheckAndSet) count++; // [CAS]
-         count += quantizationType switch
-         {
-             VectorQuantizationType.None or VectorQuantizationType.Binary => 1, // [NOQUANT] or [BIN]
-             VectorQuantizationType.Int8 => 0, // implicit
-             _ => throw new ArgumentOutOfRangeException(nameof(quantizationType)),
-         };
-
-         if (buildExplorationFactor.HasValue) count += 2; // [EF {build-exploration-factor}]
-         if (attributesJson is not null) count += 2; // [SETATTR {attributes}]
-         if (maxConnections.HasValue) count += 2; // [M {numlinks}]
-         return count;
-     }
-
-     protected override void WriteImpl(PhysicalConnection physical)
-     {
-         bool useFp32 = UseFp32; // snapshot to avoid race in debug scenarios
-         physical.WriteHeader(Command, GetArgCount(useFp32));
-         physical.Write(key);
-         if (reducedDimensions.HasValue)
-         {
-             physical.WriteBulkString("REDUCE"u8);
-             physical.WriteBulkString(reducedDimensions.GetValueOrDefault());
-         }
-         if (useFp32)
-         {
-             physical.WriteBulkString("FP32"u8);
-             physical.WriteBulkString(MemoryMarshal.AsBytes(values.Span));
-         }
-         else
-         {
-             physical.WriteBulkString("VALUES"u8);
-             physical.WriteBulkString(values.Length);
-             foreach (var val in values.Span)
-             {
-                 physical.WriteBulkString(val);
-             }
-         }
-         physical.WriteBulkString(element);
-         if (useCheckAndSet) physical.WriteBulkString("CAS"u8);
-
-         switch (quantizationType)
-         {
-             case VectorQuantizationType.Int8:
-                 break;
-             case VectorQuantizationType.None:
-                 physical.WriteBulkString("NOQUANT"u8);
-                 break;
-             case VectorQuantizationType.Binary:
-                 physical.WriteBulkString("BIN"u8);
-                 break;
-             default:
-                 throw new ArgumentOutOfRangeException(nameof(quantizationType));
-         }
-         if (buildExplorationFactor.HasValue)
-         {
-             physical.WriteBulkString("EF"u8);
-             physical.WriteBulkString(buildExplorationFactor.GetValueOrDefault());
-         }
-         if (attributesJson is not null)
-         {
-             physical.WriteBulkString("SETATTR"u8);
-             physical.WriteBulkString(attributesJson);
-         }
-         if (maxConnections.HasValue)
-         {
-             physical.WriteBulkString("M"u8);
-             physical.WriteBulkString(maxConnections.GetValueOrDefault());
-         }
-     }
-
-     public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-         => serverSelectionStrategy.HashSlot(key);
-         */
 }
