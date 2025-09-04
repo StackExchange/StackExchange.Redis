@@ -279,26 +279,24 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         else
         {
             ValueTask<int>[] pending = new ValueTask<int>[depth];
-            using (var batch = client.CreateBatch(depth))
+            await using var batch = client.CreateBatch(depth);
+            var ctx = batch.Context;
+            while (true)
             {
-                var ctx = batch.Context;
-                while (true)
+                for (int i = 0; i < depth; i++)
                 {
-                    for (int i = 0; i < depth; i++)
-                    {
-                        pending[i] = ctx.IncrAsync(_counterKey);
-                    }
-
-                    await batch.FlushAsync().ConfigureAwait(false);
-                    batch.EnsureCapacity(depth); // batches don't assume re-use
-                    for (int i = 0; i < depth; i++)
-                    {
-                        currentValue = await pending[i].ConfigureAwait(false);
-                    }
-
-                    tickCount += depth;
-                    if (tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
+                    pending[i] = ctx.IncrAsync(_counterKey);
                 }
+
+                await batch.FlushAsync().ConfigureAwait(false);
+                batch.EnsureCapacity(depth); // batches don't assume re-use
+                for (int i = 0; i < depth; i++)
+                {
+                    currentValue = await pending[i].ConfigureAwait(false);
+                }
+
+                tickCount += depth;
+                if (tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
             }
         }
     }
