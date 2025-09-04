@@ -2818,10 +2818,15 @@ internal class ProxiedDatabase(IRespContextProxy proxy, int db) : IDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public SortedSetEntry[] SortedSetRandomMembersWithScores(RedisKey key, long count,
+    public SortedSetEntry[] SortedSetRandomMembersWithScores(
+        RedisKey key,
+        long count,
         CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
-    public RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1,
+    public RedisValue[] SortedSetRangeByRank(
+        RedisKey key,
+        long start = 0,
+        long stop = -1,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -3012,7 +3017,8 @@ internal class ProxiedDatabase(IRespContextProxy proxy, int db) : IDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public StreamTrimResult[] StreamAcknowledgeAndDelete(RedisKey key,
+    public StreamTrimResult[] StreamAcknowledgeAndDelete(
+        RedisKey key,
         RedisValue groupName,
         StreamTrimMode mode,
         RedisValue[] messageIds,
@@ -3288,33 +3294,61 @@ internal class ProxiedDatabase(IRespContextProxy proxy, int db) : IDatabase
         CommandFlags flags) =>
         throw new NotImplementedException();
 
-    public long StringBitCount(RedisKey key, long start = 0, long end = -1,
+    public long StringBitCount(
+        RedisKey key,
+        long start = 0,
+        long end = -1,
         StringIndexType indexType = StringIndexType.Byte,
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default,
+    public long StringBitOperation(
+        Bitwise operation,
+        RedisKey destination,
+        RedisKey first,
+        RedisKey second = default,
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys,
+    public long StringBitOperation(
+        Bitwise operation,
+        RedisKey destination,
+        RedisKey[] keys,
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public long StringBitPosition(RedisKey key, bool bit, long start, long end, CommandFlags flags) =>
+    public long StringBitPosition(
+        RedisKey key,
+        bool bit,
+        long start,
+        long end,
+        CommandFlags flags) =>
         throw new NotImplementedException();
 
-    public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1,
-        StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
+    public long StringBitPosition(
+        RedisKey key,
+        bool bit,
+        long start = 0,
+        long end = -1,
+        StringIndexType indexType = StringIndexType.Byte,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public long StringDecrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
+    public long StringDecrement(
+        RedisKey key,
+        long value = 1,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public double StringDecrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
+    public double StringDecrement(
+        RedisKey key,
+        double value,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+    public RedisValue StringGet(
+        RedisKey key,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
@@ -3353,13 +3387,20 @@ internal class ProxiedDatabase(IRespContextProxy proxy, int db) : IDatabase
     public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public string? StringLongestCommonSubsequence(RedisKey first, RedisKey second,
+    public string? StringLongestCommonSubsequence(
+        RedisKey first,
+        RedisKey second,
         CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
-    public long StringLongestCommonSubsequenceLength(RedisKey first, RedisKey second,
+    public long StringLongestCommonSubsequenceLength(
+        RedisKey first,
+        RedisKey second,
         CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
-    public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey first, RedisKey second, long minLength = 0,
+    public LCSMatchResult StringLongestCommonSubsequenceWithMatches(
+        RedisKey first,
+        RedisKey second,
+        long minLength = 0,
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
@@ -3383,11 +3424,17 @@ internal class ProxiedDatabase(IRespContextProxy proxy, int db) : IDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always,
+    public bool StringSet(
+        KeyValuePair<RedisKey, RedisValue>[] values,
+        When when = When.Always,
         CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
-    public RedisValue
-        StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
+    public RedisValue StringSetAndGet(
+        RedisKey key,
+        RedisValue value,
+        TimeSpan? expiry,
+        When when,
+        CommandFlags flags) =>
         throw new NotImplementedException();
 
     public RedisValue StringSetAndGet(
@@ -3402,6 +3449,9 @@ internal class ProxiedDatabase(IRespContextProxy proxy, int db) : IDatabase
     public bool StringSetBit(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public RedisValue StringSetRange(RedisKey key, long offset, RedisValue value,
+    public RedisValue StringSetRange(
+        RedisKey key,
+        long offset,
+        RedisValue value,
         CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 }
