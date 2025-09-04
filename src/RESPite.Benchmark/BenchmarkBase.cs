@@ -119,10 +119,36 @@ public abstract class BenchmarkBase : IDisposable
     }
 
     public abstract Task RunAll();
+
+    public async Task RunBasicLoopAsync()
+    {
+        await DeleteAsync(_counterKey).ConfigureAwait(false);
+
+        if (ClientCount <= 1)
+        {
+            await RunBasicLoopAsync(0);
+        }
+        else
+        {
+            Task[] tasks = new Task[ClientCount];
+            for (int i = 0; i < ClientCount; i++)
+            {
+                var loopSnapshot = i;
+                tasks[i] = Task.Run(() => RunBasicLoopAsync(loopSnapshot));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+    }
+
+    protected abstract Task RunBasicLoopAsync(int clientId);
+    protected abstract Task DeleteAsync(string key);
 }
 
 public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args)
 {
+    protected override Task DeleteAsync(string key) => DeleteAsync(GetClient(0), key);
+
     protected virtual Task OnCleanupAsync(TClient client) => Task.CompletedTask;
 
     protected virtual Task InitAsync(TClient client) => Task.CompletedTask;
@@ -132,13 +158,13 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         try
         {
             var client = GetClient(0);
-            await Delete(client, _getSetKey).ConfigureAwait(false);
-            await Delete(client, _counterKey).ConfigureAwait(false);
-            await Delete(client, _listKey).ConfigureAwait(false);
-            await Delete(client, _setKey).ConfigureAwait(false);
-            await Delete(client, _hashKey).ConfigureAwait(false);
-            await Delete(client, _sortedSetKey).ConfigureAwait(false);
-            await Delete(client, _streamKey).ConfigureAwait(false);
+            await DeleteAsync(client, _getSetKey).ConfigureAwait(false);
+            await DeleteAsync(client, _counterKey).ConfigureAwait(false);
+            await DeleteAsync(client, _listKey).ConfigureAwait(false);
+            await DeleteAsync(client, _setKey).ConfigureAwait(false);
+            await DeleteAsync(client, _hashKey).ConfigureAwait(false);
+            await DeleteAsync(client, _sortedSetKey).ConfigureAwait(false);
+            await DeleteAsync(client, _streamKey).ConfigureAwait(false);
             await OnCleanupAsync(client).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -311,7 +337,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
     protected abstract TClient GetClient(int index);
     protected virtual TClient WithCancellation(TClient client, CancellationToken cancellationToken) => client;
-    protected abstract Task Delete(TClient client, string key);
+    protected abstract Task DeleteAsync(TClient client, string key);
 
     protected abstract TClient CreateBatch(TClient client);
 
@@ -401,7 +427,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         {
             if (key is not null)
             {
-                await Delete(GetClient(0), key).ConfigureAwait(false);
+                await DeleteAsync(GetClient(0), key).ConfigureAwait(false);
             }
 
             try

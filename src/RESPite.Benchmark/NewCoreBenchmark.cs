@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Connections;
@@ -18,7 +19,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
 
     protected override RespContext GetClient(int index) => _clients[index];
 
-    protected override Task Delete(RespContext client, string key) => client.DelAsync(key).AsTask();
+    protected override Task DeleteAsync(RespContext client, string key) => client.DelAsync(key).AsTask();
 
     protected override RespContext WithCancellation(RespContext client, CancellationToken cancellationToken)
         => client.WithCancellationToken(cancellationToken);
@@ -218,57 +219,61 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     private ValueTask<RespParsers.ResponseSummary> XAdd(RespContext ctx) =>
         ctx.XAddAsync(_streamKey, "*", "myfield", _payload);
 
-    public async Task<int> RunBasicLoopAsync()
+    protected override async Task RunBasicLoopAsync(int clientId)
     {
-        var client = GetClient(0);
-        _ = await client.DelAsync(_counterKey).ConfigureAwait(false);
-
-        if (ClientCount <= 1)
-        {
-            await RunBasicLoopAsync(0);
-        }
-        else
-        {
-            Task[] tasks = new Task[ClientCount];
-            for (int i = 0; i < ClientCount; i++)
-            {
-                var loopSnapshot = i;
-                tasks[i] = Task.Run(() => RunBasicLoopAsync(loopSnapshot));
-            }
-
-            await Task.WhenAll(tasks);
-        }
-
-        return 0;
-    }
-
-    public async Task RunBasicLoopAsync(int clientId)
-    {
+        // The purpose of this is to represent a more realistic loop using natural code
+        // rather than code that is drowning in test infrastructure.
         var client = GetClient(clientId);
         var depth = PipelineDepth;
-        int localCount = 0;
-        long lastValue = await client.GetInt32Async(_counterKey).ConfigureAwait(false),
-            currentValue = lastValue;
-        var previous = DateTime.UtcNow;
+        int tickCount = 0; // this is just so we don't query DateTime.
+        long previousValue = (await client.GetInt32Async(_counterKey).ConfigureAwait(false)) ?? 0,
+            currentValue = previousValue;
+        var watch = Stopwatch.StartNew();
+        long previousMillis = watch.ElapsedMilliseconds;
 
-        void Tick()
+        bool Tick()
         {
-            DateTime now;
-            if (clientId == 0 && ((now = DateTime.Now) - previous).TotalSeconds >= 1)
+            var currentMillis = watch.ElapsedMilliseconds;
+            var elapsedMillis = currentMillis - previousMillis;
+            if (elapsedMillis >= 1000)
             {
-                Console.WriteLine($"{currentValue - lastValue} ops in {now - previous}");
-                previous = now;
-                lastValue = currentValue;
-                localCount = 0;
+                if (clientId == 0) // only one client needs to update the UI
+                {
+                    var qty = currentValue - previousValue;
+                    var seconds = elapsedMillis / 1000.0;
+                    Console.WriteLine(
+                        $"{qty:#,###,##0} ops in {seconds:#0.00}s, {qty / seconds:#,###,##0}/s\ttotal: {currentValue:#,###,###,##0}");
+
+                    // reset for next UI update
+                    previousValue = currentValue;
+                    previousMillis = currentMillis;
+                }
+
+                if (currentMillis >= 20_000)
+                {
+                    if (clientId == 0)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine(
+                            $"\t Overall: {currentValue:#,###,###,##0} ops in {currentMillis / 1000:#0.00}s, {currentValue / (currentMillis / 1000.0):#,###,##0}/s");
+                        Console.WriteLine();
+                    }
+
+                    return true; // stop after some time
+                }
             }
+
+            tickCount = 0;
+            return false;
         }
+
         if (depth <= 1)
         {
             while (true)
             {
-                await client.IncrAsync(_counterKey).ConfigureAwait(false);
+                currentValue = await client.IncrAsync(_counterKey).ConfigureAwait(false);
 
-                if (++localCount >= 1000) Tick();
+                if (++tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
             }
         }
         else
@@ -291,8 +296,8 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
                         currentValue = await pending[i].ConfigureAwait(false);
                     }
 
-                    localCount += depth;
-                    if (localCount >= 1000) Tick();
+                    tickCount += depth;
+                    if (tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
                 }
             }
         }
@@ -371,7 +376,7 @@ internal static partial class RedisCommands
     internal static partial int ZAdd(this in RespContext ctx, string key, double score, string payload);
 
     [RespCommand("get")]
-    internal static partial int GetInt32(this in RespContext ctx, string key);
+    internal static partial int? GetInt32(this in RespContext ctx, string key);
 
     [RespCommand]
     internal static partial RespParsers.ResponseSummary XAdd(

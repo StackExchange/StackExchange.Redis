@@ -9,6 +9,7 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        bool basic = false;
         try
         {
             List<BenchmarkBase> benchmarks = [];
@@ -23,8 +24,8 @@ internal static class Program
                         benchmarks.Add(new NewCoreBenchmark(args));
                         break;
                     case "--basic":
-                        await BasicLoopAsync(args);
-                        return 0;
+                        basic = true;
+                        break;
                 }
             }
 
@@ -42,7 +43,14 @@ internal static class Program
                         Console.WriteLine($"### {bench} ###");
                     }
 
-                    await bench.RunAll().ConfigureAwait(false);
+                    if (basic)
+                    {
+                        await bench.RunBasicLoopAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await bench.RunAll().ConfigureAwait(false);
+                    }
                 }
             }
             // ReSharper disable once LoopVariableIsNeverChangedInsideLoop
@@ -59,12 +67,6 @@ internal static class Program
             WriteException(ex);
             return -1;
         }
-    }
-
-    private static Task<int> BasicLoopAsync(string[] args)
-    {
-        using var bench = new NewCoreBenchmark(args);
-        return bench.RunBasicLoopAsync();
     }
 
     internal static void WriteException(Exception? ex, [CallerMemberName] string operation = "")
