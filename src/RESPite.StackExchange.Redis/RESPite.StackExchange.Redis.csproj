@@ -7,14 +7,19 @@
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
   </PropertyGroup>
 
+<!--  <ItemGroup  Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net461')) or '($TargetFramework)' == 'netstandard2.0'">-->
+<!--    <PackageReference Include="System.Collections.Immutable" />-->
+<!--  </ItemGroup>-->
   <ItemGroup>
-    <Compile Include="..\StackExchange.Redis\NullableHacks.cs">
-      <Link>NullableHacks.cs</Link>
-    </Compile>
-    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs">
-      <Link>SkipLocalsInit.cs</Link>
-    </Compile>
+    <PackageReference Include="System.Buffers"/>
+    <ProjectReference Include="..\RESPite\RESPite.csproj" Aliases="global,respite"/>
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" Aliases="global,seredis"/>
+    <None Include="readme.md" Pack="true" PackagePath="/"/>
+    <InternalsVisibleTo Include="RESPite.Tests" />
+    <!-- <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/> -->
+    <!--<Analyzer Include="..\..\eng\StackExchange.Redis.Build\bin\$(Configuration)\netstandard2.0\StackExchange.Redis.Build.dll" />-->
   </ItemGroup>
 </Project>

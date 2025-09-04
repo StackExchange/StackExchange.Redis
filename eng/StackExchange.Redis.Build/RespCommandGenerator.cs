@@ -150,12 +150,15 @@ public class RespCommandGenerator : IIncrementalGenerator
             }
         }
 
-        foreach (var member in method.ContainingType.GetMembers())
+        if (context is null)
         {
-            if (member is IFieldSymbol { IsStatic: false } field && IsRespContext(field.Type))
+            foreach (var member in method.ContainingType.GetMembers())
             {
-                context = field.Name;
-                break;
+                if (member is IFieldSymbol { IsStatic: false } field && IsRespContext(field.Type))
+                {
+                    context = field.Name;
+                    break;
+                }
             }
         }
 
@@ -177,6 +180,58 @@ public class RespCommandGenerator : IIncrementalGenerator
 
                 if (context is not null) break;
             }
+        }
+
+        if (context is null)
+        {
+            // look for indirect from parameter
+            foreach (var param in method.Parameters)
+            {
+                if (IsIndirectRespContext(param.Type, out var memberName))
+                {
+                    context = $"{param.Name}.{memberName}";
+                    break;
+                }
+            }
+        }
+        if (context is null)
+        {
+            // look for indirect from field
+            foreach (var member in method.ContainingType.GetMembers())
+            {
+                if (member is IFieldSymbol { IsStatic: false } field && IsIndirectRespContext(field.Type, out var memberName))
+                {
+                    context = $"{field.Name}.{memberName}";
+                    break;
+                }
+            }
+        }
+
+        // See whether instead of x (param, etc) *being* a RespContext, it could be something that *provides*
+        // a RespContext; this is especially useful for using punned structs (that just wrap a RespContext) to
+        // narrow the methods into logical groups, i.e. "strings", "hashes", etc.
+        static bool IsIndirectRespContext(ITypeSymbol type, out string memberName)
+        {
+            foreach (var member in type.GetMembers())
+            {
+                if (member is IFieldSymbol { IsStatic: false } field
+                    && IsRespContext(field.Type))
+                {
+                    memberName = field.Name;
+                    return true;
+                }
+            }
+            foreach (var member in type.GetMembers())
+            {
+                if (member is IPropertySymbol { IsStatic: false } prop
+                    && IsRespContext(prop.Type) && prop.GetMethod is not null)
+                {
+                    memberName = prop.Name;
+                    return true;
+                }
+            }
+            memberName = "";
+            return false;
         }
 
         if (context is null)

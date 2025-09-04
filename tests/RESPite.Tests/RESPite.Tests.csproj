@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\RESPite.StackExchange.Redis\RESPite.StackExchange.Redis.csproj" />
     <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" />
     <ProjectReference Include="..\..\src\RESPite.Redis\RESPite.Redis.csproj" />
     <ProjectReference Include="..\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj" />
