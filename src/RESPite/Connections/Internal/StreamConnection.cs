@@ -7,11 +7,11 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Net.Mime;
 using System.Runtime.CompilerServices;
+using RESPite.Internal;
 using RESPite.Messages;
 
-namespace RESPite.Internal;
+namespace RESPite.Connections.Internal;
 
 internal sealed class StreamConnection : RespConnection
 {

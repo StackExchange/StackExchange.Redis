@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
@@ -42,7 +43,7 @@ public class OldCoreBenchmark : BenchmarkBase<IDatabaseAsync>
     }
 
     protected override IDatabaseAsync GetClient(int index) => _client;
-    protected override Task Delete(IDatabaseAsync client, string key) => client.KeyDeleteAsync(key);
+    protected override Task DeleteAsync(IDatabaseAsync client, string key) => client.KeyDeleteAsync(key);
 
     public override async Task RunAll()
     {
@@ -84,6 +85,86 @@ public class OldCoreBenchmark : BenchmarkBase<IDatabaseAsync>
         }
 
         return default;
+    }
+
+    protected override async Task RunBasicLoopAsync(int clientId)
+    {
+        // The purpose of this is to represent a more realistic loop using natural code
+        // rather than code that is drowning in test infrastructure.
+        var client = (IDatabase)GetClient(clientId); // need IDatabase for CreateBatch
+        var depth = PipelineDepth;
+        int tickCount = 0; // this is just so we don't query DateTime.
+        var tmp = await client.StringGetAsync(_counterKey).ConfigureAwait(false);
+        long previousValue = tmp.IsNull ? 0 : (long)tmp, currentValue = previousValue;
+        var watch = Stopwatch.StartNew();
+        long previousMillis = watch.ElapsedMilliseconds;
+
+        bool Tick()
+        {
+            var currentMillis = watch.ElapsedMilliseconds;
+            var elapsedMillis = currentMillis - previousMillis;
+            if (elapsedMillis >= 1000)
+            {
+                if (clientId == 0) // only one client needs to update the UI
+                {
+                    var qty = currentValue - previousValue;
+                    var seconds = elapsedMillis / 1000.0;
+                    Console.WriteLine(
+                        $"{qty:#,###,##0} ops in {seconds:#0.00}s, {qty / seconds:#,###,##0}/s\ttotal: {currentValue:#,###,###,##0}");
+
+                    // reset for next UI update
+                    previousValue = currentValue;
+                    previousMillis = currentMillis;
+                }
+
+                if (currentMillis >= 20_000)
+                {
+                    if (clientId == 0)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine(
+                            $"\t Overall: {currentValue:#,###,###,##0} ops in {currentMillis / 1000:#0.00}s, {currentValue / (currentMillis / 1000.0):#,###,##0}/s");
+                        Console.WriteLine();
+                    }
+
+                    return true; // stop after some time
+                }
+            }
+
+            tickCount = 0;
+            return false;
+        }
+
+        if (depth <= 1)
+        {
+            while (true)
+            {
+                currentValue = await client.StringIncrementAsync(_counterKey).ConfigureAwait(false);
+
+                if (++tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
+            }
+        }
+        else
+        {
+            Task<long>[] pending = new Task<long>[depth];
+            var batch = client.CreateBatch(depth);
+            while (true)
+            {
+                for (int i = 0; i < depth; i++)
+                {
+                    pending[i] = batch.StringIncrementAsync(_counterKey);
+                }
+
+                batch.Execute();
+                for (int i = 0; i < depth; i++)
+                {
+                    currentValue = await pending[i].ConfigureAwait(false);
+                }
+
+                tickCount += depth;
+                if (tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
+            }
+        }
     }
 
     [DisplayName("GET")]
