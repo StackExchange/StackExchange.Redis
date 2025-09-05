@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
@@ -43,6 +42,38 @@ public class RespCommandGenerator : IIncrementalGenerator
     private static string GetFullName(ITypeSymbol type) =>
         type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
+    private enum RESPite
+    {
+        RespContext,
+        RespCommandAttribute,
+        RespKeyAttribute,
+    }
+
+    private static bool IsRESPite(ITypeSymbol? symbol, RESPite type)
+    {
+        static string NameOf(RESPite type) => type switch
+        {
+            RESPite.RespContext => nameof(RESPite.RespContext),
+            RESPite.RespCommandAttribute => nameof(RESPite.RespCommandAttribute),
+            RESPite.RespKeyAttribute => nameof(RESPite.RespKeyAttribute),
+            _ => type.ToString(),
+        };
+
+        if (symbol is INamedTypeSymbol named && named.Name == NameOf(type))
+        {
+            // looking likely; check namespace
+            if (named.ContainingNamespace is { Name: "RESPite", ContainingNamespace.IsGlobalNamespace: true })
+            {
+                return true;
+            }
+
+            // if the type doesn't resolve: we're going to need to trust it
+            if (named.TypeKind == TypeKind.Error) return true;
+        }
+
+        return false;
+    }
+
     private static string GetName(ITypeSymbol type)
     {
         if (type.ContainingType is null) return type.Name;
@@ -63,18 +94,31 @@ public class RespCommandGenerator : IIncrementalGenerator
         return sb.ToString();
     }
 
+    [Conditional("DEBUG")]
+    private static void AddNotes(ref string notes, string note)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            notes = note;
+        }
+        else
+        {
+            notes += "; " + note;
+        }
+    }
+
     private (string Namespace, string TypeName, string ReturnType, string MethodName, string Command,
         ImmutableArray<(string Type, string Name, string Modifiers, ParameterFlags Flags)> Parameters, string
         TypeModifiers, string
-        MethodModifiers, string Context, string? Formatter, string? Parser) Transform(
+        MethodModifiers, string Context, string? Formatter, string? Parser, string DebugNotes) Transform(
             GeneratorSyntaxContext ctx,
             CancellationToken cancellationToken)
     {
         // extract the name and value (defaults to name, but can be overridden via attribute) and the location
         if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not IMethodSymbol method) return default;
-        if (!(method.IsPartialDefinition && method.PartialImplementationPart is null)) return default;
+        if (!(method is { IsPartialDefinition: true, PartialImplementationPart: null })) return default;
 
-        string returnType;
+        string returnType, debugNote = "";
         if (method.ReturnsVoid)
         {
             returnType = "";
@@ -104,11 +148,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         string? formatter = null, parser = null;
         foreach (var attrib in method.GetAttributes())
         {
-            if (attrib.AttributeClass is
-                {
-                    Name: "RespCommandAttribute",
-                    ContainingNamespace: { Name: "RESPite", ContainingNamespace.IsGlobalNamespace: true }
-                })
+            if (IsRESPite(attrib.AttributeClass, RESPite.RespCommandAttribute))
             {
                 if (attrib.ConstructorArguments.Length == 1)
                 {
@@ -143,7 +183,7 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         foreach (var param in method.Parameters)
         {
-            if (IsRespContext(param.Type))
+            if (IsRESPite(param.Type, RESPite.RespContext))
             {
                 context = param.Name;
                 break;
@@ -152,12 +192,17 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         if (context is null)
         {
+            AddNotes(ref debugNote, $"checking {method.ContainingType.Name} for fields");
             foreach (var member in method.ContainingType.GetMembers())
             {
-                if (member is IFieldSymbol { IsStatic: false } field && IsRespContext(field.Type))
+                if (member is IFieldSymbol { IsStatic: false } field)
                 {
-                    context = field.Name;
-                    break;
+                    if (IsRESPite(field.Type, RESPite.RespContext))
+                    {
+                        AddNotes(ref debugNote, $"{field.Name} WAS match - {field.Type.Name}");
+                        context = field.Name;
+                        break;
+                    }
                 }
             }
         }
@@ -171,7 +216,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                 if (ctor.IsStatic) continue;
                 foreach (var param in ctor.Parameters)
                 {
-                    if (IsRespContext(param.Type))
+                    if (IsRESPite(param.Type, RESPite.RespContext))
                     {
                         context = param.Name;
                         break;
@@ -194,12 +239,14 @@ public class RespCommandGenerator : IIncrementalGenerator
                 }
             }
         }
+
         if (context is null)
         {
             // look for indirect from field
             foreach (var member in method.ContainingType.GetMembers())
             {
-                if (member is IFieldSymbol { IsStatic: false } field && IsIndirectRespContext(field.Type, out var memberName))
+                if (member is IFieldSymbol { IsStatic: false } field &&
+                    IsIndirectRespContext(field.Type, out var memberName))
                 {
                     context = $"{field.Name}.{memberName}";
                     break;
@@ -215,21 +262,23 @@ public class RespCommandGenerator : IIncrementalGenerator
             foreach (var member in type.GetMembers())
             {
                 if (member is IFieldSymbol { IsStatic: false } field
-                    && IsRespContext(field.Type))
+                    && IsRESPite(field.Type, RESPite.RespContext))
                 {
                     memberName = field.Name;
                     return true;
                 }
             }
+
             foreach (var member in type.GetMembers())
             {
                 if (member is IPropertySymbol { IsStatic: false } prop
-                    && IsRespContext(prop.Type) && prop.GetMethod is not null)
+                    && IsRESPite(prop.Type, RESPite.RespContext) && prop.GetMethod is not null)
                 {
                     memberName = prop.Name;
                     return true;
                 }
             }
+
             memberName = "";
             return false;
         }
@@ -240,7 +289,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             foreach (var member in method.ContainingType.GetMembers())
             {
                 if (member is IPropertySymbol { IsStatic: false } prop
-                    && IsRespContext(prop.Type) && prop.GetMethod is not null)
+                    && IsRESPite(prop.Type, RESPite.RespContext) && prop.GetMethod is not null)
                 {
                     context = prop.Name;
                     break;
@@ -248,7 +297,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             }
         }
 
-        static bool Ignore(ITypeSymbol symbol) => IsRespContext(symbol); // CT etc?
+        static bool Ignore(ITypeSymbol symbol) => IsRESPite(symbol, RESPite.RespContext); // CT etc?
 
         foreach (var param in method.Parameters)
         {
@@ -276,16 +325,10 @@ public class RespCommandGenerator : IIncrementalGenerator
             parameters.Add((GetFullName(param.Type), param.Name, modifiers, flags));
         }
 
-        static bool IsRespContext(ITypeSymbol type)
-            => type is INamedTypeSymbol
-            {
-                Name: "RespContext",
-                ContainingNamespace: { Name: "RESPite", ContainingNamespace.IsGlobalNamespace: true }
-            };
-
         var syntax = (MethodDeclarationSyntax)ctx.Node;
         return (ns, parentType, returnType, method.Name, value, parameters.ToImmutable(),
-            TypeModifiers(method.ContainingType), syntax.Modifiers.ToString(), context ?? "", formatter, parser);
+            TypeModifiers(method.ContainingType), syntax.Modifiers.ToString(), context ?? "", formatter, parser,
+            debugNote);
 
         static string TypeModifiers(ITypeSymbol type)
         {
@@ -317,15 +360,9 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         foreach (var attrib in param.GetAttributes())
         {
-            if (attrib.AttributeClass is
-                {
-                    Name: "KeyAttribute",
-                    ContainingNamespace: { Name: "RESPite", ContainingNamespace.IsGlobalNamespace: true }
-                })
-            {
-                return true;
-            }
+            if (IsRESPite(attrib.AttributeClass, RESPite.RespKeyAttribute)) return true;
         }
+
         return false;
     }
 
@@ -347,7 +384,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             ImmutableArray<(string Type, string Name, string Modifiers, ParameterFlags Flags)> Parameters, string
             TypeModifiers,
             string
-            MethodModifiers, string Context, string? Formatter, string? Parser)> methods)
+            MethodModifiers, string Context, string? Formatter, string? Parser, string DebugNotes)> methods)
     {
         if (methods.IsDefaultOrEmpty) return;
 
@@ -431,6 +468,12 @@ public class RespCommandGenerator : IIncrementalGenerator
 
             foreach (var method in grp)
             {
+                if (method.DebugNotes is { Length: > 0 })
+                {
+                    NewLine().Append("/* ").Append(method.MethodName).Append(": ")
+                        .Append(method.DebugNotes).Append(" */");
+                }
+
                 bool isSharedFormatter = false;
                 string? formatter = method.Formatter
                                     ?? InbuiltFormatter(method.Parameters);
@@ -526,6 +569,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                         {
                             sb.Append(", ").Append(method.ReturnType);
                         }
+
                         sb.Append(">(").Append(csValue).Append("u8").Append(", ");
                         WriteTuple(method.Parameters, sb, TupleMode.Values);
                         sb.Append(", ").Append(formatter).Append(", ").Append(parser).Append(")");
@@ -563,7 +607,8 @@ public class RespCommandGenerator : IIncrementalGenerator
             var names = tuple.Value.Shared ? TupleMode.SyntheticNames : TupleMode.NamedTuple;
 
             NewLine();
-            sb = NewLine().Append("sealed file class ").Append(name).Append(" : global::RESPite.Messages.IRespFormatter<");
+            sb = NewLine().Append("sealed file class ").Append(name)
+                .Append(" : global::RESPite.Messages.IRespFormatter<");
             WriteTuple(parameters, sb, names);
             sb.Append('>');
             NewLine().Append("{");
@@ -572,7 +617,8 @@ public class RespCommandGenerator : IIncrementalGenerator
             NewLine();
 
             sb = NewLine()
-                .Append("public void Format(scoped ReadOnlySpan<byte> command, ref global::RESPite.Messages.RespWriter writer, in ");
+                .Append(
+                    "public void Format(scoped ReadOnlySpan<byte> command, ref global::RESPite.Messages.RespWriter writer, in ");
             WriteTuple(parameters, sb, names);
             sb.Append(" request)");
             NewLine().Append("{");
@@ -771,6 +817,7 @@ public class RespCommandGenerator : IIncrementalGenerator
     [Flags]
     private enum ParameterFlags
     {
+        // ReSharper disable once UnusedMember.Local
         None = 0,
         Parameter = 1 << 0,
         Data = 1 << 1,
