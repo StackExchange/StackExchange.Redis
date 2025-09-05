@@ -54,7 +54,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         string Name,
         string Modifiers,
         ParameterFlags Flags,
-        ImmutableArray<LiteralTuple> Literals);
+        EasyArray<LiteralTuple> Literals);
 
     private readonly record struct MethodTuple(
         string Namespace,
@@ -62,7 +62,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         string ReturnType,
         string MethodName,
         string Command,
-        ImmutableArray<ParameterTuple> Parameters,
+        EasyArray<ParameterTuple> Parameters,
         string TypeModifiers,
         string MethodModifiers,
         string Context,
@@ -241,7 +241,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             }
         }
 
-        var parameters = ImmutableArray.CreateBuilder<ParameterTuple>(method.Parameters.Length);
+        var parameters = new List<ParameterTuple>(method.Parameters.Length);
 
         // get context from the available fields
         string? context = null;
@@ -321,7 +321,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             }
         }
 
-        // See whether instead of x (param, etc) *being* a RespContext, it could be something that *provides*
+        // See whether instead of x (param, etc.) *being* a RespContext, it could be something that *provides*
         // a RespContext; this is especially useful for using punned structs (that just wrap a RespContext) to
         // narrow the methods into logical groups, i.e. "strings", "hashes", etc.
         static bool IsIndirectRespContext(ITypeSymbol type, out string memberName)
@@ -436,7 +436,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                 }
             }
 
-            var literalArray = literals?.ToImmutableArray() ?? ImmutableArray<LiteralTuple>.Empty;
+            var literalArray = literals is null ? EasyArray<LiteralTuple>.Empty : new(literals.ToArray());
             parameters.Add(new(GetFullName(param.Type), param.Name, modifiers, flags, literalArray));
         }
 
@@ -447,7 +447,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             returnType,
             method.Name,
             value,
-            parameters.ToImmutable(),
+            new(parameters.ToArray()),
             TypeModifiers(method.ContainingType),
             syntax.Modifiers.ToString(),
             context ?? "",
@@ -521,12 +521,12 @@ public class RespCommandGenerator : IIncrementalGenerator
         int indent = 0;
 
         // find the unique param types, so we can build helpers
-        Dictionary<ImmutableArray<ParameterTuple>, (string Name,
+        Dictionary<EasyArray<ParameterTuple>, (string Name,
                 bool Shared)>
             formatters =
                 new(FormatterComparer.Default);
 
-        foreach (var method in methods)
+        foreach (var method in methods.AsSpan())
         {
             if (method.Formatter is not null) continue; // using explicit formatter
             var count = DataParameterCount(method.Parameters);
@@ -535,7 +535,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                 case 0: continue; // no parameter to consider
                 case 1:
                     var p = FirstDataParameter(method.Parameters);
-                    if (p.Literals.IsDefaultOrEmpty)
+                    if (p.Literals.IsEmpty)
                     {
                         // no literals, and basic write scenario;consumer should add their own extension method
                         continue;
@@ -558,7 +558,7 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         StringBuilder NewLine() => sb.AppendLine().Append(' ', Math.Max(indent * 4, 0));
         NewLine().Append("using global::RESPite;");
-        foreach (var method in methods)
+        foreach (var method in methods.AsSpan())
         {
             if (HasAnyFlag(method.Parameters, ParameterFlags.CommandFlags))
             {
@@ -586,11 +586,11 @@ public class RespCommandGenerator : IIncrementalGenerator
             {
                 if (grp.Key.TypeName.Contains('.')) // nested types
                 {
-                    var toks = grp.Key.TypeName.Split('.');
-                    for (var i = 0; i < toks.Length; i++)
+                    var tokens = grp.Key.TypeName.Split('.');
+                    for (var i = 0; i < tokens.Length; i++)
                     {
-                        var part = toks[i];
-                        if (i == toks.Length - 1)
+                        var part = tokens[i];
+                        if (i == tokens.Length - 1)
                         {
                             NewLine().Append(grp.Key.TypeModifiers).Append(' ').Append(part);
                         }
@@ -797,7 +797,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             void WriteLiteral(ParameterTuple p, bool suffix)
             {
                 LiteralFlags match = suffix ? LiteralFlags.Suffix : LiteralFlags.None;
-                foreach (var literal in p.Literals)
+                foreach (var literal in p.Literals.Span)
                 {
                     if ((literal.Flags & LiteralFlags.Suffix) == match)
                     {
@@ -826,7 +826,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             else
             {
                 int index = 0;
-                foreach (var parameter in parameters)
+                foreach (var parameter in parameters.Span)
                 {
                     if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
                     {
@@ -871,7 +871,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         ctx.AddSource(GetType().Name + ".generated.cs", sb.ToString());
 
         static void WriteTuple(
-            ImmutableArray<ParameterTuple> parameters,
+            EasyArray<ParameterTuple> parameters,
             StringBuilder sb,
             TupleMode mode)
         {
@@ -886,7 +886,7 @@ public class RespCommandGenerator : IIncrementalGenerator
 
             sb.Append('(');
             int index = 0;
-            foreach (var param in parameters)
+            foreach (var param in parameters.Span)
             {
                 if ((param.Flags & ParameterFlags.DataParameter) != ParameterFlags.DataParameter)
                 {
@@ -919,10 +919,10 @@ public class RespCommandGenerator : IIncrementalGenerator
     }
 
     private static bool HasAnyFlag(
-        ImmutableArray<ParameterTuple> parameters,
+        EasyArray<ParameterTuple> parameters,
         ParameterFlags any)
     {
-        foreach (var p in parameters)
+        foreach (var p in parameters.Span)
         {
             if ((p.Flags & any) != 0) return true;
         }
@@ -931,12 +931,12 @@ public class RespCommandGenerator : IIncrementalGenerator
     }
 
     private static string? InbuiltFormatter(
-        ImmutableArray<ParameterTuple> parameters)
+        EasyArray<ParameterTuple> parameters)
     {
         if (DataParameterCount(parameters) == 1)
         {
             var p = FirstDataParameter(parameters);
-            if (p.Literals.IsDefaultOrEmpty)
+            if (p.Literals.IsEmpty)
             {
                 // can only use the inbuilt formatter if there are no literals
                 return InbuiltFormatter(p.Type, (p.Flags & ParameterFlags.Key) != 0);
@@ -947,11 +947,11 @@ public class RespCommandGenerator : IIncrementalGenerator
     }
 
     private static ParameterTuple FirstDataParameter(
-        ImmutableArray<ParameterTuple> parameters)
+        EasyArray<ParameterTuple> parameters)
     {
-        if (!parameters.IsDefaultOrEmpty)
+        if (!parameters.IsEmpty)
         {
-            foreach (var parameter in parameters)
+            foreach (var parameter in parameters.Span)
             {
                 if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
                 {
@@ -964,20 +964,20 @@ public class RespCommandGenerator : IIncrementalGenerator
     }
 
     private static int DataParameterCount(
-        ImmutableArray<ParameterTuple> parameters)
+        EasyArray<ParameterTuple> parameters)
         => DataParameterCount(parameters, out _);
 
     private static int DataParameterCount(
-        ImmutableArray<ParameterTuple> parameters, out int literalCount)
+        EasyArray<ParameterTuple> parameters, out int literalCount)
     {
         literalCount = 0;
-        if (parameters.IsDefaultOrEmpty) return 0;
+        if (parameters.IsEmpty) return 0;
         int count = 0;
-        foreach (var parameter in parameters)
+        foreach (var parameter in parameters.Span)
         {
             if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
             {
-                if (!parameter.Literals.IsDefaultOrEmpty) literalCount += parameter.Literals.Length;
+                if (!parameter.Literals.IsEmpty) literalCount += parameter.Literals.Length;
                 count++;
             }
         }
@@ -1054,14 +1054,14 @@ public class RespCommandGenerator : IIncrementalGenerator
     // compares whether a formatter can be shared, which depends on the key index and types (not names)
     private sealed class
         FormatterComparer
-        : IEqualityComparer<ImmutableArray<ParameterTuple>>
+        : IEqualityComparer<EasyArray<ParameterTuple>>
     {
         private FormatterComparer() { }
         public static readonly FormatterComparer Default = new();
 
         public bool Equals(
-            ImmutableArray<ParameterTuple> x,
-            ImmutableArray<ParameterTuple> y)
+            EasyArray<ParameterTuple> x,
+            EasyArray<ParameterTuple> y)
         {
             if (x.Length != y.Length) return false;
             for (int i = 0; i < x.Length; i++)
@@ -1077,10 +1077,10 @@ public class RespCommandGenerator : IIncrementalGenerator
         }
 
         public int GetHashCode(
-            ImmutableArray<ParameterTuple> obj)
+            EasyArray<ParameterTuple> obj)
         {
             var hash = obj.Length;
-            foreach (var p in obj)
+            foreach (var p in obj.Span)
             {
                 hash ^= p.Type.GetHashCode() ^ (int)p.Flags ^ p.Literals.Length;
             }
