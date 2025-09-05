@@ -13,13 +13,13 @@ namespace RESPite.Benchmark;
 public abstract class BenchmarkBase : IDisposable
 {
     protected const string
-        _getSetKey = "key:__rand_int__",
-        _counterKey = "counter:__rand_int__",
-        _listKey = "mylist",
-        _setKey = "myset",
-        _hashKey = "myhash",
-        _sortedSetKey = "myzset",
-        _streamKey = "mystream";
+        GetSetKey = "key:__rand_int__",
+        CounterKey = "counter:__rand_int__",
+        ListKey = "mylist",
+        SetKey = "myset",
+        HashKey = "myhash",
+        SortedSetKey = "myzset",
+        StreamKey = "mystream";
 
     public PipelineStrategy PipelineMode { get; } =
         PipelineStrategy.Batch; // the default, for parity with how redis-benchmark works
@@ -32,14 +32,14 @@ public abstract class BenchmarkBase : IDisposable
         Batch,
 
         /// <summary>
-        /// Use a queue to pipeline operations - when we hit the pipeline depth, we pop one, push one, await the popped
+        /// Use a queue to pipeline operations - when we hit the pipeline depth, we pop one, push one, await the popped.
         /// </summary>
         Queue,
     }
 
     private readonly HashSet<string> _tests = new(StringComparer.OrdinalIgnoreCase);
     protected bool RunTest(string name) => _tests.Count == 0 || _tests.Contains(name);
-    public virtual void Dispose() { }
+    public virtual void Dispose() => GC.SuppressFinalize(this);
     public int Port { get; } = 6379;
     public int PipelineDepth { get; } = 1;
     public bool Multiplexed { get; }
@@ -51,9 +51,9 @@ public abstract class BenchmarkBase : IDisposable
 
     public int TotalOperations => OperationsPerClient * ClientCount;
 
-    protected readonly byte[] _payload;
+    protected readonly byte[] Payload;
 
-    public BenchmarkBase(string[] args)
+    protected BenchmarkBase(string[] args)
     {
         int operations = 100_000;
 
@@ -115,14 +115,14 @@ public abstract class BenchmarkBase : IDisposable
 
         OperationsPerClient = operations / ClientCount;
 
-        _payload = "abc"u8.ToArray();
+        Payload = "abc"u8.ToArray();
     }
 
     public abstract Task RunAll();
 
     public async Task RunBasicLoopAsync()
     {
-        await DeleteAsync(_counterKey).ConfigureAwait(false);
+        await DeleteAsync(CounterKey).ConfigureAwait(false);
 
         if (ClientCount <= 1)
         {
@@ -158,18 +158,18 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         try
         {
             var client = GetClient(0);
-            await DeleteAsync(client, _getSetKey).ConfigureAwait(false);
-            await DeleteAsync(client, _counterKey).ConfigureAwait(false);
-            await DeleteAsync(client, _listKey).ConfigureAwait(false);
-            await DeleteAsync(client, _setKey).ConfigureAwait(false);
-            await DeleteAsync(client, _hashKey).ConfigureAwait(false);
-            await DeleteAsync(client, _sortedSetKey).ConfigureAwait(false);
-            await DeleteAsync(client, _streamKey).ConfigureAwait(false);
+            await DeleteAsync(client, GetSetKey).ConfigureAwait(false);
+            await DeleteAsync(client, CounterKey).ConfigureAwait(false);
+            await DeleteAsync(client, ListKey).ConfigureAwait(false);
+            await DeleteAsync(client, SetKey).ConfigureAwait(false);
+            await DeleteAsync(client, HashKey).ConfigureAwait(false);
+            await DeleteAsync(client, SortedSetKey).ConfigureAwait(false);
+            await DeleteAsync(client, StreamKey).ConfigureAwait(false);
             await OnCleanupAsync(client).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Cleanup: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Cleanup: {ex.Message}");
         }
     }
 
@@ -245,7 +245,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
+            await Console.Error.WriteLineAsync($"{operation.Method.Name} failed after {i} operations");
             Program.WriteException(ex);
         }
 
@@ -320,7 +320,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"{operation.Method.Name} failed after {i} operations");
+            await Console.Error.WriteLineAsync($"{operation.Method.Name} failed after {i} operations");
             Program.WriteException(ex);
         }
 
@@ -350,10 +350,11 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
             key,
             action,
             client => action(client).AsUntypedValueTask(),
-            client => PipelineTyped<T>(client, action),
+            client => PipelineTyped(client, action),
             init,
             format);
 
+    // ReSharper disable once UnusedMember.Global
     protected Task RunAsync(
         string? key,
         Func<TClient, ValueTask> action,
@@ -361,7 +362,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         string format = "")
         => RunAsyncCore<DBNull>(key, action, action, client => PipelineUntyped(client, action), init, format);
 
-    protected async Task RunAsyncCore<T>(
+    private async Task RunAsyncCore<T>(
         string? key,
         Delegate underlyingAction,
         Func<TClient, ValueTask> test,
@@ -410,14 +411,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                 Console.Write(", cancel");
             }
 
-            if (PipelineDepth > 1)
-            {
-                Console.Write($", {PipelineMode}: {PipelineDepth:#,##0}");
-            }
-            else
-            {
-                Console.Write(", sequential");
-            }
+            Console.Write(PipelineDepth > 1 ? $", {PipelineMode}: {PipelineDepth:#,##0}" : ", sequential");
 
             Console.WriteLine(")");
         }
@@ -436,7 +430,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"\t{ex.Message}");
+                await Console.Error.WriteLineAsync($"\t{ex.Message}");
                 didNotRun = true;
                 return;
             }
@@ -465,7 +459,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     client = CreateBatch(client);
                 }
 
-                pending[index++] = Task.Run(() => pipeline(WithCancellation(client, cancellationToken)));
+                pending[index++] = Task.Run(() => pipeline(WithCancellation(client, cancellationToken)), cancellationToken);
             }
 
             await Task.WhenAll(pending).ConfigureAwait(false);
@@ -491,7 +485,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     format = "Typical result: {0}";
                 }
 
-                T result = await pending[pending.Length - 1];
+                T result = await pending[^1];
                 Console.WriteLine(format, result);
             }
         }
@@ -607,13 +601,18 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
                 static string FormatBytes(long bytes)
                 {
-                    const long K = 1024, M = K * K, G = M * K, T = G * K;
+                    // ReSharper disable InconsistentNaming
+                    const long k = 1024, M = k * k, G = M * k, T = G * k;
 
-                    if (bytes < K) return $"{bytes:#,##0} B";
-                    if (bytes < M) return $"{bytes / (double)K:#,##0.00} KiB";
-                    if (bytes < G) return $"{bytes / (double)M:#,##0.00} MiB";
-                    if (bytes < T) return $"{bytes / (double)G:#,##0.00} GiB";
-                    return $"{bytes / (double)T:#,##0.00} TiB"; // I think we can stop there...
+                    // ReSharper restore InconsistentNaming
+                    return bytes switch
+                    {
+                        < k => $"{bytes:#,##0} B",
+                        < M => $"{bytes / (double)k:#,##0.00} KiB",
+                        < G => $"{bytes / (double)M:#,##0.00} MiB",
+                        < T => $"{bytes / (double)G:#,##0.00} GiB",
+                        _ => $"{bytes / (double)T:#,##0.00} TiB",
+                    };
                 }
             }
 #endif

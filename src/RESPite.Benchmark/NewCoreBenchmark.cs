@@ -31,12 +31,12 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         _clients = new RespContext[ClientCount];
 
         _connectionPool = new(count: Multiplexed ? 1 : ClientCount);
-        _connectionPool.ConnectionError += (sender, args) => Program.WriteException(args.Exception, args.Operation);
+        _connectionPool.ConnectionError += (_, e) => Program.WriteException(e.Exception, e.Operation);
         _pairs = new (string, byte[])[10];
 
         for (var i = 0; i < 10; i++)
         {
-            _pairs[i] = ($"{"key:__rand_int__"}{i}", _payload);
+            _pairs[i] = ($"key:__rand_int__{i}", Payload);
         }
 
         if (Multiplexed)
@@ -86,26 +86,26 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         // await RunAsync(PingInline).ConfigureAwait(false);
         await RunAsync(null, PingBulk).ConfigureAwait(false);
 
-        await RunAsync(_getSetKey, Set).ConfigureAwait(false);
-        await RunAsync(_getSetKey, Get, GetInit).ConfigureAwait(false);
-        await RunAsync(_counterKey, Incr).ConfigureAwait(false);
-        await RunAsync(_listKey, LPush).ConfigureAwait(false);
-        await RunAsync(_listKey, RPush).ConfigureAwait(false);
-        await RunAsync(_listKey, LPop, LPopInit).ConfigureAwait(false);
-        await RunAsync(_listKey, RPop, LPopInit).ConfigureAwait(false);
-        await RunAsync(_setKey, SAdd).ConfigureAwait(false);
-        await RunAsync(_hashKey, HSet).ConfigureAwait(false);
-        await RunAsync(_setKey, SPop, SPopInit).ConfigureAwait(false);
-        await RunAsync(_sortedSetKey, ZAdd).ConfigureAwait(false);
-        await RunAsync(_sortedSetKey, ZPopMin, ZPopMinInit).ConfigureAwait(false);
+        await RunAsync(GetSetKey, Set).ConfigureAwait(false);
+        await RunAsync(GetSetKey, Get, GetInit).ConfigureAwait(false);
+        await RunAsync(CounterKey, Incr).ConfigureAwait(false);
+        await RunAsync(ListKey, LPush).ConfigureAwait(false);
+        await RunAsync(ListKey, RPush).ConfigureAwait(false);
+        await RunAsync(ListKey, LPop, LPopInit).ConfigureAwait(false);
+        await RunAsync(ListKey, RPop, LPopInit).ConfigureAwait(false);
+        await RunAsync(SetKey, SAdd).ConfigureAwait(false);
+        await RunAsync(HashKey, HSet).ConfigureAwait(false);
+        await RunAsync(SetKey, SPop, SPopInit).ConfigureAwait(false);
+        await RunAsync(SortedSetKey, ZAdd).ConfigureAwait(false);
+        await RunAsync(SortedSetKey, ZPopMin, ZPopMinInit).ConfigureAwait(false);
         await RunAsync(null, MSet).ConfigureAwait(false);
-        await RunAsync(_streamKey, XAdd).ConfigureAwait(false);
+        await RunAsync(StreamKey, XAdd).ConfigureAwait(false);
 
         // leave until last, they're slower
-        await RunAsync(_listKey, LRange100, LRangeInit).ConfigureAwait(false);
-        await RunAsync(_listKey, LRange300, LRangeInit).ConfigureAwait(false);
-        await RunAsync(_listKey, LRange500, LRangeInit).ConfigureAwait(false);
-        await RunAsync(_listKey, LRange600, LRangeInit).ConfigureAwait(false);
+        await RunAsync(ListKey, LRange100, LRangeInit).ConfigureAwait(false);
+        await RunAsync(ListKey, LRange300, LRangeInit).ConfigureAwait(false);
+        await RunAsync(ListKey, LRange500, LRangeInit).ConfigureAwait(false);
+        await RunAsync(ListKey, LRange600, LRangeInit).ConfigureAwait(false);
 
         await CleanupAsync().ConfigureAwait(false);
     }
@@ -131,60 +131,61 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     }
 
     [DisplayName("PING_INLINE")]
-    private ValueTask<RespParsers.ResponseSummary> PingInline(RespContext ctx) => ctx.PingInlineAsync(_payload);
+    // ReSharper disable once UnusedMember.Local
+    private ValueTask<RespParsers.ResponseSummary> PingInline(RespContext ctx) => ctx.PingInlineAsync(Payload);
 
     [DisplayName("PING_BULK")]
-    private ValueTask<RespParsers.ResponseSummary> PingBulk(RespContext ctx) => ctx.PingAsync(_payload);
+    private ValueTask<RespParsers.ResponseSummary> PingBulk(RespContext ctx) => ctx.PingAsync(Payload);
 
     [DisplayName("INCR")]
-    private ValueTask<int> Incr(RespContext ctx) => ctx.IncrAsync(_counterKey);
+    private ValueTask<int> Incr(RespContext ctx) => ctx.IncrAsync(CounterKey);
 
     [DisplayName("GET")]
-    private ValueTask<RespParsers.ResponseSummary> Get(RespContext ctx) => ctx.GetAsync(_getSetKey);
+    private ValueTask<RespParsers.ResponseSummary> Get(RespContext ctx) => ctx.GetAsync(GetSetKey);
 
-    private ValueTask GetInit(RespContext ctx) => ctx.SetAsync(_getSetKey, _payload).AsUntypedValueTask();
+    private ValueTask GetInit(RespContext ctx) => ctx.SetAsync(GetSetKey, Payload).AsUntypedValueTask();
 
     [DisplayName("SET")]
-    private ValueTask<RespParsers.ResponseSummary> Set(RespContext ctx) => ctx.SetAsync(_getSetKey, _payload);
+    private ValueTask<RespParsers.ResponseSummary> Set(RespContext ctx) => ctx.SetAsync(GetSetKey, Payload);
 
     [DisplayName("LPUSH")]
-    private ValueTask<int> LPush(RespContext ctx) => ctx.LPushAsync(_listKey, _payload);
+    private ValueTask<int> LPush(RespContext ctx) => ctx.LPushAsync(ListKey, Payload);
 
     [DisplayName("RPUSH")]
-    private ValueTask<int> RPush(RespContext ctx) => ctx.RPushAsync(_listKey, _payload);
+    private ValueTask<int> RPush(RespContext ctx) => ctx.RPushAsync(ListKey, Payload);
 
     [DisplayName("LRANGE_100")]
-    private ValueTask<RespParsers.ResponseSummary> LRange100(RespContext ctx) => ctx.LRangeAsync(_listKey, 0, 99);
+    private ValueTask<RespParsers.ResponseSummary> LRange100(RespContext ctx) => ctx.LRangeAsync(ListKey, 0, 99);
 
     [DisplayName("LRANGE_300")]
-    private ValueTask<RespParsers.ResponseSummary> LRange300(RespContext ctx) => ctx.LRangeAsync(_listKey, 0, 299);
+    private ValueTask<RespParsers.ResponseSummary> LRange300(RespContext ctx) => ctx.LRangeAsync(ListKey, 0, 299);
 
     [DisplayName("LRANGE_500")]
-    private ValueTask<RespParsers.ResponseSummary> LRange500(RespContext ctx) => ctx.LRangeAsync(_listKey, 0, 499);
+    private ValueTask<RespParsers.ResponseSummary> LRange500(RespContext ctx) => ctx.LRangeAsync(ListKey, 0, 499);
 
     [DisplayName("LRANGE_600")]
-    private ValueTask<RespParsers.ResponseSummary> LRange600(RespContext ctx) => ctx.LRangeAsync(_listKey, 0, 599);
+    private ValueTask<RespParsers.ResponseSummary> LRange600(RespContext ctx) => ctx.LRangeAsync(ListKey, 0, 599);
 
     [DisplayName("LPOP")]
-    private ValueTask<RespParsers.ResponseSummary> LPop(RespContext ctx) => ctx.LPopAsync(_listKey);
+    private ValueTask<RespParsers.ResponseSummary> LPop(RespContext ctx) => ctx.LPopAsync(ListKey);
 
     [DisplayName("RPOP")]
-    private ValueTask<RespParsers.ResponseSummary> RPop(RespContext ctx) => ctx.RPopAsync(_listKey);
+    private ValueTask<RespParsers.ResponseSummary> RPop(RespContext ctx) => ctx.RPopAsync(ListKey);
 
     private ValueTask LPopInit(RespContext ctx) =>
-        ctx.LPushAsync(_listKey, _payload, TotalOperations).AsUntypedValueTask();
+        ctx.LPushAsync(ListKey, Payload, TotalOperations).AsUntypedValueTask();
 
     [DisplayName("SADD")]
-    private ValueTask<int> SAdd(RespContext ctx) => ctx.SAddAsync(_setKey, "element:__rand_int__");
+    private ValueTask<int> SAdd(RespContext ctx) => ctx.SAddAsync(SetKey, "element:__rand_int__");
 
     [DisplayName("HSET")]
-    private ValueTask<int> HSet(RespContext ctx) => ctx.HSetAsync(_hashKey, "element:__rand_int__", _payload);
+    private ValueTask<int> HSet(RespContext ctx) => ctx.HSetAsync(HashKey, "element:__rand_int__", Payload);
 
     [DisplayName("ZADD")]
-    private ValueTask<int> ZAdd(RespContext ctx) => ctx.ZAddAsync(_sortedSetKey, 0, "element:__rand_int__");
+    private ValueTask<int> ZAdd(RespContext ctx) => ctx.ZAddAsync(SortedSetKey, 0, "element:__rand_int__");
 
     [DisplayName("ZPOPMIN")]
-    private ValueTask<RespParsers.ResponseSummary> ZPopMin(RespContext ctx) => ctx.ZPopMinAsync(_sortedSetKey);
+    private ValueTask<RespParsers.ResponseSummary> ZPopMin(RespContext ctx) => ctx.ZPopMinAsync(SortedSetKey);
 
     private async ValueTask ZPopMinInit(RespContext ctx)
     {
@@ -192,20 +193,20 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         var rand = new Random();
         for (int i = 0; i < ops; i++)
         {
-            await ctx.ZAddAsync(_sortedSetKey, (rand.NextDouble() * 2000) - 1000, "element:__rand_int__")
+            await ctx.ZAddAsync(SortedSetKey, (rand.NextDouble() * 2000) - 1000, "element:__rand_int__")
                 .ConfigureAwait(false);
         }
     }
 
     [DisplayName("SPOP")]
-    private ValueTask<RespParsers.ResponseSummary> SPop(RespContext ctx) => ctx.SPopAsync(_setKey);
+    private ValueTask<RespParsers.ResponseSummary> SPop(RespContext ctx) => ctx.SPopAsync(SetKey);
 
     private async ValueTask SPopInit(RespContext ctx)
     {
         int ops = TotalOperations;
         for (int i = 0; i < ops; i++)
         {
-            await ctx.SAddAsync(_setKey, "element:__rand_int__").ConfigureAwait(false);
+            await ctx.SAddAsync(SetKey, "element:__rand_int__").ConfigureAwait(false);
         }
     }
 
@@ -213,11 +214,11 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     private ValueTask<bool> MSet(RespContext ctx) => ctx.MSetAsync(_pairs);
 
     private ValueTask LRangeInit(RespContext ctx) =>
-        ctx.LPushAsync(_listKey, _payload, TotalOperations).AsUntypedValueTask();
+        ctx.LPushAsync(ListKey, Payload, TotalOperations).AsUntypedValueTask();
 
     [DisplayName("XADD")]
     private ValueTask<RespParsers.ResponseSummary> XAdd(RespContext ctx) =>
-        ctx.XAddAsync(_streamKey, "*", "myfield", _payload);
+        ctx.XAddAsync(StreamKey, "*", "myfield", Payload);
 
     protected override async Task RunBasicLoopAsync(int clientId)
     {
@@ -226,7 +227,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         var client = GetClient(clientId);
         var depth = PipelineDepth;
         int tickCount = 0; // this is just so we don't query DateTime.
-        long previousValue = (await client.GetInt32Async(_counterKey).ConfigureAwait(false)) ?? 0,
+        long previousValue = (await client.GetInt32Async(CounterKey).ConfigureAwait(false)) ?? 0,
             currentValue = previousValue;
         var watch = Stopwatch.StartNew();
         long previousMillis = watch.ElapsedMilliseconds;
@@ -271,7 +272,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         {
             while (true)
             {
-                currentValue = await client.IncrAsync(_counterKey).ConfigureAwait(false);
+                currentValue = await client.IncrAsync(CounterKey).ConfigureAwait(false);
 
                 if (++tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
             }
@@ -285,12 +286,12 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
             {
                 for (int i = 0; i < depth; i++)
                 {
-                    pending[i] = ctx.IncrAsync(_counterKey);
+                    pending[i] = ctx.IncrAsync(CounterKey);
                 }
 
                 await batch.FlushAsync().ConfigureAwait(false);
                 batch.EnsureCapacity(depth); // batches don't assume re-use
-                for (int i = 0; i < depth; i++)
+                for (var i = 0; i < depth; i++)
                 {
                     currentValue = await pending[i].ConfigureAwait(false);
                 }
@@ -319,11 +320,12 @@ internal static partial class RedisCommands
     [RespCommand]
     internal static partial int LPush(this in RespContext ctx, string key, byte[] payload);
 
-    [RespCommand(Formatter = "LPushFormatter.Instance")]
+    [RespCommand(Formatter = LPushFormatter.Name)]
     internal static partial int LPush(this in RespContext ctx, string key, byte[] payload, int count);
 
     private sealed class LPushFormatter : IRespFormatter<(string Key, byte[] Payload, int Count)>
     {
+        public const string Name = $"{nameof(LPushFormatter)}.{nameof(Instance)}";
         private LPushFormatter() { }
         public static readonly LPushFormatter Instance = new();
 
@@ -387,7 +389,7 @@ internal static partial class RedisCommands
     [RespCommand]
     internal static partial RespParsers.ResponseSummary Get(this in RespContext ctx, string key);
 
-    [RespCommand(Formatter = "PairsFormatter.Instance")] // custom command formatter
+    [RespCommand(Formatter = PairsFormatter.Name)] // custom command formatter
     internal static partial bool MSet(this in RespContext ctx, (string, byte[])[] pairs);
 
     internal static RespParsers.ResponseSummary PingInline(this in RespContext ctx, byte[] payload)
@@ -413,6 +415,7 @@ internal static partial class RedisCommands
 
     private sealed class PairsFormatter : IRespFormatter<(string Key, byte[] Value)[]>
     {
+        public const string Name = $"{nameof(PairsFormatter)}.{nameof(Instance)}";
         public static readonly PairsFormatter Instance = new PairsFormatter();
 
         public void Format(

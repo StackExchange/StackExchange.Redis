@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading.Tasks;
-using RESPite;
 using Xunit;
 
 namespace RESPite.Tests;

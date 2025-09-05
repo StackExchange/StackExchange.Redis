@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using RESPite.Messages;
+﻿using RESPite.Messages;
 using Xunit;
 
 namespace RESPite.Tests;

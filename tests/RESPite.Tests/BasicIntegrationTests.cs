@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite;
 using RESPite.Connections;
 using RESPite.Messages;
-using RESPite.Redis;
 using RESPite.Redis.Alt; // needed for AsStrings() etc
 using Xunit;
 

@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using RESPite;
 using RESPite.Redis.Alt;
 using Xunit;
 

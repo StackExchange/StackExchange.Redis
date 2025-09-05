@@ -1,5 +1,4 @@
 ﻿using System.Threading.Tasks;
-using RESPite.Redis;
 using RESPite.Redis.Alt; // needed for AsStrings() etc
 using Xunit;
 using FactAttribute = StackExchange.Redis.Tests.FactAttribute;

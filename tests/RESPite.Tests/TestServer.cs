@@ -4,7 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite;
+using RESPite.Connections.Internal;
 using RESPite.Internal;
 using Xunit;
 
@@ -25,7 +25,9 @@ internal sealed class TestServer : IDisposable
 
     public void Dispose()
     {
+        // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
         _stream?.Dispose();
+        // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
         Connection?.Dispose();
     }
 
@@ -98,7 +100,7 @@ internal sealed class TestServer : IDisposable
         ReadOnlySpan<byte> request,
         ReadOnlySpan<byte> response,
         T expected)
-        => AwaitAndValidate(Execute<T>(operation, request, response), expected);
+        => AwaitAndValidate(Execute(operation, request, response), expected);
 
     // intended for use with [InlineData("...")] scenarios
     public static ValueTask Execute<T>(
@@ -106,7 +108,7 @@ internal sealed class TestServer : IDisposable
         string request,
         string response,
         T expected)
-        => AwaitAndValidate(Execute<T>(operation, request, response), expected);
+        => AwaitAndValidate(Execute(operation, request, response), expected);
 
     public static ValueTask Execute(
         Func<RespContext, ValueTask> operation,
@@ -182,9 +184,9 @@ internal sealed class TestServer : IDisposable
         public override void Close()
         {
             _closed = true;
-            lock (InboundLock)
+            lock (inboundLock)
             {
-                Monitor.PulseAll(InboundLock);
+                Monitor.PulseAll(inboundLock);
             }
         }
 
@@ -193,9 +195,9 @@ internal sealed class TestServer : IDisposable
             _disposed = true;
             if (disposing)
             {
-                lock (InboundLock)
+                lock (inboundLock)
                 {
-                    Monitor.PulseAll(InboundLock);
+                    Monitor.PulseAll(inboundLock);
                 }
             }
         }
@@ -223,26 +225,26 @@ internal sealed class TestServer : IDisposable
 
         public void Respond(ReadOnlySpan<byte> serverToClient)
         {
-            lock (InboundLock)
+            lock (inboundLock)
             {
                 if (!(_disposed | _disposed))
                 {
                     _inbound.Write(serverToClient);
                 }
 
-                Monitor.PulseAll(InboundLock);
+                Monitor.PulseAll(inboundLock);
             }
         }
 
         private int ReadCore(Span<byte> destination)
         {
             ThrowIfDisposed();
-            lock (InboundLock)
+            lock (inboundLock)
             {
                 while (_inbound.CommittedIsEmpty)
                 {
                     if (_closed) return 0;
-                    Monitor.Wait(InboundLock);
+                    Monitor.Wait(inboundLock);
                     ThrowIfDisposed();
                 }
 
@@ -265,14 +267,15 @@ internal sealed class TestServer : IDisposable
         }
 #endif
 
-        private readonly object OutboundLock = new object(), InboundLock = new object();
+        // ReSharper disable once ChangeFieldTypeToSystemThreadingLock - TFM dependent
+        private readonly object outboundLock = new(), inboundLock = new();
 
         private CycleBuffer _outbound = CycleBuffer.Create(MemoryPool<byte>.Shared),
             _inbound = CycleBuffer.Create(MemoryPool<byte>.Shared);
 
         private void WriteCore(ReadOnlySpan<byte> source)
         {
-            lock (OutboundLock)
+            lock (outboundLock)
             {
                 _outbound.Write(source);
             }
@@ -290,7 +293,7 @@ internal sealed class TestServer : IDisposable
 
 #if NET
         public override void Write(ReadOnlySpan<byte> buffer) => WriteCore(buffer);
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             WriteCore(buffer.Span);
@@ -302,7 +305,7 @@ internal sealed class TestServer : IDisposable
         public void AssertAllSent()
         {
             bool empty;
-            lock (OutboundLock)
+            lock (outboundLock)
             {
                 empty = _outbound.CommittedIsEmpty;
             }
@@ -315,7 +318,7 @@ internal sealed class TestServer : IDisposable
         /// </summary>
         public void AssertSent(ReadOnlySpan<byte> clientToServer)
         {
-            lock (OutboundLock)
+            lock (outboundLock)
             {
                 var available = _outbound.GetCommittedLength();
                 Assert.True(

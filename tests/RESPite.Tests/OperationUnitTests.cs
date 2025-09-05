@@ -4,9 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using RESPite;
 using Xunit;
-using Xunit.Internal;
 
 namespace RESPite.Tests;
 
