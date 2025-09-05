@@ -180,11 +180,12 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         // get context from the available fields
         string? context = null;
-
+        IParameterSymbol? contextParam = null;
         foreach (var param in method.Parameters)
         {
             if (IsRESPite(param.Type, RESPite.RespContext))
             {
+                contextParam = param;
                 context = param.Name;
                 break;
             }
@@ -234,6 +235,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             {
                 if (IsIndirectRespContext(param.Type, out var memberName))
                 {
+                    contextParam = param;
                     context = $"{param.Name}.{memberName}";
                     break;
                 }
@@ -297,13 +299,11 @@ public class RespCommandGenerator : IIncrementalGenerator
             }
         }
 
-        static bool Ignore(ITypeSymbol symbol) => IsRESPite(symbol, RESPite.RespContext); // CT etc?
-
         foreach (var param in method.Parameters)
         {
             var flags = ParameterFlags.Parameter;
             if (IsKey(param)) flags |= ParameterFlags.Key;
-            if (!Ignore(param.Type))
+            if (contextParam is null || !SymbolEqualityComparer.Default.Equals(param, contextParam))
             {
                 flags |= ParameterFlags.Data;
             }
@@ -399,7 +399,6 @@ public class RespCommandGenerator : IIncrementalGenerator
                 bool Shared)>
             formatters =
                 new(FormatterComparer.Default);
-        static bool IsThis(string modifier) => modifier.StartsWith("this ");
 
         foreach (var method in methods)
         {
@@ -676,11 +675,6 @@ public class RespCommandGenerator : IIncrementalGenerator
             if (count < 2)
             {
                 var p = FirstDataParameter(parameters);
-                if (IsThis(p.Modifiers))
-                {
-                    p = parameters[1];
-                }
-
                 sb.Append(mode == TupleMode.Values ? p.Name : p.Type);
                 return;
             }

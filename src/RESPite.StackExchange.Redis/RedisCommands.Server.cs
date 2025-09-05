@@ -15,5 +15,5 @@ internal readonly struct Servers(in RespContext context)
 internal static partial class ServerCommands
 {
     [RespCommand]
-    internal static partial void Ping(this in RespContext ctx);
+    internal static partial void Ping(this in Servers ctx);
 }
