@@ -11,6 +11,7 @@ internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextProxy
     public Version Version { get; }
     public EndPoint EndPoint => _interactive.EndPoint;
     public RespMultiplexer Multiplexer => _interactive.Multiplexer;
+
     public Node(RespMultiplexer multiplexer, EndPoint endPoint)
     {
         _interactive = new(multiplexer, endPoint, ConnectionType.Interactive);
@@ -42,9 +43,14 @@ internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextProxy
     private NodeConnection? _subscription;
 
     public ref readonly RespContext Context => ref _interactive.Context;
+    RespContextProxyKind IRespContextProxy.RespContextProxyKind => RespContextProxyKind.ConnectionInteractive;
+
     public RespConnection InteractiveConnection => _interactive.Connection;
 
-    public Task<bool> ConnectAsync(TextWriter? log = null, bool force = false, ConnectionType connectionType = ConnectionType.Interactive)
+    public Task<bool> ConnectAsync(
+        TextWriter? log = null,
+        bool force = false,
+        ConnectionType connectionType = ConnectionType.Interactive)
     {
         if (_isDisposed) return Task.FromResult(false);
         if (connectionType == ConnectionType.Interactive)
@@ -82,6 +88,13 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
         _connectionType = connectionType;
         _label = Format.ToString(endPoint);
     }
+
+    RespContextProxyKind IRespContextProxy.RespContextProxyKind => _connectionType switch
+    {
+        ConnectionType.Interactive => RespContextProxyKind.ConnectionInteractive,
+        ConnectionType.Subscription => RespContextProxyKind.ConnectionSubscription,
+        _ => RespContextProxyKind.Unknown,
+    };
 
     public EndPoint EndPoint => _endPoint;
     private int _state = (int)NodeState.Disconnected;
@@ -134,7 +147,10 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
 
         try
         {
-            log.LogLocked($"[{_label}] Connecting...");
+            // observe outcome of CEX above (noting that if forcing, we don't do that CEX)
+            if (State == NodeState.Connecting) state = (int)NodeState.Connecting;
+
+            log.LogLocked($"[{_label}] {_endPoint.GetType().Name} connecting...");
             connecting = true;
             var connection = await RespConnection.CreateAsync(
                 _endPoint,

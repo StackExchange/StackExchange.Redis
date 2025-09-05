@@ -28,6 +28,7 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
     private RespContext _defaultContext;
     internal ref readonly RespContext Context => ref _defaultContext;
     ref readonly RespContext IRespContextProxy.Context => ref _defaultContext;
+    RespContextProxyKind IRespContextProxy.RespContextProxyKind => RespContextProxyKind.Multiplexer;
     RespMultiplexer IRespContextProxy.Multiplexer => this;
 
     private readonly CancellationTokenSource _lifetime = new();
@@ -43,32 +44,39 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
 
     private void OnConnect(ConfigurationOptions options)
     {
+        if (options is null) throw new ArgumentNullException(nameof(options));
         if (Interlocked.CompareExchange(ref _options, options, null) is not null)
         {
             throw new InvalidOperationException($"A {GetType().Name} can only be connected once.");
         }
 
-        // add endpoints from the new options
-        const int DefaultPort = 6379;
-        int count = options.EndPoints.Count;
-        switch (count)
+        // fixup the endpoints in an isolated collection
+        var ep = options.EndPoints.Clone();
+        if (ep.Count == 0)
         {
-            case 0:
-                _nodes = [new Node(this, new IPEndPoint(IPAddress.Loopback, DefaultPort))];
-                break;
-            case 1:
-                _nodes = [new Node(this, options.EndPoints[0])];
-                break;
-            default:
-                var nodes = new Node[count];
-                for (int i = 0; i < nodes.Length; i++)
-                {
-                    nodes[i] = new Node(this, options.EndPoints[i]);
-                }
-
-                _nodes = nodes;
-                break;
+            // no endpoints; add a default, deferring the port to the SSL setting
+            ep.Add(new IPEndPoint(IPAddress.Loopback, 0));
         }
+        else
+        {
+            for (int i = 0; i < ep.Count; i++)
+            {
+                if (ep[i] is DnsEndPoint { Host: "." or "localhost" } dns)
+                {
+                    // unroll loopback
+                    ep[i] = new IPEndPoint(IPAddress.Loopback, dns.Port);
+                }
+            }
+        }
+        ep.SetDefaultPorts(ServerType.Standalone, ssl: options.Ssl);
+
+        // add nodes from the endpoints
+        var nodes = new Node[ep.Count];
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            nodes[i] = new Node(this, ep[i]);
+        }
+        _nodes = nodes;
 
         _defaultDatabase = options.DefaultDatabase ?? 0;
 
@@ -93,6 +101,7 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
     public Task ConnectAsync(string configuration = "", TextWriter? log = null)
     {
         // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
+        if (string.IsNullOrWhiteSpace(configuration)) configuration = "."; // localhost by default
         var config = ConfigurationOptions.Parse(configuration ?? "");
         return ConnectAsync(config, log);
     }
@@ -270,23 +279,37 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
     private const int LowDatabaseCount = 16;
     private readonly IDatabase?[] _lowDatabases = new IDatabase?[LowDatabaseCount];
 
-    public IServer GetServer(string host, int port, object? asyncState = null) => throw new NotImplementedException();
+    public IServer GetServer(string host, int port, object? asyncState = null)
+        => GetServer(Format.ParseEndPoint(host, port), asyncState);
 
-    public IServer GetServer(string hostAndPort, object? asyncState = null) => throw new NotImplementedException();
+    public IServer GetServer(string hostAndPort, object? asyncState = null) =>
+        Format.TryParseEndPoint(hostAndPort, out var ep)
+            ? GetServer(ep, asyncState)
+            : throw new ArgumentException($"The specified host and port could not be parsed: {hostAndPort}", nameof(hostAndPort));
 
     public IServer GetServer(IPAddress host, int port)
     {
-        var nodes = _nodes;
-        foreach (var node in nodes)
+        foreach (var node in _nodes)
         {
             if (node.EndPoint is IPEndPoint ep && ep.Address.Equals(host) && ep.Port == port)
             {
                 return node.AsServer();
             }
         }
+        throw new ArgumentException("The specified endpoint is not defined", nameof(host));
+    }
 
-        ThrowArgumentException();
-        return null!;
+    public IServer GetServer(EndPoint endpoint, object? asyncState = null)
+    {
+        foreach (var node in _nodes)
+        {
+            if (node.EndPoint.Equals(endpoint))
+            {
+                return node.AsServer();
+            }
+        }
+
+        throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
     }
 
     private void OnNodesChanged()
@@ -300,11 +323,7 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
         };
     }
 
-    private static void ThrowArgumentException() => throw new ArgumentException();
-
-    public IServer GetServer(EndPoint endpoint, object? asyncState = null) => throw new NotImplementedException();
-
-    public IServer[] GetServers() => throw new NotImplementedException();
+    public IServer[] GetServers() => Array.ConvertAll(_nodes, static x => x.AsServer());
 
     public Task<bool> ConfigureAsync(TextWriter? log = null) => throw new NotImplementedException();
 

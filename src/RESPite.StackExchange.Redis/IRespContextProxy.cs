@@ -7,4 +7,14 @@ internal interface IRespContextProxy
 {
     RespMultiplexer Multiplexer { get; }
     ref readonly RespContext Context { get; }
+    RespContextProxyKind RespContextProxyKind { get; }
+}
+
+internal enum RespContextProxyKind
+{
+    Unknown,
+    Multiplexer,
+    ConnectionInteractive,
+    ConnectionSubscription,
+    Batch,
 }

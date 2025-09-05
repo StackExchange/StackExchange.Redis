@@ -16,6 +16,7 @@ internal sealed partial class ProxiedDatabase(IRespContextProxy proxy, int db) :
     public int Database => db;
 
     public IConnectionMultiplexer Multiplexer => proxy.Multiplexer;
+    public RespContextProxyKind RespContextProxyKind => proxy.RespContextProxyKind;
 
     public bool TryWait(Task task) => proxy.Multiplexer.TryWait(task);
 

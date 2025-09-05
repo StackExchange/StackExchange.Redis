@@ -20,5 +20,12 @@ public class RespMultiplexerTests(ITestOutputHelper log)
         Assert.IsType<NodeServer>(server); // we expect this to *not* use routing
         server.Ping();
         await server.PingAsync();
+
+        var db = muxer.GetDatabase();
+        var proxied = Assert.IsType<ProxiedDatabase>(db);
+        // since this is a single-node instance, we expect the proxied database to use the interactive connection
+        Assert.Equal(RespContextProxyKind.ConnectionInteractive, proxied.RespContextProxyKind);
+        db.Ping();
+        await db.PingAsync();
     }
 }
