@@ -55,5 +55,5 @@ internal sealed partial class ProxiedDatabase
 
     // Debug
     [RespCommand("debug")]
-    public partial RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None);
+    public partial RedisValue DebugObject([RespPrefix("object")] RedisKey key, CommandFlags flags = CommandFlags.None);
 }
