@@ -1,6 +1,4 @@
-﻿using System.Net;
-
-namespace RESPite.StackExchange.Redis;
+﻿namespace RESPite.StackExchange.Redis;
 
 internal static class Utils
 {

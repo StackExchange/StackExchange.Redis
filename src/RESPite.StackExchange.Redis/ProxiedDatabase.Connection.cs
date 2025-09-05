@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Threading.Tasks;
 using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
@@ -29,10 +28,22 @@ internal sealed partial class ProxiedDatabase
         throw new NotImplementedException();
 
     // Key migration
-    public Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None) =>
+    public Task KeyMigrateAsync(
+        RedisKey key,
+        EndPoint toServer,
+        int toDatabase = 0,
+        int timeoutMilliseconds = 0,
+        MigrateOptions migrateOptions = MigrateOptions.None,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public void KeyMigrate(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None) =>
+    public void KeyMigrate(
+        RedisKey key,
+        EndPoint toServer,
+        int toDatabase = 0,
+        int timeoutMilliseconds = 0,
+        MigrateOptions migrateOptions = MigrateOptions.None,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     // Debug

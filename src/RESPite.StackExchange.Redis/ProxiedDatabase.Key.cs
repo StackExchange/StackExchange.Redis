@@ -1,13 +1,16 @@
-﻿using System.Net;
-using System.Threading.Tasks;
-using StackExchange.Redis;
+﻿using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
 internal sealed partial class ProxiedDatabase
 {
     // Async Key methods
-    public Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None) =>
+    public Task<bool> KeyCopyAsync(
+        RedisKey sourceKey,
+        RedisKey destinationKey,
+        int destinationDatabase = -1,
+        bool replace = false,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
@@ -31,13 +34,21 @@ internal sealed partial class ProxiedDatabase
     public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags) =>
         throw new NotImplementedException();
 
-    public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+    public Task<bool> KeyExpireAsync(
+        RedisKey key,
+        TimeSpan? expiry,
+        ExpireWhen when = ExpireWhen.Always,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags) =>
         throw new NotImplementedException();
 
-    public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+    public Task<bool> KeyExpireAsync(
+        RedisKey key,
+        DateTime? expiry,
+        ExpireWhen when = ExpireWhen.Always,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public Task<DateTime?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
@@ -61,10 +72,18 @@ internal sealed partial class ProxiedDatabase
     public Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<bool> KeyRenameAsync(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+    public Task<bool> KeyRenameAsync(
+        RedisKey key,
+        RedisKey newKey,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task KeyRestoreAsync(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None) =>
+    public Task KeyRestoreAsync(
+        RedisKey key,
+        byte[] value,
+        TimeSpan? expiry = null,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public Task<TimeSpan?> KeyTimeToLiveAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
@@ -80,7 +99,12 @@ internal sealed partial class ProxiedDatabase
         throw new NotImplementedException();
 
     // Synchronous Key methods
-    public bool KeyCopy(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None) =>
+    public bool KeyCopy(
+        RedisKey sourceKey,
+        RedisKey destinationKey,
+        int destinationDatabase = -1,
+        bool replace = false,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None) =>
@@ -104,13 +128,21 @@ internal sealed partial class ProxiedDatabase
     public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags) =>
         throw new NotImplementedException();
 
-    public bool KeyExpire(RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+    public bool KeyExpire(
+        RedisKey key,
+        TimeSpan? expiry,
+        ExpireWhen when = ExpireWhen.Always,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags) =>
         throw new NotImplementedException();
 
-    public bool KeyExpire(RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+    public bool KeyExpire(
+        RedisKey key,
+        DateTime? expiry,
+        ExpireWhen when = ExpireWhen.Always,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None) =>
@@ -134,10 +166,18 @@ internal sealed partial class ProxiedDatabase
     public long? KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+    public bool KeyRename(
+        RedisKey key,
+        RedisKey newKey,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public void KeyRestore(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None) =>
+    public void KeyRestore(
+        RedisKey key,
+        byte[] value,
+        TimeSpan? expiry = null,
+        CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public TimeSpan? KeyTimeToLive(RedisKey key, CommandFlags flags = CommandFlags.None) =>

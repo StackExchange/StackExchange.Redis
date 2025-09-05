@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using RESPite.Connections.Internal;
 using StackExchange.Redis;
 using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
@@ -13,7 +14,8 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
 
     public RespMultiplexer()
     {
-        _routedConnection = _defaultConnection = RespContext.Null.Connection; // until we've connected
+        _routedConnection = RespContext.Null.Connection; // until we've connected
+        _defaultContext = _routedConnection.Context;
     }
 
     private int _defaultDatabase;
@@ -22,9 +24,10 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
     // instance that isn't necessary, so the default-connection abstracts over that:
     // in a single-node instance, the default-connection will be the single interactive connection
     // otherwise, the default-connection will be the routed connection
-    private RespConnection _routedConnection, _defaultConnection;
-    internal ref readonly RespContext Context => ref _defaultConnection.Context;
-    ref readonly RespContext IRespContextProxy.Context => ref _defaultConnection.Context;
+    private RespConnection _routedConnection;
+    private RespContext _defaultContext;
+    internal ref readonly RespContext Context => ref _defaultContext;
+    ref readonly RespContext IRespContextProxy.Context => ref _defaultContext;
     RespMultiplexer IRespContextProxy.Multiplexer => this;
 
     private readonly CancellationTokenSource _lifetime = new();
@@ -69,9 +72,11 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
 
         _defaultDatabase = options.DefaultDatabase ?? 0;
 
-        // setup a basic connection that comes via ourselves (this might get simplified later, in OnNodesChanged)
+        // setup a basic connection that comes via ourselves
         var ctx = RespContext.Null; // this is just the template
-        _defaultConnection = _routedConnection = new RoutingRespConnection(this, ctx);
+        _routedConnection = new RoutingRespConnection(this, ctx);
+        // set the default context (this might get simplified later, in OnNodesChanged)
+        _defaultContext = _routedConnection.Context;
     }
 
     public void Connect(string configuration = "", TextWriter? log = null)
@@ -119,11 +124,11 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
 
     public void Dispose()
     {
-        RespConnection c1 = _routedConnection, c2 = _defaultConnection;
-        _defaultConnection = _routedConnection = RespContext.Null.Connection;
+        RespConnection conn = _routedConnection;
+        _routedConnection = NullConnection.Disposed;
+        _defaultContext = _routedConnection.Context;
         _lifetime.Cancel();
-        c1.Dispose();
-        c2.Dispose();
+        conn.Dispose();
         _routedConnection.Dispose();
         foreach (var node in _nodes)
         {
@@ -133,15 +138,15 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
 
     public async ValueTask DisposeAsync()
     {
-        RespConnection c1 = _routedConnection, c2 = _defaultConnection;
-        _defaultConnection = _routedConnection = RespContext.Null.Connection;
+        RespConnection conn = _routedConnection;
+        _routedConnection = RespContext.Null.Connection;
+        _defaultContext = _routedConnection.Context;
 #if NET8_0_OR_GREATER
         await _lifetime.CancelAsync().ConfigureAwait(false);
 #else
         _lifetime.Cancel();
 #endif
-        await c1.DisposeAsync().ConfigureAwait(false);
-        await c2.DisposeAsync().ConfigureAwait(false);
+        await conn.DisposeAsync().ConfigureAwait(false);
         await _routedConnection.DisposeAsync().ConfigureAwait(false);
         foreach (var node in _nodes)
         {
@@ -287,11 +292,11 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
     private void OnNodesChanged()
     {
         var nodes = _nodes;
-        _defaultConnection = nodes.Length switch
+        _defaultContext = nodes.Length switch
         {
-            0 => RespContext.Null.Connection,
-            1 when nodes[0] is { IsConnected: true } node => node.InteractiveConnection,
-            _ => _routedConnection,
+            0 => NullConnection.NonRoutable.Context, // nowhere to go
+            1 when nodes[0] is { IsConnected: true } node => node.InteractiveConnection.Context,
+            _ => _routedConnection.Context,
         };
     }
 
