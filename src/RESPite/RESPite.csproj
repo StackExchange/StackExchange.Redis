@@ -5,22 +5,22 @@
     <TargetFrameworks>net461;netstandard2.0;net472;net6.0;net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces"  />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces"/>
     <PackageReference Include="System.Buffers"/>
     <PackageReference Include="System.Memory"/>
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="RESPite.Tests" />
-    <InternalsVisibleTo Include="RESPite.StackExchange.Redis" />
+    <InternalsVisibleTo Include="RESPite.Tests"/>
+    <InternalsVisibleTo Include="RESPite.StackExchange.Redis"/>
     <None Include="readme.md" Pack="true" PackagePath="/"/>
-    <None Include="../../eng/StackExchange.Redis.Build/bin/$(Configuration)/netstandard2.0/StackExchange.Redis.Build.dll" Pack="true" PackagePath="analyzers/dotnet" Visible="true" />
+    <None Include="../../eng/StackExchange.Redis.Build/bin/$(Configuration)/netstandard2.0/StackExchange.Redis.Build.dll" Pack="true" PackagePath="analyzers/dotnet" Visible="true"/>
   </ItemGroup>
   <ItemGroup>
     <Compile Update="RespOperationT.cs">

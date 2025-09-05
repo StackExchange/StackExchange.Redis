@@ -14,4 +14,8 @@
     <Analyzer Include="..\..\eng\StackExchange.Redis.Build\bin\$(Configuration)\netstandard2.0\StackExchange.Redis.Build.dll" />
     <!--<ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />-->
   </ItemGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net461')) or '$(TargetFramework)' == 'netstandard2.0'">
+    <!-- disable build warning about System.Buffers -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
 </Project>
