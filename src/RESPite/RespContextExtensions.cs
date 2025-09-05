@@ -86,6 +86,20 @@ public static class RespContextExtensions
     /// <summary>
     /// Creates an operation and synchronously writes it to the connection.
     /// </summary>
+    /// <typeparam name="TResponse">The type of the response data being received.</typeparam>
+    public static RespOperation<TResponse> Send<TResponse>(
+        this in RespContext context,
+        ReadOnlySpan<byte> command,
+        IRespParser<TResponse> parser)
+    {
+        var op = CreateOperation(context, command, false, RespFormatters.Empty, parser);
+        context.Connection.Write(op);
+        return op;
+    }
+
+    /// <summary>
+    /// Creates an operation and synchronously writes it to the connection.
+    /// </summary>
     /// <typeparam name="TRequest">The type of the request data being sent.</typeparam>
     /// <typeparam name="TState">The type of state data required by the parser.</typeparam>
     /// <typeparam name="TResponse">The type of the response data being received.</typeparam>
@@ -101,6 +115,22 @@ public static class RespContextExtensions
 #endif
     {
         var op = CreateOperation(context, command, request, formatter, in state, parser);
+        context.Connection.Write(op);
+        return op;
+    }
+
+    /// <summary>
+    /// Creates an operation and synchronously writes it to the connection.
+    /// </summary>
+    /// <typeparam name="TState">The type of state data required by the parser.</typeparam>
+    /// <typeparam name="TResponse">The type of the response data being received.</typeparam>
+    public static RespOperation<TResponse> Send<TState, TResponse>(
+        this in RespContext context,
+        ReadOnlySpan<byte> command,
+        in TState state,
+        IRespParser<TState, TResponse> parser)
+    {
+        var op = CreateOperation(context, command, false, RespFormatters.Empty, in state, parser);
         context.Connection.Write(op);
         return op;
     }

@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using RESPite.Messages;
 using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
@@ -10,11 +11,17 @@ internal sealed partial class ProxiedDatabase
         throw new NotImplementedException();
 
     public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).Send("ping"u8, DateTime.UtcNow, PingParser.Default).AsTask();
 
     public TimeSpan Ping(CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).Send("ping"u8, DateTime.UtcNow, PingParser.Default).Wait(SyncTimeout);
 
+    private sealed class PingParser : IRespParser<DateTime, TimeSpan>
+    {
+        public static readonly PingParser Default = new();
+        private PingParser() { }
+        public TimeSpan Parse(in DateTime state, ref RespReader reader) => DateTime.UtcNow - state;
+    }
     public Task<EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
@@ -47,9 +54,6 @@ internal sealed partial class ProxiedDatabase
         throw new NotImplementedException();
 
     // Debug
-    public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("debug")]
+    public partial RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None);
 }

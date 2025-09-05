@@ -15,9 +15,57 @@ public readonly struct RespContext
     private readonly RespConnection _connection;
     public readonly CancellationToken CancellationToken;
     private readonly int _database;
+    private readonly RespContextFlags _flags;
 
-    private readonly int _flags;
-    private const int FlagsDisableCaptureContext = 1 << 0;
+    public RespContextFlags Flags => _flags;
+
+    [Flags]
+    public enum RespContextFlags
+    {
+        /// <summary>
+        /// No additional flags; this is the default. Operations will prefer primary nodes if available.
+        /// </summary>
+        None = 0,
+
+        /// <summary>
+        /// The equivalent of <see cref="ConfigureAwait(bool)"/> with `false`.
+        /// </summary>
+        DisableCaptureContext = 1,
+
+        // IMPORTANT: the following align with CommandFlags, to avoid needing any additional mapping.
+
+        /// <summary>
+        /// The caller is not interested in the result; the caller will immediately receive a default-value
+        /// of the expected return type (this value is not indicative of anything at the server).
+        /// </summary>
+        FireAndForget = 2,
+
+        /// <summary>
+        /// This operation should only be performed on the primary.
+        /// </summary>
+        DemandPrimary = 4,
+
+        /// <summary>
+        /// This operation should be performed on the replica if it is available, but will be performed on
+        /// a primary if no replicas are available. Suitable for read operations only.
+        /// </summary>
+        PreferReplica = 8, // note: we're using a 2-bit set here, which [Flags] formatting hates
+
+        /// <summary>
+        /// This operation should only be performed on a replica. Suitable for read operations only.
+        /// </summary>
+        DemandReplica = 12, // note: we're using a 2-bit set here, which [Flags] formatting hates
+
+        /// <summary>
+        /// Indicates that this operation should not be forwarded to other servers as a result of an ASK or MOVED response.
+        /// </summary>
+        NoRedirect = 64,
+
+        /// <summary>
+        /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA.
+        /// </summary>
+        NoScriptCache = 512,
+    }
 
     /// <inheritdoc/>
     public override string ToString() => _connection?.ToString() ?? "(null)";
@@ -149,15 +197,49 @@ public readonly struct RespContext
     {
         RespContext clone = this;
         Unsafe.AsRef(in clone._flags) = continueOnCapturedContext
-            ? _flags & ~FlagsDisableCaptureContext
-            : _flags | FlagsDisableCaptureContext;
+            ? _flags & ~RespContextFlags.DisableCaptureContext
+            : _flags | RespContextFlags.DisableCaptureContext;
+        return clone;
+    }
+
+    /// <summary>
+    /// Replaces the <see cref="RespContextFlags"/> associated with this context.
+    /// </summary>
+    public RespContext WithFlags(RespContextFlags flags)
+    {
+        RespContext clone = this;
+        Unsafe.AsRef(in clone._flags) = flags;
+        return clone;
+    }
+
+    /// <summary>
+    /// Replaces the <see cref="RespContextFlags"/> and <see cref="Database"/> associated with this context.
+    /// </summary>
+    public RespContext With(int database, RespContextFlags flags)
+    {
+        RespContext clone = this;
+        Unsafe.AsRef(in clone._database) = database;
+        Unsafe.AsRef(in clone._flags) = flags;
+        return clone;
+    }
+
+    /// <summary>
+    /// Replaces the <see cref="RespContextFlags"/> and <see cref="Database"/> associated with this context,
+    /// using a mask to determine which flags to replace. Passing <see cref="RespContextFlags.None"/>
+    /// for <paramref name="mask"/> will replace no flags.
+    /// </summary>
+    public RespContext With(int database, RespContextFlags flags, RespContextFlags mask)
+    {
+        RespContext clone = this;
+        Unsafe.AsRef(in clone._database) = database;
+        Unsafe.AsRef(in clone._flags) = (flags & ~mask) | (_flags & mask);
         return clone;
     }
 
     public RespBatch CreateBatch(int sizeHint = 0)
-    #if MULTI_BATCH
+#if MULTI_BATCH
         => new MergingBatchConnection(in this, sizeHint);
-    #else
+#else
         => new BasicBatchConnection(in this, sizeHint);
-    #endif
+#endif
 }

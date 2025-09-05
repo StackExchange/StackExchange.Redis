@@ -472,6 +472,35 @@ public ref struct RespWriter
         }
     }
 
+    /// <summary>
+    /// Write an unsigned integer as a bulk string.
+    /// </summary>
+    public void WriteBulkString(ulong value)
+    {
+        if (value <= (ulong)long.MaxValue)
+        {
+            // re-use existing code for most values
+            WriteBulkString((long)value);
+        }
+        else if (Available >= RespConstants.MaxProtocolBytesBulkStringIntegerInt64)
+        {
+            WriteRaw("$20\r\n"u8);
+            if (!Utf8Formatter.TryFormat(value, Tail, out var bytes) || bytes != 20)
+                ThrowFormatException();
+            _index += 20;
+            WriteCrLfUnsafe();
+        }
+        else
+        {
+            WriteRaw("$20\r\n"u8);
+            Span<byte> scratch = stackalloc byte[20];
+            if (!Utf8Formatter.TryFormat(value, scratch, out int bytes) || bytes != 20)
+                ThrowFormatException();
+            WriteRaw(scratch);
+            WriteCrLf();
+        }
+    }
+
     private static void ThrowFormatException() => throw new FormatException();
 
     private void WritePrefixedInteger(RespPrefix prefix, int length)

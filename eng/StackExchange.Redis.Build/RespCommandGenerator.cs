@@ -74,6 +74,41 @@ public class RespCommandGenerator : IIncrementalGenerator
         return false;
     }
 
+    private enum SERedis
+    {
+        CommandFlags,
+    }
+
+    private static bool IsSERedis(ITypeSymbol? symbol, SERedis type)
+    {
+        static string NameOf(SERedis type) => type switch
+        {
+            SERedis.CommandFlags => nameof(SERedis.CommandFlags),
+            _ => type.ToString(),
+        };
+
+        if (symbol is INamedTypeSymbol named && named.Name == NameOf(type))
+        {
+            // looking likely; check namespace
+            if (named.ContainingNamespace is
+                {
+                    Name: "Redis", ContainingNamespace:
+                    {
+                        Name: "StackExchange",
+                        ContainingNamespace.IsGlobalNamespace: true,
+                    }
+                })
+            {
+                return true;
+            }
+
+            // if the type doesn't resolve: we're going to need to trust it
+            if (named.TypeKind == TypeKind.Error) return true;
+        }
+
+        return false;
+    }
+
     private static string GetName(ITypeSymbol type)
     {
         if (type.ContainingType is null) return type.Name;
@@ -303,7 +338,21 @@ public class RespCommandGenerator : IIncrementalGenerator
         {
             var flags = ParameterFlags.Parameter;
             if (IsKey(param)) flags |= ParameterFlags.Key;
-            if (contextParam is null || !SymbolEqualityComparer.Default.Equals(param, contextParam))
+            if (IsSERedis(param.Type, SERedis.CommandFlags))
+            {
+                flags |= ParameterFlags.CommandFlags;
+                // magic pattern; we *demand* a method called Context that takes the flags
+                context = $"Context({param.Name})";
+            }
+            else if (IsRESPite(param.Type, RESPite.RespContext))
+            {
+                // ignore it, but no extra flag
+            }
+            else if (contextParam is not null && SymbolEqualityComparer.Default.Equals(param, contextParam))
+            {
+                // ignore it, but no extra flag
+            }
+            else
             {
                 flags |= ParameterFlags.Data;
             }
@@ -496,7 +545,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                         .Append(' ');
                     if (asAsync)
                     {
-                        sb.Append("ValueTask");
+                        sb.Append(HasAnyFlag(method.Parameters, ParameterFlags.CommandFlags) ? "Task" : "ValueTask");
                         if (!string.IsNullOrWhiteSpace(method.ReturnType))
                         {
                             sb.Append('<').Append(method.ReturnType).Append('>');
@@ -553,7 +602,12 @@ public class RespCommandGenerator : IIncrementalGenerator
                             sb.Append('<').Append(method.ReturnType).Append('>');
                         }
 
-                        sb.Append("(").Append(parser).Append(");");
+                        sb.Append("(").Append(parser).Append(")");
+                        if (asAsync && HasAnyFlag(method.Parameters, ParameterFlags.CommandFlags))
+                        {
+                            sb.Append(".AsTask()");
+                        }
+                        sb.Append(';');
                     }
 
                     if (useDirectCall) // avoid the intermediate step when possible
@@ -574,11 +628,21 @@ public class RespCommandGenerator : IIncrementalGenerator
                         sb.Append(", ").Append(formatter).Append(", ").Append(parser).Append(")");
                         if (asAsync)
                         {
-                            sb.Append(".AsValueTask()");
+                            sb.Append(HasAnyFlag(method.Parameters, ParameterFlags.CommandFlags) ? ".AsTask()" : ".AsValueTask()");
                         }
                         else
                         {
-                            sb.Append(".Wait(").Append(method.Context).Append(".SyncTimeout)");
+                            sb.Append(".Wait(");
+                            if (HasAnyFlag(method.Parameters, ParameterFlags.CommandFlags))
+                            {
+                                // to avoid calling Context(flags) twice, we assume that this member will exist
+                                sb.Append("SyncTimeout");
+                            }
+                            else
+                            {
+                                sb.Append(method.Context).Append(".SyncTimeout");
+                            }
+                            sb.Append(")");
                         }
 
                         sb.Append(";");
@@ -627,7 +691,18 @@ public class RespCommandGenerator : IIncrementalGenerator
             sb.Append(");");
             if (count == 1)
             {
-                NewLine().Append("writer.WriteBulkString(request);");
+                var p = FirstDataParameter(parameters);
+                sb = NewLine().Append("writer.");
+                if (p.Type is "global::StackExchange.Redis.RedisValue" or "global::StackExchange.Redis.RedisKey")
+                {
+                    sb.Append("Write");
+                }
+                else
+                {
+                    sb.Append((p.Flags & ParameterFlags.Key) == 0 ? "WriteBulkString" : "WriteKey");
+                }
+
+                sb.Append("(request);");
             }
             else
             {
@@ -636,9 +711,18 @@ public class RespCommandGenerator : IIncrementalGenerator
                 {
                     if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
                     {
-                        sb = NewLine().Append("writer.")
-                            .Append((parameter.Flags & ParameterFlags.Key) == 0 ? "WriteBulkString" : "WriteKey")
-                            .Append("(request.");
+                        sb = NewLine().Append("writer.");
+                        if (parameter.Type is "global::StackExchange.Redis.RedisValue"
+                            or "global::StackExchange.Redis.RedisKey")
+                        {
+                            sb.Append("Write");
+                        }
+                        else
+                        {
+                            sb.Append((parameter.Flags & ParameterFlags.Key) == 0 ? "WriteBulkString" : "WriteKey");
+                        }
+
+                        sb.Append("(request.");
                         if (names == TupleMode.SyntheticNames)
                         {
                             sb.Append("Arg").Append(index);
@@ -713,6 +797,16 @@ public class RespCommandGenerator : IIncrementalGenerator
         }
     }
 
+    private static bool HasAnyFlag(ImmutableArray<(string Type, string Name, string Modifiers, ParameterFlags Flags)> parameters, ParameterFlags any)
+    {
+        foreach (var p in parameters)
+        {
+            if ((p.Flags & any) != 0) return true;
+        }
+
+        return false;
+    }
+
     private static string? InbuiltFormatter(
         ImmutableArray<(string Type, string Name, string Modifiers, ParameterFlags Flags)> parameters)
     {
@@ -769,6 +863,8 @@ public class RespCommandGenerator : IIncrementalGenerator
         "float" => RespFormattersPrefix + "Single",
         "double" => RespFormattersPrefix + "Double",
         "" => RespFormattersPrefix + "Empty",
+        "global::StackExchange.Redis.RedisKey" => "global::RESPite.StackExchange.Redis.RespFormatters.RedisKey",
+        "global::StackExchange.Redis.RedisValue" => "global::RESPite.StackExchange.Redis.RespFormatters.RedisValue",
         _ => null,
     };
 
@@ -788,6 +884,8 @@ public class RespCommandGenerator : IIncrementalGenerator
         "float?" => RespParsersPrefix + "NullableSingle",
         "double?" => RespParsersPrefix + "NullableDouble",
         "global::RESPite.RespParsers.ResponseSummary" => RespParsersPrefix + "ResponseSummary.Parser",
+        "global::StackExchange.Redis.RedisKey" => "global::RESPite.StackExchange.Redis.RespParsers.RedisKey",
+        "global::StackExchange.Redis.RedisValue" => "global::RESPite.StackExchange.Redis.RespParsers.RedisValue",
         _ => null,
     };
 
@@ -818,6 +916,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         DataParameter = Data | Parameter,
         Key = 1 << 2,
         Literal = 1 << 3,
+        CommandFlags = 1 << 4,
     }
 
     // compares whether a formatter can be shared, which depends on the key index and types (not names)

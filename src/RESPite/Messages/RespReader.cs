@@ -100,12 +100,14 @@ public ref partial struct RespReader
     /// <summary>
     /// The payload length of this scalar element (includes combined length for streaming scalars).
     /// </summary>
-    public readonly int ScalarLength() => IsInlineScalar ? _length : IsNullScalar ? 0 : checked((int)ScalarLengthSlow());
+    public readonly int ScalarLength() =>
+        IsInlineScalar ? _length : IsNullScalar ? 0 : checked((int)ScalarLengthSlow());
 
     /// <summary>
     /// Indicates whether this scalar value is zero-length.
     /// </summary>
-    public readonly bool ScalarIsEmpty() => IsInlineScalar ? _length == 0 : (IsNullScalar || !ScalarChunks().MoveNext());
+    public readonly bool ScalarIsEmpty() =>
+        IsInlineScalar ? _length == 0 : (IsNullScalar || !ScalarChunks().MoveNext());
 
     /// <summary>
     /// The payload length of this scalar element (includes combined length for streaming scalars).
@@ -121,6 +123,7 @@ public ref partial struct RespReader
         {
             length += iterator.CurrentLength;
         }
+
         return length;
     }
 
@@ -132,8 +135,10 @@ public ref partial struct RespReader
     /// i.e. a map of the form <c>%2\r\n...</c> will report <c>4</c> as the length.</remarks>
     /// <remarks>Note that if the data could be streaming (<see cref="IsStreaming"/>), it may be preferable to use
     /// the <see cref="AggregateChildren"/> API, using the <see cref="RespReader.AggregateEnumerator.MovePast(out RespReader)"/> API to update the outer reader.</remarks>
-    public readonly int AggregateLength() => (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming)) == RespFlags.IsAggregate
-            ? _length : AggregateLengthSlow();
+    public readonly int AggregateLength() =>
+        (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming)) == RespFlags.IsAggregate
+            ? _length
+            : AggregateLengthSlow();
 
     public delegate T Projection<out T>(ref RespReader value);
 
@@ -165,6 +170,7 @@ public ref partial struct RespReader
             {
                 return count;
             }
+
             reader.SkipChildren();
             count++;
         }
@@ -177,7 +183,8 @@ public ref partial struct RespReader
 
     internal readonly bool IsInlineScalar => (_flags & RespFlags.IsInlineScalar) != 0;
 
-    internal readonly bool IsNullScalar => (_flags & (RespFlags.IsScalar | RespFlags.IsNull)) == (RespFlags.IsScalar | RespFlags.IsNull);
+    internal readonly bool IsNullScalar =>
+        (_flags & (RespFlags.IsScalar | RespFlags.IsNull)) == (RespFlags.IsScalar | RespFlags.IsNull);
 
     /// <summary>
     /// Indicates whether this is an aggregate value, i.e. represents a collection of sub-values.
@@ -203,7 +210,8 @@ public ref partial struct RespReader
     /// <summary>
     /// Equivalent to both <see cref="IsStreaming"/> and <see cref="IsScalar"/>.
     /// </summary>
-    internal readonly bool IsStreamingScalar => (_flags & (RespFlags.IsScalar | RespFlags.IsStreaming)) == (RespFlags.IsScalar | RespFlags.IsStreaming);
+    internal readonly bool IsStreamingScalar => (_flags & (RespFlags.IsScalar | RespFlags.IsStreaming)) ==
+                                                (RespFlags.IsScalar | RespFlags.IsStreaming);
 
     /// <summary>
     /// Indicates errors reported inside the protocol.
@@ -218,13 +226,14 @@ public ref partial struct RespReader
     /// we still need to consume. The final terminator for streaming data reports a delta of <c>-1</c>, otherwise: <c>0</c>.
     /// </summary>
     /// <remarks>This does not account for being nested inside a streaming aggregate; the caller must deal with that manually.</remarks>
-    internal int Delta() => (_flags & (RespFlags.IsScalar | RespFlags.IsAggregate | RespFlags.IsStreaming | RespFlags.IsAttribute)) switch
-    {
-        RespFlags.IsScalar => -1,
-        RespFlags.IsAggregate => _length - 1,
-        RespFlags.IsAggregate | RespFlags.IsAttribute => _length,
-        _ => 0,
-    };
+    internal int Delta() =>
+        (_flags & (RespFlags.IsScalar | RespFlags.IsAggregate | RespFlags.IsStreaming | RespFlags.IsAttribute)) switch
+        {
+            RespFlags.IsScalar => -1,
+            RespFlags.IsAggregate => _length - 1,
+            RespFlags.IsAggregate | RespFlags.IsAttribute => _length,
+            _ => 0,
+        };
 
     /// <summary>
     /// Assert that this is the final element in the current payload.
@@ -236,11 +245,14 @@ public ref partial struct RespReader
         {
             if (!TryReadNext()) ThrowEof();
         }
+
         if (TryReadNext())
         {
             Throw(Prefix);
         }
-        static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"Expected end of payload, but found {prefix}");
+
+        static void Throw(RespPrefix prefix) =>
+            throw new InvalidOperationException($"Expected end of payload, but found {prefix}");
     }
 
     private bool TryReadNextSkipAttributes()
@@ -256,6 +268,7 @@ public ref partial struct RespReader
                 return true;
             }
         }
+
         return false;
     }
 
@@ -272,6 +285,7 @@ public ref partial struct RespReader
                 return true;
             }
         }
+
         return false;
     }
 
@@ -292,6 +306,7 @@ public ref partial struct RespReader
             if (IsError) ThrowError();
             return true;
         }
+
         return false;
     }
 
@@ -313,6 +328,7 @@ public ref partial struct RespReader
             if (checkError && IsError) ThrowError();
             return true;
         }
+
         return false;
     }
 
@@ -336,6 +352,7 @@ public ref partial struct RespReader
             if (IsError) ThrowError();
             return true;
         }
+
         return false;
     }
 
@@ -388,12 +405,15 @@ public ref partial struct RespReader
                 }
                 else
                 {
-                    if (Prefix != RespPrefix.StreamContinuation) ThrowProtocolFailure("Streaming continuation expected");
+                    if (Prefix != RespPrefix.StreamContinuation)
+                        ThrowProtocolFailure("Streaming continuation expected");
                     return _length > 0;
                 }
             }
+
             ThrowEof(); // we should have found something!
         }
+
         return false;
     }
 
@@ -455,7 +475,9 @@ public ref partial struct RespReader
     internal void Demand(RespPrefix prefix)
     {
         if (Prefix != prefix) Throw(prefix, Prefix);
-        static void Throw(RespPrefix expected, RespPrefix actual) => throw new InvalidOperationException($"Expected {expected} element, but found {actual}.");
+
+        static void Throw(RespPrefix expected, RespPrefix actual) =>
+            throw new InvalidOperationException($"Expected {expected} element, but found {actual}.");
     }
 
     private readonly void ThrowError() => throw new RespException(ReadString()!);
@@ -503,6 +525,7 @@ public ref partial struct RespReader
             {
                 return IsNull ? null : "";
             }
+
             if (Prefix == RespPrefix.VerbatimString
                 && span.Length >= 4 && span[3] == ':')
             {
@@ -522,8 +545,10 @@ public ref partial struct RespReader
                 {
                     prefix = RespConstants.UTF8.GetString(span.Slice(0, 3));
                 }
+
                 span = span.Slice(4);
             }
+
             return RespConstants.UTF8.GetString(span);
         }
         finally
@@ -549,6 +574,7 @@ public ref partial struct RespReader
             {
                 return IsNull ? null : [];
             }
+
             return span.ToArray();
         }
         finally
@@ -658,11 +684,13 @@ public ref partial struct RespReader
                 {
                     target.Slice(0, offset).CopyTo(bigger);
                 }
+
                 ArrayPool<byte>.Shared.Return(pooled);
                 target = pooled = bigger;
                 current.CopyTo(target.Slice(offset));
             }
         }
+
         return target.Slice(0, offset);
     }
 
@@ -826,7 +854,8 @@ public ref partial struct RespReader
         }
 
         [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
-        static ReadOnlySequenceSegment<byte> MissingNext() => throw new ArgumentException("Unable to extract tail segment", nameof(value));
+        static ReadOnlySequenceSegment<byte> MissingNext() =>
+            throw new ArgumentException("Unable to extract tail segment", nameof(value));
     }
 
     /// <summary>
@@ -851,11 +880,13 @@ public ref partial struct RespReader
             var comparand = Unsafe.ReadUnaligned<uint>(ref origin);
 
             // broadcast those 4 bytes into a vector, mask to get just the first and last byte, and apply a SIMD equality test with our known cases
-            var eqs = Avx2.CompareEqual(Avx2.And(Avx2.BroadcastScalarToVector256(&comparand), Raw.FirstLastMask), Raw.CommonRespPrefixes);
+            var eqs =
+ Avx2.CompareEqual(Avx2.And(Avx2.BroadcastScalarToVector256(&comparand), Raw.FirstLastMask), Raw.CommonRespPrefixes);
 
             // reinterpret that as floats, and pick out the sign bits (which will be 1 for "equal", 0 for "not equal"); since the
             // test cases are mutually exclusive, we expect zero or one matches, so: lzcount tells us which matched
-            var index = Bmi1.TrailingZeroCount((uint)Avx.MoveMask(Unsafe.As<Vector256<uint>, Vector256<float>>(ref eqs)));
+            var index =
+ Bmi1.TrailingZeroCount((uint)Avx.MoveMask(Unsafe.As<Vector256<uint>, Vector256<float>>(ref eqs)));
             int len;
 #if DEBUG
             if (VectorizeDisabled) index = uint.MaxValue; // just to break the switch
@@ -996,6 +1027,7 @@ public ref partial struct RespReader
                             _flags = RespFlags.IsScalar | RespFlags.IsStreaming;
                             break;
                     }
+
                     if (_flags == 0) break; // will need more data to know
                     if (_prefix == RespPrefix.BulkError) _flags |= RespFlags.IsError;
                     _bufferIndex += 1 + consumed;
@@ -1006,7 +1038,8 @@ public ref partial struct RespReader
                     {
                         case LengthPrefixResult.Length when _length == 0:
                             // EOF, no payload
-                            _flags = RespFlags.IsScalar; // don't claim as streaming, we want this to count towards delta-decrement
+                            _flags = RespFlags
+                                .IsScalar; // don't claim as streaming, we want this to count towards delta-decrement
                             break;
                         case LengthPrefixResult.Length:
                             // still need to valid terminating CRLF
@@ -1020,6 +1053,7 @@ public ref partial struct RespReader
                             ThrowProtocolFailure("Invalid streaming scalar length prefix");
                             break;
                     }
+
                     if (_flags == 0) break; // will need more data to know
                     _bufferIndex += 1 + consumed;
                     return true;
@@ -1042,6 +1076,7 @@ public ref partial struct RespReader
                             _flags = RespFlags.IsAggregate | RespFlags.IsStreaming;
                             break;
                     }
+
                     if (_flags == 0) break; // will need more data to know
                     if (_prefix is RespPrefix.Attribute) _flags |= RespFlags.IsAttribute;
                     _bufferIndex += consumed + 1;
@@ -1113,6 +1148,7 @@ public ref partial struct RespReader
                         ThrowProtocolFailure("Unexpected length prefix");
                         return false;
                 }
+
                 if (isolated._prefix == RespPrefix.BulkError) isolated._flags |= RespFlags.IsError;
                 break;
             case RespPrefix.Array:
@@ -1139,6 +1175,7 @@ public ref partial struct RespReader
                         ThrowProtocolFailure("Unexpected length prefix");
                         return false;
                 }
+
                 if (isolated._prefix is RespPrefix.Attribute) isolated._flags |= RespFlags.IsAttribute;
                 break;
             case RespPrefix.Null: // null
@@ -1155,7 +1192,9 @@ public ref partial struct RespReader
                 {
                     case LengthPrefixResult.Length when isolated._length == 0:
                         // EOF, no payload
-                        isolated._flags = RespFlags.IsScalar; // don't claim as streaming, we want this to count towards delta-decrement
+                        isolated._flags =
+                            RespFlags
+                                .IsScalar; // don't claim as streaming, we want this to count towards delta-decrement
                         break;
                     case LengthPrefixResult.Length:
                         // still need to valid terminating CRLF
@@ -1170,11 +1209,13 @@ public ref partial struct RespReader
                     default:
                         return false;
                 }
+
                 break;
             default:
                 ThrowProtocolFailure("Unexpected protocol prefix: " + isolated._prefix);
                 return false;
         }
+
         // commit the speculative changes back, and accept
         live = isolated;
         return true;
@@ -1190,13 +1231,15 @@ public ref partial struct RespReader
                 _bufferIndex += (int)bytes;
                 return;
             }
+
             bytes -= available;
 
             if (!TryMoveToNextSegment()) Throw();
         }
 
         [DoesNotReturn]
-        static void Throw() => throw new EndOfStreamException("Unexpected end of payload; this is unexpected because we already validated that it was available!");
+        static void Throw() => throw new EndOfStreamException(
+            "Unexpected end of payload; this is unexpected because we already validated that it was available!");
     }
 
     private bool AggregateLengthNeedsDoubling() => _prefix is RespPrefix.Map or RespPrefix.Attribute;
@@ -1220,11 +1263,13 @@ public ref partial struct RespReader
                 {
                     _remainingTailLength -= span.Length;
                 }
+
                 SetCurrent(span);
                 _bufferIndex = 0;
                 return true;
             }
         }
+
         return false;
     }
 
@@ -1236,6 +1281,7 @@ public ref partial struct RespReader
             var u16 = Unsafe.ReadUnaligned<ushort>(ref UnsafeCurrent);
             return u16 == RespConstants.OKUInt16 | u16 == RespConstants.OKUInt16_LC;
         }
+
         return IsSlow(RespConstants.OKBytes, RespConstants.OKBytes_LC);
     }
 
@@ -1316,6 +1362,7 @@ public ref partial struct RespReader
                 // nothing left to test; if also nothing left to read, great!
                 return !iterator.MoveNext();
             }
+
             if (!iterator.MoveNext())
             {
                 return false; // test is longer
@@ -1360,6 +1407,7 @@ public ref partial struct RespReader
             target = target.Slice(value.Length);
             totalBytes += value.Length;
         }
+
         return totalBytes;
     }
 
@@ -1384,6 +1432,7 @@ public ref partial struct RespReader
             target.Write(value);
             totalBytes += value.Length;
         }
+
         return totalBytes;
     }
 
@@ -1405,12 +1454,13 @@ public ref partial struct RespReader
         var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesInt64 + 1]);
         long value;
         if (!(span.Length <= RespConstants.MaxRawBytesInt64
-            && Utf8Parser.TryParse(span, out value, out int bytes)
-            && bytes == span.Length))
+              && Utf8Parser.TryParse(span, out value, out int bytes)
+              && bytes == span.Length))
         {
             ThrowFormatException();
             value = 0;
         }
+
         return value;
     }
 
@@ -1438,12 +1488,13 @@ public ref partial struct RespReader
         var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesInt32 + 1]);
         int value;
         if (!(span.Length <= RespConstants.MaxRawBytesInt32
-            && Utf8Parser.TryParse(span, out value, out int bytes)
-            && bytes == span.Length))
+              && Utf8Parser.TryParse(span, out value, out int bytes)
+              && bytes == span.Length))
         {
             ThrowFormatException();
             value = 0;
         }
+
         return value;
     }
 
@@ -1475,6 +1526,7 @@ public ref partial struct RespReader
         {
             return value;
         }
+
         switch (span.Length)
         {
             case 3 when "inf"u8.SequenceEqual(span):
@@ -1486,6 +1538,7 @@ public ref partial struct RespReader
             case 4 when "-inf"u8.SequenceEqual(span):
                 return double.NegativeInfinity;
         }
+
         ThrowFormatException();
         return 0;
     }
@@ -1527,15 +1580,16 @@ public ref partial struct RespReader
         return false;
     }
 
-    internal readonly bool TryReadShortAscii(out string value)
+    /// <summary>
+    /// Note this uses a stackalloc buffer; requesting too much may overflow the stack.
+    /// </summary>
+    internal readonly bool UnsafeTryReadShortAscii(out string value, int maxLength = 127)
     {
-        const int ShortLength = 31;
-
-        var span = Buffer(stackalloc byte[ShortLength + 1]);
+        var span = Buffer(stackalloc byte[maxLength + 1]);
         value = "";
         if (span.IsEmpty) return true;
 
-        if (span.Length <= ShortLength)
+        if (span.Length <= maxLength)
         {
             // check for anything that looks binary or unicode
             foreach (var b in span)
@@ -1563,12 +1617,13 @@ public ref partial struct RespReader
         var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesNumber + 1]);
         decimal value;
         if (!(span.Length <= RespConstants.MaxRawBytesNumber
-            && Utf8Parser.TryParse(span, out value, out int bytes)
-            && bytes == span.Length))
+              && Utf8Parser.TryParse(span, out value, out int bytes)
+              && bytes == span.Length))
         {
             ThrowFormatException();
             value = 0;
         }
+
         return value;
     }
 
@@ -1592,6 +1647,7 @@ public ref partial struct RespReader
                 break;
             case 2 when Prefix == RespPrefix.SimpleString && IsOK(): return true;
         }
+
         ThrowFormatException();
         return false;
     }
