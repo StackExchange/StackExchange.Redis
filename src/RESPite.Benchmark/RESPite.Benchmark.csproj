@@ -17,9 +17,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\RESPite.StackExchange.Redis\RESPite.StackExchange.Redis.csproj" />
     <ProjectReference Include="..\RESPite\RESPite.csproj"/>
-    <PackageReference Include="StackExchange.Redis"/>
-<!--    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>-->
+    <!--<PackageReference Include="StackExchange.Redis"/>-->
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
     <None Include="readme.md" Pack="true" PackagePath="/"/>
   </ItemGroup>
 </Project>

@@ -20,6 +20,9 @@ internal static class Program
                     case "--old":
                         benchmarks.Add(new OldCoreBenchmark(args));
                         break;
+                    case "--bridge":
+                        benchmarks.Add(new BridgeBenchmark(args));
+                        break;
                     case "--new":
                         benchmarks.Add(new NewCoreBenchmark(args));
                         break;

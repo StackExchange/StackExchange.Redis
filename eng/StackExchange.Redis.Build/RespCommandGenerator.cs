@@ -222,22 +222,25 @@ public class RespCommandGenerator : IIncrementalGenerator
                     if (attrib.ConstructorArguments[0].Value?.ToString() is { Length: > 0 } val)
                     {
                         value = val;
-                        break;
-                    }
-
-                    foreach (var tuple in attrib.NamedArguments)
-                    {
-                        switch (tuple.Key)
-                        {
-                            case "Formatter":
-                                formatter = tuple.Value.Value?.ToString();
-                                break;
-                            case "Parser":
-                                parser = tuple.Value.Value?.ToString();
-                                break;
-                        }
                     }
                 }
+
+                foreach (var tuple in attrib.NamedArguments)
+                {
+                    switch (tuple.Key)
+                    {
+                        case "Formatter":
+                            formatter = tuple.Value.Value?.ToString();
+                            AddNotes(ref debugNote, $"custom formatter: '{formatter}'");
+                            break;
+                        case "Parser":
+                            parser = tuple.Value.Value?.ToString();
+                            AddNotes(ref debugNote, $"custom parser: '{parser}'");
+                            break;
+                    }
+                }
+
+                break; // we don't expect another [RespCommand]
             }
         }
 
@@ -1019,6 +1022,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         "global::RESPite.RespParsers.ResponseSummary" => RespParsersPrefix + "ResponseSummary.Parser",
         "global::StackExchange.Redis.RedisKey" => "global::RESPite.StackExchange.Redis.RespParsers.RedisKey",
         "global::StackExchange.Redis.RedisValue" => "global::RESPite.StackExchange.Redis.RespParsers.RedisValue",
+        "global::StackExchange.Redis.Lease<byte>" => "global::RESPite.StackExchange.Redis.RespParsers.BytesLease",
         _ => null,
     };
 

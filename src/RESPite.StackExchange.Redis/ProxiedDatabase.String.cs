@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis;
+﻿using RESPite.Messages;
+using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
@@ -52,13 +53,7 @@ internal sealed partial class ProxiedDatabase
     public Task<double> StringDecrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<Lease<byte>?> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public Task<bool> StringGetBitAsync(RedisKey key, long offset, CommandFlags flags = CommandFlags.None) =>
@@ -92,11 +87,8 @@ internal sealed partial class ProxiedDatabase
     public Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<long> StringIncrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<double> StringIncrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    public Task<long> StringIncrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
+        => value == 1 ? StringIncrementUnitAsync(key, flags) : StringIncrementNonUnitAsync(key, value, flags);
 
     public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -121,19 +113,10 @@ internal sealed partial class ProxiedDatabase
         throw new NotImplementedException();
 
     public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
-        throw new NotImplementedException();
+        StringSetAsync(key, value, expiry, false, when, CommandFlags.None);
 
     public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
-        throw new NotImplementedException();
-
-    public Task<bool> StringSetAsync(
-        RedisKey key,
-        RedisValue value,
-        TimeSpan? expiry = null,
-        bool keepTtl = false,
-        When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        StringSetAsync(key, value, expiry, false, when, flags);
 
     public Task<bool> StringSetAsync(
         KeyValuePair<RedisKey, RedisValue>[] values,
@@ -216,14 +199,14 @@ internal sealed partial class ProxiedDatabase
     public double StringDecrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("get")]
+    public partial RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("get")]
+    public partial Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     public bool StringGetBit(RedisKey key, long offset, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -246,11 +229,17 @@ internal sealed partial class ProxiedDatabase
     public RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public long StringIncrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    public long StringIncrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
+        => value == 1 ? StringIncrementUnit(key, flags) : StringIncrementNonUnit(key, value, flags);
 
-    public double StringIncrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("incr")]
+    private partial long StringIncrementUnit(RedisKey key, CommandFlags flags);
+
+    [RespCommand("incrby")]
+    private partial long StringIncrementNonUnit(RedisKey key, long value, CommandFlags flags);
+
+    [RespCommand("incrbyfloat")]
+    public partial double StringIncrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
 
     public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -275,19 +264,75 @@ internal sealed partial class ProxiedDatabase
         throw new NotImplementedException();
 
     public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
-        throw new NotImplementedException();
+        StringSet(key, value, expiry, false, when, CommandFlags.None);
 
     public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
-        throw new NotImplementedException();
+        StringSet(key, value, expiry, false, when, flags);
 
-    public bool StringSet(
+    [RespCommand("set", Formatter = StringSetFormatter.Formatter)]
+    public partial bool StringSet(
         RedisKey key,
         RedisValue value,
         TimeSpan? expiry = null,
         bool keepTtl = false,
         When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None);
+
+    private sealed class StringSetFormatter : IRespFormatter<(RedisKey Key, RedisValue Value, TimeSpan? Expiry, bool
+        KeepTtl,
+        When When)>
+    {
+        public const string Formatter = $"{nameof(StringSetFormatter)}.{nameof(Instance)}";
+        public static readonly StringSetFormatter Instance = new StringSetFormatter();
+        private StringSetFormatter() { }
+
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in (RedisKey Key, RedisValue Value, TimeSpan? Expiry, bool KeepTtl, When When) request)
+        {
+            // SET key value [NX | XX] [GET] [EX seconds | PX milliseconds |
+            // EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
+            var argCount = 2 + request.When switch
+            {
+                When.Always => 0,
+                When.Exists or When.NotExists => 1,
+                _ => throw new ArgumentOutOfRangeException(nameof(request.When)),
+            } + (request.Expiry.HasValue ? 2 : 0) + (request.KeepTtl ? 1 : 0);
+            writer.WriteCommand(command, argCount);
+            writer.Write(request.Key);
+            writer.Write(request.Value);
+            switch (request.When)
+            {
+                case When.Exists:
+                    writer.WriteBulkString("EX"u8);
+                    break;
+                case When.NotExists:
+                    writer.WriteBulkString("NX"u8);
+                    break;
+            }
+
+            if (request.Expiry.HasValue)
+            {
+                var millis = (long)request.Expiry.Value.TotalMilliseconds;
+                if ((millis % 1000) == 0)
+                {
+                    writer.WriteBulkString("EX"u8);
+                    writer.WriteBulkString(millis / 1000);
+                }
+                else
+                {
+                    writer.WriteBulkString("PX"u8);
+                    writer.WriteBulkString(millis);
+                }
+            }
+
+            if (request.KeepTtl)
+            {
+                writer.WriteBulkString("KEEPTTL"u8);
+            }
+        }
+    }
 
     public bool StringSet(
         KeyValuePair<RedisKey, RedisValue>[] values,

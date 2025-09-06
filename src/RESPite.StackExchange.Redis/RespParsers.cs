@@ -7,8 +7,10 @@ public static class RespParsers
 {
     public static IRespParser<RedisValue> RedisValue => DefaultParser.Instance;
     public static IRespParser<RedisKey> RedisKey => DefaultParser.Instance;
+    public static IRespParser<Lease<byte>> BytesLease => DefaultParser.Instance;
 
-    private sealed class DefaultParser : IRespParser<RedisValue>, IRespParser<RedisKey>
+    private sealed class DefaultParser : IRespParser<RedisValue>, IRespParser<RedisKey>,
+        IRespParser<Lease<byte>>
     {
         private DefaultParser() { }
         public static readonly DefaultParser Instance = new();
@@ -30,6 +32,16 @@ public static class RespParsers
             if (reader.IsNull) return global::StackExchange.Redis.RedisKey.Null;
             if (reader.UnsafeTryReadShortAscii(out var s)) return s;
             return reader.ReadByteArray();
+        }
+
+        Lease<byte> IRespParser<Lease<byte>>.Parse(ref RespReader reader)
+        {
+            reader.DemandScalar();
+            if (reader.IsNull) return null!;
+            var len = reader.ScalarLength();
+            var lease = Lease<byte>.Create(len);
+            reader.CopyTo(lease.Span);
+            return lease;
         }
     }
 }

@@ -22,9 +22,6 @@ internal sealed partial class ProxiedDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<RedisValue> ListLeftPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<RedisValue[]> ListLeftPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
@@ -52,8 +49,12 @@ internal sealed partial class ProxiedDatabase
         RedisKey key,
         RedisValue value,
         When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None) => when switch
+    {
+        When.Always => LPushAsync(key, value, flags),
+        When.Exists => LPushXAsync(key, value, flags),
+        _ => Task.FromResult(NotSupportedInt64(when)),
+    };
 
     public Task<long> ListLeftPushAsync(
         RedisKey key,
@@ -90,9 +91,6 @@ internal sealed partial class ProxiedDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<RedisValue> ListRightPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<RedisValue[]> ListRightPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
@@ -109,8 +107,12 @@ internal sealed partial class ProxiedDatabase
         RedisKey key,
         RedisValue value,
         When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None) => when switch
+    {
+        When.Always => RPushAsync(key, value, flags),
+        When.Exists => RPushXAsync(key, value, flags),
+        _ => Task.FromResult(NotSupportedInt64(when)),
+    };
 
     public Task<long> ListRightPushAsync(
         RedisKey key,
@@ -154,8 +156,8 @@ internal sealed partial class ProxiedDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public RedisValue ListLeftPop(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("lpop")]
+    public partial RedisValue ListLeftPop(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     public RedisValue[] ListLeftPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -184,8 +186,20 @@ internal sealed partial class ProxiedDatabase
         RedisKey key,
         RedisValue value,
         When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None) => when switch
+    {
+        When.Always => LPush(key, value, flags),
+        When.Exists => LPushX(key, value, flags),
+        _ => NotSupportedInt64(when),
+    };
+
+    private static long NotSupportedInt64(When when) => throw new NotSupportedException(
+        $"The condition '{when}' is not supported for this command");
+
+    [RespCommand]
+    private partial long LPush(RedisKey key, RedisValue value, CommandFlags flags);
+    [RespCommand]
+    private partial long LPushX(RedisKey key, RedisValue value, CommandFlags flags);
 
     public long ListLeftPush(
         RedisKey key,
@@ -222,8 +236,8 @@ internal sealed partial class ProxiedDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public RedisValue ListRightPop(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("rpop")]
+    public partial RedisValue ListRightPop(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     public RedisValue[] ListRightPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -241,8 +255,17 @@ internal sealed partial class ProxiedDatabase
         RedisKey key,
         RedisValue value,
         When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None) => when switch
+    {
+        When.Always => RPush(key, value, flags),
+        When.Exists => RPushX(key, value, flags),
+        _ => NotSupportedInt64(when),
+    };
+
+    [RespCommand]
+    private partial long RPush(RedisKey key, RedisValue value, CommandFlags flags);
+    [RespCommand]
+    private partial long RPushX(RedisKey key, RedisValue value, CommandFlags flags);
 
     public long ListRightPush(
         RedisKey key,

@@ -5,9 +5,6 @@ namespace RESPite.StackExchange.Redis;
 internal sealed partial class ProxiedDatabase
 {
     // Async Set methods
-    public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
@@ -64,9 +61,6 @@ internal sealed partial class ProxiedDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<RedisValue> SetPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
@@ -92,8 +86,8 @@ internal sealed partial class ProxiedDatabase
         throw new NotImplementedException();
 
     // Synchronous Set methods
-    public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("sadd")]
+    public partial bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
     public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -145,8 +139,8 @@ internal sealed partial class ProxiedDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public RedisValue SetPop(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("spop")]
+    public partial RedisValue SetPop(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();

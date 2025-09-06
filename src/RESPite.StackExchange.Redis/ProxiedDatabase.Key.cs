@@ -13,9 +13,6 @@ internal sealed partial class ProxiedDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
@@ -107,8 +104,8 @@ internal sealed partial class ProxiedDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("del")]
+    public partial bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     public long KeyDelete(RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
