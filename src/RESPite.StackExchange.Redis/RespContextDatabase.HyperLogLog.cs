@@ -2,7 +2,7 @@
 
 namespace RESPite.StackExchange.Redis;
 
-internal partial class ProxiedDatabase
+internal partial class RespContextDatabase
 {
     // Async HyperLogLog methods
     public Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>

@@ -5,7 +5,7 @@ using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
-internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextProxy
+internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextSource
 {
     private bool _isDisposed;
 
@@ -44,7 +44,7 @@ internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextProxy
     private NodeConnection? _subscription;
 
     public ref readonly RespContext Context => ref _interactive.Context;
-    RespContextProxyKind IRespContextProxy.RespContextProxyKind => RespContextProxyKind.ConnectionInteractive;
+    RespContextProxyKind IRespContextSource.RespContextProxyKind => RespContextProxyKind.ConnectionInteractive;
 
     public RespConnection InteractiveConnection => _interactive.Connection;
 
@@ -73,7 +73,7 @@ internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextProxy
     public IServer AsServer() => _server ??= new NodeServer(this);
 }
 
-internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespContextProxy
+internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespContextSource
 {
     private EventHandler<RespConnection.RespConnectionErrorEventArgs>? _onConnectionError;
     private readonly RespMultiplexer _multiplexer;
@@ -90,7 +90,7 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
         _label = Format.ToString(endPoint);
     }
 
-    RespContextProxyKind IRespContextProxy.RespContextProxyKind => _connectionType switch
+    RespContextProxyKind IRespContextSource.RespContextProxyKind => _connectionType switch
     {
         ConnectionType.Interactive => RespContextProxyKind.ConnectionInteractive,
         ConnectionType.Subscription => RespContextProxyKind.ConnectionSubscription,

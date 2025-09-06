@@ -2,7 +2,7 @@
 
 namespace RESPite.StackExchange.Redis;
 
-internal partial class ProxiedDatabase
+internal partial class RespContextDatabase
 {
     // Async Script/Execute/Publish methods
     public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None) =>

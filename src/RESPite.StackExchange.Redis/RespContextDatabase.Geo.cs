@@ -2,7 +2,7 @@
 
 namespace RESPite.StackExchange.Redis;
 
-internal partial class ProxiedDatabase
+internal partial class RespContextDatabase
 {
     // Async Geo methods
     public Task<bool> GeoAddAsync(

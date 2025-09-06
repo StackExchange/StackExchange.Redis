@@ -3,7 +3,7 @@
 /// <summary>
 /// Provides access to a RESP context to use for operations; this context could be direct to a known server or routed.
 /// </summary>
-internal interface IRespContextProxy
+internal interface IRespContextSource
 {
     RespMultiplexer Multiplexer { get; }
     ref readonly RespContext Context { get; }

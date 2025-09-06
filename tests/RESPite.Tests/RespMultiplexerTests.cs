@@ -22,7 +22,7 @@ public class RespMultiplexerTests(ITestOutputHelper log)
         await server.PingAsync();
 
         var db = muxer.GetDatabase();
-        var proxied = Assert.IsType<ProxiedDatabase>(db);
+        var proxied = Assert.IsType<RespContextDatabase>(db);
         // since this is a single-node instance, we expect the proxied database to use the interactive connection
         Assert.Equal(RespContextProxyKind.ConnectionInteractive, proxied.RespContextProxyKind);
         db.Ping();

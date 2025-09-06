@@ -7,7 +7,7 @@ using StackExchange.Redis.Profiling;
 
 namespace RESPite.StackExchange.Redis;
 
-public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
+public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
 {
     /// <inheritdoc cref="object.ToString"/>
     public override string ToString() => GetType().Name;
@@ -27,9 +27,9 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
     private RespConnection _routedConnection;
     private RespContext _defaultContext;
     internal ref readonly RespContext Context => ref _defaultContext;
-    ref readonly RespContext IRespContextProxy.Context => ref _defaultContext;
-    RespContextProxyKind IRespContextProxy.RespContextProxyKind => RespContextProxyKind.Multiplexer;
-    RespMultiplexer IRespContextProxy.Multiplexer => this;
+    ref readonly RespContext IRespContextSource.Context => ref _defaultContext;
+    RespContextProxyKind IRespContextSource.RespContextProxyKind => RespContextProxyKind.Multiplexer;
+    RespMultiplexer IRespContextSource.Multiplexer => this;
 
     private readonly CancellationTokenSource _lifetime = new();
     private ConfigurationOptions? _options;
@@ -272,8 +272,8 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextProxy
     public IDatabase GetDatabase(int db = -1, object? asyncState = null)
     {
         if (db < 0) db = _defaultDatabase;
-        if (db < LowDatabaseCount) return _lowDatabases[db] ??= new ProxiedDatabase(this, db);
-        return new ProxiedDatabase(this, db);
+        if (db < LowDatabaseCount) return _lowDatabases[db] ??= new RespContextDatabase(this, db);
+        return new RespContextDatabase(this, db);
     }
 
     private const int LowDatabaseCount = 16;

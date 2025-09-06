@@ -23,8 +23,8 @@
     <!--<Analyzer Include="..\..\eng\StackExchange.Redis.Build\bin\$(Configuration)\netstandard2.0\StackExchange.Redis.Build.dll" />-->
   </ItemGroup>
   <ItemGroup>
-    <Compile Update="ProxiedDatabase.*.cs">
-      <DependentUpon>ProxiedDatabase.cs</DependentUpon>
+    <Compile Update="RespContextDatabase.*.cs">
+      <DependentUpon>RespContextDatabase.cs</DependentUpon>
     </Compile>
   </ItemGroup>
 </Project>
