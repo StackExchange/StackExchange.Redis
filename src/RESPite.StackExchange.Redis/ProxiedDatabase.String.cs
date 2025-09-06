@@ -3,7 +3,7 @@ using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
-internal sealed partial class ProxiedDatabase
+internal partial class ProxiedDatabase
 {
     // Async String methods
     public Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>

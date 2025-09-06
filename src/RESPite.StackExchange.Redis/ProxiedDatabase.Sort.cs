@@ -2,7 +2,7 @@
 
 namespace RESPite.StackExchange.Redis;
 
-internal sealed partial class ProxiedDatabase
+internal partial class ProxiedDatabase
 {
     // Async Sort methods
     public Task<RedisValue[]> SortAsync(

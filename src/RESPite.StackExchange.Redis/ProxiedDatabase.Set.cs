@@ -2,7 +2,7 @@
 
 namespace RESPite.StackExchange.Redis;
 
-internal sealed partial class ProxiedDatabase
+internal partial class ProxiedDatabase
 {
     // Async Set methods
     public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>

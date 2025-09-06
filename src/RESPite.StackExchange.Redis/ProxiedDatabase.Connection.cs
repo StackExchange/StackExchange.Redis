@@ -4,7 +4,7 @@ using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
-internal sealed partial class ProxiedDatabase
+internal partial class ProxiedDatabase
 {
     // Connection and core methods
     public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None) =>
@@ -29,7 +29,7 @@ internal sealed partial class ProxiedDatabase
         throw new NotImplementedException();
 
     public IBatch CreateBatch(object? asyncState = null) =>
-        throw new NotImplementedException();
+        new ProxiedBatch(_proxy, _db);
 
     public ITransaction CreateTransaction(object? asyncState = null) =>
         throw new NotImplementedException();

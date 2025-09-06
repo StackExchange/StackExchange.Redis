@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using RESPite.Connections;
 using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
@@ -163,7 +164,7 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
             // finalize the connections
             log.LogLocked($"[{_label}] Finalizing...");
             var oldConnection = _connection;
-            _connection = connection;
+            _connection = connection.Synchronized();
             await oldConnection.DisposeAsync().ConfigureAwait(false);
 
             // check nothing changed while we weren't looking
