@@ -2,20 +2,85 @@ using System;
 
 namespace StackExchange.Redis;
 
-internal sealed class VectorSetSimilaritySearchMessage(
+internal abstract class VectorSetSimilaritySearchMessage(
     int db,
     CommandFlags flags,
     VectorSetSimilaritySearchMessage.VsimFlags vsimFlags,
     RedisKey key,
-    RedisValue member,
-    ReadOnlyMemory<float> vector,
     int count,
     double epsilon,
     int searchExplorationFactor,
     string? filterExpression,
     int maxFilteringEffort) : Message(db, flags, RedisCommand.VSIM)
 {
-    public ResultProcessor<Lease<VectorSetSimilaritySearchResult>?> GetResultProcessor() => VectorSetSimilaritySearchProcessor.Instance;
+    // For "FP32" and "VALUES" scenarios; in the future we might want other vector sizes / encodings - for
+    // example, there could be some "FP16" or "FP8" transport that requires a ROM-short or ROM-sbyte from
+    // the calling code. Or, as a convenience, we might want to allow ROM-double input, but transcode that
+    // to FP32 on the way out.
+    internal sealed class VectorSetSimilaritySearchBySingleVectorMessage(
+        int db,
+        CommandFlags flags,
+        VsimFlags vsimFlags,
+        RedisKey key,
+        ReadOnlyMemory<float> vector,
+        int count,
+        double epsilon,
+        int searchExplorationFactor,
+        string? filterExpression,
+        int maxFilteringEffort) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon,
+        searchExplorationFactor, filterExpression, maxFilteringEffort)
+    {
+        internal override int GetSearchTargetArgCount(bool packed) =>
+            packed ? 2 : 2 + vector.Length; // FP32 {vector} or VALUES {num} {vector}
+
+        internal override void WriteSearchTarget(bool packed, PhysicalConnection physical)
+        {
+            if (packed)
+            {
+                physical.WriteBulkString("FP32"u8);
+                physical.WriteBulkString(System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.Span));
+            }
+            else
+            {
+                physical.WriteBulkString("VALUES"u8);
+                physical.WriteBulkString(vector.Length);
+                foreach (var val in vector.Span)
+                {
+                    physical.WriteBulkString(val);
+                }
+            }
+        }
+    }
+
+    // for "ELE" scenarios
+    internal sealed class VectorSetSimilaritySearchByMemberMessage(
+        int db,
+        CommandFlags flags,
+        VsimFlags vsimFlags,
+        RedisKey key,
+        RedisValue member,
+        int count,
+        double epsilon,
+        int searchExplorationFactor,
+        string? filterExpression,
+        int maxFilteringEffort) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon,
+        searchExplorationFactor, filterExpression, maxFilteringEffort)
+    {
+        internal override int GetSearchTargetArgCount(bool packed) => 2; // ELE {member}
+
+        internal override void WriteSearchTarget(bool packed, PhysicalConnection physical)
+        {
+            physical.WriteBulkString("ELE"u8);
+            physical.WriteBulkString(member);
+        }
+    }
+
+    internal abstract int GetSearchTargetArgCount(bool packed);
+    internal abstract void WriteSearchTarget(bool packed, PhysicalConnection physical);
+
+    public ResultProcessor<Lease<VectorSetSimilaritySearchResult>?> GetResultProcessor() =>
+        VectorSetSimilaritySearchProcessor.Instance;
+
     private sealed class VectorSetSimilaritySearchProcessor : ResultProcessor<Lease<VectorSetSimilaritySearchResult>?>
     {
         // keep local, since we need to know what flags were being sent
@@ -38,7 +103,8 @@ internal sealed class VectorSetSimilaritySearchMessage(
                 // in RESP3 mode (only), when both are requested, we get a sub-array per item; weird, but true
                 bool internalNesting = withScores && withAttribs && connection.Protocol is RedisProtocol.Resp3;
 
-                int rowsPerItem = internalNesting ? 2
+                int rowsPerItem = internalNesting
+                    ? 2
                     : 1 + ((withScores ? 1 : 0) + (withAttribs ? 1 : 0)); // each value is separate root element
 
                 var items = result.GetItems();
@@ -80,11 +146,13 @@ internal sealed class VectorSetSimilaritySearchMessage(
                     target[i] = new VectorSetSimilaritySearchResult(member, score, attributesJson);
                     count++;
                 }
+
                 if (count == target.Length)
                 {
                     SetResult(message, lease);
                     return true;
                 }
+
                 lease.Dispose(); // failed to fill?
             }
 
@@ -111,14 +179,9 @@ internal sealed class VectorSetSimilaritySearchMessage(
 
     public override int ArgCount => GetArgCount(VectorSetAddMessage.UseFp32);
 
-    private int GetArgCount(bool useFp32)
+    private int GetArgCount(bool packed)
     {
-        int argCount = 3; // {key} and "ELE {member}", "FP32 {vector}" or "VALUES {num}"
-        if (member.IsNull && !useFp32)
-        {
-            argCount += vector.Length; // {vector} in the VALUES case
-        }
-
+        int argCount = 1 + GetSearchTargetArgCount(packed); // {key} and whatever we need for the vector/element portion
         if (HasFlag(VsimFlags.WithScores)) argCount++; // [WITHSCORES]
         if (HasFlag(VsimFlags.WithAttributes)) argCount++; // [WITHATTRIBS]
         if (HasFlag(VsimFlags.Count)) argCount += 2; // [COUNT {count}]
@@ -133,37 +196,15 @@ internal sealed class VectorSetSimilaritySearchMessage(
 
     protected override void WriteImpl(PhysicalConnection physical)
     {
-        var useFp32 = VectorSetAddMessage.UseFp32; // avoid race in debug mode
-        physical.WriteHeader(Command, GetArgCount(useFp32));
+        // snapshot to avoid race in debug scenarios
+        bool packed = VectorSetAddMessage.UseFp32;
+        physical.WriteHeader(Command, GetArgCount(packed));
 
         // Write key
         physical.Write(key);
 
         // Write search target: either "ELE {member}" or vector data
-        if (!member.IsNull)
-        {
-            // Member-based search: "ELE {member}"
-            physical.WriteBulkString("ELE"u8);
-            physical.WriteBulkString(member);
-        }
-        else
-        {
-            // Vector-based search: either "FP32 {vector}" or "VALUES {num} {vector}"
-            if (useFp32)
-            {
-                physical.WriteBulkString("FP32"u8);
-                physical.WriteBulkString(System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.Span));
-            }
-            else
-            {
-                physical.WriteBulkString("VALUES"u8);
-                physical.WriteBulkString(vector.Length);
-                foreach (var val in vector.Span)
-                {
-                    physical.WriteBulkString(val);
-                }
-            }
-        }
+        WriteSearchTarget(packed, physical);
 
         if (HasFlag(VsimFlags.WithScores))
         {

@@ -10,15 +10,10 @@
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.FilterExpression.set -> void
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.MaxFilteringEffort.get -> int?
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.MaxFilteringEffort.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.Member.get -> StackExchange.Redis.RedisValue
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.Member.set -> void
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.SearchExplorationFactor.get -> int?
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.SearchExplorationFactor.set -> void
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.UseExactSearch.get -> bool
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.UseExactSearch.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.Vector.get -> System.ReadOnlyMemory<float>
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.Vector.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.VectorSetSimilaritySearchRequest() -> void
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.WithAttributes.get -> bool
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.WithAttributes.set -> void
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.WithScores.get -> bool
@@ -79,3 +74,5 @@
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchResult.Score.get -> double
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchResult.VectorSetSimilaritySearchResult() -> void
 [SER001]StackExchange.Redis.VectorSetSimilaritySearchResult.VectorSetSimilaritySearchResult(StackExchange.Redis.RedisValue member, double score = NaN, string? attributesJson = null) -> void
+[SER001]static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByMember(StackExchange.Redis.RedisValue member) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
+[SER001]static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByVector(System.ReadOnlyMemory<float> vector) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!

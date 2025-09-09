@@ -171,10 +171,7 @@ namespace StackExchange.Redis.Tests
         {
             var vector = new[] { 1.0f, 2.0f, 3.0f }.AsMemory();
 
-            var query = new VectorSetSimilaritySearchRequest
-            {
-                Vector = vector,
-            };
+            var query = VectorSetSimilaritySearchRequest.ByVector(vector);
             prefixed.VectorSetSimilaritySearch(
                 "vectorset",
                 query);
@@ -186,19 +183,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void VectorSetSimilaritySearchByMember()
         {
-            var query = new VectorSetSimilaritySearchRequest
-            {
-                Member = "member1",
-                Count = 5,
-                WithScores = true,
-                WithAttributes = true,
-                Epsilon = 0.1,
-                SearchExplorationFactor = 400,
-                FilterExpression = "category='test'",
-                MaxFilteringEffort = 1000,
-                UseExactSearch = true,
-                DisableThreading = true,
-            };
+            var query = VectorSetSimilaritySearchRequest.ByMember("member1");
+            query.Count = 5;
+            query.WithScores = true;
+            query.WithAttributes = true;
+            query.Epsilon = 0.1;
+            query.SearchExplorationFactor = 400;
+            query.FilterExpression = "category='test'";
+            query.MaxFilteringEffort = 1000;
+            query.UseExactSearch = true;
+            query.DisableThreading = true;
             prefixed.VectorSetSimilaritySearch(
                 "vectorset",
                 query,
@@ -215,10 +209,7 @@ namespace StackExchange.Redis.Tests
             var vector = new[] { 1.0f, 2.0f }.AsMemory();
 
             // Test that default parameters work correctly
-            var query = new VectorSetSimilaritySearchRequest
-            {
-                Vector = vector,
-            };
+            var query = VectorSetSimilaritySearchRequest.ByVector(vector);
             prefixed.VectorSetSimilaritySearch("vectorset", query);
             mock.Received().VectorSetSimilaritySearch(
                 "prefix:vectorset",

@@ -9,17 +9,65 @@ namespace StackExchange.Redis;
 /// Represents the request for a vector similarity search operation.
 /// </summary>
 [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-public class VectorSetSimilaritySearchRequest
+public abstract class VectorSetSimilaritySearchRequest
 {
-    /// <summary>
-    /// The query vector.
-    /// </summary>
-    public ReadOnlyMemory<float> Vector { get; set; }
+    internal VectorSetSimilaritySearchRequest()
+    {
+    } // polymorphism left open for future, but needs to be handled internally
+
+    private sealed class VectorSetSimilarityByMemberSearchRequest(RedisValue member) : VectorSetSimilaritySearchRequest
+    {
+        public RedisValue Member => member;
+
+        internal override VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
+            => new VectorSetSimilaritySearchMessage.VectorSetSimilaritySearchByMemberMessage(
+                db,
+                flags,
+                _vsimFlags,
+                key,
+                Member,
+                _count,
+                _epsilon,
+                _searchExplorationFactor,
+                _filterExpression,
+                _maxFilteringEffort);
+    }
+
+    private sealed class VectorSetSimilarityVectorSingleSearchRequest(ReadOnlyMemory<float> vector)
+        : VectorSetSimilaritySearchRequest
+    {
+        public ReadOnlyMemory<float> Vector => vector;
+
+        internal override VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
+            => new VectorSetSimilaritySearchMessage.VectorSetSimilaritySearchBySingleVectorMessage(
+                db,
+                flags,
+                _vsimFlags,
+                key,
+                Vector,
+                _count,
+                _epsilon,
+                _searchExplorationFactor,
+                _filterExpression,
+                _maxFilteringEffort);
+    }
+
+    // snapshot the values; I don't trust people not to mutate the object behind my back
+    internal abstract VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags);
 
     /// <summary>
-    /// The member to find similar vectors for.
+    /// Create a request to search by an existing member in the index.
     /// </summary>
-    public RedisValue Member { get; set; }
+    /// <param name="member">The member to search for.</param>
+    public static VectorSetSimilaritySearchRequest ByMember(RedisValue member)
+        => new VectorSetSimilarityByMemberSearchRequest(member);
+
+    /// <summary>
+    /// Create a request to search by a vector value.
+    /// </summary>
+    /// <param name="vector">The vector value to search for.</param>
+    public static VectorSetSimilaritySearchRequest ByVector(ReadOnlyMemory<float> vector)
+        => new VectorSetSimilarityVectorSingleSearchRequest(vector);
 
     private VsimFlags _vsimFlags;
 
@@ -172,19 +220,4 @@ public class VectorSetSimilaritySearchRequest
         get => HasFlag(VsimFlags.DisableThreading);
         set => SetFlag(VsimFlags.DisableThreading, value);
     }
-
-    // snapshot the values; I don't trust people not to mutate the object behind my back
-    internal VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
-        => new(
-            db,
-            flags,
-            _vsimFlags,
-            key,
-            Member,
-            Vector,
-            _count,
-            _epsilon,
-            _searchExplorationFactor,
-            _filterExpression,
-            _maxFilteringEffort);
 }
