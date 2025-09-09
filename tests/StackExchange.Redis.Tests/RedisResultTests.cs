@@ -150,4 +150,48 @@ public sealed class RedisResultTests
         Assert.StrictEqual(123f, Convert.ChangeType(value, TypeCode.Single));
         Assert.StrictEqual(123d, Convert.ChangeType(value, TypeCode.Double));
     }
+
+    [Theory]
+    [InlineData(ResultType.Double)]
+    [InlineData(ResultType.BulkString)]
+    [InlineData(ResultType.SimpleString)]
+    public void RedisResultParseNaN(ResultType resultType)
+    {
+        // https://github.com/redis/NRedisStack/issues/439
+        var value = RedisResult.Create("NaN", resultType);
+        Assert.True(double.IsNaN(value.AsDouble()));
+    }
+
+    [Theory]
+    [InlineData(ResultType.Double)]
+    [InlineData(ResultType.BulkString)]
+    [InlineData(ResultType.SimpleString)]
+    public void RedisResultParseInf(ResultType resultType)
+    {
+        // https://github.com/redis/NRedisStack/issues/439
+        var value = RedisResult.Create("inf", resultType);
+        Assert.True(double.IsPositiveInfinity(value.AsDouble()));
+    }
+
+    [Theory]
+    [InlineData(ResultType.Double)]
+    [InlineData(ResultType.BulkString)]
+    [InlineData(ResultType.SimpleString)]
+    public void RedisResultParsePlusInf(ResultType resultType)
+    {
+        // https://github.com/redis/NRedisStack/issues/439
+        var value = RedisResult.Create("+inf", resultType);
+        Assert.True(double.IsPositiveInfinity(value.AsDouble()));
+    }
+
+    [Theory]
+    [InlineData(ResultType.Double)]
+    [InlineData(ResultType.BulkString)]
+    [InlineData(ResultType.SimpleString)]
+    public void RedisResultParseMinusInf(ResultType resultType)
+    {
+        // https://github.com/redis/NRedisStack/issues/439
+        var value = RedisResult.Create("-inf", resultType);
+        Assert.True(double.IsNegativeInfinity(value.AsDouble()));
+    }
 }

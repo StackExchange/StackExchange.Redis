@@ -656,6 +656,10 @@ namespace StackExchange.Redis
                 StorageType.Int64 => value.OverlappedValueInt64,
                 StorageType.UInt64 => value.OverlappedValueUInt64,
                 StorageType.Double => value.OverlappedValueDouble,
+                // special values like NaN/Inf are deliberately not handled by Simplify, but need to be considered for casting
+                StorageType.String when Format.TryParseDouble((string)value._objectOrSentinel!, out var d) => d,
+                StorageType.Raw when TryParseDouble(value._memory.Span, out var d) => d,
+                // anything else: fail
                 _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
             };
         }
