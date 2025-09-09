@@ -10,15 +10,16 @@ public class RespConfiguration
     private static readonly TimeSpan DefaultSyncTimeout = TimeSpan.FromSeconds(10);
 
     public static RespConfiguration Default { get; } = new(
-        RespCommandMap.Default, [], DefaultSyncTimeout, NullServiceProvider.Instance);
+        RespCommandMap.Default, [], DefaultSyncTimeout, NullServiceProvider.Instance, 0);
 
-    public static Builder Create() => default; // for discoverability
+    public static Builder CreateBuilder() => default; // for discoverability
 
     public struct Builder // intentionally mutable
     {
         public TimeSpan? SyncTimeout { get; set; }
         public IServiceProvider? ServiceProvider { get; set; }
         public RespCommandMap? CommandMap { get; set; }
+        public int DefaultDatabase { get; set; }
         public object? KeyPrefix { get; set; } // can be a string or byte[]
 
         public Builder(RespConfiguration? source)
@@ -29,13 +30,14 @@ public class RespConfiguration
                 SyncTimeout = source.SyncTimeout;
                 KeyPrefix = source.KeyPrefix.ToArray();
                 ServiceProvider = source.ServiceProvider;
+                DefaultDatabase = source.DefaultDatabase;
                 // undo defaults
                 if (ReferenceEquals(CommandMap, RespCommandMap.Default)) CommandMap = null;
                 if (ReferenceEquals(ServiceProvider, NullServiceProvider.Instance)) ServiceProvider = null;
             }
         }
 
-        public RespConfiguration Create()
+        public RespConfiguration CreateConfiguration()
         {
             byte[] prefix = KeyPrefix switch
             {
@@ -53,7 +55,8 @@ public class RespConfiguration
                 CommandMap ?? RespCommandMap.Default,
                 prefix,
                 SyncTimeout ?? DefaultSyncTimeout,
-                ServiceProvider ?? NullServiceProvider.Instance);
+                ServiceProvider ?? NullServiceProvider.Instance,
+                DefaultDatabase);
         }
     }
 
@@ -61,12 +64,14 @@ public class RespConfiguration
         RespCommandMap commandMap,
         byte[] keyPrefix,
         TimeSpan syncTimeout,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        int defaultDatabase)
     {
         CommandMap = commandMap;
         SyncTimeout = syncTimeout;
         _keyPrefix = (byte[])keyPrefix.Clone(); // create isolated copy
         ServiceProvider = serviceProvider;
+        DefaultDatabase = defaultDatabase;
     }
 
     private readonly byte[] _keyPrefix;
@@ -74,6 +79,7 @@ public class RespConfiguration
     public RespCommandMap CommandMap { get; }
     public TimeSpan SyncTimeout { get; }
     public ReadOnlySpan<byte> KeyPrefix => _keyPrefix;
+    public int DefaultDatabase { get; }
 
     public Builder AsBuilder() => new(this);
 

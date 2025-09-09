@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis;
+﻿using RESPite.Connections;
+using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
@@ -9,7 +10,8 @@ namespace RESPite.StackExchange.Redis;
 /// </summary>
 internal partial class RespContextDatabase : IDatabase
 {
-    private IRespContextSource source;
+    private readonly IRedisAsync _parent;
+    private IRespContextSource _source;
     private readonly int _db;
 
     /// <summary>
@@ -17,15 +19,16 @@ internal partial class RespContextDatabase : IDatabase
     /// could be direct to a known server or routed - the <see cref="IRespContextSource.Context"/> is responsible for
     /// that determination.
     /// </summary>
-    public RespContextDatabase(IRespContextSource source, int db)
+    public RespContextDatabase(IRedisAsync parent, IRespContextSource source, int db)
     {
-        this.source = source;
+        _parent = parent;
+        _source = source;
         _db = db;
     }
 
     // change the proxy being used
     protected void SetSource(IRespContextSource source)
-        => this.source = source;
+        => this._source = source;
 
     // Question: cache this, or rebuild each time? the latter handles shutdown better.
     // internal readonly RespContext Context = proxy.Context.WithDatabase(db);
@@ -39,20 +42,19 @@ internal partial class RespContextDatabase : IDatabase
                                                       | RespContext.RespContextFlags.FireAndForget
                                                       | RespContext.RespContextFlags.NoScriptCache;
 
-        return source.Context.With(_db, (RespContext.RespContextFlags)flags, flagMask);
+        return _source.Context.With(_db, (RespContext.RespContextFlags)flags, flagMask);
     }
 
-    private TimeSpan SyncTimeout => source.Context.SyncTimeout;
+    private TimeSpan SyncTimeout => _source.Context.SyncTimeout;
     public int Database => _db;
 
-    IConnectionMultiplexer IRedisAsync.Multiplexer => source.Multiplexer;
-    public RespContextProxyKind RespContextProxyKind => source.RespContextProxyKind;
+    IConnectionMultiplexer IRedisAsync.Multiplexer => _parent.Multiplexer;
 
-    public bool TryWait(Task task) => source.Multiplexer.TryWait(task);
+    public bool TryWait(Task task) => _parent.Multiplexer.TryWait(task);
 
-    public void Wait(Task task) => source.Multiplexer.Wait(task);
+    public void Wait(Task task) => _parent.Multiplexer.Wait(task);
 
-    public T Wait<T>(Task<T> task) => source.Multiplexer.Wait(task);
+    public T Wait<T>(Task<T> task) => _parent.Multiplexer.Wait(task);
 
-    public void WaitAll(params Task[] tasks) => source.Multiplexer.WaitAll(tasks);
+    public void WaitAll(params Task[] tasks) => _parent.Multiplexer.WaitAll(tasks);
 }

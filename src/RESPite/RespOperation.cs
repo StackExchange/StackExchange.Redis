@@ -46,6 +46,7 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
         _token = token;
         _disableCaptureContext = disableCaptureContext;
     }
+
     internal RespOperation(RespMessageBase message, bool disableCaptureContext = false)
     {
         _message = message;
@@ -91,8 +92,13 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
     internal short Token => _token;
     internal int MessageCount => Message.MessageCount;
     internal bool TrySetException(Exception exception) => Message.TrySetException(_token, exception);
-    internal bool TrySetCancelled(CancellationToken cancellationToken = default) => Message.TrySetCanceled(_token, cancellationToken);
-    internal bool TryReserveRequest(out ReadOnlySequence<byte> payload, bool recordSent = true) => Message.TryReserveRequest(_token, out payload, recordSent);
+
+    internal bool TrySetCancelled(CancellationToken cancellationToken = default) =>
+        Message.TrySetCanceled(_token, cancellationToken);
+
+    internal bool TryReserveRequest(out ReadOnlySequence<byte> payload, bool recordSent = true) =>
+        Message.TryReserveRequest(_token, out payload, recordSent);
+
     internal void ReleaseRequest() => Message.ReleaseRequest();
 
     internal static readonly Action<object?> InvokeState = static state => ((Action)state!).Invoke();
@@ -225,5 +231,9 @@ public readonly struct RespOperation : ICriticalNotifyCompletion
 
     internal bool TryGetSubMessages(out ReadOnlySpan<RespOperation> operations)
         => Message.TryGetSubMessages(Token, out operations);
+
     internal bool TrySetResultAfterUnloadingSubMessages() => Message.TrySetResultAfterUnloadingSubMessages(Token);
+
+    internal RespMessageBase.StateFlags Flags => Message.Flags;
+    internal int Slot => _message.Slot;
 }

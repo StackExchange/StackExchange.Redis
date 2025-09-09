@@ -29,7 +29,7 @@ internal partial class RespContextDatabase
         throw new NotImplementedException();
 
     public IBatch CreateBatch(object? asyncState = null) =>
-        new RespContextBatch(source, _db);
+        new RespContextBatch(_source, _db);
 
     public ITransaction CreateTransaction(object? asyncState = null) =>
         throw new NotImplementedException();

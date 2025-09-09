@@ -1,4 +1,4 @@
-﻿namespace RESPite.StackExchange.Redis;
+﻿namespace RESPite.Internal;
 
 internal static class Utils
 {

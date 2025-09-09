@@ -3,12 +3,13 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using RESPite.Connections;
 using RESPite.Connections.Internal;
 using RESPite.Internal;
 
 namespace RESPite;
 
-public abstract class RespConnection : IDisposable, IAsyncDisposable
+public abstract class RespConnection : IDisposable, IAsyncDisposable, IRespContextSource
 {
     public sealed class RespConnectionErrorEventArgs(Exception exception, [CallerMemberName] string operation = "")
         : EventArgs
@@ -41,50 +42,8 @@ public abstract class RespConnection : IDisposable, IAsyncDisposable
     internal readonly RespCommandMap? NonDefaultCommandMap; // prevent checking this each write
     public TimeSpan SyncTimeout { get; }
 
-    private static EndPoint? _defaultEndPoint; // do not expose externally; vexingly mutable
-    private static EndPoint DefaultEndPoint => _defaultEndPoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
-
     public static RespConnection Create(Stream stream, RespConfiguration? configuration = null)
         => new StreamConnection(configuration ?? RespConfiguration.Default, stream);
-
-    public static RespConnection Create(EndPoint? endpoint = null, RespConfiguration? config = null)
-    {
-        Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        socket.NoDelay = true;
-        socket.Connect(endpoint ?? DefaultEndPoint);
-        return Create(new NetworkStream(socket), config);
-    }
-
-    public static async ValueTask<RespConnection> CreateAsync(
-        EndPoint? endpoint = null,
-        RespConfiguration? config = null,
-        CancellationToken cancellationToken = default)
-    {
-        Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        socket.NoDelay = true;
-#if NET6_0_OR_GREATER
-        await socket.ConnectAsync(endpoint ?? DefaultEndPoint, cancellationToken).ConfigureAwait(false);
-#else
-        // hack together cancellation via dispose
-        using (var reg = cancellationToken.Register(
-                   static state => ((Socket)state).Dispose(), socket))
-        {
-            try
-            {
-                await socket.ConnectAsync(endpoint).ConfigureAwait(false);
-            }
-            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw new OperationCanceledException(cancellationToken);
-            }
-            catch (SocketException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw new OperationCanceledException(cancellationToken);
-            }
-        }
-#endif
-        return Create(new NetworkStream(socket), config);
-    }
 
     // this is the usual usage, since we want context to be preserved
     private protected RespConnection(in RespContext tail, RespConfiguration? configuration = null)

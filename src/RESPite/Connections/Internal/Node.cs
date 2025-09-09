@@ -1,27 +1,28 @@
-﻿using System.Net;
-using System.Net.Sockets;
-using RESPite.Connections;
-using StackExchange.Redis;
+﻿using RESPite.Internal;
 
-namespace RESPite.StackExchange.Redis;
+namespace RESPite.Connections.Internal;
 
 internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextSource
 {
     private bool _isDisposed;
+    public override string ToString() => Label;
+    public string EndPoint { get; }
+    public int Port { get; }
+    private string? _label;
+    internal string Label => _label ??= $"{EndPoint}:{Port}";
+    internal RespConnectionManager Manager { get; }
 
-    public Version Version { get; }
-    public EndPoint EndPoint => _interactive.EndPoint;
-    public RespMultiplexer Multiplexer => _interactive.Multiplexer;
-
-    public Node(RespMultiplexer multiplexer, EndPoint endPoint)
+    public Node(RespConnectionManager manager, string endPoint, int port)
     {
-        _interactive = new(multiplexer, endPoint, ConnectionType.Interactive);
-        Version = multiplexer.Options.DefaultVersion;
-        // defer on pub/sub
+        Manager = manager;
+        EndPoint = endPoint;
+        Port = port;
+        _interactive = new(this, false);
     }
 
     public bool IsConnected => _interactive.IsConnected;
     public bool IsConnecting => _interactive.IsConnecting;
+    public bool IsReplica { get; private set; }
 
     public void Dispose()
     {
@@ -44,64 +45,56 @@ internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextSource
     private NodeConnection? _subscription;
 
     public ref readonly RespContext Context => ref _interactive.Context;
-    RespContextProxyKind IRespContextSource.RespContextProxyKind => RespContextProxyKind.ConnectionInteractive;
 
     public RespConnection InteractiveConnection => _interactive.Connection;
 
     public Task<bool> ConnectAsync(
         TextWriter? log = null,
         bool force = false,
-        ConnectionType connectionType = ConnectionType.Interactive)
+        bool pubSub = false)
     {
         if (_isDisposed) return Task.FromResult(false);
-        if (connectionType == ConnectionType.Interactive)
+        if (!pubSub)
         {
             return _interactive.ConnectAsync(log, force);
         }
-        else if (connectionType == ConnectionType.Subscription)
-        {
-            _subscription ??= new(_interactive.Multiplexer, _interactive.EndPoint, ConnectionType.Subscription);
-            return _subscription.ConnectAsync(log, force);
-        }
-        else
-        {
-            throw new ArgumentOutOfRangeException(nameof(connectionType));
-        }
+
+        _subscription ??= new(this, pubSub);
+        return _subscription.ConnectAsync(log, force);
     }
 
-    private IServer? _server;
-    public IServer AsServer() => _server ??= new NodeServer(this);
+    public Shard AsShard()
+    {
+        return new(
+            0,
+            int.MaxValue,
+            Port,
+            IsReplica ? ShardFlags.Replica : ShardFlags.None,
+            EndPoint,
+            "",
+            this);
+    }
 }
 
 internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespContextSource
 {
-    private EventHandler<RespConnection.RespConnectionErrorEventArgs>? _onConnectionError;
-    private readonly RespMultiplexer _multiplexer;
-    private readonly EndPoint _endPoint;
-    private readonly ConnectionType _connectionType;
+    // private EventHandler<RespConnection.RespConnectionErrorEventArgs>? _onConnectionError;
+    private readonly Node _node;
+    private readonly bool _pubSub;
 
-    public RespMultiplexer Multiplexer => _multiplexer;
+    public override string ToString() => Label;
 
-    public NodeConnection(RespMultiplexer multiplexer, EndPoint endPoint, ConnectionType connectionType)
+    public NodeConnection(Node node, bool pubSub)
     {
-        _multiplexer = multiplexer;
-        _endPoint = endPoint;
-        _connectionType = connectionType;
-        _label = Format.ToString(endPoint);
+        _node = node;
+        _pubSub = pubSub;
     }
 
-    RespContextProxyKind IRespContextSource.RespContextProxyKind => _connectionType switch
-    {
-        ConnectionType.Interactive => RespContextProxyKind.ConnectionInteractive,
-        ConnectionType.Subscription => RespContextProxyKind.ConnectionSubscription,
-        _ => RespContextProxyKind.Unknown,
-    };
-
-    public EndPoint EndPoint => _endPoint;
+    private string? _label;
+    private string Label => _label ??= _pubSub ? $"{_node.Label}/s" : _node.Label;
+    public Node Node => _node;
     private int _state = (int)NodeState.Disconnected;
-    private readonly string _label;
 
-    public override string ToString() => $"{_label}: {State}";
     private NodeState State => (NodeState)_state;
 
     private enum NodeState
@@ -121,7 +114,10 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
     private RespConnection _connection = RespContext.Null.Connection;
     public RespConnection Connection => _connection;
 
-    public async Task<bool> ConnectAsync(TextWriter? log = null, bool force = false)
+    public async Task<bool> ConnectAsync(
+        TextWriter? log = null,
+        bool force = false,
+        CancellationToken cancellationToken = default)
     {
         int state;
         bool connecting = false;
@@ -132,14 +128,14 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
             {
                 case NodeState.Connected when force:
                 case NodeState.Connecting when force:
-                    log.LogLocked($"[{_label}] (already {(NodeState)state}, but forcing reconnect...)");
+                    log.LogLocked($"[{Label}] (already {(NodeState)state}, but forcing reconnect...)");
                     break; // reconnect anyway!
                 case NodeState.Connected:
                 case NodeState.Connecting:
-                    log.LogLocked($"[{_label}] (already {(NodeState)state})");
+                    log.LogLocked($"[{Label}] (already {(NodeState)state})");
                     return true;
                 case NodeState.Disposed:
-                    log.LogLocked($"[{_label}] (already {(NodeState)state})");
+                    log.LogLocked($"[{Label}] (already {(NodeState)state})");
                     return false;
             }
         }
@@ -151,18 +147,21 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
             // observe outcome of CEX above (noting that if forcing, we don't do that CEX)
             if (State == NodeState.Connecting) state = (int)NodeState.Connecting;
 
-            log.LogLocked($"[{_label}] {_endPoint.GetType().Name} connecting...");
+            log.LogLocked($"[{Label}] connecting...");
             connecting = true;
-            var connection = await RespConnection.CreateAsync(
-                _endPoint,
-                cancellationToken: _multiplexer.Lifetime).ConfigureAwait(false);
+            var manager = _node.Manager;
+            var stream = await manager.ConnectionFactory.ConnectAsync(
+                _node.EndPoint,
+                _node.Port,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
             connecting = false;
 
-            log.LogLocked($"[{_label}] Performing handshake...");
+            var connection = RespConnection.Create(stream, manager.Configuration);
+            log.LogLocked($"[{Label}] Performing handshake...");
             // TODO: handshake
 
             // finalize the connections
-            log.LogLocked($"[{_label}] Finalizing...");
+            log.LogLocked($"[{Label}] Finalizing...");
             var oldConnection = _connection;
             _connection = connection.Synchronized();
             await oldConnection.DisposeAsync().ConfigureAwait(false);
@@ -171,20 +170,22 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
             if (Interlocked.CompareExchange(ref _state, (int)NodeState.Connected, state) == state)
             {
                 // success
-                log.LogLocked($"[{_label}] (success)");
+                log.LogLocked($"[{Label}] (success)");
+                /*
                 connection.ConnectionError += _onConnectionError ??= OnConnectionError;
 
                 if (state == (int)NodeState.Faulted) OnConnectionRestored();
+                */
                 return true;
             }
 
-            log.LogLocked($"[{_label}] (unable to complete; became {State})");
+            log.LogLocked($"[{Label}] (unable to complete; became {State})");
             _connection = oldConnection;
             return false;
         }
         catch (Exception ex)
         {
-            log.LogLocked($"[{_label}] Faulted: {ex.Message}");
+            log.LogLocked($"[{Label}] Faulted: {ex.Message}{(connecting ? " (while connecting)" : "")}");
             // something failed; cleanup and move to faulted, unless disposed
             if (State != NodeState.Disposed)
             {
@@ -195,6 +196,7 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
             _connection = RespContext.Null.Connection;
             await conn.DisposeAsync();
 
+            /*
             var failureType = ConnectionFailureType.InternalFailure;
             if (connecting)
             {
@@ -210,10 +212,11 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
             }
 
             OnConnectionError(failureType, ex);
+            */
             return false;
         }
     }
-
+/*
     private void OnConnectionError(object? sender, RespConnection.RespConnectionErrorEventArgs e)
     {
         var handler = _multiplexer.DirectConnectionFailed;
@@ -226,7 +229,7 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
                 _connectionType,
                 ConnectionFailureType.InternalFailure,
                 e.Exception,
-                _label));
+                Label));
         }
     }
 
@@ -242,7 +245,7 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
                 _connectionType,
                 failureType,
                 exception,
-                _label));
+                Label));
         }
     }
 
@@ -258,9 +261,9 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
                 _connectionType,
                 ConnectionFailureType.None,
                 null,
-                _label));
+                Label));
         }
-    }
+    }*/
 
     public void Dispose()
     {
@@ -268,7 +271,7 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
         var conn = _connection;
         _connection = RespContext.Null.Connection;
         conn.Dispose();
-        OnConnectionError(ConnectionFailureType.ConnectionDisposed);
+        // OnConnectionError(ConnectionFailureType.ConnectionDisposed);
     }
 
     public async ValueTask DisposeAsync()
@@ -277,6 +280,6 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
         var conn = _connection;
         _connection = RespContext.Null.Connection;
         await conn.DisposeAsync().ConfigureAwait(false);
-        OnConnectionError(ConnectionFailureType.ConnectionDisposed);
+        // OnConnectionError(ConnectionFailureType.ConnectionDisposed);
     }
 }

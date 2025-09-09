@@ -12,12 +12,12 @@ internal abstract class RespMessageBase : IValueTaskSource
 
     private CancellationToken _cancellationToken;
     private CancellationTokenRegistration _cancellationTokenRegistration;
-    private int _requestRefCount, _flags;
+    private int _requestRefCount, _flags, _slot;
     private ReadOnlySequence<byte> _request;
     public ref readonly CancellationToken CancellationToken => ref _cancellationToken;
 
     [Flags]
-    protected enum StateFlags
+    internal enum StateFlags
     {
         None = 0,
         IsSent = 1 << 0, // the request has been sent
@@ -28,10 +28,13 @@ internal abstract class RespMessageBase : IValueTaskSource
         HasParser = 1 << 6, // we have a parser
         MetadataParser = 1 << 7, // the parser wants to consume metadata
         InlineParser = 1 << 8, // we can safely use the parser on the IO thread
+        Replica = 1 << 9, // request a replica (otherwise, primary is requested)
+        Demand = 1 << 10, // the presence/absence of Replica is a hard demand
     }
 
-    protected StateFlags Flags => (StateFlags)Volatile.Read(ref _flags);
+    internal StateFlags Flags => (StateFlags)Volatile.Read(ref _flags);
     public virtual int MessageCount => 1;
+    internal int Slot => _slot;
 
     protected void InitParser(object? parser)
     {
@@ -188,8 +191,8 @@ internal abstract class RespMessageBase : IValueTaskSource
         // note we only reset on success, and on
         // success we've already unregistered cancellation
         _request = default;
-        _requestRefCount = 0;
-        _flags = 0;
+        _requestRefCount = _flags = 0;
+        _slot = -1;
         NextToken();
         if (recycle) Recycle();
     }

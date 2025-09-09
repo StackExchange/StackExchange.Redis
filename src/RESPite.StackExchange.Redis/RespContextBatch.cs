@@ -1,15 +1,14 @@
-﻿using StackExchange.Redis;
+﻿using RESPite.Connections;
+using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
-internal sealed class RespContextBatch : RespContextDatabase, IBatch, IRespContextSource, IDisposable
+internal sealed class RespContextBatch : RespContextDatabase, IBatch, IDisposable, IRespContextSource
 {
-    private readonly IRespContextSource _originalSource;
     private readonly RespBatch _batch;
 
-    public RespContextBatch(IRespContextSource source, int db) : base(source, db)
+    public RespContextBatch(IRedisAsync parent, IRespContextSource source, int db) : base(parent, source, db)
     {
-        _originalSource = source;
         _batch = source.Context.CreateBatch();
         SetSource(this);
     }
@@ -18,9 +17,5 @@ internal sealed class RespContextBatch : RespContextDatabase, IBatch, IRespConte
 
     public void Dispose() => _batch.Dispose();
 
-    public RespMultiplexer Multiplexer => _originalSource.Multiplexer;
-
     public ref readonly RespContext Context => ref _batch.Context;
-
-    RespContextProxyKind IRespContextSource.RespContextProxyKind => RespContextProxyKind;
 }

@@ -1,5 +1,7 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using RESPite.Connections;
 using RESPite.Connections.Internal;
 using StackExchange.Redis;
 using StackExchange.Redis.Maintenance;
@@ -7,29 +9,25 @@ using StackExchange.Redis.Profiling;
 
 namespace RESPite.StackExchange.Redis;
 
-public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
+public sealed class RespMultiplexer : IConnectionMultiplexer
 {
     /// <inheritdoc cref="object.ToString"/>
     public override string ToString() => GetType().Name;
 
-    public RespMultiplexer()
-    {
-        _routedConnection = RespContext.Null.Connection; // until we've connected
-        _defaultContext = _routedConnection.Context;
-    }
-
+    private readonly RespConnectionManager _connectionManager = new();
     private int _defaultDatabase;
 
+    /*
     // the routed connection performs message-inspection based routing; on a single node
     // instance that isn't necessary, so the default-connection abstracts over that:
     // in a single-node instance, the default-connection will be the single interactive connection
     // otherwise, the default-connection will be the routed connection
-    private RespConnection _routedConnection;
-    private RespContext _defaultContext;
+    private RoutedConnection? _routedConnection;
+    private RespContext _defaultContext = RespContext.Null;
     internal ref readonly RespContext Context => ref _defaultContext;
     ref readonly RespContext IRespContextSource.Context => ref _defaultContext;
-    RespContextProxyKind IRespContextSource.RespContextProxyKind => RespContextProxyKind.Multiplexer;
-    RespMultiplexer IRespContextSource.Multiplexer => this;
+    RespContextProxyKind ITypedRespContextSource.RespContextProxyKind => RespContextProxyKind.Multiplexer;
+    RespMultiplexer ITypedRespContextSource.Multiplexer => this;
 
     private readonly CancellationTokenSource _lifetime = new();
     private ConfigurationOptions? _options;
@@ -68,6 +66,7 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
                 }
             }
         }
+
         ep.SetDefaultPorts(ServerType.Standalone, ssl: options.Ssl);
 
         // add nodes from the endpoints
@@ -76,15 +75,9 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
         {
             nodes[i] = new Node(this, ep[i]);
         }
+
         _nodes = nodes;
-
         _defaultDatabase = options.DefaultDatabase ?? 0;
-
-        // setup a basic connection that comes via ourselves
-        var ctx = RespContext.Null; // this is just the template
-        _routedConnection = new RoutingRespConnection(this, ctx);
-        // set the default context (this might get simplified later, in OnNodesChanged)
-        _defaultContext = _routedConnection.Context;
     }
 
     public void Connect(string configuration = "", TextWriter? log = null)
@@ -133,12 +126,11 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
 
     public void Dispose()
     {
-        RespConnection conn = _routedConnection;
-        _routedConnection = NullConnection.Disposed;
-        _defaultContext = _routedConnection.Context;
+        var routed = _routedConnection;
+        _routedConnection = null;
+        _defaultContext = NullConnection.Disposed.Context;
         _lifetime.Cancel();
-        conn.Dispose();
-        _routedConnection.Dispose();
+        routed?.Dispose();
         foreach (var node in _nodes)
         {
             node.Dispose();
@@ -147,16 +139,19 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
 
     public async ValueTask DisposeAsync()
     {
-        RespConnection conn = _routedConnection;
-        _routedConnection = RespContext.Null.Connection;
-        _defaultContext = _routedConnection.Context;
+        var routed = _routedConnection;
+        _routedConnection = null;
+        _defaultContext = NullConnection.Disposed.Context;
 #if NET8_0_OR_GREATER
         await _lifetime.CancelAsync().ConfigureAwait(false);
 #else
         _lifetime.Cancel();
 #endif
-        await conn.DisposeAsync().ConfigureAwait(false);
-        await _routedConnection.DisposeAsync().ConfigureAwait(false);
+        if (routed is not null)
+        {
+            await routed.DisposeAsync().ConfigureAwait(false);
+        }
+
         foreach (var node in _nodes)
         {
             await node.DisposeAsync().ConfigureAwait(false);
@@ -285,7 +280,8 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
     public IServer GetServer(string hostAndPort, object? asyncState = null) =>
         Format.TryParseEndPoint(hostAndPort, out var ep)
             ? GetServer(ep, asyncState)
-            : throw new ArgumentException($"The specified host and port could not be parsed: {hostAndPort}", nameof(hostAndPort));
+            : throw new ArgumentException($"The specified host and port could not be parsed: {hostAndPort}",
+                nameof(hostAndPort));
 
     public IServer GetServer(IPAddress host, int port)
     {
@@ -296,6 +292,7 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
                 return node.AsServer();
             }
         }
+
         throw new ArgumentException("The specified endpoint is not defined", nameof(host));
     }
 
@@ -318,9 +315,25 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
         _defaultContext = nodes.Length switch
         {
             0 => NullConnection.NonRoutable.Context, // nowhere to go
-            1 when nodes[0] is { IsConnected: true } node => node.InteractiveConnection.Context,
-            _ => _routedConnection.Context,
+            1 => nodes[0] is { IsConnected: true } conn
+                ? conn.Context
+                : NullConnection.NonRoutable.Context, // nowhere to go
+            _ => BuildRouted(nodes),
         };
+    }
+
+    private ref readonly RespContext BuildRouted(Node[] nodes)
+    {
+        Shard[] oversized = ArrayPool<Shard>.Shared.Rent(nodes.Length);
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            oversized[i] = nodes[i].AsShard();
+        }
+        Array.Sort(oversized, 0, nodes.Length);
+        var conn = _routedConnection ??= new();
+        conn.SetRoutingTable(new ReadOnlySpan<Shard>(oversized, 0, nodes.Length));
+        ArrayPool<Shard>.Shared.Return(oversized);
+        return ref conn.Context;
     }
 
     public IServer[] GetServers() => Array.ConvertAll(_nodes, static x => x.AsServer());
@@ -352,4 +365,5 @@ public sealed class RespMultiplexer : IConnectionMultiplexer, IRespContextSource
         throw new NotImplementedException();
 
     public void AddLibraryNameSuffix(string suffix) => throw new NotImplementedException();
+    */
 }
