@@ -17,15 +17,13 @@ public abstract class VectorSetSimilaritySearchRequest
 
     private sealed class VectorSetSimilarityByMemberSearchRequest(RedisValue member) : VectorSetSimilaritySearchRequest
     {
-        public RedisValue Member => member;
-
         internal override VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
             => new VectorSetSimilaritySearchMessage.VectorSetSimilaritySearchByMemberMessage(
                 db,
                 flags,
                 _vsimFlags,
                 key,
-                Member,
+                member,
                 _count,
                 _epsilon,
                 _searchExplorationFactor,
@@ -36,15 +34,13 @@ public abstract class VectorSetSimilaritySearchRequest
     private sealed class VectorSetSimilarityVectorSingleSearchRequest(ReadOnlyMemory<float> vector)
         : VectorSetSimilaritySearchRequest
     {
-        public ReadOnlyMemory<float> Vector => vector;
-
         internal override VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
             => new VectorSetSimilaritySearchMessage.VectorSetSimilaritySearchBySingleVectorMessage(
                 db,
                 flags,
                 _vsimFlags,
                 key,
-                Vector,
+                vector,
                 _count,
                 _epsilon,
                 _searchExplorationFactor,
