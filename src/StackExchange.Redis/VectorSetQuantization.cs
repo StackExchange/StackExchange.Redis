@@ -11,20 +11,20 @@ public enum VectorSetQuantization
     /// <summary>
     /// Unknown or unrecognized quantization type.
     /// </summary>
-    Unknown,
+    Unknown = 0,
 
     /// <summary>
     /// No quantization (full precision). This maps to "NOQUANT" or "f32".
     /// </summary>
-    None,
+    None = 1,
 
     /// <summary>
     /// 8-bit integer quantization (default). This maps to "Q8" or "int8".
     /// </summary>
-    Int8,
+    Int8 = 2,
 
     /// <summary>
     /// Binary quantization. This maps to "BIN" or "bin".
     /// </summary>
-    Binary,
+    Binary = 3,
 }

@@ -27,7 +27,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         if (suppressFp32) VectorSetAddMessage.SuppressFp32();
         try
         {
-            var result = await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+            var request = VectorSetAddRequest.Member("element1", vector.AsMemory(), null);
+            var result = await db.VectorSetAddAsync(key, request);
 
             Assert.True(result);
         }
@@ -49,7 +50,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector = new[] { 1.0f, 2.0f, 3.0f, 4.0f };
         var attributes = """{"category":"test","id":123}""";
 
-        var result = await db.VectorSetAddAsync(key, "element1", vector.AsMemory(), attributesJson: attributes);
+        var request = VectorSetAddRequest.Member("element1", vector.AsMemory(), attributes);
+        var result = await db.VectorSetAddAsync(key, request);
 
         Assert.True(result);
 
@@ -73,16 +75,18 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector = new[] { 1.0f, 2.0f, 3.0f, 4.0f };
         var attributes = """{"category":"test","id":123}""";
 
-        var result = await db.VectorSetAddAsync(
-            key,
+        var request = VectorSetAddRequest.Member(
             "element1",
             vector.AsMemory(),
-            attributesJson: attributes,
-            useCheckAndSet: true,
-            quantization: quantization,
-            reducedDimensions: 64,
-            buildExplorationFactor: 300,
-            maxConnections: 32);
+            attributes);
+        request.Quantization = quantization;
+        request.ReducedDimensions = 64;
+        request.BuildExplorationFactor = 300;
+        request.MaxConnections = 32;
+        request.UseCheckAndSet = true;
+        var result = await db.VectorSetAddAsync(
+            key,
+            request);
 
         Assert.True(result);
 
@@ -116,8 +120,10 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector1 = new[] { 1.0f, 2.0f, 3.0f };
         var vector2 = new[] { 4.0f, 5.0f, 6.0f };
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
+        var request = VectorSetAddRequest.Member("element1", vector1.AsMemory());
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element2", vector2.AsMemory());
+        await db.VectorSetAddAsync(key, request);
 
         var length = await db.VectorSetLengthAsync(key);
         Assert.Equal(2, length);
@@ -133,7 +139,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new[] { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
-        await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+        var request = VectorSetAddRequest.Member("element1", vector.AsMemory());
+        await db.VectorSetAddAsync(key, request);
 
         var dimension = await db.VectorSetDimensionAsync(key);
         Assert.Equal(5, dimension);
@@ -154,7 +161,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         if (suppressFp32) VectorSetAddMessage.SuppressFp32();
         try
         {
-            await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+            var request = VectorSetAddRequest.Member("element1", vector.AsMemory());
+            await db.VectorSetAddAsync(key, request);
 
             var exists = await db.VectorSetContainsAsync(key, "element1");
             var notExists = await db.VectorSetContainsAsync(key, "element2");
@@ -183,7 +191,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         if (suppressFp32) VectorSetAddMessage.SuppressFp32();
         try
         {
-            await db.VectorSetAddAsync(key, "element1", originalVector.AsMemory());
+            var request = VectorSetAddRequest.Member("element1", originalVector.AsMemory());
+            await db.VectorSetAddAsync(key, request);
 
             using var retrievedLease = await db.VectorSetGetApproximateVectorAsync(key, "element1");
 
@@ -215,7 +224,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new[] { 1.0f, 2.0f, 3.0f };
-        await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+        var request = VectorSetAddRequest.Member("element1", vector.AsMemory());
+        await db.VectorSetAddAsync(key, request);
 
         var removed = await db.VectorSetRemoveAsync(key, "element1");
         Assert.True(removed);
@@ -240,7 +250,9 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new[] { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
-        await db.VectorSetAddAsync(key, "element1", vector.AsMemory(), quantization: quantization);
+        var request = VectorSetAddRequest.Member("element1", vector.AsMemory());
+        request.Quantization = quantization;
+        await db.VectorSetAddAsync(key, request);
 
         var info = await db.VectorSetInfoAsync(key);
 
@@ -267,8 +279,10 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector1 = new[] { 1.0f, 2.0f, 3.0f };
         var vector2 = new[] { 4.0f, 5.0f, 6.0f };
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
+        var request = VectorSetAddRequest.Member("element1", vector1.AsMemory());
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element2", vector2.AsMemory());
+        await db.VectorSetAddAsync(key, request);
 
         var randomMember = await db.VectorSetRandomMemberAsync(key);
         Assert.True(randomMember == "element1" || randomMember == "element2");
@@ -287,9 +301,12 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector2 = new[] { 4.0f, 5.0f, 6.0f };
         var vector3 = new[] { 7.0f, 8.0f, 9.0f };
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
-        await db.VectorSetAddAsync(key, "element3", vector3.AsMemory());
+        var request = VectorSetAddRequest.Member("element1", vector1.AsMemory());
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element2", vector2.AsMemory());
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element3", vector3.AsMemory());
+        await db.VectorSetAddAsync(key, request);
 
         var randomMembers = await db.VectorSetRandomMembersAsync(key, 2);
 
@@ -317,9 +334,13 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector2 = new[] { 0.0f, 1.0f, 0.0f };
         var vector3 = new[] { 0.9f, 0.1f, 0.0f }; // Similar to vector1
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory(), attributesJson: """{"category":"x"}""");
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory(), attributesJson: """{"category":"y"}""");
-        await db.VectorSetAddAsync(key, "element3", vector3.AsMemory(), attributesJson: """{"category":"z"}""");
+        var request =
+            VectorSetAddRequest.Member("element1", vector1.AsMemory(), attributesJson: """{"category":"x"}""");
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element2", vector2.AsMemory(), attributesJson: """{"category":"y"}""");
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element3", vector3.AsMemory(), attributesJson: """{"category":"z"}""");
+        await db.VectorSetAddAsync(key, request);
 
         // Search for vectors similar to vector1
         var query = VectorSetSimilaritySearchRequest.ByVector(vector1.AsMemory());
@@ -369,8 +390,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector1 = new[] { 1.0f, 0.0f, 0.0f };
         var vector2 = new[] { 0.0f, 1.0f, 0.0f };
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory(), attributesJson: """{"category":"x"}""");
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory(), attributesJson: """{"category":"y"}""");
+        var request =
+            VectorSetAddRequest.Member("element1", vector1.AsMemory(), attributesJson: """{"category":"x"}""");
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element2", vector2.AsMemory(), attributesJson: """{"category":"y"}""");
+        await db.VectorSetAddAsync(key, request);
 
         var query = VectorSetSimilaritySearchRequest.ByMember("element1");
         query.Count = 1;
@@ -434,7 +458,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
                        + JsonConvert.SerializeObject(new { id = i, region })
                        + (corruptSuffix ? "oops" : "");
             ScrambleVector();
-            await db.VectorSetAddAsync(key, $"element{i}", vector, attributesJson: json);
+            var request = VectorSetAddRequest.Member($"element{i}", vector.AsMemory(), json);
+            await db.VectorSetAddAsync(key, request);
         }
 
         ScrambleVector();
@@ -510,7 +535,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
             var region = regions[rand.Next(regions.Length)];
             var json = JsonConvert.SerializeObject(new { id = i, region });
             ScrambleVector();
-            await db.VectorSetAddAsync(key, $"element{i}", vector, attributesJson: json);
+            var request = VectorSetAddRequest.Member($"element{i}", vector.AsMemory(), json);
+            await db.VectorSetAddAsync(key, request);
         }
 
         ScrambleVector();
@@ -543,7 +569,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         var vector = new[] { 1.0f, 2.0f, 3.0f };
-        await db.VectorSetAddAsync(key, "element1", vector.AsMemory());
+        var request = VectorSetAddRequest.Member("element1", vector.AsMemory());
+        await db.VectorSetAddAsync(key, request);
 
         // Set attributes for existing element
         var attributes = """{"category":"updated","priority":"high","timestamp":"2024-01-01"}""";
@@ -574,9 +601,12 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector2 = new[] { 0.9f, 0.1f, 0.0f }; // Similar to vector1
         var vector3 = new[] { 0.0f, 1.0f, 0.0f }; // Different from vector1
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
-        await db.VectorSetAddAsync(key, "element3", vector3.AsMemory());
+        var request = VectorSetAddRequest.Member("element1", vector1.AsMemory());
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element2", vector2.AsMemory());
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element3", vector3.AsMemory());
+        await db.VectorSetAddAsync(key, request);
 
         // Get links for element1 (should include similar vectors)
         using var links = await db.VectorSetGetLinksAsync(key, "element1");
@@ -608,9 +638,12 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector2 = new[] { 0.9f, 0.1f, 0.0f }; // Similar to vector1
         var vector3 = new[] { 0.0f, 1.0f, 0.0f }; // Different from vector1
 
-        await db.VectorSetAddAsync(key, "element1", vector1.AsMemory());
-        await db.VectorSetAddAsync(key, "element2", vector2.AsMemory());
-        await db.VectorSetAddAsync(key, "element3", vector3.AsMemory());
+        var request = VectorSetAddRequest.Member("element1", vector1.AsMemory());
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element2", vector2.AsMemory());
+        await db.VectorSetAddAsync(key, request);
+        request = VectorSetAddRequest.Member("element3", vector3.AsMemory());
+        await db.VectorSetAddAsync(key, request);
 
         // Get links with scores for element1
         using var linksWithScores = await db.VectorSetGetLinksWithScoresAsync(key, "element1");

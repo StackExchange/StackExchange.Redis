@@ -15,28 +15,14 @@ public partial interface IDatabase
     /// Add a vector to a vectorset.
     /// </summary>
     /// <param name="key">The key of the vectorset.</param>
-    /// <param name="element">The element name.</param>
-    /// <param name="values">The vector data.</param>
-    /// <param name="reducedDimensions">Optional dimension reduction using random projection (REDUCE parameter).</param>
-    /// <param name="quantization">Quantization type - Int8 (Q8), None (NOQUANT), or Binary (BIN). Default: Int8.</param>
-    /// <param name="buildExplorationFactor">Optional HNSW build exploration factor (EF parameter, default: 200).</param>
-    /// <param name="maxConnections">Optional maximum connections per HNSW node (M parameter, default: 16).</param>
-    /// <param name="useCheckAndSet">Optional check-and-set mode for partial threading (CAS parameter).</param>
-    /// <param name="attributesJson">Optional JSON attributes for the element (SETATTR parameter).</param>
+    /// <param name="request">The data to add.</param>
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns><see langword="true"/> if the element was added; <see langword="false"/> if it already existed.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vadd"/></remarks>
     [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     bool VectorSetAdd(
         RedisKey key,
-        RedisValue element,
-        ReadOnlyMemory<float> values,
-        int? reducedDimensions = null,
-        VectorSetQuantization quantization = VectorSetQuantization.Int8,
-        int? buildExplorationFactor = null,
-        int? maxConnections = null,
-        bool useCheckAndSet = false,
-        string? attributesJson = null,
+        VectorSetAddRequest request,
         CommandFlags flags = CommandFlags.None);
 
     /// <summary>

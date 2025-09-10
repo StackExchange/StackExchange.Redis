@@ -41,12 +41,12 @@ namespace StackExchange.Redis.Tests
         {
             var vector = new[] { 1.0f, 2.0f, 3.0f }.AsMemory();
 
-            prefixed.VectorSetAdd("vectorset", "element1", vector);
+            var request = VectorSetAddRequest.Member("element1", vector);
+            prefixed.VectorSetAdd("vectorset", request);
 
             mock.Received().VectorSetAdd(
                 "prefix:vectorset",
-                "element1",
-                vector);
+                request);
         }
 
         [Fact]
@@ -55,28 +55,23 @@ namespace StackExchange.Redis.Tests
             var vector = new[] { 1.0f, 2.0f, 3.0f }.AsMemory();
             var attributes = """{"category":"test"}""";
 
-            prefixed.VectorSetAdd(
-                "vectorset",
+            var request = VectorSetAddRequest.Member(
                 "element1",
                 vector,
-                reducedDimensions: 64,
-                quantization: VectorSetQuantization.Binary,
-                buildExplorationFactor: 300,
-                maxConnections: 32,
-                useCheckAndSet: true,
-                attributesJson: attributes,
+                attributes);
+            request.ReducedDimensions = 64;
+            request.Quantization = VectorSetQuantization.Binary;
+            request.BuildExplorationFactor = 300;
+            request.MaxConnections = 32;
+            request.UseCheckAndSet = true;
+            prefixed.VectorSetAdd(
+                "vectorset",
+                request,
                 flags: CommandFlags.FireAndForget);
 
             mock.Received().VectorSetAdd(
                 "prefix:vectorset",
-                "element1",
-                vector,
-                64,
-                VectorSetQuantization.Binary,
-                300,
-                32,
-                true,
-                attributes,
+                request,
                 CommandFlags.FireAndForget);
         }
 

@@ -12,18 +12,11 @@ public partial interface IDatabaseAsync
 {
     // Vector Set operations
 
-    /// <inheritdoc cref="IDatabase.VectorSetAdd(RedisKey, RedisValue, ReadOnlyMemory{float}, int?, VectorSetQuantization, int?, int?, bool, string?, CommandFlags)"/>
+    /// <inheritdoc cref="IDatabase.VectorSetAdd(RedisKey, VectorSetAddRequest, CommandFlags)"/>
     [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     Task<bool> VectorSetAddAsync(
         RedisKey key,
-        RedisValue element,
-        ReadOnlyMemory<float> values,
-        int? reducedDimensions = null,
-        VectorSetQuantization quantization = VectorSetQuantization.Int8,
-        int? buildExplorationFactor = null,
-        int? maxConnections = null,
-        bool useCheckAndSet = false,
-        string? attributesJson = null,
+        VectorSetAddRequest request,
         CommandFlags flags = CommandFlags.None);
 
     /// <inheritdoc cref="IDatabase.VectorSetLength(RedisKey, CommandFlags)"/>

@@ -8,16 +8,9 @@ internal sealed partial class KeyPrefixedDatabase
     // Vector Set operations
     public bool VectorSetAdd(
         RedisKey key,
-        RedisValue element,
-        ReadOnlyMemory<float> values,
-        int? reducedDimensions = null,
-        VectorSetQuantization quantization = VectorSetQuantization.Int8,
-        int? buildExplorationFactor = null,
-        int? maxConnections = null,
-        bool useCheckAndSet = false,
-        string? attributesJson = null,
+        VectorSetAddRequest request,
         CommandFlags flags = CommandFlags.None) =>
-        Inner.VectorSetAdd(ToInner(key), element, values, reducedDimensions, quantization, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson, flags);
+        Inner.VectorSetAdd(ToInner(key), request, flags);
 
     public long VectorSetLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetLength(ToInner(key), flags);

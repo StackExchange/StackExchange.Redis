@@ -8,17 +8,10 @@ internal partial class RedisDatabase
 {
     public bool VectorSetAdd(
         RedisKey key,
-        RedisValue element,
-        ReadOnlyMemory<float> values,
-        int? reducedDimensions = null,
-        VectorSetQuantization quantization = VectorSetQuantization.Int8,
-        int? buildExplorationFactor = null,
-        int? maxConnections = null,
-        bool useCheckAndSet = false,
-        string? attributesJson = null,
+        VectorSetAddRequest request,
         CommandFlags flags = CommandFlags.None)
     {
-        var msg = new VectorSetAddMessage(Database, flags, key, element, values, reducedDimensions, quantization, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson);
+        var msg = request.ToMessage(key, Database, flags);
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
@@ -107,17 +100,10 @@ internal partial class RedisDatabase
     // Vector Set async operations
     public Task<bool> VectorSetAddAsync(
         RedisKey key,
-        RedisValue element,
-        ReadOnlyMemory<float> values,
-        int? reducedDimensions = null,
-        VectorSetQuantization quantization = VectorSetQuantization.Int8,
-        int? buildExplorationFactor = null,
-        int? maxConnections = null,
-        bool useCheckAndSet = false,
-        string? attributesJson = null,
+        VectorSetAddRequest request,
         CommandFlags flags = CommandFlags.None)
     {
-        var msg = new VectorSetAddMessage(Database, flags, key, element, values, reducedDimensions, quantization, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson);
+        var msg = request.ToMessage(key, Database, flags);
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 

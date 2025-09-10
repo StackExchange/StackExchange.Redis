@@ -11,16 +11,9 @@ internal partial class KeyPrefixed<TInner>
     [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     public Task<bool> VectorSetAddAsync(
         RedisKey key,
-        RedisValue element,
-        ReadOnlyMemory<float> values,
-        int? reducedDimensions = null,
-        VectorSetQuantization quantization = VectorSetQuantization.Int8,
-        int? buildExplorationFactor = null,
-        int? maxConnections = null,
-        bool useCheckAndSet = false,
-        string? attributesJson = null,
+        VectorSetAddRequest request,
         CommandFlags flags = CommandFlags.None) =>
-        Inner.VectorSetAddAsync(ToInner(key), element, values, reducedDimensions, quantization, buildExplorationFactor, maxConnections, useCheckAndSet, attributesJson, flags);
+        Inner.VectorSetAddAsync(ToInner(key), request, flags);
 
     public Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetLengthAsync(ToInner(key), flags);
