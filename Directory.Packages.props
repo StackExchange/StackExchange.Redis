@@ -8,6 +8,10 @@
     <PackageVersion Include="System.Threading.Channels" Version="5.0.0" />
     <PackageVersion Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
+
+    <!-- For analyzers, tied to the consumer's build SDK; at the moment, that means "us" -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+    
     <!-- Packages only used in the solution, upgrade at will -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.2" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.4.1" />
@@ -23,6 +27,7 @@
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
     <PackageVersion Include="System.Collections.Immutable" Version="9.0.0" />
     <PackageVersion Include="System.Reflection.Metadata" Version="9.0.0" />
+
     <!-- For binding redirect testing, main package gets this transitively -->
     <PackageVersion Include="System.IO.Pipelines" Version="9.0.0" />
     <PackageVersion Include="System.Runtime.Caching" Version="9.0.0" />

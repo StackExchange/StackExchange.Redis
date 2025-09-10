@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Net;
 
+// ReSharper disable once CheckNamespace
 namespace StackExchange.Redis
 {
     /// <summary>
     /// Describes functionality that is common to both standalone redis servers and redis clusters.
     /// </summary>
-    public interface IDatabase : IRedis, IDatabaseAsync
+    public partial interface IDatabase : IRedis, IDatabaseAsync
     {
         /// <summary>
         /// The numeric identifier of this database.

@@ -4,12 +4,13 @@ using System.ComponentModel;
 using System.Net;
 using System.Threading.Tasks;
 
+// ReSharper disable once CheckNamespace
 namespace StackExchange.Redis
 {
     /// <summary>
     /// Describes functionality that is common to both standalone redis servers and redis clusters.
     /// </summary>
-    public interface IDatabaseAsync : IRedisAsync
+    public partial interface IDatabaseAsync : IRedisAsync
     {
         /// <summary>
         /// Indicates whether the instance can communicate with the server (resolved using the supplied key and optional flags).

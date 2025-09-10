@@ -4,7 +4,7 @@ using System.Net;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal sealed class KeyPrefixedDatabase : KeyPrefixed<IDatabase>, IDatabase
+    internal sealed partial class KeyPrefixedDatabase : KeyPrefixed<IDatabase>, IDatabase
     {
         public KeyPrefixedDatabase(IDatabase inner, byte[] prefix) : base(inner, prefix)
         {
