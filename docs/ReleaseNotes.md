@@ -8,6 +8,8 @@ Current package versions:
 
 ## Unreleased
 
+- Fix `RedisValue` special-value (NaN, Inf, etc) handling when casting from raw/string values to `double` ([#2950 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2950))
+
 ## 2.9.11
 
 - Add `HGETDEL`, `HGETEX` and `HSETEX` support ([#2863 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2863))
