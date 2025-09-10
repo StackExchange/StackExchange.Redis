@@ -9,6 +9,7 @@ Current package versions:
 ## Unreleased
 
 - Fix `RedisValue` special-value (NaN, Inf, etc) handling when casting from raw/string values to `double` ([#2950 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2950))
+- Add vector-set support ([#2939 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2939))
 
 ## 2.9.11
 
@@ -17,7 +18,6 @@ Current package versions:
 - Add `Condition.SortedSet[Not]ContainsStarting` condition for transactions ([#2638 by ArnoKoll](https://github.com/StackExchange/StackExchange.Redis/pull/2638))
 - Add support for XPENDING Idle time filter ([#2822 by david-brink-talogy](https://github.com/StackExchange/StackExchange.Redis/pull/2822))
 - Improve `double` formatting performance on net8+ ([#2928 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2928))
-- Add vector-set support ([#2939 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2939))
 - Add `GetServer(RedisKey, ...)` API ([#2936 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2936))
 - Fix error constructing `StreamAdd` message ([#2941 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2941)) 
 
