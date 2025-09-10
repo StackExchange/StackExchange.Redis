@@ -504,8 +504,9 @@ public abstract class LoggingTunnel : Tunnel
 
         public override async Task FlushAsync(CancellationToken cancellationToken)
         {
-            await _writes.FlushAsync().ForAwait();
+            var writesTask = _writes.FlushAsync().ForAwait();
             await _inner.FlushAsync().ForAwait();
+            await writesTask;
         }
 
         protected override void Dispose(bool disposing)
@@ -608,8 +609,9 @@ public abstract class LoggingTunnel : Tunnel
         }
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            await _writes.WriteAsync(buffer, offset, count, cancellationToken).ForAwait();
+            var writesTask = _writes.WriteAsync(buffer, offset, count, cancellationToken).ForAwait();
             await _inner.WriteAsync(buffer, offset, count, cancellationToken).ForAwait();
+            await writesTask;
         }
 #if NETCOREAPP3_0_OR_GREATER
         public override void Write(ReadOnlySpan<byte> buffer)
@@ -619,8 +621,9 @@ public abstract class LoggingTunnel : Tunnel
         }
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
         {
-            await _writes.WriteAsync(buffer, cancellationToken).ForAwait();
+            var writesTask = _writes.WriteAsync(buffer, cancellationToken).ForAwait();
             await _inner.WriteAsync(buffer, cancellationToken).ForAwait();
+            await writesTask;
         }
 #endif
     }
