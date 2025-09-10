@@ -153,7 +153,7 @@ public partial interface IDatabase
     /// </summary>
     /// <param name="key">The key of the vectorset.</param>
     /// <param name="member">The member name.</param>
-    /// <param name="jsonAttributes">The attributes to set as a JSON string.</param>
+    /// <param name="attributesJson">The attributes to set as a JSON string.</param>
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>True if successful.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vsetattr"/></remarks>
@@ -161,7 +161,10 @@ public partial interface IDatabase
     bool VectorSetSetAttributesJson(
         RedisKey key,
         RedisValue member,
-        string jsonAttributes,
+#if NET7_0_OR_GREATER
+        [StringSyntax(StringSyntaxAttribute.Json)]
+#endif
+        string attributesJson,
         CommandFlags flags = CommandFlags.None);
 
     /// <summary>

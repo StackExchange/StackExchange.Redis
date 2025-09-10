@@ -48,8 +48,8 @@ internal partial class KeyPrefixed<TInner>
     public Task<bool> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetRemoveAsync(ToInner(key), member, flags);
 
-    public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None) =>
-        Inner.VectorSetSetAttributesJsonAsync(ToInner(key), member, jsonAttributes, flags);
+    public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None) =>
+        Inner.VectorSetSetAttributesJsonAsync(ToInner(key), member, attributesJson, flags);
 
     public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchAsync(
         RedisKey key,

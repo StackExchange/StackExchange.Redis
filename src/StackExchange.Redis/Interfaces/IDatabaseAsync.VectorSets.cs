@@ -80,7 +80,10 @@ public partial interface IDatabaseAsync
     Task<bool> VectorSetSetAttributesJsonAsync(
         RedisKey key,
         RedisValue member,
-        string jsonAttributes,
+#if NET7_0_OR_GREATER
+        [StringSyntax(StringSyntaxAttribute.Json)]
+#endif
+        string attributesJson,
         CommandFlags flags = CommandFlags.None);
 
     /// <inheritdoc cref="IDatabase.VectorSetSimilaritySearch(RedisKey, VectorSetSimilaritySearchRequest, CommandFlags)"/>

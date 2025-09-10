@@ -45,8 +45,8 @@ internal sealed partial class KeyPrefixedDatabase
     public bool VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetRemove(ToInner(key), member, flags);
 
-    public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None) =>
-        Inner.VectorSetSetAttributesJson(ToInner(key), member, jsonAttributes, flags);
+    public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None) =>
+        Inner.VectorSetSetAttributesJson(ToInner(key), member, attributesJson, flags);
 
     public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(
         RedisKey key,

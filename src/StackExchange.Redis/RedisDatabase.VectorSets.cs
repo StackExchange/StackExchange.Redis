@@ -81,9 +81,9 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
-    public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None)
+    public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
     {
-        var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, jsonAttributes);
+        var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, attributesJson);
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
@@ -173,9 +173,9 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 
-    public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string jsonAttributes, CommandFlags flags = CommandFlags.None)
+    public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
     {
-        var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, jsonAttributes);
+        var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, attributesJson);
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 
