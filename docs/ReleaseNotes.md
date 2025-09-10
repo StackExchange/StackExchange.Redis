@@ -8,8 +8,15 @@ Current package versions:
 
 ## Unreleased
 
-- Fix `RedisValue` special-value (NaN, Inf, etc) handling when casting from raw/string values to `double` ([#2950 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2950))
+- (none)
+
+## 2.9.17
+
 - Add vector-set support ([#2939 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2939))
+- Fix `RedisValue` special-value (NaN, Inf, etc) handling when casting from raw/string values to `double` ([#2950 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2950))
+- Internals:
+  - Use `sealed` classes where possible ([#2942 by Henr1k80](https://github.com/StackExchange/StackExchange.Redis/pull/2942))
+  - Add overlapped flushing in `LoggingTunnel` and avoid double-lookups ([#2943 by Henr1k80](https://github.com/StackExchange/StackExchange.Redis/pull/2943))
 
 ## 2.9.11
 
