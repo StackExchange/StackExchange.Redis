@@ -1,11 +1,5 @@
-﻿using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
-using System.Net;
-using RESPite.Connections;
-using RESPite.Connections.Internal;
+﻿using RESPite.Connections;
 using StackExchange.Redis;
-using StackExchange.Redis.Maintenance;
-using StackExchange.Redis.Profiling;
 
 namespace RESPite.StackExchange.Redis;
 
@@ -309,35 +303,9 @@ public sealed class RespMultiplexer : IConnectionMultiplexer
         throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
     }
 
-    private void OnNodesChanged()
-    {
-        var nodes = _nodes;
-        _defaultContext = nodes.Length switch
-        {
-            0 => NullConnection.NonRoutable.Context, // nowhere to go
-            1 => nodes[0] is { IsConnected: true } conn
-                ? conn.Context
-                : NullConnection.NonRoutable.Context, // nowhere to go
-            _ => BuildRouted(nodes),
-        };
-    }
-
-    private ref readonly RespContext BuildRouted(Node[] nodes)
-    {
-        Shard[] oversized = ArrayPool<Shard>.Shared.Rent(nodes.Length);
-        for (int i = 0; i < nodes.Length; i++)
-        {
-            oversized[i] = nodes[i].AsShard();
-        }
-        Array.Sort(oversized, 0, nodes.Length);
-        var conn = _routedConnection ??= new();
-        conn.SetRoutingTable(new ReadOnlySpan<Shard>(oversized, 0, nodes.Length));
-        ArrayPool<Shard>.Shared.Return(oversized);
-        return ref conn.Context;
-    }
 
     public IServer[] GetServers() => Array.ConvertAll(_nodes, static x => x.AsServer());
-
+*/
     public Task<bool> ConfigureAsync(TextWriter? log = null) => throw new NotImplementedException();
 
     public bool Configure(TextWriter? log = null) => throw new NotImplementedException();
@@ -365,5 +333,4 @@ public sealed class RespMultiplexer : IConnectionMultiplexer
         throw new NotImplementedException();
 
     public void AddLibraryNameSuffix(string suffix) => throw new NotImplementedException();
-    */
 }

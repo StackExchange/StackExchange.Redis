@@ -150,13 +150,12 @@ internal sealed class NodeConnection : IDisposable, IAsyncDisposable, IRespConte
             log.LogLocked($"[{Label}] connecting...");
             connecting = true;
             var manager = _node.Manager;
-            var stream = await manager.ConnectionFactory.ConnectAsync(
+            var connection = await manager.ConnectionFactory.ConnectAsync(
                 _node.EndPoint,
                 _node.Port,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             connecting = false;
 
-            var connection = RespConnection.Create(stream, manager.Configuration);
             log.LogLocked($"[{Label}] Performing handshake...");
             // TODO: handshake
 

@@ -38,7 +38,7 @@ public class RespConnectionFactory
         Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         socket.NoDelay = true;
 #if NET6_0_OR_GREATER
-        await socket.ConnectAsync(endpoint ?? DefaultEndPoint, cancellationToken).ConfigureAwait(false);
+        await socket.ConnectAsync(ep, cancellationToken).ConfigureAwait(false);
 #else
         // hack together cancellation via dispose
         using (cancellationToken.Register(

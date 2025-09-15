@@ -1,27 +1,28 @@
 ﻿using System.Net;
+using RESPite.Connections;
 using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
 /// <summary>
-/// Implements IServer on top of a <see cref="Node"/>, which represents a fixed single connection
+/// Implements IServer on top of a <see cref="IRespContextSource"/>, which represents a fixed single connection
 /// to a single redis instance. The connection exposed is the "interactive" connection.
 /// </summary>
-internal sealed class NodeServer(Node node) : IServer
+internal sealed class RespContextServer(IRedisAsync parent, IRespContextSource source) : IServer
 {
     // deliberately not caching this - if the connection changes, we want to know about it
-    internal ref readonly RespContext Context => ref node.Context;
+    internal ref readonly RespContext Context => ref source.Context;
 
-    public IConnectionMultiplexer Multiplexer => node.Multiplexer;
+    public IConnectionMultiplexer Multiplexer => parent.Multiplexer;
     public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
-    public bool TryWait(Task task) => node.Multiplexer.TryWait(task);
+    public bool TryWait(Task task) => parent.Multiplexer.TryWait(task);
 
-    public void Wait(Task task) => node.Multiplexer.Wait(task);
+    public void Wait(Task task) => parent.Multiplexer.Wait(task);
 
-    public T Wait<T>(Task<T> task) => node.Multiplexer.Wait(task);
+    public T Wait<T>(Task<T> task) => parent.Multiplexer.Wait(task);
 
-    public void WaitAll(params Task[] tasks) => node.Multiplexer.WaitAll(tasks);
+    public void WaitAll(params Task[] tasks) => parent.Multiplexer.WaitAll(tasks);
 
     public TimeSpan Ping(CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
