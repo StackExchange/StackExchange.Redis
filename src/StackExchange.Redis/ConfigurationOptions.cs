@@ -210,6 +210,8 @@ namespace StackExchange.Redis
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
+        internal Func<ConnectionMultiplexer, Task> AfterDisconnectAsync => Defaults.AfterDisconnectAsync;
+
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException.
         /// </summary>
@@ -305,8 +307,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Supply a user certificate from a PEM file pair and enable TLS.
         /// </summary>
-        /// <param name="userCertificatePath">The path for the the user certificate (commonly a .crt file).</param>
-        /// <param name="userKeyPath">The path for the the user key (commonly a .key file).</param>
+        /// <param name="userCertificatePath">The path for the user certificate (commonly a .crt file).</param>
+        /// <param name="userKeyPath">The path for the user key (commonly a .key file).</param>
         public void SetUserPemCertificate(string userCertificatePath, string? userKeyPath = null)
         {
             CertificateSelectionCallback = CreatePemUserCertificateCallback(userCertificatePath, userKeyPath);
@@ -317,7 +319,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Supply a user certificate from a PFX file and optional password and enable TLS.
         /// </summary>
-        /// <param name="userCertificatePath">The path for the the user certificate (commonly a .pfx file).</param>
+        /// <param name="userCertificatePath">The path for the user certificate (commonly a .pfx file).</param>
         /// <param name="password">The password for the certificate file.</param>
         public void SetUserPfxCertificate(string userCertificatePath, string? password = null)
         {
@@ -383,7 +385,7 @@ namespace StackExchange.Redis
             chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
             chain.ChainPolicy.VerificationTime = chainToValidate?.ChainPolicy?.VerificationTime ?? DateTime.Now;
             chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 0, 0);
-            // Ensure entended key usage checks are run and that we're observing a server TLS certificate
+            // Ensure intended key usage checks are run and that we're observing a server TLS certificate
             chain.ChainPolicy.ApplicationPolicy.Add(_serverAuthOid);
 
             chain.ChainPolicy.ExtraStore.Add(authority);

@@ -2294,9 +2294,11 @@ namespace StackExchange.Redis
                 var quits = QuitAllServers();
                 WaitAllIgnoreErrors(quits);
             }
+
             DisposeAndClearServers();
             OnCloseReaderWriter();
             OnClosing(true);
+            RawConfig.AfterDisconnectAsync?.Invoke(this).Wait(SyncConnectTimeout(true));
             Interlocked.Increment(ref _connectionCloseCount);
         }
 
@@ -2306,7 +2308,11 @@ namespace StackExchange.Redis
         /// <param name="allowCommandsToComplete">Whether to allow all in-queue commands to complete first.</param>
         public async Task CloseAsync(bool allowCommandsToComplete = true)
         {
+            if (_isDisposed) return;
+
+            OnClosing(false);
             _isDisposed = true;
+            _profilingSessionProvider = null;
             using (var tmp = pulse)
             {
                 pulse = null;
@@ -2319,6 +2325,10 @@ namespace StackExchange.Redis
             }
 
             DisposeAndClearServers();
+            OnCloseReaderWriter();
+            OnClosing(true);
+            await RawConfig.AfterDisconnectAsync(this).ForAwait();
+            Interlocked.Increment(ref _connectionCloseCount);
         }
 
         private void DisposeAndClearServers()

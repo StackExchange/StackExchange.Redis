@@ -1848,6 +1848,7 @@ static StackExchange.Redis.StreamPosition.Beginning.get -> StackExchange.Redis.R
 static StackExchange.Redis.StreamPosition.NewMessages.get -> StackExchange.Redis.RedisValue
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.AbortOnConnectFail.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! multiplexer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.AfterDisconnectAsync(StackExchange.Redis.ConnectionMultiplexer! multiplexer) -> System.Threading.Tasks.Task!
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.AllowAdmin.get -> bool
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.BacklogPolicy.get -> StackExchange.Redis.BacklogPolicy!
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.CheckCertificateRevocation.get -> bool

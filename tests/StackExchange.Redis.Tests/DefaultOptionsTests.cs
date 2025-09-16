@@ -151,6 +151,31 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(1, provider.Calls);
     }
 
+    public class TestAfterDisconnectOptionsProvider : DefaultOptionsProvider
+    {
+        public int Calls;
+
+        public override Task AfterDisconnectAsync(ConnectionMultiplexer muxer)
+        {
+            Interlocked.Increment(ref Calls);
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task AfterDisconnectAsyncHandler()
+    {
+        var options = ConfigurationOptions.Parse(GetConfiguration());
+        var provider = new TestAfterDisconnectOptionsProvider();
+        options.Defaults = provider;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await conn.CloseAsync();
+
+        Assert.False(conn.IsConnected);
+        Assert.Equal(1, provider.Calls);
+    }
+
     public class TestClientNameOptionsProvider : DefaultOptionsProvider
     {
         protected override string GetDefaultClientName() => "Hey there";

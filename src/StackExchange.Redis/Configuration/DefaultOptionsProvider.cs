@@ -308,6 +308,12 @@ namespace StackExchange.Redis.Configuration
         public virtual Task AfterConnectAsync(ConnectionMultiplexer multiplexer, Action<string> log) => Task.CompletedTask;
 
         /// <summary>
+        /// The action to perform, if any, immediately after a connection is closed.
+        /// </summary>
+        /// <param name="multiplexer">The multiplexer that just disconnected.</param>
+        public virtual Task AfterDisconnectAsync(ConnectionMultiplexer multiplexer) => Task.CompletedTask;
+
+        /// <summary>
         /// Gets the default SSL "enabled or not" based on a set of endpoints.
         /// Note: this setting then applies for *all* endpoints.
         /// </summary>

@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Add overrideable `AfterDisconnectAsync()` callback on `DefaultOptionsProvider` ([#2952 by philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2952))
 
 ## 2.9.17
 
