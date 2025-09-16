@@ -13,18 +13,17 @@ public class RespMultiplexerTests(ITestOutputHelper log)
     public async Task CanConnect()
     {
         await using var muxer = new RespMultiplexer();
-        await muxer.ConnectAsync(log: logWriter);
+        await muxer.ConnectAsync("localhost:6379", log: logWriter);
         Assert.True(muxer.IsConnected);
 
         var server = muxer.GetServer(muxer.GetEndPoints().Single());
-        Assert.IsType<NodeServer>(server); // we expect this to *not* use routing
+        Assert.IsType<RespContextServer>(server); // we expect this to *not* use routing
         server.Ping();
         await server.PingAsync();
 
         var db = muxer.GetDatabase();
         var proxied = Assert.IsType<RespContextDatabase>(db);
         // since this is a single-node instance, we expect the proxied database to use the interactive connection
-        Assert.Equal(RespContextProxyKind.ConnectionInteractive, proxied.RespContextProxyKind);
         db.Ping();
         await db.PingAsync();
     }

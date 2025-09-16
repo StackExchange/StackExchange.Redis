@@ -10,18 +10,19 @@ namespace RESPite.StackExchange.Redis;
 /// </summary>
 internal partial class RespContextDatabase : IDatabase
 {
-    private readonly IRedisAsync _parent;
+    private readonly IConnectionMultiplexer _muxer;
     private IRespContextSource _source;
     private readonly int _db;
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="RespContextDatabase"/> class.
     /// Implements IDatabase on top of a <see cref="IRespContextSource"/>, which provides access to a RESP context; this
     /// could be direct to a known server or routed - the <see cref="IRespContextSource.Context"/> is responsible for
     /// that determination.
     /// </summary>
-    public RespContextDatabase(IRedisAsync parent, IRespContextSource source, int db)
+    public RespContextDatabase(IConnectionMultiplexer muxer, IRespContextSource source, int db)
     {
-        _parent = parent;
+        _muxer = muxer;
         _source = source;
         _db = db;
     }
@@ -48,13 +49,13 @@ internal partial class RespContextDatabase : IDatabase
     private TimeSpan SyncTimeout => _source.Context.SyncTimeout;
     public int Database => _db;
 
-    IConnectionMultiplexer IRedisAsync.Multiplexer => _parent.Multiplexer;
+    IConnectionMultiplexer IRedisAsync.Multiplexer => _muxer;
 
-    public bool TryWait(Task task) => _parent.Multiplexer.TryWait(task);
+    public bool TryWait(Task task) => task.Wait(SyncTimeout);
 
-    public void Wait(Task task) => _parent.Multiplexer.Wait(task);
+    public void Wait(Task task) => _muxer.Wait(task);
 
-    public T Wait<T>(Task<T> task) => _parent.Multiplexer.Wait(task);
+    public T Wait<T>(Task<T> task) => _muxer.Wait(task);
 
-    public void WaitAll(params Task[] tasks) => _parent.Multiplexer.WaitAll(tasks);
+    public void WaitAll(params Task[] tasks) => _muxer.WaitAll(tasks);
 }

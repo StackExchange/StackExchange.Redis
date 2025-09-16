@@ -20,6 +20,7 @@ internal sealed class Node : IDisposable, IAsyncDisposable, IRespContextSource
         _interactive = new(this, false);
     }
 
+    internal object? UserObject { get; set; }
     public bool IsConnected => _interactive.IsConnected;
     public bool IsConnecting => _interactive.IsConnecting;
     public bool IsReplica { get; private set; }

@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using System.Net.Sockets;
 
 namespace RESPite.Connections;
@@ -69,7 +70,7 @@ public class RespConnectionFactory
         return new(stream);
     }
 
-    protected virtual EndPoint GetEndPoint(string endpoint, int port)
+    protected internal virtual EndPoint GetEndPoint(string endpoint, int port)
     {
         if (port == 0) port = DefaultPort;
         if (string.IsNullOrWhiteSpace(endpoint))
@@ -84,5 +85,51 @@ public class RespConnectionFactory
             _ when IPAddress.TryParse(endpoint, out var address) => new IPEndPoint(address, port),
             _ => new DnsEndPoint(endpoint, port),
         };
+    }
+
+    public virtual bool TryParse(EndPoint endpoint, out string host, out int port)
+    {
+        if (endpoint is DnsEndPoint dns)
+        {
+            host = dns.Host switch
+            {
+                "localhost" or "." => "127.0.0.1",
+                _ => dns.Host,
+            };
+            port = dns.Port;
+            return true;
+        }
+
+        if (endpoint is IPEndPoint ip)
+        {
+            host = ip.Address.ToString();
+            port = ip.Port;
+            return true;
+        }
+
+        host = "";
+        port = 0;
+        return false;
+    }
+
+    public virtual bool TryParse(string hostAndPort, out string host, out int port)
+    {
+        int i = hostAndPort.LastIndexOf(':');
+        if (i < 0)
+        {
+            host = hostAndPort;
+            port = 0;
+            return true;
+        }
+
+        host = hostAndPort.Substring(0, i);
+        if (int.TryParse(hostAndPort.Substring(i + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out port))
+        {
+            return true;
+        }
+
+        host = hostAndPort;
+        port = 0;
+        return false;
     }
 }

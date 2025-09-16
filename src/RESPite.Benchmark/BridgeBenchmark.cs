@@ -9,7 +9,7 @@ public sealed class BridgeBenchmark(string[] args) : OldCoreBenchmarkBase(args)
     protected override IConnectionMultiplexer Create(int port)
     {
         var obj = new RespMultiplexer();
-        obj.Connect($"127.0.0.1:{Port}");
+        obj.Connect("127.0.0.1:{Port}");
         return obj;
     }
 }

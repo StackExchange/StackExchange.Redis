@@ -28,11 +28,16 @@ internal partial class RespContextDatabase
     public EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public IBatch CreateBatch(object? asyncState = null) =>
-        new RespContextBatch(_source, _db);
+    public IBatch CreateBatch(object? asyncState = null)
+    {
+        if (asyncState is not null) throw new NotSupportedException($"{nameof(asyncState)} is not supported");
+        return new RespContextBatch(_muxer, _source, _db);
+    }
 
-    public ITransaction CreateTransaction(object? asyncState = null) =>
+    public ITransaction CreateTransaction(object? asyncState = null)
+    {
         throw new NotImplementedException();
+    }
 
     // Key migration
     public Task KeyMigrateAsync(

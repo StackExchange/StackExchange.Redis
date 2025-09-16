@@ -9,7 +9,7 @@ namespace RESPite.Tests;
 
 public class ConnectionFixture : IDisposable
 {
-    private readonly RespConnectionPool _pool = new(new IPEndPoint(IPAddress.Loopback, 6379));
+    private readonly RespConnectionPool _pool = new();
 
     public void Dispose() => _pool.Dispose();
 

@@ -7,7 +7,7 @@ internal sealed class RespContextBatch : RespContextDatabase, IBatch, IDisposabl
 {
     private readonly RespBatch _batch;
 
-    public RespContextBatch(IRedisAsync parent, IRespContextSource source, int db) : base(parent, source, db)
+    public RespContextBatch(IConnectionMultiplexer muxer, IRespContextSource source, int db) : base(muxer, source, db)
     {
         _batch = source.Context.CreateBatch();
         SetSource(this);

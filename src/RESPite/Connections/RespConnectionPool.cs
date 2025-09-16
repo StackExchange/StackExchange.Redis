@@ -30,7 +30,9 @@ public sealed class RespConnectionPool : IDisposable
 
     private readonly EventHandler<RespConnection.RespConnectionErrorEventArgs> _onConnectionError;
 
-    public RespConnectionPool() : this(RespContext.Null, "127.0.0.1", 6379) { }
+    public RespConnectionPool(int count = DefaultCount) : this(RespContext.Null, "127.0.0.1", 6379, count)
+    {
+    }
 
     public RespConnectionPool(
         in RespContext template,

@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using RESPite.Connections.Internal;
+using RESPite.Internal;
 
 namespace RESPite.Connections;
 
@@ -84,29 +85,13 @@ public sealed class RespConnectionManager : IRespContextSource
         _nodes = nodes;
     }
 
-    /*
-    public void Connect(string configuration = "", TextWriter? log = null)
-    {
-        // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
-        var config = ConfigurationOptions.Parse(configuration ?? "");
-        Connect(config, log);
-    }
-
-    public void Connect(ConfigurationOptions options, TextWriter? log = null)
+    internal void Connect(RespConfiguration options, ReadOnlySpan<EndpointPair> endpoints, TextWriter? log = null)
         // use sync over async; reduce code-duplication, and sync wouldn't add anything
-        => ConnectAsync(options, log).Wait(Lifetime);
+        => ConnectAsync(options, endpoints, log).Wait(Lifetime);
 
-    public Task ConnectAsync(string configuration = "", TextWriter? log = null)
+    internal Task ConnectAsync(RespConfiguration options, ReadOnlySpan<EndpointPair> endpoints, TextWriter? log = null)
     {
-        // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
-        if (string.IsNullOrWhiteSpace(configuration)) configuration = "."; // localhost by default
-        var config = ConfigurationOptions.Parse(configuration ?? "");
-        return ConnectAsync(config, log);
-    }
-
-    public async Task ConnectAsync(ConfigurationOptions options, TextWriter? log = null)
-    {
-        OnConnect(options);
+        OnConnect(options, endpoints);
         var snapshot = _nodes;
         log.LogLocked($"Connecting to {snapshot.Length} nodes...");
         Task<bool>[] pending = new Task<bool>[snapshot.Length];
@@ -114,7 +99,11 @@ public sealed class RespConnectionManager : IRespContextSource
         {
             pending[i] = snapshot[i].ConnectAsync(log);
         }
+        return ConnectAsyncAwaited(pending, log, snapshot.Length);
+    }
 
+    private async Task ConnectAsyncAwaited(Task<bool>[] pending, TextWriter? log, int nodeCount)
+    {
         await Task.WhenAll(pending).ConfigureAwait(false);
         int success = 0;
         foreach (var task in pending)
@@ -126,9 +115,8 @@ public sealed class RespConnectionManager : IRespContextSource
         // configure our primary connection
         OnNodesChanged();
 
-        log.LogLocked($"Connected to {success} of {snapshot.Length} nodes.");
+        log.LogLocked($"Connected to {success} of {nodeCount} nodes.");
     }
-    */
 
     public void Dispose()
     {
@@ -228,4 +216,18 @@ public sealed class RespConnectionManager : IRespContextSource
         ArrayPool<Shard>.Shared.Return(oversized);
         return ref conn.Context;
     }
+
+    internal Node GetNode(string host, int port)
+    {
+        foreach (var node in _nodes)
+        {
+            if (node.EndPoint == host && node.Port == port) return node;
+        }
+
+        throw new KeyNotFoundException($"No node found for {host}:{port}");
+    }
+
+    internal Node GetNode(string hostAndPort) => ConnectionFactory.TryParse(hostAndPort, out var host, out var port)
+        ? GetNode(host, port)
+        : throw new ArgumentException($"Could not parse host and port from '{hostAndPort}'", nameof(hostAndPort));
 }

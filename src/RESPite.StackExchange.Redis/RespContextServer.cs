@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using RESPite.Connections;
+using RESPite.Connections.Internal;
 using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
@@ -8,36 +9,36 @@ namespace RESPite.StackExchange.Redis;
 /// Implements IServer on top of a <see cref="IRespContextSource"/>, which represents a fixed single connection
 /// to a single redis instance. The connection exposed is the "interactive" connection.
 /// </summary>
-internal sealed class RespContextServer(IRedisAsync parent, IRespContextSource source) : IServer
+internal sealed class RespContextServer(RespMultiplexer muxer, Node node) : IServer
 {
     // deliberately not caching this - if the connection changes, we want to know about it
-    internal ref readonly RespContext Context => ref source.Context;
+    internal ref readonly RespContext Context => ref node.Context;
 
-    public IConnectionMultiplexer Multiplexer => parent.Multiplexer;
+    public IConnectionMultiplexer Multiplexer => muxer;
     public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
-    public bool TryWait(Task task) => parent.Multiplexer.TryWait(task);
+    public bool TryWait(Task task) => task.Wait(Multiplexer.TimeoutMilliseconds);
 
-    public void Wait(Task task) => parent.Multiplexer.Wait(task);
+    public void Wait(Task task) => Multiplexer.Wait(task);
 
-    public T Wait<T>(Task<T> task) => parent.Multiplexer.Wait(task);
+    public T Wait<T>(Task<T> task) => Multiplexer.Wait(task);
 
-    public void WaitAll(params Task[] tasks) => parent.Multiplexer.WaitAll(tasks);
+    public void WaitAll(params Task[] tasks) => Multiplexer.WaitAll(tasks);
 
     public TimeSpan Ping(CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
-    public ClusterConfiguration? ClusterConfiguration { get; }
-    public EndPoint EndPoint => node.EndPoint;
+    public ClusterConfiguration? ClusterConfiguration => throw new NotImplementedException();
+    public EndPoint EndPoint => node.Manager.ConnectionFactory.GetEndPoint(node.EndPoint, node.Port);
     public RedisFeatures Features => new(Version);
     public bool IsConnected => node.IsConnected;
     public RedisProtocol Protocol { get; }
-    public bool IsSlave { get; }
-    public bool IsReplica { get; }
+    bool IServer.IsSlave => node.IsReplica;
+    public bool IsReplica => node.IsReplica;
     public bool AllowSlaveWrites { get; set; }
     public bool AllowReplicaWrites { get; set; }
     public ServerType ServerType { get; }
-    public Version Version => node.Version;
-    public int DatabaseCount { get; }
+    public Version Version => throw new NotImplementedException();
+    public int DatabaseCount => throw new NotImplementedException();
     public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
     public Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
