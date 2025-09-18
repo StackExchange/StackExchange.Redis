@@ -784,7 +784,10 @@ namespace StackExchange.Redis
                     {
                         return Format.GetString(span);
                     }
-                    catch
+                    catch (Exception e) when // Only catch exception throwed by Encoding.UTF8.GetString
+                        (e is DecoderFallbackException
+                        || e is ArgumentException
+                        || e is ArgumentNullException)
                     {
                         return ToHex(span);
                     }
