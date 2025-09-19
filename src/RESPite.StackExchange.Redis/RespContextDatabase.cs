@@ -59,3 +59,9 @@ internal partial class RespContextDatabase : IDatabase
 
     public void WaitAll(params Task[] tasks) => _muxer.WaitAll(tasks);
 }
+
+internal static class MiscExtensions
+{
+    internal static TimeSpan? NullIfMaxValue(this TimeSpan? value)
+        => value == TimeSpan.MaxValue ? null : value;
+}

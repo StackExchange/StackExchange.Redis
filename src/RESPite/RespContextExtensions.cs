@@ -136,6 +136,24 @@ public static class RespContextExtensions
     }
 
     /// <summary>
+    /// Creates an operation and synchronously writes it to the connection.
+    /// </summary>
+    /// <typeparam name="TState">The type of state data required by the parser.</typeparam>
+    /// <typeparam name="TResponse">The type of the response data being received.</typeparam>
+    /// <remarks>The raw payload is the entire RESP fragment, only used if there is not a command-map.</remarks>
+    internal static RespOperation<TResponse> Send<TState, TResponse>(
+        this in RespContext context,
+        ReadOnlySpan<byte> command,
+        in TState state,
+        IRespParser<TState, TResponse> parser,
+        byte[] rawPayload)
+    {
+        var op = CreateOperation(context, command, rawPayload, RespFormatters.Raw, in state, parser);
+        context.Connection.Write(op);
+        return op;
+    }
+
+    /// <summary>
     /// Creates an operation and asynchronously writes it to the connection, awaiting the completion of the underlying write.
     /// </summary>
     /// <typeparam name="TRequest">The type of the request data being sent.</typeparam>

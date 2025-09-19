@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis;
+﻿using RESPite.Messages;
+using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
@@ -17,9 +18,6 @@ internal partial class RespContextDatabase
         RedisValue hashField,
         double value,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<bool> HashDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
     public Task<long> HashDeleteAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None) =>
@@ -237,8 +235,14 @@ internal partial class RespContextDatabase
         RedisValue hashField,
         RedisValue value,
         When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None)
+    {
+        when.AlwaysOrNotExists();
+        if (value.IsNull) return HashDeleteAsync(key, hashField, flags);
+        return when == When.Always
+            ? HashSetCoreAsync(key, hashField, value, flags)
+            : HashSetNXCoreAsync(key, hashField, value, flags);
+    }
 
     public Task<long> HashStringLengthAsync(
         RedisKey key,
@@ -264,8 +268,8 @@ internal partial class RespContextDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public bool HashDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("hdel")]
+    public partial bool HashDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
     public long HashDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -476,8 +480,28 @@ internal partial class RespContextDatabase
         RedisValue hashField,
         RedisValue value,
         When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None)
+    {
+        when.AlwaysOrNotExists();
+        if (value.IsNull) return HashDelete(key, hashField, flags);
+        return when == When.Always
+            ? HashSetCore(key, hashField, value, flags)
+            : HashSetNXCore(key, hashField, value, flags);
+    }
+
+    [RespCommand("hset")]
+    private partial bool HashSetCore(
+        RedisKey key,
+        RedisValue hashField,
+        RedisValue value,
+        CommandFlags flags = CommandFlags.None);
+
+    [RespCommand("hsetnx")]
+    private partial bool HashSetNXCore(
+        RedisKey key,
+        RedisValue hashField,
+        RedisValue value,
+        CommandFlags flags = CommandFlags.None);
 
     public long HashStringLength(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();

@@ -269,8 +269,30 @@ internal partial class RespContextDatabase
     public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
         StringSet(key, value, expiry, false, when, flags);
 
+    public bool StringSet(
+        RedisKey key,
+        RedisValue value,
+        TimeSpan? expiry = null,
+        bool keepTtl = false,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
+        => value.IsNull
+            ? KeyDelete(key, flags)
+            : StringSetCore(key, value, expiry.NullIfMaxValue(), keepTtl, when, flags);
+
+    public Task<bool> StringSetAsync(
+        RedisKey key,
+        RedisValue value,
+        TimeSpan? expiry = null,
+        bool keepTtl = false,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
+        => value.IsNull
+            ? KeyDeleteAsync(key, flags)
+            : StringSetCoreAsync(key, value, expiry.NullIfMaxValue(), keepTtl, when, flags);
+
     [RespCommand("set", Formatter = StringSetFormatter.Formatter)]
-    public partial bool StringSet(
+    private partial bool StringSetCore(
         RedisKey key,
         RedisValue value,
         TimeSpan? expiry = null,

@@ -13,6 +13,7 @@ public static class RespFormatters
     public static IRespFormatter<long> Int64 => Value.Formatter.Default;
     public static IRespFormatter<float> Single => Value.Formatter.Default;
     public static IRespFormatter<int> Double => Value.Formatter.Default;
+    internal static IRespFormatter<byte[]> Raw => RawFormatter.Instance;
 
     public static class Key
     {
@@ -134,6 +135,27 @@ public static class RespFormatters
         public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in bool value)
         {
             writer.WriteCommand(command, 0);
+        }
+    }
+
+    private sealed class RawFormatter : IRespFormatter<byte[]>
+    {
+        private RawFormatter() { }
+        public static readonly RawFormatter Instance = new();
+
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in byte[] value)
+        {
+            if (writer.CommandMap is null)
+            {
+                writer.WriteRaw(value);
+            }
+            else
+            {
+                writer.WriteCommand(command, 0);
+            }
         }
     }
 }

@@ -10,11 +10,13 @@ internal partial class RespContextDatabase
     public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
+    private static readonly byte[] PingRaw = "*1\r\n$4\r\nping\r\n"u8.ToArray();
+
     public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None) =>
-        Context(flags).Send("ping"u8, DateTime.UtcNow, PingParser.Default).AsTask();
+        Context(flags).Send("ping"u8, DateTime.UtcNow, PingParser.Default, PingRaw).AsTask();
 
     public TimeSpan Ping(CommandFlags flags = CommandFlags.None) =>
-        Context(flags).Send("ping"u8, DateTime.UtcNow, PingParser.Default).Wait(SyncTimeout);
+        Context(flags).Send("ping"u8, DateTime.UtcNow, PingParser.Default, PingRaw).Wait(SyncTimeout);
 
     private sealed class PingParser : IRespParser<DateTime, TimeSpan>
     {
