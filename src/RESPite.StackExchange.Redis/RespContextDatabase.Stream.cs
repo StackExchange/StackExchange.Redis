@@ -43,7 +43,16 @@ internal partial class RespContextDatabase
         int? maxLength = null,
         bool useApproximateMaxLength = false,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        (messageId is null & maxLength is null & !useApproximateMaxLength)
+            ? StreamAddSimpleCoreAsync(key, streamField, streamValue, flags)
+            : throw new NotImplementedException();
+
+    [RespCommand("xadd")]
+    private partial RedisValue StreamAddSimpleCore(
+        RedisKey key,
+        RedisValue streamField,
+        RedisValue streamValue,
+        CommandFlags flags = CommandFlags.None);
 
     public Task<RedisValue> StreamAddAsync(
         RedisKey key,
@@ -64,7 +73,10 @@ internal partial class RespContextDatabase
         long? limit = null,
         StreamTrimMode trimMode = StreamTrimMode.KeepReferences,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        (messageId is null & maxLength is null & !useApproximateMaxLength
+         & limit is null & trimMode == StreamTrimMode.KeepReferences)
+            ? StreamAddSimpleCoreAsync(key, streamField, streamValue, flags)
+            : throw new NotImplementedException();
 
     public Task<RedisValue> StreamAddAsync(
         RedisKey key,
@@ -327,7 +339,9 @@ internal partial class RespContextDatabase
         int? maxLength = null,
         bool useApproximateMaxLength = false,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        (messageId is null & maxLength is null & !useApproximateMaxLength)
+            ? StreamAddSimpleCore(key, streamField, streamValue, flags)
+            : throw new NotImplementedException();
 
     public RedisValue StreamAdd(
         RedisKey key,
@@ -348,7 +362,10 @@ internal partial class RespContextDatabase
         long? limit = null,
         StreamTrimMode trimMode = StreamTrimMode.KeepReferences,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        (messageId is null & maxLength is null & !useApproximateMaxLength
+         & limit is null & trimMode == StreamTrimMode.KeepReferences)
+            ? StreamAddSimpleCore(key, streamField, streamValue, flags)
+            : throw new NotImplementedException();
 
     public RedisValue StreamAdd(
         RedisKey key,
