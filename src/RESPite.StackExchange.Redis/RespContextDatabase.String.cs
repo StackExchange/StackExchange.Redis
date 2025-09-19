@@ -305,7 +305,7 @@ internal partial class RespContextDatabase
         When When)>
     {
         public const string Formatter = $"{nameof(StringSetFormatter)}.{nameof(Instance)}";
-        public static readonly StringSetFormatter Instance = new StringSetFormatter();
+        public static readonly StringSetFormatter Instance = new();
         private StringSetFormatter() { }
 
         public void Format(

@@ -1,32 +1,89 @@
-﻿using StackExchange.Redis;
+﻿using RESPite.Messages;
+using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
 internal partial class RespContextDatabase
 {
     // Async SortedSet methods
-    public Task<bool> SortedSetAddAsync(
+    [RespCommand("zadd")]
+    public partial bool SortedSetAdd(
         RedisKey key,
         RedisValue member,
         double score,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags);
+
+    public bool SortedSetAdd(
+        RedisKey key,
+        RedisValue member,
+        double score,
+        When when,
+        CommandFlags flags) => when == When.Always
+        ? SortedSetAdd(key, member, score, flags) // simple mode
+        : SortedSetAdd(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
 
     public Task<bool> SortedSetAddAsync(
         RedisKey key,
         RedisValue member,
         double score,
         When when,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags) => when == When.Always
+        ? SortedSetAddAsync(key, member, score, flags) // simple mode
+        : SortedSetAddAsync(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
 
-    public Task<bool> SortedSetAddAsync(
+    [RespCommand("zadd", Formatter = SortedSetAddFormatter.Formatter)]
+    public partial bool SortedSetAdd(
         RedisKey key,
         RedisValue member,
         double score,
-        SortedSetWhen when = SortedSetWhen.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        SortedSetWhen when,
+        CommandFlags flags);
+
+    private sealed class
+        SortedSetAddFormatter : IRespFormatter<(RedisKey Key, RedisValue Member, double Score, SortedSetWhen When)>
+    {
+        public const string Formatter = $"{nameof(SortedSetAddFormatter)}.{nameof(Instance)}";
+        public static readonly SortedSetAddFormatter Instance = new();
+        private SortedSetAddFormatter() { }
+
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in (RedisKey Key, RedisValue Member, double Score, SortedSetWhen When) request)
+        {
+            static int Throw(SortedSetWhen when) => throw new ArgumentOutOfRangeException(
+                paramName: nameof(when),
+                message: $"Invalid {nameof(SortedSetWhen)} value for ZADD: {when}");
+
+            // ZADD key [NX | XX] [GT | LT] score member
+            var argCount = 3 + request.When switch
+            {
+                SortedSetWhen.Always => 0,
+                SortedSetWhen.Exists or SortedSetWhen.NotExists => 1,
+                SortedSetWhen.GreaterThan or SortedSetWhen.LessThan => 1,
+                SortedSetWhen.GreaterThan | SortedSetWhen.Exists => 2,
+                SortedSetWhen.GreaterThan | SortedSetWhen.NotExists => 2,
+                SortedSetWhen.LessThan | SortedSetWhen.Exists => 2,
+                SortedSetWhen.LessThan | SortedSetWhen.NotExists => 2,
+                _ => Throw(request.When),
+            };
+
+            writer.WriteCommand(command, argCount);
+            writer.Write(request.Key);
+            switch (request.When & (SortedSetWhen.Exists | SortedSetWhen.NotExists))
+            {
+                case SortedSetWhen.Exists:
+                    writer.WriteBulkString("XX"u8);
+                    break;
+                case SortedSetWhen.NotExists:
+                    writer.WriteBulkString("NX"u8);
+                    break;
+            }
+
+            writer.WriteBulkString(request.Score);
+            writer.Write(request.Member);
+        }
+    }
 
     public Task<long> SortedSetAddAsync(
         RedisKey key,
@@ -298,25 +355,6 @@ internal partial class RespContextDatabase
         throw new NotImplementedException();
 
     // Synchronous SortedSet methods
-    public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public bool SortedSetAdd(
-        RedisKey key,
-        RedisValue member,
-        double score,
-        When when,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public bool SortedSetAdd(
-        RedisKey key,
-        RedisValue member,
-        double score,
-        SortedSetWhen when = SortedSetWhen.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
