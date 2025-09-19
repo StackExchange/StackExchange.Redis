@@ -323,7 +323,9 @@ internal partial class RespContextDatabase
         RedisKey key,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        order == Order.Ascending
+            ? SortedSetPopMinCoreAsync(key, flags)
+            : SortedSetPopMaxCoreAsync(key, flags);
 
     public Task<SortedSetEntry[]> SortedSetPopAsync(
         RedisKey key,
@@ -331,6 +333,30 @@ internal partial class RespContextDatabase
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
+
+    [RespCommand("zpopmin", Parser = SortedSetEntryParser.Parser)]
+    private partial SortedSetEntry? SortedSetPopMinCore(RedisKey key, CommandFlags flags);
+
+    [RespCommand("zpopmax", Parser = SortedSetEntryParser.Parser)]
+    private partial SortedSetEntry? SortedSetPopMaxCore(RedisKey key, CommandFlags flags);
+
+    private sealed class SortedSetEntryParser : IRespParser<SortedSetEntry?>
+    {
+        public const string Parser = $"{nameof(SortedSetEntryParser)}.{nameof(Instance)}";
+        public static readonly SortedSetEntryParser Instance = new();
+
+        public SortedSetEntry? Parse(ref RespReader reader)
+        {
+            if (reader.IsNull) return null;
+            reader.DemandAggregate();
+            if (reader.AggregateLength() < 2) return null;
+            reader.MoveNext();
+            var member = RespParsers.ReadRedisValue(ref reader);
+            reader.MoveNext();
+            var score = reader.ReadDouble();
+            return new SortedSetEntry(member, score);
+        }
+    }
 
     public Task<SortedSetPopResult> SortedSetPopAsync(
         RedisKey[] keys,
@@ -582,7 +608,9 @@ internal partial class RespContextDatabase
         RedisKey key,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        order == Order.Ascending
+            ? SortedSetPopMinCore(key, flags)
+            : SortedSetPopMaxCore(key, flags);
 
     public SortedSetEntry[] SortedSetPop(
         RedisKey key,

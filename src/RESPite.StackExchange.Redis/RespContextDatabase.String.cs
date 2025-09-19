@@ -118,12 +118,6 @@ internal partial class RespContextDatabase
     public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags) =>
         StringSetAsync(key, value, expiry, false, when, flags);
 
-    public Task<bool> StringSetAsync(
-        KeyValuePair<RedisKey, RedisValue>[] values,
-        When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<RedisValue> StringSetAndGetAsync(
         RedisKey key,
         RedisValue value,
@@ -302,7 +296,7 @@ internal partial class RespContextDatabase
 
     private sealed class StringSetFormatter : IRespFormatter<(RedisKey Key, RedisValue Value, TimeSpan? Expiry, bool
         KeepTtl,
-        When When)>
+        When When)>, IRespFormatter<KeyValuePair<RedisKey, RedisValue>[]>
     {
         public const string Formatter = $"{nameof(StringSetFormatter)}.{nameof(Instance)}";
         public static readonly StringSetFormatter Instance = new();
@@ -354,13 +348,66 @@ internal partial class RespContextDatabase
                 writer.WriteBulkString("KEEPTTL"u8);
             }
         }
+
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in KeyValuePair<RedisKey, RedisValue>[] request)
+        {
+            writer.WriteCommand(command, 2 * request.Length);
+            foreach (var pair in request)
+            {
+                writer.Write(pair.Key);
+                writer.Write(pair.Value);
+            }
+        }
     }
 
     public bool StringSet(
         KeyValuePair<RedisKey, RedisValue>[] values,
         When when = When.Always,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None)
+    {
+        switch (values.Length)
+        {
+            case 0: return false;
+            case 1: return StringSet(values[0].Key, values[0].Value, null, false, when, flags);
+            default:
+                when.AlwaysOrNotExists();
+                return when == When.Always
+                    ? StringMSetCore(values, flags)
+                    : StringMSetNXCore(values, flags);
+        }
+    }
+
+    public Task<bool> StringSetAsync(
+        KeyValuePair<RedisKey, RedisValue>[] values,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
+    {
+        switch (values.Length)
+        {
+            case 0: return FalseTask;
+            case 1: return StringSetAsync(values[0].Key, values[0].Value, null, false, when, flags);
+            default:
+                when.AlwaysOrNotExists();
+                return when == When.Always
+                    ? StringMSetCoreAsync(values, flags)
+                    : StringMSetNXCoreAsync(values, flags);
+        }
+    }
+
+    private static readonly Task<bool> FalseTask = Task.FromResult(false);
+
+    [RespCommand("mset", Formatter = StringSetFormatter.Formatter)]
+    private partial bool StringMSetCore(
+        KeyValuePair<RedisKey, RedisValue>[] values,
+        CommandFlags flags = CommandFlags.None);
+
+    [RespCommand("msetnx", Formatter = StringSetFormatter.Formatter)]
+    private partial bool StringMSetNXCore(
+        KeyValuePair<RedisKey, RedisValue>[] values,
+        CommandFlags flags = CommandFlags.None);
 
     public RedisValue StringSetAndGet(
         RedisKey key,

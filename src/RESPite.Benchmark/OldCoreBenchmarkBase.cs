@@ -225,7 +225,13 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
         client.SortedSetAddAsync(SortedSetKey, "element:__rand_int__", 0).AsValueTask();
 
     [DisplayName("ZPOPMIN")]
-    private ValueTask<int> ZPopMin(IDatabaseAsync client) => CountAsync(client.SortedSetPopAsync(SortedSetKey, 1));
+    private ValueTask<int> ZPopMin(IDatabaseAsync client) => HasSortedSetElement(client.SortedSetPopAsync(SortedSetKey));
+
+    private async ValueTask<int> HasSortedSetElement(Task<SortedSetEntry?> pending)
+    {
+        var result = await pending.ConfigureAwait(false);
+        return result.HasValue ? 1 : 0;
+    }
 
     private async ValueTask ZPopMinInit(IDatabaseAsync client)
     {

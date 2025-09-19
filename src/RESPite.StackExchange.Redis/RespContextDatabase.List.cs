@@ -77,13 +77,6 @@ internal partial class RespContextDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<RedisValue[]> ListRangeAsync(
-        RedisKey key,
-        long start = 0,
-        long stop = -1,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<long> ListRemoveAsync(
         RedisKey key,
         RedisValue value,
@@ -222,12 +215,12 @@ internal partial class RespContextDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public RedisValue[] ListRange(
+    [RespCommand("lrange")]
+    public partial RedisValue[] ListRange(
         RedisKey key,
-        long start = 0,
-        long stop = -1,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        long start,
+        long stop,
+        CommandFlags flags = CommandFlags.None);
 
     public long ListRemove(
         RedisKey key,
