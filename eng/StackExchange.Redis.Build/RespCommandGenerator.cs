@@ -804,11 +804,12 @@ public class RespCommandGenerator : IIncrementalGenerator
                 && Encoding.UTF8.GetByteCount(cmd) == cmd.Length) // check pure ASCII
             {
                 // only used by one command; allow optimization
-                NewLine().Append("if(writer.CommandMap is null) // optimize single-command case for ").Append(cmd);
+                NewLine().Append("if(writer.CommandMap is null)");
                 NewLine().Append("{");
                 indent++;
                 string raw = $"*{argCount + literalCount + 1}\r\n${cmd.Length}\r\n{tuple.Value.Command}\r\n";
-                sb = NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(raw)).Append("u8);");
+                sb = NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(raw)).Append("u8); // ")
+                    .Append(cmd).Append(" with ").Append(argCount + literalCount).Append(" args");
                 indent--;
                 NewLine().Append("}");
                 NewLine().Append("else");
@@ -833,8 +834,9 @@ public class RespCommandGenerator : IIncrementalGenerator
                 {
                     if ((literal.Flags & LiteralFlags.Suffix) == match)
                     {
-                        sb = NewLine().Append("writer.WriteBulkString(").Append(CodeLiteral(literal.Token))
-                            .Append("u8);");
+                        var len = Encoding.UTF8.GetByteCount(literal.Token);
+                        var resp = $"${len}\r\n{literal.Token}\r\n";
+                        NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(resp)).Append("u8); // ").Append(literal.Token);
                     }
                 }
             }
