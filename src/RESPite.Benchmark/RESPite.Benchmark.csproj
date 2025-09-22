@@ -14,6 +14,7 @@
     <NoPublicApi>True</NoPublicApi>
     <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>
     <SignAssembly>false</SignAssembly>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

@@ -6,9 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
-    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
   </PropertyGroup>
 
 <!--  <ItemGroup  Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net461')) or '($TargetFramework)' == 'netstandard2.0'">-->
