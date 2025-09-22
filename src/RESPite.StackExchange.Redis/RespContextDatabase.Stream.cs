@@ -50,6 +50,7 @@ internal partial class RespContextDatabase
     [RespCommand("xadd")]
     private partial RedisValue StreamAddSimpleCore(
         RedisKey key,
+        [RespPrefix("*")]
         RedisValue streamField,
         RedisValue streamValue,
         CommandFlags flags = CommandFlags.None);

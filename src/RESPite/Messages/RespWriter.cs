@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Buffers.Text;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -178,6 +179,7 @@ public ref struct RespWriter
     /// <summary>
     /// Write raw RESP data to the output; no validation will occur.
     /// </summary>
+    [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
     public void WriteRaw(scoped ReadOnlySpan<byte> buffer)
     {
         const int MAX_TO_DOUBLE_BUFFER = 128;
@@ -569,6 +571,7 @@ public ref struct RespWriter
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
     // ReSharper disable once NotResolvedInText
     private static void ThrowNull() =>
+        // ReSharper disable once NotResolvedInText
         throw new ArgumentNullException("value", "Null values cannot be sent from client to server");
 
     internal void WriteBulkStringUnoptimized(string? value)
@@ -685,6 +688,7 @@ public ref struct RespWriter
             enc.Convert(value, Tail, true, out charsUsed, out bytesUsed, out completed);
             Debug.Assert(charsUsed == 0 && completed);
             _index += bytesUsed;
+            // ReSharper disable once RedundantAssignment - it is in debug!
             remaining -= bytesUsed;
         }
 

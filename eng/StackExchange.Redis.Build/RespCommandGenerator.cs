@@ -525,7 +525,7 @@ public class RespCommandGenerator : IIncrementalGenerator
 
         // find the unique param types, so we can build helpers
         Dictionary<EasyArray<ParameterTuple>, (string Name,
-                bool Shared)>
+                int ShareCount, string Command)>
             formatters =
                 new(FormatterComparer.Default);
 
@@ -551,11 +551,11 @@ public class RespCommandGenerator : IIncrementalGenerator
             var key = method.Parameters;
             if (!formatters.TryGetValue(key, out var existing))
             {
-                formatters.Add(key, ($"__RespFormatter_{formatters.Count}", false));
+                formatters.Add(key, ($"__RespFormatter_{formatters.Count}", 1, method.Command));
             }
-            else if (!existing.Shared)
+            else
             {
-                formatters[key] = (existing.Name, true); // mark shared
+                formatters[key] = (existing.Name, existing.ShareCount + 1, ""); // incr share count
             }
         }
 
@@ -630,7 +630,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                 if (formatter is null && formatters.TryGetValue(method.Parameters, out var tmp))
                 {
                     formatter = $"{tmp.Name}.Default";
-                    isSharedFormatter = tmp.Shared;
+                    isSharedFormatter = tmp.ShareCount > 1;
                 }
 
                 // perform string escaping on the generated value (this includes the quotes, note)
@@ -771,9 +771,18 @@ public class RespCommandGenerator : IIncrementalGenerator
         {
             var parameters = tuple.Key;
             var name = tuple.Value.Name;
-            var names = tuple.Value.Shared ? TupleMode.SyntheticNames : TupleMode.NamedTuple;
+            var names = tuple.Value.ShareCount > 1 ? TupleMode.SyntheticNames : TupleMode.NamedTuple;
 
             NewLine();
+            if (tuple.Value.ShareCount > 1)
+            {
+                NewLine().Append("// shared by ").Append(tuple.Value.ShareCount).Append(" methods");
+            }
+            else if (tuple.Value.Command is { Length: > 0 })
+            {
+                NewLine().Append("// for command: ").Append(tuple.Value.Command);
+            }
+
             sb = NewLine().Append("sealed file class ").Append(name)
                 .Append(" : global::RESPite.Messages.IRespFormatter<");
             WriteTuple(parameters, sb, names);
@@ -790,9 +799,29 @@ public class RespCommandGenerator : IIncrementalGenerator
             sb.Append(" request)");
             NewLine().Append("{");
             indent++;
-            var count = DataParameterCount(parameters, out int literalCount);
-            sb = NewLine().Append("writer.WriteCommand(command, ").Append(count + literalCount);
-            sb.Append(");");
+            var argCount = DataParameterCount(parameters, out int literalCount);
+            if (tuple.Value.Command is { Length: > 0 } cmd
+                && Encoding.UTF8.GetByteCount(cmd) == cmd.Length) // check pure ASCII
+            {
+                // only used by one command; allow optimization
+                NewLine().Append("if(writer.CommandMap is null) // optimize single-command case for ").Append(cmd);
+                NewLine().Append("{");
+                indent++;
+                string raw = $"*{argCount + literalCount + 1}\r\n${cmd.Length}\r\n{tuple.Value.Command}\r\n";
+                sb = NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(raw)).Append("u8);");
+                indent--;
+                NewLine().Append("}");
+                NewLine().Append("else");
+                NewLine().Append("{");
+                indent++;
+                NewLine().Append("writer.WriteCommand(command, ").Append(argCount + literalCount).Append(");");
+                indent--;
+                NewLine().Append("}");
+            }
+            else
+            {
+                NewLine().Append("writer.WriteCommand(command, ").Append(argCount + literalCount).Append(");");
+            }
 
             void WritePrefix(ParameterTuple p) => WriteLiteral(p, false);
             void WriteSuffix(ParameterTuple p) => WriteLiteral(p, true);
@@ -804,12 +833,13 @@ public class RespCommandGenerator : IIncrementalGenerator
                 {
                     if ((literal.Flags & LiteralFlags.Suffix) == match)
                     {
-                        sb = NewLine().Append("writer.WriteBulkString(").Append(CodeLiteral(literal.Token)).Append("u8);");
+                        sb = NewLine().Append("writer.WriteBulkString(").Append(CodeLiteral(literal.Token))
+                            .Append("u8);");
                     }
                 }
             }
 
-            if (count == 1)
+            if (argCount == 1)
             {
                 var p = FirstDataParameter(parameters);
                 WritePrefix(p);
@@ -861,7 +891,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                     }
                 }
 
-                Debug.Assert(index == count, "wrote all parameters");
+                Debug.Assert(index == argCount, "wrote all parameters");
             }
 
             indent--;
