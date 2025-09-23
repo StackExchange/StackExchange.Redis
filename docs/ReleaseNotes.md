@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Fix #2951 - sentinel reconnection failure ([#xxxx by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/xxxx))
+- Fix #2951 - sentinel reconnection failure ([#2956 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2956))
 
 ## 2.9.17
 
