@@ -1217,6 +1217,10 @@ public class RespCommandGenerator : IIncrementalGenerator
                 {
                     isVariable = true; // variable if either collection or nullable
                 }
+                else
+                {
+                    constantCount++;
+                }
 
                 if ((parameter.Flags & ParameterFlags.Nullable) == 0 & !parameter.Literals.IsEmpty)
                 {
