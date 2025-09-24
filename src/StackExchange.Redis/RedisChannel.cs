@@ -18,9 +18,19 @@ namespace StackExchange.Redis
             None = 0,
             Pattern = 1 << 0,
             Sharded = 1 << 1,
+            Routed = 1 << 2,
         }
 
+        // we don't consider Routed for equality - it's an implementation detail, not a fundamental feature
+        private const RedisChannelOptions EqualityMask = ~RedisChannelOptions.Routed;
+
         internal RedisCommand PublishCommand => IsSharded ? RedisCommand.SPUBLISH : RedisCommand.PUBLISH;
+
+        /// <summary>
+        /// Should we use cluster routing for this channel? This applies *either* to sharded (SPUBLISH) scenarios,
+        /// or to scenarios using <see cref="RedisChannel.LiteralRouted(string)"/> / <see cref="RedisChannel.LiteralRouted(byte[])"/>.
+        /// </summary>
+        internal bool UseClusterRouting => (Options & (RedisChannelOptions.Sharded | RedisChannelOptions.Routed)) != 0;
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value.
@@ -51,24 +61,68 @@ namespace StackExchange.Redis
         private static PatternMode s_DefaultPatternMode = PatternMode.Auto;
 
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription.
+        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription. In cluster
+        /// environments, this channel will be freely routed to any applicable server - different client nodes
+        /// will generally connect to different servers; this is suitable for distributing pub/sub in scenarios with
+        /// very few channels. In non-cluster environments, routing is not a consideration.
         /// </summary>
-        public static RedisChannel Literal(string value) => new RedisChannel(value, PatternMode.Literal);
+        public static RedisChannel Literal(string value) => new(value, RedisChannelOptions.None);
 
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription.
+        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription. In cluster
+        /// environments, this channel will be freely routed to any applicable server - different client nodes
+        /// will generally connect to different servers; this is suitable for distributing pub/sub in scenarios with
+        /// very few channels. In non-cluster environments, routing is not a consideration.
         /// </summary>
-        public static RedisChannel Literal(byte[] value) => new RedisChannel(value, PatternMode.Literal);
+        public static RedisChannel Literal(byte[] value) => new(value, RedisChannelOptions.None);
 
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription.
+        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription. In cluster
+        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
+        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
+        /// a consideration.
         /// </summary>
-        public static RedisChannel Pattern(string value) => new RedisChannel(value, PatternMode.Pattern);
+        public static RedisChannel LiteralRouted(string value) => new(value, RedisChannelOptions.Routed);
 
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription.
+        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription. In cluster
+        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
+        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
+        /// a consideration.
         /// </summary>
-        public static RedisChannel Pattern(byte[] value) => new RedisChannel(value, PatternMode.Pattern);
+        public static RedisChannel LiteralRouted(byte[] value) => new(value, RedisChannelOptions.Routed);
+
+        /// <summary>
+        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription. In cluster
+        /// environments, this channel will be freely routed to any applicable server - different client nodes
+        /// will generally connect to different servers; this is suitable for distributing pub/sub in scenarios with
+        /// very few channels. In non-cluster environments, routing is not a consideration.
+        /// </summary>
+        public static RedisChannel Pattern(string value) => new(value, RedisChannelOptions.Pattern);
+
+        /// <summary>
+        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription. In cluster
+        /// environments, this channel will be freely routed to any applicable server - different client nodes
+        /// will generally connect to different servers; this is suitable for distributing pub/sub in scenarios with
+        /// very few channels. In non-cluster environments, routing is not a consideration.
+        /// </summary>
+        public static RedisChannel Pattern(byte[] value) => new(value, RedisChannelOptions.Pattern);
+
+        /// <summary>
+        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription. In cluster
+        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
+        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
+        /// a consideration.
+        /// </summary>
+        public static RedisChannel PatternRouted(string value) => new(value, RedisChannelOptions.Pattern | RedisChannelOptions.Routed);
+
+        /// <summary>
+        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription. In cluster
+        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
+        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
+        /// a consideration.
+        /// </summary>
+        public static RedisChannel PatternRouted(byte[] value) => new(value, RedisChannelOptions.Pattern | RedisChannelOptions.Routed);
 
         /// <summary>
         /// Create a new redis channel from a buffer, explicitly controlling the pattern mode.
@@ -84,25 +138,42 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The string name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         public RedisChannel(string value, PatternMode mode) : this(value is null ? null : Encoding.UTF8.GetBytes(value), mode)
         {
         }
 
         /// <summary>
-        /// Create a new redis channel from a buffer, representing a sharded channel.
+        /// Create a new redis channel from a buffer, representing a sharded channel. In cluster
+        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
+        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
+        /// a consideration.
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
+        /// <remarks>Note that sharded subscriptions are completely separate to regular subscriptions; subscriptions
+        /// using sharded channels must also be published with sharded channels (and vice versa).</remarks>
         public static RedisChannel Sharded(byte[]? value) => new(value, RedisChannelOptions.Sharded);
 
         /// <summary>
-        /// Create a new redis channel from a string, representing a sharded channel.
+        /// Create a new redis channel from a string, representing a sharded channel. In cluster
+        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
+        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
+        /// a consideration.
         /// </summary>
         /// <param name="value">The string name of the channel to create.</param>
-        public static RedisChannel Sharded(string value) => new(value is null ? null : Encoding.UTF8.GetBytes(value), RedisChannelOptions.Sharded);
+        /// <remarks>Note that sharded subscriptions are completely separate to regular subscriptions; subscriptions
+        /// using sharded channels must also be published with sharded channels (and vice versa).</remarks>
+        public static RedisChannel Sharded(string value) => new(value, RedisChannelOptions.Sharded);
 
         internal RedisChannel(byte[]? value, RedisChannelOptions options)
         {
             Value = value;
+            Options = options;
+        }
+
+        internal RedisChannel(string? value, RedisChannelOptions options)
+        {
+            Value = value is null ? null : Encoding.UTF8.GetBytes(value);
             Options = options;
         }
 
@@ -155,7 +226,8 @@ namespace StackExchange.Redis
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator ==(RedisChannel x, RedisChannel y) =>
-            x.Options == y.Options && RedisValue.Equals(x.Value, y.Value);
+            (x.Options & EqualityMask) == (y.Options & EqualityMask)
+            && RedisValue.Equals(x.Value, y.Value);
 
         /// <summary>
         /// Indicate whether two channel names are equal.
@@ -163,7 +235,8 @@ namespace StackExchange.Redis
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator ==(string x, RedisChannel y) =>
-            RedisValue.Equals(x == null ? null : Encoding.UTF8.GetBytes(x), y.Value);
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            RedisValue.Equals(x is null ? null : Encoding.UTF8.GetBytes(x), y.Value);
 
         /// <summary>
         /// Indicate whether two channel names are equal.
@@ -178,7 +251,8 @@ namespace StackExchange.Redis
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
         public static bool operator ==(RedisChannel x, string y) =>
-            RedisValue.Equals(x.Value, y == null ? null : Encoding.UTF8.GetBytes(y));
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            RedisValue.Equals(x.Value, y is null ? null : Encoding.UTF8.GetBytes(y));
 
         /// <summary>
         /// Indicate whether two channel names are equal.
@@ -203,10 +277,11 @@ namespace StackExchange.Redis
         /// Indicate whether two channel names are equal.
         /// </summary>
         /// <param name="other">The <see cref="RedisChannel"/> to compare to.</param>
-        public bool Equals(RedisChannel other) => Options == other.Options && RedisValue.Equals(Value, other.Value);
+        public bool Equals(RedisChannel other) => (Options & EqualityMask) == (other.Options & EqualityMask)
+                                                  && RedisValue.Equals(Value, other.Value);
 
         /// <inheritdoc/>
-        public override int GetHashCode() => RedisValue.GetHashCode(Value) ^ (int)Options;
+        public override int GetHashCode() => RedisValue.GetHashCode(Value) ^ (int)(Options & EqualityMask);
 
         /// <summary>
         /// Obtains a string representation of the channel name.
@@ -266,23 +341,21 @@ namespace StackExchange.Redis
         [Obsolete("It is preferable to explicitly specify a " + nameof(PatternMode) + ", or use the " + nameof(Literal) + "/" + nameof(Pattern) + " methods", error: false)]
         public static implicit operator RedisChannel(string key)
         {
-            if (key == null) return default;
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (key is null) return default;
             return new RedisChannel(Encoding.UTF8.GetBytes(key), s_DefaultPatternMode);
         }
 
         /// <summary>
-        /// Create a channel name from a <see cref="T:byte[]"/>.
+        /// Create a channel name from a <c>byte[]</c>.
         /// </summary>
         /// <param name="key">The byte array to get a channel from.</param>
         [Obsolete("It is preferable to explicitly specify a " + nameof(PatternMode) + ", or use the " + nameof(Literal) + "/" + nameof(Pattern) + " methods", error: false)]
         public static implicit operator RedisChannel(byte[]? key)
-        {
-            if (key == null) return default;
-            return new RedisChannel(key, s_DefaultPatternMode);
-        }
+            => key is null ? default : new RedisChannel(key, s_DefaultPatternMode);
 
         /// <summary>
-        /// Obtain the channel name as a <see cref="T:byte[]"/>.
+        /// Obtain the channel name as a <c>byte[]</c>.
         /// </summary>
         /// <param name="key">The channel to get a byte[] from.</param>
         public static implicit operator byte[]?(RedisChannel key) => key.Value;
@@ -294,7 +367,7 @@ namespace StackExchange.Redis
         public static implicit operator string?(RedisChannel key)
         {
             var arr = key.Value;
-            if (arr == null)
+            if (arr is null)
             {
                 return null;
             }
@@ -303,9 +376,7 @@ namespace StackExchange.Redis
                 return Encoding.UTF8.GetString(arr);
             }
             catch (Exception e) when // Only catch exception throwed by Encoding.UTF8.GetString
-                (e is DecoderFallbackException
-                || e is ArgumentException
-                || e is ArgumentNullException)
+                (e is DecoderFallbackException or ArgumentException or ArgumentNullException)
             {
                     return BitConverter.ToString(arr);
             }
@@ -316,8 +387,12 @@ namespace StackExchange.Redis
         // giving due consideration to the default pattern mode (UseImplicitAutoPattern)
         // (since we don't ship them, we don't need them in release)
         [Obsolete("Watch for " + nameof(UseImplicitAutoPattern), error: true)]
+        // ReSharper disable once UnusedMember.Local
+        // ReSharper disable once UnusedParameter.Local
         private RedisChannel(string value) => throw new NotSupportedException();
         [Obsolete("Watch for " + nameof(UseImplicitAutoPattern), error: true)]
+        // ReSharper disable once UnusedMember.Local
+        // ReSharper disable once UnusedParameter.Local
         private RedisChannel(byte[]? value) => throw new NotSupportedException();
 #endif
     }

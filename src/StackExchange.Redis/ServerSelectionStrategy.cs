@@ -47,7 +47,13 @@ namespace StackExchange.Redis
         };
 
         private readonly ConnectionMultiplexer multiplexer;
-        private int anyStartOffset;
+        private int anyStartOffset = SharedRandom.Next(); // initialize to a random value so routing isn't uniform
+
+        #if NET6_0_OR_GREATER
+        private static Random SharedRandom => Random.Shared;
+        #else
+        private static Random SharedRandom { get; } = new();
+        #endif
 
         private ServerEndPoint[]? map;
 
