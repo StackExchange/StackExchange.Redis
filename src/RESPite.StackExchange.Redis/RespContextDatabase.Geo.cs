@@ -36,12 +36,6 @@ internal partial class RespContextDatabase
     public Task<string?> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<GeoPosition?[]> GeoPositionAsync(
-        RedisKey key,
-        RedisValue[] members,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<GeoPosition?> GeoPositionAsync(
         RedisKey key,
         RedisValue member,
@@ -151,8 +145,8 @@ internal partial class RespContextDatabase
     public string? GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("geopos")]
+    public partial GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
     public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();

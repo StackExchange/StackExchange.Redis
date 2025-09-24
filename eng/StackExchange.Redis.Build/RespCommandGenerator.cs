@@ -54,7 +54,9 @@ public class RespCommandGenerator : IIncrementalGenerator
         string Name,
         string Modifiers,
         ParameterFlags Flags,
-        EasyArray<LiteralTuple> Literals);
+        EasyArray<LiteralTuple> Literals,
+        string? ElementType,
+        int ArgIndex);
 
     private readonly record struct MethodTuple(
         string Namespace,
@@ -367,10 +369,14 @@ public class RespCommandGenerator : IIncrementalGenerator
             }
         }
 
+        int nextArgIndex = 0;
         foreach (var param in method.Parameters)
         {
             var flags = ParameterFlags.Parameter;
             if (IsKey(param)) flags |= ParameterFlags.Key;
+            var elementType = param.Type;
+            flags |= GetTypeFlags(ref elementType);
+            string? elementTypeName = ReferenceEquals(elementType, param.Type) ? null : GetFullName(elementType);
             if (IsSERedis(param.Type, SERedis.CommandFlags))
             {
                 flags |= ParameterFlags.CommandFlags;
@@ -440,7 +446,8 @@ public class RespCommandGenerator : IIncrementalGenerator
             }
 
             var literalArray = literals is null ? EasyArray<LiteralTuple>.Empty : new(literals.ToArray());
-            parameters.Add(new(GetFullName(param.Type), param.Name, modifiers, flags, literalArray));
+            var argIndex = (flags & ParameterFlags.Data) != 0 ? nextArgIndex++ : -1;
+            parameters.Add(new(GetFullName(param.Type), param.Name, modifiers, flags, literalArray, elementTypeName, argIndex));
         }
 
         var syntax = (MethodDeclarationSyntax)ctx.Node;
@@ -477,6 +484,72 @@ public class RespCommandGenerator : IIncrementalGenerator
 
             return "class"; // wut?
         }
+    }
+
+    private static ParameterFlags GetTypeFlags(ref ITypeSymbol paramType)
+    {
+        var flags = ParameterFlags.None;
+        if (paramType.IsValueType) flags |= ParameterFlags.ValueType;
+        switch (paramType.NullableAnnotation)
+        {
+            case NullableAnnotation.Annotated:
+                flags |= ParameterFlags.Nullable;
+                break;
+            case NullableAnnotation.None:
+                if (paramType.IsReferenceType) flags |= ParameterFlags.Nullable;
+                break;
+        }
+
+        if (paramType is IArrayTypeSymbol arr)
+        {
+            if (arr.Rank == 1 && arr.ElementType.SpecialType != SpecialType.System_Byte)
+            {
+                flags |= ParameterFlags.Collection;
+                paramType = arr.ElementType;
+            }
+        }
+
+        if (paramType is INamedTypeSymbol { IsGenericType: true, Arity: 1 } gen)
+        {
+            switch (gen.ConstructedFrom.SpecialType)
+            {
+                case SpecialType.System_Collections_Generic_ICollection_T:
+                case SpecialType.System_Collections_Generic_IList_T:
+                case SpecialType.System_Collections_Generic_IReadOnlyCollection_T:
+                case SpecialType.System_Collections_Generic_IReadOnlyList_T:
+                    flags |= ParameterFlags.Collection | ParameterFlags.CollectionWithCount;
+                    paramType = gen.TypeArguments[0];
+                    break;
+                default:
+                    if (IsSystemCollections(gen.ConstructedFrom, "List"))
+                    {
+                        flags |= ParameterFlags.Collection;
+                        paramType = gen.TypeArguments[0];
+                    }
+                    if (IsSystemCollections(gen.ConstructedFrom, "ImmutableArray", "Immutable"))
+                    {
+                        flags |= ParameterFlags.Collection | ParameterFlags.ImmutableArray;
+                        paramType = gen.TypeArguments[0];
+                    }
+                    break;
+            }
+        }
+
+        return flags;
+
+        static bool IsSystemCollections(INamedTypeSymbol type, string name, string ns = "Generic")
+            => type.Name == name && type.ContainingNamespace is { } actualNs && actualNs.Name == ns
+               && actualNs.ContainingNamespace is
+               {
+                   Name:
+                   "Collections",
+                   ContainingNamespace:
+                   {
+                       Name:
+                       "System",
+                       ContainingNamespace.IsGlobalNamespace: true,
+                   }
+               };
     }
 
     private bool IsKey(IParameterSymbol param)
@@ -799,29 +872,141 @@ public class RespCommandGenerator : IIncrementalGenerator
             sb.Append(" request)");
             NewLine().Append("{");
             indent++;
-            var argCount = DataParameterCount(parameters, out int literalCount);
-            if (tuple.Value.Command is { Length: > 0 } cmd
+            var argCount = DataParameterCount(parameters, out int constantCount, out bool isVariable);
+
+            void WriteParameterName(in ParameterTuple p, StringBuilder? target = null)
+            {
+                target ??= sb;
+                if (argCount == 1)
+                {
+                    target.Append("request");
+                }
+                else
+                {
+                    target.Append("request.");
+                    if (names == TupleMode.SyntheticNames)
+                    {
+                        target.Append("Arg").Append(p.ArgIndex);
+                    }
+                    else
+                    {
+                        target.Append(p.Name);
+                    }
+                }
+            }
+
+            int index;
+            if (isVariable)
+            {
+                sb = NewLine().Append("writer.WriteCommand(command,");
+                bool firstVariableItem = true;
+                if (constantCount != 0)
+                {
+                    sb.Append(" ").Append(constantCount).Append(" // constant args");
+                    firstVariableItem = false;
+                }
+                indent++;
+                index = 0;
+                foreach (var parameter in parameters.Span)
+                {
+                    var match = parameter.Flags & (ParameterFlags.Collection | ParameterFlags.Nullable);
+                    if (match != 0)
+                    {
+                        sb = NewLine();
+                        if (firstVariableItem)
+                        {
+                            firstVariableItem = false;
+                        }
+                        else
+                        {
+                            sb.Append("+ ");
+                        }
+
+                        var literalCount = parameter.Literals.Length;
+                        switch (match)
+                        {
+                            case ParameterFlags.Nullable:
+                                sb.Append("(");
+                                WriteParameterName(parameter);
+                                sb.Append(" is null ? 0 : ").Append(1 + literalCount).Append(")");
+                                break;
+                            case ParameterFlags.Collection:
+                                // non-nullable collection; literals already handled
+                                switch (parameter.Flags & (ParameterFlags.CollectionWithCount | ParameterFlags.ImmutableArray))
+                                {
+                                    case ParameterFlags.CollectionWithCount:
+                                        WriteParameterName(parameter);
+                                        sb.Append(".Count");
+                                        break;
+                                    case ParameterFlags.ImmutableArray: // needs special care because of default (breaks .Length)
+                                        sb.Append("(");
+                                        WriteParameterName(parameter);
+                                        sb.Append(".IsDefaultOrEmpty ? 0 : ");
+                                        WriteParameterName(parameter);
+                                        sb.Append(".Length)");
+                                        break;
+                                    default:
+                                        WriteParameterName(parameter);
+                                        sb.Append(".Length");
+                                        break;
+                                }
+                                break;
+                            case ParameterFlags.Collection | ParameterFlags.Nullable:
+                                sb.Append("(");
+                                WriteParameterName(parameter);
+                                sb.Append(" is null ? 0 : ");
+                                if (literalCount != 0) sb.Append("(");
+                                switch (parameter.Flags & ParameterFlags.CollectionWithCount)
+                                {
+                                    case ParameterFlags.CollectionWithCount:
+                                        WriteParameterName(parameter);
+                                        sb.Append(".Count");
+                                        break;
+                                    case ParameterFlags.ImmutableArray: // needs special care because of default (breaks .Length)
+                                        sb.Append("(");
+                                        WriteParameterName(parameter);
+                                        sb.Append(".GetValueOrDefault().IsDefaultOrEmpty ? 0 : ");
+                                        WriteParameterName(parameter);
+                                        sb.Append(".GetValueOrDefault().Length)");
+                                        break;
+                                    default:
+                                        WriteParameterName(parameter);
+                                        sb.Append(".Length");
+                                        break;
+                                }
+                                if (literalCount != 0) sb.Append(" + ").Append(literalCount).Append(")");
+                                sb.Append(")");
+                                break;
+                        }
+                        sb.Append(" // ").Append(match);
+                    }
+                    index++;
+                }
+                NewLine().Append(");");
+                indent--;
+            }
+            else if (tuple.Value.Command is { Length: > 0 } cmd
                 && Encoding.UTF8.GetByteCount(cmd) == cmd.Length) // check pure ASCII
             {
                 // only used by one command; allow optimization
                 NewLine().Append("if(writer.CommandMap is null)");
                 NewLine().Append("{");
                 indent++;
-                string raw = $"*{argCount + literalCount + 1}\r\n${cmd.Length}\r\n{tuple.Value.Command}\r\n";
+                string raw = $"*{constantCount + 1}\r\n${cmd.Length}\r\n{tuple.Value.Command}\r\n";
                 sb = NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(raw)).Append("u8); // ")
-                    .Append(cmd).Append(" with ").Append(argCount + literalCount).Append(" args");
+                    .Append(cmd).Append(" with ").Append(constantCount).Append(" args");
                 indent--;
                 NewLine().Append("}");
                 NewLine().Append("else");
                 NewLine().Append("{");
                 indent++;
-                NewLine().Append("writer.WriteCommand(command, ").Append(argCount + literalCount).Append(");");
+                NewLine().Append("writer.WriteCommand(command, ").Append(constantCount).Append(");");
                 indent--;
                 NewLine().Append("}");
             }
             else
             {
-                NewLine().Append("writer.WriteCommand(command, ").Append(argCount + literalCount).Append(");");
+                NewLine().Append("writer.WriteCommand(command, ").Append(constantCount).Append(");");
             }
 
             void WritePrefix(ParameterTuple p) => WriteLiteral(p, false);
@@ -836,65 +1021,78 @@ public class RespCommandGenerator : IIncrementalGenerator
                     {
                         var len = Encoding.UTF8.GetByteCount(literal.Token);
                         var resp = $"${len}\r\n{literal.Token}\r\n";
-                        NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(resp)).Append("u8); // ").Append(literal.Token);
+                        NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(resp)).Append("u8); // ")
+                            .Append(literal.Token);
                     }
                 }
             }
 
-            if (argCount == 1)
+            index = 0;
+            foreach (var parameter in parameters.Span)
             {
-                var p = FirstDataParameter(parameters);
-                WritePrefix(p);
-                sb = NewLine().Append("writer.");
-                if (p.Type is "global::StackExchange.Redis.RedisValue" or "global::StackExchange.Redis.RedisKey")
+                if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
                 {
-                    sb.Append("Write");
-                }
-                else
-                {
-                    sb.Append((p.Flags & ParameterFlags.Key) == 0 ? "WriteBulkString" : "WriteKey");
-                }
-
-                sb.Append("(request);");
-                WriteSuffix(p);
-            }
-            else
-            {
-                int index = 0;
-                foreach (var parameter in parameters.Span)
-                {
-                    if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
+                    bool isNullable = (parameter.Flags & ParameterFlags.Nullable) != 0;
+                    bool isCollection = (parameter.Flags & ParameterFlags.Collection) != 0;
+                    if (isNullable)
                     {
-                        WritePrefix(parameter);
-                        sb = NewLine().Append("writer.");
-                        if (parameter.Type is "global::StackExchange.Redis.RedisValue"
-                            or "global::StackExchange.Redis.RedisKey")
-                        {
-                            sb.Append("Write");
-                        }
-                        else
-                        {
-                            sb.Append((parameter.Flags & ParameterFlags.Key) == 0 ? "WriteBulkString" : "WriteKey");
-                        }
-
-                        sb.Append("(request.");
-                        if (names == TupleMode.SyntheticNames)
-                        {
-                            sb.Append("Arg").Append(index);
-                        }
-                        else
-                        {
-                            sb.Append(parameter.Name);
-                        }
-
-                        sb.Append(");");
-                        index++;
-                        WriteSuffix(parameter);
+                        sb = NewLine().Append("if (");
+                        WriteParameterName(parameter);
+                        sb.Append(" is not null)");
+                        NewLine().Append("{");
+                        indent++;
                     }
-                }
 
-                Debug.Assert(index == argCount, "wrote all parameters");
+                    WritePrefix(parameter);
+                    var elementType = parameter.ElementType ?? parameter.Type;
+                    if (isCollection)
+                    {
+                        sb = NewLine().Append("foreach (").Append(elementType).Append(" val in ");
+                        WriteParameterName(parameter);
+                        sb.Append(")");
+                        NewLine().Append("{");
+                        indent++;
+                    }
+
+                    sb = NewLine().Append("writer.");
+                    if (elementType is "global::StackExchange.Redis.RedisValue"
+                        or "global::StackExchange.Redis.RedisKey")
+                    {
+                        sb.Append("Write");
+                    }
+                    else
+                    {
+                        sb.Append((parameter.Flags & ParameterFlags.Key) == 0 ? "WriteBulkString" : "WriteKey");
+                    }
+
+                    sb.Append("(");
+                    if (isCollection)
+                    {
+                        sb.Append("val");
+                    }
+                    else
+                    {
+                        WriteParameterName(parameter);
+                    }
+                    sb.Append(");");
+
+                    if (isCollection)
+                    {
+                        indent--;
+                        NewLine().Append("}");
+                    }
+
+                    WriteSuffix(parameter);
+                    if (isNullable)
+                    {
+                        indent--;
+                        NewLine().Append("}");
+                    }
+                    index++;
+                }
             }
+
+            Debug.Assert(index == argCount, "wrote all parameters");
 
             indent--;
             NewLine().Append("}");
@@ -1000,20 +1198,30 @@ public class RespCommandGenerator : IIncrementalGenerator
 
     private static int DataParameterCount(
         EasyArray<ParameterTuple> parameters)
-        => DataParameterCount(parameters, out _);
+        => DataParameterCount(parameters, out _, out _);
 
     private static int DataParameterCount(
-        EasyArray<ParameterTuple> parameters, out int literalCount)
+        EasyArray<ParameterTuple> parameters, out int constantCount, out bool isVariable)
     {
-        literalCount = 0;
+        // note: constantCount includes literals
+        constantCount = 0;
+        isVariable = false;
         if (parameters.IsEmpty) return 0;
         int count = 0;
         foreach (var parameter in parameters.Span)
         {
             if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
             {
-                if (!parameter.Literals.IsEmpty) literalCount += parameter.Literals.Length;
                 count++;
+                if ((parameter.Flags & (ParameterFlags.Collection | ParameterFlags.Nullable)) != 0)
+                {
+                    isVariable = true; // variable if either collection or nullable
+                }
+
+                if ((parameter.Flags & ParameterFlags.Nullable) == 0 & !parameter.Literals.IsEmpty)
+                {
+                    constantCount += parameter.Literals.Length; // we include literals if not nullable
+                }
             }
         }
 
@@ -1086,6 +1294,11 @@ public class RespCommandGenerator : IIncrementalGenerator
         DataParameter = Data | Parameter,
         Key = 1 << 2,
         CommandFlags = 1 << 3,
+        ValueType = 1 << 4,
+        Nullable = 1 << 5,
+        Collection = 1 << 6,
+        CollectionWithCount = 1 << 7, // has .Count, otherwise assumed to have .Length
+        ImmutableArray = 1 << 8,
     }
 
     // compares whether a formatter can be shared, which depends on the key index and types (not names)
