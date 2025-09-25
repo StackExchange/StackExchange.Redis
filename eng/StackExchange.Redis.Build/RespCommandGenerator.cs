@@ -1267,6 +1267,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         "global::StackExchange.Redis.RedisKey" => "global::RESPite.StackExchange.Redis.RespParsers.RedisKey",
         "global::StackExchange.Redis.RedisValue" => "global::RESPite.StackExchange.Redis.RespParsers.RedisValue",
         "global::StackExchange.Redis.RedisValue[]" => "global::RESPite.StackExchange.Redis.RespParsers.RedisValueArray",
+        "global::StackExchange.Redis.HashEntry[]" => "global::RESPite.StackExchange.Redis.RespParsers.HashEntryArray",
         "global::StackExchange.Redis.Lease<byte>" => "global::RESPite.StackExchange.Redis.RespParsers.BytesLease",
         _ => null,
     };

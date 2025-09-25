@@ -164,6 +164,27 @@ public ref partial struct RespReader
                 target[i] = projection(ref Value);
             }
         }
+
+        public void FillAll<TFirst, TSecond, TResult>(
+            scoped Span<TResult> target,
+            Projection<TFirst> first,
+            Projection<TSecond> second,
+            Func<TFirst, TSecond, TResult> combine)
+        {
+            for (int i = 0; i < target.Length; i++)
+            {
+                if (!MoveNext()) ThrowEof();
+
+                Value.MoveNext(); // skip any attributes etc
+                var x = first(ref Value);
+
+                if (!MoveNext()) ThrowEof();
+
+                Value.MoveNext(); // skip any attributes etc
+                var y = second(ref Value);
+                target[i] = combine(x, y);
+            }
+        }
     }
 
     internal void TrimToTotal(long length) => TrimToRemaining(length - BytesConsumed);

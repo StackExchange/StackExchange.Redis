@@ -174,41 +174,6 @@ internal partial class RespContextDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<long> HashIncrementAsync(
-        RedisKey key,
-        RedisValue hashField,
-        long value = 1,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<double> HashIncrementAsync(
-        RedisKey key,
-        RedisValue hashField,
-        double value,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<RedisValue[]> HashKeysAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<long> HashLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<RedisValue> HashRandomFieldAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<RedisValue[]> HashRandomFieldsAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    public Task<HashEntry[]> HashRandomFieldsWithValuesAsync(
-        RedisKey key,
-        long count,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public IAsyncEnumerable<HashEntry> HashScanAsync(
         RedisKey key,
         RedisValue pattern = default,
@@ -419,37 +384,37 @@ internal partial class RespContextDatabase
         CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("hgetall")]
+    public partial HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None);
 
-    public long HashIncrement(
+    [RespCommand("hincrby")]
+    public partial long HashIncrement(
         RedisKey key,
         RedisValue hashField,
         long value = 1,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None);
 
-    public double HashIncrement(
+    [RespCommand("hincrbyfloat")]
+    public partial double HashIncrement(
         RedisKey key,
         RedisValue hashField,
         double value,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        CommandFlags flags = CommandFlags.None);
 
-    public RedisValue[] HashKeys(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("hkeys")]
+    public partial RedisValue[] HashKeys(RedisKey key, CommandFlags flags = CommandFlags.None);
 
-    public long HashLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("hlen")]
+    public partial long HashLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
-    public RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("hrandfield")]
+    public partial RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None);
 
-    public RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("hrandfield")]
+    public partial RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
-    public HashEntry[] HashRandomFieldsWithValues(RedisKey key, long count, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("hrandfield")]
+    public partial HashEntry[] HashRandomFieldsWithValues(RedisKey key, [RespSuffix("WITHVALUES")] long count, CommandFlags flags = CommandFlags.None);
 
     public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags) =>
         throw new NotImplementedException();

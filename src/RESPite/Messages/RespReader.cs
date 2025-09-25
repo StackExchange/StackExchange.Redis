@@ -1666,14 +1666,65 @@ public ref partial struct RespReader
 #endif
     }
 
-    public T[]? ReadArray<T>(Projection<T> projection)
+    public TResult[]? ReadArray<TResult>(Projection<TResult> projection, bool scalar = false)
     {
         DemandAggregate();
         if (IsNull) return null;
         var len = AggregateLength();
         if (len == 0) return [];
-        T[] result = new T[len];
-        FillAll(result, projection);
+        var result = new TResult[len];
+        if (scalar)
+        {
+            // if the data to be consumed is simple (scalar), we can use
+            // a simpler path that doesn't need to worry about RESP subtrees
+            for (int i = 0; i < result.Length; i++)
+            {
+                MoveNextScalar();
+                result[i] = projection(ref this);
+            }
+        }
+        else
+        {
+            var agg = AggregateChildren();
+            agg.FillAll(result, projection);
+            agg.MovePast(out this);
+        }
+
+        return result;
+    }
+
+    public TResult[]? ReadPairArray<TFirst, TSecond, TResult>(
+        Projection<TFirst> first,
+        Projection<TSecond> second,
+        Func<TFirst, TSecond, TResult> combine,
+        bool scalar = true)
+    {
+        DemandAggregate();
+        if (IsNull) return null;
+        int sourceLength = AggregateLength();
+        if (sourceLength is 0 or 1) return [];
+        var result = new TResult[sourceLength >> 1];
+        if (scalar)
+        {
+            // if the data to be consumed is simple (scalar), we can use
+            // a simpler path that doesn't need to worry about RESP subtrees
+            for (int i = 0; i < result.Length; i++)
+            {
+                MoveNextScalar();
+                var x = first(ref this);
+                MoveNextScalar();
+                var y = second(ref this);
+                result[i] = combine(x, y);
+            }
+            // if we have an odd number of source elements, skip the last one
+            if ((sourceLength & 1) != 0) MoveNextScalar();
+        }
+        else
+        {
+            var agg = AggregateChildren();
+            agg.FillAll(result, first, second, combine);
+            agg.MovePast(out this);
+        }
         return result;
     }
 }
