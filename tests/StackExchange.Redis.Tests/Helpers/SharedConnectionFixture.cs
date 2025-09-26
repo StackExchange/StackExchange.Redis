@@ -198,7 +198,6 @@ public class SharedConnectionFixture : IDisposable
 
         public IServer GetServer(EndPoint endpoint, object? asyncState = null) => _inner.GetServer(endpoint, asyncState);
         public IServer GetServer(RedisKey key, object? asyncState = null, CommandFlags flags = CommandFlags.None) => _inner.GetServer(key, asyncState, flags);
-
         public IServer[] GetServers() => _inner.GetServers();
 
         public string GetStatus() => _inner.GetStatus();
