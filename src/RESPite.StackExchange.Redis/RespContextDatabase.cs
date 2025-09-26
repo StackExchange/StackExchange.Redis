@@ -31,20 +31,7 @@ internal partial class RespContextDatabase : IDatabase
     protected void SetSource(IRespContextSource source)
         => this._source = source;
 
-    // Question: cache this, or rebuild each time? the latter handles shutdown better.
-    // internal readonly RespContext Context = proxy.Context.WithDatabase(db);
-    private RespContext Context(CommandFlags flags)
-    {
-        // the flags intentionally align between CommandFlags and RespContextFlags
-        const RespContext.RespContextFlags flagMask = RespContext.RespContextFlags.DemandPrimary
-                                                      | RespContext.RespContextFlags.DemandReplica
-                                                      | RespContext.RespContextFlags.PreferReplica
-                                                      | RespContext.RespContextFlags.NoRedirect
-                                                      | RespContext.RespContextFlags.FireAndForget
-                                                      | RespContext.RespContextFlags.NoScriptCache;
-
-        return _source.Context.With(_db, (RespContext.RespContextFlags)flags, flagMask);
-    }
+    private RespContext Context(CommandFlags flags) => _source.Context.With(_db, flags);
 
     private TimeSpan SyncTimeout => _source.Context.SyncTimeout;
     public int Database => _db;

@@ -12,10 +12,14 @@ namespace RESPite.StackExchange.Redis;
 internal sealed class RespContextServer(RespMultiplexer muxer, Node node) : IServer
 {
     // deliberately not caching this - if the connection changes, we want to know about it
-    internal ref readonly RespContext Context => ref node.Context;
+    internal RespContext Context(CommandFlags flags) => node.Context.With(-1, flags);
+
+    private TimeSpan SyncTimeout => node.Context.SyncTimeout;
 
     public IConnectionMultiplexer Multiplexer => muxer;
-    public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
+
+    public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
+        => Context(flags).Send("ping"u8, DateTime.UtcNow, RespContextDatabase.PingParser.Default, RespContextDatabase.PingRaw).AsTask();
 
     public bool TryWait(Task task) => task.Wait(Multiplexer.TimeoutMilliseconds);
 
@@ -25,7 +29,8 @@ internal sealed class RespContextServer(RespMultiplexer muxer, Node node) : ISer
 
     public void WaitAll(params Task[] tasks) => Multiplexer.WaitAll(tasks);
 
-    public TimeSpan Ping(CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
+    public TimeSpan Ping(CommandFlags flags = CommandFlags.None)
+        => Context(flags).Send("ping"u8, DateTime.UtcNow, RespContextDatabase.PingParser.Default, RespContextDatabase.PingRaw).Wait(SyncTimeout);
 
     public ClusterConfiguration? ClusterConfiguration => throw new NotImplementedException();
     public EndPoint EndPoint => node.Manager.ConnectionFactory.GetEndPoint(node.EndPoint, node.Port);

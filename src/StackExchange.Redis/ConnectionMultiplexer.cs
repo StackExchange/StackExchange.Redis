@@ -1229,7 +1229,7 @@ namespace StackExchange.Redis
                 throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
             }
             var server = servers[endpoint] as ServerEndPoint ?? throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
-            return new RedisServer(server, asyncState);
+            return server.GetRedisServer(asyncState);
         }
 
         /// <inheritdoc cref="IConnectionMultiplexer.GetServer(RedisKey, object, CommandFlags)"/>
