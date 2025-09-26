@@ -4602,9 +4602,11 @@ namespace StackExchange.Redis
             var includeApproxLen = maxLength.HasValue && useApproximateMaxLength ? 1 : 0;
 
             var totalLength = (streamPairs.Length * 2) // Room for the name/value pairs
-                                + 1 // The stream entry ID
-                                + includeMaxLen // 2 or 0 (MAXLEN keyword & the count)
-                                + includeApproxLen;        // 1 or 0
+                              + 1 // The stream entry ID
+                              + (maxLength.HasValue ? 2 : 0) // MAXLEN N
+                              + (maxLength.HasValue && useApproximateMaxLength ? 1 : 0) // ~
+                              + (mode == StreamTrimMode.KeepReferences ? 0 : 1) // relevant trim-mode keyword
+                              + (limit.HasValue ? 2 : 0); // LIMIT N
 
             var values = new RedisValue[totalLength];
 
@@ -5047,7 +5049,7 @@ namespace StackExchange.Redis
             When when = When.Always,
             CommandFlags flags = CommandFlags.None)
         {
-            when.AlwaysOrExists();
+            when.AlwaysOrExistsOrNotExists();
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.DEL, key);
 
             if (expiry == null || expiry.Value == TimeSpan.MaxValue)
@@ -5096,7 +5098,7 @@ namespace StackExchange.Redis
             When when = When.Always,
             CommandFlags flags = CommandFlags.None)
         {
-            when.AlwaysOrExists();
+            when.AlwaysOrExistsOrNotExists();
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.GETDEL, key);
 
             if (expiry == null || expiry.Value == TimeSpan.MaxValue)

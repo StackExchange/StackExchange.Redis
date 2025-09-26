@@ -74,8 +74,8 @@ namespace StackExchange.Redis
         private RedisServer? _defaultServer;
         public RedisServer GetRedisServer(object? asyncState)
             => asyncState is null
-                ? (_defaultServer ??= new RedisServer(this, null)) // reuse and memoize
-                : new RedisServer(this, asyncState);
+            ? (_defaultServer ??= new RedisServer(this, null)) // reuse and memoize
+            : new RedisServer(this, asyncState);
 
         public EndPoint EndPoint { get; }
 
