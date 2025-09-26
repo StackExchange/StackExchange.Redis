@@ -2,7 +2,7 @@
 
 namespace StackExchange.Redis.Benchmarks
 {
-    internal class SlowConfig : CustomConfig
+    internal sealed class SlowConfig : CustomConfig
     {
         protected override Job Configure(Job j)
             => j.WithLaunchCount(1)

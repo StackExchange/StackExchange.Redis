@@ -302,9 +302,12 @@ namespace StackExchange.Redis
             {
                 return Encoding.UTF8.GetString(arr);
             }
-            catch
+            catch (Exception e) when // Only catch exception throwed by Encoding.UTF8.GetString
+                (e is DecoderFallbackException
+                || e is ArgumentException
+                || e is ArgumentNullException)
             {
-                return BitConverter.ToString(arr);
+                    return BitConverter.ToString(arr);
             }
         }
 

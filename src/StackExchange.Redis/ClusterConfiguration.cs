@@ -180,7 +180,7 @@ namespace StackExchange.Redis
                     if (node.IsMyself)
                         Origin = node.EndPoint;
 
-                    if (nodeLookup.ContainsKey(node.EndPoint))
+                    if (nodeLookup.TryGetValue(node.EndPoint, out var lookedUpNode))
                     {
                         // Deal with conflicting node entries for the same endpoint
                         // This can happen in dynamic environments when a node goes down and a new one is created
@@ -190,7 +190,7 @@ namespace StackExchange.Redis
                             // The node we're trying to add is probably about to become stale. Ignore it.
                             continue;
                         }
-                        else if (!nodeLookup[node.EndPoint].IsConnected)
+                        else if (!lookedUpNode.IsConnected)
                         {
                             // The node we registered previously is probably stale. Replace it with a known good node.
                             nodeLookup[node.EndPoint] = node;

@@ -6,7 +6,19 @@ Current package versions:
 | ------------ | ----------------- | ----- |
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
-## Unreleased (2.9.xxx)
+## Unreleased
+
+- Fix [#2951](https://github.com/StackExchange/StackExchange.Redis/issues/2951) - sentinel reconnection failure ([#2956 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2956))
+
+## 2.9.17
+
+- Add vector-set support ([#2939 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2939))
+- Fix `RedisValue` special-value (NaN, Inf, etc) handling when casting from raw/string values to `double` ([#2950 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2950))
+- Internals:
+  - Use `sealed` classes where possible ([#2942 by Henr1k80](https://github.com/StackExchange/StackExchange.Redis/pull/2942))
+  - Add overlapped flushing in `LoggingTunnel` and avoid double-lookups ([#2943 by Henr1k80](https://github.com/StackExchange/StackExchange.Redis/pull/2943))
+
+## 2.9.11
 
 - Add `HGETDEL`, `HGETEX` and `HSETEX` support ([#2863 by atakavci](https://github.com/StackExchange/StackExchange.Redis/pull/2863))
 - Fix key-prefix omission in `SetIntersectionLength` and `SortedSet{Combine[WithScores]|IntersectionLength}` ([#2863 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2863))

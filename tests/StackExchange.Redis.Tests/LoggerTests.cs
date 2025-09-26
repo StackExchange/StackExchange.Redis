@@ -78,7 +78,7 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
     /// <summary>
     /// To save on test time, no reason to spin up n connections just to test n logging implementations...
     /// </summary>
-    private class TestMultiLogger(params ILogger[] loggers) : ILogger
+    private sealed class TestMultiLogger(params ILogger[] loggers) : ILogger
     {
 #if NET8_0_OR_GREATER
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => throw new NotImplementedException();
@@ -95,7 +95,7 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
         }
     }
 
-    private class TestLogger : ILogger
+    private sealed class TestLogger : ILogger
     {
         private readonly StringBuilder sb = new StringBuilder();
         private long _callCount;

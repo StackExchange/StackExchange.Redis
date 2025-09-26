@@ -237,10 +237,14 @@ namespace StackExchange.Redis
             return new CommandBytes(Payload).Equals(expected);
         }
 
-        internal unsafe bool IsEqual(byte[]? expected)
+        internal bool IsEqual(byte[]? expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
+            return IsEqual(new ReadOnlySpan<byte>(expected));
+        }
 
+        internal bool IsEqual(ReadOnlySpan<byte> expected)
+        {
             var rangeToCheck = Payload;
 
             if (expected.Length != rangeToCheck.Length) return false;
@@ -250,7 +254,7 @@ namespace StackExchange.Redis
             foreach (var segment in rangeToCheck)
             {
                 var from = segment.Span;
-                var to = new Span<byte>(expected, offset, from.Length);
+                var to = expected.Slice(offset, from.Length);
                 if (!from.SequenceEqual(to)) return false;
 
                 offset += from.Length;

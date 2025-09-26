@@ -12,4 +12,9 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\..\src\StackExchange.Redis\FastHash.cs">
+      <Link>FastHash.cs</Link>
+    </Compile>
+  </ItemGroup>
 </Project>

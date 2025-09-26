@@ -1635,6 +1635,7 @@ namespace StackExchange.Redis
                                 if (primary == preferred || primary.IsReplica)
                                 {
                                     log?.LogInformationClearingAsRedundantPrimary(new(primary));
+                                    primary.ClearUnselectable(UnselectableFlags.RedundantPrimary);
                                 }
                                 else
                                 {

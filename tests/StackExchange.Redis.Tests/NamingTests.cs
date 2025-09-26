@@ -193,7 +193,8 @@ public class NamingTests(ITestOutputHelper output) : TestBase(output)
                     || shortName.StartsWith("Script")
                     || shortName.StartsWith("SortedSet")
                     || shortName.StartsWith("String")
-                    || shortName.StartsWith("Stream");
+                    || shortName.StartsWith("Stream")
+                    || shortName.StartsWith("VectorSet");
                 Log(fullName + ": " + (isValid ? "valid" : "invalid"));
                 Assert.True(isValid, fullName + ":Prefix");
                 break;

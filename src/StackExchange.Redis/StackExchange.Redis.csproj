@@ -48,4 +48,8 @@
     <InternalsVisibleTo Include="StackExchange.Redis.Tests" />
     <InternalsVisibleTo Include="RESPite.StackExchange.Redis" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

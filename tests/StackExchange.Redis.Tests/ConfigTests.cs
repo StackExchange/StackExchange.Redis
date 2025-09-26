@@ -442,6 +442,16 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         }
         var cpuCount = cpu.Count();
         Assert.True(cpuCount > 2);
+        if (cpu.Key != "CPU")
+        {
+            // seem to be seeing this in logs; add lots of detail
+            var sb = new StringBuilder("Expected CPU, got ").AppendLine(cpu.Key);
+            foreach (var setting in cpu)
+            {
+                sb.Append(setting.Key).Append('=').AppendLine(setting.Value);
+            }
+            Assert.Fail(sb.ToString());
+        }
         Assert.Equal("CPU", cpu.Key);
         Assert.Contains(cpu, x => x.Key == "used_cpu_sys");
         Assert.Contains(cpu, x => x.Key == "used_cpu_user");
@@ -713,7 +723,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal($"127.0.0.1:6380,tunnel={expected}", cs);
     }
 
-    private class CustomTunnel : Tunnel { }
+    private sealed class CustomTunnel : Tunnel { }
 
     [Fact]
     public void CustomTunnelCanRoundtripMinusTunnel()
