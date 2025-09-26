@@ -118,7 +118,7 @@ namespace StackExchange.Redis.Tests
                 _log = log;
                 SetSynchronizationContext(this);
             }
-            public int OpCount => Thread.VolatileRead(ref _opCount);
+            public int OpCount => Volatile.Read(ref _opCount);
             private int _opCount;
             private void Incr() => Interlocked.Increment(ref _opCount);
 

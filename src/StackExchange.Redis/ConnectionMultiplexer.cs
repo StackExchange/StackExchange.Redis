@@ -58,17 +58,17 @@ namespace StackExchange.Redis
 
         private int lastReconfigiureTicks = Environment.TickCount;
         internal long LastReconfigureSecondsAgo =>
-            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastReconfigiureTicks)) / 1000;
+            unchecked(Environment.TickCount - Volatile.Read(ref lastReconfigiureTicks)) / 1000;
 
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
         internal long LastHeartbeatSecondsAgo =>
             pulse is null
             ? -1
-            : unchecked(Environment.TickCount - Thread.VolatileRead(ref lastHeartbeatTicks)) / 1000;
+            : unchecked(Environment.TickCount - Volatile.Read(ref lastHeartbeatTicks)) / 1000;
 
         private static int lastGlobalHeartbeatTicks = Environment.TickCount;
         internal static long LastGlobalHeartbeatSecondsAgo =>
-            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000;
+            unchecked(Environment.TickCount - Volatile.Read(ref lastGlobalHeartbeatTicks)) / 1000;
 
         /// <inheritdoc cref="ConfigurationOptions.IncludeDetailInExceptions"/>
         [Obsolete($"Please use {nameof(ConfigurationOptions)}.{nameof(ConfigurationOptions.IncludeDetailInExceptions)} instead - this will be removed in 3.0.")]

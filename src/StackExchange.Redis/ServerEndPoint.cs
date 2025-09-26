@@ -719,7 +719,7 @@ namespace StackExchange.Redis
         }
 
         internal int LastInfoReplicationCheckSecondsAgo =>
-            unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000;
+            unchecked(Environment.TickCount - Volatile.Read(ref lastInfoReplicationCheckTicks)) / 1000;
 
         private EndPoint? primaryEndPoint;
         public EndPoint? PrimaryEndPoint
