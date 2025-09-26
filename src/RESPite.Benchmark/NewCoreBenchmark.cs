@@ -189,7 +189,7 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
 
     private async ValueTask ZPopMinInit(RespContext ctx)
     {
-        int ops = TotalOperations;
+        int ops = SortedSetElements;
         var rand = new Random();
         for (int i = 0; i < ops; i++)
         {
@@ -201,20 +201,14 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     [DisplayName("SPOP")]
     private ValueTask<RespParsers.ResponseSummary> SPop(RespContext ctx) => ctx.SPopAsync(SetKey);
 
-    private async ValueTask SPopInit(RespContext ctx)
-    {
-        int ops = TotalOperations;
-        for (int i = 0; i < ops; i++)
-        {
-            await ctx.SAddAsync(SetKey, "element:__rand_int__").ConfigureAwait(false);
-        }
-    }
+    private ValueTask SPopInit(RespContext ctx)
+        => ctx.SAddAsync(SetKey, "element:__rand_int__").AsUntypedValueTask();
 
     [DisplayName("MSET"), Description("10 keys")]
     private ValueTask<bool> MSet(RespContext ctx) => ctx.MSetAsync(_pairs);
 
     private ValueTask LRangeInit(RespContext ctx) =>
-        ctx.LPushAsync(ListKey, Payload, TotalOperations).AsUntypedValueTask();
+        ctx.LPushAsync(ListKey, Payload, ListElements).AsUntypedValueTask();
 
     [DisplayName("XADD")]
     private ValueTask<RespParsers.ResponseSummary> XAdd(RespContext ctx) =>

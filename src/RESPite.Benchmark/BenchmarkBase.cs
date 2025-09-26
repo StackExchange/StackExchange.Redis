@@ -21,6 +21,12 @@ public abstract class BenchmarkBase : IDisposable
         SortedSetKey = "myzset",
         StreamKey = "mystream";
 
+    // how many elements to add for the LRANGE tests
+    protected const int ListElements = 650;
+
+    // how many elements to add for the ZPOPMIN tests
+    protected const int SortedSetElements = 650;
+
     public PipelineStrategy PipelineMode { get; } =
         PipelineStrategy.Batch; // the default, for parity with how redis-benchmark works
 

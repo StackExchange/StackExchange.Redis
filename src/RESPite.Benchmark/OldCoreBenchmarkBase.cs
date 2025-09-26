@@ -235,9 +235,8 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
 
     private async ValueTask ZPopMinInit(IDatabaseAsync client)
     {
-        int ops = TotalOperations;
         var rand = new Random();
-        for (int i = 0; i < ops; i++)
+        for (int i = 0; i < SortedSetElements; i++)
         {
             await client.SortedSetAddAsync(SortedSetKey, "element:__rand_int__", (rand.NextDouble() * 2000) - 1000)
                 .ConfigureAwait(false);
@@ -269,8 +268,7 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
 
     private async ValueTask LRangeInit(IDatabaseAsync client)
     {
-        var ops = TotalOperations;
-        for (int i = 0; i < ops; i++)
+        for (int i = 0; i < ListElements; i++)
         {
             await client.ListLeftPushAsync(ListKey, Payload);
         }
