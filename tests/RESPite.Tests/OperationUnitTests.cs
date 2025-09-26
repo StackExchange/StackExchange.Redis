@@ -192,7 +192,7 @@ public class OperationUnitTests
 #endif
     }
 
-    private class TestAwaitable : IValueTaskSource
+    private sealed class TestAwaitable : IValueTaskSource
     {
         private ManualResetValueTaskSourceCore<int> _core;
         public ValueTask AsValueTask() => new(this, _core.Version);
