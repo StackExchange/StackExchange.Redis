@@ -182,18 +182,16 @@ namespace StackExchange.Redis
             /// </summary>
             internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
             {
-                var isPattern = channel.IsPattern;
-                var isSharded = channel.IsSharded;
-                var command = action switch
+                var command = action switch // note that the Routed flag doesn't impact the message here - just the routing
                 {
-                    SubscriptionAction.Subscribe => channel.Options switch
+                    SubscriptionAction.Subscribe => (channel.Options & ~RedisChannel.RedisChannelOptions.KeyRouted) switch
                     {
                         RedisChannel.RedisChannelOptions.None => RedisCommand.SUBSCRIBE,
                         RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PSUBSCRIBE,
                         RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SSUBSCRIBE,
                         _ => Unknown(action, channel.Options),
                     },
-                    SubscriptionAction.Unsubscribe => channel.Options switch
+                    SubscriptionAction.Unsubscribe => (channel.Options & ~RedisChannel.RedisChannelOptions.KeyRouted) switch
                     {
                         RedisChannel.RedisChannelOptions.None => RedisCommand.UNSUBSCRIBE,
                         RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PUNSUBSCRIBE,
@@ -384,14 +382,16 @@ namespace StackExchange.Redis
         {
             ThrowIfNull(channel);
             var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
-            return ExecuteSync(msg, ResultProcessor.Int64);
+            // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
+            return ExecuteSync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
             var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
+            // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
+            return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
         }
 
         void ISubscriber.Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags)

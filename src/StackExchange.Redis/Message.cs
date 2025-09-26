@@ -866,7 +866,8 @@ namespace StackExchange.Redis
 
             public override string CommandAndKey => Command + " " + Channel;
 
-            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(Channel);
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+                => Channel.IsKeyRouted ? serverSelectionStrategy.HashSlot(Channel) : ServerSelectionStrategy.NoSlot;
         }
 
         internal abstract class CommandKeyBase : Message

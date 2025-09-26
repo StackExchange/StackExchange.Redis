@@ -743,16 +743,40 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ClusterPubSub(bool sharded)
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public async Task ClusterPubSub(bool sharded, bool withKeyRouting)
     {
         var guid = Guid.NewGuid().ToString();
         var channel = sharded ? RedisChannel.Sharded(guid) : RedisChannel.Literal(guid);
+        if (withKeyRouting)
+        {
+            channel = channel.WithKeyRouting();
+        }
         await using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false, require: sharded ? RedisFeatures.v7_0_0_rc1 : RedisFeatures.v2_0_0);
         Assert.True(conn.IsConnected);
 
         var pubsub = conn.GetSubscriber();
+        HashSet<string> eps = [];
+        for (int i = 0; i < 10; i++)
+        {
+            var ep = Format.ToString(await pubsub.IdentifyEndpointAsync(channel));
+            Log($"Channel {channel} => {ep}");
+            eps.Add(ep);
+        }
+
+        if (sharded | withKeyRouting)
+        {
+            Assert.Single(eps);
+        }
+        else
+        {
+            // if not routed: we should have at least two different endpoints
+            Assert.True(eps.Count > 1);
+        }
+
         List<(RedisChannel, RedisValue)> received = [];
         var queue = await pubsub.SubscribeAsync(channel);
         _ = Task.Run(async () =>
@@ -766,16 +790,28 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
                 }
             }
         });
-
+        var subscribedEp = Format.ToString(pubsub.SubscribedEndpoint(channel));
+        Log($"Subscribed to {subscribedEp}");
+        Assert.NotNull(subscribedEp);
+        if (sharded | withKeyRouting)
+        {
+            Assert.Equal(eps.Single(), subscribedEp);
+        }
         var db = conn.GetDatabase();
         await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
         await db.PingAsync();
         for (int i = 0; i < 10; i++)
         {
-            // check we get a hit
-            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+            // publish
+            var receivers = await db.PublishAsync(channel, i.ToString());
+
+            // check we get a hit (we are the only subscriber, and because we prefer to
+            // use our own subscribed connection: we can reliably expect to see this hit)
+            Log($"Published {i} to {receivers} receiver(s) against the receiving server.");
+            Assert.Equal(1, receivers);
         }
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+        await Task.Delay(250); // let the sub settle (this isn't needed on RESP3, note)
         await db.PingAsync();
         await pubsub.UnsubscribeAsync(channel);
 
@@ -792,6 +828,8 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             var pair = snap[i];
             Log("element {0}: {1}/{2}", i, pair.Channel, pair.Value);
         }
+        // even if not routed: we can expect the *order* to be correct, since there's
+        // only one publisher (us), and we prefer to publish via our own subscription
         for (int i = 0; i < 10; i++)
         {
             var pair = snap[i];

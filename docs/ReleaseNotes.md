@@ -9,6 +9,7 @@ Current package versions:
 ## Unreleased
 
 - Fix [#2951](https://github.com/StackExchange/StackExchange.Redis/issues/2951) - sentinel reconnection failure ([#2956 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2956))
+- Mitigate [#2955](https://github.com/StackExchange/StackExchange.Redis/issues/2955) (unbalanced pub/sub routing) ([#2958 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2958))
 
 ## 2.9.17
 
