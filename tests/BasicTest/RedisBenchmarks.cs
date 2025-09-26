@@ -191,6 +191,7 @@ public class RedisBenchmarks : IDisposable
             db.StringGet(StringKey_K);
         }
     }
+
 #if !TEST_BASELINE
     /// <summary>
     /// Run StringSet lots of times.

@@ -214,6 +214,19 @@ namespace StackExchange.Redis
         IServer GetServer(EndPoint endpoint, object? asyncState = null);
 
         /// <summary>
+        /// Gets a server that would be used for a given key and flags.
+        /// </summary>
+        /// <param name="key">The endpoint to get a server for. In a non-cluster environment, this parameter is ignored. A <see langword="default"/> key may be specified
+        /// on cluster, which will return a connection to an arbitrary server matching the specified flags.</param>
+        /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>This method is particularly useful when communicating with a cluster environment, to obtain a connection to the server that owns the specified key
+        /// and ad-hoc commands with unusual routing requirements. Note that <see cref="GetDatabase"/> provides a connection that automatically routes commands by
+        /// looking for <see cref="RedisKey"/> parameters, so this method is only necessary when used with commands that do not take a <see cref="RedisKey"/> parameter,
+        /// but require consistent routing using key-like semantics.</remarks>
+        IServer GetServer(RedisKey key, object? asyncState = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Obtain configuration APIs for all servers in this multiplexer.
         /// </summary>
         IServer[] GetServers();

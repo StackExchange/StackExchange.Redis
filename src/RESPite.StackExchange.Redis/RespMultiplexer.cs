@@ -254,6 +254,16 @@ public sealed class RespMultiplexer : IConnectionMultiplexer
         return GetServer(_connectionManager.GetNode(host, port), asyncState);
     }
 
+    public IServer GetServer(RedisKey key, object? asyncState = null, CommandFlags flags = CommandFlags.None)
+    {
+        if (key.IsNull) // just get anything
+        {
+            var node = _connectionManager.GetRandomNode();
+            if (node is not null) return GetServer(node, asyncState);
+        }
+        throw new NotImplementedException();
+    }
+
     private IServer GetServer(Node node, object? asyncState)
     {
         if (asyncState is not null) ThrowNotSupported();

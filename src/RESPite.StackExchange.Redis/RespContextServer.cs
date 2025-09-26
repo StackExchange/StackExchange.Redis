@@ -159,6 +159,12 @@ internal sealed class RespContextServer(RespMultiplexer muxer, Node node) : ISer
         ICollection<object> args,
         CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
+    public RedisResult Execute(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None) =>
+        throw new NotImplementedException();
+
+    public Task<RedisResult> ExecuteAsync(int? database, string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        => throw new NotImplementedException();
+
     public void FlushAllDatabases(CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();
 
     public Task FlushAllDatabasesAsync(CommandFlags flags = CommandFlags.None) => throw new NotImplementedException();

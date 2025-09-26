@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using RESPite.StackExchange.Redis;
+using StackExchange.Redis;
 using Xunit;
 
 namespace RESPite.Tests;
@@ -16,7 +17,7 @@ public class RespMultiplexerTests(ITestOutputHelper log)
         await muxer.ConnectAsync("localhost:6379", log: logWriter);
         Assert.True(muxer.IsConnected);
 
-        var server = muxer.GetServer(muxer.GetEndPoints().Single());
+        var server = muxer.GetServer(default(RedisKey));
         Assert.IsType<RespContextServer>(server); // we expect this to *not* use routing
         server.Ping();
         await server.PingAsync();
@@ -26,5 +27,9 @@ public class RespMultiplexerTests(ITestOutputHelper log)
         // since this is a single-node instance, we expect the proxied database to use the interactive connection
         db.Ping();
         await db.PingAsync();
+
+        // ReSharper disable once MethodHasAsyncOverload
+        proxied.Ping();
+        await proxied.PingAsync();
     }
 }

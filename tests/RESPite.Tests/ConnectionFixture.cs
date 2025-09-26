@@ -163,6 +163,9 @@ internal sealed class DummyMultiplexer(ConnectionFixture fixture) : IConnectionM
     IServer IConnectionMultiplexer.GetServer(EndPoint endpoint, object? asyncState) =>
         throw new NotImplementedException();
 
+    public IServer GetServer(RedisKey key, object? asyncState = null, CommandFlags flags = CommandFlags.None)
+        => throw new NotImplementedException();
+
     IServer[] IConnectionMultiplexer.GetServers() => throw new NotImplementedException();
 
     Task<bool> IConnectionMultiplexer.ConfigureAsync(TextWriter? log) => throw new NotImplementedException();

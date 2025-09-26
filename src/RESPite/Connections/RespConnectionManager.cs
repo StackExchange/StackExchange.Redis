@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using RESPite.Connections.Internal;
 using RESPite.Internal;
 
@@ -99,6 +100,7 @@ public sealed class RespConnectionManager : IRespContextSource
         {
             pending[i] = snapshot[i].ConnectAsync(log);
         }
+
         return ConnectAsyncAwaited(pending, log, snapshot.Length);
     }
 
@@ -230,4 +232,22 @@ public sealed class RespConnectionManager : IRespContextSource
     internal Node GetNode(string hostAndPort) => ConnectionFactory.TryParse(hostAndPort, out var host, out var port)
         ? GetNode(host, port)
         : throw new ArgumentException($"Could not parse host and port from '{hostAndPort}'", nameof(hostAndPort));
+
+    internal Node? GetRandomNode()
+    {
+        var nodes = _nodes;
+        if (nodes is { Length: > 0 })
+        {
+            var index = SharedRandom.Next(nodes.Length);
+            return nodes[index];
+        }
+
+        return null;
+    }
+
+#if NET5_0_OR_GREATER
+    private static Random SharedRandom => Random.Shared;
+#else
+    private static Random SharedRandom { get; } = new();
+#endif
 }
