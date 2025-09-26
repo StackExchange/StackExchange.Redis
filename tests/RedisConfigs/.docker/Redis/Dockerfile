@@ -1,4 +1,4 @@
-FROM redis:7.4.2
+FROM redis:8.2.0
 
 COPY --from=configs ./Basic /data/Basic/
 COPY --from=configs ./Failover /data/Failover/
