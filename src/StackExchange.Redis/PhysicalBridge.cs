@@ -555,7 +555,7 @@ namespace StackExchange.Redis
 
         private bool DueForConnectRetry()
         {
-            int connectTimeMilliseconds = unchecked(Environment.TickCount - Thread.VolatileRead(ref connectStartTicks));
+            int connectTimeMilliseconds = unchecked(Environment.TickCount - Volatile.Read(ref connectStartTicks));
             return Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Interlocked.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
         }
 

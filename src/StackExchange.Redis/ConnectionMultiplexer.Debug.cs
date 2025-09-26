@@ -5,7 +5,7 @@ namespace StackExchange.Redis;
 public partial class ConnectionMultiplexer
 {
     private static int _collectedWithoutDispose;
-    internal static int CollectedWithoutDispose => Thread.VolatileRead(ref _collectedWithoutDispose);
+    internal static int CollectedWithoutDispose => Volatile.Read(ref _collectedWithoutDispose);
 
     /// <summary>
     /// Invoked by the garbage collector.
