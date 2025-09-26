@@ -8,8 +8,13 @@ Current package versions:
 
 ## Unreleased
 
+## 2.9.24
+
 - Fix [#2951](https://github.com/StackExchange/StackExchange.Redis/issues/2951) - sentinel reconnection failure ([#2956 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2956))
-- Mitigate [#2955](https://github.com/StackExchange/StackExchange.Redis/issues/2955) (unbalanced pub/sub routing) ([#2958 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2958))
+- Mitigate [#2955](https://github.com/StackExchange/StackExchange.Redis/issues/2955) (unbalanced pub/sub routing) / add `RedisValue.WithKeyRouting()` ([#2958 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2958))
+- Fix envoyproxy command exclusions ([#2957 by sshumakov](https://github.com/StackExchange/StackExchange.Redis/pull/2957))
+- Restrict `RedisValue` hex fallback (`string` conversion) to encoding failures ([2954 by jcaspes](https://github.com/StackExchange/StackExchange.Redis/pull/2954))
+- (internals) prefer `Volatile.Read` over `Thread.VolatileRead` ([2960 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2960))
 
 ## 2.9.17
 
