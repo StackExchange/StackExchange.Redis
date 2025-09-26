@@ -743,13 +743,18 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Theory]
-    [InlineData(true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     [InlineData(false, false)]
     [InlineData(false, true)]
-    public async Task ClusterPubSub(bool sharded, bool routed = false)
+    public async Task ClusterPubSub(bool sharded, bool withKeyRouting)
     {
         var guid = Guid.NewGuid().ToString();
-        var channel = sharded ? RedisChannel.Sharded(guid) : routed ? RedisChannel.LiteralRouted(guid) : RedisChannel.Literal(guid);
+        var channel = sharded ? RedisChannel.Sharded(guid) : RedisChannel.Literal(guid);
+        if (withKeyRouting)
+        {
+            channel = channel.WithKeyRouting();
+        }
         await using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false, require: sharded ? RedisFeatures.v7_0_0_rc1 : RedisFeatures.v2_0_0);
         Assert.True(conn.IsConnected);
 
@@ -762,7 +767,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             eps.Add(ep);
         }
 
-        if (sharded | routed)
+        if (sharded | withKeyRouting)
         {
             Assert.Single(eps);
         }
@@ -788,7 +793,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var subscribedEp = Format.ToString(pubsub.SubscribedEndpoint(channel));
         Log($"Subscribed to {subscribedEp}");
         Assert.NotNull(subscribedEp);
-        if (sharded | routed)
+        if (sharded | withKeyRouting)
         {
             Assert.Equal(eps.Single(), subscribedEp);
         }

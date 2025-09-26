@@ -18,19 +18,19 @@ namespace StackExchange.Redis
             None = 0,
             Pattern = 1 << 0,
             Sharded = 1 << 1,
-            Routed = 1 << 2,
+            KeyRouted = 1 << 2,
         }
 
         // we don't consider Routed for equality - it's an implementation detail, not a fundamental feature
-        private const RedisChannelOptions EqualityMask = ~RedisChannelOptions.Routed;
+        private const RedisChannelOptions EqualityMask = ~RedisChannelOptions.KeyRouted;
 
         internal RedisCommand PublishCommand => IsSharded ? RedisCommand.SPUBLISH : RedisCommand.PUBLISH;
 
         /// <summary>
         /// Should we use cluster routing for this channel? This applies *either* to sharded (SPUBLISH) scenarios,
-        /// or to scenarios using <see cref="RedisChannel.LiteralRouted(string)"/> / <see cref="RedisChannel.LiteralRouted(byte[])"/>.
+        /// or to scenarios using <see cref="RedisChannel.WithKeyRouting" />.
         /// </summary>
-        internal bool UseClusterRouting => (Options & (RedisChannelOptions.Sharded | RedisChannelOptions.Routed)) != 0;
+        internal bool IsKeyRouted => (Options & RedisChannelOptions.KeyRouted) != 0;
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value.
@@ -77,20 +77,12 @@ namespace StackExchange.Redis
         public static RedisChannel Literal(byte[] value) => new(value, RedisChannelOptions.None);
 
         /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription. In cluster
-        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
+        /// In cluster environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
         /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
         /// a consideration.
         /// </summary>
-        public static RedisChannel LiteralRouted(string value) => new(value, RedisChannelOptions.Routed);
-
-        /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that does not act as a wildcard subscription. In cluster
-        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
-        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
-        /// a consideration.
-        /// </summary>
-        public static RedisChannel LiteralRouted(byte[] value) => new(value, RedisChannelOptions.Routed);
+        /// <remarks>Note that channels from <c>Sharded</c> are always routed.</remarks>
+        public RedisChannel WithKeyRouting() => new(Value, Options | RedisChannelOptions.KeyRouted);
 
         /// <summary>
         /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription. In cluster
@@ -107,22 +99,6 @@ namespace StackExchange.Redis
         /// very few channels. In non-cluster environments, routing is not a consideration.
         /// </summary>
         public static RedisChannel Pattern(byte[] value) => new(value, RedisChannelOptions.Pattern);
-
-        /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription. In cluster
-        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
-        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
-        /// a consideration.
-        /// </summary>
-        public static RedisChannel PatternRouted(string value) => new(value, RedisChannelOptions.Pattern | RedisChannelOptions.Routed);
-
-        /// <summary>
-        /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription. In cluster
-        /// environments, this channel will be routed using similar rules to <see cref="RedisKey"/>, which is suitable
-        /// for distributing pub/sub in scenarios with lots of channels. In non-cluster environments, routing is not
-        /// a consideration.
-        /// </summary>
-        public static RedisChannel PatternRouted(byte[] value) => new(value, RedisChannelOptions.Pattern | RedisChannelOptions.Routed);
 
         /// <summary>
         /// Create a new redis channel from a buffer, explicitly controlling the pattern mode.
@@ -152,7 +128,7 @@ namespace StackExchange.Redis
         /// <param name="value">The name of the channel to create.</param>
         /// <remarks>Note that sharded subscriptions are completely separate to regular subscriptions; subscriptions
         /// using sharded channels must also be published with sharded channels (and vice versa).</remarks>
-        public static RedisChannel Sharded(byte[]? value) => new(value, RedisChannelOptions.Sharded);
+        public static RedisChannel Sharded(byte[]? value) => new(value, RedisChannelOptions.Sharded | RedisChannelOptions.KeyRouted);
 
         /// <summary>
         /// Create a new redis channel from a string, representing a sharded channel. In cluster
@@ -163,7 +139,7 @@ namespace StackExchange.Redis
         /// <param name="value">The string name of the channel to create.</param>
         /// <remarks>Note that sharded subscriptions are completely separate to regular subscriptions; subscriptions
         /// using sharded channels must also be published with sharded channels (and vice versa).</remarks>
-        public static RedisChannel Sharded(string value) => new(value, RedisChannelOptions.Sharded);
+        public static RedisChannel Sharded(string value) => new(value, RedisChannelOptions.Sharded | RedisChannelOptions.KeyRouted);
 
         internal RedisChannel(byte[]? value, RedisChannelOptions options)
         {

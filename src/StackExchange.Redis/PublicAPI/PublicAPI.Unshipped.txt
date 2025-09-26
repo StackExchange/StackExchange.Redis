@@ -1,5 +1,1 @@
 ﻿#nullable enable
-static StackExchange.Redis.RedisChannel.LiteralRouted(byte[]! value) -> StackExchange.Redis.RedisChannel
-static StackExchange.Redis.RedisChannel.LiteralRouted(string! value) -> StackExchange.Redis.RedisChannel
-static StackExchange.Redis.RedisChannel.PatternRouted(byte[]! value) -> StackExchange.Redis.RedisChannel
-static StackExchange.Redis.RedisChannel.PatternRouted(string! value) -> StackExchange.Redis.RedisChannel

@@ -2051,3 +2051,4 @@ StackExchange.Redis.IServer.ExecuteAsync(int? database, string! command, System.
 [SER001]static StackExchange.Redis.VectorSetAddRequest.Member(StackExchange.Redis.RedisValue element, System.ReadOnlyMemory<float> values, string? attributesJson = null) -> StackExchange.Redis.VectorSetAddRequest!
 [SER001]static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByMember(StackExchange.Redis.RedisValue member) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
 [SER001]static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByVector(System.ReadOnlyMemory<float> vector) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
+StackExchange.Redis.RedisChannel.WithKeyRouting() -> StackExchange.Redis.RedisChannel
