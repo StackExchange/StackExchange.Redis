@@ -52,26 +52,40 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
         // await RunAsync(PingInline).ConfigureAwait(false);
         await RunAsync(null, PingBulk).ConfigureAwait(false);
 
-        await RunAsync(GetSetKey, Set).ConfigureAwait(false);
-        await RunAsync(GetSetKey, Get, GetInit).ConfigureAwait(false);
-        await RunAsync(CounterKey, Incr).ConfigureAwait(false);
-        await RunAsync(ListKey, LPush).ConfigureAwait(false);
-        await RunAsync(ListKey, RPush).ConfigureAwait(false);
-        await RunAsync(ListKey, LPop, LPopInit).ConfigureAwait(false);
-        await RunAsync(ListKey, RPop, LPopInit).ConfigureAwait(false);
-        await RunAsync(SetKey, SAdd).ConfigureAwait(false);
+        await RunAsync(GetSetKey, Set, GetName(Get)).ConfigureAwait(false);
+        await RunAsync(GetSetKey, Get).ConfigureAwait(false);
+
+        await RunAsync(CounterKey, Incr, true).ConfigureAwait(false);
+
+        await RunAsync(ListKey, LPush, GetName(LPop)).ConfigureAwait(false);
+        await RunAsync(ListKey, LPop).ConfigureAwait(false);
+
+        await RunAsync(ListKey, RPush, GetName(RPop)).ConfigureAwait(false);
+        await RunAsync(ListKey, RPop).ConfigureAwait(false);
+
+        await RunAsync(SetKey, SAdd, GetName(SPop)).ConfigureAwait(false);
+        await RunAsync(SetKey, SPop).ConfigureAwait(false);
+
         await RunAsync(HashKey, HSet).ConfigureAwait(false);
-        await RunAsync(SetKey, SPop, SPopInit).ConfigureAwait(false);
-        await RunAsync(SortedSetKey, ZAdd).ConfigureAwait(false);
-        await RunAsync(SortedSetKey, ZPopMin, ZPopMinInit).ConfigureAwait(false);
+
+        await RunAsync(SortedSetKey, ZAdd, GetName(ZPopMin)).ConfigureAwait(false);
+        await RunAsync(SortedSetKey, ZPopMin).ConfigureAwait(false);
+
         await RunAsync(null, MSet).ConfigureAwait(false);
         await RunAsync(StreamKey, XAdd).ConfigureAwait(false);
 
         // leave until last, they're slower
-        await RunAsync(ListKey, LRange100, LRangeInit).ConfigureAwait(false);
-        await RunAsync(ListKey, LRange300, LRangeInit).ConfigureAwait(false);
-        await RunAsync(ListKey, LRange500, LRangeInit).ConfigureAwait(false);
-        await RunAsync(ListKey, LRange600, LRangeInit).ConfigureAwait(false);
+        if (RunTest(GetName(LRange100)) ||
+            RunTest(GetName(LRange300)) ||
+            RunTest(GetName(LRange500)) ||
+            RunTest(GetName(LRange600)))
+        {
+            await LRangeInit650(GetClient(0)).ConfigureAwait(false);
+            await RunAsync(ListKey, LRange100, false, 10).ConfigureAwait(false);
+            await RunAsync(ListKey, LRange300, false, 10).ConfigureAwait(false);
+            await RunAsync(ListKey, LRange500, false, 10).ConfigureAwait(false);
+            await RunAsync(ListKey, LRange600, false, 10).ConfigureAwait(false);
+        }
 
         await CleanupAsync().ConfigureAwait(false);
     }
@@ -180,11 +194,6 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
     [DisplayName("SET")]
     private ValueTask<bool> Set(IDatabaseAsync client) => client.StringSetAsync(GetSetKey, Payload).AsValueTask();
 
-    private ValueTask GetInit(IDatabaseAsync client) =>
-        client.StringSetAsync(GetSetKey, Payload).AsUntypedValueTask();
-
-    private ValueTask<TimeSpan> PingInline(IDatabaseAsync client) => client.PingAsync().AsValueTask();
-
     [DisplayName("PING_BULK")]
     private ValueTask<TimeSpan> PingBulk(IDatabaseAsync client) => client.PingAsync().AsValueTask();
 
@@ -211,14 +220,8 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
     [DisplayName("RPOP")]
     private ValueTask<RedisValue> RPop(IDatabaseAsync client) => client.ListRightPopAsync(ListKey).AsValueTask();
 
-    private ValueTask LPopInit(IDatabaseAsync client) =>
-        client.ListLeftPushAsync(ListKey, Payload).AsUntypedValueTask();
-
     [DisplayName("SPOP")]
     private ValueTask<RedisValue> SPop(IDatabaseAsync client) => client.SetPopAsync(SetKey).AsValueTask();
-
-    private ValueTask SPopInit(IDatabaseAsync client) =>
-        client.SetAddAsync(SetKey, "element:__rand_int__").AsUntypedValueTask();
 
     [DisplayName("ZADD")]
     private ValueTask<bool> ZAdd(IDatabaseAsync client) =>
@@ -231,16 +234,6 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
     {
         var result = await pending.ConfigureAwait(false);
         return result.HasValue ? 1 : 0;
-    }
-
-    private async ValueTask ZPopMinInit(IDatabaseAsync client)
-    {
-        var rand = new Random();
-        for (int i = 0; i < SortedSetElements; i++)
-        {
-            await client.SortedSetAddAsync(SortedSetKey, "element:__rand_int__", (rand.NextDouble() * 2000) - 1000)
-                .ConfigureAwait(false);
-        }
     }
 
     [DisplayName("MSET")]
@@ -266,11 +259,19 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
     private static ValueTask<int> CountAsync<T>(Task<T[]> task) => task.ContinueWith(
         t => t.Result.Length, TaskContinuationOptions.ExecuteSynchronously).AsValueTask();
 
-    private async ValueTask LRangeInit(IDatabaseAsync client)
+    private async ValueTask LRangeInit650(IDatabaseAsync client)
     {
-        for (int i = 0; i < ListElements; i++)
+        var batch = CreateBatch(client);
+        _ = batch.KeyDeleteAsync(ListKey, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 650; i++)
         {
-            await client.ListLeftPushAsync(ListKey, Payload);
+            _ = batch.ListLeftPushAsync(ListKey, Payload, flags: CommandFlags.FireAndForget);
+        }
+
+        await Flush(batch).ConfigureAwait(false);
+        if (await client.ListLengthAsync(ListKey).ConfigureAwait(false) != 650)
+        {
+            throw new InvalidOperationException();
         }
     }
 }
@@ -278,8 +279,11 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
 internal static class TaskExtensions
 {
     public static ValueTask<T> AsValueTask<T>(this Task<T> task) => new(task);
+
+    /*
     public static ValueTask AsUntypedValueTask(this Task task) => new(task);
     public static ValueTask AsValueTask<T>(this Task task) => new(task);
+    */
 
     public static ValueTask AsUntypedValueTask<T>(this ValueTask<T> task)
     {

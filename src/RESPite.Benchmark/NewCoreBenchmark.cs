@@ -86,26 +86,40 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
         // await RunAsync(PingInline).ConfigureAwait(false);
         await RunAsync(null, PingBulk).ConfigureAwait(false);
 
-        await RunAsync(GetSetKey, Set).ConfigureAwait(false);
-        await RunAsync(GetSetKey, Get, GetInit).ConfigureAwait(false);
-        await RunAsync(CounterKey, Incr).ConfigureAwait(false);
-        await RunAsync(ListKey, LPush).ConfigureAwait(false);
-        await RunAsync(ListKey, RPush).ConfigureAwait(false);
-        await RunAsync(ListKey, LPop, LPopInit).ConfigureAwait(false);
-        await RunAsync(ListKey, RPop, LPopInit).ConfigureAwait(false);
-        await RunAsync(SetKey, SAdd).ConfigureAwait(false);
+        await RunAsync(GetSetKey, Set, GetName(Get)).ConfigureAwait(false);
+        await RunAsync(GetSetKey, Get).ConfigureAwait(false);
+
+        await RunAsync(CounterKey, Incr, true).ConfigureAwait(false);
+
+        await RunAsync(ListKey, LPush, GetName(LPop)).ConfigureAwait(false);
+        await RunAsync(ListKey, LPop).ConfigureAwait(false);
+
+        await RunAsync(ListKey, RPush, GetName(RPop)).ConfigureAwait(false);
+        await RunAsync(ListKey, RPop).ConfigureAwait(false);
+
+        await RunAsync(SetKey, SAdd, GetName(SPop)).ConfigureAwait(false);
+        await RunAsync(SetKey, SPop).ConfigureAwait(false);
+
         await RunAsync(HashKey, HSet).ConfigureAwait(false);
-        await RunAsync(SetKey, SPop, SPopInit).ConfigureAwait(false);
-        await RunAsync(SortedSetKey, ZAdd).ConfigureAwait(false);
-        await RunAsync(SortedSetKey, ZPopMin, ZPopMinInit).ConfigureAwait(false);
+
+        await RunAsync(SortedSetKey, ZAdd, GetName(ZPopMin)).ConfigureAwait(false);
+        await RunAsync(SortedSetKey, ZPopMin).ConfigureAwait(false);
+
         await RunAsync(null, MSet).ConfigureAwait(false);
         await RunAsync(StreamKey, XAdd).ConfigureAwait(false);
 
         // leave until last, they're slower
-        await RunAsync(ListKey, LRange100, LRangeInit).ConfigureAwait(false);
-        await RunAsync(ListKey, LRange300, LRangeInit).ConfigureAwait(false);
-        await RunAsync(ListKey, LRange500, LRangeInit).ConfigureAwait(false);
-        await RunAsync(ListKey, LRange600, LRangeInit).ConfigureAwait(false);
+        if (RunTest(GetName(LRange100)) ||
+            RunTest(GetName(LRange300)) ||
+            RunTest(GetName(LRange500)) ||
+            RunTest(GetName(LRange600)))
+        {
+            await LRangeInit650(GetClient(0)).ConfigureAwait(false);
+            await RunAsync(ListKey, LRange100, false, 10).ConfigureAwait(false);
+            await RunAsync(ListKey, LRange300, false, 10).ConfigureAwait(false);
+            await RunAsync(ListKey, LRange500, false, 10).ConfigureAwait(false);
+            await RunAsync(ListKey, LRange600, false, 10).ConfigureAwait(false);
+        }
 
         await CleanupAsync().ConfigureAwait(false);
     }
@@ -143,8 +157,6 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     [DisplayName("GET")]
     private ValueTask<RespParsers.ResponseSummary> Get(RespContext ctx) => ctx.GetAsync(GetSetKey);
 
-    private ValueTask GetInit(RespContext ctx) => ctx.SetAsync(GetSetKey, Payload).AsUntypedValueTask();
-
     [DisplayName("SET")]
     private ValueTask<RespParsers.ResponseSummary> Set(RespContext ctx) => ctx.SetAsync(GetSetKey, Payload);
 
@@ -172,9 +184,6 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     [DisplayName("RPOP")]
     private ValueTask<RespParsers.ResponseSummary> RPop(RespContext ctx) => ctx.RPopAsync(ListKey);
 
-    private ValueTask LPopInit(RespContext ctx) =>
-        ctx.LPushAsync(ListKey, Payload, TotalOperations).AsUntypedValueTask();
-
     [DisplayName("SADD")]
     private ValueTask<int> SAdd(RespContext ctx) => ctx.SAddAsync(SetKey, "element:__rand_int__");
 
@@ -187,28 +196,21 @@ public sealed class NewCoreBenchmark : BenchmarkBase<RespContext>
     [DisplayName("ZPOPMIN")]
     private ValueTask<RespParsers.ResponseSummary> ZPopMin(RespContext ctx) => ctx.ZPopMinAsync(SortedSetKey);
 
-    private async ValueTask ZPopMinInit(RespContext ctx)
-    {
-        int ops = SortedSetElements;
-        var rand = new Random();
-        for (int i = 0; i < ops; i++)
-        {
-            await ctx.ZAddAsync(SortedSetKey, (rand.NextDouble() * 2000) - 1000, "element:__rand_int__")
-                .ConfigureAwait(false);
-        }
-    }
-
     [DisplayName("SPOP")]
     private ValueTask<RespParsers.ResponseSummary> SPop(RespContext ctx) => ctx.SPopAsync(SetKey);
-
-    private ValueTask SPopInit(RespContext ctx)
-        => ctx.SAddAsync(SetKey, "element:__rand_int__").AsUntypedValueTask();
 
     [DisplayName("MSET"), Description("10 keys")]
     private ValueTask<bool> MSet(RespContext ctx) => ctx.MSetAsync(_pairs);
 
-    private ValueTask LRangeInit(RespContext ctx) =>
-        ctx.LPushAsync(ListKey, Payload, ListElements).AsUntypedValueTask();
+    private async ValueTask LRangeInit650(RespContext ctx)
+    {
+        await ctx.DelAsync(ListKey).ConfigureAwait(false);
+        await ctx.LPushAsync(ListKey, Payload, 650);
+        if (await ctx.LLenAsync(ListKey).ConfigureAwait(false) != 650)
+        {
+            throw new InvalidOperationException();
+        }
+    }
 
     [DisplayName("XADD")]
     private ValueTask<RespParsers.ResponseSummary> XAdd(RespContext ctx) =>
@@ -310,6 +312,9 @@ internal static partial class RedisCommands
 
     [RespCommand]
     internal static partial RespParsers.ResponseSummary Set(this in RespContext ctx, string key, byte[] payload);
+
+    [RespCommand]
+    internal static partial int LLen(this in RespContext ctx, string key);
 
     [RespCommand]
     internal static partial int LPush(this in RespContext ctx, string key, byte[] payload);

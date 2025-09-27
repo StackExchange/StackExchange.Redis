@@ -66,9 +66,6 @@ internal partial class RespContextDatabase
     public Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public Task<long> ListLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
     public Task<RedisValue> ListMoveAsync(
         RedisKey sourceKey,
         RedisKey destinationKey,
@@ -204,8 +201,8 @@ internal partial class RespContextDatabase
     public long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
 
-    public long ListLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+    [RespCommand("LLEN")]
+    public partial long ListLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     public RedisValue ListMove(
         RedisKey sourceKey,

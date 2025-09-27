@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,12 +21,6 @@ public abstract class BenchmarkBase : IDisposable
         HashKey = "myhash",
         SortedSetKey = "myzset",
         StreamKey = "mystream";
-
-    // how many elements to add for the LRANGE tests
-    protected const int ListElements = 650;
-
-    // how many elements to add for the ZPOPMIN tests
-    protected const int SortedSetElements = 650;
 
     public PipelineStrategy PipelineMode { get; } =
         PipelineStrategy.Batch; // the default, for parity with how redis-benchmark works
@@ -53,9 +48,10 @@ public abstract class BenchmarkBase : IDisposable
     public bool Loop { get; }
     public bool Quiet { get; }
     public int ClientCount { get; } = 50;
-    public int OperationsPerClient { get; }
+    private int _operationsPerClient;
+    public int OperationsPerClient(int divisor = 1) => _operationsPerClient / divisor;
 
-    public int TotalOperations => OperationsPerClient * ClientCount;
+    public int TotalOperations(int divisor = 1) => OperationsPerClient(divisor) * ClientCount;
 
     protected readonly byte[] Payload;
 
@@ -119,7 +115,7 @@ public abstract class BenchmarkBase : IDisposable
             }
         }
 
-        OperationsPerClient = operations / ClientCount;
+        _operationsPerClient = operations / ClientCount;
 
         Payload = "abc"u8.ToArray();
     }
@@ -184,9 +180,10 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
     private async Task<DBNull> PipelineUntyped(
         TClient client,
-        Func<TClient, ValueTask> operation)
+        Func<TClient, ValueTask> operation,
+        int divisor)
     {
-        var opsPerClient = OperationsPerClient;
+        var opsPerClient = OperationsPerClient(divisor);
         int i = 0;
         try
         {
@@ -258,9 +255,9 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         return DBNull.Value;
     }
 
-    private async Task<T> PipelineTyped<T>(TClient client, Func<TClient, ValueTask<T>> operation)
+    private async Task<T> PipelineTyped<T>(TClient client, Func<TClient, ValueTask<T>> operation, int divisor)
     {
-        var opsPerClient = OperationsPerClient;
+        var opsPerClient = OperationsPerClient(divisor);
         int i = 0;
         T result = default!;
         try
@@ -350,31 +347,62 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
     protected Task RunAsync<T>(
         string? key,
         Func<TClient, ValueTask<T>> action,
-        Func<TClient, ValueTask>? init = null,
-        string format = "")
+        bool deleteKey,
+        int divisor = 1)
         => RunAsyncCore<T>(
             key,
-            action,
+            GetNameCore(action, out var desc),
+            desc,
             client => action(client).AsUntypedValueTask(),
-            client => PipelineTyped(client, action),
-            init,
-            format);
+            client => PipelineTyped(client, action, divisor),
+            [],
+            deleteKey,
+            divisor);
 
-    // ReSharper disable once UnusedMember.Global
+    protected Task RunAsync<T>(
+        string? key,
+        Func<TClient, ValueTask<T>> action,
+        params string[] consumers)
+        => RunAsyncCore<T>(
+            key,
+            GetNameCore(action, out var desc),
+            desc,
+            client => action(client).AsUntypedValueTask(),
+            client => PipelineTyped(client, action, 1),
+            consumers,
+            consumers.Length != 0,
+            1);
+
     protected Task RunAsync(
         string? key,
         Func<TClient, ValueTask> action,
-        Func<TClient, ValueTask>? init = null,
-        string format = "")
-        => RunAsyncCore<DBNull>(key, action, action, client => PipelineUntyped(client, action), init, format);
+        bool deleteKey,
+        int divisor = 1)
+        => RunAsyncCore<DBNull>(
+            key,
+            GetNameCore(action, out var desc),
+            desc,
+            action,
+            client => PipelineUntyped(client, action, divisor),
+            [],
+            deleteKey,
+            divisor);
 
-    private async Task RunAsyncCore<T>(
+    protected Task RunAsync(
         string? key,
-        Delegate underlyingAction,
-        Func<TClient, ValueTask> test,
-        Func<TClient, Task<T>> pipeline,
-        Func<TClient, ValueTask>? init = null,
-        string format = "")
+        Func<TClient, ValueTask> action,
+        params string[] consumers)
+        => RunAsyncCore<DBNull>(
+            key,
+            GetNameCore(action, out var desc),
+            desc,
+            action,
+            client => PipelineUntyped(client, action, 1),
+            consumers,
+            consumers.Length != 0,
+            1);
+
+    private static string GetNameCore(Delegate underlyingAction, out string description)
     {
         string name = underlyingAction.Method.Name;
 
@@ -386,17 +414,44 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
             name = dna.DisplayName;
         }
 
-        // skip test if not needed
-        if (!RunTest(name)) return;
-
-        // include additional test metadata
-        string description = "";
+        description = "";
         if (underlyingAction.Method.GetCustomAttribute(typeof(DescriptionAttribute)) is DescriptionAttribute
             {
                 Description: { Length: > 0 }
             } da)
         {
-            description = $" ({da.Description})";
+            description = da.Description;
+        }
+
+        return name;
+    }
+
+    protected static string GetName<T>(Func<TClient, ValueTask<T>> action) => GetNameCore(action, out _);
+    protected static string GetName(Func<TClient, ValueTask> action) => GetNameCore(action, out _);
+
+    private async Task RunAsyncCore<T>(
+        string? key,
+        string name,
+        string description,
+        Func<TClient, ValueTask> test,
+        Func<TClient, Task<T>> pipeline,
+        string[] consumers,
+        bool deleteKey,
+        int divisor)
+    {
+        // skip test if not needed
+        string auxReason = "";
+        if (!RunTest(name))
+        {
+            auxReason = string.Join(", ", consumers.Where(x => RunTest(x)));
+            if (auxReason.Length == 0) return; // not needed by any consumers either
+            auxReason = $" (required for {auxReason})";
+        }
+
+        // include additional test metadata
+        if (description is { Length: > 0 })
+        {
+            description = $" ({description})";
         }
 
         if (Quiet)
@@ -406,7 +461,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         else
         {
             Console.Write(
-                $"====== {name}{description} ====== (clients: {ClientCount:#,##0}, ops: {TotalOperations:#,##0}");
+                $"====== {name}{description}{auxReason} ====== (clients: {ClientCount:#,##0}, ops: {TotalOperations(divisor):#,##0}");
             if (Multiplexed)
             {
                 Console.Write(", mux");
@@ -425,7 +480,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         bool didNotRun = false;
         try
         {
-            if (key is not null)
+            if (key is not null && deleteKey)
             {
                 await DeleteAsync(GetClient(0), key).ConfigureAwait(false);
             }
@@ -439,11 +494,6 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                 await Console.Error.WriteLineAsync($"\t{ex.Message}");
                 didNotRun = true;
                 return;
-            }
-
-            if (init is not null)
-            {
-                await init(GetClient(0)).ConfigureAwait(false);
             }
 
             var pending = new Task<T>[ClientCount];
@@ -465,14 +515,17 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     client = CreateBatch(client);
                 }
 
-                pending[index++] = Task.Run(() => pipeline(WithCancellation(client, cancellationToken)), cancellationToken);
+                pending[index++] = Task.Run(
+                    () => pipeline(WithCancellation(client, cancellationToken)),
+                    cancellationToken);
             }
 
             await Task.WhenAll(pending).ConfigureAwait(false);
             watch.Stop();
 
             var seconds = watch.Elapsed.TotalSeconds;
-            var rate = TotalOperations / seconds;
+            // ReSharper disable once PossibleLossOfFraction
+            var rate = TotalOperations(divisor) / seconds;
             if (Quiet)
             {
                 Console.WriteLine($"\t{rate:###,###,##0} requests per second");
@@ -481,15 +534,12 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
             else
             {
                 Console.WriteLine(
-                    $"{TotalOperations:###,###,##0} requests completed in {seconds:0.00} seconds, {rate:###,###,##0} ops/sec");
+                    $"{TotalOperations(divisor):###,###,##0} requests completed in {seconds:0.00} seconds, {rate:###,###,##0} ops/sec");
             }
 
             if (!Quiet & typeof(T) != typeof(DBNull))
             {
-                if (string.IsNullOrWhiteSpace(format))
-                {
-                    format = "Typical result: {0}";
-                }
+                const string format = "Typical result: {0}";
 
                 T result = await pending[^1];
                 Console.WriteLine(format, result);
@@ -575,9 +625,13 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
                 if (counters.BatchBufferLeaseCount != 0 | counters.BatchMultiRootMessageCount != 0)
                 {
-                    Console.Write($"Multi-message batching: {counters.BatchMultiRootMessageCount:#,###,##0} batches, {counters.BatchMultiChildMessageCount:#,###,##0} sub-messages");
+                    Console.Write(
+                        $"Multi-message batching: {counters.BatchMultiRootMessageCount:#,###,##0} batches, {counters.BatchMultiChildMessageCount:#,###,##0} sub-messages");
                     if (counters.BatchBufferLeaseCount != 0)
-                        Console.Write($"; {counters.BatchBufferLeaseCount:#,###,##0} blocks leased, {counters.BatchBufferReturnCount:#,###,##0} blocks returned, {counters.BatchBufferElementsOutstanding:#,###,##0} elements outstanding");
+                    {
+                        Console.Write(
+                            $"; {counters.BatchBufferLeaseCount:#,###,##0} blocks leased, {counters.BatchBufferReturnCount:#,###,##0} blocks returned, {counters.BatchBufferElementsOutstanding:#,###,##0} elements outstanding");
+                    }
                     Console.WriteLine();
                 }
 
