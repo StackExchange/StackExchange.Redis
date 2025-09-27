@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
+using StackExchange.Redis;
 
 namespace StackExchange.Redis
 {
@@ -69,43 +70,6 @@ namespace StackExchange.Redis
             return new RedisFeatures(version);
         }
 
-        protected static void WhenAlwaysOrExists(When when)
-        {
-            switch (when)
-            {
-                case When.Always:
-                case When.Exists:
-                    break;
-                default:
-                    throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, Exists");
-            }
-        }
-
-        protected static void WhenAlwaysOrExistsOrNotExists(When when)
-        {
-            switch (when)
-            {
-                case When.Always:
-                case When.Exists:
-                case When.NotExists:
-                    break;
-                default:
-                    throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, Exists, NotExists");
-            }
-        }
-
-        protected static void WhenAlwaysOrNotExists(When when)
-        {
-            switch (when)
-            {
-                case When.Always:
-                case When.NotExists:
-                    break;
-                default:
-                    throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, NotExists");
-            }
-        }
-
         private ResultProcessor.TimingProcessor.TimerMessage GetTimerMessage(CommandFlags flags)
         {
             // do the best we can with available commands
@@ -135,5 +99,52 @@ namespace StackExchange.Redis
                 return rawValue.Length == 1 && rawValue[0] == '*';
             }
         }
+    }
+}
+
+internal static class WhenExtensions
+{
+    internal static void AlwaysOrExists(this When when)
+    {
+        switch (when)
+        {
+            case When.Always:
+            case When.Exists:
+                break;
+            default:
+                Throw(when);
+                break;
+        }
+        static void Throw(When when) => throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, Exists");
+    }
+
+    internal static void AlwaysOrExistsOrNotExists(this When when)
+    {
+        switch (when)
+        {
+            case When.Always:
+            case When.Exists:
+            case When.NotExists:
+                break;
+            default:
+                Throw(when);
+                break;
+        }
+        static void Throw(When when)
+            => throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, Exists, NotExists");
+    }
+
+    internal static void AlwaysOrNotExists(this When when)
+    {
+        switch (when)
+        {
+            case When.Always:
+            case When.NotExists:
+                break;
+            default:
+                Throw(when);
+                break;
+        }
+        static void Throw(When when) => throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, NotExists");
     }
 }

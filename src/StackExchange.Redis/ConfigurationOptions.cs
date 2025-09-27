@@ -330,9 +330,9 @@ namespace StackExchange.Redis
         {
             // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
             using var pem = X509Certificate2.CreateFromPemFile(userCertificatePath, userKeyPath);
-#pragma warning disable SYSLIB0057 // Type or member is obsolete
+#pragma warning disable SYSLIB0057 // because of TFM support
             var pfx = new X509Certificate2(pem.Export(X509ContentType.Pfx));
-#pragma warning restore SYSLIB0057 // Type or member is obsolete
+#pragma warning restore SYSLIB0057
 
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
@@ -340,7 +340,9 @@ namespace StackExchange.Redis
 
         internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
         {
+#pragma warning disable SYSLIB0057 // because of TFM support
             var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+#pragma warning restore SYSLIB0057
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
 
@@ -351,7 +353,9 @@ namespace StackExchange.Redis
         public void TrustIssuer(X509Certificate2 issuer) => CertificateValidationCallback = TrustIssuerCallback(issuer);
 
         internal static RemoteCertificateValidationCallback TrustIssuerCallback(string issuerCertificatePath)
+#pragma warning disable SYSLIB0057 // because of TFM support
             => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
+#pragma warning restore SYSLIB0057
         private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
