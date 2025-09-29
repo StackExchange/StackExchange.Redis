@@ -9,7 +9,6 @@
     <PackageTags>Server;Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <OutputTypeEx>Library</OutputTypeEx>
     <SignAssembly>true</SignAssembly>
-    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
