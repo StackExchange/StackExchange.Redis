@@ -8,6 +8,8 @@ Current package versions:
 
 ## Unreleased
 
+## 2.9.25
+
 - (build) Fix SNK on non-Windows builds ([#2963 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2963))
 
 ## 2.9.24
