@@ -4,10 +4,10 @@ on:
   pull_request:
   push:
     branches:
-    - main
+      - 'main'
     paths:
-    - '*'
-    - '!/docs/*' # Don't run workflow when files are only in the /docs directory
+      - '*'
+      - '!/docs/*' # Don't run workflow when files are only in the /docs directory
 
 jobs:
   main:
