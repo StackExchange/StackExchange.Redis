@@ -143,3 +143,10 @@ jobs:
         name: Tests Results - Windows Server 2022
         path: 'test-results/*.trx'
         reporter: dotnet-trx
+    # Package and upload to MyGet only on pushes to main, not on PRs
+    - name: .NET Pack
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: dotnet pack Build.csproj --no-build -c Release /p:PackageOutputPath=${env:GITHUB_WORKSPACE}\.nupkgs /p:CI=true
+    - name: Upload to MyGet
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: dotnet nuget push ${env:GITHUB_WORKSPACE}\.nupkgs\*.nupkg -s https://www.myget.org/F/stackoverflow/api/v2/package -k ${{ secrets.MYGET_API_KEY }}
