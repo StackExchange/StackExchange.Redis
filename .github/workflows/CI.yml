@@ -143,3 +143,8 @@ jobs:
         name: Tests Results - Windows Server 2022
         path: 'test-results/*.trx'
         reporter: dotnet-trx
+    - name: .NET Pack
+      run: dotnet pack Build.csproj --no-build -c Release /p:PackageOutputPath=${env:GITHUB_WORKSPACE}\.nupkgs /p:CI=true
+    - name: Upload to MyGet
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: dotnet nuget push ${env:GITHUB_WORKSPACE}\.nupkgs\*.nupkg -s https://www.myget.org/F/stackoverflow/api/v2/package -k ${{ secrets.MYGET_API_KEY }}
