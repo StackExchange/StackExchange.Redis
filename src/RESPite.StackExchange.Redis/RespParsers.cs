@@ -1,4 +1,5 @@
-﻿using RESPite.Messages;
+﻿using RESPite.Internal;
+using RESPite.Messages;
 using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
@@ -10,6 +11,10 @@ public static class RespParsers
     public static IRespParser<RedisKey> RedisKey => DefaultParser.Instance;
     public static IRespParser<Lease<byte>> BytesLease => DefaultParser.Instance;
     public static IRespParser<HashEntry[]> HashEntryArray => DefaultParser.Instance;
+    public static IRespParser<TimeSpan?> TimeSpanFromSeconds => TimeParser.FromSeconds;
+    public static IRespParser<DateTime?> DateTimeFromSeconds => TimeParser.FromSeconds;
+    public static IRespParser<TimeSpan?> TimeSpanFromMilliseconds => TimeParser.FromMilliseconds;
+    public static IRespParser<DateTime?> DateTimeFromMilliseconds => TimeParser.FromMilliseconds;
 
     public static RedisValue ReadRedisValue(ref RespReader reader)
     {
@@ -87,5 +92,29 @@ public static class RespParsers
             return result;
             */
         }
+    }
+}
+
+internal sealed class TimeParser : IRespParser<TimeSpan?>, IRespParser<DateTime?>, IRespInlineParser
+{
+    private readonly bool _millis;
+    public static readonly TimeParser FromMilliseconds = new(true);
+    public static readonly TimeParser FromSeconds = new(false);
+    private TimeParser(bool millis) => _millis = millis;
+
+    TimeSpan? IRespParser<TimeSpan?>.Parse(ref RespReader reader)
+    {
+        if (reader.IsNull) return null;
+        var value = reader.ReadInt64();
+        if (value < 0) return null; // -1 means no expiry and -2 means key does not exist
+        return _millis ? TimeSpan.FromMilliseconds(value) : TimeSpan.FromSeconds(value);
+    }
+
+    DateTime? IRespParser<DateTime?>.Parse(ref RespReader reader)
+    {
+        if (reader.IsNull) return null;
+        var value = reader.ReadInt64();
+        if (value < 0) return null; // -1 means no expiry and -2 means key does not exist
+        return _millis ? RedisBase.UnixEpoch.AddMilliseconds(value) : RedisBase.UnixEpoch.AddSeconds(value);
     }
 }

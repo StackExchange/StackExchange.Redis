@@ -3776,7 +3776,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        private static long GetUnixTimeMilliseconds(DateTime when) => when.Kind switch
+        internal static long GetUnixTimeMilliseconds(DateTime when) => when.Kind switch
         {
             DateTimeKind.Local or DateTimeKind.Utc => (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond,
             _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),

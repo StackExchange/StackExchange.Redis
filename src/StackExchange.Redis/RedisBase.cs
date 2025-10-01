@@ -104,6 +104,12 @@ namespace StackExchange.Redis
 
 internal static class WhenExtensions
 {
+    internal static void AlwaysOnly(this When when)
+    {
+        if (when != When.Always) Throw(when);
+        static void Throw(When when) => throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always");
+    }
+
     internal static void AlwaysOrExists(this When when)
     {
         switch (when)

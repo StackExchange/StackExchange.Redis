@@ -70,7 +70,11 @@ public class RespCommandGenerator : IIncrementalGenerator
         string Context,
         string? Formatter,
         string? Parser,
-        string DebugNotes);
+        MethodFlags Flags,
+        string DebugNotes)
+    {
+        public bool IsRespOperation => (Flags & MethodFlags.RespOperation) != 0;
+    }
 
     private static string GetFullName(ITypeSymbol type) =>
         type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -82,6 +86,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         RespKeyAttribute,
         RespPrefixAttribute,
         RespSuffixAttribute,
+        RespOperation,
     }
 
     private static bool IsRESPite(ITypeSymbol? symbol, RESPite type)
@@ -93,6 +98,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             RESPite.RespKeyAttribute => nameof(RESPite.RespKeyAttribute),
             RESPite.RespPrefixAttribute => nameof(RESPite.RespPrefixAttribute),
             RESPite.RespSuffixAttribute => nameof(RESPite.RespSuffixAttribute),
+            RESPite.RespOperation => nameof(RESPite.RespOperation),
             _ => type.ToString(),
         };
 
@@ -187,6 +193,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not IMethodSymbol method) return default;
         if (!(method is { IsPartialDefinition: true, PartialImplementationPart: null })) return default;
 
+        MethodFlags methodFlags = 0;
         string returnType, debugNote = "";
         if (method.ReturnsVoid)
         {
@@ -199,7 +206,12 @@ public class RespCommandGenerator : IIncrementalGenerator
         }
         else
         {
-            returnType = GetFullName(method.ReturnType);
+            ITypeSymbol? rt = method.ReturnType;
+            if (IsRespOperation(ref rt))
+            {
+                methodFlags |= MethodFlags.RespOperation;
+            }
+            returnType = rt is null ? "" : GetFullName(rt);
         }
 
         string ns = "", parentType = "";
@@ -380,8 +392,16 @@ public class RespCommandGenerator : IIncrementalGenerator
             if (IsSERedis(param.Type, SERedis.CommandFlags))
             {
                 flags |= ParameterFlags.CommandFlags;
-                // magic pattern; we *demand* a method called Context that takes the flags
-                context = $"Context({param.Name})";
+                // magic pattern; we *demand* a method called Context that takes the flags; if this is an extension
+                // method, assume it is on the first parameter
+                if ((methodFlags & MethodFlags.ExtensionMethod) != 0)
+                {
+                    context = $"{method.Parameters[0].Name}.Context({param.Name})";
+                }
+                else
+                {
+                    context = $"Context({param.Name})";
+                }
             }
             else if (IsRESPite(param.Type, RESPite.RespContext))
             {
@@ -407,6 +427,7 @@ public class RespCommandGenerator : IIncrementalGenerator
 
             if (param.Ordinal == 0 && method.IsExtensionMethod)
             {
+                methodFlags |= MethodFlags.ExtensionMethod;
                 modifiers = "this " + modifiers;
             }
 
@@ -463,6 +484,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             context ?? "",
             formatter,
             parser,
+            methodFlags,
             debugNote);
 
         static string TypeModifiers(ITypeSymbol type)
@@ -484,6 +506,24 @@ public class RespCommandGenerator : IIncrementalGenerator
 
             return "class"; // wut?
         }
+    }
+
+    private bool IsRespOperation(ref ITypeSymbol? type) // identify RespOperation[<T>]
+    {
+        if (type is INamedTypeSymbol named && IsRESPite(type, RESPite.RespOperation))
+        {
+            if (named.IsGenericType)
+            {
+                if (named.TypeArguments.Length != 1) return false; // unexpected
+                type = named.TypeArguments[0];
+            }
+            else
+            {
+                type = null;
+            }
+            return true;
+        }
+        return false;
     }
 
     private static ParameterFlags GetTypeFlags(ref ITypeSymbol paramType)
@@ -710,7 +750,10 @@ public class RespCommandGenerator : IIncrementalGenerator
                 var csValue = CodeLiteral(method.Command);
 
                 WriteMethod(false);
-                WriteMethod(true);
+                if ((method.Flags & MethodFlags.RespOperation) == 0)
+                {
+                    WriteMethod(true); // also write async half
+                }
 
                 void WriteMethod(bool asAsync)
                 {
@@ -719,6 +762,14 @@ public class RespCommandGenerator : IIncrementalGenerator
                     if (asAsync)
                     {
                         sb.Append(HasAnyFlag(method.Parameters, ParameterFlags.CommandFlags) ? "Task" : "ValueTask");
+                        if (!string.IsNullOrWhiteSpace(method.ReturnType))
+                        {
+                            sb.Append('<').Append(method.ReturnType).Append('>');
+                        }
+                    }
+                    else if (method.IsRespOperation)
+                    {
+                        sb.Append("global::RESPite.RespOperation");
                         if (!string.IsNullOrWhiteSpace(method.ReturnType))
                         {
                             sb.Append('<').Append(method.ReturnType).Append('>');
@@ -768,8 +819,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                                 sb.Append(", ").Append(formatter);
                             }
                         }
-
-                        sb.Append(asAsync ? ").Send" : ").Wait");
+                        sb.Append(asAsync | method.IsRespOperation ? ").Send" : ").Wait");
                         if (!string.IsNullOrWhiteSpace(method.ReturnType))
                         {
                             sb.Append('<').Append(method.ReturnType).Append('>');
@@ -805,6 +855,10 @@ public class RespCommandGenerator : IIncrementalGenerator
                             sb.Append(HasAnyFlag(method.Parameters, ParameterFlags.CommandFlags)
                                 ? ".AsTask()"
                                 : ".AsValueTask()");
+                        }
+                        else if (method.IsRespOperation)
+                        {
+                            // nothing to do
                         }
                         else
                         {
@@ -1244,6 +1298,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         "double" => RespFormattersPrefix + "Double",
         "" => RespFormattersPrefix + "Empty",
         "global::StackExchange.Redis.RedisKey" => "global::RESPite.StackExchange.Redis.RespFormatters.RedisKey",
+        "global::StackExchange.Redis.RedisKey[]" => "global::RESPite.StackExchange.Redis.RespFormatters.RedisKeyArray",
         "global::StackExchange.Redis.RedisValue" => "global::RESPite.StackExchange.Redis.RespFormatters.RedisValue",
         _ => null,
     };
@@ -1287,6 +1342,14 @@ public class RespCommandGenerator : IIncrementalGenerator
         if (modifiers.StartsWith("partial ")) return modifiers.Substring(8);
         if (modifiers.EndsWith(" partial")) return modifiers.Substring(0, modifiers.Length - 8);
         return modifiers.Replace(" partial ", " ");
+    }
+
+    [Flags]
+    private enum MethodFlags
+    {
+        None = 0,
+        RespOperation = 1 << 0,
+        ExtensionMethod = 1 << 1,
     }
 
     [Flags]

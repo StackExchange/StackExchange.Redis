@@ -9,8 +9,9 @@ public static class RespFormatters
 {
     public static IRespFormatter<RedisValue> RedisValue => DefaultFormatter.Instance;
     public static IRespFormatter<RedisKey> RedisKey => DefaultFormatter.Instance;
+    public static IRespFormatter<RedisKey[]> RedisKeyArray => DefaultFormatter.Instance;
 
-    private sealed class DefaultFormatter : IRespFormatter<RedisValue>, IRespFormatter<RedisKey>
+    private sealed class DefaultFormatter : IRespFormatter<RedisValue>, IRespFormatter<RedisKey>, IRespFormatter<RedisKey[]>
     {
         public static readonly DefaultFormatter Instance = new();
         private DefaultFormatter() { }
@@ -25,6 +26,15 @@ public static class RespFormatters
         {
             writer.WriteCommand(command, 1);
             writer.Write(request);
+        }
+
+        public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in RedisKey[] request)
+        {
+            writer.WriteCommand(command, 1 + request.Length);
+            foreach (var key in request)
+            {
+                writer.Write(key);
+            }
         }
     }
 
