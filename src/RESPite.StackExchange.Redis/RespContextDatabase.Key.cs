@@ -5,17 +5,17 @@ namespace RESPite.StackExchange.Redis;
 
 internal partial class RespContextDatabase
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private KeyCommands Keys(CommandFlags flags) => Context(flags).Keys();
+
     // Async Key methods
     public Task<bool> KeyCopyAsync(
         RedisKey sourceKey,
         RedisKey destinationKey,
         int destinationDatabase = -1,
         bool replace = false,
-        CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private KeyCommands Keys(CommandFlags flags) => Context(flags).Keys();
+        CommandFlags flags = CommandFlags.None)
+        => Keys(flags).Copy(sourceKey, destinationKey, destinationDatabase, replace).AsTask();
 
     public Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         => Keys(flags).Del(keys).AsTask();
@@ -78,7 +78,7 @@ internal partial class RespContextDatabase
         RedisKey newKey,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => Keys(flags).Rename(key, newKey).AsTask();
+        => Keys(flags).Rename(key, newKey, when).AsTask();
 
     public Task KeyRestoreAsync(
         RedisKey key,
