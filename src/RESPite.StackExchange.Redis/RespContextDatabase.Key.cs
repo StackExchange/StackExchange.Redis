@@ -1,5 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-using StackExchange.Redis;
+﻿using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
