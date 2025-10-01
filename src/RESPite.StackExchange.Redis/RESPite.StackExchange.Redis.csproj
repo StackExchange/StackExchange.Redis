@@ -27,5 +27,8 @@
     <Compile Update="RespContextDatabase.*.cs">
       <DependentUpon>RespContextDatabase.cs</DependentUpon>
     </Compile>
+    <Compile Update="RedisCommands.*.cs">
+      <DependentUpon>RedisCommands.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 </Project>
