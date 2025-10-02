@@ -57,6 +57,23 @@ public static class RespFormatters
         }
     }
 
+    internal static void WriteBulkString(this ref RespWriter writer, ListSide side)
+    {
+        switch (side)
+        {
+            case ListSide.Left:
+                writer.WriteRaw("$4\r\nLEFT\r\n"u8);
+                break;
+            case ListSide.Right:
+                writer.WriteRaw("$5\r\nRIGHT\r\n"u8);
+                break;
+            default:
+                Throw();
+                break;
+        }
+        static void Throw() => throw new ArgumentOutOfRangeException(nameof(side));
+    }
+
     // ReSharper disable once MemberCanBePrivate.Global
     public static void Write(this ref RespWriter writer, in RedisValue value)
     {

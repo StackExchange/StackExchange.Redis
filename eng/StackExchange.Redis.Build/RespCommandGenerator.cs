@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -56,7 +57,18 @@ public class RespCommandGenerator : IIncrementalGenerator
         ParameterFlags Flags,
         EasyArray<LiteralTuple> Literals,
         string? ElementType,
-        int ArgIndex);
+        string? IgnoreExpression,
+        int ArgIndex)
+    {
+        // variable if collection, nullable, or an explicit ignore expression
+        public bool IsVariable => OptionalReasons != 0;
+
+        public ParameterFlags OptionalReasons =>
+            Flags & (ParameterFlags.Collection | ParameterFlags.Nullable | ParameterFlags.IgnoreExpression);
+
+        public bool IsCollection => (Flags & ParameterFlags.Collection) != 0;
+        public bool IsNullable => (Flags & ParameterFlags.Nullable) != 0;
+    }
 
     private readonly record struct MethodTuple(
         string Namespace,
@@ -87,6 +99,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         RespPrefixAttribute,
         RespSuffixAttribute,
         RespOperation,
+        RespIgnoreAttribute,
     }
 
     private static bool IsRESPite(ITypeSymbol? symbol, RESPite type)
@@ -99,6 +112,7 @@ public class RespCommandGenerator : IIncrementalGenerator
             RESPite.RespPrefixAttribute => nameof(RESPite.RespPrefixAttribute),
             RESPite.RespSuffixAttribute => nameof(RESPite.RespSuffixAttribute),
             RESPite.RespOperation => nameof(RESPite.RespOperation),
+            RESPite.RespIgnoreAttribute => nameof(RESPite.RespIgnoreAttribute),
             _ => type.ToString(),
         };
 
@@ -384,6 +398,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         int nextArgIndex = 0;
         foreach (var param in method.Parameters)
         {
+            string? ignoreExpression = null;
             var flags = ParameterFlags.Parameter;
             if (IsKey(param)) flags |= ParameterFlags.Key;
             var elementType = param.Type;
@@ -441,9 +456,9 @@ public class RespCommandGenerator : IIncrementalGenerator
             AddNotes(ref debugNote, $"checking {param.Name} for literals");
             foreach (var attrib in param.GetAttributes())
             {
-                if (IsRESPite(attrib.AttributeClass, RESPite.RespPrefixAttribute))
+                if (attrib.ConstructorArguments.Length == 1)
                 {
-                    if (attrib.ConstructorArguments.Length == 1)
+                    if (IsRESPite(attrib.AttributeClass, RESPite.RespPrefixAttribute))
                     {
                         if (attrib.ConstructorArguments[0].Value?.ToString() is { Length: > 0 } val)
                         {
@@ -451,11 +466,8 @@ public class RespCommandGenerator : IIncrementalGenerator
                             AddLiteral(val, LiteralFlags.None);
                         }
                     }
-                }
 
-                if (IsRESPite(attrib.AttributeClass, RESPite.RespSuffixAttribute))
-                {
-                    if (attrib.ConstructorArguments.Length == 1)
+                    if (IsRESPite(attrib.AttributeClass, RESPite.RespSuffixAttribute))
                     {
                         if (attrib.ConstructorArguments[0].Value?.ToString() is { Length: > 0 } val)
                         {
@@ -463,12 +475,31 @@ public class RespCommandGenerator : IIncrementalGenerator
                             AddLiteral(val, LiteralFlags.Suffix);
                         }
                     }
+
+                    if (IsRESPite(attrib.AttributeClass, RESPite.RespIgnoreAttribute))
+                    {
+                        var val = attrib.ConstructorArguments[0].Value;
+                        if (val is string s)
+                        {
+                            ignoreExpression = CodeLiteral(s);
+                        }
+                        else if (val is bool b)
+                        {
+                            ignoreExpression = b ? "true" : "false";
+                        }
+                        else if (val is long l)
+                        {
+                            ignoreExpression = l.ToString(CultureInfo.InvariantCulture);
+                        }
+                        if (ignoreExpression is not null) flags |= ParameterFlags.IgnoreExpression;
+                    }
                 }
             }
 
             var literalArray = literals is null ? EasyArray<LiteralTuple>.Empty : new(literals.ToArray());
             var argIndex = (flags & ParameterFlags.Data) != 0 ? nextArgIndex++ : -1;
-            parameters.Add(new(GetFullName(param.Type), param.Name, modifiers, flags, literalArray, elementTypeName, argIndex));
+
+            parameters.Add(new(GetFullName(param.Type), param.Name, modifiers, flags, literalArray, elementTypeName, ignoreExpression, argIndex));
         }
 
         var syntax = (MethodDeclarationSyntax)ctx.Node;
@@ -952,6 +983,64 @@ public class RespCommandGenerator : IIncrementalGenerator
             int index;
             if (isVariable)
             {
+                foreach (var parameter in parameters.Span)
+                {
+                    if (parameter.IsVariable)
+                    {
+                        sb = NewLine().Append("bool __inc").Append(parameter.ArgIndex).Append(" = ");
+                        WriteParameterName(parameter);
+                        switch (parameter.OptionalReasons)
+                        {
+                            case ParameterFlags.Nullable:
+                                sb.Append(" is not null");
+                                break;
+                            case ParameterFlags.Nullable | ParameterFlags.IgnoreExpression:
+                                sb.Append(" is { } __val").Append(parameter.ArgIndex)
+                                    .Append(" && __val").Append(parameter.ArgIndex)
+                                    .Append(" != ").Append(parameter.IgnoreExpression);
+                                break;
+                            case ParameterFlags.IgnoreExpression:
+                                sb.Append(" != ").Append(parameter.IgnoreExpression);
+                                break;
+                            case ParameterFlags.Collection:
+                                // non-nullable collection; literals already handled
+                                switch (parameter.Flags & (ParameterFlags.CollectionWithCount | ParameterFlags.ImmutableArray))
+                                {
+                                    case ParameterFlags.CollectionWithCount:
+                                        sb.Append(".Count != 0");
+                                        break;
+                                    case ParameterFlags.ImmutableArray: // needs special care because of default (breaks .Length)
+                                        sb.Append(".IsDefaultOrEmpty == false");
+                                        break;
+                                    default:
+                                        sb.Append(".Length != 0");
+                                        break;
+                                }
+                                break;
+                            case ParameterFlags.Collection | ParameterFlags.Nullable:
+                                sb.Append(" is { ");
+                                switch (parameter.Flags & (ParameterFlags.CollectionWithCount | ParameterFlags.ImmutableArray))
+                                {
+                                    case ParameterFlags.CollectionWithCount:
+                                        sb.Append("Count: > 0");
+                                        break;
+                                    case ParameterFlags.ImmutableArray: // needs special care because of default (breaks .Length)
+                                        sb.Append("IsDefaultOrEmpty: false");
+                                        break;
+                                    default:
+                                        sb.Append("Length: > 0");
+                                        break;
+                                }
+                                sb.Append("}");
+                                break;
+                            default:
+                                sb.Append($" false /* unhandled combination! */");
+                                break;
+                        }
+                        sb.Append("; // ").Append(parameter.OptionalReasons);
+                    }
+                }
+
                 sb = NewLine().Append("writer.WriteCommand(command,");
                 bool firstVariableItem = true;
                 if (constantCount != 0)
@@ -963,8 +1052,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                 index = 0;
                 foreach (var parameter in parameters.Span)
                 {
-                    var match = parameter.Flags & (ParameterFlags.Collection | ParameterFlags.Nullable);
-                    if (match != 0)
+                    if (parameter.IsVariable)
                     {
                         sb = NewLine();
                         if (firstVariableItem)
@@ -975,64 +1063,28 @@ public class RespCommandGenerator : IIncrementalGenerator
                         {
                             sb.Append("+ ");
                         }
-
+                        sb.Append("(__inc").Append(parameter.ArgIndex).Append(" ? ");
                         var literalCount = parameter.Literals.Length;
-                        switch (match)
+                        if (!parameter.IsCollection)
                         {
-                            case ParameterFlags.Nullable:
-                                sb.Append("(");
-                                WriteParameterName(parameter);
-                                sb.Append(" is null ? 0 : ").Append(1 + literalCount).Append(")");
-                                break;
-                            case ParameterFlags.Collection:
-                                // non-nullable collection; literals already handled
-                                switch (parameter.Flags & (ParameterFlags.CollectionWithCount | ParameterFlags.ImmutableArray))
-                                {
-                                    case ParameterFlags.CollectionWithCount:
-                                        WriteParameterName(parameter);
-                                        sb.Append(".Count");
-                                        break;
-                                    case ParameterFlags.ImmutableArray: // needs special care because of default (breaks .Length)
-                                        sb.Append("(");
-                                        WriteParameterName(parameter);
-                                        sb.Append(".IsDefaultOrEmpty ? 0 : ");
-                                        WriteParameterName(parameter);
-                                        sb.Append(".Length)");
-                                        break;
-                                    default:
-                                        WriteParameterName(parameter);
-                                        sb.Append(".Length");
-                                        break;
-                                }
-                                break;
-                            case ParameterFlags.Collection | ParameterFlags.Nullable:
-                                sb.Append("(");
-                                WriteParameterName(parameter);
-                                sb.Append(" is null ? 0 : ");
-                                if (literalCount != 0) sb.Append("(");
-                                switch (parameter.Flags & ParameterFlags.CollectionWithCount)
-                                {
-                                    case ParameterFlags.CollectionWithCount:
-                                        WriteParameterName(parameter);
-                                        sb.Append(".Count");
-                                        break;
-                                    case ParameterFlags.ImmutableArray: // needs special care because of default (breaks .Length)
-                                        sb.Append("(");
-                                        WriteParameterName(parameter);
-                                        sb.Append(".GetValueOrDefault().IsDefaultOrEmpty ? 0 : ");
-                                        WriteParameterName(parameter);
-                                        sb.Append(".GetValueOrDefault().Length)");
-                                        break;
-                                    default:
-                                        WriteParameterName(parameter);
-                                        sb.Append(".Length");
-                                        break;
-                                }
-                                if (literalCount != 0) sb.Append(" + ").Append(literalCount).Append(")");
-                                sb.Append(")");
-                                break;
+                            sb.Append(1 + literalCount);
                         }
-                        sb.Append(" // ").Append(match);
+                        else
+                        {
+                            sb.Append("(");
+                            WriteParameterName(parameter);
+                            if (parameter.IsNullable) sb.Append("!");
+                            sb.Append((parameter.Flags & ParameterFlags.CollectionWithCount) == 0 ? ".Length" : ".Count");
+                            sb.Append(" + ").Append(1 + literalCount).Append(")");
+                        }
+
+                        sb.Append(" : 0)");
+                        if (!parameter.IsCollection)
+                        {
+                            // help identify what this is (not needed for collections, since foo.Count etc)
+                            sb.Append(" // ");
+                            WriteParameterName(parameter);
+                        }
                     }
                     index++;
                 }
@@ -1063,20 +1115,36 @@ public class RespCommandGenerator : IIncrementalGenerator
                 NewLine().Append("writer.WriteCommand(command, ").Append(constantCount).Append(");");
             }
 
-            void WritePrefix(ParameterTuple p) => WriteLiteral(p, false);
-            void WriteSuffix(ParameterTuple p) => WriteLiteral(p, true);
+            void WritePrefix(in ParameterTuple p) => WriteLiteral(p, false);
+            void WriteSuffix(in ParameterTuple p) => WriteLiteral(p, true);
 
-            void WriteLiteral(ParameterTuple p, bool suffix)
+            void WriteLiteral(in ParameterTuple p, bool suffix)
             {
                 LiteralFlags match = suffix ? LiteralFlags.Suffix : LiteralFlags.None;
                 foreach (var literal in p.Literals.Span)
                 {
                     if ((literal.Flags & LiteralFlags.Suffix) == match)
                     {
-                        var len = Encoding.UTF8.GetByteCount(literal.Token);
-                        var resp = $"${len}\r\n{literal.Token}\r\n";
-                        NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(resp)).Append("u8); // ")
-                            .Append(literal.Token);
+                        if (string.IsNullOrEmpty(literal.Token))
+                        {
+                            if (p.IsCollection)
+                            {
+                                WriteParameterName(p);
+                                if (p.IsNullable) sb.Append("!");
+                                sb.Append((p.Flags & ParameterFlags.CollectionWithCount) == 0 ? ".Length" : ".Count");
+                            }
+                            else
+                            {
+                                NewLine().Append("#error empty literal for ").Append(p.Name).AppendLine();
+                            }
+                        }
+                        else
+                        {
+                            var len = Encoding.UTF8.GetByteCount(literal.Token);
+                            var resp = $"${len}\r\n{literal.Token}\r\n";
+                            NewLine().Append("writer.WriteRaw(").Append(CodeLiteral(resp)).Append("u8); // ")
+                                .Append(literal.Token);
+                        }
                     }
                 }
             }
@@ -1086,23 +1154,20 @@ public class RespCommandGenerator : IIncrementalGenerator
             {
                 if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
                 {
-                    bool isNullable = (parameter.Flags & ParameterFlags.Nullable) != 0;
-                    bool isCollection = (parameter.Flags & ParameterFlags.Collection) != 0;
-                    if (isNullable)
+                    if (parameter.IsVariable)
                     {
-                        sb = NewLine().Append("if (");
-                        WriteParameterName(parameter);
-                        sb.Append(" is not null)");
+                        sb = NewLine().Append("if (__inc").Append(parameter.ArgIndex).Append(")");
                         NewLine().Append("{");
                         indent++;
                     }
 
                     WritePrefix(parameter);
                     var elementType = parameter.ElementType ?? parameter.Type;
-                    if (isCollection)
+                    if (parameter.IsCollection)
                     {
                         sb = NewLine().Append("foreach (").Append(elementType).Append(" val in ");
                         WriteParameterName(parameter);
+                        if (parameter.IsNullable) sb.Append("!");
                         sb.Append(")");
                         NewLine().Append("{");
                         indent++;
@@ -1120,7 +1185,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                     }
 
                     sb.Append("(");
-                    if (isCollection)
+                    if (parameter.IsCollection)
                     {
                         sb.Append("val");
                     }
@@ -1130,14 +1195,14 @@ public class RespCommandGenerator : IIncrementalGenerator
                     }
                     sb.Append(");");
 
-                    if (isCollection)
+                    if (parameter.IsCollection)
                     {
                         indent--;
                         NewLine().Append("}");
                     }
 
                     WriteSuffix(parameter);
-                    if (isNullable)
+                    if (parameter.IsVariable)
                     {
                         indent--;
                         NewLine().Append("}");
@@ -1266,19 +1331,20 @@ public class RespCommandGenerator : IIncrementalGenerator
         {
             if ((parameter.Flags & ParameterFlags.DataParameter) == ParameterFlags.DataParameter)
             {
+                bool thisParamIsVariable = false;
                 count++;
-                if ((parameter.Flags & (ParameterFlags.Collection | ParameterFlags.Nullable)) != 0)
+                if (parameter.IsVariable)
                 {
-                    isVariable = true; // variable if either collection or nullable
+                    isVariable = thisParamIsVariable = true;
                 }
                 else
                 {
                     constantCount++;
                 }
 
-                if ((parameter.Flags & ParameterFlags.Nullable) == 0 & !parameter.Literals.IsEmpty)
+                if (!(thisParamIsVariable | parameter.Literals.IsEmpty))
                 {
-                    constantCount += parameter.Literals.Length; // we include literals if not nullable
+                    constantCount += parameter.Literals.Length; // we include literals if not variable
                 }
             }
         }
@@ -1367,6 +1433,7 @@ public class RespCommandGenerator : IIncrementalGenerator
         Collection = 1 << 6,
         CollectionWithCount = 1 << 7, // has .Count, otherwise assumed to have .Length
         ImmutableArray = 1 << 8,
+        IgnoreExpression = 1 << 9,
     }
 
     // compares whether a formatter can be shared, which depends on the key index and types (not names)

@@ -15,6 +15,8 @@ public static class RespParsers
     public static IRespParser<DateTime?> DateTimeFromSeconds => TimeParser.FromSeconds;
     public static IRespParser<TimeSpan?> TimeSpanFromMilliseconds => TimeParser.FromMilliseconds;
     public static IRespParser<DateTime?> DateTimeFromMilliseconds => TimeParser.FromMilliseconds;
+    internal static IRespParser<long> Int64Index => Int64DefaultNegativeOneParser.Instance;
+    internal static IRespParser<ListPopResult> ListPopResult => DefaultParser.Instance;
 
     public static RedisValue ReadRedisValue(ref RespReader reader)
     {
@@ -40,7 +42,7 @@ public static class RespParsers
 
     private sealed class DefaultParser : IRespParser<RedisValue>, IRespParser<RedisKey>,
         IRespParser<Lease<byte>>, IRespParser<RedisValue[]>, IRespParser<HashEntry[]>,
-        IRespParser<RedisKey[]>
+        IRespParser<RedisKey[]>, IRespParser<ListPopResult>
     {
         private DefaultParser() { }
         public static readonly DefaultParser Instance = new();
@@ -92,7 +94,25 @@ public static class RespParsers
             return result;
             */
         }
+
+        ListPopResult IRespParser<ListPopResult>.Parse(ref RespReader reader)
+        {
+            if (reader.IsNull) return global::StackExchange.Redis.ListPopResult.Null;
+            reader.DemandAggregate();
+            reader.MoveNext();
+            var key = ReadRedisKey(ref reader);
+            reader.MoveNext();
+            var arr = reader.ReadArray(SharedReadRedisValue, scalar: true)!;
+            return new(key, arr);
+        }
     }
+}
+
+internal sealed class Int64DefaultNegativeOneParser : IRespParser<long>, IRespInlineParser
+{
+    private Int64DefaultNegativeOneParser() { }
+    public static readonly Int64DefaultNegativeOneParser Instance = new();
+    public long Parse(ref RespReader reader) => reader.IsNull ? -1 : reader.ReadInt64();
 }
 
 internal sealed class TimeParser : IRespParser<TimeSpan?>, IRespParser<DateTime?>, IRespInlineParser
