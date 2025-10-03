@@ -182,14 +182,14 @@ internal static partial class HashCommandsExtensions
         RedisKey key,
         RedisValue field,
         bool persist = false)
-        => HGetEx(context, key, persist ? HGetExMode.PERSIST : HGetExMode.None, -1, field);
+        => HGetEx(context, key, persist ? HashExpiryMode.PERSIST : HashExpiryMode.None, -1, field);
 
     public static RespOperation<Lease<byte>?> HGetExLease(
         this in HashCommands context,
         RedisKey key,
         RedisValue field,
         bool persist = false)
-        => HGetExLease(context, key, persist ? HGetExMode.PERSIST : HGetExMode.None, -1, field);
+        => HGetExLease(context, key, persist ? HashExpiryMode.PERSIST : HashExpiryMode.None, -1, field);
 
     internal static RespOperation<Lease<byte>?> HGetExLease(
         this in HashCommands context,
@@ -226,7 +226,7 @@ internal static partial class HashCommandsExtensions
         RedisKey key,
         RedisValue[] fields,
         bool persist = false)
-        => HGetEx(context, key, persist ? HGetExMode.PERSIST : HGetExMode.None, -1, fields);
+        => HGetEx(context, key, persist ? HashExpiryMode.PERSIST : HashExpiryMode.None, -1, fields);
 
     public static RespOperation<RedisValue> HGetEx(
         this in HashCommands context,
@@ -237,10 +237,10 @@ internal static partial class HashCommandsExtensions
         var millis = RedisDatabase.GetUnixTimeMilliseconds(expiry);
         if (millis % 1000 == 0) // use seconds
         {
-            return HGetEx(context, key, HGetExMode.EXAT, millis / 1000, field);
+            return HGetEx(context, key, HashExpiryMode.EXAT, millis / 1000, field);
         }
 
-        return HGetEx(context, key, HGetExMode.PXAT, millis, field);
+        return HGetEx(context, key, HashExpiryMode.PXAT, millis, field);
     }
 
     public static RespOperation<Lease<byte>?> HGetExLease(
@@ -252,10 +252,10 @@ internal static partial class HashCommandsExtensions
         var millis = RedisDatabase.GetUnixTimeMilliseconds(expiry);
         if (millis % 1000 == 0) // use seconds
         {
-            return HGetExLease(context, key, HGetExMode.EXAT, millis / 1000, field);
+            return HGetExLease(context, key, HashExpiryMode.EXAT, millis / 1000, field);
         }
 
-        return HGetExLease(context, key, HGetExMode.PXAT, millis, field);
+        return HGetExLease(context, key, HashExpiryMode.PXAT, millis, field);
     }
 
     public static RespOperation<RedisValue[]> HGetEx(
@@ -267,10 +267,10 @@ internal static partial class HashCommandsExtensions
         var millis = RedisDatabase.GetUnixTimeMilliseconds(expiry);
         if (millis % 1000 == 0) // use seconds
         {
-            return HGetEx(context, key, HGetExMode.EXAT, millis / 1000, fields);
+            return HGetEx(context, key, HashExpiryMode.EXAT, millis / 1000, fields);
         }
 
-        return HGetEx(context, key, HGetExMode.PXAT, millis, fields);
+        return HGetEx(context, key, HashExpiryMode.PXAT, millis, fields);
     }
 
     public static RespOperation<RedisValue> HGetEx(
@@ -282,10 +282,10 @@ internal static partial class HashCommandsExtensions
         var millis = (long)expiry.TotalMilliseconds;
         if (millis % 1000 == 0) // use seconds
         {
-            return HGetEx(context, key, HGetExMode.EX, millis / 1000, field);
+            return HGetEx(context, key, HashExpiryMode.EX, millis / 1000, field);
         }
 
-        return HGetEx(context, key, HGetExMode.PX, millis, field);
+        return HGetEx(context, key, HashExpiryMode.PX, millis, field);
     }
 
     public static RespOperation<Lease<byte>?> HGetExLease(
@@ -297,10 +297,10 @@ internal static partial class HashCommandsExtensions
         var millis = (long)expiry.TotalMilliseconds;
         if (millis % 1000 == 0) // use seconds
         {
-            return HGetExLease(context, key, HGetExMode.EX, millis / 1000, field);
+            return HGetExLease(context, key, HashExpiryMode.EX, millis / 1000, field);
         }
 
-        return HGetExLease(context, key, HGetExMode.PX, millis, field);
+        return HGetExLease(context, key, HashExpiryMode.PX, millis, field);
     }
 
     public static RespOperation<RedisValue[]> HGetEx(
@@ -312,13 +312,13 @@ internal static partial class HashCommandsExtensions
         var millis = (long)expiry.TotalMilliseconds;
         if (millis % 1000 == 0) // use seconds
         {
-            return HGetEx(context, key, HGetExMode.EXAT, millis / 1000, fields);
+            return HGetEx(context, key, HashExpiryMode.EXAT, millis / 1000, fields);
         }
 
-        return HGetEx(context, key, HGetExMode.PXAT, millis, fields);
+        return HGetEx(context, key, HashExpiryMode.PXAT, millis, fields);
     }
 
-    internal enum HGetExMode
+    internal enum HashExpiryMode
     {
         None,
         EX,
@@ -326,13 +326,14 @@ internal static partial class HashCommandsExtensions
         EXAT,
         PXAT,
         PERSIST,
+        KEEPTTL,
     }
 
     [RespCommand]
     private static partial RespOperation<RedisValue[]> HGetEx(
         this in HashCommands context,
         RedisKey key,
-        [RespIgnore(HGetExMode.None)] HGetExMode mode,
+        [RespIgnore(HashExpiryMode.None)] HashExpiryMode mode,
         [RespIgnore(-1)] long value,
         [RespPrefix("FIELDS"), RespPrefix] RedisValue[] fields);
 
@@ -340,7 +341,7 @@ internal static partial class HashCommandsExtensions
     private static partial RespOperation<RedisValue> HGetEx(
         this in HashCommands context,
         RedisKey key,
-        [RespIgnore(HGetExMode.None)] HGetExMode mode,
+        [RespIgnore(HashExpiryMode.None)] HashExpiryMode mode,
         [RespIgnore(-1)] long value,
         [RespPrefix("FIELDS"), RespPrefix("1")] RedisValue field);
 
@@ -348,11 +349,11 @@ internal static partial class HashCommandsExtensions
     private static partial RespOperation<Lease<byte>?> HGetExLease(
         this in HashCommands context,
         RedisKey key,
-        [RespIgnore(HGetExMode.None)] HGetExMode mode,
+        [RespIgnore(HashExpiryMode.None)] HashExpiryMode mode,
         [RespIgnore(-1)] long value,
         [RespPrefix("FIELDS"), RespPrefix("1")] RedisValue field);
 
-    [RespCommand("hget")]
+    [RespCommand(nameof(HGet))]
     public static partial RespOperation<Lease<byte>?> HGetLease(
         this in HashCommands context,
         RedisKey key,
@@ -446,6 +447,336 @@ internal static partial class HashCommandsExtensions
                 writer.Write(entry.Name);
                 writer.Write(entry.Value);
             }
+        }
+    }
+
+    public static RespOperation<bool> HSetEx(
+        this in HashCommands context,
+        RedisKey key,
+        TimeSpan expiry,
+        RedisValue field,
+        RedisValue value,
+        When when = When.Always)
+    {
+        var millis = (long)expiry.TotalMilliseconds;
+        if (millis % 1000 == 0) // use seconds
+        {
+            return HSetEx(context, key, when, HashExpiryMode.EX, millis / 1000, field, value);
+        }
+
+        return HSetEx(context, key, when, HashExpiryMode.PX, millis, field, value);
+    }
+
+    // "Legacy" - OK, so: historically, HashFieldSetAndSetExpiry returned RedisValue; this is ... bizarre,
+    // since HSETEX returns a bool. So: in the name of not breaking the world, we'll keep returning RedisValue;
+    // but: in the nice clean shiny API: expose bool
+    internal static RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        TimeSpan expiry,
+        RedisValue field,
+        RedisValue value,
+        When when)
+    {
+        var millis = (long)expiry.TotalMilliseconds;
+        if (millis % 1000 == 0) // use seconds
+        {
+            return HSetExLegacy(context, key, when, HashExpiryMode.EX, millis / 1000, field, value);
+        }
+
+        return HSetExLegacy(context, key, when, HashExpiryMode.PX, millis, field, value);
+    }
+
+    internal static RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        TimeSpan? expiry,
+        RedisValue field,
+        RedisValue value,
+        When when,
+        bool keepTtl)
+    {
+        if (expiry.HasValue) return HSetExLegacy(context, key, expiry.GetValueOrDefault(), field, value, when);
+        return HSetExLegacy(context, key, field, value, when, keepTtl);
+    }
+
+    public static RespOperation<bool> HSetEx(
+        this in HashCommands context,
+        RedisKey key,
+        TimeSpan expiry,
+        HashEntry[] fields,
+        When when = When.Always)
+    {
+        if (fields.Length == 1) return HSetEx(context, key, expiry, fields[0].Name, fields[0].Value, when);
+        var millis = (long)expiry.TotalMilliseconds;
+        if (millis % 1000 == 0) // use seconds
+        {
+            return HSetEx(context, key, when, HashExpiryMode.EX, millis / 1000, fields);
+        }
+
+        return HSetEx(context, key, when, HashExpiryMode.PX, millis, fields);
+    }
+
+    private static RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        TimeSpan expiry,
+        HashEntry[] fields,
+        When when)
+    {
+        if (fields.Length == 1) return HSetExLegacy(context, key, expiry, fields[0].Name, fields[0].Value, when);
+        var millis = (long)expiry.TotalMilliseconds;
+        if (millis % 1000 == 0) // use seconds
+        {
+            return HSetExLegacy(context, key, when, HashExpiryMode.EX, millis / 1000, fields);
+        }
+
+        return HSetExLegacy(context, key, when, HashExpiryMode.PX, millis, fields);
+    }
+
+    internal static RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        TimeSpan? expiry,
+        HashEntry[] fields,
+        When when,
+        bool keepTtl)
+    {
+        if (expiry.HasValue) return HSetExLegacy(context, key, expiry.GetValueOrDefault(), fields, when);
+        return HSetExLegacy(context, key, fields, when, keepTtl);
+    }
+
+    public static RespOperation<bool> HSetEx(
+        this in HashCommands context,
+        RedisKey key,
+        DateTime expiry,
+        RedisValue field,
+        RedisValue value,
+        When when = When.Always)
+    {
+        var millis = RedisDatabase.GetUnixTimeMilliseconds(expiry);
+        if (millis % 1000 == 0) // use seconds
+        {
+            return HSetEx(context, key, when, HashExpiryMode.EXAT, millis / 1000, field, value);
+        }
+
+        return HSetEx(context, key, when, HashExpiryMode.PXAT, millis, field, value);
+    }
+
+    internal static RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        DateTime expiry,
+        RedisValue field,
+        RedisValue value,
+        When when)
+    {
+        var millis = RedisDatabase.GetUnixTimeMilliseconds(expiry);
+        if (millis % 1000 == 0) // use seconds
+        {
+            return HSetExLegacy(context, key, when, HashExpiryMode.EXAT, millis / 1000, field, value);
+        }
+
+        return HSetExLegacy(context, key, when, HashExpiryMode.PXAT, millis, field, value);
+    }
+
+    public static RespOperation<bool> HSetEx(
+        this in HashCommands context,
+        RedisKey key,
+        DateTime expiry,
+        HashEntry[] fields,
+        When when = When.Always)
+    {
+        if (fields.Length == 1) return HSetEx(context, key, expiry, fields[0].Name, fields[0].Value, when);
+        var millis = RedisDatabase.GetUnixTimeMilliseconds(expiry);
+        if (millis % 1000 == 0) // use seconds
+        {
+            return HSetEx(context, key, when, HashExpiryMode.EXAT, millis / 1000, fields);
+        }
+
+        return HSetEx(context, key, when, HashExpiryMode.PXAT, millis, fields);
+    }
+
+    internal static RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        DateTime expiry,
+        HashEntry[] fields,
+        When when)
+    {
+        if (fields.Length == 1) return HSetExLegacy(context, key, expiry, fields[0].Name, fields[0].Value, when);
+        var millis = RedisDatabase.GetUnixTimeMilliseconds(expiry);
+        if (millis % 1000 == 0) // use seconds
+        {
+            return HSetExLegacy(context, key, when, HashExpiryMode.EXAT, millis / 1000, fields);
+        }
+
+        return HSetExLegacy(context, key, when, HashExpiryMode.PXAT, millis, fields);
+    }
+
+    public static RespOperation<bool> HSetEx(
+        this in HashCommands context,
+        RedisKey key,
+        RedisValue field,
+        RedisValue value,
+        When when = When.Always,
+        bool keepTtl = false)
+        => HSetEx(context, key, when, keepTtl ? HashExpiryMode.KEEPTTL : HashExpiryMode.None, -1, field, value);
+
+    private static RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        RedisValue field,
+        RedisValue value,
+        When when = When.Always,
+        bool keepTtl = false)
+        => HSetExLegacy(context, key, when, keepTtl ? HashExpiryMode.KEEPTTL : HashExpiryMode.None, -1, field, value);
+
+    public static RespOperation<bool> HSetEx(
+        this in HashCommands context,
+        RedisKey key,
+        HashEntry[] fields,
+        When when = When.Always,
+        bool keepTtl = false)
+    {
+        if (fields.Length == 1) return HSetEx(context, key, fields[0].Name, fields[0].Value, when, keepTtl);
+        return HSetEx(context, key, when, keepTtl ? HashExpiryMode.KEEPTTL : HashExpiryMode.None, -1, fields);
+    }
+
+    private static RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        HashEntry[] fields,
+        When when,
+        bool keepTtl)
+    {
+        if (fields.Length == 1) return HSetExLegacy(context, key, fields[0].Name, fields[0].Value, when, keepTtl);
+        return HSetExLegacy(context, key, when, keepTtl ? HashExpiryMode.KEEPTTL : HashExpiryMode.None, -1, fields);
+    }
+
+    [RespCommand(Formatter = "HSetExFormatter.Instance")]
+    private static partial RespOperation<bool> HSetEx(
+        this in HashCommands context,
+        RedisKey key,
+        When when,
+        HashExpiryMode mode,
+        long expiry,
+        RedisValue field,
+        RedisValue value);
+
+    [RespCommand(Formatter = "HSetExFormatter.Instance")]
+    private static partial RespOperation<bool> HSetEx(
+        this in HashCommands context,
+        RedisKey key,
+        When when,
+        HashExpiryMode mode,
+        long expiry,
+        HashEntry[] fields);
+
+    [RespCommand(nameof(HSetEx), Formatter = "HSetExFormatter.Instance")]
+    private static partial RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        When when,
+        HashExpiryMode mode,
+        long expiry,
+        RedisValue field,
+        RedisValue value);
+
+    [RespCommand(nameof(HSetEx), Formatter = "HSetExFormatter.Instance")]
+    private static partial RespOperation<RedisValue> HSetExLegacy(
+        this in HashCommands context,
+        RedisKey key,
+        When when,
+        HashExpiryMode mode,
+        long expiry,
+        HashEntry[] fields);
+
+    private sealed class
+        HSetExFormatter : IRespFormatter<(RedisKey Key, When When, HashExpiryMode Mode, long Expiry, HashEntry[] Fields)>,
+            IRespFormatter<(RedisKey Key, When When, HashExpiryMode Mode, long Expiry, RedisValue Field, RedisValue Value)>
+    {
+        private HSetExFormatter() { }
+        public static readonly HSetExFormatter Instance = new();
+
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in (RedisKey Key, When When, HashExpiryMode Mode, long Expiry, HashEntry[] Fields) request)
+        {
+            bool __inc0 = request.When != When.Always; // IgnoreExpression
+            bool __inc1 = request.Mode != HashExpiryMode.None; // IgnoreExpression
+            bool __inc2 = request.Expiry != -1; // IgnoreExpression
+#pragma warning disable SA1118
+            writer.WriteCommand(command, 3 // constant args: key, FIELDS, numfields
+                                         + (__inc0 ? 1 : 0) // request.When
+                                         + (__inc1 ? 1 : 0) // request.Mode
+                                         + (__inc2 ? 1 : 0) // request.Expiry
+                                         + (request.Fields.Length * 2)); // request.Fields
+#pragma warning restore SA1118
+            writer.Write(request.Key);
+            if (__inc0)
+            {
+                writer.WriteRaw(GetRaw(request.When));
+            }
+            if (__inc1)
+            {
+                writer.WriteBulkString(request.Mode);
+            }
+            if (__inc2)
+            {
+                writer.WriteBulkString(request.Expiry);
+            }
+            writer.WriteRaw("$6\r\nFIELDS\r\n"u8); // FIELDS
+            writer.WriteBulkString(request.Fields.Length);
+            foreach (var entry in request.Fields)
+            {
+                writer.Write(entry.Name);
+                writer.Write(entry.Value);
+            }
+        }
+
+        public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in (RedisKey Key, When When, HashExpiryMode Mode, long Expiry, RedisValue Field, RedisValue Value) request)
+        {
+            bool __inc0 = request.When != When.Always; // IgnoreExpression
+            bool __inc1 = request.Mode != HashExpiryMode.None; // IgnoreExpression
+            bool __inc2 = request.Expiry != -1; // IgnoreExpression
+#pragma warning disable SA1118
+            writer.WriteCommand(command, 5 // constant args: key, FIELDS, numfields, field, value
+                                         + (__inc0 ? 1 : 0) // request.When
+                                         + (__inc1 ? 1 : 0) // request.Mode
+                                         + (__inc2 ? 1 : 0)); // request.Expiry
+#pragma warning restore SA1118
+            writer.Write(request.Key);
+            if (__inc0)
+            {
+                writer.WriteRaw(GetRaw(request.When));
+            }
+            if (__inc1)
+            {
+                writer.WriteBulkString(request.Mode);
+            }
+            if (__inc2)
+            {
+                writer.WriteBulkString(request.Expiry);
+            }
+            writer.WriteRaw("$6\r\nFIELDS\r\n$1\r\n1\r\n"u8); // FIELDS 1
+            writer.Write(request.Field);
+            writer.Write(request.Value);
+        }
+
+        private static ReadOnlySpan<byte> GetRaw(When when)
+        {
+            return when switch
+            {
+                When.Exists => "FXX"u8,
+                When.NotExists => "FNX"u8,
+                _ => Throw(),
+            };
+            static ReadOnlySpan<byte> Throw() => throw new ArgumentOutOfRangeException(nameof(when));
         }
     }
 

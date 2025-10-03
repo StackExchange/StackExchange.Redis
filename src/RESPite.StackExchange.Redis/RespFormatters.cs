@@ -57,24 +57,27 @@ public static class RespFormatters
         }
     }
 
-    internal static void WriteBulkString(this ref RespWriter writer, HashCommandsExtensions.HGetExMode when)
+    internal static void WriteBulkString(this ref RespWriter writer, HashCommandsExtensions.HashExpiryMode when)
     {
         switch (when)
         {
-            case HashCommandsExtensions.HGetExMode.EX:
+            case HashCommandsExtensions.HashExpiryMode.EX:
                 writer.WriteRaw("$2\r\nEX\r\n"u8);
                 break;
-            case HashCommandsExtensions.HGetExMode.PX:
+            case HashCommandsExtensions.HashExpiryMode.PX:
                 writer.WriteRaw("$2\r\nPX\r\n"u8);
                 break;
-            case HashCommandsExtensions.HGetExMode.EXAT:
+            case HashCommandsExtensions.HashExpiryMode.EXAT:
                 writer.WriteRaw("$4\r\nEXAT\r\n"u8);
                 break;
-            case HashCommandsExtensions.HGetExMode.PXAT:
+            case HashCommandsExtensions.HashExpiryMode.PXAT:
                 writer.WriteRaw("$4\r\nPXAT\r\n"u8);
                 break;
-            case HashCommandsExtensions.HGetExMode.PERSIST:
+            case HashCommandsExtensions.HashExpiryMode.PERSIST:
                 writer.WriteRaw("$7\r\nPERSIST\r\n"u8);
+                break;
+            case HashCommandsExtensions.HashExpiryMode.KEEPTTL:
+                writer.WriteRaw("$7\r\nKEEPTTL\r\n"u8);
                 break;
             default:
                 Throw();

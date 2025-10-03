@@ -268,7 +268,7 @@ internal partial class RespContextDatabase
         bool keepTtl = false,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HSetExLegacy(key, expiry, hashField, value, when, keepTtl).Wait(SyncTimeout);
 
     public RedisValue HashFieldSetAndSetExpiry(
         RedisKey key,
@@ -277,7 +277,7 @@ internal partial class RespContextDatabase
         DateTime expiry,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HSetExLegacy(key, expiry, hashField, value, when).Wait(SyncTimeout);
 
     public RedisValue HashFieldSetAndSetExpiry(
         RedisKey key,
@@ -286,7 +286,7 @@ internal partial class RespContextDatabase
         bool keepTtl = false,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HSetExLegacy(key, expiry, hashFields, when, keepTtl).Wait(SyncTimeout);
 
     public RedisValue HashFieldSetAndSetExpiry(
         RedisKey key,
@@ -294,7 +294,7 @@ internal partial class RespContextDatabase
         DateTime expiry,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HSetExLegacy(key, expiry, hashFields, when).Wait(SyncTimeout);
 
     public Task<RedisValue> HashFieldSetAndSetExpiryAsync(
         RedisKey key,
@@ -304,7 +304,7 @@ internal partial class RespContextDatabase
         bool keepTtl = false,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HSetExLegacy(key, expiry, hashField, value, when, keepTtl).AsTask();
 
     public Task<RedisValue> HashFieldSetAndSetExpiryAsync(
         RedisKey key,
@@ -313,7 +313,7 @@ internal partial class RespContextDatabase
         DateTime expiry,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HSetExLegacy(key, expiry, hashField, value, when).AsTask();
 
     public Task<RedisValue> HashFieldSetAndSetExpiryAsync(
         RedisKey key,
@@ -322,7 +322,7 @@ internal partial class RespContextDatabase
         bool keepTtl = false,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HSetExLegacy(key, expiry, hashFields, when, keepTtl).AsTask();
 
     public Task<RedisValue> HashFieldSetAndSetExpiryAsync(
         RedisKey key,
@@ -330,7 +330,7 @@ internal partial class RespContextDatabase
         DateTime expiry,
         When when = When.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HSetExLegacy(key, expiry, hashFields, when).AsTask();
 
     public RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HGet(key, hashField).Wait(SyncTimeout);
