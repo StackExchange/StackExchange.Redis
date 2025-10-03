@@ -33,130 +33,303 @@ internal partial class RespContextDatabase
         CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HIncrByFloat(key, hashField, -value).AsTask();
 
-    public bool HashDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-        => Context(flags).Hashes().HDel(key, hashField).Wait(SyncTimeout);
-
-    public long HashDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+    public bool HashDelete(
+        RedisKey key,
+        RedisValue hashFields,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HDel(key, hashFields).Wait(SyncTimeout);
 
-    public Task<bool> HashDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+    public long HashDelete(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HDel(key, hashFields).Wait(SyncTimeout);
+
+    public Task<bool> HashDeleteAsync(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HDel(key, hashField).AsTask();
 
-    public Task<long> HashDeleteAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+    public Task<long> HashDeleteAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HDel(key, hashFields).AsTask();
 
     public bool HashExists(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HExists(key, hashField).Wait(SyncTimeout);
 
-    public Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+    public Task<bool> HashExistsAsync(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HExists(key, hashField).AsTask();
 
-    public ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+    public ExpireResult[] HashFieldExpire(
+        RedisKey key,
+        RedisValue[] hashFields,
+        TimeSpan expiry,
+        ExpireWhen when = ExpireWhen.Always,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HExpire(key, expiry, when, hashFields).Wait(SyncTimeout);
+
+    public ExpireResult[] HashFieldExpire(
+        RedisKey key,
+        RedisValue[] hashFields,
+        DateTime expiry,
+        ExpireWhen when = ExpireWhen.Always,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HExpireAt(key, expiry, when, hashFields).Wait(SyncTimeout);
+
+    public Task<ExpireResult[]> HashFieldExpireAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        TimeSpan expiry,
+        ExpireWhen when = ExpireWhen.Always,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HExpire(key, expiry, when, hashFields).AsTask();
+
+    public Task<ExpireResult[]> HashFieldExpireAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        DateTime expiry,
+        ExpireWhen when = ExpireWhen.Always,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HExpireAt(key, expiry, when, hashFields).AsTask();
+
+    public RedisValue HashFieldGetAndDelete(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetDel(key, hashField).Wait(SyncTimeout);
+
+    public RedisValue[] HashFieldGetAndDelete(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetDel(key, hashFields).Wait(SyncTimeout);
+
+    public Task<RedisValue> HashFieldGetAndDeleteAsync(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetDel(key, hashField).AsTask();
+
+    public Task<RedisValue[]> HashFieldGetAndDeleteAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetDel(key, hashFields).AsTask();
+
+    public RedisValue HashFieldGetAndSetExpiry(
+        RedisKey key,
+        RedisValue hashField,
+        TimeSpan? expiry = null,
+        bool persist = false,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetEx(key, hashField, expiry, persist).Wait(SyncTimeout);
+
+    public RedisValue HashFieldGetAndSetExpiry(
+        RedisKey key,
+        RedisValue hashField,
+        DateTime expiry,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetEx(key, expiry, hashField).Wait(SyncTimeout);
+
+    public RedisValue[] HashFieldGetAndSetExpiry(
+        RedisKey key,
+        RedisValue[] hashFields,
+        TimeSpan? expiry = null,
+        bool persist = false,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetEx(key, hashFields, expiry, persist).Wait(SyncTimeout);
+
+    public RedisValue[] HashFieldGetAndSetExpiry(
+        RedisKey key,
+        RedisValue[] hashFields,
+        DateTime expiry,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetEx(key, expiry, hashFields).Wait(SyncTimeout);
+
+    public Task<RedisValue> HashFieldGetAndSetExpiryAsync(
+        RedisKey key,
+        RedisValue hashField,
+        TimeSpan? expiry = null,
+        bool persist = false,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetEx(key, hashField, expiry, persist).AsTask();
+
+    public Task<RedisValue> HashFieldGetAndSetExpiryAsync(
+        RedisKey key,
+        RedisValue hashField,
+        DateTime expiry,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetEx(key, expiry, hashField).AsTask();
+
+    public Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        TimeSpan? expiry = null,
+        bool persist = false,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetEx(key, hashFields, expiry, persist).AsTask();
+
+    public Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        DateTime expiry,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetEx(key, expiry, hashFields).AsTask();
+
+    public long[] HashFieldGetExpireDateTime(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HPExpireTimeRaw(key, hashFields).Wait(SyncTimeout);
+
+    public Task<long[]> HashFieldGetExpireDateTimeAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HPExpireTimeRaw(key, hashFields).AsTask();
+
+    public Lease<byte>? HashFieldGetLeaseAndDelete(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetDelLease(key, hashField).Wait(SyncTimeout);
+
+    public Task<Lease<byte>?> HashFieldGetLeaseAndDeleteAsync(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetDelLease(key, hashField).AsTask();
+
+    public Lease<byte>? HashFieldGetLeaseAndSetExpiry(
+        RedisKey key,
+        RedisValue hashField,
+        TimeSpan? expiry = null,
+        bool persist = false,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetExLease(key, hashField, expiry, persist).Wait(SyncTimeout);
+
+    public Lease<byte>? HashFieldGetLeaseAndSetExpiry(
+        RedisKey key,
+        RedisValue hashField,
+        DateTime expiry,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetExLease(key, expiry, hashField).Wait(SyncTimeout);
+
+    public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(
+        RedisKey key,
+        RedisValue hashField,
+        TimeSpan? expiry = null,
+        bool persist = false,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetExLease(key, hashField, expiry, persist).AsTask();
+
+    public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(
+        RedisKey key,
+        RedisValue hashField,
+        DateTime expiry,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HGetExLease(key, expiry, hashField).AsTask();
+
+    public long[] HashFieldGetTimeToLive(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HTtlRaw(key, hashFields).Wait(SyncTimeout);
+
+    public Task<long[]> HashFieldGetTimeToLiveAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HTtlRaw(key, hashFields).AsTask();
+
+    public PersistResult[] HashFieldPersist(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HPersist(key, hashFields).Wait(SyncTimeout);
+
+    public Task<PersistResult[]> HashFieldPersistAsync(
+        RedisKey key,
+        RedisValue[] hashFields,
+        CommandFlags flags = CommandFlags.None)
+        => Context(flags).Hashes().HPersist(key, hashFields).AsTask();
+
+    public RedisValue HashFieldSetAndSetExpiry(
+        RedisKey key,
+        RedisValue hashField,
+        RedisValue value,
+        TimeSpan? expiry = null,
+        bool keepTtl = false,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
-    public ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+    public RedisValue HashFieldSetAndSetExpiry(
+        RedisKey key,
+        RedisValue hashField,
+        RedisValue value,
+        DateTime expiry,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
-    public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+    public RedisValue HashFieldSetAndSetExpiry(
+        RedisKey key,
+        HashEntry[] hashFields,
+        TimeSpan? expiry = null,
+        bool keepTtl = false,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
-    public Task<ExpireResult[]> HashFieldExpireAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+    public RedisValue HashFieldSetAndSetExpiry(
+        RedisKey key,
+        HashEntry[] hashFields,
+        DateTime expiry,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
-    public RedisValue HashFieldGetAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+    public Task<RedisValue> HashFieldSetAndSetExpiryAsync(
+        RedisKey key,
+        RedisValue hashField,
+        RedisValue value,
+        TimeSpan? expiry = null,
+        bool keepTtl = false,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
-    public RedisValue[] HashFieldGetAndDelete(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
+    public Task<RedisValue> HashFieldSetAndSetExpiryAsync(
+        RedisKey key,
+        RedisValue hashField,
+        RedisValue value,
+        DateTime expiry,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
-    public Task<RedisValue> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+    public Task<RedisValue> HashFieldSetAndSetExpiryAsync(
+        RedisKey key,
+        HashEntry[] hashFields,
+        TimeSpan? expiry = null,
+        bool keepTtl = false,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
-    public Task<RedisValue[]> HashFieldGetAndDeleteAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public RedisValue HashFieldGetAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public RedisValue[] HashFieldGetAndSetExpiry(RedisKey key, RedisValue[] hashFields, DateTime expiry, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<RedisValue> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<RedisValue[]> HashFieldGetAndSetExpiryAsync(RedisKey key, RedisValue[] hashFields, DateTime expiry, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public long[] HashFieldGetExpireDateTime(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<long[]> HashFieldGetExpireDateTimeAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Lease<byte>? HashFieldGetLeaseAndDelete(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<Lease<byte>?> HashFieldGetLeaseAndDeleteAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Lease<byte>? HashFieldGetLeaseAndSetExpiry(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, TimeSpan? expiry = null, bool persist = false, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<Lease<byte>?> HashFieldGetLeaseAndSetExpiryAsync(RedisKey key, RedisValue hashField, DateTime expiry, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public long[] HashFieldGetTimeToLive(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<long[]> HashFieldGetTimeToLiveAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public PersistResult[] HashFieldPersist(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<PersistResult[]> HashFieldPersistAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue hashField, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public RedisValue HashFieldSetAndSetExpiry(RedisKey key, RedisValue hashField, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public RedisValue HashFieldSetAndSetExpiry(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue hashField, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, RedisValue hashField, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
-
-    public Task<RedisValue> HashFieldSetAndSetExpiryAsync(RedisKey key, HashEntry[] hashFields, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
+    public Task<RedisValue> HashFieldSetAndSetExpiryAsync(
+        RedisKey key,
+        HashEntry[] hashFields,
+        DateTime expiry,
+        When when = When.Always,
+        CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
     public RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
@@ -168,7 +341,10 @@ internal partial class RespContextDatabase
     public HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HGetAll(key).Wait(SyncTimeout);
 
-    public Task<RedisValue> HashGetAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+    public Task<RedisValue> HashGetAsync(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HGet(key, hashField).AsTask();
 
     public Task<RedisValue[]> HashGetAsync(
@@ -183,7 +359,10 @@ internal partial class RespContextDatabase
     public Lease<byte>? HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HGetLease(key, hashField).Wait(SyncTimeout);
 
-    public Task<Lease<byte>?> HashGetLeaseAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+    public Task<Lease<byte>?> HashGetLeaseAsync(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HGetLease(key, hashField).AsTask();
 
     public long HashIncrement(
@@ -229,19 +408,31 @@ internal partial class RespContextDatabase
     public RedisValue HashRandomField(RedisKey key, CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HRandField(key).Wait(SyncTimeout);
 
-    public RedisValue[] HashRandomFields(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+    public RedisValue[] HashRandomFields(
+        RedisKey key,
+        long count,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HRandField(key, count).Wait(SyncTimeout);
 
-    public HashEntry[] HashRandomFieldsWithValues(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+    public HashEntry[] HashRandomFieldsWithValues(
+        RedisKey key,
+        long count,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HRandFieldWithValues(key, count).Wait(SyncTimeout);
 
     public Task<RedisValue> HashRandomFieldAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HRandField(key).AsTask();
 
-    public Task<RedisValue[]> HashRandomFieldsAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+    public Task<RedisValue[]> HashRandomFieldsAsync(
+        RedisKey key,
+        long count,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HRandField(key, count).AsTask();
 
-    public Task<HashEntry[]> HashRandomFieldsWithValuesAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+    public Task<HashEntry[]> HashRandomFieldsWithValuesAsync(
+        RedisKey key,
+        long count,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HRandFieldWithValues(key, count).AsTask();
 
     public IEnumerable<HashEntry> HashScan(
@@ -253,7 +444,11 @@ internal partial class RespContextDatabase
         CommandFlags flags = CommandFlags.None)
         => throw new NotImplementedException();
 
-    public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
+    public IEnumerable<HashEntry> HashScan(
+        RedisKey key,
+        RedisValue pattern,
+        int pageSize,
+        CommandFlags flags)
         => throw new NotImplementedException();
 
     public IAsyncEnumerable<HashEntry> HashScanAsync(
@@ -299,13 +494,22 @@ internal partial class RespContextDatabase
         CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HSet(key, hashField, value, when).AsTask();
 
-    public void HashSet(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
+    public void HashSet(
+        RedisKey key,
+        HashEntry[] hashFields,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HSet(key, hashFields).Wait(SyncTimeout);
 
-    public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
+    public Task HashSetAsync(
+        RedisKey key,
+        HashEntry[] hashFields,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HSet(key, hashFields).AsTask();
 
-    public long HashStringLength(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+    public long HashStringLength(
+        RedisKey key,
+        RedisValue hashField,
+        CommandFlags flags = CommandFlags.None)
         => Context(flags).Hashes().HStrLen(key, hashField).Wait(SyncTimeout);
 
     public Task<long> HashStringLengthAsync(

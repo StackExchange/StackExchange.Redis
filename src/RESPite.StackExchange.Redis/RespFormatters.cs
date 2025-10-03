@@ -57,6 +57,32 @@ public static class RespFormatters
         }
     }
 
+    internal static void WriteBulkString(this ref RespWriter writer, HashCommandsExtensions.HGetExMode when)
+    {
+        switch (when)
+        {
+            case HashCommandsExtensions.HGetExMode.EX:
+                writer.WriteRaw("$2\r\nEX\r\n"u8);
+                break;
+            case HashCommandsExtensions.HGetExMode.PX:
+                writer.WriteRaw("$2\r\nPX\r\n"u8);
+                break;
+            case HashCommandsExtensions.HGetExMode.EXAT:
+                writer.WriteRaw("$4\r\nEXAT\r\n"u8);
+                break;
+            case HashCommandsExtensions.HGetExMode.PXAT:
+                writer.WriteRaw("$4\r\nPXAT\r\n"u8);
+                break;
+            case HashCommandsExtensions.HGetExMode.PERSIST:
+                writer.WriteRaw("$7\r\nPERSIST\r\n"u8);
+                break;
+            default:
+                Throw();
+                static void Throw() => throw new ArgumentOutOfRangeException(nameof(when));
+                break;
+        }
+    }
+
     internal static void WriteBulkString(this ref RespWriter writer, ExpireWhen when)
     {
         switch (when)
