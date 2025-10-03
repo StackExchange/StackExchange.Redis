@@ -2271,7 +2271,7 @@ namespace StackExchange.Redis
             SortedSetAdd(key, member, score, SortedSetWhen.Always, flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAdd(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
+            SortedSetAdd(key, member, score, SortedSetWhenExtensions.ToSortedSetWhen(when), flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
@@ -2289,7 +2289,7 @@ namespace StackExchange.Redis
             SortedSetAdd(key, values, SortedSetWhen.Always, flags);
 
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAdd(key, values, SortedSetWhenExtensions.Parse(when), flags);
+            SortedSetAdd(key, values, SortedSetWhenExtensions.ToSortedSetWhen(when), flags);
 
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
@@ -2307,7 +2307,7 @@ namespace StackExchange.Redis
             SortedSetAddAsync(key, member, score, SortedSetWhen.Always, flags);
 
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAddAsync(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
+            SortedSetAddAsync(key, member, score, SortedSetWhenExtensions.ToSortedSetWhen(when), flags);
 
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
@@ -2325,7 +2325,7 @@ namespace StackExchange.Redis
             SortedSetAddAsync(key, values, SortedSetWhen.Always, flags);
 
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAddAsync(key, values, SortedSetWhenExtensions.Parse(when), flags);
+            SortedSetAddAsync(key, values, SortedSetWhenExtensions.ToSortedSetWhen(when), flags);
 
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {

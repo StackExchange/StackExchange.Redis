@@ -11,6 +11,8 @@ public static class RespParsers
     public static IRespParser<RedisKey> RedisKey => DefaultParser.Instance;
     public static IRespParser<Lease<byte>> BytesLease => DefaultParser.Instance;
     public static IRespParser<HashEntry[]> HashEntryArray => DefaultParser.Instance;
+    public static IRespParser<SortedSetEntry[]> SortedSetEntryArray => DefaultParser.Instance;
+    public static IRespParser<SortedSetEntry?> SortedSetEntry => DefaultParser.Instance;
     public static IRespParser<TimeSpan?> TimeSpanFromSeconds => TimeParser.FromSeconds;
     public static IRespParser<TimeSpan?[]> TimeSpanArrayFromSeconds => TimeParser.FromSeconds;
     public static IRespParser<DateTime?> DateTimeFromSeconds => TimeParser.FromSeconds;
@@ -46,7 +48,8 @@ public static class RespParsers
 
     private sealed class DefaultParser : IRespParser<RedisValue>, IRespParser<RedisKey>,
         IRespParser<Lease<byte>>, IRespParser<RedisValue[]>, IRespParser<HashEntry[]>,
-        IRespParser<RedisKey[]>, IRespParser<ListPopResult>
+        IRespParser<RedisKey[]>, IRespParser<ListPopResult>, IRespParser<SortedSetEntry[]>,
+        IRespParser<SortedSetEntry?>
     {
         private DefaultParser() { }
         public static readonly DefaultParser Instance = new();
@@ -108,6 +111,27 @@ public static class RespParsers
             reader.MoveNext();
             var arr = reader.ReadArray(SharedReadRedisValue, scalar: true)!;
             return new(key, arr);
+        }
+
+        SortedSetEntry[] IRespParser<SortedSetEntry[]>.Parse(ref RespReader reader)
+        {
+            return reader.ReadPairArray(
+                SharedReadRedisValue,
+                static (ref RespReader reader) => reader.ReadDouble(),
+                static (x, y) => new SortedSetEntry(x, y),
+                scalar: true)!;
+        }
+
+        SortedSetEntry? IRespParser<SortedSetEntry?>.Parse(ref RespReader reader)
+        {
+            if (reader.IsNull) return null;
+            reader.DemandAggregate();
+            if (reader.AggregateLength() < 2) return null;
+            reader.MoveNext();
+            var member = ReadRedisValue(ref reader);
+            reader.MoveNext();
+            var score = reader.ReadDouble();
+            return new SortedSetEntry(member, score);
         }
     }
 }

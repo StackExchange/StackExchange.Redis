@@ -5,105 +5,71 @@ namespace RESPite.StackExchange.Redis;
 
 internal partial class RespContextDatabase
 {
-    // Async SortedSet methods
-    [RespCommand("zadd")]
-    public partial bool SortedSetAdd(
+    public bool SortedSetAdd(
         RedisKey key,
         RedisValue member,
         double score,
-        CommandFlags flags);
+        CommandFlags flags) =>
+        Context(flags).SortedSets().ZAdd(key, member, score).Wait(SyncTimeout);
+
+    public Task<bool> SortedSetAddAsync(
+        RedisKey key,
+        RedisValue member,
+        double score,
+        CommandFlags flags) =>
+        Context(flags).SortedSets().ZAdd(key, member, score).AsTask();
 
     public bool SortedSetAdd(
         RedisKey key,
         RedisValue member,
         double score,
         When when,
-        CommandFlags flags) => when == When.Always
-        ? SortedSetAdd(key, member, score, flags) // simple mode
-        : SortedSetAdd(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
+        CommandFlags flags) =>
+        Context(flags).SortedSets().ZAdd(key, when.ToSortedSetWhen(), member, score).Wait(SyncTimeout);
 
     public Task<bool> SortedSetAddAsync(
         RedisKey key,
         RedisValue member,
         double score,
         When when,
-        CommandFlags flags) => when == When.Always
-        ? SortedSetAddAsync(key, member, score, flags) // simple mode
-        : SortedSetAddAsync(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
+        CommandFlags flags) =>
+        Context(flags).SortedSets().ZAdd(key, when.ToSortedSetWhen(), member, score).AsTask();
 
-    [RespCommand("zadd", Formatter = SortedSetAddFormatter.Formatter)]
-    public partial bool SortedSetAdd(
+    public bool SortedSetAdd(
         RedisKey key,
         RedisValue member,
         double score,
         SortedSetWhen when,
-        CommandFlags flags);
+        CommandFlags flags) =>
+        Context(flags).SortedSets().ZAdd(key, when, member, score).Wait(SyncTimeout);
 
-    private sealed class
-        SortedSetAddFormatter : IRespFormatter<(RedisKey Key, RedisValue Member, double Score, SortedSetWhen When)>
-    {
-        public const string Formatter = $"{nameof(SortedSetAddFormatter)}.{nameof(Instance)}";
-        public static readonly SortedSetAddFormatter Instance = new();
-        private SortedSetAddFormatter() { }
-
-        public void Format(
-            scoped ReadOnlySpan<byte> command,
-            ref RespWriter writer,
-            in (RedisKey Key, RedisValue Member, double Score, SortedSetWhen When) request)
-        {
-            static int Throw(SortedSetWhen when) => throw new ArgumentOutOfRangeException(
-                paramName: nameof(when),
-                message: $"Invalid {nameof(SortedSetWhen)} value for ZADD: {when}");
-
-            // ZADD key [NX | XX] [GT | LT] score member
-            var argCount = 3 + request.When switch
-            {
-                SortedSetWhen.Always => 0,
-                SortedSetWhen.Exists or SortedSetWhen.NotExists => 1,
-                SortedSetWhen.GreaterThan or SortedSetWhen.LessThan => 1,
-                SortedSetWhen.GreaterThan | SortedSetWhen.Exists => 2,
-                SortedSetWhen.GreaterThan | SortedSetWhen.NotExists => 2,
-                SortedSetWhen.LessThan | SortedSetWhen.Exists => 2,
-                SortedSetWhen.LessThan | SortedSetWhen.NotExists => 2,
-                _ => Throw(request.When),
-            };
-
-            writer.WriteCommand(command, argCount);
-            writer.Write(request.Key);
-            switch (request.When & (SortedSetWhen.Exists | SortedSetWhen.NotExists))
-            {
-                case SortedSetWhen.Exists:
-                    writer.WriteBulkString("XX"u8);
-                    break;
-                case SortedSetWhen.NotExists:
-                    writer.WriteBulkString("NX"u8);
-                    break;
-            }
-
-            writer.WriteBulkString(request.Score);
-            writer.Write(request.Member);
-        }
-    }
+    public Task<bool> SortedSetAddAsync(
+        RedisKey key,
+        RedisValue member,
+        double score,
+        SortedSetWhen when,
+        CommandFlags flags) =>
+        Context(flags).SortedSets().ZAdd(key, when, member, score).AsTask();
 
     public Task<long> SortedSetAddAsync(
         RedisKey key,
         SortedSetEntry[] values,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZAdd(key, values).AsTask();
 
     public Task<long> SortedSetAddAsync(
         RedisKey key,
         SortedSetEntry[] values,
         When when,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZAdd(key, when.ToSortedSetWhen(), values).AsTask();
 
     public Task<long> SortedSetAddAsync(
         RedisKey key,
         SortedSetEntry[] values,
         SortedSetWhen when = SortedSetWhen.Always,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZAdd(key, when, values).AsTask();
 
     public Task<RedisValue[]> SortedSetCombineAsync(
         SetOperation operation,
@@ -111,7 +77,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().Combine(operation, keys).AsTask();
 
     public Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(
         SetOperation operation,
@@ -119,7 +85,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().CombineWithScores(operation, keys).AsTask();
 
     public Task<long> SortedSetCombineAndStoreAsync(
         SetOperation operation,
@@ -128,7 +94,7 @@ internal partial class RespContextDatabase
         RedisKey second,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().CombineAndStore(operation, destination, new[] { first, second }).AsTask();
 
     public Task<long> SortedSetCombineAndStoreAsync(
         SetOperation operation,
@@ -137,7 +103,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().CombineAndStore(operation, destination, keys).AsTask();
 
     public Task<double> SortedSetDecrementAsync(
         RedisKey key,
@@ -267,7 +233,7 @@ internal partial class RespContextDatabase
         RedisValue member,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZRank(key, member, order).AsTask();
 
     public Task<bool> SortedSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -311,52 +277,26 @@ internal partial class RespContextDatabase
         throw new NotImplementedException();
 
     public Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZScore(key, member).AsTask();
 
     public Task<double?[]> SortedSetScoresAsync(
         RedisKey key,
         RedisValue[] members,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZScore(key, members).AsTask();
 
     public Task<SortedSetEntry?> SortedSetPopAsync(
         RedisKey key,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
-        order == Order.Ascending
-            ? SortedSetPopMinCoreAsync(key, flags)
-            : SortedSetPopMaxCoreAsync(key, flags);
+        Context(flags).SortedSets().ZPop(key, order).AsTask();
 
     public Task<SortedSetEntry[]> SortedSetPopAsync(
         RedisKey key,
         long count,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
-
-    [RespCommand("zpopmin", Parser = SortedSetEntryParser.Parser)]
-    private partial SortedSetEntry? SortedSetPopMinCore(RedisKey key, CommandFlags flags);
-
-    [RespCommand("zpopmax", Parser = SortedSetEntryParser.Parser)]
-    private partial SortedSetEntry? SortedSetPopMaxCore(RedisKey key, CommandFlags flags);
-
-    private sealed class SortedSetEntryParser : IRespParser<SortedSetEntry?>
-    {
-        public const string Parser = $"{nameof(SortedSetEntryParser)}.{nameof(Instance)}";
-        public static readonly SortedSetEntryParser Instance = new();
-
-        public SortedSetEntry? Parse(ref RespReader reader)
-        {
-            if (reader.IsNull) return null;
-            reader.DemandAggregate();
-            if (reader.AggregateLength() < 2) return null;
-            reader.MoveNext();
-            var member = RespParsers.ReadRedisValue(ref reader);
-            reader.MoveNext();
-            var score = reader.ReadDouble();
-            return new SortedSetEntry(member, score);
-        }
-    }
+        Context(flags).SortedSets().ZPop(key, count, order).AsTask();
 
     public Task<SortedSetPopResult> SortedSetPopAsync(
         RedisKey[] keys,
@@ -382,21 +322,21 @@ internal partial class RespContextDatabase
 
     // Synchronous SortedSet methods
     public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZAdd(key, values).Wait(SyncTimeout);
 
     public long SortedSetAdd(
         RedisKey key,
         SortedSetEntry[] values,
         When when,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZAdd(key, when.ToSortedSetWhen(), values).Wait(SyncTimeout);
 
     public long SortedSetAdd(
         RedisKey key,
         SortedSetEntry[] values,
         SortedSetWhen when = SortedSetWhen.Always,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZAdd(key, when, values).Wait(SyncTimeout);
 
     public RedisValue[] SortedSetCombine(
         SetOperation operation,
@@ -404,7 +344,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().Combine(operation, keys).Wait(SyncTimeout);
 
     public SortedSetEntry[] SortedSetCombineWithScores(
         SetOperation operation,
@@ -412,7 +352,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().CombineWithScores(operation, keys).Wait(SyncTimeout);
 
     public long SortedSetCombineAndStore(
         SetOperation operation,
@@ -421,7 +361,7 @@ internal partial class RespContextDatabase
         RedisKey second,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().CombineAndStore(operation, destination, new[] { first, second }).Wait(SyncTimeout);
 
     public long SortedSetCombineAndStore(
         SetOperation operation,
@@ -430,7 +370,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().CombineAndStore(operation, destination, keys).Wait(SyncTimeout);
 
     public double SortedSetDecrement(
         RedisKey key,
@@ -554,7 +494,7 @@ internal partial class RespContextDatabase
         RedisValue member,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZRank(key, member, order).Wait(SyncTimeout);
 
     public bool SortedSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -599,25 +539,23 @@ internal partial class RespContextDatabase
         throw new NotImplementedException();
 
     public double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZScore(key, member).Wait(SyncTimeout);
 
     public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZScore(key, members).Wait(SyncTimeout);
 
     public SortedSetEntry? SortedSetPop(
         RedisKey key,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
-        order == Order.Ascending
-            ? SortedSetPopMinCore(key, flags)
-            : SortedSetPopMaxCore(key, flags);
+        Context(flags).SortedSets().ZPop(key, order).Wait(SyncTimeout);
 
     public SortedSetEntry[] SortedSetPop(
         RedisKey key,
         long count,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZPop(key, count, order).Wait(SyncTimeout);
 
     public SortedSetPopResult SortedSetPop(
         RedisKey[] keys,
