@@ -124,6 +124,38 @@ internal static partial class ListCommandsExtensions
     [RespCommand]
     public static partial RespOperation<long> LPush(this in ListCommands context, RedisKey key, RedisValue element);
 
+    internal static RespOperation<long> Push(this in ListCommands context, RedisKey key, RedisValue element, ListSide side, When when)
+    {
+        switch (when)
+        {
+            case When.Always:
+                return side == ListSide.Left ? LPush(context, key, element) : RPush(context, key, element);
+            case When.Exists:
+                return side == ListSide.Left ? LPushX(context, key, element) : RPushX(context, key, element);
+            default:
+                when.AlwaysOrExists(); // throws
+                return default;
+        }
+    }
+
+    internal static RespOperation<long> Push(this in ListCommands context, RedisKey key, RedisValue[] elements, ListSide side, When when)
+    {
+        switch (when)
+        {
+            case When.Always when elements.Length == 1:
+                return side == ListSide.Left ? LPush(context, key, elements[0]) : RPush(context, key, elements[0]);
+            case When.Always when elements.Length > 1:
+                return side == ListSide.Left ? LPush(context, key, elements) : RPush(context, key, elements);
+            case When.Exists when elements.Length == 1:
+                return side == ListSide.Left ? LPushX(context, key, elements[0]) : RPushX(context, key, elements[0]);
+            case When.Exists when elements.Length > 1:
+                return side == ListSide.Left ? LPushX(context, key, elements) : RPushX(context, key, elements);
+            default:
+                when.AlwaysOrExists(); // check that "when" is valid
+                return LLen(context, key); // handle zero case (no insert, just get length)
+        }
+    }
+
     [RespCommand]
     public static partial RespOperation<long> LPush(this in ListCommands context, RedisKey key, RedisValue[] elements);
 
@@ -164,7 +196,9 @@ internal static partial class ListCommandsExtensions
     public static partial RespOperation<RedisValue[]> RPop(this in ListCommands context, RedisKey key, long count);
 
     [RespCommand]
-    public static partial RespOperation<RedisValue> RPopLPush(this in ListCommands context, RedisKey source,
+    public static partial RespOperation<RedisValue> RPopLPush(
+        this in ListCommands context,
+        RedisKey source,
         RedisKey destination);
 
     [RespCommand]
