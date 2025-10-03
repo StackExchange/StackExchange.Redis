@@ -460,7 +460,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                 {
                     if (IsRESPite(attrib.AttributeClass, RESPite.RespPrefixAttribute))
                     {
-                        if (attrib.ConstructorArguments[0].Value?.ToString() is { Length: > 0 } val)
+                        if (attrib.ConstructorArguments[0].Value?.ToString() is { } val)
                         {
                             AddNotes(ref debugNote, $"prefix {val}");
                             AddLiteral(val, LiteralFlags.None);
@@ -479,19 +479,38 @@ public class RespCommandGenerator : IIncrementalGenerator
                     if (IsRESPite(attrib.AttributeClass, RESPite.RespIgnoreAttribute))
                     {
                         var val = attrib.ConstructorArguments[0].Value;
-                        if (val is string s)
+                        var expr = val switch
                         {
-                            ignoreExpression = CodeLiteral(s);
-                        }
-                        else if (val is bool b)
+                            string s => CodeLiteral(s),
+                            bool b => b ? "true" : "false",
+                            long l when attrib.ConstructorArguments[0].Type is INamedTypeSymbol { EnumUnderlyingType: not null } enumType
+                                => GetEnumExpression(enumType, l),
+                            long l => l.ToString(CultureInfo.InvariantCulture),
+                            int i when attrib.ConstructorArguments[0].Type is INamedTypeSymbol { EnumUnderlyingType: not null } enumType
+                                => GetEnumExpression(enumType, i),
+                            int i => i.ToString(CultureInfo.InvariantCulture),
+                            _ => null,
+                        };
+
+                        if (expr is not null)
                         {
-                            ignoreExpression = b ? "true" : "false";
+                            flags |= ParameterFlags.IgnoreExpression;
+                            ignoreExpression = expr;
                         }
-                        else if (val is long l)
+
+                        static string GetEnumExpression(INamedTypeSymbol enumType, object value)
                         {
-                            ignoreExpression = l.ToString(CultureInfo.InvariantCulture);
+                            foreach (var member in enumType.GetMembers())
+                            {
+                                if (member is IFieldSymbol { IsStatic: true, IsConst: true } field
+                                    && Equals(field.ConstantValue, value))
+                                {
+                                    return $"{GetFullName(enumType)}.{field.Name}";
+                                }
+                            }
+
+                            return $"({GetFullName(enumType)}){value}";
                         }
-                        if (ignoreExpression is not null) flags |= ParameterFlags.IgnoreExpression;
                     }
                 }
             }
@@ -1071,11 +1090,11 @@ public class RespCommandGenerator : IIncrementalGenerator
                         }
                         else
                         {
-                            sb.Append("(");
+                            if (literalCount != 0) sb.Append("(");
                             WriteParameterName(parameter);
                             if (parameter.IsNullable) sb.Append("!");
                             sb.Append((parameter.Flags & ParameterFlags.CollectionWithCount) == 0 ? ".Length" : ".Count");
-                            sb.Append(" + ").Append(1 + literalCount).Append(")");
+                            if (literalCount != 0) sb.Append(" + ").Append(literalCount).Append(")");
                         }
 
                         sb.Append(" : 0)");
@@ -1084,6 +1103,17 @@ public class RespCommandGenerator : IIncrementalGenerator
                             // help identify what this is (not needed for collections, since foo.Count etc)
                             sb.Append(" // ");
                             WriteParameterName(parameter);
+                            if (argCount != 1) sb.Append(" (").Append(parameter.Name).Append(")"); // give an example
+                        }
+
+                        if (literalCount != 0)
+                        {
+                            if (parameter.IsCollection) sb.Append(" //");
+                            sb.Append(" with");
+                            foreach (var literal in parameter.Literals.Span)
+                            {
+                                sb.Append(" ").Append(string.IsNullOrEmpty(literal.Token) ? "(count)" : literal.Token);
+                            }
                         }
                     }
                     index++;
@@ -1129,9 +1159,11 @@ public class RespCommandGenerator : IIncrementalGenerator
                         {
                             if (p.IsCollection)
                             {
+                                sb = NewLine().Append("writer.WriteBulkString(");
                                 WriteParameterName(p);
                                 if (p.IsNullable) sb.Append("!");
-                                sb.Append((p.Flags & ParameterFlags.CollectionWithCount) == 0 ? ".Length" : ".Count");
+                                sb.Append((p.Flags & ParameterFlags.CollectionWithCount) == 0 ? ".Length" : ".Count")
+                                    .Append(");");
                             }
                             else
                             {

@@ -57,6 +57,29 @@ public static class RespFormatters
         }
     }
 
+    internal static void WriteBulkString(this ref RespWriter writer, ExpireWhen when)
+    {
+        switch (when)
+        {
+            case ExpireWhen.HasExpiry:
+                writer.WriteRaw("$2\r\nXX\r\n"u8);
+                break;
+            case ExpireWhen.HasNoExpiry:
+                writer.WriteRaw("$2\r\nNX\r\n"u8);
+                break;
+            case ExpireWhen.GreaterThanCurrentExpiry:
+                writer.WriteRaw("$2\r\nGT\r\n"u8);
+                break;
+            case ExpireWhen.LessThanCurrentExpiry:
+                writer.WriteRaw("$2\r\nLT\r\n"u8);
+                break;
+            default:
+                Throw();
+                static void Throw() => throw new ArgumentOutOfRangeException(nameof(when));
+                break;
+        }
+    }
+
     internal static void WriteBulkString(this ref RespWriter writer, ListSide side)
     {
         switch (side)
@@ -69,9 +92,9 @@ public static class RespFormatters
                 break;
             default:
                 Throw();
+                static void Throw() => throw new ArgumentOutOfRangeException(nameof(side));
                 break;
         }
-        static void Throw() => throw new ArgumentOutOfRangeException(nameof(side));
     }
 
     // ReSharper disable once MemberCanBePrivate.Global

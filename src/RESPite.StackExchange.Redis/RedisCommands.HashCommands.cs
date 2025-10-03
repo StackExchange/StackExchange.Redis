@@ -30,7 +30,26 @@ internal static partial class HashCommandsExtensions
     public static partial RespOperation<bool> HExists(this in HashCommands context, RedisKey key, RedisValue hashField);
 
     [RespCommand]
+    private static partial RespOperation<RedisValue[]> HExpire(
+        this in HashCommands context,
+        RedisKey key,
+        long seconds,
+        [RespIgnore(ExpireWhen.Always)] ExpireWhen when,
+        [RespPrefix("FIELDS"), RespPrefix] RedisValue[] hashFields);
+
+    [RespCommand]
+    private static partial RespOperation<RedisValue[]> HPExpire(
+        this in HashCommands context,
+        RedisKey key,
+        long milliseconds,
+        [RespIgnore(ExpireWhen.Always)] ExpireWhen when,
+        [RespPrefix("FIELDS"), RespPrefix] RedisValue[] hashFields);
+
+    [RespCommand]
     public static partial RespOperation<RedisValue> HGet(this in HashCommands context, RedisKey key, RedisValue hashField);
+
+    [RespCommand("hget")]
+    public static partial RespOperation<Lease<byte>?> HGetLease(this in HashCommands context, RedisKey key, RedisValue hashField);
 
     [RespCommand]
     public static partial RespOperation<HashEntry[]> HGetAll(this in HashCommands context, RedisKey key);

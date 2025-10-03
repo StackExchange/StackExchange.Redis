@@ -9,7 +9,5 @@ public sealed class RespIgnoreAttribute : Attribute
 {
     private readonly object _value;
     public object Value => _value;
-    public RespIgnoreAttribute(string value) => _value = value;
-    public RespIgnoreAttribute(long value) => _value = value;
-    public RespIgnoreAttribute(bool value) => _value = value;
+    public RespIgnoreAttribute(object value) => _value = value;
 }

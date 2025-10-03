@@ -181,10 +181,10 @@ internal partial class RespContextDatabase
         => Context(flags).Hashes().HGetAll(key).AsTask();
 
     public Lease<byte>? HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HGetLease(key, hashField).Wait(SyncTimeout);
 
     public Task<Lease<byte>?> HashGetLeaseAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).Hashes().HGetLease(key, hashField).AsTask();
 
     public long HashIncrement(
         RedisKey key,

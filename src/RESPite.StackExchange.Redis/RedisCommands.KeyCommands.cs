@@ -2,6 +2,8 @@
 using RESPite.Messages;
 using StackExchange.Redis;
 
+// ReSharper disable MemberCanBePrivate.Global
+// ReSharper disable InconsistentNaming
 namespace RESPite.StackExchange.Redis;
 
 internal static partial class RedisCommands
@@ -41,7 +43,11 @@ internal static partial class KeyCommandsExtensions
     [RespCommand]
     public static partial RespOperation<long> Exists(this in KeyCommands context, [RespKey] RedisKey[] keys);
 
-    public static RespOperation<bool> Expire(this in KeyCommands context, RedisKey key, TimeSpan? expiry, ExpireWhen when = ExpireWhen.Always)
+    public static RespOperation<bool> Expire(
+        this in KeyCommands context,
+        RedisKey key,
+        TimeSpan? expiry,
+        ExpireWhen when = ExpireWhen.Always)
     {
         if (expiry is null || expiry == TimeSpan.MaxValue)
         {
@@ -49,18 +55,28 @@ internal static partial class KeyCommandsExtensions
             return Persist(context, key);
             static void Throw(ExpireWhen when) => throw new ArgumentException($"PERSIST cannot be used with {when}.");
         }
+
         var millis = (long)expiry.GetValueOrDefault().TotalMilliseconds;
         if (millis % 1000 == 0) // use seconds
         {
             return Expire(context, key, millis / 1000, when);
         }
+
         return PExpire(context, key, millis, when);
     }
 
-    [RespCommand(Formatter = "ExpireFormatter.Instance")]
-    public static partial RespOperation<bool> Expire(this in KeyCommands context, RedisKey key, long seconds, ExpireWhen when = ExpireWhen.Always);
+    [RespCommand]
+    public static partial RespOperation<bool> Expire(
+        this in KeyCommands context,
+        RedisKey key,
+        long seconds,
+        [RespIgnore(ExpireWhen.Always)] ExpireWhen when = ExpireWhen.Always);
 
-    public static RespOperation<bool> ExpireAt(this in KeyCommands context, RedisKey key, DateTime? expiry, ExpireWhen when = ExpireWhen.Always)
+    public static RespOperation<bool> ExpireAt(
+        this in KeyCommands context,
+        RedisKey key,
+        DateTime? expiry,
+        ExpireWhen when = ExpireWhen.Always)
     {
         if (expiry is null || expiry == DateTime.MaxValue)
         {
@@ -68,16 +84,22 @@ internal static partial class KeyCommandsExtensions
             return Persist(context, key);
             static void Throw(ExpireWhen when) => throw new ArgumentException($"PERSIST cannot be used with {when}.");
         }
+
         var millis = RedisDatabase.GetUnixTimeMilliseconds(expiry.GetValueOrDefault());
         if (millis % 1000 == 0) // use seconds
         {
             return ExpireAt(context, key, millis / 1000, when);
         }
+
         return PExpireAt(context, key, millis, when);
     }
 
-    [RespCommand(Formatter = "ExpireFormatter.Instance")]
-    public static partial RespOperation<bool> ExpireAt(this in KeyCommands context, RedisKey key, long seconds, ExpireWhen when = ExpireWhen.Always);
+    [RespCommand]
+    public static partial RespOperation<bool> ExpireAt(
+        this in KeyCommands context,
+        RedisKey key,
+        long seconds,
+        [RespIgnore(ExpireWhen.Always)] ExpireWhen when = ExpireWhen.Always);
 
     [RespCommand(Parser = "RespParsers.DateTimeFromSeconds")]
     public static partial RespOperation<DateTime?> ExpireTime(this in KeyCommands context, RedisKey key);
@@ -86,22 +108,38 @@ internal static partial class KeyCommandsExtensions
     public static partial RespOperation<bool> Move(this in KeyCommands context, RedisKey key, int db);
 
     [RespCommand("object")]
-    public static partial RespOperation<string?> ObjectEncoding(this in KeyCommands context, [RespPrefix("ENCODING")] RedisKey key);
+    public static partial RespOperation<string?> ObjectEncoding(
+        this in KeyCommands context,
+        [RespPrefix("ENCODING")] RedisKey key);
 
     [RespCommand("object")]
-    public static partial RespOperation<long?> ObjectFreq(this in KeyCommands context, [RespPrefix("FREQ")] RedisKey key);
+    public static partial RespOperation<long?> ObjectFreq(
+        this in KeyCommands context,
+        [RespPrefix("FREQ")] RedisKey key);
 
     [RespCommand("object", Parser = "RespParsers.TimeSpanFromSeconds")]
-    public static partial RespOperation<TimeSpan?> ObjectIdleTime(this in KeyCommands context, [RespPrefix("IDLETIME")] RedisKey key);
+    public static partial RespOperation<TimeSpan?> ObjectIdleTime(
+        this in KeyCommands context,
+        [RespPrefix("IDLETIME")] RedisKey key);
 
     [RespCommand("object")]
-    public static partial RespOperation<long?> ObjectRefCount(this in KeyCommands context, [RespPrefix("REFCOUNT")] RedisKey key);
+    public static partial RespOperation<long?> ObjectRefCount(
+        this in KeyCommands context,
+        [RespPrefix("REFCOUNT")] RedisKey key);
 
-    [RespCommand(Formatter = "ExpireFormatter.Instance")]
-    public static partial RespOperation<bool> PExpire(this in KeyCommands context, RedisKey key, long milliseconds, ExpireWhen when = ExpireWhen.Always);
+    [RespCommand]
+    public static partial RespOperation<bool> PExpire(
+        this in KeyCommands context,
+        RedisKey key,
+        long milliseconds,
+        [RespIgnore(ExpireWhen.Always)] ExpireWhen when = ExpireWhen.Always);
 
-    [RespCommand(Formatter = "ExpireFormatter.Instance")]
-    public static partial RespOperation<bool> PExpireAt(this in KeyCommands context, RedisKey key, long milliseconds, ExpireWhen when = ExpireWhen.Always);
+    [RespCommand]
+    public static partial RespOperation<bool> PExpireAt(
+        this in KeyCommands context,
+        RedisKey key,
+        long milliseconds,
+        [RespIgnore(ExpireWhen.Always)] ExpireWhen when = ExpireWhen.Always);
 
     [RespCommand(Parser = "RespParsers.DateTimeFromMilliseconds")]
     public static partial RespOperation<DateTime?> PExpireTime(this in KeyCommands context, RedisKey key);
@@ -137,7 +175,11 @@ internal static partial class KeyCommandsExtensions
     public static partial RespOperation<bool> RenameNx(this in KeyCommands context, RedisKey key, RedisKey newKey);
 
     [RespCommand(Formatter = "RestoreFormatter.Instance")]
-    public static partial RespOperation Restore(this in KeyCommands context, RedisKey key, TimeSpan? ttl, byte[] serializedValue);
+    public static partial RespOperation Restore(
+        this in KeyCommands context,
+        RedisKey key,
+        TimeSpan? ttl,
+        byte[] serializedValue);
 
     [RespCommand]
     public static partial RespOperation<bool> Touch(this in KeyCommands context, RedisKey key);
@@ -191,43 +233,6 @@ internal static partial class KeyCommandsExtensions
         }
     }
 
-    private sealed class ExpireFormatter : IRespFormatter<(RedisKey Key, long Value, ExpireWhen When)>
-    {
-        public static readonly ExpireFormatter Instance = new();
-        private ExpireFormatter() { }
-
-        public void Format(
-            scoped ReadOnlySpan<byte> command,
-            ref RespWriter writer,
-            in (RedisKey Key, long Value, ExpireWhen When) request)
-        {
-            writer.WriteCommand(command, request.When == ExpireWhen.Always ? 2 : 3);
-            writer.Write(request.Key);
-            writer.Write(request.Value);
-            switch (request.When)
-            {
-                case ExpireWhen.Always:
-                    break;
-                case ExpireWhen.HasExpiry:
-                    writer.WriteRaw("$2\r\nXX\r\n"u8);
-                    break;
-                case ExpireWhen.HasNoExpiry:
-                    writer.WriteRaw("$2\r\nNX\r\n"u8);
-                    break;
-                case ExpireWhen.GreaterThanCurrentExpiry:
-                    writer.WriteRaw("$2\r\nGT\r\n"u8);
-                    break;
-                case ExpireWhen.LessThanCurrentExpiry:
-                    writer.WriteRaw("$2\r\nLT\r\n"u8);
-                    break;
-                default:
-                    Throw();
-                    static void Throw() => throw new ArgumentOutOfRangeException(nameof(request.When));
-                    break;
-            }
-        }
-    }
-
     private sealed class RestoreFormatter : IRespFormatter<(RedisKey Key, TimeSpan? Ttl, byte[] SerializedValue)>
     {
         public static readonly RestoreFormatter Instance = new();
@@ -248,6 +253,7 @@ internal static partial class KeyCommandsExtensions
             {
                 writer.WriteRaw("$1\r\n0\r\n"u8);
             }
+
             writer.WriteBulkString(request.SerializedValue);
         }
     }

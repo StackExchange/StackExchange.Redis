@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using RESPite.Messages;
 using StackExchange.Redis;
 
+// ReSharper disable MemberCanBePrivate.Global
 // ReSharper disable InconsistentNaming
 namespace RESPite.StackExchange.Redis;
 
