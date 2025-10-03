@@ -45,7 +45,7 @@ namespace StackExchange.Redis
             return c;
         }
 
-        internal static SortedSetWhen Parse(When when) => when switch
+        internal static SortedSetWhen ToSortedSetWhen(this When when) => when switch
         {
             When.Always => SortedSetWhen.Always,
             When.Exists => SortedSetWhen.Exists,
