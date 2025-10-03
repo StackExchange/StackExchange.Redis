@@ -4,7 +4,6 @@ namespace RESPite.StackExchange.Redis;
 
 internal partial class RespContextDatabase
 {
-    // Synchronous Set methods
     public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         => Context(flags).Sets().SAdd(key, value).Wait(SyncTimeout);
 
