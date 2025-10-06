@@ -213,7 +213,7 @@ public ref struct RespWriter
     public void WriteCommand(scoped ReadOnlySpan<byte> command, int args)
     {
         if (args < 0) Throw();
-        WritePrefixedInteger(RespPrefix.Array, args + 1);
+        WritePrefixInteger(RespPrefix.Array, args + 1);
         if (command.IsEmpty) ThrowEmptyCommand();
         if (CommandMap is { } map)
         {
@@ -361,15 +361,30 @@ public ref struct RespWriter
     public void WriteBulkString(bool value) => WriteBulkString(value ? 1 : 0);
 
     /// <summary>
+    /// Write a bounded floating point as a bulk string.
+    /// </summary>
+    public void WriteBulkString(in BoundedDouble value)
+    {
+        if (value.Inclusive)
+        {
+            WriteBulkString(value.Value);
+        }
+        else
+        {
+            WriteBulkStringExclusive(value.Value);
+        }
+    }
+
+    /// <summary>
     /// Write a floating point as a bulk string.
     /// </summary>
-    public void WriteBulkString(double value)
+    public void WriteBulkString(double value) // implicitly: inclusive
     {
         if (value == 0.0 | double.IsNaN(value) | double.IsInfinity(value))
         {
-            WriteKnownDouble(ref this, value);
+            WriteKnownDoubleInclusive(ref this, value);
 
-            static void WriteKnownDouble(ref RespWriter writer, double value)
+            static void WriteKnownDoubleInclusive(ref RespWriter writer, double value)
             {
                 if (value == 0.0)
                 {
@@ -396,11 +411,58 @@ public ref struct RespWriter
         }
         else
         {
-            Debug.Assert(RespConstants.MaxProtocolBytesBytesNumber <= 32);
-            Span<byte> scratch = stackalloc byte[24];
+            Debug.Assert((RespConstants.MaxProtocolBytesBytesNumber + 1) <= 32);
+            Span<byte> scratch = stackalloc byte[32];
             if (!Utf8Formatter.TryFormat(value, scratch, out int bytes, G17))
                 ThrowFormatException();
-            WritePrefixedInteger(RespPrefix.BulkString, bytes);
+
+            WritePrefixInteger(RespPrefix.BulkString, bytes);
+            WriteRaw(scratch.Slice(0, bytes));
+            WriteCrLf();
+        }
+    }
+
+    private void WriteBulkStringExclusive(double value)
+    {
+        if (value == 0.0 | double.IsNaN(value) | double.IsInfinity(value))
+        {
+            WriteKnownDoubleExclusive(ref this, value);
+
+            static void WriteKnownDoubleExclusive(ref RespWriter writer, double value)
+            {
+                if (value == 0.0)
+                {
+                    writer.WriteRaw("$2\r\n(0\r\n"u8);
+                }
+                else if (double.IsNaN(value))
+                {
+                    writer.WriteRaw("$4\r\n(nan\r\n"u8);
+                }
+                else if (double.IsPositiveInfinity(value))
+                {
+                    writer.WriteRaw("$4\r\n(inf\r\n"u8);
+                }
+                else if (double.IsNegativeInfinity(value))
+                {
+                    writer.WriteRaw("$5\r\n(-inf\r\n"u8);
+                }
+                else
+                {
+                    Throw();
+                    static void Throw() => throw new ArgumentOutOfRangeException(nameof(value));
+                }
+            }
+        }
+        else
+        {
+            Debug.Assert((RespConstants.MaxProtocolBytesBytesNumber + 1) <= 32);
+            Span<byte> scratch = stackalloc byte[32];
+            scratch[0] = (byte)'(';
+            if (!Utf8Formatter.TryFormat(value, scratch.Slice(1), out int bytes, G17))
+                ThrowFormatException();
+            bytes++;
+
+            WritePrefixInteger(RespPrefix.BulkString, bytes);
             WriteRaw(scratch.Slice(0, bytes));
             WriteCrLf();
         }
@@ -468,7 +530,7 @@ public ref struct RespWriter
             Span<byte> scratch = stackalloc byte[24];
             if (!Utf8Formatter.TryFormat(value, scratch, out int bytes))
                 ThrowFormatException();
-            WritePrefixedInteger(RespPrefix.BulkString, bytes);
+            WritePrefixInteger(RespPrefix.BulkString, bytes);
             WriteRaw(scratch.Slice(0, bytes));
             WriteCrLf();
         }
@@ -505,7 +567,7 @@ public ref struct RespWriter
 
     private static void ThrowFormatException() => throw new FormatException();
 
-    private void WritePrefixedInteger(RespPrefix prefix, int length)
+    private void WritePrefixInteger(RespPrefix prefix, int length)
     {
         if (Available >= RespConstants.MaxProtocolBytesIntegerInt32)
         {
@@ -584,7 +646,7 @@ public ref struct RespWriter
         else
         {
             var byteCount = RespConstants.UTF8.GetByteCount(value);
-            WritePrefixedInteger(RespPrefix.BulkString, byteCount);
+            WritePrefixInteger(RespPrefix.BulkString, byteCount);
             if (Available >= byteCount)
             {
                 var actual = RespConstants.UTF8.GetBytes(value.AsSpan(), Tail);
@@ -815,7 +877,7 @@ public ref struct RespWriter
             Span<byte> scratch = stackalloc byte[16];
             if (!Utf8Formatter.TryFormat(value, scratch, out int bytes))
                 ThrowFormatException();
-            WritePrefixedInteger(RespPrefix.BulkString, bytes);
+            WritePrefixInteger(RespPrefix.BulkString, bytes);
             WriteRaw(scratch.Slice(0, bytes));
             WriteCrLf();
         }
@@ -870,7 +932,7 @@ public ref struct RespWriter
             }
         }
 
-        WritePrefixedInteger(RespPrefix.Array, count);
+        WritePrefixInteger(RespPrefix.Array, count);
     }
 
     private void WriteBulkStringHeader(int count)
@@ -918,10 +980,10 @@ public ref struct RespWriter
             }
         }
 
-        WritePrefixedInteger(RespPrefix.BulkString, count);
+        WritePrefixInteger(RespPrefix.BulkString, count);
     }
 
-    internal void WriteArrayUnpotimized(int count) => WritePrefixedInteger(RespPrefix.Array, count);
+    internal void WriteArrayUnpotimized(int count) => WritePrefixInteger(RespPrefix.Array, count);
 
     private void WriteRawPrechecked(ulong value, int count)
     {

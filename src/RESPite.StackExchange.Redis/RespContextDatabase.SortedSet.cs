@@ -77,7 +77,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        Context(flags).SortedSets().Combine(operation, keys).AsTask();
+        Context(flags).SortedSets().Combine(operation, keys, weights, aggregate).AsTask();
 
     public Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(
         SetOperation operation,
@@ -85,7 +85,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        Context(flags).SortedSets().CombineWithScores(operation, keys).AsTask();
+        Context(flags).SortedSets().CombineWithScores(operation, keys, weights, aggregate).AsTask();
 
     public Task<long> SortedSetCombineAndStoreAsync(
         SetOperation operation,
@@ -94,7 +94,7 @@ internal partial class RespContextDatabase
         RedisKey second,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        Context(flags).SortedSets().CombineAndStore(operation, destination, new[] { first, second }).AsTask();
+        Context(flags).SortedSets().CombineAndStore(operation, destination, first, second, aggregate).AsTask();
 
     public Task<long> SortedSetCombineAndStoreAsync(
         SetOperation operation,
@@ -103,27 +103,27 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        Context(flags).SortedSets().CombineAndStore(operation, destination, keys).AsTask();
+        Context(flags).SortedSets().CombineAndStore(operation, destination, keys, weights, aggregate).AsTask();
 
     public Task<double> SortedSetDecrementAsync(
         RedisKey key,
         RedisValue member,
         double value,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZIncrBy(key, member, -value).AsTask();
 
     public Task<double> SortedSetIncrementAsync(
         RedisKey key,
         RedisValue member,
         double value,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZIncrBy(key, member, value).AsTask();
 
     public Task<long> SortedSetIntersectionLengthAsync(
         RedisKey[] keys,
         long limit = 0,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZInterCard(keys, limit).AsTask();
 
     public Task<long> SortedSetLengthAsync(
         RedisKey key,
@@ -131,7 +131,7 @@ internal partial class RespContextDatabase
         double max = double.PositiveInfinity,
         Exclude exclude = Exclude.None,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZCardOrCount(key, min, max, exclude).AsTask();
 
     public Task<long> SortedSetLengthByValueAsync(
         RedisKey key,
@@ -139,7 +139,7 @@ internal partial class RespContextDatabase
         RedisValue max,
         Exclude exclude = Exclude.None,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZLexCount(key, min, max, exclude).AsTask();
 
     public Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
         throw new NotImplementedException();
@@ -344,7 +344,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        Context(flags).SortedSets().Combine(operation, keys).Wait(SyncTimeout);
+        Context(flags).SortedSets().Combine(operation, keys, weights, aggregate).Wait(SyncTimeout);
 
     public SortedSetEntry[] SortedSetCombineWithScores(
         SetOperation operation,
@@ -352,7 +352,7 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        Context(flags).SortedSets().CombineWithScores(operation, keys).Wait(SyncTimeout);
+        Context(flags).SortedSets().CombineWithScores(operation, keys, weights, aggregate).Wait(SyncTimeout);
 
     public long SortedSetCombineAndStore(
         SetOperation operation,
@@ -361,7 +361,7 @@ internal partial class RespContextDatabase
         RedisKey second,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        Context(flags).SortedSets().CombineAndStore(operation, destination, new[] { first, second }).Wait(SyncTimeout);
+        Context(flags).SortedSets().CombineAndStore(operation, destination, first, second, aggregate).Wait(SyncTimeout);
 
     public long SortedSetCombineAndStore(
         SetOperation operation,
@@ -370,24 +370,24 @@ internal partial class RespContextDatabase
         double[]? weights = null,
         Aggregate aggregate = Aggregate.Sum,
         CommandFlags flags = CommandFlags.None) =>
-        Context(flags).SortedSets().CombineAndStore(operation, destination, keys).Wait(SyncTimeout);
+        Context(flags).SortedSets().CombineAndStore(operation, destination, keys, weights, aggregate).Wait(SyncTimeout);
 
     public double SortedSetDecrement(
         RedisKey key,
         RedisValue member,
         double value,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZIncrBy(key, member, -value).Wait(SyncTimeout);
 
     public double SortedSetIncrement(
         RedisKey key,
         RedisValue member,
         double value,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZIncrBy(key, member, value).Wait(SyncTimeout);
 
     public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZInterCard(keys, limit).Wait(SyncTimeout);
 
     public long SortedSetLength(
         RedisKey key,
@@ -395,7 +395,7 @@ internal partial class RespContextDatabase
         double max = double.PositiveInfinity,
         Exclude exclude = Exclude.None,
         CommandFlags flags = CommandFlags.None) =>
-        throw new NotImplementedException();
+        Context(flags).SortedSets().ZCardOrCount(key, min, max, exclude).Wait(SyncTimeout);
 
     public long SortedSetLengthByValue(
         RedisKey key,

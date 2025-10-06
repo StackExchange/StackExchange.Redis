@@ -17,4 +17,14 @@ internal static class RespContextExtensions
                                                       | RespContext.RespContextFlags.NoScriptCache;
         return context.With(db, (RespContext.RespContextFlags)flags, FlagMask);
     }
+
+    internal static BoundedDouble Start(this Exclude exclude, double value)
+        => new(value, (exclude & Exclude.Start) != 0);
+    internal static BoundedDouble Stop(this Exclude exclude, double value)
+        => new(value, (exclude & Exclude.Stop) != 0);
+
+    internal static BoundedRedisValue StartLex(this Exclude exclude, RedisValue value)
+        => new(value, (exclude & Exclude.Start) != 0);
+    internal static BoundedRedisValue StopLex(this Exclude exclude, RedisValue value)
+        => new(value, (exclude & Exclude.Stop) != 0);
 }

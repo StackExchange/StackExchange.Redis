@@ -126,6 +126,26 @@ public static class RespFormatters
         }
     }
 
+    internal static void WriteBulkString(this ref RespWriter writer, Aggregate? aggregate)
+    {
+        switch (aggregate!.Value)
+        {
+            case Aggregate.Sum:
+                writer.WriteRaw("$3\r\nSUM\r\n"u8);
+                break;
+            case Aggregate.Min:
+                writer.WriteRaw("$3\r\nMIN\r\n"u8);
+                break;
+            case Aggregate.Max:
+                writer.WriteRaw("$3\r\nMAX\r\n"u8);
+                break;
+            default:
+                Throw();
+                static void Throw() => throw new ArgumentOutOfRangeException(nameof(aggregate));
+                break;
+        }
+    }
+
     // ReSharper disable once MemberCanBePrivate.Global
     public static void Write(this ref RespWriter writer, in RedisValue value)
     {
@@ -155,5 +175,27 @@ public static class RespFormatters
         }
         static void Throw(StorageType type)
             => throw new InvalidOperationException($"Unexpected {type} value.");
+    }
+
+    internal static void WriteBulkString(this ref RespWriter writer, in BoundedRedisValue value)
+    {
+        switch (value.Type)
+        {
+            case BoundedRedisValue.BoundType.MinValue:
+                writer.WriteRaw("$1\r\n-\r\n"u8);
+                break;
+            case BoundedRedisValue.BoundType.MaxValue:
+                writer.WriteRaw("$1\r\n+\r\n"u8);
+                break;
+            default:
+                var len = value.ValueRaw.GetByteCount();
+                byte[]? lease = null;
+                var span = len < 128 ? stackalloc byte[128] : (lease = ArrayPool<byte>.Shared.Rent(len));
+                span[0] = value.Inclusive ? (byte)'[' : (byte)'(';
+                value.ValueRaw.CopyTo(span.Slice(1)); // allow for the prefix
+                writer.WriteBulkString(span.Slice(0, len + 1));
+                if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+                break;
+        }
     }
 }

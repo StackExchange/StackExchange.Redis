@@ -104,8 +104,26 @@ internal static partial class SortedSetCommandsExtensions
         }
     }
 
+    internal static RespOperation<long> ZCardOrCount(
+        this in SortedSetCommands context,
+        RedisKey key,
+        double min,
+        double max,
+        Exclude exclude)
+    {
+        if (double.IsNegativeInfinity(min) && double.IsPositiveInfinity(max))
+        {
+            return context.ZCard(key);
+        }
+
+        return context.ZCount(key, exclude.Start(min), exclude.Stop(max));
+    }
+
     [RespCommand]
     public static partial RespOperation<long> ZCard(this in SortedSetCommands context, RedisKey key);
+
+    [RespCommand]
+    public static partial RespOperation<long> ZCount(this in SortedSetCommands context, RedisKey key, BoundedDouble min, BoundedDouble max);
 
     [RespCommand]
     public static partial RespOperation<RedisValue[]> ZDiff(
@@ -113,15 +131,34 @@ internal static partial class SortedSetCommandsExtensions
         RedisKey[] keys);
 
     [RespCommand]
+    public static partial RespOperation<RedisValue[]> ZDiff(
+        this in SortedSetCommands context,
+        RedisKey first,
+        RedisKey second);
+
+    [RespCommand("zdiff")]
     public static partial RespOperation<SortedSetEntry[]> ZDiffWithScores(
         this in SortedSetCommands context,
-        RedisKey[] keys);
+        [RespSuffix("WITHSCORES")] RedisKey[] keys);
+
+    [RespCommand("zdiff")]
+    public static partial RespOperation<SortedSetEntry[]> ZDiffWithScores(
+        this in SortedSetCommands context,
+        RedisKey first,
+        [RespSuffix("WITHSCORES")] RedisKey second);
 
     [RespCommand]
     public static partial RespOperation<long> ZDiffStore(
         this in SortedSetCommands context,
         RedisKey destination,
         RedisKey[] keys);
+
+    [RespCommand]
+    public static partial RespOperation<long> ZDiffStore(
+        this in SortedSetCommands context,
+        RedisKey destination,
+        RedisKey first,
+        RedisKey second);
 
     [RespCommand]
     public static partial RespOperation<double> ZIncrBy(
@@ -133,25 +170,76 @@ internal static partial class SortedSetCommandsExtensions
     [RespCommand]
     public static partial RespOperation<RedisValue[]> ZInter(
         this in SortedSetCommands context,
-        RedisKey[] keys);
+        RedisKey[] keys,
+        [RespPrefix("WEIGHTS")] double[]? weights = null,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
     [RespCommand]
+    public static partial RespOperation<RedisValue[]> ZInter(
+        this in SortedSetCommands context,
+        RedisKey first,
+        RedisKey second,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
+
+    [RespCommand]
+    public static partial RespOperation<long> ZInterCard(
+        this in SortedSetCommands context,
+        [RespPrefix] RedisKey[] keys,
+        [RespPrefix("LIMIT"), RespIgnore(0)] long limit = 0);
+
+    [RespCommand]
+    public static partial RespOperation<long> ZInterCard(
+        this in SortedSetCommands context,
+        [RespPrefix("2")] RedisKey first,
+        RedisKey second,
+        [RespPrefix("LIMIT"), RespIgnore(0)] long limit = 0);
+
+    [RespCommand("zinter")]
     public static partial RespOperation<SortedSetEntry[]> ZInterWithScores(
         this in SortedSetCommands context,
-        RedisKey[] keys);
+        [RespSuffix("WITHSCORES")] RedisKey[] keys,
+        [RespPrefix("WEIGHTS")] double[]? weights = null,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
+
+    [RespCommand("zinter")]
+    public static partial RespOperation<SortedSetEntry[]> ZInterWithScores(
+        this in SortedSetCommands context,
+        RedisKey first,
+        [RespSuffix("WITHSCORES")] RedisKey second,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
     [RespCommand]
     public static partial RespOperation<long> ZInterStore(
         this in SortedSetCommands context,
         RedisKey destination,
-        RedisKey[] keys);
+        RedisKey[] keys,
+        [RespPrefix("WEIGHTS")] double[]? weights = null,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
+
+    [RespCommand]
+    public static partial RespOperation<long> ZInterStore(
+        this in SortedSetCommands context,
+        RedisKey destination,
+        RedisKey first,
+        RedisKey second,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
     [RespCommand]
     public static partial RespOperation<long> ZLexCount(
         this in SortedSetCommands context,
         RedisKey key,
+        BoundedRedisValue min,
+        BoundedRedisValue max);
+
+    internal static RespOperation<long> ZLexCount(
+        this in SortedSetCommands context,
+        RedisKey key,
         RedisValue min,
-        RedisValue max);
+        RedisValue max,
+        Exclude exclude) => context.ZLexCount(
+        key,
+        min.IsNull ? BoundedRedisValue.MinValue : exclude.StartLex(min),
+        max.IsNull ? BoundedRedisValue.MaxValue : exclude.StopLex(max));
 
     [RespCommand]
     public static partial RespOperation<SortedSetEntry?> ZPopMax(this in SortedSetCommands context, RedisKey key);
@@ -204,22 +292,22 @@ internal static partial class SortedSetCommandsExtensions
     public static partial RespOperation<RedisValue[]> ZRangeByLex(
         this in SortedSetCommands context,
         RedisKey key,
-        RedisValue min,
-        RedisValue max);
+        BoundedRedisValue min,
+        BoundedRedisValue max);
 
     [RespCommand]
     public static partial RespOperation<RedisValue[]> ZRangeByScore(
         this in SortedSetCommands context,
         RedisKey key,
-        double min,
-        double max);
+        BoundedDouble min,
+        BoundedDouble max);
 
     [RespCommand]
     public static partial RespOperation<SortedSetEntry[]> ZRangeByScoreWithScores(
         this in SortedSetCommands context,
         RedisKey key,
-        double min,
-        double max);
+        BoundedDouble min,
+        BoundedDouble max);
 
     [RespCommand]
     public static partial RespOperation<long> ZRangeStore(
@@ -251,8 +339,8 @@ internal static partial class SortedSetCommandsExtensions
     public static partial RespOperation<long> ZRemRangeByLex(
         this in SortedSetCommands context,
         RedisKey key,
-        RedisValue min,
-        RedisValue max);
+        BoundedRedisValue min,
+        BoundedRedisValue max);
 
     [RespCommand]
     public static partial RespOperation<long> ZRemRangeByRank(
@@ -265,8 +353,8 @@ internal static partial class SortedSetCommandsExtensions
     public static partial RespOperation<long> ZRemRangeByScore(
         this in SortedSetCommands context,
         RedisKey key,
-        double min,
-        double max);
+        BoundedDouble min,
+        BoundedDouble max);
 
     [RespCommand]
     public static partial RespOperation<RedisValue[]> ZRevRange(
@@ -286,22 +374,22 @@ internal static partial class SortedSetCommandsExtensions
     public static partial RespOperation<RedisValue[]> ZRevRangeByLex(
         this in SortedSetCommands context,
         RedisKey key,
-        RedisValue max,
-        RedisValue min);
+        BoundedRedisValue max,
+        BoundedRedisValue min);
 
     [RespCommand]
     public static partial RespOperation<RedisValue[]> ZRevRangeByScore(
         this in SortedSetCommands context,
         RedisKey key,
-        double max,
-        double min);
+        BoundedDouble max,
+        BoundedDouble min);
 
     [RespCommand]
     public static partial RespOperation<SortedSetEntry[]> ZRevRangeByScoreWithScores(
         this in SortedSetCommands context,
         RedisKey key,
-        double max,
-        double min);
+        BoundedDouble max,
+        BoundedDouble min);
 
     [RespCommand]
     public static partial RespOperation<long?> ZRevRank(
@@ -324,40 +412,72 @@ internal static partial class SortedSetCommandsExtensions
     [RespCommand]
     public static partial RespOperation<RedisValue[]> ZUnion(
         this in SortedSetCommands context,
-        RedisKey[] keys);
+        RedisKey[] keys,
+        [RespPrefix("WEIGHTS")] double[]? weights = null,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
     [RespCommand]
+    public static partial RespOperation<RedisValue[]> ZUnion(
+        this in SortedSetCommands context,
+        RedisKey first,
+        RedisKey second,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
+
+    [RespCommand("zunion")]
     public static partial RespOperation<SortedSetEntry[]> ZUnionWithScores(
         this in SortedSetCommands context,
-        RedisKey[] keys);
+        [RespSuffix("WITHSCORES")] RedisKey[] keys,
+        [RespPrefix("WEIGHTS")] double[]? weights = null,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
+
+    [RespCommand("zunion")]
+    public static partial RespOperation<SortedSetEntry[]> ZUnionWithScores(
+        this in SortedSetCommands context,
+        RedisKey first,
+        [RespSuffix("WITHSCORES")] RedisKey second,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
     [RespCommand]
     public static partial RespOperation<long> ZUnionStore(
         this in SortedSetCommands context,
         RedisKey destination,
-        RedisKey[] keys);
+        RedisKey[] keys,
+        [RespPrefix("WEIGHTS")] double[]? weights = null,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
+
+    [RespCommand]
+    public static partial RespOperation<long> ZUnionStore(
+        this in SortedSetCommands context,
+        RedisKey destination,
+        RedisKey first,
+        RedisKey second,
+        [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
     internal static RespOperation<RedisValue[]> Combine(
         this in SortedSetCommands context,
         SetOperation operation,
-        RedisKey[] keys) =>
+        RedisKey[] keys,
+        double[]? weights = null,
+        Aggregate? aggregate = null) =>
         operation switch
         {
             SetOperation.Difference => context.ZDiff(keys),
-            SetOperation.Intersect => context.ZInter(keys),
-            SetOperation.Union => context.ZUnion(keys),
+            SetOperation.Intersect => context.ZInter(keys, weights, aggregate),
+            SetOperation.Union => context.ZUnion(keys, weights, aggregate),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
     internal static RespOperation<SortedSetEntry[]> CombineWithScores(
         this in SortedSetCommands context,
         SetOperation operation,
-        RedisKey[] keys) =>
+        RedisKey[] keys,
+        double[]? weights = null,
+        Aggregate? aggregate = null) =>
         operation switch
         {
             SetOperation.Difference => context.ZDiffWithScores(keys),
-            SetOperation.Intersect => context.ZInterWithScores(keys),
-            SetOperation.Union => context.ZUnionWithScores(keys),
+            SetOperation.Intersect => context.ZInterWithScores(keys, weights, aggregate),
+            SetOperation.Union => context.ZUnionWithScores(keys, weights, aggregate),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
@@ -365,12 +485,57 @@ internal static partial class SortedSetCommandsExtensions
         this in SortedSetCommands context,
         SetOperation operation,
         RedisKey destination,
-        RedisKey[] keys) =>
+        RedisKey[] keys,
+        double[]? weights = null,
+        Aggregate? aggregate = null) =>
         operation switch
         {
             SetOperation.Difference => context.ZDiffStore(destination, keys),
-            SetOperation.Intersect => context.ZInterStore(destination, keys),
-            SetOperation.Union => context.ZUnionStore(destination, keys),
+            SetOperation.Intersect => context.ZInterStore(destination, keys, weights, aggregate),
+            SetOperation.Union => context.ZUnionStore(destination, keys, weights, aggregate),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
+
+    internal static RespOperation<RedisValue[]> Combine(
+        this in SortedSetCommands context,
+        SetOperation operation,
+        RedisKey first,
+        RedisKey second,
+        Aggregate? aggregate = null) =>
+        operation switch
+        {
+            SetOperation.Difference => context.ZDiff(first, second),
+            SetOperation.Intersect => context.ZInter(first, second, aggregate),
+            SetOperation.Union => context.ZUnion(first, second, aggregate),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
+
+    internal static RespOperation<SortedSetEntry[]> CombineWithScores(
+        this in SortedSetCommands context,
+        SetOperation operation,
+        RedisKey first,
+        RedisKey second,
+        Aggregate? aggregate = null) =>
+        operation switch
+        {
+            SetOperation.Difference => context.ZDiffWithScores(first, second),
+            SetOperation.Intersect => context.ZInterWithScores(first, second, aggregate),
+            SetOperation.Union => context.ZUnionWithScores(first, second, aggregate),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
+
+    internal static RespOperation<long> CombineAndStore(
+        this in SortedSetCommands context,
+        SetOperation operation,
+        RedisKey destination,
+        RedisKey first,
+        RedisKey second,
+        Aggregate? aggregate = null) =>
+        operation switch
+        {
+            SetOperation.Difference => context.ZDiffStore(destination, first, second),
+            SetOperation.Intersect => context.ZInterStore(destination, first, second, aggregate),
+            SetOperation.Union => context.ZUnionStore(destination, first, second, aggregate),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
