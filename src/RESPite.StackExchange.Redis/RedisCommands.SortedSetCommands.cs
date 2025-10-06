@@ -136,12 +136,12 @@ internal static partial class SortedSetCommandsExtensions
         RedisKey first,
         RedisKey second);
 
-    [RespCommand("zdiff")]
+    [RespCommand(nameof(ZDiff))]
     public static partial RespOperation<SortedSetEntry[]> ZDiffWithScores(
         this in SortedSetCommands context,
         [RespSuffix("WITHSCORES")] RedisKey[] keys);
 
-    [RespCommand("zdiff")]
+    [RespCommand(nameof(ZDiff))]
     public static partial RespOperation<SortedSetEntry[]> ZDiffWithScores(
         this in SortedSetCommands context,
         RedisKey first,
@@ -194,14 +194,14 @@ internal static partial class SortedSetCommandsExtensions
         RedisKey second,
         [RespPrefix("LIMIT"), RespIgnore(0)] long limit = 0);
 
-    [RespCommand("zinter")]
+    [RespCommand(nameof(ZInter))]
     public static partial RespOperation<SortedSetEntry[]> ZInterWithScores(
         this in SortedSetCommands context,
         [RespSuffix("WITHSCORES")] RedisKey[] keys,
         [RespPrefix("WEIGHTS")] double[]? weights = null,
         [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
-    [RespCommand("zinter")]
+    [RespCommand(nameof(ZInter))]
     public static partial RespOperation<SortedSetEntry[]> ZInterWithScores(
         this in SortedSetCommands context,
         RedisKey first,
@@ -268,25 +268,163 @@ internal static partial class SortedSetCommandsExtensions
         RedisKey key,
         long count);
 
-    [RespCommand]
+    [RespCommand(nameof(ZRandMember))]
     public static partial RespOperation<SortedSetEntry[]> ZRandMemberWithScores(
         this in SortedSetCommands context,
         RedisKey key,
-        long count);
+        [RespSuffix("WITHSCORES")] long count);
 
-    [RespCommand]
+    [RespCommand(Formatter = "ZRangeFormatter.NoScores")]
     public static partial RespOperation<RedisValue[]> ZRange(
         this in SortedSetCommands context,
         RedisKey key,
         long start,
-        long stop);
+        long stop,
+        Order order = Order.Ascending,
+        long offset = 0,
+        long count = long.MaxValue);
 
-    [RespCommand]
+    [RespCommand(Formatter = "ZRangeFormatter.WithScores")]
     public static partial RespOperation<SortedSetEntry[]> ZRangeWithScores(
         this in SortedSetCommands context,
         RedisKey key,
         long start,
-        long stop);
+        long stop,
+        Order order = Order.Ascending,
+        long offset = 0,
+        long count = long.MaxValue);
+
+    [RespCommand(Formatter = "ZRangeFormatter.NoScores")] // by lex
+    internal static partial RespOperation<RedisValue[]> ZRange(
+        this in SortedSetCommands context,
+        RedisKey key,
+        BoundedRedisValue start,
+        BoundedRedisValue stop,
+        Order order = Order.Ascending,
+        long offset = 0,
+        long count = long.MaxValue);
+
+    [RespCommand(Formatter = "ZRangeFormatter.WithScores")] // by lex
+    internal static partial RespOperation<SortedSetEntry[]> ZRangeWithScores(
+        this in SortedSetCommands context,
+        RedisKey key,
+        BoundedRedisValue start,
+        BoundedRedisValue stop,
+        Order order = Order.Ascending,
+        long offset = 0,
+        long count = long.MaxValue);
+
+    [RespCommand(Formatter = "ZRangeFormatter.NoScores")] // by score
+    internal static partial RespOperation<RedisValue[]> ZRange(
+        this in SortedSetCommands context,
+        RedisKey key,
+        BoundedDouble start,
+        BoundedDouble stop,
+        Order order = Order.Ascending,
+        long offset = 0,
+        long count = long.MaxValue);
+
+    [RespCommand(Formatter = "ZRangeFormatter.WithScores")] // byscore
+    internal static partial RespOperation<SortedSetEntry[]> ZRangeWithScores(
+        this in SortedSetCommands context,
+        RedisKey key,
+        BoundedDouble start,
+        BoundedDouble stop,
+        Order order = Order.Ascending,
+        long offset = 0,
+        long count = long.MaxValue);
+
+    private sealed class ZRangeFormatter :
+        IRespFormatter<(RedisKey Key, long Start, long Stop, Order Order, long Offset, long Count)>,
+        IRespFormatter<(RedisKey Key, BoundedDouble Start, BoundedDouble Stop, Order Order, long Offset, long Count)>,
+        IRespFormatter<(RedisKey Key, BoundedRedisValue Start, BoundedRedisValue Stop, Order Order, long Offset, long Count)>
+    {
+         private readonly bool _withScores;
+         private ZRangeFormatter(bool withScores) => _withScores = withScores;
+         public static readonly ZRangeFormatter WithScores = new(true), NoScores = new(false);
+         public void Format(
+            scoped ReadOnlySpan<byte> command,
+            ref RespWriter writer,
+            in (RedisKey Key, long Start, long Stop, Order Order, long Offset, long Count) request)
+         {
+            bool writeLimit = request.Offset != 0 || request.Count != long.MaxValue;
+            var argCount = 3 + (writeLimit ? 3 : 0) + (_withScores ? 1 : 0) + (request.Order == Order.Descending ? 1 : 0);
+            writer.WriteCommand(command, argCount);
+            writer.Write(request.Key);
+            writer.WriteBulkString(request.Start);
+            writer.WriteBulkString(request.Stop);
+            if (request.Order == Order.Descending)
+            {
+                writer.WriteRaw("$3\r\nREV\r\n"u8);
+            }
+            if (writeLimit)
+            {
+                writer.WriteRaw("$5\r\nLIMIT\r\n"u8);
+                writer.WriteBulkString(request.Offset);
+                writer.WriteBulkString(request.Count);
+            }
+            if (_withScores)
+            {
+                writer.WriteRaw("$10\r\nWITHSCORES\r\n"u8);
+            }
+         }
+
+         public void Format(
+             scoped ReadOnlySpan<byte> command,
+             ref RespWriter writer,
+             in (RedisKey Key, BoundedDouble Start, BoundedDouble Stop, Order Order, long Offset, long Count) request)
+         {
+             bool writeLimit = request.Offset != 0 || request.Count != long.MaxValue;
+             var argCount = 4 + (writeLimit ? 3 : 0) + (_withScores ? 1 : 0) + (request.Order == Order.Descending ? 1 : 0);
+             writer.WriteCommand(command, argCount);
+             writer.Write(request.Key);
+             writer.WriteBulkString(request.Start);
+             writer.WriteBulkString(request.Stop);
+             writer.WriteRaw("$7\r\nBYSCORE\r\n"u8);
+             if (request.Order == Order.Descending)
+             {
+                 writer.WriteRaw("$3\r\nREV\r\n"u8);
+             }
+             if (writeLimit)
+             {
+                 writer.WriteRaw("$5\r\nLIMIT\r\n"u8);
+                 writer.WriteBulkString(request.Offset);
+                 writer.WriteBulkString(request.Count);
+             }
+             if (_withScores)
+             {
+                 writer.WriteRaw("$10\r\nWITHSCORES\r\n"u8);
+             }
+         }
+
+         public void Format(
+             scoped ReadOnlySpan<byte> command,
+             ref RespWriter writer,
+             in (RedisKey Key, BoundedRedisValue Start, BoundedRedisValue Stop, Order Order, long Offset, long Count) request)
+         {
+             bool writeLimit = request.Offset != 0 || request.Count != long.MaxValue;
+             var argCount = 4 + (writeLimit ? 3 : 0) + (_withScores ? 1 : 0) + (request.Order == Order.Descending ? 1 : 0);
+             writer.WriteCommand(command, argCount);
+             writer.Write(request.Key);
+             writer.WriteBulkString(request.Start);
+             writer.WriteBulkString(request.Stop);
+             writer.WriteRaw("$5\r\nBYLEX\r\n"u8);
+             if (request.Order == Order.Descending)
+             {
+                 writer.WriteRaw("$3\r\nREV\r\n"u8);
+             }
+             if (writeLimit)
+             {
+                 writer.WriteRaw("$5\r\nLIMIT\r\n"u8);
+                 writer.WriteBulkString(request.Offset);
+                 writer.WriteBulkString(request.Count);
+             }
+             if (_withScores)
+             {
+                 writer.WriteRaw("$10\r\nWITHSCORES\r\n"u8);
+             }
+         }
+    }
 
     [RespCommand]
     public static partial RespOperation<RedisValue[]> ZRangeByLex(
@@ -302,12 +440,12 @@ internal static partial class SortedSetCommandsExtensions
         BoundedDouble min,
         BoundedDouble max);
 
-    [RespCommand]
+    [RespCommand(nameof(ZRangeByScore))]
     public static partial RespOperation<SortedSetEntry[]> ZRangeByScoreWithScores(
         this in SortedSetCommands context,
         RedisKey key,
         BoundedDouble min,
-        BoundedDouble max);
+        [RespSuffix("WITHSCORES")] BoundedDouble max);
 
     [RespCommand]
     public static partial RespOperation<long> ZRangeStore(
@@ -363,12 +501,12 @@ internal static partial class SortedSetCommandsExtensions
         long start,
         long stop);
 
-    [RespCommand]
+    [RespCommand(nameof(ZRevRange))]
     public static partial RespOperation<SortedSetEntry[]> ZRevRangeWithScores(
         this in SortedSetCommands context,
         RedisKey key,
         long start,
-        long stop);
+        [RespSuffix("WITHSCORES")] long stop);
 
     [RespCommand]
     public static partial RespOperation<RedisValue[]> ZRevRangeByLex(
@@ -384,12 +522,12 @@ internal static partial class SortedSetCommandsExtensions
         BoundedDouble max,
         BoundedDouble min);
 
-    [RespCommand]
+    [RespCommand(nameof(ZRevRangeByScore))]
     public static partial RespOperation<SortedSetEntry[]> ZRevRangeByScoreWithScores(
         this in SortedSetCommands context,
         RedisKey key,
         BoundedDouble max,
-        BoundedDouble min);
+        [RespSuffix("WITHSCORES")] BoundedDouble min);
 
     [RespCommand]
     public static partial RespOperation<long?> ZRevRank(
@@ -423,14 +561,14 @@ internal static partial class SortedSetCommandsExtensions
         RedisKey second,
         [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
-    [RespCommand("zunion")]
+    [RespCommand(nameof(ZUnion))]
     public static partial RespOperation<SortedSetEntry[]> ZUnionWithScores(
         this in SortedSetCommands context,
         [RespSuffix("WITHSCORES")] RedisKey[] keys,
         [RespPrefix("WEIGHTS")] double[]? weights = null,
         [RespPrefix("AGGREGATE")] Aggregate? aggregate = null);
 
-    [RespCommand("zunion")]
+    [RespCommand(nameof(ZUnion))]
     public static partial RespOperation<SortedSetEntry[]> ZUnionWithScores(
         this in SortedSetCommands context,
         RedisKey first,
@@ -538,6 +676,25 @@ internal static partial class SortedSetCommandsExtensions
             SetOperation.Union => context.ZUnionStore(destination, first, second, aggregate),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
+
+    public static RespOperation<SortedSetPopResult> ZMPop(
+        this in SortedSetCommands context,
+        RedisKey[] keys,
+        Order order = Order.Ascending,
+        long count = 1)
+        => order == Order.Ascending ? context.ZMPopMin(keys, count) : context.ZMPopMax(keys, count);
+
+    [RespCommand(nameof(ZMPop))]
+    private static partial RespOperation<SortedSetPopResult> ZMPopMin(
+        this in SortedSetCommands context,
+        [RespPrefix, RespSuffix("MIN")] RedisKey[] keys,
+        [RespIgnore(1), RespPrefix("COUNT")] long count);
+
+    [RespCommand(nameof(ZMPop))]
+    private static partial RespOperation<SortedSetPopResult> ZMPopMax(
+        this in SortedSetCommands context,
+        [RespPrefix, RespSuffix("MAX")] RedisKey[] keys,
+        [RespIgnore(1), RespPrefix("COUNT")] long count);
 
     internal static RespOperation<SortedSetEntry?> ZPop(
         this in SortedSetCommands context,
