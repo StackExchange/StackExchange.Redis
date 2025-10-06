@@ -13,7 +13,7 @@ namespace StackExchange.Redis
         {
         }
 
-        public bool HasOutputPipe
+        internal bool HasOutputPipe
         {
             get
             {
@@ -29,7 +29,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public bool HasPendingCallerFacingItems
+        internal bool HasPendingCallerFacingItems
         {
             get
             {
