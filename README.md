@@ -7,7 +7,7 @@ For all documentation, [see here](https://stackexchange.github.io/StackExchange.
 
 #### Build Status
 
-[![Build status](https://ci.appveyor.com/api/projects/status/2o3frasprum8mbaj/branch/main?svg=true)](https://ci.appveyor.com/project/StackExchange/stackexchange-redis/branch/main)
+[![CI](https://github.com/StackExchange/StackExchange.Redis/actions/workflows/CI.yml/badge.svg)](https://github.com/StackExchange/StackExchange.Redis/actions/workflows/CI.yml)
 
 #### Package Status
 
