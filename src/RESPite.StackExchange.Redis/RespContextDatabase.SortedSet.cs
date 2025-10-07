@@ -354,7 +354,7 @@ internal partial class RespContextDatabase
         long stop = -1,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeWithScores(key, start, stop, order).Wait(SyncTimeout);
 
     public Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(
         RedisKey key,
@@ -362,7 +362,7 @@ internal partial class RespContextDatabase
         long stop = -1,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeWithScores(key, start, stop, order).AsTask();
 
     public RedisValue[] SortedSetRangeByScore(
         RedisKey key,
@@ -373,7 +373,15 @@ internal partial class RespContextDatabase
         long skip = 0,
         long take = -1,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeByScore(key, ByScore(start, stop, exclude, skip, take), order).Wait(SyncTimeout);
+
+    private static SortedSetCommands.ZRangeRequest ByScore(double start, double stop, Exclude exclude, long skip, long take)
+    {
+        var req = SortedSetCommands.ZRangeRequest.ByScore(start, stop, exclude);
+        req.Offset = skip;
+        req.Count = take;
+        return req;
+    }
 
     public Task<RedisValue[]> SortedSetRangeByScoreAsync(
         RedisKey key,
@@ -384,7 +392,7 @@ internal partial class RespContextDatabase
         long skip = 0,
         long take = -1,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeByScore(key, ByScore(start, stop, exclude, skip, take), order).AsTask();
 
     public SortedSetEntry[] SortedSetRangeByScoreWithScores(
         RedisKey key,
@@ -395,7 +403,7 @@ internal partial class RespContextDatabase
         long skip = 0,
         long take = -1,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeByScoreWithScores(key, ByScore(start, stop, exclude, skip, take), order).Wait(SyncTimeout);
 
     public Task<SortedSetEntry[]> SortedSetRangeByScoreWithScoresAsync(
         RedisKey key,
@@ -406,7 +414,15 @@ internal partial class RespContextDatabase
         long skip = 0,
         long take = -1,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeByScoreWithScores(key, ByScore(start, stop, exclude, skip, take), order).AsTask();
+
+    private static SortedSetCommands.ZRangeRequest ByLex(RedisValue start, RedisValue stop, Exclude exclude, long skip, long take)
+    {
+        var req = SortedSetCommands.ZRangeRequest.ByLex(start, stop, exclude);
+        req.Offset = skip;
+        req.Count = take;
+        return req;
+    }
 
     public RedisValue[] SortedSetRangeByValue(
         RedisKey key,
@@ -416,7 +432,7 @@ internal partial class RespContextDatabase
         long skip = 0,
         long take = -1,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeByLex(key, ByLex(min, max, exclude, skip, take)).Wait(SyncTimeout);
 
     public RedisValue[] SortedSetRangeByValue(
         RedisKey key,
@@ -427,7 +443,7 @@ internal partial class RespContextDatabase
         long skip = 0,
         long take = -1,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeByLex(key, ByLex(min, max, exclude, skip, take), order).Wait(SyncTimeout);
 
     public Task<RedisValue[]> SortedSetRangeByValueAsync(
         RedisKey key,
@@ -437,7 +453,7 @@ internal partial class RespContextDatabase
         long skip = 0,
         long take = -1,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeByLex(key, ByLex(min, max, exclude, skip, take)).AsTask();
 
     public Task<RedisValue[]> SortedSetRangeByValueAsync(
         RedisKey key,
@@ -448,36 +464,36 @@ internal partial class RespContextDatabase
         long skip = 0,
         long take = -1,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeByLex(key, ByLex(min, max, exclude, skip, take), order).AsTask();
 
     public bool SortedSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRem(key, member).Wait(SyncTimeout);
 
     public long SortedSetRemove(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRem(key, members).Wait(SyncTimeout);
 
     public Task<bool> SortedSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRem(key, member).AsTask();
 
     public Task<long> SortedSetRemoveAsync(
         RedisKey key,
         RedisValue[] members,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRem(key, members).AsTask();
 
     public long SortedSetRemoveRangeByRank(
         RedisKey key,
         long start,
         long stop,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRemRangeByRank(key, start, stop).Wait(SyncTimeout);
 
     public Task<long> SortedSetRemoveRangeByRankAsync(
         RedisKey key,
         long start,
         long stop,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRemRangeByRank(key, start, stop).AsTask();
 
     public long SortedSetRemoveRangeByScore(
         RedisKey key,
@@ -485,7 +501,7 @@ internal partial class RespContextDatabase
         double stop,
         Exclude exclude = Exclude.None,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRemRangeByScore(key, SortedSetCommands.ZRangeRequest.ByScore(start, stop, exclude)).Wait(SyncTimeout);
 
     public Task<long> SortedSetRemoveRangeByScoreAsync(
         RedisKey key,
@@ -493,7 +509,7 @@ internal partial class RespContextDatabase
         double stop,
         Exclude exclude = Exclude.None,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRemRangeByScore(key, SortedSetCommands.ZRangeRequest.ByScore(start, stop, exclude)).AsTask();
 
     public long SortedSetRemoveRangeByValue(
         RedisKey key,
@@ -501,7 +517,7 @@ internal partial class RespContextDatabase
         RedisValue max,
         Exclude exclude = Exclude.None,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRemRangeByScore(key, SortedSetCommands.ZRangeRequest.ByLex(min, max, exclude)).Wait(SyncTimeout);
 
     public Task<long> SortedSetRemoveRangeByValueAsync(
         RedisKey key,
@@ -509,7 +525,7 @@ internal partial class RespContextDatabase
         RedisValue max,
         Exclude exclude = Exclude.None,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRemRangeByScore(key, SortedSetCommands.ZRangeRequest.ByLex(min, max, exclude)).AsTask();
 
     public IEnumerable<SortedSetEntry>
         SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
@@ -554,14 +570,14 @@ internal partial class RespContextDatabase
         double score,
         SortedSetWhen when = SortedSetWhen.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZAdd(key, when, member, score).Wait(SyncTimeout);
 
     public long SortedSetUpdate(
         RedisKey key,
         SortedSetEntry[] values,
         SortedSetWhen when = SortedSetWhen.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZAdd(key, when, values).Wait(SyncTimeout);
 
     public Task<bool> SortedSetUpdateAsync(
         RedisKey key,
@@ -569,12 +585,12 @@ internal partial class RespContextDatabase
         double score,
         SortedSetWhen when = SortedSetWhen.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZAdd(key, when, member, score).AsTask();
 
     public Task<long> SortedSetUpdateAsync(
         RedisKey key,
         SortedSetEntry[] values,
         SortedSetWhen when = SortedSetWhen.Always,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZAdd(key, when, values).AsTask();
 }

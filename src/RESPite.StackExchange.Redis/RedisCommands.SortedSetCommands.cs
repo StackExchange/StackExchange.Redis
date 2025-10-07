@@ -546,14 +546,14 @@ internal static partial class SortedSetCommandsExtensions
     }
 
     [RespCommand] // by rank
-    private static partial RespOperation<RedisValue[]> ZRange(
+    public static partial RespOperation<RedisValue[]> ZRange(
         this in SortedSetCommands context,
         RedisKey key,
         long min,
         long max);
 
     [RespCommand(Formatter = "ZRangeFormatter.NoScores")] // flexible
-    private static partial RespOperation<RedisValue[]> ZRange(
+    public static partial RespOperation<RedisValue[]> ZRange(
         this in SortedSetCommands context,
         RedisKey key,
         SortedSetCommands.ZRangeRequest request);
@@ -566,14 +566,21 @@ internal static partial class SortedSetCommandsExtensions
         Order order) => order == Order.Ascending ? context.ZRange(key, min, max) : context.ZRevRange(key, max, min);
 
     [RespCommand(nameof(ZRange))] // by rank, with scores
-    private static partial RespOperation<SortedSetEntry[]> ZRangeWithScores(
+    public static partial RespOperation<SortedSetEntry[]> ZRangeWithScores(
         this in SortedSetCommands context,
         RedisKey key,
         long min,
         [RespSuffix("WITHSCORES")] long max);
 
+    internal static RespOperation<SortedSetEntry[]> ZRangeWithScores(
+        this in SortedSetCommands context,
+        RedisKey key,
+        long min,
+        long max,
+        Order order) => order == Order.Ascending ? context.ZRangeWithScores(key, min, max) : context.ZRevRangeWithScores(key, max, min);
+
     [RespCommand(nameof(ZRange), Formatter = "ZRangeFormatter.WithScores")] // flexible, with scores
-    private static partial RespOperation<SortedSetEntry[]> ZRangeWithScores(
+    public static partial RespOperation<SortedSetEntry[]> ZRangeWithScores(
         this in SortedSetCommands context,
         RedisKey key,
         SortedSetCommands.ZRangeRequest request);
@@ -584,8 +591,14 @@ internal static partial class SortedSetCommandsExtensions
         RedisKey key,
         SortedSetCommands.ZRangeRequest request);
 
+    internal static RespOperation<RedisValue[]> ZRangeByLex(
+        this in SortedSetCommands context,
+        RedisKey key,
+        SortedSetCommands.ZRangeRequest request,
+        Order order) => order == Order.Ascending ? context.ZRangeByLex(key, request) : context.ZRevRangeByLex(key, request);
+
     [RespCommand(nameof(ZRangeByLex), Formatter = "ZRangeFormatter.ByLexWithScores")]
-    public static partial RespOperation<RedisValue[]> ZRangeByLexWithScores(
+    public static partial RespOperation<SortedSetEntry[]> ZRangeByLexWithScores(
         this in SortedSetCommands context,
         RedisKey key,
         SortedSetCommands.ZRangeRequest request);
@@ -596,11 +609,23 @@ internal static partial class SortedSetCommandsExtensions
         RedisKey key,
         SortedSetCommands.ZRangeRequest request);
 
+    internal static RespOperation<RedisValue[]> ZRangeByScore(
+        this in SortedSetCommands context,
+        RedisKey key,
+        SortedSetCommands.ZRangeRequest request,
+        Order order) => order == Order.Ascending ? context.ZRangeByScore(key, request) : context.ZRevRangeByScore(key, request);
+
     [RespCommand(nameof(ZRangeByScore), Formatter = "ZRangeFormatter.ByScoreWithScores")]
-    public static partial RespOperation<RedisValue[]> ZRangeByScoreWithScores(
+    public static partial RespOperation<SortedSetEntry[]> ZRangeByScoreWithScores(
         this in SortedSetCommands context,
         RedisKey key,
         SortedSetCommands.ZRangeRequest request);
+
+    internal static RespOperation<SortedSetEntry[]> ZRangeByScoreWithScores(
+        this in SortedSetCommands context,
+        RedisKey key,
+        SortedSetCommands.ZRangeRequest request,
+        Order order) => order == Order.Ascending ? context.ZRangeByScoreWithScores(key, request) : context.ZRevRangeByScoreWithScores(key, request);
 
     [RespCommand] // by rank
     public static partial RespOperation<long> ZRangeStore(
@@ -659,7 +684,7 @@ internal static partial class SortedSetCommandsExtensions
         RedisValue member);
 
     [RespCommand]
-    public static partial RespOperation<long> ZRem(
+    public static partial RespOperation<bool> ZRem(
         this in SortedSetCommands context,
         RedisKey key,
         RedisValue member);
