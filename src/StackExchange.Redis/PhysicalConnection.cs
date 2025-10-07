@@ -746,10 +746,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Runs on every heartbeat for a bridge, timing out any commands that are overdue and returning an integer of how many we timed out.
         /// </summary>
-        /// <returns>How many commands were overdue and threw timeout exceptions.</returns>
-        internal int OnBridgeHeartbeat()
+        /// <param name="asyncTimeoutDetected">How many async commands were overdue and threw timeout exceptions.</param>
+        /// <param name="syncTimeoutDetected">How many sync commands were overdue. No exception are thrown for these commands here.</param>
+        internal void OnBridgeHeartbeat(out int asyncTimeoutDetected, out int syncTimeoutDetected)
         {
-            var result = 0;
+            asyncTimeoutDetected = 0;
+            syncTimeoutDetected = 0;
             var now = Environment.TickCount;
             Interlocked.Exchange(ref lastBeatTickCount, now);
 
@@ -776,7 +778,13 @@ namespace StackExchange.Redis
                                 multiplexer.OnMessageFaulted(msg, timeoutEx);
                                 msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
                                 multiplexer.OnAsyncTimeout();
-                                result++;
+                                asyncTimeoutDetected++;
+                            }
+                            else
+                            {
+                                // Only count how many sync timeouts we detect here.
+                                // The actual timeout is handled in ConnectionMultiplexer.ExecuteSyncImpl().
+                                syncTimeoutDetected++;
                             }
                         }
                         else
@@ -791,7 +799,6 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            return result;
         }
 
         internal void OnInternalError(Exception exception, [CallerMemberName] string? origin = null)
