@@ -176,26 +176,4 @@ public static class RespFormatters
         static void Throw(StorageType type)
             => throw new InvalidOperationException($"Unexpected {type} value.");
     }
-
-    internal static void WriteBulkString(this ref RespWriter writer, in BoundedRedisValue value)
-    {
-        switch (value.Type)
-        {
-            case BoundedRedisValue.BoundType.MinValue:
-                writer.WriteRaw("$1\r\n-\r\n"u8);
-                break;
-            case BoundedRedisValue.BoundType.MaxValue:
-                writer.WriteRaw("$1\r\n+\r\n"u8);
-                break;
-            default:
-                var len = value.ValueRaw.GetByteCount();
-                byte[]? lease = null;
-                var span = len < 128 ? stackalloc byte[128] : (lease = ArrayPool<byte>.Shared.Rent(len));
-                span[0] = value.Inclusive ? (byte)'[' : (byte)'(';
-                value.ValueRaw.CopyTo(span.Slice(1)); // allow for the prefix
-                writer.WriteBulkString(span.Slice(0, len + 1));
-                if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
-                break;
-        }
-    }
 }

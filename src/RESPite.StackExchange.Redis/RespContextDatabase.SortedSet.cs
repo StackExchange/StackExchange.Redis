@@ -312,7 +312,7 @@ internal partial class RespContextDatabase
         long stop = -1,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRange(key, start, stop, order).Wait(SyncTimeout);
 
     public long SortedSetRangeAndStore(
         RedisKey sourceKey,
@@ -325,7 +325,7 @@ internal partial class RespContextDatabase
         long skip = 0,
         long? take = null,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeStore(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take).Wait(SyncTimeout);
 
     public Task<RedisValue[]> SortedSetRangeByRankAsync(
         RedisKey key,
@@ -333,7 +333,7 @@ internal partial class RespContextDatabase
         long stop = -1,
         Order order = Order.Ascending,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRange(key, start, stop, order).AsTask();
 
     public Task<long> SortedSetRangeAndStoreAsync(
         RedisKey sourceKey,
@@ -346,7 +346,7 @@ internal partial class RespContextDatabase
         long skip = 0,
         long? take = null,
         CommandFlags flags = CommandFlags.None)
-        => throw new NotImplementedException();
+        => Context(flags).SortedSets().ZRangeStore(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take).AsTask();
 
     public SortedSetEntry[] SortedSetRangeByRankWithScores(
         RedisKey key,

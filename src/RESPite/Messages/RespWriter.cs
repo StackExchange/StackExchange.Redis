@@ -361,21 +361,6 @@ public ref struct RespWriter
     public void WriteBulkString(bool value) => WriteBulkString(value ? 1 : 0);
 
     /// <summary>
-    /// Write a bounded floating point as a bulk string.
-    /// </summary>
-    public void WriteBulkString(in BoundedDouble value)
-    {
-        if (value.Inclusive)
-        {
-            WriteBulkString(value.Value);
-        }
-        else
-        {
-            WriteBulkStringExclusive(value.Value);
-        }
-    }
-
-    /// <summary>
     /// Write a floating point as a bulk string.
     /// </summary>
     public void WriteBulkString(double value) // implicitly: inclusive
@@ -422,7 +407,7 @@ public ref struct RespWriter
         }
     }
 
-    private void WriteBulkStringExclusive(double value)
+    internal void WriteBulkStringExclusive(double value)
     {
         if (value == 0.0 | double.IsNaN(value) | double.IsInfinity(value))
         {
