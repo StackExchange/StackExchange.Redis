@@ -205,7 +205,7 @@ namespace StackExchange.Redis
             if (!IsConnected) return QueueOrFailMessage(message);
 
             WriteResult result = WriteResult.WriteFailure;
-            if (threadSafePhysicalConnectionAccessor.WorkOnPhysicalWithLock(physical =>
+            if (threadSafePhysicalConnectionAccessor.UsePhysicalWithLock(physical =>
             {
                 result = WriteMessageTakingWriteLockSync(physical, message);
                 LogNonPreferred(message.Flags, isReplica);
@@ -237,7 +237,7 @@ namespace StackExchange.Redis
             }
 
             ValueTask<WriteResult> result = new ValueTask<WriteResult>(WriteResult.Success);
-            if (threadSafePhysicalConnectionAccessor.WorkOnPhysicalWithLock(physical =>
+            if (threadSafePhysicalConnectionAccessor.UsePhysicalWithLock(physical =>
             {
                 result = WriteMessageTakingWriteLockAsync(physical, message, bypassBacklog: bypassBacklog);
                 LogNonPreferred(message.Flags, isReplica);
@@ -414,7 +414,7 @@ namespace StackExchange.Redis
             {
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
-                threadSafePhysicalConnectionAccessor.WorkOnPhysicalWithLock(physical =>
+                threadSafePhysicalConnectionAccessor.UsePhysicalWithLock(physical =>
                 {
                     Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                     physical?.UpdateLastWriteTime(); // preemptively
@@ -747,7 +747,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            return threadSafePhysicalConnectionAccessor.WorkOnPhysicalWithLock(physical =>
+            return threadSafePhysicalConnectionAccessor.UsePhysicalWithLock(physical =>
             {
                 foreach (var message in messages)
                 {
@@ -1180,7 +1180,7 @@ namespace StackExchange.Redis
                     try
                     {
                         _backlogStatus = BacklogStatus.WritingMessage;
-                        threadSafePhysicalConnectionAccessor.WorkOnPhysicalWithLock(physical =>
+                        threadSafePhysicalConnectionAccessor.UsePhysicalWithLock(physical =>
                         {
                             var result = WriteMessageInsideLock(physical, message);
                             if (result == WriteResult.Success)

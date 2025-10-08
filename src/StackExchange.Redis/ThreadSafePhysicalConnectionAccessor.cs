@@ -132,6 +132,24 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool UsePhysicalWithLock(Action<PhysicalConnection> callBack)
+        {
+            try
+            {
+                rwLock.EnterReadLock();
+                if (physical != null)
+                {
+                    callBack(physical);
+                    return true;
+                }
+                return false;
+            }
+            finally
+            {
+                rwLock.ExitReadLock();
+            }
+        }
+
         internal bool WorkOnPhysicalWithLock(Action<PhysicalConnection> callBack)
         {
             try
@@ -154,12 +172,12 @@ namespace StackExchange.Redis
         {
             try
             {
-                rwLock.EnterWriteLock();
+                rwLock.EnterReadLock();
                 physical?.SimulateConnectionFailure(failureType);
             }
             finally
             {
-                rwLock.ExitWriteLock();
+                rwLock.ExitReadLock();
             }
         }
 
@@ -167,12 +185,12 @@ namespace StackExchange.Redis
         {
             try
             {
-                rwLock.EnterWriteLock();
+                rwLock.EnterReadLock();
                 physical?.SetIdle();
             }
             finally
             {
-                rwLock.ExitWriteLock();
+                rwLock.ExitReadLock();
             }
         }
 
