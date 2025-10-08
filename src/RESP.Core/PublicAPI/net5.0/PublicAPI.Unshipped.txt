@@ -1,0 +1,2 @@
+#nullable enable
+System.Runtime.CompilerServices.IsExternalInit (forwarded, contained in System.Runtime)

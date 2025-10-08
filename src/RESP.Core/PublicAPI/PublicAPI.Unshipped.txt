@@ -1,0 +1,191 @@
+#nullable enable
+abstract Resp.RespPayload.Dispose(bool disposing) -> void
+abstract Resp.RespPayload.GetPayload() -> System.Buffers.ReadOnlySequence<byte>
+override Resp.RespPayload.ToString() -> string!
+override Resp.RespScanState.Equals(object? obj) -> bool
+override Resp.RespScanState.GetHashCode() -> int
+override Resp.RespScanState.ToString() -> string!
+Resp.FrameScanInfo
+Resp.FrameScanInfo.BytesRead.get -> long
+Resp.FrameScanInfo.BytesRead.set -> void
+Resp.FrameScanInfo.FrameScanInfo() -> void
+Resp.FrameScanInfo.FrameScanInfo(bool isOutbound) -> void
+Resp.FrameScanInfo.IsOutbound.get -> bool
+Resp.FrameScanInfo.IsOutOfBand.get -> bool
+Resp.FrameScanInfo.IsOutOfBand.set -> void
+Resp.FrameScanInfo.ReadHint.get -> int
+Resp.FrameScanInfo.ReadHint.set -> void
+Resp.ICommandMap
+Resp.ICommandMap.Map(scoped ref System.ReadOnlySpan<byte> command) -> void
+Resp.IRespConnection
+Resp.IRespConnection.CanWrite.get -> bool
+Resp.IRespConnection.Outstanding.get -> int
+Resp.IRespConnection.Send(Resp.RespPayload! payload) -> Resp.RespPayload!
+Resp.IRespConnection.SendAsync(Resp.RespPayload! payload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Resp.RespPayload!>
+Resp.IRespFormatter<TRequest>
+Resp.IRespFormatter<TRequest>.Format(scoped System.ReadOnlySpan<byte> command, ref Resp.RespWriter writer, in TRequest request) -> void
+Resp.IRespMetadataParser
+Resp.IRespParser<TRequest, TResponse>
+Resp.IRespParser<TRequest, TResponse>.Parse(in TRequest request, ref Resp.RespReader reader) -> TResponse
+Resp.IRespParser<TResponse>
+Resp.IRespParser<TResponse>.Parse(ref Resp.RespReader reader) -> TResponse
+Resp.IRespSizeEstimator<TRequest>
+Resp.IRespSizeEstimator<TRequest>.EstimateSize(scoped System.ReadOnlySpan<byte> command, in TRequest request) -> int
+Resp.RedisCommands.RedisString
+Resp.RedisCommands.RedisString.Get() -> string?
+Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key) -> void
+Resp.RedisCommands.RedisString.Set(string! value) -> void
+Resp.RedisCommands.RespConnectionExtensions
+Resp.RespAttributeReader<T>
+Resp.RespAttributeReader<T>.RespAttributeReader() -> void
+Resp.RespConnectionExtensions
+Resp.RespException
+Resp.RespException.RespException(string! message) -> void
+Resp.RespFrameScanner
+Resp.RespFrameScanner.OnBeforeFrame(ref Resp.RespScanState state, ref Resp.FrameScanInfo info) -> void
+Resp.RespFrameScanner.TryRead(ref Resp.RespScanState state, in System.Buffers.ReadOnlySequence<byte> data, ref Resp.FrameScanInfo info) -> System.Buffers.OperationStatus
+Resp.RespFrameScanner.ValidateRequest(in System.Buffers.ReadOnlySequence<byte> message) -> void
+Resp.RespPayload
+Resp.RespPayload.Dispose() -> void
+Resp.RespPayload.Payload.get -> System.Buffers.ReadOnlySequence<byte>
+Resp.RespPayload.RespPayload() -> void
+Resp.RespPayload.Validate(bool checkError = true) -> void
+Resp.RespPrefix
+Resp.RespPrefix.Array = 42 -> Resp.RespPrefix
+Resp.RespPrefix.Attribute = 124 -> Resp.RespPrefix
+Resp.RespPrefix.BigInteger = 40 -> Resp.RespPrefix
+Resp.RespPrefix.Boolean = 35 -> Resp.RespPrefix
+Resp.RespPrefix.BulkError = 33 -> Resp.RespPrefix
+Resp.RespPrefix.BulkString = 36 -> Resp.RespPrefix
+Resp.RespPrefix.Double = 44 -> Resp.RespPrefix
+Resp.RespPrefix.Integer = 58 -> Resp.RespPrefix
+Resp.RespPrefix.Map = 37 -> Resp.RespPrefix
+Resp.RespPrefix.None = 0 -> Resp.RespPrefix
+Resp.RespPrefix.Null = 95 -> Resp.RespPrefix
+Resp.RespPrefix.Push = 62 -> Resp.RespPrefix
+Resp.RespPrefix.Set = 126 -> Resp.RespPrefix
+Resp.RespPrefix.SimpleError = 45 -> Resp.RespPrefix
+Resp.RespPrefix.SimpleString = 43 -> Resp.RespPrefix
+Resp.RespPrefix.StreamContinuation = 59 -> Resp.RespPrefix
+Resp.RespPrefix.StreamTerminator = 46 -> Resp.RespPrefix
+Resp.RespPrefix.VerbatimString = 61 -> Resp.RespPrefix
+Resp.RespReader
+Resp.RespReader.AggregateChildren() -> Resp.RespReader.AggregateEnumerator
+Resp.RespReader.AggregateEnumerator
+Resp.RespReader.AggregateEnumerator.AggregateEnumerator() -> void
+Resp.RespReader.AggregateEnumerator.AggregateEnumerator(scoped in Resp.RespReader reader) -> void
+Resp.RespReader.AggregateEnumerator.Current.get -> Resp.RespReader
+Resp.RespReader.AggregateEnumerator.DemandNext() -> void
+Resp.RespReader.AggregateEnumerator.FillAll<T>(scoped System.Span<T> target, Resp.RespReader.Projection<T>! projection) -> void
+Resp.RespReader.AggregateEnumerator.GetEnumerator() -> Resp.RespReader.AggregateEnumerator
+Resp.RespReader.AggregateEnumerator.MoveNext() -> bool
+Resp.RespReader.AggregateEnumerator.MoveNext(Resp.RespPrefix prefix) -> bool
+Resp.RespReader.AggregateEnumerator.MoveNext<T>(Resp.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+Resp.RespReader.AggregateEnumerator.MoveNext<T>(Resp.RespPrefix prefix, Resp.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+Resp.RespReader.AggregateEnumerator.MovePast(out Resp.RespReader reader) -> void
+Resp.RespReader.AggregateEnumerator.ReadOne<T>(Resp.RespReader.Projection<T>! projection) -> T
+Resp.RespReader.AggregateEnumerator.Value -> Resp.RespReader
+Resp.RespReader.AggregateLength() -> int
+Resp.RespReader.BytesConsumed.get -> long
+Resp.RespReader.CopyTo(System.Span<byte> target) -> int
+Resp.RespReader.DemandAggregate() -> void
+Resp.RespReader.DemandEnd() -> void
+Resp.RespReader.DemandNotNull() -> void
+Resp.RespReader.DemandScalar() -> void
+Resp.RespReader.FillAll<T>(scoped System.Span<T> target, Resp.RespReader.Projection<T>! projection) -> void
+Resp.RespReader.Is(byte value) -> bool
+Resp.RespReader.Is(System.ReadOnlySpan<byte> value) -> bool
+Resp.RespReader.IsAggregate.get -> bool
+Resp.RespReader.IsAttribute.get -> bool
+Resp.RespReader.IsError.get -> bool
+Resp.RespReader.IsNull.get -> bool
+Resp.RespReader.IsScalar.get -> bool
+Resp.RespReader.IsStreaming.get -> bool
+Resp.RespReader.MoveNext() -> void
+Resp.RespReader.MoveNext(Resp.RespPrefix prefix) -> void
+Resp.RespReader.MoveNext<T>(Resp.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> void
+Resp.RespReader.MoveNext<T>(Resp.RespPrefix prefix, Resp.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> void
+Resp.RespReader.MoveNextAggregate() -> void
+Resp.RespReader.MoveNextScalar() -> void
+Resp.RespReader.ParseBytes<T, TState>(Resp.RespReader.Parser<byte, TState, T>! parser, TState? state) -> T
+Resp.RespReader.ParseBytes<T>(Resp.RespReader.Parser<byte, T>! parser) -> T
+Resp.RespReader.ParseChars<T, TState>(Resp.RespReader.Parser<char, TState, T>! parser, TState? state) -> T
+Resp.RespReader.ParseChars<T>(Resp.RespReader.Parser<char, T>! parser) -> T
+Resp.RespReader.Parser<TSource, TState, TValue>
+Resp.RespReader.Parser<TSource, TValue>
+Resp.RespReader.Prefix.get -> Resp.RespPrefix
+Resp.RespReader.Projection<T>
+Resp.RespReader.ReadBoolean() -> bool
+Resp.RespReader.ReadDecimal() -> decimal
+Resp.RespReader.ReadDouble() -> double
+Resp.RespReader.ReadEnum<T>(T unknownValue = default(T)) -> T
+Resp.RespReader.ReadInt32() -> int
+Resp.RespReader.ReadInt64() -> long
+Resp.RespReader.ReadString() -> string?
+Resp.RespReader.ReadString(out string! prefix) -> string?
+Resp.RespReader.RespReader() -> void
+Resp.RespReader.RespReader(scoped in System.Buffers.ReadOnlySequence<byte> value) -> void
+Resp.RespReader.RespReader(System.ReadOnlySpan<byte> value) -> void
+Resp.RespReader.ScalarChunks() -> Resp.RespReader.ScalarEnumerator
+Resp.RespReader.ScalarEnumerator
+Resp.RespReader.ScalarEnumerator.Current.get -> System.ReadOnlySpan<byte>
+Resp.RespReader.ScalarEnumerator.CurrentLength.get -> int
+Resp.RespReader.ScalarEnumerator.GetEnumerator() -> Resp.RespReader.ScalarEnumerator
+Resp.RespReader.ScalarEnumerator.MoveNext() -> bool
+Resp.RespReader.ScalarEnumerator.MovePast(out Resp.RespReader reader) -> void
+Resp.RespReader.ScalarEnumerator.ScalarEnumerator() -> void
+Resp.RespReader.ScalarEnumerator.ScalarEnumerator(scoped in Resp.RespReader reader) -> void
+Resp.RespReader.ScalarIsEmpty() -> bool
+Resp.RespReader.ScalarLength() -> int
+Resp.RespReader.ScalarLongLength() -> long
+Resp.RespReader.SkipChildren() -> void
+Resp.RespReader.TryGetSpan(out System.ReadOnlySpan<byte> value) -> bool
+Resp.RespReader.TryMoveNext() -> bool
+Resp.RespReader.TryMoveNext(bool checkError) -> bool
+Resp.RespReader.TryMoveNext(Resp.RespPrefix prefix) -> bool
+Resp.RespReader.TryMoveNext<T>(Resp.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+Resp.RespReader.TryReadDouble(out double value, bool allowTokens = true) -> bool
+Resp.RespReader.TryReadInt32(out int value) -> bool
+Resp.RespReader.TryReadInt64(out long value) -> bool
+Resp.RespReader.TryReadNext() -> bool
+Resp.RespScanState
+Resp.RespScanState.IsComplete.get -> bool
+Resp.RespScanState.IsOutOfBand.get -> bool
+Resp.RespScanState.RespScanState() -> void
+Resp.RespScanState.TotalBytes.get -> long
+Resp.RespScanState.TryRead(in System.Buffers.ReadOnlySequence<byte> value, out long bytesRead) -> bool
+Resp.RespScanState.TryRead(ref Resp.RespReader reader, out long bytesRead) -> bool
+Resp.RespScanState.TryRead(System.ReadOnlySpan<byte> value, out int bytesRead) -> bool
+Resp.RespWriter
+Resp.RespWriter.CommandMap.get -> Resp.ICommandMap?
+Resp.RespWriter.CommandMap.set -> void
+Resp.RespWriter.Flush() -> void
+Resp.RespWriter.RespWriter() -> void
+Resp.RespWriter.RespWriter(System.Buffers.IBufferWriter<byte>! target) -> void
+Resp.RespWriter.RespWriter(System.Span<byte> target) -> void
+Resp.RespWriter.WriteArray(int count) -> void
+Resp.RespWriter.WriteBulkString(bool value) -> void
+Resp.RespWriter.WriteBulkString(int value) -> void
+Resp.RespWriter.WriteBulkString(long value) -> void
+Resp.RespWriter.WriteBulkString(scoped System.ReadOnlySpan<byte> value) -> void
+Resp.RespWriter.WriteBulkString(scoped System.ReadOnlySpan<char> value) -> void
+Resp.RespWriter.WriteBulkString(string! value) -> void
+Resp.RespWriter.WriteCommand(scoped System.ReadOnlySpan<byte> command, int args) -> void
+Resp.RespWriter.WriteRaw(scoped System.ReadOnlySpan<byte> buffer) -> void
+static Resp.RespConnectionExtensions.Send<TRequest>(this Resp.IRespConnection! connection, scoped System.ReadOnlySpan<byte> command, TRequest request, Resp.IRespFormatter<TRequest>? formatter = null) -> Resp.RespPayload!
+static Resp.RespFrameScanner.Default.get -> Resp.RespFrameScanner!
+static Resp.RespFrameScanner.Subscription.get -> Resp.RespFrameScanner!
+static Resp.RespPayload.Create(System.Buffers.ReadOnlySequence<byte> payload) -> Resp.RespPayload!
+static Resp.RespPayload.Create(System.ReadOnlyMemory<byte> payload) -> Resp.RespPayload!
+static Resp.RespScanState.Create(bool pubSubConnection) -> Resp.RespScanState
+virtual Resp.RespAttributeReader<T>.Read(ref Resp.RespReader reader, ref T value) -> void
+virtual Resp.RespAttributeReader<T>.ReadKeyValuePair(scoped System.ReadOnlySpan<byte> key, ref Resp.RespReader reader, ref T value) -> bool
+virtual Resp.RespAttributeReader<T>.ReadKeyValuePairs(ref Resp.RespReader reader, ref T value) -> int
+virtual Resp.RespPayload.Wait(System.TimeSpan timeout) -> void
+virtual Resp.RespPayload.WaitAsync() -> System.Threading.Tasks.Task!
+virtual Resp.RespReader.Parser<TSource, TState, TValue>.Invoke(System.ReadOnlySpan<TSource> value, TState? state) -> TValue
+virtual Resp.RespReader.Parser<TSource, TValue>.Invoke(System.ReadOnlySpan<TSource> value) -> TValue
+virtual Resp.RespReader.Projection<T>.Invoke(ref Resp.RespReader value) -> T
+Resp.RedisCommands.RedisString.GetAsync() -> System.Threading.Tasks.Task<string?>!
+Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key, System.Threading.CancellationToken cancellationToken) -> void
+Resp.RedisCommands.RedisString.RedisString(Resp.IRespConnection! connection, string! key, System.TimeSpan timeout = default(System.TimeSpan)) -> void

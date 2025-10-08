@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <ToolCommandName>resp-benchmark</ToolCommandName>
+    <PackAsTool>true</PackAsTool>
+    <Title>command-line "RESP" benchmark client, comparable to redis-benchmark</Title>
+    <GeneratePackageOnBuild Condition="'$(Configuration)'=='Release'">True</GeneratePackageOnBuild>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <GenerateDocumentationFile>False</GenerateDocumentationFile>
+    <NoPublicApi>True</NoPublicApi>
+    <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>
+    <SignAssembly>false</SignAssembly>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RESPite.StackExchange.Redis\RESPite.StackExchange.Redis.csproj" />
+    <ProjectReference Include="..\RESPite\RESPite.csproj"/>
+    <!--<PackageReference Include="StackExchange.Redis"/>-->
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+    <None Include="readme.md" Pack="true" PackagePath="/"/>
+  </ItemGroup>
+</Project>

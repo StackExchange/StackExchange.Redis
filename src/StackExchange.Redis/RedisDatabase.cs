@@ -938,7 +938,7 @@ namespace StackExchange.Redis
 
         public bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrNotExists(when);
+            when.AlwaysOrNotExists();
             var msg = value.IsNull
                 ? Message.Create(Database, flags, RedisCommand.HDEL, key, hashField)
                 : Message.Create(Database, flags, when == When.Always ? RedisCommand.HSET : RedisCommand.HSETNX, key, hashField, value);
@@ -960,7 +960,7 @@ namespace StackExchange.Redis
 
         public Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrNotExists(when);
+            when.AlwaysOrNotExists();
             var msg = value.IsNull
                 ? Message.Create(Database, flags, RedisCommand.HDEL, key, hashField)
                 : Message.Create(Database, flags, when == When.Always ? RedisCommand.HSET : RedisCommand.HSETNX, key, hashField, value);
@@ -1398,14 +1398,14 @@ namespace StackExchange.Redis
 
         public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrNotExists(when);
+            when.AlwaysOrNotExists();
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.RENAME : RedisCommand.RENAMENX, key, newKey);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public Task<bool> KeyRenameAsync(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrNotExists(when);
+            when.AlwaysOrNotExists();
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.RENAME : RedisCommand.RENAMENX, key, newKey);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
@@ -1558,14 +1558,14 @@ namespace StackExchange.Redis
 
         public long ListLeftPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExists(when);
+            when.AlwaysOrExists();
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX, key, value);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public long ListLeftPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExists(when);
+            when.AlwaysOrExists();
             if (values == null) throw new ArgumentNullException(nameof(values));
             var command = when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX;
             var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
@@ -1581,14 +1581,14 @@ namespace StackExchange.Redis
 
         public Task<long> ListLeftPushAsync(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExists(when);
+            when.AlwaysOrExists();
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX, key, value);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExists(when);
+            when.AlwaysOrExists();
             if (values == null) throw new ArgumentNullException(nameof(values));
             var command = when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX;
             var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
@@ -1700,14 +1700,14 @@ namespace StackExchange.Redis
 
         public long ListRightPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExists(when);
+            when.AlwaysOrExists();
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX, key, value);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public long ListRightPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExists(when);
+            when.AlwaysOrExists();
             if (values == null) throw new ArgumentNullException(nameof(values));
             var command = when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX;
             var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
@@ -1723,14 +1723,14 @@ namespace StackExchange.Redis
 
         public Task<long> ListRightPushAsync(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExists(when);
+            when.AlwaysOrExists();
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX, key, value);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> ListRightPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExists(when);
+            when.AlwaysOrExists();
             if (values == null) throw new ArgumentNullException(nameof(values));
             var command = when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX;
             var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
@@ -2273,7 +2273,7 @@ namespace StackExchange.Redis
             SortedSetAdd(key, member, score, SortedSetWhen.Always, flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAdd(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
+            SortedSetAdd(key, member, score, SortedSetWhenExtensions.ToSortedSetWhen(when), flags);
 
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
@@ -2291,7 +2291,7 @@ namespace StackExchange.Redis
             SortedSetAdd(key, values, SortedSetWhen.Always, flags);
 
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAdd(key, values, SortedSetWhenExtensions.Parse(when), flags);
+            SortedSetAdd(key, values, SortedSetWhenExtensions.ToSortedSetWhen(when), flags);
 
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
@@ -2309,7 +2309,7 @@ namespace StackExchange.Redis
             SortedSetAddAsync(key, member, score, SortedSetWhen.Always, flags);
 
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAddAsync(key, member, score, SortedSetWhenExtensions.Parse(when), flags);
+            SortedSetAddAsync(key, member, score, SortedSetWhenExtensions.ToSortedSetWhen(when), flags);
 
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
@@ -2327,7 +2327,7 @@ namespace StackExchange.Redis
             SortedSetAddAsync(key, values, SortedSetWhen.Always, flags);
 
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            SortedSetAddAsync(key, values, SortedSetWhenExtensions.Parse(when), flags);
+            SortedSetAddAsync(key, values, SortedSetWhenExtensions.ToSortedSetWhen(when), flags);
 
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
         {
@@ -3778,7 +3778,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        private static long GetUnixTimeMilliseconds(DateTime when) => when.Kind switch
+        internal static long GetUnixTimeMilliseconds(DateTime when) => when.Kind switch
         {
             DateTimeKind.Local or DateTimeKind.Utc => (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond,
             _ => throw new ArgumentException("Expiry time must be either Utc or Local", nameof(when)),
@@ -4600,12 +4600,15 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(maxLength), "maxLength must be greater than 0.");
             }
 
+            var includeMaxLen = maxLength.HasValue ? 2 : 0;
+            var includeApproxLen = maxLength.HasValue && useApproximateMaxLength ? 1 : 0;
+
             var totalLength = (streamPairs.Length * 2) // Room for the name/value pairs
-                + 1 // The stream entry ID
-                + (maxLength.HasValue ? 2 : 0) // MAXLEN N
-                + (maxLength.HasValue && useApproximateMaxLength ? 1 : 0) // ~
-                + (mode == StreamTrimMode.KeepReferences ? 0 : 1) // relevant trim-mode keyword
-                + (limit.HasValue ? 2 : 0); // LIMIT N
+                              + 1 // The stream entry ID
+                              + (maxLength.HasValue ? 2 : 0) // MAXLEN N
+                              + (maxLength.HasValue && useApproximateMaxLength ? 1 : 0) // ~
+                              + (mode == StreamTrimMode.KeepReferences ? 0 : 1) // relevant trim-mode keyword
+                              + (limit.HasValue ? 2 : 0); // LIMIT N
 
             var values = new RedisValue[totalLength];
 
@@ -5026,7 +5029,7 @@ namespace StackExchange.Redis
                 case 0: return null;
                 case 1: return GetStringSetMessage(values[0].Key, values[0].Value, null, false, when, flags);
                 default:
-                    WhenAlwaysOrNotExists(when);
+                    when.AlwaysOrNotExists();
                     int slot = ServerSelectionStrategy.NoSlot, offset = 0;
                     var args = new RedisValue[values.Length * 2];
                     var serverSelectionStrategy = multiplexer.ServerSelectionStrategy;
@@ -5048,7 +5051,7 @@ namespace StackExchange.Redis
             When when = When.Always,
             CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExistsOrNotExists(when);
+            when.AlwaysOrExistsOrNotExists();
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.DEL, key);
 
             if (expiry == null || expiry.Value == TimeSpan.MaxValue)
@@ -5097,7 +5100,7 @@ namespace StackExchange.Redis
             When when = When.Always,
             CommandFlags flags = CommandFlags.None)
         {
-            WhenAlwaysOrExistsOrNotExists(when);
+            when.AlwaysOrExistsOrNotExists();
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.GETDEL, key);
 
             if (expiry == null || expiry.Value == TimeSpan.MaxValue)

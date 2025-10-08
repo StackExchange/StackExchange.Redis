@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <TargetFrameworks>net461;netstandard2.0;net8.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+  </PropertyGroup>
+
+<!--  <ItemGroup  Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net461')) or '($TargetFramework)' == 'netstandard2.0'">-->
+<!--    <PackageReference Include="System.Collections.Immutable" />-->
+<!--  </ItemGroup>-->
+  <ItemGroup>
+    <PackageReference Include="System.Buffers"/>
+    <ProjectReference Include="..\RESPite\RESPite.csproj" Aliases="global,respite"/>
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" Aliases="global,seredis"/>
+    <None Include="readme.md" Pack="true" PackagePath="/"/>
+    <InternalsVisibleTo Include="RESPite.Tests" />
+    <!-- <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/> -->
+    <!--<Analyzer Include="..\..\eng\StackExchange.Redis.Build\bin\$(Configuration)\netstandard2.0\StackExchange.Redis.Build.dll" />-->
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="RespContextDatabase.*.cs">
+      <DependentUpon>RespContextDatabase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="RedisCommands.*.cs">
+      <DependentUpon>RedisCommands.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
+</Project>
