@@ -1727,4 +1727,46 @@ public ref partial struct RespReader
         }
         return result;
     }
+    internal TResult[]? ReadLeasedPairArray<TFirst, TSecond, TResult>(
+        Projection<TFirst> first,
+        Projection<TSecond> second,
+        Func<TFirst, TSecond, TResult> combine,
+        out int count,
+        bool scalar = true)
+    {
+        DemandAggregate();
+        if (IsNull)
+        {
+            count = 0;
+            return null;
+        }
+        int sourceLength = AggregateLength();
+        count = sourceLength >> 1;
+        if (count is 0) return [];
+
+        var oversized = ArrayPool<TResult>.Shared.Rent(count);
+        var result = oversized.AsSpan(0, count);
+        if (scalar)
+        {
+            // if the data to be consumed is simple (scalar), we can use
+            // a simpler path that doesn't need to worry about RESP subtrees
+            for (int i = 0; i < result.Length; i++)
+            {
+                MoveNextScalar();
+                var x = first(ref this);
+                MoveNextScalar();
+                var y = second(ref this);
+                result[i] = combine(x, y);
+            }
+            // if we have an odd number of source elements, skip the last one
+            if ((sourceLength & 1) != 0) MoveNextScalar();
+        }
+        else
+        {
+            var agg = AggregateChildren();
+            agg.FillAll(result, first, second, combine);
+            agg.MovePast(out this);
+        }
+        return oversized;
+    }
 }

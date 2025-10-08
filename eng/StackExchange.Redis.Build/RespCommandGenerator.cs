@@ -134,6 +134,8 @@ public class RespCommandGenerator : IIncrementalGenerator
     private enum SERedis
     {
         CommandFlags,
+        RedisValue,
+        RedisKey,
     }
 
     private static bool IsSERedis(ITypeSymbol? symbol, SERedis type)
@@ -141,6 +143,8 @@ public class RespCommandGenerator : IIncrementalGenerator
         static string NameOf(SERedis type) => type switch
         {
             SERedis.CommandFlags => nameof(SERedis.CommandFlags),
+            SERedis.RedisValue => nameof(SERedis.RedisValue),
+            SERedis.RedisKey => nameof(SERedis.RedisKey),
             _ => type.ToString(),
         };
 
@@ -481,14 +485,15 @@ public class RespCommandGenerator : IIncrementalGenerator
                         var val = attrib.ConstructorArguments[0].Value;
                         var expr = val switch
                         {
-                            string s => CodeLiteral(s),
-                            bool b => b ? "true" : "false",
+                            null when IsSERedis(param.Type, SERedis.RedisValue) | IsSERedis(param.Type, SERedis.RedisKey) => ".IsNull is false",
+                            string s => " != " + CodeLiteral(s),
+                            bool b => b ? " is false" : " is true", // if we *ignore* true, then "incN = foo is false"
                             long l when attrib.ConstructorArguments[0].Type is INamedTypeSymbol { EnumUnderlyingType: not null } enumType
-                                => GetEnumExpression(enumType, l),
-                            long l => l.ToString(CultureInfo.InvariantCulture),
+                                => " != " + GetEnumExpression(enumType, l),
+                            long l => " != " + l.ToString(CultureInfo.InvariantCulture),
                             int i when attrib.ConstructorArguments[0].Type is INamedTypeSymbol { EnumUnderlyingType: not null } enumType
-                                => GetEnumExpression(enumType, i),
-                            int i => i.ToString(CultureInfo.InvariantCulture),
+                                => " != " + GetEnumExpression(enumType, i),
+                            int i => " != " + i.ToString(CultureInfo.InvariantCulture),
                             _ => null,
                         };
 
@@ -1016,10 +1021,10 @@ public class RespCommandGenerator : IIncrementalGenerator
                             case ParameterFlags.Nullable | ParameterFlags.IgnoreExpression:
                                 sb.Append(" is { } __val").Append(parameter.ArgIndex)
                                     .Append(" && __val").Append(parameter.ArgIndex)
-                                    .Append(" != ").Append(parameter.IgnoreExpression);
+                                    .Append(parameter.IgnoreExpression);
                                 break;
                             case ParameterFlags.IgnoreExpression:
-                                sb.Append(" != ").Append(parameter.IgnoreExpression);
+                                sb.Append(parameter.IgnoreExpression);
                                 break;
                             case ParameterFlags.Collection:
                                 // non-nullable collection; literals already handled
@@ -1103,7 +1108,7 @@ public class RespCommandGenerator : IIncrementalGenerator
                             // help identify what this is (not needed for collections, since foo.Count etc)
                             sb.Append(" // ");
                             WriteParameterName(parameter);
-                            if (argCount != 1) sb.Append(" (").Append(parameter.Name).Append(")"); // give an example
+                            if (tuple.Value.ShareCount != 1) sb.Append(" (").Append(parameter.Name).Append(")"); // give an example
                         }
 
                         if (literalCount != 0)

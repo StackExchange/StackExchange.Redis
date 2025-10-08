@@ -758,6 +758,14 @@ internal static partial class SortedSetCommandsExtensions
         RedisKey key,
         RedisValue member);
 
+    [RespCommand(Parser = "RespParsers.ZScanSimple")]
+    public static partial RespOperation<ScanResult<SortedSetEntry>> ZScan(
+        this in SortedSetCommands context,
+        RedisKey key,
+        long cursor,
+        [RespPrefix("MATCH"), RespIgnore] RedisValue pattern = default,
+        [RespPrefix("COUNT"), RespIgnore(10)] long count = 10);
+
     [RespCommand]
     public static partial RespOperation<double?> ZScore(
         this in SortedSetCommands context,

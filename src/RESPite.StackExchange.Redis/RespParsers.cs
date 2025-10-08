@@ -4,7 +4,7 @@ using StackExchange.Redis;
 
 namespace RESPite.StackExchange.Redis;
 
-public static class RespParsers
+public static partial class RespParsers
 {
     public static IRespParser<RedisValue> RedisValue => DefaultParser.Instance;
     public static IRespParser<RedisValue[]> RedisValueArray => DefaultParser.Instance;
@@ -114,13 +114,21 @@ public static class RespParsers
         }
 
         SortedSetEntry[] IRespParser<SortedSetEntry[]>.Parse(ref RespReader reader)
-        {
-            return reader.ReadPairArray(
-                SharedReadRedisValue,
-                static (ref RespReader reader) => reader.ReadDouble(),
-                static (x, y) => new SortedSetEntry(x, y),
-                scalar: true)!;
-        }
+            => ReadSortedSetEntryArray(ref reader);
+
+        internal static SortedSetEntry[] ReadSortedSetEntryArray(ref RespReader reader) => reader.ReadPairArray(
+            SharedReadRedisValue,
+            static (ref RespReader reader) => reader.ReadDouble(),
+            static (x, y) => new SortedSetEntry(x, y),
+            scalar: true)!;
+
+        internal static SortedSetEntry[] ReadLeasedSortedSetEntryArray(ref RespReader reader, out int count)
+            => reader.ReadLeasedPairArray(
+            SharedReadRedisValue,
+            static (ref RespReader reader) => reader.ReadDouble(),
+            static (x, y) => new SortedSetEntry(x, y),
+            out count,
+            scalar: true)!;
 
         SortedSetEntry? IRespParser<SortedSetEntry?>.Parse(ref RespReader reader)
         {

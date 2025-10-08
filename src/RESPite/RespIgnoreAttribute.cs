@@ -5,9 +5,9 @@ namespace RESPite;
 
 [AttributeUsage(AttributeTargets.Parameter)]
 [Conditional("DEBUG"), ImmutableObject(true)]
-public sealed class RespIgnoreAttribute : Attribute
+public sealed class RespIgnoreAttribute(object? value = null) : Attribute
 {
-    private readonly object _value;
-    public object Value => _value;
-    public RespIgnoreAttribute(object value) => _value = value;
+    // note; nulls are always ignored (taking NRTs into account); the purpose
+    // of an explicit null is for RedisValue - this prompts HasValue checks (i.e. non-trivial value).
+    public object? Value => value;
 }
