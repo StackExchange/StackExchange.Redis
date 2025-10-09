@@ -145,14 +145,6 @@ namespace StackExchange.Redis
             return count;
         }
 
-        internal void EnsureSubscription(Subscription sub, in RedisChannel channel, CommandFlags flags)
-        {
-            if (!sub.IsConnected)
-            {
-                DefaultSubscriber.EnsureSubscribedToServer(sub, channel, flags, true);
-            }
-        }
-
         internal enum SubscriptionAction
         {
             Subscribe,
