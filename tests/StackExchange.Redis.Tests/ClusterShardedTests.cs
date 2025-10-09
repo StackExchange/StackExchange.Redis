@@ -218,7 +218,10 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
             // we should end up where we *actually sent the message* - there is no -MOVED
             Assert.Equal(serverEndpoint.EndPoint, actual);
         }
+
+        Log("Unsubscribing...");
         await queue.UnsubscribeAsync();
+        Log("Unsubscribed.");
     }
 
     [Fact]
@@ -243,6 +246,19 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(actual, viaMap.EndPoint);
 
         var oldServer = conn.GetServer(asKey); // this is where it *should* go
+
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+        {
+            // now publish... we *expect* things to have sorted themselves out
+            var msg = Guid.NewGuid().ToString();
+            var count = await subscriber.PublishAsync(channel, msg);
+            Assert.Equal(1, count);
+
+            Log("Waiting for message on original subscription...");
+            var received = await queue.ReadAsync(timeout.Token);
+            Log($"Message received: {received.Message}");
+            Assert.Equal(msg, (string)received.Message!);
+        }
 
         // now intentionally choose *a different* server
         var newServer = conn.GetServers().First(s => !Equals(s.EndPoint, oldServer.EndPoint));
@@ -312,16 +328,21 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
         await conn.ConfigureAsync();
         Assert.Equal(newServer, conn.GetServer(asKey));
 
-        // now publish... we *expect* things to have sorted themselves out
-        var msg = Guid.NewGuid().ToString();
-        var count = await subscriber.PublishAsync(channel, msg);
-        Assert.Equal(1, count);
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+        {
+            // now publish... we *expect* things to have sorted themselves out
+            var msg = Guid.NewGuid().ToString();
+            var count = await subscriber.PublishAsync(channel, msg);
+            Assert.Equal(1, count);
 
-        Log("Waiting for message...");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        var received = await queue.ReadAsync(timeout.Token);
-        Assert.Equal(msg, (string)received.Message!);
+            Log("Waiting for message on moved subscription...");
+            var received = await queue.ReadAsync(timeout.Token);
+            Log($"Message received: {received.Message}");
+            Assert.Equal(msg, (string)received.Message!);
+        }
 
+        Log("Unsubscribing...");
         await queue.UnsubscribeAsync();
+        Log("Unsubscribed.");
     }
 }
