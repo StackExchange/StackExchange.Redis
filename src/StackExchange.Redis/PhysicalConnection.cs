@@ -29,7 +29,8 @@ namespace StackExchange.Redis
 
         private const int DefaultRedisDatabaseCount = 16;
 
-        private static readonly CommandBytes message = "message", pmessage = "pmessage", smessage = "smessage";
+        private static readonly CommandBytes message = "message", pmessage = "pmessage", smessage = "smessage",
+            subscribe = "subscribe", sunsubscribe = "sunsubscribe";
 
         private static readonly Message[] ReusableChangeDatabaseCommands = Enumerable.Range(0, DefaultRedisDatabaseCount).Select(
             i => Message.Create(i, CommandFlags.FireAndForget, RedisCommand.SELECT)).ToArray();
@@ -1669,6 +1670,36 @@ namespace StackExchange.Redis
             }
         }
 
+        private enum PushKind
+        {
+            None,
+            Message,
+            SMessage,
+            PMessage,
+            Subscribe,
+            SUnsubscribe,
+        }
+        private static PushKind GetPushKind(in Sequence<RawResult> result)
+        {
+            var len = result.Length;
+            if (len >= 1)
+            {
+                ref readonly RawResult kind = ref result[0];
+                if (len >= 3)
+                {
+                    if (kind.IsEqual(message)) return PushKind.Message;
+                    if (kind.IsEqual(smessage)) return PushKind.SMessage;
+                    if (len >= 4)
+                    {
+                        if (kind.IsEqual(pmessage)) return PushKind.PMessage;
+                    }
+                    if (kind.IsEqual(sunsubscribe)) return PushKind.SUnsubscribe;
+                }
+                if (kind.IsEqual(subscribe)) return PushKind.Subscribe;
+            }
+            return PushKind.None;
+        }
+
         private void MatchResult(in RawResult result)
         {
             // check to see if it could be an out-of-band pubsub message
@@ -1679,85 +1710,121 @@ namespace StackExchange.Redis
 
                 // out of band message does not match to a queued message
                 var items = result.GetItems();
-                if (items.Length >= 3 && (items[0].IsEqual(message) || items[0].IsEqual(smessage)))
+                var kind = GetPushKind(items);
+                switch (kind)
                 {
-                    _readStatus = items[0].IsEqual(message) ? ReadStatus.PubSubMessage : ReadStatus.PubSubSMessage;
+                    case PushKind.Message:
+                    case PushKind.SMessage:
+                        _readStatus = kind is PushKind.Message ? ReadStatus.PubSubMessage : ReadStatus.PubSubSMessage;
 
-                    // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
-                    var configChanged = muxer.ConfigurationChangedChannel;
-                    if (configChanged != null && items[1].IsEqual(configChanged))
-                    {
-                        EndPoint? blame = null;
-                        try
+                        // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
+                        var configChanged = muxer.ConfigurationChangedChannel;
+                        if (configChanged != null && items[1].IsEqual(configChanged))
                         {
-                            if (!items[2].IsEqual(CommonReplies.wildcard))
+                            EndPoint? blame = null;
+                            try
                             {
-                                // We don't want to fail here, just trying to identify
-                                _ = Format.TryParseEndPoint(items[2].GetString(), out blame);
+                                if (!items[2].IsEqual(CommonReplies.wildcard))
+                                {
+                                    // We don't want to fail here, just trying to identify
+                                    _ = Format.TryParseEndPoint(items[2].GetString(), out blame);
+                                }
+                            }
+                            catch
+                            {
+                                /* no biggie */
+                            }
+
+                            Trace("Configuration changed: " + Format.ToString(blame));
+                            _readStatus = ReadStatus.Reconfigure;
+                            muxer.ReconfigureIfNeeded(blame, true, "broadcast");
+                        }
+
+                        // invoke the handlers
+                        RedisChannel channel;
+                        if (items[0].IsEqual(message))
+                        {
+                            channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.None);
+                            Trace("MESSAGE: " + channel);
+                        }
+                        else // see check on outer-if that restricts to message / smessage
+                        {
+                            channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Sharded);
+                            Trace("SMESSAGE: " + channel);
+                        }
+
+                        if (!channel.IsNull)
+                        {
+                            if (TryGetPubSubPayload(items[2], out var payload))
+                            {
+                                _readStatus = ReadStatus.InvokePubSub;
+                                muxer.OnMessage(channel, channel, payload);
+                            }
+                            // could be multi-message: https://github.com/StackExchange/StackExchange.Redis/issues/2507
+                            else if (TryGetMultiPubSubPayload(items[2], out var payloads))
+                            {
+                                _readStatus = ReadStatus.InvokePubSub;
+                                muxer.OnMessage(channel, channel, payloads);
                             }
                         }
-                        catch { /* no biggie */ }
-                        Trace("Configuration changed: " + Format.ToString(blame));
-                        _readStatus = ReadStatus.Reconfigure;
-                        muxer.ReconfigureIfNeeded(blame, true, "broadcast");
-                    }
 
-                    // invoke the handlers
-                    RedisChannel channel;
-                    if (items[0].IsEqual(message))
-                    {
-                        channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.None);
-                        Trace("MESSAGE: " + channel);
-                    }
-                    else // see check on outer-if that restricts to message / smessage
-                    {
+                        return; // AND STOP PROCESSING!
+                    case PushKind.PMessage:
+                        _readStatus = ReadStatus.PubSubPMessage;
+
+                        channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
+
+                        Trace("PMESSAGE: " + channel);
+                        if (!channel.IsNull)
+                        {
+                            if (TryGetPubSubPayload(items[3], out var payload))
+                            {
+                                var sub = items[1].AsRedisChannel(
+                                    ChannelPrefix,
+                                    RedisChannel.RedisChannelOptions.Pattern);
+
+                                _readStatus = ReadStatus.InvokePubSub;
+                                muxer.OnMessage(sub, channel, payload);
+                            }
+                            else if (TryGetMultiPubSubPayload(items[3], out var payloads))
+                            {
+                                var sub = items[1].AsRedisChannel(
+                                    ChannelPrefix,
+                                    RedisChannel.RedisChannelOptions.Pattern);
+
+                                _readStatus = ReadStatus.InvokePubSub;
+                                muxer.OnMessage(sub, channel, payloads);
+                            }
+                        }
+
+                        break;
+                    case PushKind.SUnsubscribe:
+                        _readStatus = ReadStatus.PubSubSUnsubscribe;
                         channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Sharded);
-                        Trace("SMESSAGE: " + channel);
-                    }
-                    if (!channel.IsNull)
-                    {
-                        if (TryGetPubSubPayload(items[2], out var payload))
+                        var server = BridgeCouldBeNull?.ServerEndPoint;
+                        if (server is not null && muxer.TryGetSubscription(channel, out var subscription))
                         {
-                            _readStatus = ReadStatus.InvokePubSub;
-                            muxer.OnMessage(channel, channel, payload);
+                            if (subscription.GetCurrentServer() == server)
+                            {
+                                // definitely isn't this connection any more, but we were listening
+                                subscription.SetCurrentServer(null);
+                                muxer.ReconfigureIfNeeded(server.EndPoint, fromBroadcast: true, nameof(sunsubscribe));
+                            }
                         }
-                        // could be multi-message: https://github.com/StackExchange/StackExchange.Redis/issues/2507
-                        else if (TryGetMultiPubSubPayload(items[2], out var payloads))
-                        {
-                            _readStatus = ReadStatus.InvokePubSub;
-                            muxer.OnMessage(channel, channel, payloads);
-                        }
-                    }
-                    return; // AND STOP PROCESSING!
+                        break;
                 }
-                else if (items.Length >= 4 && items[0].IsEqual(pmessage))
+
+                switch (kind)
                 {
-                    _readStatus = ReadStatus.PubSubPMessage;
-
-                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
-
-                    Trace("PMESSAGE: " + channel);
-                    if (!channel.IsNull)
-                    {
-                        if (TryGetPubSubPayload(items[3], out var payload))
-                        {
-                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
-
-                            _readStatus = ReadStatus.InvokePubSub;
-                            muxer.OnMessage(sub, channel, payload);
-                        }
-                        else if (TryGetMultiPubSubPayload(items[3], out var payloads))
-                        {
-                            var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.RedisChannelOptions.Pattern);
-
-                            _readStatus = ReadStatus.InvokePubSub;
-                            muxer.OnMessage(sub, channel, payloads);
-                        }
-                    }
-                    return; // AND STOP PROCESSING!
+                    // we recognized it a RESP2 OOB, or it was explicitly *any* RESP3 push notification
+                    // (even if we didn't recognize the kind) - we're done; unless it is "subscribe", which
+                    // is *technically* a push, but we still want to treat it as a response to the original message
+                    case PushKind.None when result.Resp3Type != ResultType.Push:
+                    case PushKind.Subscribe:
+                        break; // continue, try to match to a pending message
+                    default:
+                        return; // we're done with this message (RESP3 OOB, or something we recognized)
                 }
-
-                // if it didn't look like "[p|s]message", then we still need to process the pending queue
             }
             Trace("Matching result...");
 
@@ -2168,6 +2235,7 @@ namespace StackExchange.Redis
             MatchResultComplete,
             ResetArena,
             ProcessBufferComplete,
+            PubSubSUnsubscribe,
             NA = -1,
         }
         private volatile ReadStatus _readStatus;
