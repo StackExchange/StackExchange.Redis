@@ -339,6 +339,8 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
             var received = await queue.ReadAsync(timeout.Token);
             Log($"Message received: {received.Message}");
             Assert.Equal(msg, (string)received.Message!);
+            ep = subscriber.SubscribedEndpoint(channel);
+            Log($"Endpoint after receiving message: {Format.ToString(ep)}");
         }
 
         Log("Unsubscribing...");

@@ -1870,11 +1870,11 @@ namespace StackExchange.Redis
                         var server = BridgeCouldBeNull?.ServerEndPoint;
                         if (server is not null && muxer.TryGetSubscription(subscriptionChannel, out var subscription))
                         {
-                            if (subscription.GetCurrentServer() == server)
-                            {
-                                subscription.SetCurrentServer(null); // wipe
-                                muxer.ReconfigureIfNeeded(server.EndPoint, fromBroadcast: true, PushSUnsubscribe.Text);
-                            }
+                            // wipe and reconnect; but: to where?
+                            // counter-intuitively, the only server we *know* already knows the new route is:
+                            // the outgoing server, since it had to change to MIGRATING etc; the new INCOMING server
+                            // knows, but *we don't know who that is*, and other nodes: aren't guaranteed to know (yet)
+                            muxer.DefaultSubscriber.ResubscribeToServer(subscription, subscriptionChannel, server, cause: PushSUnsubscribe.Text);
                         }
                         return; // and STOP PROCESSING; unsolicited
                 }
