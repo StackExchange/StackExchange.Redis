@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.SymbolStore;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,7 +14,7 @@ namespace StackExchange.Redis
     public partial class ConnectionMultiplexer
     {
         private RedisSubscriber? _defaultSubscriber;
-        private RedisSubscriber DefaultSubscriber => _defaultSubscriber ??= new RedisSubscriber(this, null);
+        internal RedisSubscriber DefaultSubscriber => _defaultSubscriber ??= new RedisSubscriber(this, null);
 
         private readonly ConcurrentDictionary<RedisChannel, Subscription> subscriptions = new();
 
@@ -282,6 +283,17 @@ namespace StackExchange.Redis
 
             internal ServerEndPoint? GetCurrentServer() => Volatile.Read(ref CurrentServer);
             internal void SetCurrentServer(ServerEndPoint? server) => CurrentServer = server;
+            // conditional clear
+            internal bool ClearCurrentServer(ServerEndPoint expected)
+            {
+                if (CurrentServer == expected)
+                {
+                    CurrentServer = null;
+                    return true;
+                }
+
+                return false;
+            }
 
             /// <summary>
             /// Evaluates state and if we're not currently connected, clears the server reference.
@@ -404,7 +416,7 @@ namespace StackExchange.Redis
             return queue;
         }
 
-        public bool Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue, CommandFlags flags)
+        private bool Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue, CommandFlags flags)
         {
             ThrowIfNull(channel);
             if (handler == null && queue == null) { return true; }
@@ -425,35 +437,58 @@ namespace StackExchange.Redis
             return ExecuteSync(message, sub.Processor, selected);
         }
 
+        internal void ResubscribeToServer(Subscription sub, RedisChannel channel, ServerEndPoint serverEndPoint, string cause)
+        {
+            // conditional: only if that's the server we were connected to, or "none"; we don't want to end up duplicated
+            if (sub.ClearCurrentServer(serverEndPoint) || !sub.IsConnected)
+            {
+                if (serverEndPoint.IsSubscriberConnected)
+                {
+                    // we'll *try* for a simple resubscribe, following any -MOVED etc, but if that fails: fall back
+                    // to full reconfigure; importantly, note that we've already recorded the disconnect
+                    var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
+                    _ = ExecuteAsync(message, sub.Processor, serverEndPoint).ContinueWith(
+                        t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
+                        TaskContinuationOptions.OnlyOnFaulted);
+                }
+                else
+                {
+                    multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause);
+                }
+            }
+        }
+
         Task ISubscriber.SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags)
             => SubscribeAsync(channel, handler, null, flags);
 
-        public async Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
+        Task<ChannelMessageQueue> ISubscriber.SubscribeAsync(RedisChannel channel, CommandFlags flags) => SubscribeAsync(channel, flags);
+
+        public async Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None, ServerEndPoint? server = null)
         {
             var queue = new ChannelMessageQueue(channel, this);
-            await SubscribeAsync(channel, null, queue, flags).ForAwait();
+            await SubscribeAsync(channel, null, queue, flags, server).ForAwait();
             return queue;
         }
 
-        public Task<bool> SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue, CommandFlags flags)
+        private Task<bool> SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue>? handler, ChannelMessageQueue? queue, CommandFlags flags, ServerEndPoint? server = null)
         {
             ThrowIfNull(channel);
             if (handler == null && queue == null) { return CompletedTask<bool>.Default(null); }
 
             var sub = multiplexer.GetOrAddSubscription(channel, flags);
             sub.Add(handler, queue);
-            return EnsureSubscribedToServerAsync(sub, channel, flags, false);
+            return EnsureSubscribedToServerAsync(sub, channel, flags, false, server);
         }
 
-        public Task<bool> EnsureSubscribedToServerAsync(Subscription sub, RedisChannel channel, CommandFlags flags, bool internalCall)
+        public Task<bool> EnsureSubscribedToServerAsync(Subscription sub, RedisChannel channel, CommandFlags flags, bool internalCall, ServerEndPoint? server = null)
         {
             if (sub.IsConnected) { return CompletedTask<bool>.Default(null); }
 
             // TODO: Cleanup old hangers here?
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
             var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-            var selected = multiplexer.SelectServer(message);
-            return ExecuteAsync(message, sub.Processor, selected);
+            server ??= multiplexer.SelectServer(message);
+            return ExecuteAsync(message, sub.Processor, server);
         }
 
         public EndPoint? SubscribedEndpoint(RedisChannel channel) => multiplexer.GetSubscribedServer(channel)?.EndPoint;
