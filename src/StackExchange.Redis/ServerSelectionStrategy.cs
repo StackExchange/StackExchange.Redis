@@ -328,7 +328,7 @@ namespace StackExchange.Redis
             return arr;
         }
 
-        private ServerEndPoint? Select(int slot, RedisCommand command, CommandFlags flags, bool allowDisconnected)
+        internal ServerEndPoint? Select(int slot, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
             // Only interested in primary/replica preferences
             flags = Message.GetPrimaryReplicaFlags(flags);

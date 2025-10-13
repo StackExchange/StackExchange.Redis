@@ -856,7 +856,7 @@ namespace StackExchange.Redis
 
         internal abstract class CommandChannelBase : Message
         {
-            protected readonly RedisChannel Channel;
+            internal readonly RedisChannel Channel;
 
             protected CommandChannelBase(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel) : base(db, flags, command)
             {
