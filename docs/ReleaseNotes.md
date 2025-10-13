@@ -8,6 +8,8 @@ Current package versions:
 
 ## Unreleased
 
+## 2.9.32
+
 - Fix `SSUBSCRIBE` routing during slot migrations ([#2969 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2969))
 
 ## 2.9.25
