@@ -1683,71 +1683,75 @@ namespace StackExchange.Redis
         private PushKind GetPushKind(in Sequence<RawResult> result, out RedisChannel channel)
         {
             var len = result.Length;
-            if (len >= 2) // always have at least the kind and the subscription channel
+            if (len < 2)
             {
-                const int MAX_LEN = 16;
-                Debug.Assert(MAX_LEN >= Enumerable.Max(
-                [
-                    PushMessage.Length, PushPMessage.Length, PushSMessage.Length,
-                    PushSubscribe.Length, PushPSubscribe.Length, PushSSubscribe.Length,
-                    PushUnsubscribe.Length, PushPUnsubscribe.Length, PushSUnsubscribe.Length,
-                ]));
-                ref readonly RawResult pushKind = ref result[0];
-                var multiSegmentPayload = pushKind.Payload;
-                if (multiSegmentPayload.Length <= MAX_LEN)
-                {
-                    var span = multiSegmentPayload.IsSingleSegment
-                        ? multiSegmentPayload.First.Span
-                        : CopyTo(stackalloc byte[MAX_LEN], multiSegmentPayload);
+                // for supported cases, we demand at least the kind and the subscription channel
+                channel = default;
+                return PushKind.None;
+            }
 
-                    var hash = FastHash.Hash64(span);
-                    RedisChannel.RedisChannelOptions channelOptions = RedisChannel.RedisChannelOptions.None;
-                    PushKind kind;
-                    switch (hash)
-                    {
-                        case PushMessage.Hash when PushMessage.Is(hash, span) & len >= 3:
-                            kind = PushKind.Message;
-                            break;
-                        case PushPMessage.Hash when PushPMessage.Is(hash, span) & len >= 4:
-                            channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                            kind = PushKind.PMessage;
-                            break;
-                        case PushSMessage.Hash when PushSMessage.Is(hash, span) & len >= 3:
-                            channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                            kind = PushKind.SMessage;
-                            break;
-                        case PushSubscribe.Hash when PushSubscribe.Is(hash, span):
-                            kind = PushKind.Subscribe;
-                            break;
-                        case PushPSubscribe.Hash when PushPSubscribe.Is(hash, span):
-                            channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                            kind = PushKind.PSubscribe;
-                            break;
-                        case PushSSubscribe.Hash when PushSSubscribe.Is(hash, span):
-                            channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                            kind = PushKind.SSubscribe;
-                            break;
-                        case PushUnsubscribe.Hash when PushUnsubscribe.Is(hash, span):
-                            kind = PushKind.Unsubscribe;
-                            break;
-                        case PushPUnsubscribe.Hash when PushPUnsubscribe.Is(hash, span):
-                            channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                            kind = PushKind.PUnsubscribe;
-                            break;
-                        case PushSUnsubscribe.Hash when PushSUnsubscribe.Is(hash, span):
-                            channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                            kind = PushKind.SUnsubscribe;
-                            break;
-                        default:
-                            kind = PushKind.None;
-                            break;
-                    }
-                    if (kind != PushKind.None)
-                    {
-                        // the channel is always the second element
-                        channel = result[1].AsRedisChannel(ChannelPrefix, channelOptions);
-                        return kind;
-                    }
+            const int MAX_LEN = 16;
+            Debug.Assert(MAX_LEN >= Enumerable.Max(
+            [
+                PushMessage.Length, PushPMessage.Length, PushSMessage.Length,
+                PushSubscribe.Length, PushPSubscribe.Length, PushSSubscribe.Length,
+                PushUnsubscribe.Length, PushPUnsubscribe.Length, PushSUnsubscribe.Length,
+            ]));
+            ref readonly RawResult pushKind = ref result[0];
+            var multiSegmentPayload = pushKind.Payload;
+            if (multiSegmentPayload.Length <= MAX_LEN)
+            {
+                var span = multiSegmentPayload.IsSingleSegment
+                    ? multiSegmentPayload.First.Span
+                    : CopyTo(stackalloc byte[MAX_LEN], multiSegmentPayload);
+
+                var hash = FastHash.Hash64(span);
+                RedisChannel.RedisChannelOptions channelOptions = RedisChannel.RedisChannelOptions.None;
+                PushKind kind;
+                switch (hash)
+                {
+                    case PushMessage.Hash when PushMessage.Is(hash, span) & len >= 3:
+                        kind = PushKind.Message;
+                        break;
+                    case PushPMessage.Hash when PushPMessage.Is(hash, span) & len >= 4:
+                        channelOptions = RedisChannel.RedisChannelOptions.Pattern;
+                        kind = PushKind.PMessage;
+                        break;
+                    case PushSMessage.Hash when PushSMessage.Is(hash, span) & len >= 3:
+                        channelOptions = RedisChannel.RedisChannelOptions.Sharded;
+                        kind = PushKind.SMessage;
+                        break;
+                    case PushSubscribe.Hash when PushSubscribe.Is(hash, span):
+                        kind = PushKind.Subscribe;
+                        break;
+                    case PushPSubscribe.Hash when PushPSubscribe.Is(hash, span):
+                        channelOptions = RedisChannel.RedisChannelOptions.Pattern;
+                        kind = PushKind.PSubscribe;
+                        break;
+                    case PushSSubscribe.Hash when PushSSubscribe.Is(hash, span):
+                        channelOptions = RedisChannel.RedisChannelOptions.Sharded;
+                        kind = PushKind.SSubscribe;
+                        break;
+                    case PushUnsubscribe.Hash when PushUnsubscribe.Is(hash, span):
+                        kind = PushKind.Unsubscribe;
+                        break;
+                    case PushPUnsubscribe.Hash when PushPUnsubscribe.Is(hash, span):
+                        channelOptions = RedisChannel.RedisChannelOptions.Pattern;
+                        kind = PushKind.PUnsubscribe;
+                        break;
+                    case PushSUnsubscribe.Hash when PushSUnsubscribe.Is(hash, span):
+                        channelOptions = RedisChannel.RedisChannelOptions.Sharded;
+                        kind = PushKind.SUnsubscribe;
+                        break;
+                    default:
+                        kind = PushKind.None;
+                        break;
+                }
+                if (kind != PushKind.None)
+                {
+                    // the channel is always the second element
+                    channel = result[1].AsRedisChannel(ChannelPrefix, channelOptions);
+                    return kind;
                 }
             }
             channel = default;
