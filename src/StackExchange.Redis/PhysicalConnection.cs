@@ -1673,12 +1673,12 @@ namespace StackExchange.Redis
             Message,
             PMessage,
             SMessage,
-            Subscribe = RedisCommand.SUBSCRIBE,
-            PSubscribe = RedisCommand.PSUBSCRIBE,
-            SSubscribe = RedisCommand.SSUBSCRIBE,
-            Unsubscribe = RedisCommand.UNSUBSCRIBE,
-            PUnsubscribe = RedisCommand.PUNSUBSCRIBE,
-            SUnsubscribe = RedisCommand.SUNSUBSCRIBE,
+            Subscribe,
+            PSubscribe,
+            SSubscribe,
+            Unsubscribe,
+            PUnsubscribe,
+            SUnsubscribe,
         }
         private PushKind GetPushKind(in Sequence<RawResult> result, out RedisChannel channel)
         {
