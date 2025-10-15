@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -513,13 +515,74 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The endpoints defined for this configuration.
+        /// The endpoints defined for this configuration. For a connection with multiple endpoint groups,
+        /// this will be the first group.
         /// </summary>
         /// <remarks>
         /// This is memoized when a <see cref="ConnectionMultiplexer"/> connects.
         /// Modifying it afterwards will have no effect on already-created multiplexers.
         /// </remarks>
-        public EndPointCollection EndPoints { get; init; } = new EndPointCollection();
+        public EndPointCollection EndPoints
+        {
+            get => (_firstEndPointGroup ?? AddDefaultEndPointGroup()).EndPoints;
+            init
+            {
+                EndPointGroup newGroup = new(endpoints: value);
+                var existing = Interlocked.CompareExchange(ref _firstEndPointGroup, newGroup, null);
+                if (existing is not null) throw new InvalidOperationException($"{nameof(EndPoints)} already assigned.");
+            }
+        }
+
+        private EndPointGroup? _firstEndPointGroup;
+
+        /// <summary>
+        /// Adds a new set of related endpoints.
+        /// </summary>
+        public EndPointGroup AddEndPointGroup(double weight = EndPointGroup.DefaultWeight)
+        {
+            EndPointGroup newGroup = new() { Weight = weight };
+            AddEndPointGroup(newGroup);
+            return newGroup;
+        }
+
+        private void AddEndPointGroup(EndPointGroup group)
+        {
+            ref EndPointGroup? field = ref _firstEndPointGroup;
+
+            do
+            {
+                // walk to the end of the current linked list
+                while (field is not null)
+                {
+                    field = ref field.Next;
+                }
+            }
+            // now try to swap in the new group on the end
+            while (Interlocked.CompareExchange(ref field, group, null) is not null);
+        }
+
+        /// <summary>
+        /// Enumerate all the endpoint groups associated with this instance.
+        /// </summary>
+        public IEnumerable<EndPointGroup> EndPointGroups
+        {
+            get
+            {
+                var obj = _firstEndPointGroup;
+                while (obj is not null)
+                {
+                    yield return obj;
+                    obj = obj.Next;
+                }
+            }
+        }
+
+        private EndPointGroup AddDefaultEndPointGroup()
+        {
+            EndPointGroup newGroup = new();
+            // CEX to avoid niche race condition with initial access
+            return Interlocked.CompareExchange(ref _firstEndPointGroup, newGroup, null) ?? newGroup;
+        }
 
         /// <summary>
         /// Whether to enable ECHO checks on every heartbeat to ensure network stream consistency.
@@ -894,9 +957,27 @@ namespace StackExchange.Redis
         public string ToString(bool includePassword)
         {
             var sb = new StringBuilder();
-            foreach (var endpoint in EndPoints)
+            var grp = _firstEndPointGroup;
+            if (grp is null)
             {
-                Append(sb, Format.ToString(endpoint));
+                // same as no endpoints
+            }
+            else if (grp.Next is null && grp.IsDefaultWeight)
+            {
+                // single group, no weight; classic endpoint list
+                foreach (var endpoint in grp.EndPoints)
+                {
+                    Append(sb, Format.ToString(endpoint));
+                }
+            }
+            else
+            {
+                // multiple groups, or a single group with a weight
+                while (grp is not null)
+                {
+                    Append(sb, grp);
+                    grp = grp.Next;
+                }
             }
             Append(sb, OptionKeys.ClientName, ClientName);
             Append(sb, OptionKeys.ServiceName, ServiceName);
@@ -972,7 +1053,7 @@ namespace StackExchange.Redis
             allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = highIntegrity = null;
             SslProtocols = null;
             defaultVersion = null;
-            EndPoints.Clear();
+            _firstEndPointGroup = null;
             commandMap = null;
 
             CertificateSelection = null;
@@ -1142,12 +1223,13 @@ namespace StackExchange.Redis
                             break;
                     }
                 }
-                else
+                else if (option.Contains('|') && TryParseEndPointGroup(option, out var group))
                 {
-                    if (Format.TryParseEndPoint(option, out var ep) && !EndPoints.Contains(ep))
-                    {
-                        EndPoints.Add(ep);
-                    }
+                    AddEndPointGroup(group);
+                }
+                else if (Format.TryParseEndPoint(option, out var ep) && !EndPoints.Contains(ep))
+                {
+                    EndPoints.Add(ep);
                 }
             }
             if (map != null && map.Count != 0)
@@ -1155,6 +1237,30 @@ namespace StackExchange.Redis
                 CommandMap = CommandMap.Create(map);
             }
             return this;
+        }
+
+        private static bool TryParseEndPointGroup(string option, [NotNullWhen(true)] out EndPointGroup? group)
+        {
+            // interprets a group like foo|bar|2.5 as a group with weight 25, containing foo and bar
+            var parts = option.Split(StringSplits.Pipe, StringSplitOptions.RemoveEmptyEntries);
+            double weight = 1.0;
+            EndPointCollection? endpoints = null;
+            foreach (var untrimmedToken in parts)
+            {
+                var token = untrimmedToken.Trim(); // usually a no-op
+                if (token.Length == 0) continue;
+                if (double.TryParse(token,  NumberStyles.Any, CultureInfo.InvariantCulture, out var tmp)
+                    && !(double.IsNaN(tmp) || double.IsInfinity(tmp)))
+                {
+                    weight = tmp;
+                }
+                else if (Format.TryParseEndPoint(token, out var ep))
+                {
+                    (endpoints ??= new()).Add(ep);
+                }
+            }
+            group = endpoints is null ? null : new EndPointGroup(endpoints) { Weight = weight };
+            return group is not null;
         }
 
         /// <summary>

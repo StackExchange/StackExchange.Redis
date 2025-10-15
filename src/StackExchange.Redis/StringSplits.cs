@@ -4,6 +4,7 @@
     {
         public static readonly char[]
             Space = { ' ' },
-            Comma = { ',' };
+            Comma = { ',' },
+            Pipe = { '|' };
     }
 }

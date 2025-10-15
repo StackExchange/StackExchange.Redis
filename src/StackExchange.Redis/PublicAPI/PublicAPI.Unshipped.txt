@@ -1,1 +1,8 @@
 ﻿#nullable enable
+override StackExchange.Redis.EndPointGroup.ToString() -> string!
+StackExchange.Redis.ConfigurationOptions.AddEndPointGroup(double weight = 1) -> StackExchange.Redis.EndPointGroup!
+StackExchange.Redis.ConfigurationOptions.EndPointGroups.get -> System.Collections.Generic.IEnumerable<StackExchange.Redis.EndPointGroup!>!
+StackExchange.Redis.EndPointGroup
+StackExchange.Redis.EndPointGroup.EndPoints.get -> StackExchange.Redis.EndPointCollection!
+StackExchange.Redis.EndPointGroup.Weight.get -> double
+StackExchange.Redis.EndPointGroup.Weight.set -> void

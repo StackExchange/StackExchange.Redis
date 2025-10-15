@@ -771,4 +771,34 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var parsed = ConfigurationOptions.Parse(cs);
         Assert.Equal(expected, parsed.HighIntegrity);
     }
+
+    [Fact]
+    public void ParseAndFormatGroup()
+    {
+        var options = ConfigurationOptions.Parse("abc,def");
+        Assert.Equal(2, options.EndPoints.Count);
+        Assert.Equal("abc", Format.ToString(options.EndPoints[0]));
+        Assert.Equal("def", Format.ToString(options.EndPoints[1]));
+        Assert.Equal("abc,def", options.ToString());
+
+        options = ConfigurationOptions.Parse("1|abc,0.5|def");
+        var ep = Assert.Single(options.EndPoints);
+        Assert.Equal("abc", Format.ToString(ep));
+        Assert.Equal("1|abc,0.5|def", options.ToString());
+
+        using var iter = options.EndPointGroups.GetEnumerator();
+        Assert.True(iter.MoveNext());
+        var grp = iter.Current!;
+        Assert.Equal(1.0, grp.Weight);
+        ep = Assert.Single(grp.EndPoints);
+        Assert.Equal("abc", Format.ToString(ep));
+
+        Assert.True(iter.MoveNext());
+        grp = iter.Current!;
+        Assert.Equal(0.5, grp.Weight);
+        ep = Assert.Single(grp.EndPoints);
+        Assert.Equal("def", Format.ToString(ep));
+
+        Assert.False(iter.MoveNext());
+    }
 }
