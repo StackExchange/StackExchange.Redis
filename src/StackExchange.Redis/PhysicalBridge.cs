@@ -665,8 +665,9 @@ namespace StackExchange.Redis
 
                             // This is an "always" check - we always want to evaluate a dead connection from a non-responsive sever regardless of the need to heartbeat above
                             var totalTimeoutThisHeartbeat = asyncTimeoutThisHeartbeat + syncTimeoutThisHeartbeat;
-                            if ((totalTimeoutThisHeartbeat > 0)
-                                && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds * 4))
+                            bool deadConnectionOnAsync = asyncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds * 4);
+                            bool deadConnectionOnSync = syncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.TimeoutMilliseconds * 4);
+                            if (deadConnectionOnAsync || deadConnectionOnSync)
                             {
                                 // If we've received *NOTHING* on the pipe in 4 timeouts worth of time and we're timing out commands, issue a connection failure so that we reconnect
                                 // This is meant to address the scenario we see often in Linux configs where TCP retries will happen for 15 minutes.
