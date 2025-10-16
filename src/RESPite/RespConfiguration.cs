@@ -1,0 +1,95 @@
+﻿using System.Text;
+
+namespace RESPite;
+
+/// <summary>
+/// Over-arching configuration for a RESP system.
+/// </summary>
+public class RespConfiguration
+{
+    private static readonly TimeSpan DefaultSyncTimeout = TimeSpan.FromSeconds(10);
+
+    public static RespConfiguration Default { get; } = new(
+        RespCommandMap.Default, [], DefaultSyncTimeout, NullServiceProvider.Instance, 0);
+
+    public static Builder CreateBuilder() => default; // for discoverability
+
+    public struct Builder // intentionally mutable
+    {
+        public TimeSpan? SyncTimeout { get; set; }
+        public IServiceProvider? ServiceProvider { get; set; }
+        public RespCommandMap? CommandMap { get; set; }
+        public int DefaultDatabase { get; set; }
+        public object? KeyPrefix { get; set; } // can be a string or byte[]
+
+        public Builder(RespConfiguration? source)
+        {
+            if (source is not null)
+            {
+                CommandMap = source.CommandMap;
+                SyncTimeout = source.SyncTimeout;
+                KeyPrefix = source.KeyPrefix.ToArray();
+                ServiceProvider = source.ServiceProvider;
+                DefaultDatabase = source.DefaultDatabase;
+                // undo defaults
+                if (ReferenceEquals(CommandMap, RespCommandMap.Default)) CommandMap = null;
+                if (ReferenceEquals(ServiceProvider, NullServiceProvider.Instance)) ServiceProvider = null;
+            }
+        }
+
+        public RespConfiguration CreateConfiguration()
+        {
+            byte[] prefix = KeyPrefix switch
+            {
+                null => [],
+                string { Length: 0 } => [],
+                string s => Encoding.UTF8.GetBytes(s),
+                byte[] { Length: 0 } => [],
+                byte[] b => b.AsSpan().ToArray(), // create isolated copy for mutability reasons
+                _ => throw new ArgumentException($"{nameof(KeyPrefix)} must be a string or byte[]", nameof(KeyPrefix)),
+            };
+
+            if (prefix.Length == 0 & SyncTimeout is null & CommandMap is null & ServiceProvider is null) return Default;
+
+            return new(
+                CommandMap ?? RespCommandMap.Default,
+                prefix,
+                SyncTimeout ?? DefaultSyncTimeout,
+                ServiceProvider ?? NullServiceProvider.Instance,
+                DefaultDatabase);
+        }
+    }
+
+    private RespConfiguration(
+        RespCommandMap commandMap,
+        byte[] keyPrefix,
+        TimeSpan syncTimeout,
+        IServiceProvider serviceProvider,
+        int defaultDatabase)
+    {
+        CommandMap = commandMap;
+        SyncTimeout = syncTimeout;
+        _keyPrefix = (byte[])keyPrefix.Clone(); // create isolated copy
+        ServiceProvider = serviceProvider;
+        DefaultDatabase = defaultDatabase;
+    }
+
+    private readonly byte[] _keyPrefix;
+    public IServiceProvider ServiceProvider { get; }
+    public RespCommandMap CommandMap { get; }
+    public TimeSpan SyncTimeout { get; }
+    public ReadOnlySpan<byte> KeyPrefix => _keyPrefix;
+    public int DefaultDatabase { get; }
+
+    public Builder AsBuilder() => new(this);
+
+    private sealed class NullServiceProvider : IServiceProvider
+    {
+        public static readonly NullServiceProvider Instance = new();
+        private NullServiceProvider() { }
+        public object? GetService(Type serviceType) => null;
+    }
+
+    internal T? GetService<T>() where T : class
+        => ServiceProvider.GetService(typeof(T)) as T;
+}

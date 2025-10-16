@@ -1,0 +1,91 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <TargetFrameworks>net461;netstandard2.0;net472;net6.0;net8.0;net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces"/>
+    <PackageReference Include="System.Buffers"/>
+    <PackageReference Include="System.Memory"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RESPite.Tests"/>
+    <InternalsVisibleTo Include="RESPite.StackExchange.Redis"/>
+    <None Include="readme.md" Pack="true" PackagePath="/"/>
+    <None Include="../../eng/StackExchange.Redis.Build/bin/$(Configuration)/netstandard2.0/StackExchange.Redis.Build.dll" Pack="true" PackagePath="analyzers/dotnet" Visible="true"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="RespOperationT.cs">
+      <DependentUpon>RespOperation.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.AggregateEnumerator.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Debug.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.ScalarEnumerator.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Span.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Messages\RespReader.Utils.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\SynchronizedBlockBufferSerializer.cs">
+      <DependentUpon>BlockBufferSerializer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\ThreadLocalBlockBufferSerializer.cs">
+      <DependentUpon>BlockBufferSerializer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\BlockBuffer.cs">
+      <DependentUpon>BlockBufferSerializer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespMessageBaseT.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespStatefulMessage.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespStatelessMessage.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Connections\Internal\MergingBatchConnection.cs">
+      <DependentUpon>BufferingBatchConnection.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Connections\Internal\BasicBatchConnection.cs">
+      <DependentUpon>BufferingBatchConnection.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal\RespMultiMessage.cs">
+      <DependentUpon>RespMessageBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Connections\Internal\ConfiguredConnection.cs">
+      <DependentUpon>DecoratorConnection.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Connections\Internal\SynchronizedConnection.cs">
+      <DependentUpon>DecoratorConnection.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\FrameworkShims.cs">
+      <Link>FrameworkShims.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs">
+      <Link>NullableHacks.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs">
+      <Link>SkipLocalsInit.cs</Link>
+    </Compile>
+  </ItemGroup>
+
+</Project>

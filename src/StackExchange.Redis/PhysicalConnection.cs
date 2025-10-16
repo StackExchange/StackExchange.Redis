@@ -912,7 +912,7 @@ namespace StackExchange.Redis
         internal void RecordQuit()
         {
             // don't blame redis if we fired the first shot
-            Thread.VolatileWrite(ref clientSentQuit, 1);
+            Volatile.Write(ref clientSentQuit, 1);
             (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
         }
 
@@ -2104,7 +2104,7 @@ namespace StackExchange.Redis
             {
                 _readStatus = ReadStatus.Faulted;
                 // this CEX is just a hardcore "seriously, read the actual value" - there's no
-                // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
+                // convenient "Volatile.Read<T>(ref T field) where T : class", and I don't
                 // want to make the field volatile just for this one place that needs it
                 if (isReading)
                 {
