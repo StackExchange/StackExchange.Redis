@@ -2710,7 +2710,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
             {
-                // The XRANGE, XREVRANGE, XREAD, commands return stream entries
+                // The XRANGE, XREVRANGE, XREAD commands return stream entries
                 // in the following format.  The name/value pairs are interleaved
                 // in the same fashion as the HGETALL response.
                 //
