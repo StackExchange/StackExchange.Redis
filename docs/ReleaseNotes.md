@@ -8,6 +8,8 @@ Current package versions:
 
 ## Unreleased
 
+- Support `XREADGROUP CLAIM` ([#2972 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2972)) 
+
 ## 2.9.32
 
 - Fix `SSUBSCRIBE` routing during slot migrations ([#2969 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2969))
