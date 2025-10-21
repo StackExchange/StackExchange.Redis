@@ -2215,6 +2215,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                             2) "Jane"
                             3) "surname"
                             4) "Austen"
+
+                (note that XREADGROUP may include additional interior elements; see ParseRedisStreamEntries)
             */
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
@@ -2683,18 +2685,32 @@ The coordinates as a two items x,y array (longitude,latitude).
                 // Process the Multibulk array for each entry. The entry contains the following elements:
                 //  [0] = SimpleString (the ID of the stream entry)
                 //  [1] = Multibulk array of the name/value pairs of the stream entry's data
+                // optional (XREADGROUP with CLAIM):
+                //  [2] = idle time (in milliseconds)
+                //  [3] = delivery count
                 var entryDetails = item.GetItems();
 
+                var id = entryDetails[0].AsRedisValue();
+                var values = ParseStreamEntryValues(entryDetails[1]);
+                // check for optional fields (XREADGROUP with CLAIM)
+                if (entryDetails.Length >= 4 && entryDetails[2].TryGetInt64(out var idleTimeInMs) && entryDetails[3].TryGetInt64(out var deliveryCount))
+                {
+                    return new StreamEntry(
+                        id: id,
+                        values: values,
+                        idleTime: TimeSpan.FromMilliseconds(idleTimeInMs),
+                        deliveryCount: checked((int)deliveryCount));
+                }
                 return new StreamEntry(
-                    id: entryDetails[0].AsRedisValue(),
-                    values: ParseStreamEntryValues(entryDetails[1]));
+                    id: id,
+                    values: values);
             }
             protected internal StreamEntry[] ParseRedisStreamEntries(in RawResult result) =>
                 result.GetItems().ToArray((in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
 
             protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
             {
-                // The XRANGE, XREVRANGE, XREAD commands return stream entries
+                // The XRANGE, XREVRANGE, XREAD, commands return stream entries
                 // in the following format.  The name/value pairs are interleaved
                 // in the same fashion as the HGETALL response.
                 //

@@ -3319,17 +3319,26 @@ namespace StackExchange.Redis
         }
 
         public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
-        {
-            return StreamReadGroup(
+            => StreamReadGroup(
                 streamPositions,
                 groupName,
                 consumerName,
                 countPerStream,
                 false,
+                null,
                 flags);
-        }
 
-        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags)
+            => StreamReadGroup(
+                streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                noAck,
+                null,
+                flags);
+
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadGroupMessage(
                 streamPositions,
@@ -3337,23 +3346,33 @@ namespace StackExchange.Redis
                 consumerName,
                 countPerStream,
                 noAck,
+                claimMinIdleTime,
                 flags);
 
             return ExecuteSync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
         }
 
         public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
-        {
-            return StreamReadGroupAsync(
+            => StreamReadGroupAsync(
                 streamPositions,
                 groupName,
                 consumerName,
                 countPerStream,
                 false,
+                null,
                 flags);
-        }
 
-        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags)
+            => StreamReadGroupAsync(
+                streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                noAck,
+                null,
+                flags);
+
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadGroupMessage(
                 streamPositions,
@@ -3361,6 +3380,7 @@ namespace StackExchange.Redis
                 consumerName,
                 countPerStream,
                 noAck,
+                claimMinIdleTime,
                 flags);
 
             return ExecuteAsync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
@@ -3992,7 +4012,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags) =>
+        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags) =>
             new MultiStreamReadGroupCommandMessage(
                 Database,
                 flags,
@@ -4000,7 +4020,8 @@ namespace StackExchange.Redis
                 groupName,
                 consumerName,
                 countPerStream,
-                noAck);
+                noAck,
+                claimMinIdleTime);
 
         private sealed class MultiStreamReadGroupCommandMessage : Message // XREADGROUP with multiple stream. Example: XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2
         {
@@ -4010,8 +4031,9 @@ namespace StackExchange.Redis
             private readonly int? countPerStream;
             private readonly bool noAck;
             private readonly int argCount;
+            private readonly TimeSpan? claimMinIdleTime;
 
-            public MultiStreamReadGroupCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck)
+            public MultiStreamReadGroupCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime)
                 : base(db, flags, RedisCommand.XREADGROUP)
             {
                 if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
@@ -4034,11 +4056,13 @@ namespace StackExchange.Redis
                 this.consumerName = consumerName;
                 this.countPerStream = countPerStream;
                 this.noAck = noAck;
+                this.claimMinIdleTime = claimMinIdleTime;
 
                 argCount = 4 // Room for GROUP groupName consumerName & STREAMS
                     + (streamPositions.Length * 2) // Enough room for the stream keys and associated IDs.
                     + (countPerStream.HasValue ? 2 : 0) // Room for "COUNT num" or 0 if countPerStream is null.
-                    + (noAck ? 1 : 0); // Allow for the NOACK subcommand.
+                    + (noAck ? 1 : 0) // Allow for the NOACK subcommand.
+                    + (claimMinIdleTime.HasValue ? 2 : 0); // Allow for the CLAIM {minIdleTime} subcommand.
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
@@ -4067,6 +4091,12 @@ namespace StackExchange.Redis
                 if (noAck)
                 {
                     physical.WriteBulkString(StreamConstants.NoAck);
+                }
+
+                if (claimMinIdleTime.HasValue)
+                {
+                    physical.WriteBulkString(StreamConstants.Claim);
+                    physical.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
                 physical.WriteBulkString(StreamConstants.Streams);

@@ -3004,7 +3004,25 @@ namespace StackExchange.Redis
         /// <para>Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</c>.</para>
         /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
         /// </remarks>
-        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags);
+
+        /// <summary>
+        /// Read from multiple streams into the given consumer group.
+        /// The consumer group with the given <paramref name="groupName"/> will need to have been created for each stream prior to calling this method.
+        /// </summary>
+        /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="consumerName">The name of the consumer.</param>
+        /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
+        /// <param name="claimMinIdleTime">Auto-claim messages that have been idle for at least this long.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
+        /// <remarks>
+        /// <para>Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</c>.</para>
+        /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
+        /// </remarks>
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified maximum length.
