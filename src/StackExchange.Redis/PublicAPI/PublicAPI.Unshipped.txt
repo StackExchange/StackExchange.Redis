@@ -1,1 +1,15 @@
 ﻿#nullable enable
+override StackExchange.Redis.ValueCondition.Equals(object? obj) -> bool
+override StackExchange.Redis.ValueCondition.GetHashCode() -> int
+override StackExchange.Redis.ValueCondition.ToString() -> string!
+StackExchange.Redis.RedisValue.Digest() -> StackExchange.Redis.ValueCondition
+StackExchange.Redis.ValueCondition
+StackExchange.Redis.ValueCondition.Digest() -> StackExchange.Redis.ValueCondition
+StackExchange.Redis.ValueCondition.Equal() -> StackExchange.Redis.ValueCondition
+StackExchange.Redis.ValueCondition.HasValue.get -> bool
+StackExchange.Redis.ValueCondition.IsDigest.get -> bool
+StackExchange.Redis.ValueCondition.IsEqual.get -> bool
+StackExchange.Redis.ValueCondition.NotEqual() -> StackExchange.Redis.ValueCondition
+StackExchange.Redis.ValueCondition.Value.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.ValueCondition.ValueCondition() -> void
+static StackExchange.Redis.ValueCondition.Digest(System.ReadOnlySpan<byte> payload) -> StackExchange.Redis.ValueCondition
