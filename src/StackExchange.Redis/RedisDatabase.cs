@@ -1333,8 +1333,8 @@ namespace StackExchange.Redis
                 physical.Write(Key);
                 physical.WriteBulkString(toDatabase);
                 physical.WriteBulkString(timeoutMilliseconds);
-                if (isCopy) physical.WriteBulkString(RedisLiterals.COPY);
-                if (isReplace) physical.WriteBulkString(RedisLiterals.REPLACE);
+                if (isCopy) physical.WriteBulkString("COPY"u8);
+                if (isReplace) physical.WriteBulkString("REPLACE"u8);
             }
 
             public override int ArgCount
@@ -5353,7 +5353,7 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
-                physical.WriteBulkString(RedisLiterals.LOAD);
+                physical.WriteBulkString("LOAD"u8);
                 physical.WriteBulkString((RedisValue)Script);
             }
             public override int ArgCount => 2;

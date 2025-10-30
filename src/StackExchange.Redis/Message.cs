@@ -845,13 +845,13 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(_protocolVersion);
                 if (!string.IsNullOrWhiteSpace(_password))
                 {
-                    physical.WriteBulkString(RedisLiterals.AUTH);
+                    physical.WriteBulkString("AUTH"u8);
                     physical.WriteBulkString(string.IsNullOrWhiteSpace(_username) ? RedisLiterals.@default : _username);
                     physical.WriteBulkString(_password);
                 }
                 if (!string.IsNullOrWhiteSpace(_clientName))
                 {
-                    physical.WriteBulkString(RedisLiterals.SETNAME);
+                    physical.WriteBulkString("SETNAME"u8);
                     physical.WriteBulkString(_clientName);
                 }
             }
@@ -1733,10 +1733,10 @@ namespace StackExchange.Redis
                     switch (when)
                     {
                         case When.Exists:
-                            physical.WriteBulkString(RedisLiterals.XX);
+                            physical.WriteBulkString("XX"u8);
                             break;
                         case When.NotExists:
-                            physical.WriteBulkString(RedisLiterals.NX);
+                            physical.WriteBulkString("NX"u8);
                             break;
                     }
                 }
