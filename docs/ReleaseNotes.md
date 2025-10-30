@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Support `MSETEX` (Redis 8.4.0) for multi-key operations with expiration (PR pending)
+- Support `MSETEX` (Redis 8.4.0) for multi-key operations with expiration ([#2977 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2977))
 
 ## 2.9.32
 
