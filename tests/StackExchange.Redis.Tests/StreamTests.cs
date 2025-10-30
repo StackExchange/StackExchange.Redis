@@ -495,8 +495,8 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var db = conn.GetDatabase();
         var key = Me();
-        const string groupName = "test_group",
-                     consumer = "consumer";
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+        const string groupName = "test_group", consumer = "consumer";
 
         // Create a stream
         db.StreamAdd(key, "field1", "value1");
@@ -517,6 +517,56 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.NotNull(secondRead);
         Assert.Empty(firstRead);
         Assert.Equal(2, secondRead.Length);
+    }
+
+    [Fact]
+    public async Task StreamConsumerGroupAutoClaim()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+        const string groupName = "test_group", consumer = "consumer";
+
+        // Create a group and set the position to deliver new messages only.
+        await db.StreamCreateConsumerGroupAsync(key, groupName, StreamPosition.NewMessages);
+
+        // add some entries
+        await db.StreamAddAsync(key, "field1", "value1");
+        await db.StreamAddAsync(key, "field2", "value2");
+
+        var idleTime = TimeSpan.FromMilliseconds(100);
+        // Read into the group, expect the two entries; we don't expect any data
+        // here, at least on a fast server, because it hasn't been idle long enough.
+        StreamPosition[] positions = [new(key, StreamPosition.NewMessages)];
+        var groups = await db.StreamReadGroupAsync(positions, groupName, consumer, noAck: false, countPerStream: 10, claimMinIdleTime: idleTime);
+        var grp = Assert.Single(groups);
+        Assert.Equal(key, grp.Key);
+        Assert.Equal(2, grp.Entries.Length);
+        foreach (var entry in grp.Entries)
+        {
+            Assert.Equal(0, entry.DeliveryCount); // never delivered before
+            Assert.Equal(TimeSpan.Zero, entry.IdleTime); // never delivered before
+        }
+
+        // now repeat immediately; we didn't "ack", so they're still pending, but not idle long enough
+        groups = await db.StreamReadGroupAsync(positions, groupName, consumer, noAck: false, countPerStream: 10, claimMinIdleTime: idleTime);
+        Assert.Empty(groups); // nothing available from any group
+
+        // wait long enough for the messages to be considered idle
+        await Task.Delay(idleTime + idleTime);
+
+        // repeat again; we should get the entries
+        groups = await db.StreamReadGroupAsync(positions, groupName, consumer, noAck: false, countPerStream: 10, claimMinIdleTime: idleTime);
+        grp = Assert.Single(groups);
+        Assert.Equal(key, grp.Key);
+        Assert.Equal(2, grp.Entries.Length);
+        foreach (var entry in grp.Entries)
+        {
+            Assert.Equal(1, entry.DeliveryCount); // this is a redelivery
+            Assert.True(entry.IdleTime > TimeSpan.Zero); // and is considered idle
+        }
     }
 
     [Fact]
