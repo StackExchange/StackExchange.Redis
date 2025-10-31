@@ -113,6 +113,20 @@ public readonly struct ValueCondition
 
     private ValueCondition(ConditionKind kind, in RedisValue value)
     {
+        if (value.IsNull)
+        {
+            kind = kind switch
+            {
+                // interpret === null as "does not exist"
+                ConditionKind.DigestEquals or ConditionKind.ValueEquals => ConditionKind.NotExists,
+
+                // interpret !== null as "exists"
+                ConditionKind.DigestNotEquals or ConditionKind.ValueNotEquals => ConditionKind.Exists,
+
+                // otherwise: leave alone
+                _ => kind,
+            };
+        }
         _kind = kind;
         _value = value;
         // if it's a digest operation, the value must be an int64
@@ -147,7 +161,7 @@ public readonly struct ValueCondition
     {
         // the internal impl of XxHash3 uses ulong (not Span<byte>), so: use
         // that to avoid extra steps, and store the CPU-endian value
-        var digest = XxHash3.HashToUInt64(value);
+        var digest = unchecked((long)XxHash3.HashToUInt64(value));
         return new ValueCondition(ConditionKind.DigestEquals, digest);
     }
 

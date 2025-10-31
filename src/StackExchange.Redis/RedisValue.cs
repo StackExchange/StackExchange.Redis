@@ -1234,8 +1234,7 @@ HaveString:
                 case StorageType.Raw:
                     return ValueCondition.CalculateDigest(_memory.Span);
                 case StorageType.Null:
-                    ThrowNull();
-                    goto case default;
+                    return ValueCondition.NotExists; // interpret === null as "not exists"
                 default:
                     var len = GetByteCount();
                     byte[]? oversized = null;
@@ -1245,7 +1244,6 @@ HaveString:
                     if (oversized is not null) ArrayPool<byte>.Shared.Return(oversized);
                     return digest;
             }
-            static void ThrowNull() => throw new ArgumentNullException(nameof(RedisValue));
         }
     }
 }

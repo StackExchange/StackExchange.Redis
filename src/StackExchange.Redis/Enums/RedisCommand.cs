@@ -302,6 +302,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.DECRBY:
             case RedisCommand.DEL:
             case RedisCommand.DELEX:
+            case RedisCommand.DIGEST:
             case RedisCommand.EXPIRE:
             case RedisCommand.EXPIREAT:
             case RedisCommand.FLUSHALL:

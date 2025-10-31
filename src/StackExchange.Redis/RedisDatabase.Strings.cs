@@ -22,6 +22,7 @@ internal partial class RedisDatabase
         switch (when.Kind)
         {
             case ValueCondition.ConditionKind.Always:
+            case ValueCondition.ConditionKind.Exists:
                 return Message.Create(Database, flags, RedisCommand.DEL, key);
             case ValueCondition.ConditionKind.ValueEquals:
             case ValueCondition.ConditionKind.ValueNotEquals:
