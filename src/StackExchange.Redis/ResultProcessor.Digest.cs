@@ -23,22 +23,25 @@ internal abstract partial class ResultProcessor
             {
                 case ResultType.BulkString:
                     var payload = result.Payload;
-                    if (payload.Length == ValueCondition.DigestBytes * 2)
+                    var len = checked((int)payload.Length);
+                    if (len == 2 * ValueCondition.DigestBytes & payload.IsSingleSegment)
                     {
-                        if (payload.IsSingleSegment)
-                        {
-                            SetResult(message, ValueCondition.ParseDigest(payload.First.Span));
-                        }
-                        else
-                        {
-                            // linearize (note we already checked the length)
-                            Span<byte> copy = stackalloc byte[ValueCondition.DigestBytes * 2];
-                            payload.CopyTo(copy);
-                            SetResult(message, ValueCondition.ParseDigest(copy));
-                        }
+                        // full-size hash in a single chunk - fast path
+                        SetResult(message, ValueCondition.ParseDigest(payload.First.Span));
                         return true;
                     }
 
+                    if (len >= 1 & len <= ValueCondition.DigestBytes * 2)
+                    {
+                        // Either multi-segment, or isn't long enough (missing leading zeros,
+                        // see https://github.com/redis/redis/issues/14496).
+                        Span<byte> buffer = new byte[2 * ValueCondition.DigestBytes];
+                        int start = (2 * ValueCondition.DigestBytes) - len;
+                        if (start != 0) buffer.Slice(0, start).Fill((byte)'0'); // pad
+                        payload.CopyTo(buffer.Slice(start)); // linearize
+                        SetResult(message, ValueCondition.ParseDigest(buffer));
+                        return true;
+                    }
                     break;
             }
             return false;

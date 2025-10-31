@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.IO.Hashing;
-using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -132,5 +128,30 @@ public class DigestIntegrationTests(ITestOutputHelper output, SharedConnectionFi
         };
         Log($"Condition: {condition}");
         return condition;
+    }
+
+    [Fact]
+    public async Task LeadingZeroFormatting()
+    {
+        // Example generated that hashes to 0x00006c38adf31777; see https://github.com/redis/redis/issues/14496
+        var localDigest =
+            ValueCondition.CalculateDigest("v8lf0c11xh8ymlqztfd3eeq16kfn4sspw7fqmnuuq3k3t75em5wdizgcdw7uc26nnf961u2jkfzkjytls2kwlj7626sd"u8);
+        Log($"local: {localDigest}");
+        Assert.Equal("IFDEQ 6c38adf31777", localDigest.ToString());
+
+        await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
+        var key = Me();
+        var db = conn.GetDatabase();
+        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
+        await db.StringSetAsync(key, "v8lf0c11xh8ymlqztfd3eeq16kfn4sspw7fqmnuuq3k3t75em5wdizgcdw7uc26nnf961u2jkfzkjytls2kwlj7626sd", flags: CommandFlags.FireAndForget);
+        var pendingDigest = db.StringDigestAsync(key);
+        var pendingDeleted = db.StringDeleteAsync(key, when: localDigest);
+        var existsAfter = await db.KeyExistsAsync(key);
+
+        var serverDigest = await pendingDigest;
+        Log($"server: {serverDigest}");
+        Assert.Equal(localDigest, serverDigest);
+        Assert.True(await pendingDeleted);
+        Assert.False(existsAfter);
     }
 }

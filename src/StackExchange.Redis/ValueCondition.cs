@@ -67,12 +67,11 @@ public readonly struct ValueCondition
             case ConditionKind.ValueNotEquals:
                 return $"IFNE {_value}";
             case ConditionKind.DigestEquals:
-                Span<char> buffer = stackalloc char[2 * DigestBytes];
-                WriteHex(_value.DirectOverlappedBits64, buffer);
-                return $"IFDEQ {buffer.ToString()}";
+                var written = WriteHex(_value.DirectOverlappedBits64, stackalloc char[2 * DigestBytes]);
+                return $"IFDEQ {written.ToString()}";
             case ConditionKind.DigestNotEquals:
-                WriteHex(_value.DirectOverlappedBits64, buffer = stackalloc char[2 * DigestBytes]);
-                return $"IFDNE {buffer.ToString()}";
+                written = WriteHex(_value.DirectOverlappedBits64, stackalloc char[2 * DigestBytes]);
+                return $"IFDNE {written.ToString()}";
             case ConditionKind.Always:
                 return "";
             default:
@@ -258,19 +257,18 @@ public readonly struct ValueCondition
                 break;
             case ConditionKind.DigestEquals:
                 physical.WriteBulkString("IFDEQ"u8);
-                Span<byte> buffer = stackalloc byte[16];
-                WriteHex(_value.DirectOverlappedBits64, buffer);
-                physical.WriteBulkString(buffer);
+                var written = WriteHex(_value.DirectOverlappedBits64, stackalloc byte[2 * DigestBytes]);
+                physical.WriteBulkString(written);
                 break;
             case ConditionKind.DigestNotEquals:
                 physical.WriteBulkString("IFDNE"u8);
-                WriteHex(_value.DirectOverlappedBits64, buffer = stackalloc byte[16]);
-                physical.WriteBulkString(buffer);
+                written = WriteHex(_value.DirectOverlappedBits64, stackalloc byte[2 * DigestBytes]);
+                physical.WriteBulkString(written);
                 break;
         }
     }
 
-    internal static void WriteHex(long value, Span<byte> target)
+    internal static Span<byte> WriteHex(long value, Span<byte> target)
     {
         Debug.Assert(target.Length == 2 * DigestBytes);
 
@@ -289,9 +287,22 @@ public readonly struct ValueCondition
             target[targetOffset++] = hex[(b >> 4) & 0xF]; // hi nibble
             target[targetOffset++] = hex[b & 0xF]; // lo
         }
+
+        // see https://github.com/redis/redis/issues/14496, hopefully temporary
+        int leadingZeros = 0;
+        if (target[0] == '0')
+        {
+            leadingZeros = 1;
+            for (int i = 1; i < (2 * DigestBytes) - 1; i++)
+            {
+                if (target[i] != (byte)'0') break;
+                leadingZeros++;
+            }
+        }
+        return target.Slice(leadingZeros, (2 * DigestBytes) - leadingZeros);
     }
 
-    internal static void WriteHex(long value, Span<char> target)
+    internal static Span<char> WriteHex(long value, Span<char> target)
     {
         Debug.Assert(target.Length == 2 * DigestBytes);
 
@@ -310,6 +321,19 @@ public readonly struct ValueCondition
             target[targetOffset++] = hex[(b >> 4) & 0xF]; // hi nibble
             target[targetOffset++] = hex[b & 0xF]; // lo
         }
+
+        // see https://github.com/redis/redis/issues/14496, hopefully temporary
+        int leadingZeros = 0;
+        if (target[0] == '0')
+        {
+            leadingZeros = 1;
+            for (int i = 1; i < (2 * DigestBytes) - 1; i++)
+            {
+                if ((byte)target[i] != (byte)'0') break;
+                leadingZeros++;
+            }
+        }
+        return target.Slice(leadingZeros, (2 * DigestBytes) - leadingZeros);
     }
 
     /// <summary>
