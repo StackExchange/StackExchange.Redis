@@ -49,7 +49,7 @@ namespace StackExchange.Redis
         public ILogger Log => log;
     }
 
-    internal abstract class Message : ICompletable
+    internal abstract partial class Message : ICompletable
     {
         public readonly int Db;
 

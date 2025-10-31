@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 
 // ReSharper disable once CheckNamespace
@@ -3142,6 +3143,16 @@ namespace StackExchange.Redis
         long StringDecrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Deletes <paramref name="key"/> if it matches the given <paramref name="when"/> condition.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="when">The condition to enforce.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>See <seealso href="https://redis.io/commands/delex"/>.</remarks>
+        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
+        bool StringDelete(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Decrements the string representing a floating point number stored at key by the specified decrement.
         /// If the key does not exist, it is set to 0 before performing the operation.
         /// The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.
@@ -3152,6 +3163,15 @@ namespace StackExchange.Redis
         /// <returns>The value of key after the decrement.</returns>
         /// <remarks><seealso href="https://redis.io/commands/incrbyfloat"/></remarks>
         double StringDecrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the digest (hash) value of the specified key, represented as a digest equality <see cref="ValueCondition"/>.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks><seealso href="https://redis.io/commands/digest"/></remarks>
+        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
+        ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get the value of key. If the key does not exist the special value <see cref="RedisValue.Null"/> is returned.
@@ -3359,6 +3379,19 @@ namespace StackExchange.Redis
         /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
         /// <remarks><seealso href="https://redis.io/commands/set"/></remarks>
         bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Set <paramref name="key"/> to hold the string <paramref name="value"/>, if it matches the given <paramref name="when"/> condition.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="value">The value to set.</param>
+        /// <param name="when">The condition to enforce.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>See <seealso href="https://redis.io/commands/delex"/>.</remarks>
+        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
+#pragma warning disable RS0027
+        bool StringSet(RedisKey key, RedisValue value, ValueCondition when, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0027
 
         /// <summary>
         /// Sets the given keys to their respective values.

@@ -726,8 +726,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitPositionAsync(ToInner(key), bit, start, end, indexType, flags);
 
+        public Task<bool> StringDeleteAsync(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringDeleteAsync(ToInner(key), when, flags);
+
         public Task<double> StringDecrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrementAsync(ToInner(key), value, flags);
+
+        public Task<ValueCondition?> StringDigestAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringDigestAsync(ToInner(key), flags);
 
         public Task<long> StringDecrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrementAsync(ToInner(key), value, flags);
@@ -770,6 +776,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLengthAsync(ToInner(key), flags);
+
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, ValueCondition when, CommandFlags flags = CommandFlags.None)
+            => Inner.StringSetAsync(ToInner(key), value, when, flags);
 
         public Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSetAsync(ToInner(values), when, flags);

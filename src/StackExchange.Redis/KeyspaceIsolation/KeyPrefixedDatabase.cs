@@ -708,8 +708,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitPosition(ToInner(key), bit, start, end, indexType, flags);
 
+        public bool StringDelete(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringDelete(ToInner(key), when, flags);
+
         public double StringDecrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrement(ToInner(key), value, flags);
+
+        public ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringDigest(ToInner(key), flags);
 
         public long StringDecrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDecrement(ToInner(key), value, flags);
@@ -752,6 +758,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLength(ToInner(key), flags);
+
+        public bool StringSet(RedisKey key, RedisValue value, ValueCondition when, CommandFlags flags = CommandFlags.None)
+            => Inner.StringSet(ToInner(key), value, when, flags);
 
         public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSet(ToInner(values), when, flags);

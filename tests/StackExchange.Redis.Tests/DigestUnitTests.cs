@@ -7,6 +7,8 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+#pragma warning disable SER002 // 8.4
+
 public class DigestUnitTests(ITestOutputHelper output) : TestBase(output)
 {
     [Theory]
@@ -17,9 +19,7 @@ public class DigestUnitTests(ITestOutputHelper output) : TestBase(output)
         var hashHex = GetXxh3Hex(equivalentValue);
 
         var digest = value.Digest();
-        Assert.True(digest.HasValue);
-        Assert.True(digest.IsDigest);
-        Assert.True(digest.IsEqual);
+        Assert.Equal(ValueCondition.ConditionKind.DigestEquals, digest.Kind);
 
         Assert.Equal($"IFDEQ {hashHex}", digest.ToString());
     }
@@ -99,42 +99,69 @@ public class DigestUnitTests(ITestOutputHelper output) : TestBase(output)
 
         var condition = ValueCondition.Equal(InputValue);
         Assert.Equal($"IFEQ {InputValue}", condition.ToString());
-        Assert.True(condition.HasValue);
-        Assert.False(condition.IsDigest);
-        Assert.True(condition.IsEqual);
+        Assert.True(condition.IsValueTest);
+        Assert.False(condition.IsDigestTest);
+        Assert.False(condition.IsNegated);
+        Assert.False(condition.IsExistenceTest);
 
         var negCondition = !condition;
         Assert.NotEqual(condition, negCondition);
         Assert.Equal($"IFNE {InputValue}", negCondition.ToString());
-        Assert.True(negCondition.HasValue);
-        Assert.False(negCondition.IsDigest);
-        Assert.False(negCondition.IsEqual);
+        Assert.True(negCondition.IsValueTest);
+        Assert.False(negCondition.IsDigestTest);
+        Assert.True(negCondition.IsNegated);
+        Assert.False(negCondition.IsExistenceTest);
 
         var negNegCondition = !negCondition;
         Assert.Equal(condition, negNegCondition);
 
-        var digest = condition.Digest();
+        var digest = condition.AsDigest();
         Assert.NotEqual(condition, digest);
         Assert.Equal($"IFDEQ {GetXxh3Hex(InputValue)}", digest.ToString());
-        Assert.True(digest.HasValue);
-        Assert.True(digest.IsDigest);
-        Assert.True(digest.IsEqual);
+        Assert.False(digest.IsValueTest);
+        Assert.True(digest.IsDigestTest);
+        Assert.False(digest.IsNegated);
+        Assert.False(digest.IsExistenceTest);
 
         var negDigest = !digest;
         Assert.NotEqual(digest, negDigest);
         Assert.Equal($"IFDNE {GetXxh3Hex(InputValue)}", negDigest.ToString());
-        Assert.True(negDigest.HasValue);
-        Assert.True(negDigest.IsDigest);
-        Assert.False(negDigest.IsEqual);
+        Assert.False(negDigest.IsValueTest);
+        Assert.True(negDigest.IsDigestTest);
+        Assert.True(negDigest.IsNegated);
+        Assert.False(negDigest.IsExistenceTest);
 
         var negNegDigest = !negDigest;
         Assert.Equal(digest, negNegDigest);
 
         var @default = default(ValueCondition);
-        Assert.False(@default.HasValue);
-        Assert.False(@default.IsDigest);
-        Assert.False(@default.IsEqual);
+        Assert.False(@default.IsValueTest);
+        Assert.False(@default.IsDigestTest);
+        Assert.False(@default.IsNegated);
+        Assert.False(@default.IsExistenceTest);
         Assert.Equal("", @default.ToString());
+        Assert.Equal(ValueCondition.Always, @default);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => !@default);
+        Assert.Equal("operator ! cannot be used with a Always condition.", ex.Message);
+
+        var exists = ValueCondition.Exists;
+        Assert.False(exists.IsValueTest);
+        Assert.False(exists.IsDigestTest);
+        Assert.False(exists.IsNegated);
+        Assert.True(exists.IsExistenceTest);
+        Assert.Equal("XX", exists.ToString());
+
+        var notExists = ValueCondition.NotExists;
+        Assert.False(notExists.IsValueTest);
+        Assert.False(notExists.IsDigestTest);
+        Assert.True(notExists.IsNegated);
+        Assert.True(notExists.IsExistenceTest);
+        Assert.Equal("NX", notExists.ToString());
+
+        Assert.NotEqual(exists, notExists);
+        Assert.Equal(exists, !notExists);
+        Assert.Equal(notExists, !exists);
     }
 
     [Fact]
