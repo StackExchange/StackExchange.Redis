@@ -1,15 +1,19 @@
 ﻿#nullable enable
+StackExchange.Redis.ValueCondition
 override StackExchange.Redis.ValueCondition.Equals(object? obj) -> bool
 override StackExchange.Redis.ValueCondition.GetHashCode() -> int
 override StackExchange.Redis.ValueCondition.ToString() -> string!
-StackExchange.Redis.RedisValue.Digest() -> StackExchange.Redis.ValueCondition
-StackExchange.Redis.ValueCondition
 StackExchange.Redis.ValueCondition.Digest() -> StackExchange.Redis.ValueCondition
-StackExchange.Redis.ValueCondition.Equal() -> StackExchange.Redis.ValueCondition
 StackExchange.Redis.ValueCondition.HasValue.get -> bool
 StackExchange.Redis.ValueCondition.IsDigest.get -> bool
 StackExchange.Redis.ValueCondition.IsEqual.get -> bool
-StackExchange.Redis.ValueCondition.NotEqual() -> StackExchange.Redis.ValueCondition
 StackExchange.Redis.ValueCondition.Value.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.ValueCondition.ValueCondition() -> void
-static StackExchange.Redis.ValueCondition.Digest(System.ReadOnlySpan<byte> payload) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.CalculateDigest(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.DigestEqual(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.DigestNotEqual(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.Equal(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.NotEqual(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.operator !(in StackExchange.Redis.ValueCondition value) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.ParseDigest(System.ReadOnlySpan<byte> digest) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.ParseDigest(System.ReadOnlySpan<char> digest) -> StackExchange.Redis.ValueCondition

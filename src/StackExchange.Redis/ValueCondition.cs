@@ -2,6 +2,8 @@ using System;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO.Hashing;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace StackExchange.Redis;
 
@@ -10,6 +12,13 @@ namespace StackExchange.Redis;
 /// </summary>
 public readonly struct ValueCondition
 {
+    // Supported: equality and non-equality checks for values and digests. Values are stored a RedisValue;
+    // digests are stored as a native (CPU-endian) Int64 (long) value, inside the same RedisValue (via the
+    // RedisValue.DirectOverlappedBits64 feature). This native Int64 value is an implementation detail that
+    // is not directly exposed to the consumer.
+    //
+    // The exchange format with Redis is hex of the bytes; for the purposes of interfacing this with our
+    // raw integer value, this should be considered big-endian, based on the behaviour of XxHash3.
     private const int HashLength = 8; // XXH3 is 64-bit
 
     private readonly MatchKind _kind;
@@ -45,9 +54,9 @@ public readonly struct ValueCondition
     public override int GetHashCode() => _kind.GetHashCode() ^ _value.GetHashCode();
 
     /// <summary>
-    /// Indicates whether this instance represents a value test.
+    /// Indicates whether this instance represents a valid test.
     /// </summary>
-    public bool HasValue => _kind != MatchKind.None;
+    public bool HasValue => _kind is not MatchKind.None;
 
     /// <summary>
     /// Indicates whether this instance represents a digest test.
@@ -64,7 +73,7 @@ public readonly struct ValueCondition
     /// </summary>
     public RedisValue Value => _value;
 
-    private ValueCondition(MatchKind kind, RedisValue value)
+    private ValueCondition(MatchKind kind, in RedisValue value)
     {
         _kind = kind;
         _value = value;
@@ -72,6 +81,26 @@ public readonly struct ValueCondition
         Debug.Assert(_kind is not (MatchKind.DigestEquals or MatchKind.DigestNotEquals) ||
                      value.Type == RedisValue.StorageType.Int64);
     }
+
+    /// <summary>
+    /// Create a value equality condition with the supplied value.
+    /// </summary>
+    public static ValueCondition Equal(in RedisValue value) => new(MatchKind.ValueEquals, value);
+
+    /// <summary>
+    /// Create a value non-equality condition with the supplied value.
+    /// </summary>
+    public static ValueCondition NotEqual(in RedisValue value) => new(MatchKind.ValueNotEquals, value);
+
+    /// <summary>
+    /// Create a digest equality condition, computing the digest of the supplied value.
+    /// </summary>
+    public static ValueCondition DigestEqual(in RedisValue value) => value.Digest();
+
+    /// <summary>
+    /// Create a digest non-equality condition, computing the digest of the supplied value.
+    /// </summary>
+    public static ValueCondition DigestNotEqual(in RedisValue value) => !value.Digest();
 
     private enum MatchKind : byte
     {
@@ -83,59 +112,58 @@ public readonly struct ValueCondition
     }
 
     /// <summary>
-    /// Create an equality match based on this value. If the value is already an equality match, no change is made.
-    /// The underlying nature of the test (digest vs value) is preserved.
-    /// </summary>
-    public ValueCondition Equal() => _kind switch
-    {
-        MatchKind.ValueEquals or MatchKind.DigestEquals => this, // no change needed
-        MatchKind.ValueNotEquals => new ValueCondition(MatchKind.ValueEquals, _value),
-        MatchKind.DigestNotEquals => new ValueCondition(MatchKind.DigestEquals, _value),
-        _ => throw new InvalidOperationException($"Unexpected match kind: {_kind}"),
-    };
-
-    /// <summary>
-    /// Create a non-equality match based on this value. If the value is already a non-equality match, no change is made.
-    /// The underlying nature of the test (digest vs value) is preserved.
-    /// </summary>
-    public ValueCondition NotEqual() => _kind switch
-    {
-        MatchKind.ValueNotEquals or MatchKind.DigestNotEquals => this, // no change needed
-        MatchKind.ValueEquals => new ValueCondition(MatchKind.ValueNotEquals, _value),
-        MatchKind.DigestEquals => new ValueCondition(MatchKind.DigestNotEquals, _value),
-        _ => throw new InvalidOperationException($"Unexpected match kind: {_kind}"),
-    };
-
-    /// <summary>
-    /// Create a digest match based on this value. If the value is already a digest match, no change is made.
-    /// The underlying equality/non-equality nature of the test is preserved.
-    /// </summary>
-    public ValueCondition Digest() => _kind switch
-    {
-        MatchKind.DigestEquals or MatchKind.DigestNotEquals => this, // no change needed
-        MatchKind.ValueEquals => _value.Digest(),
-        MatchKind.ValueNotEquals => _value.Digest().NotEqual(),
-        _ => throw new InvalidOperationException($"Unexpected match kind: {_kind}"),
-    };
-
-    internal static readonly ValueCondition Null = default;
-
-    /// <summary>
     /// Calculate the digest of a payload, as an equality test. For a non-equality test, use <see cref="NotEqual"/> on the result.
     /// </summary>
-    public static ValueCondition Digest(ReadOnlySpan<byte> payload)
+    public static ValueCondition CalculateDigest(ReadOnlySpan<byte> value)
     {
-        long digest = unchecked((long)XxHash3.HashToUInt64(payload));
+        // the internal impl of XxHash3 uses ulong (not Span<byte>), so: use
+        // that to avoid extra steps, and store the CPU-endian value
+        var digest = XxHash3.HashToUInt64(value);
         return new ValueCondition(MatchKind.DigestEquals, digest);
     }
 
     /// <summary>
     /// Creates an equality match based on the specified digest bytes.
     /// </summary>
-    internal static ValueCondition RawDigest(ReadOnlySpan<byte> digest)
+    public static ValueCondition ParseDigest(ReadOnlySpan<char> digest)
     {
-        Debug.Assert(digest.Length == HashLength);
-        // we receive 16 hex charactes, as bytes; parse that into a long, by
+        if (digest.Length != 2 * HashLength) ThrowDigestLength();
+
+        // we receive 16 hex characters, as bytes; parse that into a long, by
+        // first dealing with the nibbles
+        Span<byte> tmp = stackalloc byte[HashLength];
+        int offset = 0;
+        for (int i = 0; i < tmp.Length; i++)
+        {
+            tmp[i] = (byte)(
+                (ParseNibble(digest[offset++]) << 4) // hi
+                | ParseNibble(digest[offset++])); // lo
+        }
+        // now interpret that as big-endian
+        var digestInt64 = BinaryPrimitives.ReadInt64BigEndian(tmp);
+        return new ValueCondition(MatchKind.DigestEquals, digestInt64);
+    }
+
+    private static byte ParseNibble(int b)
+    {
+        if (b >= '0' & b <= '9') return (byte)(b - '0');
+        if (b >= 'a' & b <= 'f') return (byte)(b - 'a' + 10);
+        if (b >= 'A' & b <= 'F') return (byte)(b - 'A' + 10);
+        return ThrowInvalidBytes();
+
+        static byte ThrowInvalidBytes() => throw new ArgumentException("Invalid digest bytes");
+    }
+
+    private static void ThrowDigestLength() => throw new ArgumentException($"Invalid digest length; expected {2 * HashLength} bytes");
+
+    /// <summary>
+    /// Creates an equality match based on the specified digest bytes.
+    /// </summary>
+    public static ValueCondition ParseDigest(ReadOnlySpan<byte> digest)
+    {
+        if (digest.Length != 2 * HashLength) ThrowDigestLength();
+
+        // we receive 16 hex characters, as bytes; parse that into a long, by
         // first dealing with the nibbles
         Span<byte> tmp = stackalloc byte[HashLength];
         int offset = 0;
@@ -145,10 +173,9 @@ public readonly struct ValueCondition
                 (ToNibble(digest[offset++]) << 4) // hi
                 | ToNibble(digest[offset++])); // lo
         }
-        // now interpret that as little-endian, so the first network bytes end
-        // up in the low integer bytes (this makes writing it easier, and matches
-        // basically all CPUs)
-        return new ValueCondition(MatchKind.DigestEquals, BinaryPrimitives.ReadInt64LittleEndian(tmp));
+        // now interpret that as big-endian
+        var digestInt64 = BinaryPrimitives.ReadInt64BigEndian(tmp);
+        return new ValueCondition(MatchKind.DigestEquals, digestInt64);
 
         static byte ToNibble(int b)
         {
@@ -192,32 +219,65 @@ public readonly struct ValueCondition
     internal static void WriteHex(long value, Span<byte> target)
     {
         Debug.Assert(target.Length == 2 * HashLength);
-        // note: see RawDigest for notes on endianness here; for our convenience,
-        // we take the bytes in little-endian order, but as long as that
-        // matches how we store them: we're fine - it is transparent to the caller.
-        ReadOnlySpan<byte> hex = "0123456789abcdef"u8;
-        for (int i = 0; i < 2 * HashLength;)
+
+        // iterate over the bytes in big-endian order, writing the hi/lo nibbles,
+        // using pointer-like behaviour (rather than complex shifts and masks)
+        if (BitConverter.IsLittleEndian)
         {
-            var b = (byte)value;
-            target[i++] = hex[(b >> 4) & 0xF]; // hi nibble
-            target[i++] = hex[b & 0xF]; // lo nibble
-            value >>= 8;
+            value = BinaryPrimitives.ReverseEndianness(value);
+        }
+        ref byte ptr = ref Unsafe.As<long, byte>(ref value);
+        int targetOffset = 0;
+        ReadOnlySpan<byte> hex = "0123456789abcdef"u8;
+        for (int sourceOffset = 0; sourceOffset < sizeof(long); sourceOffset++)
+        {
+            byte b = Unsafe.Add(ref ptr, sourceOffset);
+            target[targetOffset++] = hex[(b >> 4) & 0xF]; // hi nibble
+            target[targetOffset++] = hex[b & 0xF]; // lo
         }
     }
 
     internal static void WriteHex(long value, Span<char> target)
     {
         Debug.Assert(target.Length == 2 * HashLength);
-        // note: see RawDigest for notes on endianness here; for our convenience,
-        // we take the bytes in little-endian order, but as long as that
-        // matches how we store them: we're fine - it is transparent to the caller.
-        const string hex = "0123456789abcdef";
-        for (int i = 0; i < 2 * HashLength;)
+
+        // iterate over the bytes in big-endian order, writing the hi/lo nibbles,
+        // using pointer-like behaviour (rather than complex shifts and masks)
+        if (BitConverter.IsLittleEndian)
         {
-            var b = (byte)value;
-            target[i++] = hex[(b >> 4) & 0xF]; // hi nibble
-            target[i++] = hex[b & 0xF]; // lo nibble
-            value >>= 8;
+            value = BinaryPrimitives.ReverseEndianness(value);
+        }
+        ref byte ptr = ref Unsafe.As<long, byte>(ref value);
+        int targetOffset = 0;
+        const string hex = "0123456789abcdef";
+        for (int sourceOffset = 0; sourceOffset < sizeof(long); sourceOffset++)
+        {
+            byte b = Unsafe.Add(ref ptr, sourceOffset);
+            target[targetOffset++] = hex[(b >> 4) & 0xF]; // hi nibble
+            target[targetOffset++] = hex[b & 0xF]; // lo
         }
     }
+
+    /// <summary>
+    /// Negate this condition. The digest/value aspect of the condition is preserved.
+    /// </summary>
+    public static ValueCondition operator !(in ValueCondition value) => value._kind switch
+    {
+        MatchKind.ValueEquals => new(MatchKind.ValueNotEquals, value._value),
+        MatchKind.ValueNotEquals => new(MatchKind.ValueEquals, value._value),
+        MatchKind.DigestEquals => new(MatchKind.DigestNotEquals, value._value),
+        MatchKind.DigestNotEquals => new(MatchKind.DigestEquals, value._value),
+        _ => value, // GIGO
+    };
+
+    /// <summary>
+    /// Convert this condition to a digest condition. If this condition is not a value-based condition, it is returned as-is.
+    /// The equality or non-equality aspect of the condition is preserved.
+    /// </summary>
+    public ValueCondition Digest() => _kind switch
+    {
+        MatchKind.ValueEquals => _value.Digest(),
+        MatchKind.ValueNotEquals => !_value.Digest(),
+        _ => this,
+    };
 }

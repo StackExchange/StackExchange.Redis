@@ -1227,23 +1227,25 @@ HaveString:
         /// <summary>
         /// Get the digest (hash used for check-and-set/check-and-delete operations) of this value.
         /// </summary>
-        public ValueCondition Digest()
+        internal ValueCondition Digest()
         {
             switch (Type)
             {
                 case StorageType.Raw:
-                    return ValueCondition.Digest(_memory.Span);
+                    return ValueCondition.CalculateDigest(_memory.Span);
                 case StorageType.Null:
-                    return ValueCondition.Null;
+                    ThrowNull();
+                    goto case default;
                 default:
                     var len = GetByteCount();
                     byte[]? oversized = null;
                     Span<byte> buffer = len <= 128 ? stackalloc byte[128] : (oversized = ArrayPool<byte>.Shared.Rent(len));
                     CopyTo(buffer);
-                    var digest = ValueCondition.Digest(buffer.Slice(0, len));
+                    var digest = ValueCondition.CalculateDigest(buffer.Slice(0, len));
                     if (oversized is not null) ArrayPool<byte>.Shared.Return(oversized);
                     return digest;
             }
+            static void ThrowNull() => throw new ArgumentNullException(nameof(RedisValue));
         }
     }
 }
