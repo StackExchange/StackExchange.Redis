@@ -841,7 +841,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.StringSet(RedisKey, RedisValue, TimeSpan?, ValueCondition, CommandFlags)"/>
         [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
-#pragma warning disable RS0027
+#pragma warning disable RS0027 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
         Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027
 
