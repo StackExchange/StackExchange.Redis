@@ -137,7 +137,7 @@ public class DigestIntegrationTests(ITestOutputHelper output, SharedConnectionFi
         var localDigest =
             ValueCondition.CalculateDigest("v8lf0c11xh8ymlqztfd3eeq16kfn4sspw7fqmnuuq3k3t75em5wdizgcdw7uc26nnf961u2jkfzkjytls2kwlj7626sd"u8);
         Log($"local: {localDigest}");
-        Assert.Equal("IFDEQ 6c38adf31777", localDigest.ToString());
+        Assert.Equal("IFDEQ 00006c38adf31777", localDigest.ToString());
 
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
         var key = Me();

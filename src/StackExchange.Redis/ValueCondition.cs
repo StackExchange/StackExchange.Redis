@@ -270,7 +270,7 @@ public readonly struct ValueCondition
 
     internal static Span<byte> WriteHex(long value, Span<byte> target)
     {
-        Debug.Assert(target.Length == 2 * DigestBytes);
+        Debug.Assert(target.Length >= 2 * DigestBytes);
 
         // iterate over the bytes in big-endian order, writing the hi/lo nibbles,
         // using pointer-like behaviour (rather than complex shifts and masks)
@@ -287,24 +287,12 @@ public readonly struct ValueCondition
             target[targetOffset++] = hex[(b >> 4) & 0xF]; // hi nibble
             target[targetOffset++] = hex[b & 0xF]; // lo
         }
-
-        // see https://github.com/redis/redis/issues/14496, hopefully temporary
-        int leadingZeros = 0;
-        if (target[0] == '0')
-        {
-            leadingZeros = 1;
-            for (int i = 1; i < (2 * DigestBytes) - 1; i++)
-            {
-                if (target[i] != (byte)'0') break;
-                leadingZeros++;
-            }
-        }
-        return target.Slice(leadingZeros, (2 * DigestBytes) - leadingZeros);
+        return target.Slice(0, 2 * DigestBytes);
     }
 
     internal static Span<char> WriteHex(long value, Span<char> target)
     {
-        Debug.Assert(target.Length == 2 * DigestBytes);
+        Debug.Assert(target.Length >= 2 * DigestBytes);
 
         // iterate over the bytes in big-endian order, writing the hi/lo nibbles,
         // using pointer-like behaviour (rather than complex shifts and masks)
@@ -321,19 +309,7 @@ public readonly struct ValueCondition
             target[targetOffset++] = hex[(b >> 4) & 0xF]; // hi nibble
             target[targetOffset++] = hex[b & 0xF]; // lo
         }
-
-        // see https://github.com/redis/redis/issues/14496, hopefully temporary
-        int leadingZeros = 0;
-        if (target[0] == '0')
-        {
-            leadingZeros = 1;
-            for (int i = 1; i < (2 * DigestBytes) - 1; i++)
-            {
-                if ((byte)target[i] != (byte)'0') break;
-                leadingZeros++;
-            }
-        }
-        return target.Slice(leadingZeros, (2 * DigestBytes) - leadingZeros);
+        return target.Slice(0, 2 * DigestBytes);
     }
 
     /// <summary>

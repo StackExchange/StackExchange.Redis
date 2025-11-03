@@ -88,8 +88,7 @@ public class DigestUnitTests(ITestOutputHelper output) : TestBase(output)
     {
         byte[] targetBytes = new byte[8];
         XxHash3.Hash(source, targetBytes);
-        var s = BitConverter.ToString(targetBytes).Replace("-", string.Empty).TrimStart('0').ToLowerInvariant();
-        return s.Length == 0 ? "0" : s; // guess; I'm not actually sure what the "correct" format of 0x000..000 is!
+        return BitConverter.ToString(targetBytes).Replace("-", string.Empty).ToLowerInvariant();
     }
 
     [Fact]
