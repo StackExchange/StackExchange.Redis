@@ -8,6 +8,9 @@ Current package versions:
 
 ## Unreleased
 
+- Support Redis 8.4 CAS/CAD operations (`DIGEST`, and the `IFEQ`, `IFNE`, `IFDEQ`, `IFDNE` modifiers on `SET` / `DEL`)
+  via the new `ValueCondition` abstraction, and use CAS/CAD operations for `Lock*` APIs when possible ([#2978 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2978))
+
 ## 2.9.32
 
 - Fix `SSUBSCRIBE` routing during slot migrations ([#2969 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2969))
