@@ -57,6 +57,8 @@ public class DigestUnitTests(ITestOutputHelper output) : TestBase(output)
     [Theory]
     [InlineData("Hello World", "e34615aade2e6333")]
     [InlineData("42", "1217cb28c0ef2191")]
+    [InlineData("", "2d06800538d394c2")]
+    [InlineData("a", "e6c632b61e964e1f")]
     public void KnownXxh3Values(string source, string expected)
         => Assert.Equal(expected, GetXxh3Hex(source));
 

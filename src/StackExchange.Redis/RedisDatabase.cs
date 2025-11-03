@@ -1832,7 +1832,7 @@ namespace StackExchange.Redis
             if (value.IsNull) throw new ArgumentNullException(nameof(value));
 
             // note that lock tokens are expected to be small, so: we'll use IFEQ rather than IFDEQ, for reliability
-            var features = GetFeatures(key, flags, RedisCommand.SET, out server);
+            var features = GetFeatures(key, flags, RedisCommand.DELEX, out server);
             return features.DeleteWithValueCheck
                 ? GetStringDeleteMessage(key, ValueCondition.Equal(value), flags, caller) // use check-and-delete
                 : null;
