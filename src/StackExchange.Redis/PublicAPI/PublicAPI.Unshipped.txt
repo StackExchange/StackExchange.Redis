@@ -1,13 +1,15 @@
 ﻿#nullable enable
+StackExchange.Redis.RedisFeatures.DeleteWithValueCheck.get -> bool
+StackExchange.Redis.RedisFeatures.SetWithValueCheck.get -> bool
 [SER002]override StackExchange.Redis.ValueCondition.Equals(object? obj) -> bool
 [SER002]override StackExchange.Redis.ValueCondition.GetHashCode() -> int
 [SER002]override StackExchange.Redis.ValueCondition.ToString() -> string!
 [SER002]StackExchange.Redis.IDatabase.StringDelete(StackExchange.Redis.RedisKey key, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 [SER002]StackExchange.Redis.IDatabase.StringDigest(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ValueCondition?
-[SER002]StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+[SER002]StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 [SER002]StackExchange.Redis.IDatabaseAsync.StringDeleteAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 [SER002]StackExchange.Redis.IDatabaseAsync.StringDigestAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ValueCondition?>!
-[SER002]StackExchange.Redis.IDatabaseAsync.StringSetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER002]StackExchange.Redis.IDatabaseAsync.StringSetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 [SER002]StackExchange.Redis.ValueCondition
 [SER002]StackExchange.Redis.ValueCondition.AsDigest() -> StackExchange.Redis.ValueCondition
 [SER002]StackExchange.Redis.ValueCondition.Value.get -> StackExchange.Redis.RedisValue

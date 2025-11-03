@@ -285,6 +285,16 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Resp3 => Version.IsAtLeast(v6_0_0);
 
+        /// <summary>
+        /// Are the <c>IF*</c> modifiers on <see href="https://redis.io/commands/set/">SET</see> available?
+        /// </summary>
+        public bool SetWithValueCheck => Version.IsAtLeast(v8_4_0_rc1);
+
+        /// <summary>
+        /// Are the <c>IF*</c> modifiers on <see href="https://redis.io/commands/del/">DEL</see> available?
+        /// </summary>
+        public bool DeleteWithValueCheck => Version.IsAtLeast(v8_4_0_rc1);
+
 #pragma warning restore 1629 // Documentation text should end with a period.
 
         /// <summary>

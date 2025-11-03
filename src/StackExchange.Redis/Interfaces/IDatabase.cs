@@ -3385,12 +3385,13 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the string.</param>
         /// <param name="value">The value to set.</param>
+        /// <param name="expiry">The expiry to set.</param>
         /// <param name="when">The condition to enforce.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>See <seealso href="https://redis.io/commands/delex"/>.</remarks>
         [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0027
-        bool StringSet(RedisKey key, RedisValue value, ValueCondition when, CommandFlags flags = CommandFlags.None);
+        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027
 
         /// <summary>

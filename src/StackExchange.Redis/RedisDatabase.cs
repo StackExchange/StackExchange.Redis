@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
 
@@ -1770,18 +1771,33 @@ namespace StackExchange.Redis
 
         public bool LockExtend(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
-            if (value.IsNull) throw new ArgumentNullException(nameof(value));
-            var tran = GetLockExtendTransaction(key, value, expiry);
+            var msg = TryGetLockExtendMessage(key, value, expiry, flags, out var server);
+            if (msg is not null) return ExecuteSync(msg, ResultProcessor.Boolean, server);
 
+            var tran = GetLockExtendTransaction(key, value, expiry);
             if (tran != null) return tran.Execute(flags);
 
             // without transactions (twemproxy etc), we can't enforce the "value" part
             return KeyExpire(key, expiry, flags);
         }
 
-        public Task<bool> LockExtendAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
+        private Message? TryGetLockExtendMessage(in RedisKey key, in RedisValue value, TimeSpan expiry, CommandFlags flags, out ServerEndPoint? server, [CallerMemberName] string? caller = null)
         {
             if (value.IsNull) throw new ArgumentNullException(nameof(value));
+
+            // note that lock tokens are expected to be small, so: we'll use IFEQ rather than IFDEQ, for reliability
+            // note possible future extension:[P]EXPIRE ... IF* https://github.com/redis/redis/issues/14505
+            var features = GetFeatures(key, flags, RedisCommand.SET, out server);
+            return features.SetWithValueCheck
+                ? GetStringSetMessage(key, value, expiry, ValueCondition.Equal(value), flags, caller) // use check-and-set
+                : null;
+        }
+
+        public Task<bool> LockExtendAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = TryGetLockExtendMessage(key, value, expiry, flags, out var server);
+            if (msg is not null) return ExecuteAsync(msg, ResultProcessor.Boolean, server);
+
             var tran = GetLockExtendTransaction(key, value, expiry);
             if (tran != null) return tran.ExecuteAsync(flags);
 
@@ -1801,7 +1817,9 @@ namespace StackExchange.Redis
 
         public bool LockRelease(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
-            if (value.IsNull) throw new ArgumentNullException(nameof(value));
+            var msg = TryGetLockReleaseMessage(key, value, flags, out var server);
+            if (msg is not null) return ExecuteSync(msg, ResultProcessor.Boolean, server);
+
             var tran = GetLockReleaseTransaction(key, value);
             if (tran != null) return tran.Execute(flags);
 
@@ -1809,9 +1827,22 @@ namespace StackExchange.Redis
             return KeyDelete(key, flags);
         }
 
-        public Task<bool> LockReleaseAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        private Message? TryGetLockReleaseMessage(in RedisKey key, in RedisValue value, CommandFlags flags, out ServerEndPoint? server, [CallerMemberName] string? caller = null)
         {
             if (value.IsNull) throw new ArgumentNullException(nameof(value));
+
+            // note that lock tokens are expected to be small, so: we'll use IFEQ rather than IFDEQ, for reliability
+            var features = GetFeatures(key, flags, RedisCommand.SET, out server);
+            return features.DeleteWithValueCheck
+                ? GetStringDeleteMessage(key, ValueCondition.Equal(value), flags, caller) // use check-and-delete
+                : null;
+        }
+
+        public Task<bool> LockReleaseAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = TryGetLockReleaseMessage(key, value, flags, out var server);
+            if (msg is not null) return ExecuteAsync(msg, ResultProcessor.Boolean, server);
+
             var tran = GetLockReleaseTransaction(key, value);
             if (tran != null) return tran.ExecuteAsync(flags);
 

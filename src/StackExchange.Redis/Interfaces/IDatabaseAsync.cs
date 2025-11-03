@@ -839,10 +839,10 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)"/>
         Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.StringSet(RedisKey, RedisValue, ValueCondition, CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.StringSet(RedisKey, RedisValue, TimeSpan?, ValueCondition, CommandFlags)"/>
         [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0027
-        Task<bool> StringSetAsync(RedisKey key, RedisValue value, ValueCondition when, CommandFlags flags = CommandFlags.None);
+        Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027
 
         /// <inheritdoc cref="IDatabase.StringSet(KeyValuePair{RedisKey, RedisValue}[], When, CommandFlags)"/>

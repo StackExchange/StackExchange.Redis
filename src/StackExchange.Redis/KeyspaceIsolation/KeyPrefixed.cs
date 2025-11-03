@@ -777,8 +777,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLengthAsync(ToInner(key), flags);
 
-        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, ValueCondition when, CommandFlags flags = CommandFlags.None)
-            => Inner.StringSetAsync(ToInner(key), value, when, flags);
+        public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
+            => Inner.StringSetAsync(ToInner(key), value, expiry, when, flags);
 
         public Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSetAsync(ToInner(values), when, flags);
