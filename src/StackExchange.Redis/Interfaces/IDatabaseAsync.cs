@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -834,6 +835,7 @@ namespace StackExchange.Redis
         Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when, CommandFlags flags);
 
         /// <inheritdoc cref="IDatabase.StringSet(KeyValuePair{RedisKey, RedisValue}[], When, Expiration, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringSetAndGet(RedisKey, RedisValue, TimeSpan?, When, CommandFlags)"/>
