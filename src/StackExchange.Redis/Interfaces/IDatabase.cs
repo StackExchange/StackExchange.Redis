@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
 
 // ReSharper disable once CheckNamespace
@@ -3392,7 +3391,6 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/msetnx"/>.
         /// <seealso href="https://redis.io/commands/msetex"/>.
         /// </remarks>
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
