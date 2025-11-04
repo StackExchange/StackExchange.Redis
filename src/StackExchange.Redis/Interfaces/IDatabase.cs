@@ -3383,7 +3383,6 @@ namespace StackExchange.Redis
         /// <param name="values">The keys and values to set.</param>
         /// <param name="when">Which condition to set the value under (defaults to always).</param>
         /// <param name="expiry">The expiry to set.</param>
-        /// <param name="keepTtl">Whether to maintain the existing key's TTL (KEEPTTL flag).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the keys were set, <see langword="false"/> otherwise.</returns>
         /// <remarks>
@@ -3393,7 +3392,7 @@ namespace StackExchange.Redis
         /// <seealso href="https://redis.io/commands/msetex"/>.
         /// </remarks>
 #pragma warning disable RS0027 // due to overlap with single-key variant, but: not ambiguous
-        bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, TimeSpan? expiry = null, bool keepTtl = false, CommandFlags flags = CommandFlags.None);
+        bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027
 
         /// <summary>

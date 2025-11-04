@@ -391,7 +391,7 @@ namespace StackExchange.Redis
         public static Message CreateInSlot(int db, int slot, CommandFlags flags, RedisCommand command, RedisValue[] values) =>
             new CommandSlotValuesMessage(db, slot, flags, command, values);
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, KeyValuePair<RedisKey, RedisValue>[] values, RedisDatabase.ExpiryToken expiry, When when)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, KeyValuePair<RedisKey, RedisValue>[] values, Expiration expiry, When when)
             => new MultiSetMessage(db, flags, command, values, expiry, when);
 
         /// <summary>Gets whether this is primary-only.</summary>
@@ -1694,7 +1694,7 @@ namespace StackExchange.Redis
             public override int ArgCount => values.Length;
         }
 
-        private sealed class MultiSetMessage(int db, CommandFlags flags, RedisCommand command, KeyValuePair<RedisKey, RedisValue>[] values, RedisDatabase.ExpiryToken expiry, When when) : Message(db, flags, command)
+        private sealed class MultiSetMessage(int db, CommandFlags flags, RedisCommand command, KeyValuePair<RedisKey, RedisValue>[] values, Expiration expiry, When when) : Message(db, flags, command)
         {
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {

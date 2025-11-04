@@ -756,8 +756,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
             Inner.StringSet(ToInner(values), when, flags);
 
-        public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when, TimeSpan? expiry, bool keepTtl, CommandFlags flags) =>
-            Inner.StringSet(ToInner(values), when, expiry, keepTtl, flags);
+        public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when, Expiration expiry, CommandFlags flags) =>
+            Inner.StringSet(ToInner(values), when, expiry, flags);
 
         public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, When when) =>
             Inner.StringSet(ToInner(key), value, expiry, when);

@@ -2052,5 +2052,17 @@ StackExchange.Redis.IServer.ExecuteAsync(int? database, string! command, System.
 [SER001]static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByMember(StackExchange.Redis.RedisValue member) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
 [SER001]static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByVector(System.ReadOnlyMemory<float> vector) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
 StackExchange.Redis.RedisChannel.WithKeyRouting() -> StackExchange.Redis.RedisChannel
-StackExchange.Redis.IDatabase.StringSet(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, System.TimeSpan? expiry = null, bool keepTtl = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
-StackExchange.Redis.IDatabaseAsync.StringSetAsync(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, System.TimeSpan? expiry = null, bool keepTtl = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IDatabase.StringSet(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.Expiration expiry = default(StackExchange.Redis.Expiration), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabaseAsync.StringSetAsync(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.Expiration expiry = default(StackExchange.Redis.Expiration), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.Expiration
+StackExchange.Redis.Expiration.Expiration() -> void
+StackExchange.Redis.Expiration.Expiration(System.DateTime when) -> void
+StackExchange.Redis.Expiration.Expiration(System.TimeSpan ttl) -> void
+override StackExchange.Redis.Expiration.Equals(object? obj) -> bool
+override StackExchange.Redis.Expiration.GetHashCode() -> int
+override StackExchange.Redis.Expiration.ToString() -> string!
+static StackExchange.Redis.Expiration.Default.get -> StackExchange.Redis.Expiration
+static StackExchange.Redis.Expiration.KeepTtl.get -> StackExchange.Redis.Expiration
+static StackExchange.Redis.Expiration.Persist.get -> StackExchange.Redis.Expiration
+static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.DateTime when) -> StackExchange.Redis.Expiration
+static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.TimeSpan ttl) -> StackExchange.Redis.Expiration

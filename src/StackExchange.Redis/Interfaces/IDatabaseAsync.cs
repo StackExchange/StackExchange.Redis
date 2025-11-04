@@ -833,9 +833,9 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StringSet(KeyValuePair{RedisKey, RedisValue}[], When, CommandFlags)"/>
         Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when, CommandFlags flags);
 
-        /// <inheritdoc cref="IDatabase.StringSet(KeyValuePair{RedisKey, RedisValue}[], When, TimeSpan?, bool, CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.StringSet(KeyValuePair{RedisKey, RedisValue}[], When, Expiration, CommandFlags)"/>
 #pragma warning disable RS0027 // due to overlap with single-key variant, but: not ambiguous
-        Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, TimeSpan? expiry = null, bool keepTtl = false, CommandFlags flags = CommandFlags.None);
+        Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027
 
         /// <inheritdoc cref="IDatabase.StringSetAndGet(RedisKey, RedisValue, TimeSpan?, When, CommandFlags)"/>
