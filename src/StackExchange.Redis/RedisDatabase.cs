@@ -4098,28 +4098,28 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, argCount);
-                physical.WriteBulkString(StreamConstants.Group);
+                physical.WriteBulkString("GROUP"u8);
                 physical.WriteBulkString(groupName);
                 physical.WriteBulkString(consumerName);
 
                 if (countPerStream.HasValue)
                 {
-                    physical.WriteBulkString(StreamConstants.Count);
+                    physical.WriteBulkString("COUNT"u8);
                     physical.WriteBulkString(countPerStream.Value);
                 }
 
                 if (noAck)
                 {
-                    physical.WriteBulkString(StreamConstants.NoAck);
+                    physical.WriteBulkString("NOACK"u8);
                 }
 
                 if (claimMinIdleTime.HasValue)
                 {
-                    physical.WriteBulkString(StreamConstants.Claim);
+                    physical.WriteBulkString("CLAIM"u8);
                     physical.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
-                physical.WriteBulkString(StreamConstants.Streams);
+                physical.WriteBulkString("STREAMS"u8);
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
                     physical.Write(streamPositions[i].Key);
@@ -4181,11 +4181,11 @@ namespace StackExchange.Redis
 
                 if (countPerStream.HasValue)
                 {
-                    physical.WriteBulkString(StreamConstants.Count);
+                    physical.WriteBulkString("COUNT"u8);
                     physical.WriteBulkString(countPerStream.Value);
                 }
 
-                physical.WriteBulkString(StreamConstants.Streams);
+                physical.WriteBulkString("STREAMS"u8);
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
                     physical.Write(streamPositions[i].Key);
@@ -4895,28 +4895,28 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, argCount);
-                physical.WriteBulkString(StreamConstants.Group);
+                physical.WriteBulkString("GROUP"u8);
                 physical.WriteBulkString(groupName);
                 physical.WriteBulkString(consumerName);
 
                 if (count.HasValue)
                 {
-                    physical.WriteBulkString(StreamConstants.Count);
+                    physical.WriteBulkString("COUNT"u8);
                     physical.WriteBulkString(count.Value);
                 }
 
                 if (noAck)
                 {
-                    physical.WriteBulkString(StreamConstants.NoAck);
+                    physical.WriteBulkString("NOACK"u8);
                 }
 
                 if (claimMinIdleTime.HasValue)
                 {
-                    physical.WriteBulkString(StreamConstants.Claim);
+                    physical.WriteBulkString("CLAIM"u8);
                     physical.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
-                physical.WriteBulkString(StreamConstants.Streams);
+                physical.WriteBulkString("STREAMS"u8);
                 physical.Write(Key);
                 physical.WriteBulkString(afterId);
             }
@@ -4954,11 +4954,11 @@ namespace StackExchange.Redis
 
                 if (count.HasValue)
                 {
-                    physical.WriteBulkString(StreamConstants.Count);
+                    physical.WriteBulkString("COUNT"u8);
                     physical.WriteBulkString(count.Value);
                 }
 
-                physical.WriteBulkString(StreamConstants.Streams);
+                physical.WriteBulkString("STREAMS"u8);
                 physical.Write(Key);
                 physical.WriteBulkString(afterId);
             }

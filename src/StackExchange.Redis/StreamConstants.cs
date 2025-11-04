@@ -52,8 +52,6 @@ namespace StackExchange.Redis
 
         internal static readonly RedisValue Destroy = "DESTROY";
 
-        internal static readonly RedisValue Group = "GROUP";
-
         internal static readonly RedisValue Groups = "GROUPS";
 
         internal static readonly RedisValue JustId = "JUSTID";
@@ -65,12 +63,7 @@ namespace StackExchange.Redis
 
         internal static readonly RedisValue MkStream = "MKSTREAM";
 
-        internal static readonly RedisValue NoAck = "NOACK";
-        internal static readonly RedisValue Claim = "CLAIM";
-
         internal static readonly RedisValue Stream = "STREAM";
-
-        internal static readonly RedisValue Streams = "STREAMS";
 
         private static readonly RedisValue KeepRef = "KEEPREF", DelRef = "DELREF", Acked = "ACKED";
 
