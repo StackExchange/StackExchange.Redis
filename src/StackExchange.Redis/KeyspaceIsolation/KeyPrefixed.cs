@@ -690,6 +690,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamReadGroupAsync(ToInner(key), groupName, consumerName, position, count, noAck, flags);
 
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamReadGroupAsync(ToInner(key), groupName, consumerName, position, count, noAck, claimMinIdleTime, flags);
+
         public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags) =>
             Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, flags);
 

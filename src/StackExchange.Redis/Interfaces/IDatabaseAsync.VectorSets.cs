@@ -92,4 +92,7 @@ public partial interface IDatabaseAsync
         RedisKey key,
         VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None);
+
+    /// <inheritdoc cref="IDatabase.StreamReadGroup(StreamPosition[], RedisValue, RedisValue, int?, bool, TimeSpan?, CommandFlags)"/>
+    Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None);
 }

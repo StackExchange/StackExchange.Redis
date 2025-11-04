@@ -3262,29 +3262,38 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
         }
 
-        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
-        {
-            return StreamReadGroup(
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags) =>
+            StreamReadGroup(
                 key,
                 groupName,
                 consumerName,
                 position,
                 count,
                 false,
+                null,
                 flags);
-        }
 
         public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
-        {
-            var actualPosition = position ?? StreamPosition.NewMessages;
+            => StreamReadGroup(
+                key,
+                groupName,
+                consumerName,
+                position,
+                count,
+                noAck,
+                null,
+                flags);
 
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
+        {
             var msg = GetStreamReadGroupMessage(
                 key,
                 groupName,
                 consumerName,
-                StreamPosition.Resolve(actualPosition, RedisCommand.XREADGROUP),
+                StreamPosition.Resolve(position ?? StreamPosition.NewMessages, RedisCommand.XREADGROUP),
                 count,
                 noAck,
+                claimMinIdleTime,
                 flags);
 
             return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip, defaultValue: Array.Empty<StreamEntry>());
@@ -3299,20 +3308,31 @@ namespace StackExchange.Redis
                 position,
                 count,
                 false,
+                null,
                 flags);
         }
 
         public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
-        {
-            var actualPosition = position ?? StreamPosition.NewMessages;
+            => StreamReadGroupAsync(
+                key,
+                groupName,
+                consumerName,
+                position,
+                count,
+                noAck,
+                null,
+                flags);
 
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
+        {
             var msg = GetStreamReadGroupMessage(
                 key,
                 groupName,
                 consumerName,
-                StreamPosition.Resolve(actualPosition, RedisCommand.XREADGROUP),
+                StreamPosition.Resolve(position ?? StreamPosition.NewMessages, RedisCommand.XREADGROUP),
                 count,
                 noAck,
+                claimMinIdleTime,
                 flags);
 
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip, defaultValue: Array.Empty<StreamEntry>());
@@ -4838,8 +4858,8 @@ namespace StackExchange.Redis
                 values);
         }
 
-        private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, CommandFlags flags) =>
-            new SingleStreamReadGroupCommandMessage(Database, flags, key, groupName, consumerName, afterId, count, noAck);
+        private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags) =>
+            new SingleStreamReadGroupCommandMessage(Database, flags, key, groupName, consumerName, afterId, count, noAck, claimMinIdleTime);
 
         private sealed class SingleStreamReadGroupCommandMessage : Message.CommandKeyBase // XREADGROUP with single stream. eg XREADGROUP GROUP mygroup Alice COUNT 1 STREAMS mystream >
         {
@@ -4849,8 +4869,9 @@ namespace StackExchange.Redis
             private readonly int? count;
             private readonly bool noAck;
             private readonly int argCount;
+            private readonly TimeSpan? claimMinIdleTime;
 
-            public SingleStreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck)
+            public SingleStreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, TimeSpan? claimMinIdleTime)
                 : base(db, flags, RedisCommand.XREADGROUP, key)
             {
                 if (count.HasValue && count <= 0)
@@ -4867,7 +4888,8 @@ namespace StackExchange.Redis
                 this.afterId = afterId;
                 this.count = count;
                 this.noAck = noAck;
-                argCount = 6 + (count.HasValue ? 2 : 0) + (noAck ? 1 : 0);
+                this.claimMinIdleTime = claimMinIdleTime;
+                argCount = 6 + (count.HasValue ? 2 : 0) + (noAck ? 1 : 0) + (claimMinIdleTime.HasValue ? 2 : 0);
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
@@ -4886,6 +4908,12 @@ namespace StackExchange.Redis
                 if (noAck)
                 {
                     physical.WriteBulkString(StreamConstants.NoAck);
+                }
+
+                if (claimMinIdleTime.HasValue)
+                {
+                    physical.WriteBulkString(StreamConstants.Claim);
+                    physical.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
                 physical.WriteBulkString(StreamConstants.Streams);
