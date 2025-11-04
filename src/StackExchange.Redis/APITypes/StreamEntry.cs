@@ -19,7 +19,7 @@ public readonly struct StreamEntry
     }
 
     /// <summary>
-    /// Creates an stream entry.
+    /// Creates a stream entry.
     /// </summary>
     public StreamEntry(RedisValue id, NameValueEntry[] values, TimeSpan? idleTime, int deliveryCount)
     {
