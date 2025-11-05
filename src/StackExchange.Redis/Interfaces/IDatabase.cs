@@ -3410,7 +3410,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
         /// <remarks><seealso href="https://redis.io/commands/set"/></remarks>
-        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, bool keepTtl, When when, CommandFlags flags);
+        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, bool keepTtl, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Set <paramref name="key"/> to hold the string <paramref name="value"/>, if it matches the given <paramref name="when"/> condition.

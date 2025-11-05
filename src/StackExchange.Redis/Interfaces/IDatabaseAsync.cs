@@ -839,7 +839,7 @@ namespace StackExchange.Redis
         Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);
 
         /// <inheritdoc cref="IDatabase.StringSet(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)"/>
-        Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, bool keepTtl, When when, CommandFlags flags = CommandFlags.None);
+        Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, bool keepTtl, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringSet(RedisKey, RedisValue, Expiration, ValueCondition, CommandFlags)"/>
 #pragma warning disable RS0027 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
