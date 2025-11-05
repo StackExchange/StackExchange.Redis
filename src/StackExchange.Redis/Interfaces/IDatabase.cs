@@ -96,7 +96,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Removes the specified member from the geo sorted set stored at key.
-        /// Non existing members are ignored.
+        /// Non-existing members are ignored.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="member">The geo value to remove.</param>
@@ -145,7 +145,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// The command returns an array where each element is a two elements array representing longitude and latitude (x,y) of each member name passed as argument to the command.
-        /// Non existing elements are reported as NULL elements of the array.
+        /// Non-existing elements are reported as NULL elements of the array.
         /// </returns>
         /// <remarks><seealso href="https://redis.io/commands/geopos"/></remarks>
         GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
@@ -158,7 +158,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
         /// The command returns an array where each element is a two elements array representing longitude and latitude (x,y) of each member name passed as argument to the command.
-        /// Non existing elements are reported as NULL elements of the array.
+        /// Non-existing elements are reported as NULL elements of the array.
         /// </returns>
         /// <remarks><seealso href="https://redis.io/commands/geopos"/></remarks>
         GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
@@ -204,7 +204,7 @@ namespace StackExchange.Redis
         /// <param name="member">The set member to use as the center of the shape.</param>
         /// <param name="shape">The shape to use to bound the geo search.</param>
         /// <param name="count">The maximum number of results to pull back.</param>
-        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="demandClosest">Whether to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
         /// <param name="order">The order to sort by (defaults to unordered).</param>
         /// <param name="options">The search options to use.</param>
         /// <param name="flags">The flags for this operation.</param>
@@ -221,7 +221,7 @@ namespace StackExchange.Redis
         /// <param name="latitude">The latitude of the center point.</param>
         /// <param name="shape">The shape to use to bound the geo search.</param>
         /// <param name="count">The maximum number of results to pull back.</param>
-        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="demandClosest">Whether to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
         /// <param name="order">The order to sort by (defaults to unordered).</param>
         /// <param name="options">The search options to use.</param>
         /// <param name="flags">The flags for this operation.</param>
@@ -238,7 +238,7 @@ namespace StackExchange.Redis
         /// <param name="member">The set member to use as the center of the shape.</param>
         /// <param name="shape">The shape to use to bound the geo search.</param>
         /// <param name="count">The maximum number of results to pull back.</param>
-        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="demandClosest">Whether to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
         /// <param name="order">The order to sort by (defaults to unordered).</param>
         /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set.</param>
         /// <param name="flags">The flags for this operation.</param>
@@ -256,7 +256,7 @@ namespace StackExchange.Redis
         /// <param name="latitude">The latitude of the center point.</param>
         /// <param name="shape">The shape to use to bound the geo search.</param>
         /// <param name="count">The maximum number of results to pull back.</param>
-        /// <param name="demandClosest">Whether or not to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
+        /// <param name="demandClosest">Whether to terminate the search after finding <paramref name="count"/> results. Must be true of count is -1.</param>
         /// <param name="order">The order to sort by (defaults to unordered).</param>
         /// <param name="storeDistances">If set to true, the resulting set will be a regular sorted-set containing only distances, rather than a geo-encoded sorted-set.</param>
         /// <param name="flags">The flags for this operation.</param>
@@ -275,13 +275,13 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value at field after the decrement operation.</returns>
         /// <remarks>
-        /// <para>The range of values supported by HINCRBY is limited to 64 bit signed integers.</para>
+        /// <para>The range of values supported by HINCRBY is limited to 64-bit signed integers.</para>
         /// <para><seealso href="https://redis.io/commands/hincrby"/></para>
         /// </remarks>
         long HashDecrement(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Decrement the specified field of an hash stored at key, and representing a floating point number, by the specified decrement.
+        /// Decrement the specified field of a hash stored at key, and representing a floating point number, by the specified decrement.
         /// If the field does not exist, it is set to 0 before performing the operation.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
@@ -337,7 +337,7 @@ namespace StackExchange.Redis
         /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
-        /// Empty array if the key does not exist. Otherwise returns an array where each item is the result of operation for given fields:
+        /// Empty array if the key does not exist. Otherwise, returns an array where each item is the result of operation for given fields:
         /// <list type="table">
         ///   <listheader>
         ///     <term>Result</term>
@@ -364,7 +364,7 @@ namespace StackExchange.Redis
         ExpireResult[] HashFieldExpire(RedisKey key, RedisValue[] hashFields, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Set the time out on a field of the given set of fields of hash.
+        /// Set the time-out on a field of the given set of fields of hash.
         /// After the timeout has expired, the field of the hash will automatically be deleted.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
@@ -373,7 +373,7 @@ namespace StackExchange.Redis
         /// <param name="when">under which condition the expiration will be set using <see cref="ExpireWhen"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
-        /// Empty array if the key does not exist. Otherwise returns an array where each item is the result of operation for given fields:
+        /// Empty array if the key does not exist. Otherwise, returns an array where each item is the result of operation for given fields:
         /// <list type="table">
         ///   <listheader>
         ///       <term>Result</term>
@@ -406,7 +406,7 @@ namespace StackExchange.Redis
         /// <param name="hashFields">The fields in the hash to get expire time.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
-        /// Empty array if the key does not exist. Otherwise returns the result of operation for given fields:
+        /// Empty array if the key does not exist. Otherwise, returns the result of operation for given fields:
         /// <list type="table">
         ///   <listheader>
         ///     <term>Result</term>
@@ -435,7 +435,7 @@ namespace StackExchange.Redis
         /// <param name="hashFields">The fields in the hash to remove expire time.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
-        /// Empty array if the key does not exist. Otherwise returns the result of operation for given fields:
+        /// Empty array if the key does not exist. Otherwise, returns the result of operation for given fields:
         /// <list type="table">
         ///   <listheader>
         ///     <term>Result</term>
@@ -464,7 +464,7 @@ namespace StackExchange.Redis
         /// <param name="hashFields">The fields in the hash to get expire time.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>
-        /// Empty array if the key does not exist. Otherwise returns the result of operation for given fields:
+        /// Empty array if the key does not exist. Otherwise, returns the result of operation for given fields:
         /// <list type="table">
         ///   <listheader>
         ///     <term>Result</term>
@@ -681,13 +681,13 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The value at field after the increment operation.</returns>
         /// <remarks>
-        /// <para>The range of values supported by <c>HINCRBY</c> is limited to 64 bit signed integers.</para>
+        /// <para>The range of values supported by <c>HINCRBY</c> is limited to 64-bit signed integers.</para>
         /// <para><seealso href="https://redis.io/commands/hincrby"/></para>
         /// </remarks>
         long HashIncrement(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Increment the specified field of an hash stored at key, and representing a floating point number, by the specified increment.
+        /// Increment the specified field of a hash stored at key, and representing a floating point number, by the specified increment.
         /// If the field does not exist, it is set to 0 before performing the operation.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
@@ -811,7 +811,7 @@ namespace StackExchange.Redis
         /// <returns><see langword="true"/> if field is a new field in the hash and value was set, <see langword="false"/> if field already exists in the hash and the value was updated.</returns>
         /// <remarks>
         /// See
-        /// <seealso href="https://redis.io/commands/hset"/>,
+        /// <seealso href="https://redis.io/commands/hset"/> and
         /// <seealso href="https://redis.io/commands/hsetnx"/>.
         /// </remarks>
         bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
@@ -874,7 +874,7 @@ namespace StackExchange.Redis
         long HyperLogLogLength(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Merge multiple HyperLogLog values into an unique value that will approximate the cardinality of the union of the observed Sets of the source HyperLogLog structures.
+        /// Merge multiple HyperLogLog values into a unique value that will approximate the cardinality of the union of the observed Sets of the source HyperLogLog structures.
         /// </summary>
         /// <param name="destination">The key of the merged hyperloglog.</param>
         /// <param name="first">The key of the first hyperloglog to merge.</param>
@@ -884,7 +884,7 @@ namespace StackExchange.Redis
         void HyperLogLogMerge(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Merge multiple HyperLogLog values into an unique value that will approximate the cardinality of the union of the observed Sets of the source HyperLogLog structures.
+        /// Merge multiple HyperLogLog values into a unique value that will approximate the cardinality of the union of the observed Sets of the source HyperLogLog structures.
         /// </summary>
         /// <param name="destination">The key of the merged hyperloglog.</param>
         /// <param name="sourceKeys">The keys of the hyperloglogs to merge.</param>
@@ -921,7 +921,7 @@ namespace StackExchange.Redis
         /// <returns><see langword="true"/> if the key was removed.</returns>
         /// <remarks>
         /// See
-        /// <seealso href="https://redis.io/commands/del"/>,
+        /// <seealso href="https://redis.io/commands/del"/> and
         /// <seealso href="https://redis.io/commands/unlink"/>.
         /// </remarks>
         bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None);
@@ -1046,8 +1046,8 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>
         /// See
-        /// <seealso href="https://redis.io/commands/expireat"/>,
-        /// <seealso href="https://redis.io/commands/pexpireat"/>,
+        /// <seealso href="https://redis.io/commands/expireat"/> or
+        /// <seealso href="https://redis.io/commands/pexpireat"/> or
         /// <seealso href="https://redis.io/commands/persist"/>.
         /// </para>
         /// </remarks>
@@ -1117,7 +1117,7 @@ namespace StackExchange.Redis
         bool KeyMove(RedisKey key, int database, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Remove the existing timeout on key, turning the key from volatile (a key with an expire set) to persistent (a key that will never expire as no timeout is associated).
+        /// Remove the existing timeout on key, turning the key from volatile (a key with an expiry set) to persistent (a key that will never expire as no timeout is associated).
         /// </summary>
         /// <param name="key">The key to persist.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -2972,7 +2972,22 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xreadgroup"/></remarks>
-        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
+        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, bool noAck, CommandFlags flags);
+
+        /// <summary>
+        /// Read messages from a stream into an associated consumer group.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="consumerName">The consumer name.</param>
+        /// <param name="position">The position from which to read the stream. Defaults to <see cref="StreamPosition.NewMessages"/> when <see langword="null"/>.</param>
+        /// <param name="count">The maximum number of messages to return.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
+        /// <param name="claimMinIdleTime">Auto-claim messages that have been idle for at least this long.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/xreadgroup"/></remarks>
+        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group.
@@ -3005,7 +3020,25 @@ namespace StackExchange.Redis
         /// <para>Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</c>.</para>
         /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
         /// </remarks>
-        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags);
+
+        /// <summary>
+        /// Read from multiple streams into the given consumer group.
+        /// The consumer group with the given <paramref name="groupName"/> will need to have been created for each stream prior to calling this method.
+        /// </summary>
+        /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="consumerName">The name of the consumer.</param>
+        /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
+        /// <param name="claimMinIdleTime">Auto-claim messages that have been idle for at least this long.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
+        /// <remarks>
+        /// <para>Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</c>.</para>
+        /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
+        /// </remarks>
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified maximum length.
@@ -3334,8 +3367,8 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Implements the longest common subsequence algorithm between the values at <paramref name="first"/> and <paramref name="second"/>,
-        /// returning the legnth of the common sequence.
-        /// Note that this is different than the longest common string algorithm,
+        /// returning the length of the common sequence.
+        /// Note that this is different to the longest common string algorithm,
         /// since matching characters in the string does not need to be contiguous.
         /// </summary>
         /// <param name="first">The key of the first string.</param>
@@ -3406,8 +3439,26 @@ namespace StackExchange.Redis
         /// See
         /// <seealso href="https://redis.io/commands/mset"/>,
         /// <seealso href="https://redis.io/commands/msetnx"/>.
+        /// <seealso href="https://redis.io/commands/msetex"/>.
         /// </remarks>
-        bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when, CommandFlags flags);
+
+        /// <summary>
+        /// Sets the given keys to their respective values, optionally including expiration.
+        /// If <see cref="When.NotExists"/> is specified, this will not perform any operation at all even if just a single key already exists.
+        /// </summary>
+        /// <param name="values">The keys and values to set.</param>
+        /// <param name="when">Which condition to set the value under (defaults to always).</param>
+        /// <param name="expiry">The expiry to set.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the keys were set, <see langword="false"/> otherwise.</returns>
+        /// <remarks>
+        /// See
+        /// <seealso href="https://redis.io/commands/mset"/>,
+        /// <seealso href="https://redis.io/commands/msetnx"/>.
+        /// <seealso href="https://redis.io/commands/msetex"/>.
+        /// </remarks>
+        bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Atomically sets key to value and returns the previous value (if any) stored at <paramref name="key"/>.

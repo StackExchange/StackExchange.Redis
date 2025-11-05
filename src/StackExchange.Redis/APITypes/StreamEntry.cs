@@ -14,6 +14,19 @@ public readonly struct StreamEntry
     {
         Id = id;
         Values = values;
+        IdleTime = null;
+        DeliveryCount = 0;
+    }
+
+    /// <summary>
+    /// Creates a stream entry.
+    /// </summary>
+    public StreamEntry(RedisValue id, NameValueEntry[] values, TimeSpan? idleTime, int deliveryCount)
+    {
+        Id = id;
+        Values = values;
+        IdleTime = idleTime;
+        DeliveryCount = deliveryCount;
     }
 
     /// <summary>
@@ -50,6 +63,18 @@ public readonly struct StreamEntry
             return RedisValue.Null;
         }
     }
+
+    /// <summary>
+    /// Delivery count - the number of times this entry has been delivered: 0 for new messages that haven't been delivered before,
+    /// 1+ for claimed messages (previously unacknowledged entries).
+    /// </summary>
+    public int DeliveryCount { get; }
+
+    /// <summary>
+    ///  Idle time in milliseconds - the number of milliseconds elapsed since this entry was last delivered to a consumer.
+    /// </summary>
+    /// <remarks>This member is populated when using <c>XREADGROUP</c> with <c>CLAIM</c>.</remarks>
+    public TimeSpan? IdleTime { get; }
 
     /// <summary>
     /// Indicates that the Redis Stream Entry is null.
