@@ -1711,7 +1711,7 @@ namespace StackExchange.Redis
             // - MSETNX {key1} {value1} [{key2} {value2}...]
             // - MSETEX {count} {key1} {value1} [{key2} {value2}...] [standard-expiry-tokens]
             public override int ArgCount => Command == RedisCommand.MSETEX
-                ? (1 + (2 * values.Length) + expiry.Tokens + (when is When.Exists or When.NotExists ? 1 : 0))
+                ? (1 + (2 * values.Length) + expiry.TokenCount + (when is When.Exists or When.NotExists ? 1 : 0))
                 : (2 * values.Length); // MSET/MSETNX only support simple syntax
 
             protected override void WriteImpl(PhysicalConnection physical)

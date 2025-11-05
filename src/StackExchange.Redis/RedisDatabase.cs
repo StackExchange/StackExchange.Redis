@@ -489,7 +489,7 @@ namespace StackExchange.Redis
         }
 
         private Message HashFieldGetAndSetExpiryMessage(in RedisKey key, in RedisValue hashField, Expiration expiry, CommandFlags flags) =>
-            expiry.Tokens switch
+            expiry.TokenCount switch
             {
                 // expiry, for example EX 10
                 2 => Message.Create(Database, flags, RedisCommand.HGETEX, key, expiry.Operand, expiry.Value,  RedisLiterals.FIELDS, 1, hashField),
@@ -508,13 +508,13 @@ namespace StackExchange.Redis
             }
 
             // precision, time, FIELDS, hashFields.Length
-            int extraTokens = expiry.Tokens + 2;
+            int extraTokens = expiry.TokenCount + 2;
 
-            RedisValue[] values = new RedisValue[expiry.Tokens + 2 + hashFields.Length];
+            RedisValue[] values = new RedisValue[expiry.TokenCount + 2 + hashFields.Length];
 
             int index = 0;
             // add PERSIST or expiry values
-            switch (expiry.Tokens)
+            switch (expiry.TokenCount)
             {
                 case 2:
                     values[index++] = expiry.Operand;
@@ -620,7 +620,7 @@ namespace StackExchange.Redis
         {
             if (when == When.Always)
             {
-                return expiry.Tokens switch
+                return expiry.TokenCount switch
                 {
                     2 => Message.Create(Database, flags, RedisCommand.HSETEX, key, expiry.Operand, expiry.Value, RedisLiterals.FIELDS, 1, field, value),
                     1 => Message.Create(Database, flags, RedisCommand.HSETEX, key, expiry.Operand, RedisLiterals.FIELDS, 1, field, value),
@@ -637,7 +637,7 @@ namespace StackExchange.Redis
                     _ => throw new ArgumentOutOfRangeException(nameof(when)),
                 };
 
-                return expiry.Tokens switch
+                return expiry.TokenCount switch
                 {
                     2 => Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, expiry.Operand, expiry.Value, RedisLiterals.FIELDS, 1, field, value),
                     1 => Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, expiry.Operand, RedisLiterals.FIELDS, 1, field, value),
@@ -654,7 +654,7 @@ namespace StackExchange.Redis
                 return HashFieldSetAndSetExpiryMessage(key, field.Name, field.Value, expiry, when, flags);
             }
             // Determine the base array size
-            var extraTokens = expiry.Tokens + (when == When.Always ? 2 : 3); // [FXX|FNX] {expiry} FIELDS {length}
+            var extraTokens = expiry.TokenCount + (when == When.Always ? 2 : 3); // [FXX|FNX] {expiry} FIELDS {length}
             RedisValue[] values = new RedisValue[(hashFields.Length * 2) + extraTokens];
 
             int index = 0;
@@ -671,7 +671,7 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentOutOfRangeException(nameof(when));
             }
-            switch (expiry.Tokens)
+            switch (expiry.TokenCount)
             {
                 case 2:
                     values[index++] = expiry.Operand;
@@ -5088,7 +5088,7 @@ namespace StackExchange.Redis
 
         private Message GetStringGetExMessage(in RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
         {
-            return expiry.Tokens switch
+            return expiry.TokenCount switch
             {
                 0 => Message.Create(Database, flags, RedisCommand.GETEX, key),
                 1 => Message.Create(Database, flags, RedisCommand.GETEX, key, expiry.Operand),

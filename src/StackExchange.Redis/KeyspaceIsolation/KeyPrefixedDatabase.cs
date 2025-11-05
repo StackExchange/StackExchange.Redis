@@ -765,7 +765,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLength(ToInner(key), flags);
 
-        public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
+        public bool StringSet(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
             => Inner.StringSet(ToInner(key), value, expiry, when, flags);
 
         public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None) =>

@@ -237,7 +237,7 @@ public readonly struct Expiration
     /// <inheritdoc/>
     public override bool Equals(object? obj) => obj is Expiration other && _valueAndMode == other._valueAndMode;
 
-    internal int Tokens => Mode switch
+    internal int TokenCount => Mode switch
     {
         ExpirationMode.Default or ExpirationMode.NotUsed => 0,
         ExpirationMode.KeepTtl or ExpirationMode.Persist => 1,

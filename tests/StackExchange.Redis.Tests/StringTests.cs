@@ -301,9 +301,9 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.True(await x2 > TimeSpan.FromMinutes(9), "Over 9");
         Assert.True(await x2 <= TimeSpan.FromMinutes(10), "Under 10");
 
-        db.StringSet(prefix + "1", "def", keepTtl: true, flags: CommandFlags.FireAndForget);
+        db.StringSet(prefix + "1", "def", Expiration.KeepTtl, flags: CommandFlags.FireAndForget);
         db.StringSet(prefix + "2", "def", flags: CommandFlags.FireAndForget);
-        db.StringSet(prefix + "3", "def", keepTtl: true, flags: CommandFlags.FireAndForget);
+        db.StringSet(prefix + "3", "def", Expiration.KeepTtl, flags: CommandFlags.FireAndForget);
 
         var y0 = db.KeyTimeToLiveAsync(prefix + "1");
         var y1 = db.KeyTimeToLiveAsync(prefix + "2");

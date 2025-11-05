@@ -3410,7 +3410,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
         /// <remarks><seealso href="https://redis.io/commands/set"/></remarks>
-        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, bool keepTtl, When when, CommandFlags flags);
 
         /// <summary>
         /// Set <paramref name="key"/> to hold the string <paramref name="value"/>, if it matches the given <paramref name="when"/> condition.
@@ -3421,8 +3421,8 @@ namespace StackExchange.Redis
         /// <param name="when">The condition to enforce.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>See <seealso href="https://redis.io/commands/delex"/>.</remarks>
-#pragma warning disable RS0027
-        bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None);
+#pragma warning disable RS0027 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
+        bool StringSet(RedisKey key, RedisValue value, Expiration expiry = default, ValueCondition when = default, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027
 
         /// <summary>

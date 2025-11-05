@@ -10,7 +10,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = TimeSpan.FromMilliseconds(5000);
         var ex = CreateOrPersist(time, false);
-        Assert.Equal(2, ex.Tokens);
+        Assert.Equal(2, ex.TokenCount);
         Assert.Equal("EX 5", ex.ToString());
     }
 
@@ -19,7 +19,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = TimeSpan.FromMilliseconds(5001);
         var ex = CreateOrPersist(time, false);
-        Assert.Equal(2, ex.Tokens);
+        Assert.Equal(2, ex.TokenCount);
         Assert.Equal("PX 5001", ex.ToString());
     }
 
@@ -28,7 +28,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = null;
         var ex = CreateOrPersist(time, false);
-        Assert.Equal(0, ex.Tokens);
+        Assert.Equal(0, ex.TokenCount);
         Assert.Equal("", ex.ToString());
     }
 
@@ -37,7 +37,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = null;
         var ex = CreateOrPersist(time, true);
-        Assert.Equal(1, ex.Tokens);
+        Assert.Equal(1, ex.TokenCount);
         Assert.Equal("PERSIST", ex.ToString());
     }
 
@@ -55,7 +55,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = TimeSpan.FromMilliseconds(5000);
         var ex = CreateOrKeepTtl(time, false);
-        Assert.Equal(2, ex.Tokens);
+        Assert.Equal(2, ex.TokenCount);
         Assert.Equal("EX 5", ex.ToString());
     }
 
@@ -64,7 +64,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = TimeSpan.FromMilliseconds(5001);
         var ex = CreateOrKeepTtl(time, false);
-        Assert.Equal(2, ex.Tokens);
+        Assert.Equal(2, ex.TokenCount);
         Assert.Equal("PX 5001", ex.ToString());
     }
 
@@ -73,7 +73,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = null;
         var ex = CreateOrKeepTtl(time, false);
-        Assert.Equal(0, ex.Tokens);
+        Assert.Equal(0, ex.TokenCount);
         Assert.Equal("", ex.ToString());
     }
 
@@ -82,7 +82,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = null;
         var ex = CreateOrKeepTtl(time, true);
-        Assert.Equal(1, ex.Tokens);
+        Assert.Equal(1, ex.TokenCount);
         Assert.Equal("KEEPTTL", ex.ToString());
     }
 
@@ -100,7 +100,7 @@ public class ExpirationTests // pure tests, no DB
     {
         var when = new DateTime(2025, 7, 23, 10, 4, 14, DateTimeKind.Utc);
         var ex = new Expiration(when);
-        Assert.Equal(2, ex.Tokens);
+        Assert.Equal(2, ex.TokenCount);
         Assert.Equal("EXAT 1753265054", ex.ToString());
     }
 
@@ -110,7 +110,7 @@ public class ExpirationTests // pure tests, no DB
         var when = new DateTime(2025, 7, 23, 10, 4, 14, DateTimeKind.Utc);
         when = when.AddMilliseconds(14);
         var ex = new Expiration(when);
-        Assert.Equal(2, ex.Tokens);
+        Assert.Equal(2, ex.TokenCount);
         Assert.Equal("PXAT 1753265054014", ex.ToString());
     }
 }
