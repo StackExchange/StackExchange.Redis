@@ -30,6 +30,8 @@ internal enum RedisCommand
     DECR,
     DECRBY,
     DEL,
+    DELEX,
+    DIGEST,
     DISCARD,
     DUMP,
 
@@ -300,6 +302,8 @@ internal static class RedisCommandExtensions
             case RedisCommand.DECR:
             case RedisCommand.DECRBY:
             case RedisCommand.DEL:
+            case RedisCommand.DELEX:
+            case RedisCommand.DIGEST:
             case RedisCommand.EXPIRE:
             case RedisCommand.EXPIREAT:
             case RedisCommand.FLUSHALL:

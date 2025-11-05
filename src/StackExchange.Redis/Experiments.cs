@@ -8,6 +8,7 @@ namespace StackExchange.Redis
     internal static class Experiments
     {
         public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/";
+
         public const string VectorSets = "SER001";
         // ReSharper disable once InconsistentNaming
         public const string Server_8_4 = "SER002";

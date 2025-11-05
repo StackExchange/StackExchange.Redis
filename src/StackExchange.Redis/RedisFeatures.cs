@@ -47,7 +47,7 @@ namespace StackExchange.Redis
                                          v7_4_0_rc2 = new Version(7, 3, 241), // 7.4 RC2 is version 7.3.241
                                          v8_0_0_M04 = new Version(7, 9, 227), // 8.0 M04 is version 7.9.227
                                          v8_2_0_rc1 = new Version(8, 1, 240), // 8.2 RC1 is version 8.1.240
-                                         v8_4_0_rc1 = new Version(8, 3, 224); // 8.2 RC1 is version 8.3.224
+                                         v8_4_0_rc1 = new Version(8, 3, 224); // 8.4 RC1 is version 8.3.224
 
 #pragma warning restore SA1310 // Field names should not contain underscore
 #pragma warning restore SA1311 // Static readonly fields should begin with upper-case letter
@@ -284,6 +284,16 @@ namespace StackExchange.Redis
         /// Is the RESP3 protocol available?
         /// </summary>
         public bool Resp3 => Version.IsAtLeast(v6_0_0);
+
+        /// <summary>
+        /// Are the <c>IF*</c> modifiers on <see href="https://redis.io/commands/set/">SET</see> available?
+        /// </summary>
+        public bool SetWithValueCheck => Version.IsAtLeast(v8_4_0_rc1);
+
+        /// <summary>
+        /// Are the <c>IF*</c> modifiers on <see href="https://redis.io/commands/del/">DEL</see> available?
+        /// </summary>
+        public bool DeleteWithValueCheck => Version.IsAtLeast(v8_4_0_rc1);
 
 #pragma warning restore 1629 // Documentation text should end with a period.
 
