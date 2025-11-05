@@ -391,6 +391,9 @@ namespace StackExchange.Redis
         public static Message CreateInSlot(int db, int slot, CommandFlags flags, RedisCommand command, RedisValue[] values) =>
             new CommandSlotValuesMessage(db, slot, flags, command, values);
 
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, KeyValuePair<RedisKey, RedisValue>[] values, Expiration expiry, When when)
+            => new MultiSetMessage(db, flags, command, values, expiry, when);
+
         /// <summary>Gets whether this is primary-only.</summary>
         /// <remarks>
         /// Note that the constructor runs the switch statement above, so
@@ -842,13 +845,13 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(_protocolVersion);
                 if (!string.IsNullOrWhiteSpace(_password))
                 {
-                    physical.WriteBulkString(RedisLiterals.AUTH);
+                    physical.WriteBulkString("AUTH"u8);
                     physical.WriteBulkString(string.IsNullOrWhiteSpace(_username) ? RedisLiterals.@default : _username);
                     physical.WriteBulkString(_password);
                 }
                 if (!string.IsNullOrWhiteSpace(_clientName))
                 {
-                    physical.WriteBulkString(RedisLiterals.SETNAME);
+                    physical.WriteBulkString("SETNAME"u8);
                     physical.WriteBulkString(_clientName);
                 }
             }
@@ -1689,6 +1692,55 @@ namespace StackExchange.Redis
                 }
             }
             public override int ArgCount => values.Length;
+        }
+
+        private sealed class MultiSetMessage(int db, CommandFlags flags, RedisCommand command, KeyValuePair<RedisKey, RedisValue>[] values, Expiration expiry, When when) : Message(db, flags, command)
+        {
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = ServerSelectionStrategy.NoSlot;
+                for (int i = 0; i < values.Length; i++)
+                {
+                    slot = serverSelectionStrategy.CombineSlot(slot, values[i].Key);
+                }
+                return slot;
+            }
+
+            // we support:
+            // - MSET {key1} {value1} [{key2} {value2}...]
+            // - MSETNX {key1} {value1} [{key2} {value2}...]
+            // - MSETEX {count} {key1} {value1} [{key2} {value2}...] [standard-expiry-tokens]
+            public override int ArgCount => Command == RedisCommand.MSETEX
+                ? (1 + (2 * values.Length) + expiry.Tokens + (when is When.Exists or When.NotExists ? 1 : 0))
+                : (2 * values.Length); // MSET/MSETNX only support simple syntax
+
+            protected override void WriteImpl(PhysicalConnection physical)
+            {
+                var cmd = Command;
+                physical.WriteHeader(cmd, ArgCount);
+                if (cmd == RedisCommand.MSETEX) // need count prefix
+                {
+                    physical.WriteBulkString(values.Length);
+                }
+                for (int i = 0; i < values.Length; i++)
+                {
+                    physical.Write(values[i].Key);
+                    physical.WriteBulkString(values[i].Value);
+                }
+                if (cmd == RedisCommand.MSETEX) // allow expiry/mode tokens
+                {
+                    expiry.WriteTo(physical);
+                    switch (when)
+                    {
+                        case When.Exists:
+                            physical.WriteBulkString("XX"u8);
+                            break;
+                        case When.NotExists:
+                            physical.WriteBulkString("NX"u8);
+                            break;
+                    }
+                }
+            }
         }
 
         private sealed class CommandValueChannelMessage : CommandChannelBase

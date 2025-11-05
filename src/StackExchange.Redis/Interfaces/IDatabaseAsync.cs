@@ -834,7 +834,10 @@ namespace StackExchange.Redis
         Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringSet(KeyValuePair{RedisKey, RedisValue}[], When, CommandFlags)"/>
-        Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when, CommandFlags flags);
+
+        /// <inheritdoc cref="IDatabase.StringSet(KeyValuePair{RedisKey, RedisValue}[], When, Expiration, CommandFlags)"/>
+        Task<bool> StringSetAsync(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringSetAndGet(RedisKey, RedisValue, TimeSpan?, When, CommandFlags)"/>
         Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, When when, CommandFlags flags);

@@ -779,7 +779,7 @@ StackExchange.Redis.IDatabase.StringLongestCommonSubsequenceWithMatches(StackExc
 StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry = null, bool keepTtl = false, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
 StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.When when) -> bool
 StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.When when, StackExchange.Redis.CommandFlags flags) -> bool
-StackExchange.Redis.IDatabase.StringSet(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabase.StringSet(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when, StackExchange.Redis.CommandFlags flags) -> bool
 StackExchange.Redis.IDatabase.StringSetAndGet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry = null, bool keepTtl = false, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringSetAndGet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.When when, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringSetBit(StackExchange.Redis.RedisKey key, long offset, bool bit, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
@@ -1026,7 +1026,7 @@ StackExchange.Redis.IDatabaseAsync.StringSetAndGetAsync(StackExchange.Redis.Redi
 StackExchange.Redis.IDatabaseAsync.StringSetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry = null, bool keepTtl = false, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.StringSetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.When when) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.StringSetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.When when, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<bool>!
-StackExchange.Redis.IDatabaseAsync.StringSetAsync(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IDatabaseAsync.StringSetAsync(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.StringSetBitAsync(StackExchange.Redis.RedisKey key, long offset, bool bit, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 StackExchange.Redis.IDatabaseAsync.StringSetRangeAsync(StackExchange.Redis.RedisKey key, long offset, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.InternalErrorEventArgs
@@ -2059,3 +2059,17 @@ StackExchange.Redis.IDatabaseAsync.StreamReadGroupAsync(StackExchange.Redis.Stre
 StackExchange.Redis.StreamEntry.DeliveryCount.get -> int
 StackExchange.Redis.StreamEntry.IdleTime.get -> System.TimeSpan?
 StackExchange.Redis.StreamEntry.StreamEntry(StackExchange.Redis.RedisValue id, StackExchange.Redis.NameValueEntry[]! values, System.TimeSpan? idleTime, int deliveryCount) -> void
+StackExchange.Redis.IDatabase.StringSet(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.Expiration expiry = default(StackExchange.Redis.Expiration), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabaseAsync.StringSetAsync(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]! values, StackExchange.Redis.When when = StackExchange.Redis.When.Always, StackExchange.Redis.Expiration expiry = default(StackExchange.Redis.Expiration), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.Expiration
+StackExchange.Redis.Expiration.Expiration() -> void
+StackExchange.Redis.Expiration.Expiration(System.DateTime when) -> void
+StackExchange.Redis.Expiration.Expiration(System.TimeSpan ttl) -> void
+override StackExchange.Redis.Expiration.Equals(object? obj) -> bool
+override StackExchange.Redis.Expiration.GetHashCode() -> int
+override StackExchange.Redis.Expiration.ToString() -> string!
+static StackExchange.Redis.Expiration.Default.get -> StackExchange.Redis.Expiration
+static StackExchange.Redis.Expiration.KeepTtl.get -> StackExchange.Redis.Expiration
+static StackExchange.Redis.Expiration.Persist.get -> StackExchange.Redis.Expiration
+static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.DateTime when) -> StackExchange.Redis.Expiration
+static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.TimeSpan ttl) -> StackExchange.Redis.Expiration
