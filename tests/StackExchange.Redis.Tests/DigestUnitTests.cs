@@ -7,8 +7,6 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-#pragma warning disable SER002 // 8.4
-
 public class DigestUnitTests(ITestOutputHelper output) : TestBase(output)
 {
     [Theory]

@@ -4,8 +4,6 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-#pragma warning disable SER002 // 8.4
-
 public class DigestIntegrationTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     : TestBase(output, fixture)
 {

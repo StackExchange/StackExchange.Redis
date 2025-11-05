@@ -773,7 +773,6 @@ namespace StackExchange.Redis
         Task<long> StringDecrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringDelete(RedisKey, ValueCondition, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         Task<bool> StringDeleteAsync(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringDecrement(RedisKey, double, CommandFlags)"/>
@@ -843,7 +842,6 @@ namespace StackExchange.Redis
         Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringSet(RedisKey, RedisValue, TimeSpan?, ValueCondition, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0027 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
         Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027

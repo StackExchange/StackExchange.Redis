@@ -3182,7 +3182,6 @@ namespace StackExchange.Redis
         /// <param name="when">The condition to enforce.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>See <seealso href="https://redis.io/commands/delex"/>.</remarks>
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         bool StringDelete(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -3422,7 +3421,6 @@ namespace StackExchange.Redis
         /// <param name="when">The condition to enforce.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks>See <seealso href="https://redis.io/commands/delex"/>.</remarks>
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0027
         bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027

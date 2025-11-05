@@ -2073,3 +2073,30 @@ static StackExchange.Redis.Expiration.KeepTtl.get -> StackExchange.Redis.Expirat
 static StackExchange.Redis.Expiration.Persist.get -> StackExchange.Redis.Expiration
 static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.DateTime when) -> StackExchange.Redis.Expiration
 static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.TimeSpan ttl) -> StackExchange.Redis.Expiration
+override StackExchange.Redis.ValueCondition.Equals(object? obj) -> bool
+override StackExchange.Redis.ValueCondition.GetHashCode() -> int
+override StackExchange.Redis.ValueCondition.ToString() -> string!
+StackExchange.Redis.RedisFeatures.DeleteWithValueCheck.get -> bool
+StackExchange.Redis.RedisFeatures.SetWithValueCheck.get -> bool
+StackExchange.Redis.ValueCondition
+StackExchange.Redis.ValueCondition.ValueCondition() -> void
+static StackExchange.Redis.ValueCondition.Always.get -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.Exists.get -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.implicit operator StackExchange.Redis.ValueCondition(StackExchange.Redis.When when) -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.NotExists.get -> StackExchange.Redis.ValueCondition
+static StackExchange.Redis.ValueCondition.operator !(in StackExchange.Redis.ValueCondition value) -> StackExchange.Redis.ValueCondition
+StackExchange.Redis.IDatabase.StringDelete(StackExchange.Redis.RedisKey key, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabase.StringSet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabaseAsync.StringDeleteAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IDatabaseAsync.StringSetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, System.TimeSpan? expiry, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER002]StackExchange.Redis.IDatabase.StringDigest(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ValueCondition?
+[SER002]StackExchange.Redis.IDatabaseAsync.StringDigestAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ValueCondition?>!
+[SER002]StackExchange.Redis.ValueCondition.AsDigest() -> StackExchange.Redis.ValueCondition
+[SER002]StackExchange.Redis.ValueCondition.Value.get -> StackExchange.Redis.RedisValue
+[SER002]static StackExchange.Redis.ValueCondition.CalculateDigest(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.ValueCondition
+[SER002]static StackExchange.Redis.ValueCondition.DigestEqual(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
+[SER002]static StackExchange.Redis.ValueCondition.DigestNotEqual(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
+[SER002]static StackExchange.Redis.ValueCondition.Equal(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
+[SER002]static StackExchange.Redis.ValueCondition.NotEqual(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
+[SER002]static StackExchange.Redis.ValueCondition.ParseDigest(System.ReadOnlySpan<byte> digest) -> StackExchange.Redis.ValueCondition
+[SER002]static StackExchange.Redis.ValueCondition.ParseDigest(System.ReadOnlySpan<char> digest) -> StackExchange.Redis.ValueCondition

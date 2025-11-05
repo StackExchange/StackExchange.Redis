@@ -8,9 +8,8 @@ using System.Runtime.CompilerServices;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Represents a check for an existing value, for use in conditional operations such as <c>DELEX</c> or <c>SET ... IFEQ</c>.
+/// Represents a check for an existing value - this could be existence (NX/XX), equality (IFEQ/IFNE), or digest equality (IFDEQ/IFDNE).
 /// </summary>
-[Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
 public readonly struct ValueCondition
 {
     internal enum ConditionKind : byte
@@ -108,7 +107,11 @@ public readonly struct ValueCondition
     /// <summary>
     /// Gets the underlying value for this condition.
     /// </summary>
-    public RedisValue Value => _value;
+    public RedisValue Value
+    {
+        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
+        get => _value;
+    }
 
     private ValueCondition(ConditionKind kind, in RedisValue value)
     {
@@ -136,26 +139,32 @@ public readonly struct ValueCondition
     /// <summary>
     /// Create a value equality condition with the supplied value.
     /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
     public static ValueCondition Equal(in RedisValue value) => new(ConditionKind.ValueEquals, value);
 
     /// <summary>
     /// Create a value non-equality condition with the supplied value.
     /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
+
     public static ValueCondition NotEqual(in RedisValue value) => new(ConditionKind.ValueNotEquals, value);
 
     /// <summary>
     /// Create a digest equality condition, computing the digest of the supplied value.
     /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
     public static ValueCondition DigestEqual(in RedisValue value) => value.Digest();
 
     /// <summary>
     /// Create a digest non-equality condition, computing the digest of the supplied value.
     /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
     public static ValueCondition DigestNotEqual(in RedisValue value) => !value.Digest();
 
     /// <summary>
     /// Calculate the digest of a payload, as an equality test. For a non-equality test, use <see cref="NotEqual"/> on the result.
     /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
     public static ValueCondition CalculateDigest(ReadOnlySpan<byte> value)
     {
         // the internal impl of XxHash3 uses ulong (not Span<byte>), so: use
@@ -167,6 +176,7 @@ public readonly struct ValueCondition
     /// <summary>
     /// Creates an equality match based on the specified digest bytes.
     /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
     public static ValueCondition ParseDigest(ReadOnlySpan<char> digest)
     {
         if (digest.Length != 2 * DigestBytes) ThrowDigestLength();
@@ -201,6 +211,7 @@ public readonly struct ValueCondition
     /// <summary>
     /// Creates an equality match based on the specified digest bytes.
     /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
     public static ValueCondition ParseDigest(ReadOnlySpan<byte> digest)
     {
         if (digest.Length != 2 * DigestBytes) ThrowDigestLength();
@@ -341,6 +352,7 @@ public readonly struct ValueCondition
     /// <summary>
     /// Convert a value condition to a digest condition.
     /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
     public ValueCondition AsDigest() => _kind switch
     {
         ConditionKind.ValueEquals => _value.Digest(),
