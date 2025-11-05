@@ -122,6 +122,7 @@ internal enum RedisCommand
     MONITOR,
     MOVE,
     MSET,
+    MSETEX,
     MSETNX,
     MULTI,
 
@@ -336,6 +337,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.MIGRATE:
             case RedisCommand.MOVE:
             case RedisCommand.MSET:
+            case RedisCommand.MSETEX:
             case RedisCommand.MSETNX:
             case RedisCommand.PERSIST:
             case RedisCommand.PEXPIRE:

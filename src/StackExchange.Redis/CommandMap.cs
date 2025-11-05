@@ -27,7 +27,7 @@ namespace StackExchange.Redis
             RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
             RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SCAN,
 
-            RedisCommand.BITOP, RedisCommand.MSETNX,
+            RedisCommand.BITOP, RedisCommand.MSETEX, RedisCommand.MSETNX,
 
             RedisCommand.BLPOP, RedisCommand.BRPOP, RedisCommand.BRPOPLPUSH, // yeah, me neither!
 
@@ -53,7 +53,7 @@ namespace StackExchange.Redis
             RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
             RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SORT, RedisCommand.SCAN,
 
-            RedisCommand.BITOP, RedisCommand.MSETNX,
+            RedisCommand.BITOP, RedisCommand.MSETEX, RedisCommand.MSETNX,
 
             RedisCommand.BLPOP, RedisCommand.BRPOP, RedisCommand.BRPOPLPUSH, // yeah, me neither!
 
