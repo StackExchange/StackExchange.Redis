@@ -226,7 +226,7 @@ public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixtu
 
         db.StringSet(key, val, expiresIn, When.NotExists);
         db.StringSet(key, val, expiresIn, When.NotExists, flags);
-        db.StringSet(key, val, null);
+        db.StringSet(key, val, expiry: default);
         db.StringSet(key, val, null, When.NotExists);
         db.StringSet(key, val, null, When.NotExists, flags);
 
@@ -241,7 +241,7 @@ public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixtu
 
         await db.StringSetAsync(key, val, expiresIn, When.NotExists);
         await db.StringSetAsync(key, val, expiresIn, When.NotExists, flags);
-        await db.StringSetAsync(key, val, null);
+        await db.StringSetAsync(key, val, expiry: default);
         await db.StringSetAsync(key, val, null, When.NotExists);
         await db.StringSetAsync(key, val, null, When.NotExists, flags);
     }

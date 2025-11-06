@@ -48,19 +48,19 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Digest);
     }
 
-    public Task<bool> StringSetAsync(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
+    public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetStringSetMessage(key, value, expiry, when, flags);
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 
-    public bool StringSet(RedisKey key, RedisValue value, TimeSpan? expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
+    public bool StringSet(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetStringSetMessage(key, value, expiry, when, flags);
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
-    private Message GetStringSetMessage(in RedisKey key, in RedisValue value, TimeSpan? expiry, in ValueCondition when, CommandFlags flags, [CallerMemberName] string? operation = null)
+    private Message GetStringSetMessage(in RedisKey key, in RedisValue value, Expiration expiry, in ValueCondition when, CommandFlags flags, [CallerMemberName] string? operation = null)
     {
         switch (when.Kind)
         {
