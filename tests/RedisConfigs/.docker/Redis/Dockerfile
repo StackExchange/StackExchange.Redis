@@ -1,4 +1,4 @@
-FROM redislabs/client-libs-test:8.4-RC1-pre.2
+FROM redislabs/client-libs-test:8.4-GA-pre.3
 
 COPY --from=configs ./Basic /data/Basic/
 COPY --from=configs ./Failover /data/Failover/
