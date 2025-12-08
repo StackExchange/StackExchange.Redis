@@ -51,4 +51,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="MultiGroupDatabase.*.cs">
+      <DependentUpon>MultiGroupDatabase.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>

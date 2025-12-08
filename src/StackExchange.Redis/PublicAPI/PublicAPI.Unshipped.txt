@@ -1,1 +1,3 @@
 ﻿#nullable enable
+StackExchange.Redis.ConfigurationOptions.Weight.get -> float
+StackExchange.Redis.ConfigurationOptions.Weight.set -> void

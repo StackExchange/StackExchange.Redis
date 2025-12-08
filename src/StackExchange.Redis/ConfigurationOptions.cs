@@ -40,6 +40,12 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            public static float ParseSingle(string key, string value)
+            {
+                if (!Format.TryParseDouble(value, out double tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a numeric value; the value '{value}' is not recognised.");
+                return (float)tmp;
+            }
+
             internal static bool ParseBoolean(string key, string value)
             {
                 if (!Format.TryParseBoolean(value, out bool tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a boolean value; the value '{value}' is not recognised.");
@@ -111,7 +117,8 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
-                HighIntegrity = "highIntegrity";
+                HighIntegrity = "highIntegrity",
+                Weight = "weight";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -143,6 +150,7 @@ namespace StackExchange.Redis
                 CheckCertificateRevocation,
                 Protocol,
                 HighIntegrity,
+                Weight,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -843,6 +851,7 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
+            Weight = Weight,
         };
 
         /// <summary>
@@ -925,6 +934,11 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
             Append(sb, OptionKeys.HighIntegrity, highIntegrity);
             Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
+            var weight = Weight;
+            if (!float.IsNaN(weight))
+            {
+                Append(sb, OptionKeys.Weight, weight);
+            }
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -940,9 +954,9 @@ namespace StackExchange.Redis
             };
         }
 
-        private static void Append(StringBuilder sb, object value)
+        private static void Append(StringBuilder sb, object? value)
         {
-            if (value == null) return;
+            if (value is null) return;
             string s = Format.ToString(value);
             if (!string.IsNullOrWhiteSpace(s))
             {
@@ -953,7 +967,8 @@ namespace StackExchange.Redis
 
         private static void Append(StringBuilder sb, string prefix, object? value)
         {
-            string? s = value?.ToString();
+            if (value is null) return;
+            string? s = value.ToString();
             if (!string.IsNullOrWhiteSpace(s))
             {
                 if (sb.Length != 0) sb.Append(',');
@@ -980,6 +995,7 @@ namespace StackExchange.Redis
             ChannelPrefix = default;
             SocketManager = null;
             Tunnel = null;
+            Weight = float.NaN;
         }
 
         object ICloneable.Clone() => Clone();
@@ -1091,6 +1107,9 @@ namespace StackExchange.Redis
                         case OptionKeys.HighIntegrity:
                             HighIntegrity = OptionKeys.ParseBoolean(key, value);
                             break;
+                        case OptionKeys.Weight:
+                            Weight = OptionKeys.ParseSingle(key, value);
+                            break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())
                             {
@@ -1166,6 +1185,11 @@ namespace StackExchange.Redis
         /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol { get; set; }
+
+        /// <summary>
+        /// Specify the preference of this connection group relative to others.
+        /// </summary>
+        public float Weight { get; set; } = float.NaN;
 
         internal bool TryResp3()
         {

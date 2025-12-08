@@ -1128,7 +1128,7 @@ namespace StackExchange.Redis
         }
 
         // DB zero is stored separately, since 0-only is a massively common use-case
-        private const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
+        internal const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
         // Side note: "databases 16" is the default in redis.conf; happy to store one extra to get nice alignment etc
         private IDatabase? dbCacheZero;
         private IDatabase[]? dbCacheLow;
@@ -1280,6 +1280,8 @@ namespace StackExchange.Redis
                 return total;
             }
         }
+
+        internal int LatencyTicks { get; private set; }
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration.
