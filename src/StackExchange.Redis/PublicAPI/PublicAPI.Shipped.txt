@@ -14,6 +14,11 @@ override StackExchange.Redis.Configuration.AzureOptionsProvider.AfterConnectAsyn
 override StackExchange.Redis.Configuration.AzureOptionsProvider.DefaultVersion.get -> System.Version!
 override StackExchange.Redis.Configuration.AzureOptionsProvider.GetDefaultSsl(StackExchange.Redis.EndPointCollection! endPoints) -> bool
 override StackExchange.Redis.Configuration.AzureOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.AbortOnConnectFail.get -> bool
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! muxer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.DefaultVersion.get -> System.Version!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.GetDefaultSsl(StackExchange.Redis.EndPointCollection! endPoints) -> bool
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.IsMatch(System.Net.EndPoint! endpoint) -> bool
 override StackExchange.Redis.ConfigurationOptions.ToString() -> string!
 override StackExchange.Redis.ConnectionCounters.ToString() -> string!
 override StackExchange.Redis.ConnectionFailedEventArgs.ToString() -> string!
@@ -199,6 +204,8 @@ StackExchange.Redis.ConditionResult
 StackExchange.Redis.ConditionResult.WasSatisfied.get -> bool
 StackExchange.Redis.Configuration.AzureOptionsProvider
 StackExchange.Redis.Configuration.AzureOptionsProvider.AzureOptionsProvider() -> void
+StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider
+StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.AzureManagedRedisOptionsProvider() -> void
 StackExchange.Redis.Configuration.DefaultOptionsProvider
 StackExchange.Redis.Configuration.DefaultOptionsProvider.ClientName.get -> string!
 StackExchange.Redis.Configuration.DefaultOptionsProvider.DefaultOptionsProvider() -> void
