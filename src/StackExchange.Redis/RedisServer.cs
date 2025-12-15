@@ -15,10 +15,12 @@ namespace StackExchange.Redis
     internal sealed class RedisServer : RedisBase, IServer
     {
         private readonly ServerEndPoint server;
+        private readonly ConnectionMultiplexer multiplexer;
 
         internal RedisServer(ServerEndPoint server, object? asyncState) : base(server.Multiplexer, asyncState)
         {
             this.server = server; // definitely can't be null because .Multiplexer in base call
+            this.multiplexer = server.Multiplexer;
         }
 
         int IServer.DatabaseCount => server.Databases;

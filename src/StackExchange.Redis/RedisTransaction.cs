@@ -12,10 +12,10 @@ namespace StackExchange.Redis
         private List<QueuedMessage>? _pending;
         private object SyncLock => this;
 
-        public RedisTransaction(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
+        public RedisTransaction(RedisDatabase wrapped, object? asyncState) : base(wrapped.Executor, wrapped.Database, asyncState ?? wrapped.AsyncState)
         {
             // need to check we can reliably do this...
-            var commandMap = multiplexer.CommandMap;
+            var commandMap = Executor.CommandMap;
             commandMap.AssertAvailable(RedisCommand.MULTI);
             commandMap.AssertAvailable(RedisCommand.EXEC);
             commandMap.AssertAvailable(RedisCommand.DISCARD);
@@ -25,7 +25,7 @@ namespace StackExchange.Redis
         {
             if (condition == null) throw new ArgumentNullException(nameof(condition));
 
-            var commandMap = multiplexer.CommandMap;
+            var commandMap = Executor.CommandMap;
             lock (SyncLock)
             {
                 if (_conditions == null)
@@ -59,9 +59,9 @@ namespace StackExchange.Redis
         internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
         {
             if (message == null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
-            multiplexer.CheckMessage(message);
+            Executor.CheckMessage(message);
 
-            multiplexer.Trace("Wrapping " + message.Command, "Transaction");
+            Executor.Multiplexer.Trace("Wrapping " + message.Command, "Transaction");
             // prepare the inner command as a task
             Task<T> task;
             if (message.IsFireAndForget)
@@ -83,9 +83,9 @@ namespace StackExchange.Redis
         internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
         {
             if (message == null) return CompletedTask<T>.Default(asyncState);
-            multiplexer.CheckMessage(message);
+            Executor.CheckMessage(message);
 
-            multiplexer.Trace("Wrapping " + message.Command, "Transaction");
+            Executor.Multiplexer.Trace("Wrapping " + message.Command, "Transaction");
             // prepare the inner command as a task
             Task<T?> task;
             if (message.IsFireAndForget)
@@ -121,7 +121,7 @@ namespace StackExchange.Redis
                     case RedisCommand.UNKNOWN:
                     case RedisCommand.EVAL:
                     case RedisCommand.EVALSHA:
-                        var server = multiplexer.SelectServer(message);
+                        var server = Executor.SelectServer(message);
                         if (server != null && server.SupportsDatabases)
                         {
                             // people can do very naughty things in an EVAL

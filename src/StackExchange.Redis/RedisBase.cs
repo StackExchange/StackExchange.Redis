@@ -7,16 +7,18 @@ namespace StackExchange.Redis
     internal abstract partial class RedisBase : IRedis
     {
         internal static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        internal readonly ConnectionMultiplexer multiplexer;
+        private readonly IMessageExecutor executor;
         protected readonly object? asyncState;
 
-        internal RedisBase(ConnectionMultiplexer multiplexer, object? asyncState)
+        internal RedisBase(IMessageExecutor executor, object? asyncState)
         {
-            this.multiplexer = multiplexer;
+            this.executor = executor;
             this.asyncState = asyncState;
         }
 
-        IConnectionMultiplexer IRedisAsync.Multiplexer => multiplexer;
+        internal IMessageExecutor Executor => executor;
+
+        IConnectionMultiplexer IRedisAsync.Multiplexer => executor.Multiplexer;
 
         public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
@@ -30,42 +32,42 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
         }
 
-        public override string ToString() => multiplexer.ToString();
+        public override string ToString() => executor.Multiplexer.ToString();
 
-        public bool TryWait(Task task) => task.Wait(multiplexer.TimeoutMilliseconds);
+        public bool TryWait(Task task) => task.Wait(executor.Multiplexer.TimeoutMilliseconds);
 
-        public void Wait(Task task) => multiplexer.Wait(task);
+        public void Wait(Task task) => executor.Multiplexer.Wait(task);
 
-        public T Wait<T>(Task<T> task) => multiplexer.Wait(task);
+        public T Wait<T>(Task<T> task) => executor.Multiplexer.Wait(task);
 
-        public void WaitAll(params Task[] tasks) => multiplexer.WaitAll(tasks);
+        public void WaitAll(params Task[] tasks) => executor.Multiplexer.WaitAll(tasks);
 
         internal virtual Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
         {
             if (message is null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue);
+            executor.CheckMessage(message);
+            return executor.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue);
         }
 
         internal virtual Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null)
         {
             if (message is null) return CompletedTask<T>.Default(asyncState);
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server);
+            executor.CheckMessage(message);
+            return executor.ExecuteAsyncImpl<T>(message, processor, asyncState, server);
         }
 
         [return: NotNullIfNotNull("defaultValue")]
         internal virtual T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default)
         {
             if (message is null) return defaultValue; // no-op
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteSyncImpl<T>(message, processor, server, defaultValue);
+            executor.CheckMessage(message);
+            return executor.ExecuteSyncImpl<T>(message, processor, server, defaultValue);
         }
 
         internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, RedisCommand command, out ServerEndPoint? server)
         {
-            server = multiplexer.SelectServer(command, flags, key);
-            var version = server == null ? multiplexer.RawConfig.DefaultVersion : server.Version;
+            server = executor.SelectServer(command, flags, key);
+            var version = server == null ? executor.Multiplexer.RawConfig.DefaultVersion : server.Version;
             return new RedisFeatures(version);
         }
 
@@ -109,7 +111,7 @@ namespace StackExchange.Redis
         private ResultProcessor.TimingProcessor.TimerMessage GetTimerMessage(CommandFlags flags)
         {
             // do the best we can with available commands
-            var map = multiplexer.CommandMap;
+            var map = executor.CommandMap;
             if (map.IsAvailable(RedisCommand.PING))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
             if (map.IsAvailable(RedisCommand.TIME))
@@ -118,7 +120,7 @@ namespace StackExchange.Redis
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
             // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
             // note: this usually means: twemproxy/envoyproxy - in which case we're fine anyway, since the proxy does the routing
-            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
+            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)executor.UniqueId);
         }
 
         internal static class CursorUtils

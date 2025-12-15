@@ -230,6 +230,15 @@ public class SharedConnectionFixture : IDisposable
         public override string ToString() => _inner.ToString();
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
             => _inner.GetConnectionId(endPoint, type);
+
+        ServerEndPoint? IInternalConnectionMultiplexer.GetSubscribedServer(RedisChannel channel)
+            => _inner.GetSubscribedServer(channel);
+
+        void IInternalConnectionMultiplexer.OnInternalError(Exception exception, EndPoint? endpoint, ConnectionType connectionType, string? origin)
+            => _inner.OnInternalError(exception, endpoint, connectionType, origin);
+
+        void IInternalConnectionMultiplexer.Trace(string message, string? category)
+            => _inner.Trace(message, category);
     }
 
     public void Dispose()

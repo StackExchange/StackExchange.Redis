@@ -22,7 +22,7 @@ namespace StackExchange.Redis
     /// A reference to this should be held and re-used.
     /// </summary>
     /// <remarks><seealso href="https://stackexchange.github.io/StackExchange.Redis/PipelinesMultiplexers"/></remarks>
-    public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
+    public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer, IMessageExecutor // implies : IConnectionMultiplexer and : IDisposable
     {
         // This gets accessed for every received event; let's make sure we can process it "raw"
         internal readonly byte[]? ConfigurationChangedChannel;
@@ -355,6 +355,40 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.TooManyArgs(message.CommandAndKey, message.ArgCount);
             }
         }
+
+        // Explicit interface implementations for IMessageExecutor
+        IInternalConnectionMultiplexer IMessageExecutor.Multiplexer => this;
+
+        CommandMap IMessageExecutor.CommandMap => CommandMap;
+
+        ReadOnlyMemory<byte> IMessageExecutor.UniqueId => UniqueId;
+
+        ServerEndPoint? IMessageExecutor.SelectServer(Message message) => SelectServer(message);
+
+        ServerEndPoint? IMessageExecutor.SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key)
+            => SelectServer(command, flags, key);
+
+        void IMessageExecutor.CheckMessage(Message message) => CheckMessage(message);
+
+        // Explicit interface implementations for IInternalConnectionMultiplexer
+        ServerEndPoint? IInternalConnectionMultiplexer.GetSubscribedServer(RedisChannel channel) => GetSubscribedServer(channel);
+
+        void IInternalConnectionMultiplexer.OnInternalError(Exception exception, EndPoint? endpoint, ConnectionType connectionType, string? origin)
+            => OnInternalError(exception, endpoint, connectionType, origin);
+
+        void IInternalConnectionMultiplexer.Trace(string message, string? category) => Trace(message, category);
+
+        Task<T> IMessageExecutor.ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server, T defaultValue)
+            => ExecuteAsyncImpl(message, processor, state, server, defaultValue);
+
+#nullable disable
+        Task<T> IMessageExecutor.ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)
+            => ExecuteAsyncImpl(message, processor, state, server);
+
+        [return: NotNullIfNotNull(nameof(defaultValue))]
+        T IMessageExecutor.ExecuteSyncImpl<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server, T defaultValue)
+            => ExecuteSyncImpl(message, processor, server, defaultValue);
+#nullable restore
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {

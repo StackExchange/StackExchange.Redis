@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     {
         private List<Message>? pending;
 
-        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState) { }
+        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.Executor, wrapped.Database, asyncState ?? wrapped.AsyncState) { }
 
         public void Execute()
         {
@@ -24,17 +24,17 @@ namespace StackExchange.Redis
             List<Message>? lastList = null;
             foreach (var message in snapshot)
             {
-                var server = multiplexer.SelectServer(message);
+                var server = Executor.SelectServer(message);
                 if (server == null)
                 {
-                    FailNoServer(multiplexer, snapshot);
-                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+                    FailNoServer(Executor.Multiplexer, snapshot);
+                    throw ExceptionFactory.NoConnectionAvailable(Executor.Multiplexer, message, server);
                 }
                 var bridge = server.GetBridge(message);
                 if (bridge == null)
                 {
-                    FailNoServer(multiplexer, snapshot);
-                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
+                    FailNoServer(Executor.Multiplexer, snapshot);
+                    throw ExceptionFactory.NoConnectionAvailable(Executor.Multiplexer, message, server);
                 }
 
                 // identity a list
@@ -58,7 +58,7 @@ namespace StackExchange.Redis
             {
                 if (!pair.Key.TryEnqueue(pair.Value, pair.Key.ServerEndPoint.IsReplica))
                 {
-                    FailNoServer(multiplexer, pair.Value);
+                    FailNoServer(Executor.Multiplexer, pair.Value);
                 }
             }
         }
@@ -66,7 +66,7 @@ namespace StackExchange.Redis
         internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
         {
             if (message == null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
-            multiplexer.CheckMessage(message);
+            Executor.CheckMessage(message);
 
             // prepare the inner command as a task
             Task<T> task;
@@ -89,7 +89,7 @@ namespace StackExchange.Redis
         internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
         {
             if (message == null) return CompletedTask<T>.Default(asyncState);
-            multiplexer.CheckMessage(message);
+            Executor.CheckMessage(message);
 
             // prepare the inner command as a task
             Task<T?> task;
@@ -112,7 +112,7 @@ namespace StackExchange.Redis
         internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
             => throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
 
-        private static void FailNoServer(ConnectionMultiplexer muxer, List<Message> messages)
+        private static void FailNoServer(IInternalConnectionMultiplexer muxer, List<Message> messages)
         {
             if (messages == null) return;
             foreach (var msg in messages)

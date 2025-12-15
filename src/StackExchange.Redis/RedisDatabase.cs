@@ -11,8 +11,8 @@ namespace StackExchange.Redis
 {
     internal partial class RedisDatabase : RedisBase, IDatabase
     {
-        internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object? asyncState)
-            : base(multiplexer, asyncState)
+        internal RedisDatabase(IMessageExecutor executor, int db, object? asyncState)
+            : base(executor, asyncState)
         {
             Database = db;
         }
@@ -35,7 +35,7 @@ namespace StackExchange.Redis
 
         private ITransaction? CreateTransactionIfAvailable(object? asyncState)
         {
-            var map = multiplexer.CommandMap;
+            var map = Executor.CommandMap;
             if (!map.IsAvailable(RedisCommand.MULTI) || !map.IsAvailable(RedisCommand.EXEC))
             {
                 return null;
@@ -1106,7 +1106,7 @@ namespace StackExchange.Redis
 
         public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var server = multiplexer.SelectServer(RedisCommand.PING, flags, key);
+            var server = Executor.SelectServer(RedisCommand.PING, flags, key);
             return server?.IsConnected == true;
         }
 
@@ -1163,7 +1163,7 @@ namespace StackExchange.Redis
         private RedisCommand GetDeleteCommand(RedisKey key, CommandFlags flags, out ServerEndPoint? server)
         {
             var features = GetFeatures(key, flags, RedisCommand.UNLINK, out server);
-            if (server != null && features.Unlink && multiplexer.CommandMap.IsAvailable(RedisCommand.UNLINK))
+            if (server != null && features.Unlink && Executor.CommandMap.IsAvailable(RedisCommand.UNLINK))
             {
                 return RedisCommand.UNLINK;
             }
@@ -1292,14 +1292,14 @@ namespace StackExchange.Redis
 
         public void KeyMigrate(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
         {
-            if (timeoutMilliseconds <= 0) timeoutMilliseconds = multiplexer.TimeoutMilliseconds;
+            if (timeoutMilliseconds <= 0) timeoutMilliseconds = Executor.Multiplexer.TimeoutMilliseconds;
             var msg = new KeyMigrateCommandMessage(Database, key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
         {
-            if (timeoutMilliseconds <= 0) timeoutMilliseconds = multiplexer.TimeoutMilliseconds;
+            if (timeoutMilliseconds <= 0) timeoutMilliseconds = Executor.Multiplexer.TimeoutMilliseconds;
             var msg = new KeyMigrateCommandMessage(Database, key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
@@ -1427,7 +1427,7 @@ namespace StackExchange.Redis
         {
             var features = GetFeatures(key, flags, RedisCommand.TTL, out ServerEndPoint? server);
             Message msg;
-            if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
+            if (server != null && features.MillisecondExpiry && Executor.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
                 msg = Message.Create(Database, flags, RedisCommand.PTTL, key);
                 return ExecuteSync(msg, ResultProcessor.TimeSpanFromMilliseconds, server);
@@ -1440,7 +1440,7 @@ namespace StackExchange.Redis
         {
             var features = GetFeatures(key, flags, RedisCommand.TTL, out ServerEndPoint? server);
             Message msg;
-            if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
+            if (server != null && features.MillisecondExpiry && Executor.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
                 msg = Message.Create(Database, flags, RedisCommand.PTTL, key);
                 return ExecuteAsync(msg, ResultProcessor.TimeSpanFromMilliseconds, server);
@@ -1903,7 +1903,7 @@ namespace StackExchange.Redis
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
             var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
             // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
-            return ExecuteSync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
+            return ExecuteSync(msg, ResultProcessor.Int64, server: Executor.Multiplexer.GetSubscribedServer(channel));
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
@@ -1911,7 +1911,7 @@ namespace StackExchange.Redis
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
             var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
             // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
-            return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
+            return ExecuteAsync(msg, ResultProcessor.Int64, server: Executor.Multiplexer.GetSubscribedServer(channel));
         }
 
         public RedisResult Execute(string command, params object[] args)
@@ -1919,7 +1919,7 @@ namespace StackExchange.Redis
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            var msg = new ExecuteMessage(Executor.CommandMap, Database, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult)!;
         }
 
@@ -1928,7 +1928,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
+            var msg = new ExecuteMessage(Executor.CommandMap, Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
@@ -3916,7 +3916,7 @@ namespace StackExchange.Redis
             if ((milliseconds % 1000) != 0)
             {
                 var features = GetFeatures(key, flags, RedisCommand.PEXPIRE, out server);
-                if (server is not null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(millisecondsCommand))
+                if (server is not null && features.MillisecondExpiry && Executor.CommandMap.IsAvailable(millisecondsCommand))
                 {
                     return when switch
                     {
@@ -3942,7 +3942,7 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(keys), "keys must have a size of at least 1");
             }
 
-            var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
+            var slot = Executor.Multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
 
             var args = new RedisValue[2 + keys.Length + (count == 1 ? 0 : 2)];
             var i = 0;
@@ -3970,7 +3970,7 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(keys), "keys must have a size of at least 1");
             }
 
-            var slot = multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
+            var slot = Executor.Multiplexer.ServerSelectionStrategy.HashSlot(keys[0]);
 
             var args = new RedisValue[2 + keys.Length + (count == 1 ? 0 : 2)];
             var i = 0;
@@ -4419,7 +4419,7 @@ namespace StackExchange.Redis
             // Because we are using STORE, we need to push this to a primary
             if (Message.GetPrimaryReplicaFlags(flags) == CommandFlags.DemandReplica)
             {
-                throw ExceptionFactory.PrimaryOnly(multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SORT, null, null);
+                throw ExceptionFactory.PrimaryOnly(Executor.Multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.SORT, null, null);
             }
             flags = Message.SetPrimaryReplicaFlags(flags, CommandFlags.DemandMaster);
             values.Add(RedisLiterals.STORE);
@@ -5056,7 +5056,7 @@ namespace StackExchange.Redis
             if (keys.Length == 0) return null;
 
             // these ones are too bespoke to warrant custom Message implementations
-            var serverSelectionStrategy = multiplexer.ServerSelectionStrategy;
+            var serverSelectionStrategy = Executor.Multiplexer.ServerSelectionStrategy;
             int slot = serverSelectionStrategy.HashSlot(destination);
             var values = new RedisValue[keys.Length + 2];
             values[0] = RedisLiterals.Get(operation);
@@ -5073,7 +5073,7 @@ namespace StackExchange.Redis
         {
             // these ones are too bespoke to warrant custom Message implementations
             var op = RedisLiterals.Get(operation);
-            var serverSelectionStrategy = multiplexer.ServerSelectionStrategy;
+            var serverSelectionStrategy = Executor.Multiplexer.ServerSelectionStrategy;
             int slot = serverSelectionStrategy.HashSlot(destination);
             slot = serverSelectionStrategy.CombineSlot(slot, first);
             if (second.IsNull || operation == Bitwise.Not)
@@ -5104,7 +5104,7 @@ namespace StackExchange.Redis
             }
             var features = GetFeatures(key, flags, RedisCommand.PTTL, out server);
             processor = StringGetWithExpiryProcessor.Default;
-            if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
+            if (server != null && features.MillisecondExpiry && Executor.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
                 return new StringGetWithExpiryMessage(Database, flags, RedisCommand.PTTL, key);
             }
@@ -5263,7 +5263,7 @@ namespace StackExchange.Redis
             server = null;
             if (pageSize <= 0)
                 throw new ArgumentOutOfRangeException(nameof(pageSize));
-            if (!multiplexer.CommandMap.IsAvailable(command)) return null;
+            if (!Executor.CommandMap.IsAvailable(command)) return null;
 
             var features = GetFeatures(key, flags, RedisCommand.SCAN, out server);
             if (!features.Scan) return null;

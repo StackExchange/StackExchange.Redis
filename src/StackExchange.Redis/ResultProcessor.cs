@@ -191,7 +191,7 @@ namespace StackExchange.Redis
             HashEntryArray = new HashEntryArrayProcessor();
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]
-        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception? innerException, string? annotation, ConnectionMultiplexer? muxer)
+        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception? innerException, string? annotation, IInternalConnectionMultiplexer? muxer)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref fail);
 

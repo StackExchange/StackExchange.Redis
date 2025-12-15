@@ -317,8 +317,11 @@ namespace StackExchange.Redis
     /// </remarks>
     internal sealed class RedisSubscriber : RedisBase, ISubscriber
     {
+        private readonly ConnectionMultiplexer multiplexer;
+
         internal RedisSubscriber(ConnectionMultiplexer multiplexer, object? asyncState) : base(multiplexer, asyncState)
         {
+            this.multiplexer = multiplexer;
         }
 
         public EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None)

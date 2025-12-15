@@ -92,7 +92,7 @@ namespace StackExchange.Redis
         }
 
         internal static Exception NoConnectionAvailable(
-            ConnectionMultiplexer multiplexer,
+            IInternalConnectionMultiplexer multiplexer,
             Message? message,
             ServerEndPoint? server,
             ReadOnlySpan<ServerEndPoint> serverSnapshot = default,
@@ -110,7 +110,8 @@ namespace StackExchange.Redis
             var innerException = PopulateInnerExceptions(serverSnapshot == default ? multiplexer.GetServerSnapshot() : serverSnapshot);
 
             // Try to get a useful error message for the user.
-            long attempts = multiplexer._connectAttemptCount, completions = multiplexer._connectCompletedCount;
+            var mux = multiplexer.UnderlyingMultiplexer;
+            long attempts = mux._connectAttemptCount, completions = mux._connectCompletedCount;
             string initialMessage;
             // We only need to customize the connection if we're aborting on connect fail
             // The "never" case would have thrown, if this was true
@@ -212,7 +213,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
+        internal static Exception Timeout(IInternalConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
@@ -311,7 +312,7 @@ namespace StackExchange.Redis
             List<Tuple<string, string>> data,
             StringBuilder sb,
             Message? message,
-            ConnectionMultiplexer multiplexer,
+            IInternalConnectionMultiplexer multiplexer,
             ServerEndPoint? server)
         {
             if (message != null)
@@ -347,21 +348,23 @@ namespace StackExchange.Redis
                 Add(data, sb, "Last-Result-Bytes", "last-in", bs.Connection.BytesLastResult.ToString());
                 Add(data, sb, "Inbound-Buffer-Bytes", "cur-in", bs.Connection.BytesInBuffer.ToString());
 
-                Add(data, sb, "Sync-Ops", "sync-ops", multiplexer.syncOps.ToString());
-                Add(data, sb, "Async-Ops", "async-ops", multiplexer.asyncOps.ToString());
+                var mux = multiplexer.UnderlyingMultiplexer;
+                Add(data, sb, "Sync-Ops", "sync-ops", mux.syncOps.ToString());
+                Add(data, sb, "Async-Ops", "async-ops", mux.asyncOps.ToString());
 
-                if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
+                if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref mux.haveStormLog, 1, 0) == 0)
                 {
                     var log = server.GetStormLog(message);
-                    if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
-                    else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
+                    if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref mux.haveStormLog, 0);
+                    else Interlocked.Exchange(ref mux.stormLogSnapshot, log);
                 }
                 Add(data, sb, "Server-Endpoint", "serverEndpoint", (server.EndPoint.ToString() ?? "Unknown").Replace("Unspecified/", ""));
                 Add(data, sb, "Server-Connected-Seconds", "conn-sec", bs.ConnectedAt is DateTime dt ? (DateTime.UtcNow - dt).TotalSeconds.ToString("0.##") : "n/a");
                 Add(data, sb, "Abort-On-Connect", "aoc", multiplexer.RawConfig.AbortOnConnectFail ? "1" : "0");
             }
-            Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
-            Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
+            var mux2 = multiplexer.UnderlyingMultiplexer;
+            Add(data, sb, "Multiplexer-Connects", "mc", $"{mux2._connectAttemptCount}/{mux2._connectCompletedCount}/{mux2._connectionCloseCount}");
+            Add(data, sb, "Manager", "mgr", mux2.SocketManager?.GetState());
 
             Add(data, sb, "Client-Name", "clientName", multiplexer.ClientName);
             if (message != null)

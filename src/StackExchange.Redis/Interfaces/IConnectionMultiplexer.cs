@@ -28,6 +28,12 @@ internal interface IInternalConnectionMultiplexer : IConnectionMultiplexer
     int GetSubscriptionsCount();
     ConcurrentDictionary<RedisChannel, Subscription> GetSubscriptions();
 
+    ServerEndPoint? GetSubscribedServer(RedisChannel channel);
+
+    void OnInternalError(Exception exception, EndPoint? endpoint = null, ConnectionType connectionType = ConnectionType.None, [System.Runtime.CompilerServices.CallerMemberName] string? origin = null);
+
+    void Trace(string message, [System.Runtime.CompilerServices.CallerMemberName] string? category = null);
+
     ConnectionMultiplexer UnderlyingMultiplexer { get; }
 }
 
