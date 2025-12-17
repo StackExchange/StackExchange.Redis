@@ -37,6 +37,38 @@ You also have the option to override the auto-generated message ID by passing yo
 db.StreamAdd("events_stream", "foo_name", "bar_value", messageId: "0-1", maxLength: 100);
 ```
 
+Conditional Stream Creation with NOMKSTREAM
+---
+
+By default, `StreamAdd` automatically creates the stream if it doesn't exist. Starting with Redis 6.2.0, you can prevent automatic stream creation using the `createStream` parameter:
+
+```csharp
+// This will return null if the stream doesn't exist
+var messageId = db.StreamAdd(
+    "mystream",
+    "field",
+    "value",
+    createStream: false);
+
+if (messageId.IsNull)
+{
+    Console.WriteLine("Stream does not exist, message was not added.");
+}
+else
+{
+    Console.WriteLine($"Message added with ID: {messageId}");
+}
+```
+
+**Use cases**:
+- **Producer-consumer scenarios**: Only add messages if a consumer has registered (by creating the stream or consumer group)
+- **Prevent typos**: Avoid accidentally creating streams with misspelled keys
+- **Conditional writes**: Only write to pre-existing streams
+
+**Requirements**:
+- Redis 6.2.0 or higher
+- When `createStream: false` and the stream doesn't exist, the method returns `RedisValue.Null`
+
 Reading from Streams
 ===
 

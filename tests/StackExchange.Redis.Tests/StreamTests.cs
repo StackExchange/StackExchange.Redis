@@ -106,6 +106,140 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
+    public async Task StreamAddWithNoMkStream_StreamExists_Success()
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // First, create the stream with a normal StreamAdd
+        var firstId = db.StreamAdd(key, "field1", "value1");
+        Assert.True(firstId != RedisValue.Null);
+
+        // Now add entry with createStream: false (should succeed since stream exists)
+        var secondId = db.StreamAdd(key, "field2", "value2", createStream: false);
+        Assert.True(secondId != RedisValue.Null);
+
+        // Verify both entries exist
+        var entries = db.StreamRange(key);
+        Assert.Equal(2, entries.Length);
+    }
+
+    [Fact]
+    public async Task StreamAddWithNoMkStream_StreamDoesNotExist_ReturnsNull()
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // Ensure stream doesn't exist
+        db.KeyDelete(key);
+
+        // Try to add entry with createStream: false (should return null)
+        var messageId = db.StreamAdd(key, "field1", "value1", createStream: false);
+        Assert.True(messageId.IsNull);
+
+        // Verify stream was not created
+        var keyExists = db.KeyExists(key);
+        Assert.False(keyExists);
+    }
+
+    [Fact]
+    public async Task StreamAddAsyncWithNoMkStream_StreamDoesNotExist_ReturnsNull()
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // Ensure stream doesn't exist
+        await db.KeyDeleteAsync(key);
+
+        // Try to add entry with createStream: false (should return null)
+        var messageId = await db.StreamAddAsync(key, "field1", "value1", createStream: false);
+        Assert.True(messageId.IsNull);
+
+        // Verify stream was not created
+        var keyExists = await db.KeyExistsAsync(key);
+        Assert.False(keyExists);
+    }
+
+    [Fact]
+    public async Task StreamAddWithNoMkStream_MultipleFields_StreamExists_Success()
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // First, create the stream
+        var firstId = db.StreamAdd(key, "field1", "value1");
+        Assert.True(firstId != RedisValue.Null);
+
+        // Add entry with multiple fields and createStream: false
+        var fields = new[]
+        {
+            new NameValueEntry("field2", "value2"),
+            new NameValueEntry("field3", "value3"),
+        };
+        var secondId = db.StreamAdd(key, fields, createStream: false);
+        Assert.True(secondId != RedisValue.Null);
+
+        // Verify entries
+        var entries = db.StreamRange(key);
+        Assert.Equal(2, entries.Length);
+        Assert.Equal(2, entries[1].Values.Length);
+    }
+
+    [Fact]
+    public async Task StreamAddWithNoMkStream_MultipleFields_StreamDoesNotExist_ReturnsNull()
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // Ensure stream doesn't exist
+        db.KeyDelete(key);
+
+        // Try to add entry with multiple fields and createStream: false
+        var fields = new[]
+        {
+            new NameValueEntry("field1", "value1"),
+            new NameValueEntry("field2", "value2"),
+        };
+        var messageId = db.StreamAdd(key, fields, createStream: false);
+        Assert.True(messageId.IsNull);
+
+        // Verify stream was not created
+        var keyExists = db.KeyExists(key);
+        Assert.False(keyExists);
+    }
+
+    [Fact]
+    public async Task StreamAddWithNoMkStream_WithMaxLen_StreamExists_Success()
+    {
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        // Create stream with initial entries
+        db.StreamAdd(key, "field1", "value1");
+        db.StreamAdd(key, "field2", "value2");
+
+        // Add entry with NOMKSTREAM and MAXLEN
+        var messageId = db.StreamAdd(key, "field3", "value3", maxLength: 2, createStream: false);
+        Assert.True(messageId != RedisValue.Null);
+
+        // Verify stream was trimmed to maxLength
+        var entries = db.StreamRange(key);
+        Assert.Equal(2, entries.Length);
+    }
+
+    [Fact]
     public async Task StreamAutoClaim_MissingKey()
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);

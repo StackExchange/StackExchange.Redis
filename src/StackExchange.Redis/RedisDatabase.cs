@@ -2776,9 +2776,9 @@ namespace StackExchange.Redis
         }
 
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => StreamAdd(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
+            => StreamAdd(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, createStream: true, null, StreamTrimMode.KeepReferences, flags);
 
-        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, bool createStream = true, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAddMessage(
                 key,
@@ -2786,6 +2786,7 @@ namespace StackExchange.Redis
                 maxLength,
                 useApproximateMaxLength,
                 new NameValueEntry(streamField, streamValue),
+                createStream,
                 limit,
                 mode,
                 flags);
@@ -2794,9 +2795,9 @@ namespace StackExchange.Redis
         }
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
-                => StreamAddAsync(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
+                => StreamAddAsync(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, createStream: true, null, StreamTrimMode.KeepReferences, flags);
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, bool createStream = true, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAddMessage(
                 key,
@@ -2804,6 +2805,7 @@ namespace StackExchange.Redis
                 maxLength,
                 useApproximateMaxLength,
                 new NameValueEntry(streamField, streamValue),
+                createStream,
                 limit,
                 mode,
                 flags);
@@ -2812,9 +2814,9 @@ namespace StackExchange.Redis
         }
 
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => StreamAdd(key, streamPairs, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
+            => StreamAdd(key, streamPairs, messageId, maxLength, useApproximateMaxLength, createStream: true, null, StreamTrimMode.KeepReferences, flags);
 
-        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, bool createStream = true, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAddMessage(
                 key,
@@ -2822,6 +2824,7 @@ namespace StackExchange.Redis
                 maxLength,
                 useApproximateMaxLength,
                 streamPairs,
+                createStream,
                 limit,
                 mode,
                 flags);
@@ -2830,9 +2833,9 @@ namespace StackExchange.Redis
         }
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => StreamAddAsync(key, streamPairs, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
+            => StreamAddAsync(key, streamPairs, messageId, maxLength, useApproximateMaxLength, createStream: true, null, StreamTrimMode.KeepReferences, flags);
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, bool createStream = true, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAddMessage(
                 key,
@@ -2840,6 +2843,7 @@ namespace StackExchange.Redis
                 maxLength,
                 useApproximateMaxLength,
                 streamPairs,
+                createStream,
                 limit,
                 mode,
                 flags);
@@ -4628,19 +4632,31 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XACKDEL, key, values);
         }
 
-        private Message GetStreamAddMessage(RedisKey key, RedisValue messageId, long? maxLength, bool useApproximateMaxLength, NameValueEntry streamPair, long? limit, StreamTrimMode mode, CommandFlags flags)
+        private Message GetStreamAddMessage(RedisKey key, RedisValue messageId, long? maxLength, bool useApproximateMaxLength, NameValueEntry streamPair, bool createStream, long? limit, StreamTrimMode mode, CommandFlags flags)
         {
             // Calculate the correct number of arguments:
-            //  3 array elements for Entry ID & NameValueEntry.Name & NameValueEntry.Value.
+            //  1 element if using NOMKSTREAM (when createStream = false), otherwise 0.
             //  2 elements if using MAXLEN (keyword & value), otherwise 0.
             //  1 element if using Approximate Length (~), otherwise 0.
-            var totalLength = 3 + (maxLength.HasValue ? 2 : 0)
+            //  2 elements if using LIMIT (keyword & value), otherwise 0.
+            //  1 element for trim mode (if not KeepReferences), otherwise 0.
+            //  1 element for Entry ID.
+            //  2 elements for NameValueEntry.Name & NameValueEntry.Value.
+            var totalLength = (!createStream ? 1 : 0)
+                                + (maxLength.HasValue ? 2 : 0)
                                 + (maxLength.HasValue && useApproximateMaxLength ? 1 : 0)
                                 + (limit.HasValue ? 2 : 0)
-                                + (mode != StreamTrimMode.KeepReferences ? 1 : 0);
+                                + (mode != StreamTrimMode.KeepReferences ? 1 : 0)
+                                + 3;
 
             var values = new RedisValue[totalLength];
             var offset = 0;
+
+            // NOMKSTREAM must come FIRST in the XADD command (before MAXLEN, LIMIT, etc.)
+            if (!createStream)
+            {
+                values[offset++] = StreamConstants.NoMkStream;
+            }
 
             if (maxLength.HasValue)
             {
@@ -4677,7 +4693,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets message for <see href="https://redis.io/commands/xadd"/>.
         /// </summary>
-        private Message GetStreamAddMessage(RedisKey key, RedisValue entryId, long? maxLength, bool useApproximateMaxLength, NameValueEntry[] streamPairs, long? limit, StreamTrimMode mode, CommandFlags flags)
+        private Message GetStreamAddMessage(RedisKey key, RedisValue entryId, long? maxLength, bool useApproximateMaxLength, NameValueEntry[] streamPairs, bool createStream, long? limit, StreamTrimMode mode, CommandFlags flags)
         {
             if (streamPairs == null) throw new ArgumentNullException(nameof(streamPairs));
             if (streamPairs.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPairs), "streamPairs must contain at least one item.");
@@ -4687,7 +4703,8 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(maxLength), "maxLength must be greater than 0.");
             }
 
-            var totalLength = (streamPairs.Length * 2) // Room for the name/value pairs
+            var totalLength = (!createStream ? 1 : 0) // NOMKSTREAM flag
+                + (streamPairs.Length * 2) // Room for the name/value pairs
                 + 1 // The stream entry ID
                 + (maxLength.HasValue ? 2 : 0) // MAXLEN N
                 + (maxLength.HasValue && useApproximateMaxLength ? 1 : 0) // ~
@@ -4697,6 +4714,12 @@ namespace StackExchange.Redis
             var values = new RedisValue[totalLength];
 
             var offset = 0;
+
+            // NOMKSTREAM must come FIRST in the XADD command (before MAXLEN, LIMIT, etc.)
+            if (!createStream)
+            {
+                values[offset++] = StreamConstants.NoMkStream;
+            }
 
             if (maxLength.HasValue)
             {

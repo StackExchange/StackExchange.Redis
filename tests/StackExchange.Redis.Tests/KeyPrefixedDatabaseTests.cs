@@ -1729,16 +1729,16 @@ public sealed class KeyPrefixedDatabaseTests
     [Fact]
     public void StreamAdd_WithTrimMode_1()
     {
-        prefixed.StreamAdd("key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
-        mock.Received().StreamAdd("prefix:key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        prefixed.StreamAdd("key", "field", "value", "*", 1000, false, true, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        mock.Received().StreamAdd("prefix:key", "field", "value", "*", 1000, false, true, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
     }
 
     [Fact]
     public void StreamAdd_WithTrimMode_2()
     {
         var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
-        prefixed.StreamAdd("key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
-        mock.Received().StreamAdd("prefix:key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        prefixed.StreamAdd("key", fields, "*", 1000, false, true, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+        mock.Received().StreamAdd("prefix:key", fields, "*", 1000, false, true, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
     }
 
     [Fact]

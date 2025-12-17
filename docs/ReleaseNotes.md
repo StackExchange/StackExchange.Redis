@@ -11,8 +11,9 @@ Current package versions:
 - Support Redis 8.4 CAS/CAD operations (`DIGEST`, and the `IFEQ`, `IFNE`, `IFDEQ`, `IFDNE` modifiers on `SET` / `DEL`)
   via the new `ValueCondition` abstraction, and use CAS/CAD operations for `Lock*` APIs when possible ([#2978 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2978))
   - **note**: overload resolution for `StringSet[Async]` may be impacted in niche cases, requiring trivial build changes (there are no runtime-breaking changes such as missing methods)
-- Support `XREADGROUP CLAIM` ([#2972 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2972)) 
+- Support `XREADGROUP CLAIM` ([#2972 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2972))
 - Support `MSETEX` (Redis 8.4.0) for multi-key operations with expiration ([#2977 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2977))
+- Support `NOMKSTREAM` option in `StreamAdd` methods via `createStream` parameter (requires Redis 6.2.0+)
 
 ## 2.9.32
 

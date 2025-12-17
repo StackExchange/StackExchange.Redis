@@ -63,6 +63,8 @@ namespace StackExchange.Redis
 
         internal static readonly RedisValue MkStream = "MKSTREAM";
 
+        internal static readonly RedisValue NoMkStream = "NOMKSTREAM";
+
         internal static readonly RedisValue Stream = "STREAM";
 
         private static readonly RedisValue KeepRef = "KEEPREF", DelRef = "DELREF", Acked = "ACKED";

@@ -2655,13 +2655,14 @@ namespace StackExchange.Redis
         /// <param name="messageId">The ID to assign to the stream entry, defaults to an auto-generated ID ("*").</param>
         /// <param name="maxLength">The maximum length of the stream.</param>
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="createStream">When false, the stream will not be created if it does not exist, and the command returns null. When true (default), the stream is created if it does not exist. Requires Redis 6.2.0+.</param>
         /// <param name="limit">Specifies the maximal count of entries that will be evicted.</param>
         /// <param name="trimMode">Determines how stream trimming should be performed.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
 #pragma warning disable RS0026 // different shape
-        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, bool createStream = true, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <summary>
@@ -2674,13 +2675,14 @@ namespace StackExchange.Redis
         /// <param name="messageId">The ID to assign to the stream entry, defaults to an auto-generated ID ("*").</param>
         /// <param name="maxLength">The maximum length of the stream.</param>
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="createStream">When false, the stream will not be created if it does not exist, and the command returns null. When true (default), the stream is created if it does not exist. Requires Redis 6.2.0+.</param>
         /// <param name="limit">Specifies the maximal count of entries that will be evicted.</param>
         /// <param name="trimMode">Determines how stream trimming should be performed.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
 #pragma warning disable RS0026 // different shape
-        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, bool createStream = true, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <summary>

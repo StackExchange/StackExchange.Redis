@@ -1650,16 +1650,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamAddAsync_WithTrimMode_1()
         {
-            await prefixed.StreamAddAsync("key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
-            await mock.Received().StreamAddAsync("prefix:key", "field", "value", "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await prefixed.StreamAddAsync("key", "field", "value", "*", 1000, false, true, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamAddAsync("prefix:key", "field", "value", "*", 1000, false, true, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
         }
 
         [Fact]
         public async Task StreamAddAsync_WithTrimMode_2()
         {
             var fields = new NameValueEntry[] { new NameValueEntry("field", "value") };
-            await prefixed.StreamAddAsync("key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
-            await mock.Received().StreamAddAsync("prefix:key", fields, "*", 1000, false, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await prefixed.StreamAddAsync("key", fields, "*", 1000, false, true, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
+            await mock.Received().StreamAddAsync("prefix:key", fields, "*", 1000, false, true, 100, StreamTrimMode.KeepReferences, CommandFlags.None);
         }
 
         [Fact]
