@@ -1125,23 +1125,25 @@ namespace StackExchange.Redis
             return new RedisSubscriber(this, asyncState);
         }
 
+        internal int ApplyDefaultDatabase(int db) => ApplyDefaultDatabase(RawConfig, db);
+
         /// <summary>
         /// Applies common DB number defaults and rules.
         /// </summary>
-        internal int ApplyDefaultDatabase(int db)
+        internal static int ApplyDefaultDatabase(ConfigurationOptions config, int db)
         {
             if (db == -1)
             {
-                db = RawConfig.DefaultDatabase.GetValueOrDefault();
+                db = config.DefaultDatabase.GetValueOrDefault();
             }
             else if (db < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(db));
             }
 
-            if (db != 0 && !RawConfig.Proxy.SupportsDatabases())
+            if (db != 0 && !config.Proxy.SupportsDatabases())
             {
-                throw new NotSupportedException($"{RawConfig.Proxy} only supports database 0");
+                throw new NotSupportedException($"{config.Proxy} only supports database 0");
             }
 
             return db;
@@ -1154,7 +1156,7 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisDatabase"/>.</param>
         public IDatabase GetDatabase(int db = -1, object? asyncState = null)
         {
-            db = ApplyDefaultDatabase(db);
+            db = ApplyDefaultDatabase(RawConfig, db);
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
@@ -1162,7 +1164,7 @@ namespace StackExchange.Redis
         }
 
         // DB zero is stored separately, since 0-only is a massively common use-case
-        private const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
+        internal const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
         // Side note: "databases 16" is the default in redis.conf; happy to store one extra to get nice alignment etc
         private IDatabase? dbCacheZero;
         private IDatabase[]? dbCacheLow;
