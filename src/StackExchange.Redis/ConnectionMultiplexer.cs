@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -2390,5 +2391,28 @@ namespace StackExchange.Redis
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
             => GetServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+
+        internal TimeSpan GetPrimaryLatency()
+        {
+            var tmp = GetServerSnapshot();
+            var haveAny = false;
+            TimeSpan worst = TimeSpan.Zero;
+            foreach (var server in tmp)
+            {
+                try
+                {
+                    if (!server.IsReplica && server.TryGetObservedLatency(out var latency))
+                    {
+                        haveAny = true;
+                        if (latency > worst) worst = latency;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex.Message);
+                }
+            }
+            return haveAny ? worst : TimeSpan.MaxValue;
+        }
     }
 }

@@ -589,25 +589,25 @@ namespace StackExchange.Redis
             const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
             if (checkResponse && map.IsAvailable(RedisCommand.ECHO))
             {
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
             }
             else if (map.IsAvailable(RedisCommand.PING))
             {
-                msg = Message.Create(-1, flags, RedisCommand.PING);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
             }
             else if (map.IsAvailable(RedisCommand.TIME))
             {
-                msg = Message.Create(-1, flags, RedisCommand.TIME);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
             }
             else if (!checkResponse && map.IsAvailable(RedisCommand.ECHO))
             {
                 // We'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
             }
             else
             {
                 map.AssertAvailable(RedisCommand.EXISTS);
-                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)Multiplexer.UniqueId);
+                msg = ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)Multiplexer.UniqueId);
             }
             msg.SetInternalCall();
             return msg;
@@ -1121,6 +1121,17 @@ namespace StackExchange.Redis
             // check whichever bridges exist
             if (interactive?.HasPendingCallerFacingItems() == true) return true;
             return subscription?.HasPendingCallerFacingItems() ?? false;
+        }
+
+        public bool TryGetObservedLatency(out TimeSpan latency)
+        {
+            if (interactive is { IsConnected: true } bridge)
+            {
+                latency = bridge.ObservedLatency;
+                return true;
+            }
+            latency = TimeSpan.Zero;
+            return false;
         }
     }
 }

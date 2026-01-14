@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
@@ -15,36 +13,39 @@ namespace StackExchange.Redis;
 
 internal sealed class SuperMultiplexer : IInternalConnectionMultiplexer, IMessageExecutor
 {
-    private sealed class WeightedEndpoint(float weight, ConnectionMultiplexer muxer)
+    internal sealed class WeightedEndpoint(string name, float weight, ConnectionMultiplexer muxer)
     {
+        public string Name => name;
         public readonly float Weight = weight;
         public readonly ConnectionMultiplexer Muxer = muxer;
+        public override string ToString() => name;
     }
 
     private readonly object _syncLock = new();
     private readonly List<WeightedEndpoint> _unsorted = new();
     private ConnectionMultiplexer _active = null!;
 
-    public static async Task<SuperMultiplexer> ConnectAsync(ConfigurationOptions configuration, float weight = 1.0f, TextWriter? log = null)
+    public static async Task<SuperMultiplexer> ConnectAsync(ConfigurationOptions configuration, string name, float weight = 1.0f, TextWriter? log = null)
     {
         var result = new SuperMultiplexer();
-        await result.AddAsync(configuration, weight, log).ForAwait();
+        await result.AddAsync(configuration, name, weight, log).ForAwait();
         return result;
     }
 
-    public async Task AddAsync(ConfigurationOptions configuration, float weight = 1.0f, TextWriter? log = null)
+    public async Task AddAsync(ConfigurationOptions configuration, string name, float weight = 1.0f, TextWriter? log = null)
     {
         var muxer = await ConnectionMultiplexer.ConnectAsync(configuration, log).ForAwait();
-        var weighted = new WeightedEndpoint(weight, muxer);
+        var weighted = new WeightedEndpoint(name, weight, muxer);
         lock (_syncLock)
         {
             // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             _active ??= muxer; // assume if first
             _unsorted.Add(weighted);
         }
+        SelectBest();
     }
 
-    private ReadOnlyMemory<WeightedEndpoint> GetWeightedEndpoints(out WeightedEndpoint[] oversized)
+    private ReadOnlyMemory<WeightedEndpoint> GetSnapshotCopyWeightedEndpoints(out WeightedEndpoint[] oversized)
     {
         lock (_syncLock)
         {
@@ -71,7 +72,7 @@ internal sealed class SuperMultiplexer : IInternalConnectionMultiplexer, IMessag
 
     void IDisposable.Dispose()
     {
-        var eps = GetWeightedEndpoints(out var oversized);
+        var eps = GetSnapshotCopyWeightedEndpoints(out var oversized);
         foreach (var ep in eps.Span)
         {
             ep.Muxer.Dispose();
@@ -82,7 +83,7 @@ internal sealed class SuperMultiplexer : IInternalConnectionMultiplexer, IMessag
 
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
-        var eps = GetWeightedEndpoints(out var oversized);
+        var eps = GetSnapshotCopyWeightedEndpoints(out var oversized);
         var len = eps.Length;
         for (int i = 0; i < len; i++)
         {
@@ -288,9 +289,90 @@ internal sealed class SuperMultiplexer : IInternalConnectionMultiplexer, IMessag
         _active.GetStatus(log);
     }
 
+    internal void UpdateBest()
+    {
+        var best = SelectBest();
+        if (best is not null) _active = best.Muxer;
+    }
+
+    /// <summary>
+    /// Select the most appropriate endpoint based on the currently known state.
+    /// </summary>
+    internal WeightedEndpoint? SelectBest(TextWriter? log = null)
+    {
+        var ep = GetSnapshotCopyWeightedEndpoints(out var oversized);
+        WeightedEndpoint? best = null;
+        if (ep.IsEmpty)
+        {
+            log?.WriteLine("No endpoints available");
+        }
+        else
+        {
+            var span = ep.Span;
+            best = span[0];
+            log?.WriteLine($"Selecting '{best}' as first choice.");
+            foreach (var el in span.Slice(1))
+            {
+                if (Prefer(el, best, log)) best = el;
+            }
+        }
+        Return(oversized);
+        return best;
+
+        static bool Prefer(WeightedEndpoint test, WeightedEndpoint best, TextWriter? log)
+        {
+            // always prefer connected over not
+            if (test.Muxer.IsConnected)
+            {
+                if (!best.Muxer.IsConnected)
+                {
+                    log?.WriteLine($"Prefer '{test}' over '{best}' because it is connected.");
+                    return true;
+                }
+            }
+            else
+            {
+                if (best.Muxer.IsConnected)
+                {
+                    log?.WriteLine($"Rejecting '{test}' in favor of '{best}' because it is not connected.");
+                    return false;
+                }
+            }
+
+            // prefer higher weight, then lower latency; otherwise, retain listed order
+            float testWeight = test.Weight, bestWeight = best.Weight;
+            var delta = testWeight.CompareTo(bestWeight);
+            if (delta < 0)
+            {
+                log?.WriteLine($"Rejecting '{test}' in favor of '{best}' by weight, {testWeight} <= {bestWeight}.");
+                return false;
+            }
+            if (delta > 0)
+            {
+                log?.WriteLine($"Prefer '{test}' over '{best}' by weight, {testWeight} > {bestWeight}.");
+                return true;
+            }
+
+            TimeSpan testLatency = test.Muxer.GetPrimaryLatency(), bestLatency = best.Muxer.GetPrimaryLatency();
+            if (testLatency < bestLatency)
+            {
+                log?.WriteLine($"Prefer '{test}' over '{best}' by latency, {testLatency} < {bestLatency}.");
+                return true;
+            }
+            if (testLatency > bestLatency)
+            {
+                log?.WriteLine($"Rejecting '{test}' in favor of '{best}' by latency, {testLatency} > {bestLatency}.");
+                return false;
+            }
+
+            log?.WriteLine($"Retaining '{best}' over '{test}' - equivalent, prefer listed order.");
+            return false;
+        }
+    }
+
     public void Close(bool allowCommandsToComplete = true)
     {
-        var eps = GetWeightedEndpoints(out var oversized);
+        var eps = GetSnapshotCopyWeightedEndpoints(out var oversized);
         foreach (var ep in eps.Span)
         {
             ep.Muxer.Close(allowCommandsToComplete);
@@ -300,7 +382,7 @@ internal sealed class SuperMultiplexer : IInternalConnectionMultiplexer, IMessag
 
     public async Task CloseAsync(bool allowCommandsToComplete = true)
     {
-        var eps = GetWeightedEndpoints(out var oversized);
+        var eps = GetSnapshotCopyWeightedEndpoints(out var oversized);
         var len = eps.Length;
         for (int i = 0; i < len; i++)
         {

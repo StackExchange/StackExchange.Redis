@@ -128,6 +128,30 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks>The value remains after disconnect, so that appropriate follow-up actions (pub/sub etc) can work reliably.</remarks>
         public RedisProtocol? Protocol => _protocol == 0 ? default(RedisProtocol?) : _protocol;
+
+        private int _observedLatencyMilliseconds = int.MaxValue;
+        internal TimeSpan ObservedLatency
+        {
+            get
+            {
+                var val = _observedLatencyMilliseconds;
+                return val == int.MaxValue ? TimeSpan.MaxValue : TimeSpan.FromMilliseconds(val);
+            }
+        }
+
+        internal void SetObservedLatency(TimeSpan value)
+        {
+            try
+            {
+                var millis = (int)value.TotalMilliseconds;
+                _observedLatencyMilliseconds = millis < 0 ? 0 : millis;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+        }
+
         private RedisProtocol _protocol; // note starts at zero, not RESP2
         internal void SetProtocol(RedisProtocol protocol) => _protocol = protocol;
 

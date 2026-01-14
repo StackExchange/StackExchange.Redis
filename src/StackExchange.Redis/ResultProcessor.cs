@@ -417,6 +417,7 @@ namespace StackExchange.Redis
                         var timestampDelta = Stopwatch.GetTimestamp() - timingMessage.StartedWritingTimestamp;
                         var ticks = (long)(TimestampToTicks * timestampDelta);
                         duration = new TimeSpan(ticks);
+                        connection?.BridgeCouldBeNull?.SetObservedLatency(duration);
                     }
                     else
                     {
@@ -435,6 +436,7 @@ namespace StackExchange.Redis
                     : base(db, flags, command)
                 {
                     this.value = value;
+                    SetSource(ResponseTimer, null);
                 }
 
                 protected override void WriteImpl(PhysicalConnection physical)
