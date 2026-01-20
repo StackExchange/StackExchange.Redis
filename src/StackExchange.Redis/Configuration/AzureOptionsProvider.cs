@@ -29,6 +29,8 @@ namespace StackExchange.Redis.Configuration
             ".redis.cache.windows.net",
             ".redis.cache.chinacloudapi.cn",
             ".redis.cache.usgovcloudapi.net",
+            ".redis.cache.sovcloud-api.de",
+            ".redis.cache.sovcloud-api.fr",
             ".redisenterprise.cache.azure.net",
         };
 
