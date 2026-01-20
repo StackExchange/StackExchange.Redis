@@ -26,6 +26,7 @@ namespace StackExchange.Redis.Configuration
         private static readonly List<DefaultOptionsProvider> BuiltInProviders = new()
         {
             new AzureOptionsProvider(),
+            new AzureManagedRedisOptionsProvider(),
         };
 
         /// <summary>
