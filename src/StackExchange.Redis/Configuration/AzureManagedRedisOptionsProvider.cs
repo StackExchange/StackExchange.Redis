@@ -25,6 +25,7 @@ namespace StackExchange.Redis.Configuration
             ".redis.azure.net",
             ".redis.chinacloudapi.cn",
             ".redis.usgovcloudapi.net",
+            ".redisenterprise.cache.azure.net",
         ];
 
         /// <inheritdoc/>

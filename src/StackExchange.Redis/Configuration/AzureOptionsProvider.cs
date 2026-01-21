@@ -31,7 +31,6 @@ namespace StackExchange.Redis.Configuration
             ".redis.cache.usgovcloudapi.net",
             ".redis.cache.sovcloud-api.de",
             ".redis.cache.sovcloud-api.fr",
-            ".redisenterprise.cache.azure.net",
         };
 
         /// <inheritdoc/>
