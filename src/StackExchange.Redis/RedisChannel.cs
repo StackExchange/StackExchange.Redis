@@ -168,12 +168,12 @@ namespace StackExchange.Redis
             if (database is null)
             {
                 if ((options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(database));
-                target[0] = (byte)'*';
-                return target.Slice(0, 1);
+                return "*"u8; // don't worry about the inbound scratch buffer, this is fine
             }
             else
             {
                 var db32 = database.GetValueOrDefault();
+                if (db32 == 0) return "0"u8; // so common, we might as well special case
                 if (db32 < 0) throw new ArgumentOutOfRangeException(nameof(database));
                 return target.Slice(0, Format.FormatInt32(db32, target));
             }
