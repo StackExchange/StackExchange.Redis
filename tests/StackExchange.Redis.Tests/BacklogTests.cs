@@ -398,4 +398,78 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             ClearAmbientFailures();
         }
     }
+
+    [Fact]
+    public async Task TotalOutstandingIncludesBacklogQueue()
+    {
+        try
+        {
+            var options = new ConfigurationOptions()
+            {
+                BacklogPolicy = BacklogPolicy.Default,
+                AbortOnConnectFail = false,
+                ConnectTimeout = 1000,
+                ConnectRetry = 2,
+                SyncTimeout = 10000,
+                KeepAlive = 10000,
+                AsyncTimeout = 5000,
+                AllowAdmin = true,
+                SocketManager = SocketManager.ThreadPool,
+            };
+            options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
+
+            using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            var db = conn.GetDatabase();
+            Log("Test: Initial (connected) ping");
+            await db.PingAsync();
+
+            var server = conn.GetServerSnapshot()[0];
+
+            // Verify TotalOutstanding is 0 when connected and idle
+            Log("Test: asserting connected counters");
+            var connectedServerCounters = server.GetCounters();
+            var connectedConnCounters = conn.GetCounters();
+            Assert.Equal(0, connectedServerCounters.Interactive.TotalOutstanding);
+            Assert.Equal(0, connectedConnCounters.TotalOutstanding);
+
+            Log("Test: Simulating failure");
+            conn.AllowConnect = false;
+            server.SimulateConnectionFailure(SimulatedFailureType.All);
+
+            // Queue up some commands
+            Log("Test: Disconnected pings");
+            _ = db.PingAsync();
+            _ = db.PingAsync();
+            var lastPing = db.PingAsync();
+
+            Log("Test: asserting disconnected counters");
+            var disconnectedServerCounters = server.GetCounters();
+            var disconnectedConnCounters = conn.GetCounters();
+            Assert.True(disconnectedServerCounters.Interactive.PendingUnsentItems >= 3,
+                $"Expected PendingUnsentItems >= 3, got {disconnectedServerCounters.Interactive.PendingUnsentItems}");
+            Assert.True(disconnectedConnCounters.TotalOutstanding >= 3,
+                $"Expected TotalOutstanding >= 3, got {disconnectedServerCounters.Interactive.TotalOutstanding}");
+
+            Log("Test: Awaiting reconnect");
+            conn.AllowConnect = true;
+            await UntilConditionAsync(TimeSpan.FromSeconds(3), () => conn.IsConnected).ForAwait();
+
+            Log("Test: Awaiting lastPing");
+            await lastPing;
+
+            Log("Test: Checking reconnected");
+            Assert.True(conn.IsConnected);
+
+            Log("Test: asserting reconnected counters");
+            var reconnectedServerCounters = server.GetCounters();
+            var reconnectedConnCounters = conn.GetCounters();
+            Assert.Equal(0, reconnectedServerCounters.Interactive.PendingUnsentItems);
+            Assert.Equal(0, reconnectedConnCounters.TotalOutstanding);
+            Log("Test: Done");
+        }
+        finally
+        {
+            ClearAmbientFailures();
+        }
+    }
 }
