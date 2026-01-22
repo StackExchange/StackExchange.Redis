@@ -1245,5 +1245,16 @@ HaveString:
                     return digest;
             }
         }
+
+        internal bool TryGetSpan(out ReadOnlySpan<byte> span)
+        {
+            if (_objectOrSentinel == Sentinel_Raw)
+            {
+                span = _memory.Span;
+                return true;
+            }
+            span = default;
+            return false;
+        }
     }
 }

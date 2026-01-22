@@ -1,1 +1,70 @@
 ﻿#nullable enable
+StackExchange.Redis.KeyNotification
+StackExchange.Redis.KeyNotification.Channel.get -> StackExchange.Redis.RedisChannel
+StackExchange.Redis.KeyNotification.Value.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.KeyNotification.Database.get -> int
+StackExchange.Redis.KeyNotification.GetKey() -> StackExchange.Redis.RedisKey
+StackExchange.Redis.KeyNotification.IsKeyEvent.get -> bool
+StackExchange.Redis.KeyNotification.IsKeySpace.get -> bool
+StackExchange.Redis.KeyNotification.KeyByteCount.get -> int
+StackExchange.Redis.KeyNotification.KeyNotification() -> void
+StackExchange.Redis.KeyNotification.TryCopyKey(System.Span<byte> destination, out int bytesWritten) -> bool
+StackExchange.Redis.KeyNotification.Type.get -> StackExchange.Redis.KeyNotificationType
+static StackExchange.Redis.KeyNotification.TryParse(in StackExchange.Redis.RedisChannel channel, in StackExchange.Redis.RedisValue value, out StackExchange.Redis.KeyNotification notification) -> bool
+StackExchange.Redis.ChannelMessage.TryParseKeyNotification(out StackExchange.Redis.KeyNotification notification) -> bool
+StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Append = 1 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Copy = 1 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Del = 2 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Evicted = 1001 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Expire = 3 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Expired = 1000 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HDel = 4 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HExpired = 5 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HIncrBy = 7 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HIncrByFloat = 6 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HPersist = 8 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HSet = 9 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.IncrBy = 11 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.IncrByFloat = 10 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LInsert = 12 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LPop = 13 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LPush = 14 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LRem = 15 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LSet = 16 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LTrim = 17 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.MoveFrom = 18 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.MoveTo = 19 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.New = 1002 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Overwritten = 1003 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Persist = 20 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.RenameFrom = 21 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.RenameTo = 22 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Restore = 23 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.RPop = 24 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.RPush = 25 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SAdd = 26 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Set = 27 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SetRange = 28 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SortStore = 29 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SPop = 31 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SRem = 30 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.TypeChanged = 1004 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Unknown = 0 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XAdd = 32 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XDel = 33 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupCreate = 35 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupCreateConsumer = 34 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupDelConsumer = 36 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupDestroy = 37 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupSetId = 38 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XSetId = 39 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XTrim = 40 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZAdd = 41 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZDiffStore = 42 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZIncr = 45 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZInterStore = 43 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZRem = 48 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZRemByRank = 46 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZRemByScore = 47 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZUnionStore = 44 -> StackExchange.Redis.KeyNotificationType

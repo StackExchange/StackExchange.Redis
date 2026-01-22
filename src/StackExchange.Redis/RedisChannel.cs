@@ -10,6 +10,8 @@ namespace StackExchange.Redis
     {
         internal readonly byte[]? Value;
 
+        internal ReadOnlySpan<byte> Span => Value is null ? default : Value.AsSpan();
+
         internal readonly RedisChannelOptions Options;
 
         [Flags]
