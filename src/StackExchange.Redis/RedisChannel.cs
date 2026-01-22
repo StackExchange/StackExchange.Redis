@@ -28,7 +28,8 @@ namespace StackExchange.Redis
         }
 
         // we don't consider Routed for equality - it's an implementation detail, not a fundamental feature
-        private const RedisChannelOptions EqualityMask = ~(RedisChannelOptions.KeyRouted | RedisChannelOptions.MultiNode);
+        private const RedisChannelOptions EqualityMask =
+            ~(RedisChannelOptions.KeyRouted | RedisChannelOptions.MultiNode);
 
         internal RedisCommand PublishCommand => IsSharded ? RedisCommand.SPUBLISH : RedisCommand.PUBLISH;
 
@@ -66,6 +67,7 @@ namespace StackExchange.Redis
             get => s_DefaultPatternMode == PatternMode.Auto;
             set => s_DefaultPatternMode = value ? PatternMode.Auto : PatternMode.Literal;
         }
+
         private static PatternMode s_DefaultPatternMode = PatternMode.Auto;
 
         /// <summary>
@@ -113,7 +115,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
-        public RedisChannel(byte[]? value, PatternMode mode) : this(value, DeterminePatternBased(value, mode) ? RedisChannelOptions.Pattern : RedisChannelOptions.None)
+        public RedisChannel(byte[]? value, PatternMode mode) : this(
+            value, DeterminePatternBased(value, mode) ? RedisChannelOptions.Pattern : RedisChannelOptions.None)
         {
         }
 
@@ -123,7 +126,9 @@ namespace StackExchange.Redis
         /// <param name="value">The string name of the channel to create.</param>
         /// <param name="mode">The mode for name matching.</param>
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-        public RedisChannel(string value, PatternMode mode) : this(value is null ? null : Encoding.UTF8.GetBytes(value), mode)
+        public RedisChannel(string value, PatternMode mode) : this(
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            value is null ? null : Encoding.UTF8.GetBytes(value), mode)
         {
         }
 
@@ -136,7 +141,8 @@ namespace StackExchange.Redis
         /// <param name="value">The name of the channel to create.</param>
         /// <remarks>Note that sharded subscriptions are completely separate to regular subscriptions; subscriptions
         /// using sharded channels must also be published with sharded channels (and vice versa).</remarks>
-        public static RedisChannel Sharded(byte[]? value) => new(value, RedisChannelOptions.Sharded | RedisChannelOptions.KeyRouted);
+        public static RedisChannel Sharded(byte[]? value) =>
+            new(value, RedisChannelOptions.Sharded | RedisChannelOptions.KeyRouted);
 
         /// <summary>
         /// Create a new redis channel from a string, representing a sharded channel. In cluster
@@ -147,7 +153,8 @@ namespace StackExchange.Redis
         /// <param name="value">The string name of the channel to create.</param>
         /// <remarks>Note that sharded subscriptions are completely separate to regular subscriptions; subscriptions
         /// using sharded channels must also be published with sharded channels (and vice versa).</remarks>
-        public static RedisChannel Sharded(string value) => new(value, RedisChannelOptions.Sharded | RedisChannelOptions.KeyRouted);
+        public static RedisChannel Sharded(string value) =>
+            new(value, RedisChannelOptions.Sharded | RedisChannelOptions.KeyRouted);
 
         /// <summary>
         /// Create a key-notification channel for a single key in a single database.
@@ -182,20 +189,30 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a key-notification channel for a pattern, optionally in a specified database.
         /// </summary>
+#pragma warning disable RS0027
         public static RedisChannel KeyEvent(KeyNotificationType type, int? database = null)
+#pragma warning restore RS0027
+            => KeyEvent(KeyNotificationTypeFastHash.GetRawBytes(type), database);
+
+        /// <summary>
+        /// Create a key-notification channel for a pattern, optionally in a specified database.
+        /// </summary>
+        /// <remarks>This API is intended for use with custom/unknown event types; for well-known types, use <see cref="KeyEvent(KeyNotificationType, int?)"/>.</remarks>
+        public static RedisChannel KeyEvent(ReadOnlySpan<byte> type, int? database)
         {
+            if (type.IsEmpty) throw new ArgumentNullException(nameof(type));
+
             RedisChannelOptions options = RedisChannelOptions.MultiNode;
             if (database is null) options |= RedisChannelOptions.Pattern;
             var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);
-            var typeBytes = KeyNotificationTypeFastHash.GetRawBytes(type);
 
             // __keyevent@{db}__:{type}
-            var arr = new byte[14 + db.Length + typeBytes.Length];
+            var arr = new byte[14 + db.Length + type.Length];
 
             Span<byte> target = AppendAndAdvance(arr.AsSpan(), "__keyevent@"u8);
             target = AppendAndAdvance(target, db);
             target = AppendAndAdvance(target, "__:"u8);
-            target = AppendAndAdvance(target, typeBytes);
+            target = AppendAndAdvance(target, type);
             Debug.Assert(target.IsEmpty); // should have calculated length correctly
 
             return new RedisChannel(arr, options);

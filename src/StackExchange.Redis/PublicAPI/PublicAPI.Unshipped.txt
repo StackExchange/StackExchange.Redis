@@ -13,6 +13,7 @@ StackExchange.Redis.KeyNotification.Type.get -> StackExchange.Redis.KeyNotificat
 static StackExchange.Redis.KeyNotification.TryParse(in StackExchange.Redis.RedisChannel channel, in StackExchange.Redis.RedisValue value, out StackExchange.Redis.KeyNotification notification) -> bool
 StackExchange.Redis.ChannelMessage.TryParseKeyNotification(out StackExchange.Redis.KeyNotification notification) -> bool
 static StackExchange.Redis.RedisChannel.KeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.KeyEvent(System.ReadOnlySpan<byte> type, int? database) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.KeySpace(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.KeySpacePattern(in StackExchange.Redis.RedisKey pattern, int? database = null) -> StackExchange.Redis.RedisChannel
 StackExchange.Redis.KeyNotificationType
