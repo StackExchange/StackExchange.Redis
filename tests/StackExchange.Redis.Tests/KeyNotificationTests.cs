@@ -409,6 +409,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeySpace("abc", 42);
         Assert.Equal("__keyspace@42__:abc", channel.ToString());
         Assert.False(channel.IsMultiNode);
+        Assert.False(channel.IsSharded);
         Assert.False(channel.IsPattern);
     }
 
@@ -422,6 +423,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeySpacePattern(pattern, database);
         Assert.Equal(expected, channel.ToString());
         Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsSharded);
         Assert.True(channel.IsPattern);
     }
 
@@ -435,6 +437,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeyEvent(type, database);
         Assert.Equal(expected, channel.ToString());
         Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsSharded);
         if (isPattern)
         {
             Assert.True(channel.IsPattern);
