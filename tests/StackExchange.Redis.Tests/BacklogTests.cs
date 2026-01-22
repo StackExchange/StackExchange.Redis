@@ -445,10 +445,8 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             Log("Test: asserting disconnected counters");
             var disconnectedServerCounters = server.GetCounters();
             var disconnectedConnCounters = conn.GetCounters();
-            Assert.True(disconnectedServerCounters.Interactive.PendingUnsentItems >= 3,
-                $"Expected PendingUnsentItems >= 3, got {disconnectedServerCounters.Interactive.PendingUnsentItems}");
-            Assert.True(disconnectedConnCounters.TotalOutstanding >= 3,
-                $"Expected TotalOutstanding >= 3, got {disconnectedServerCounters.Interactive.TotalOutstanding}");
+            Assert.True(disconnectedServerCounters.Interactive.PendingUnsentItems >= 3, $"Expected PendingUnsentItems >= 3, got {disconnectedServerCounters.Interactive.PendingUnsentItems}");
+            Assert.True(disconnectedConnCounters.TotalOutstanding >= 3, $"Expected TotalOutstanding >= 3, got {disconnectedServerCounters.Interactive.TotalOutstanding}");
 
             Log("Test: Awaiting reconnect");
             conn.AllowConnect = true;
