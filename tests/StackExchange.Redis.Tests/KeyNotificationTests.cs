@@ -5,7 +5,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class KeyNotificationTests
+public class KeyNotificationTests(ITestOutputHelper log)
 {
     [Fact]
     public void Keyspace_Del_ParsesCorrectly()
@@ -373,19 +373,75 @@ public class KeyNotificationTests
     [InlineData(KeyNotificationTypeFastHash._new.Text, KeyNotificationType.New)]
     [InlineData(KeyNotificationTypeFastHash.overwritten.Text, KeyNotificationType.Overwritten)]
     [InlineData(KeyNotificationTypeFastHash.type_changed.Text, KeyNotificationType.TypeChanged)]
-    public unsafe void FastHashParse_AllKnownValues_ParseCorrectly(string input, KeyNotificationType expected)
+    public unsafe void FastHashParse_AllKnownValues_ParseCorrectly(string raw, KeyNotificationType parsed)
     {
-        var arr = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(input.Length));
+        var arr = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(raw.Length));
         int bytes;
         fixed (byte* bPtr = arr) // encode into the buffer
         {
-            fixed (char* cPtr = input)
+            fixed (char* cPtr = raw)
             {
-                bytes = Encoding.UTF8.GetBytes(cPtr, input.Length, bPtr, arr.Length);
+                bytes = Encoding.UTF8.GetBytes(cPtr, raw.Length, bPtr, arr.Length);
             }
         }
+
         var result = KeyNotificationTypeFastHash.Parse(arr.AsSpan(0, bytes));
+        log.WriteLine($"Parsed '{raw}' as {result}");
+        Assert.Equal(parsed, result);
+
+        // and the other direction:
+        var fetchedBytes = KeyNotificationTypeFastHash.GetRawBytes(parsed);
+        string fetched;
+        fixed (byte* bPtr = fetchedBytes)
+        {
+            fetched = Encoding.UTF8.GetString(bPtr, fetchedBytes.Length);
+        }
+
+        log.WriteLine($"Fetched '{raw}'");
+        Assert.Equal(raw, fetched);
+
         ArrayPool<byte>.Shared.Return(arr);
-        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void CreateKeySpaceNotification_Valid()
+    {
+        var channel = RedisChannel.KeySpace("abc", 42);
+        Assert.Equal("__keyspace@42__:abc", channel.ToString());
+        Assert.False(channel.IsMultiNode);
+        Assert.False(channel.IsPattern);
+    }
+
+    [Theory]
+    [InlineData(null, null, "__keyspace@*__:*")]
+    [InlineData("abc*", null, "__keyspace@*__:abc*")]
+    [InlineData(null, 42, "__keyspace@42__:*")]
+    [InlineData("abc*", 42, "__keyspace@42__:abc*")]
+    public void CreateKeySpaceNotificationPattern(string? pattern, int? database, string expected)
+    {
+        var channel = RedisChannel.KeySpacePattern(pattern, database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        Assert.True(channel.IsPattern);
+    }
+
+    [Theory]
+    [InlineData(KeyNotificationType.Set, null, "__keyevent@*__:set", true)]
+    [InlineData(KeyNotificationType.XGroupCreate, null, "__keyevent@*__:xgroup-create", true)]
+    [InlineData(KeyNotificationType.Set, 42, "__keyevent@42__:set", false)]
+    [InlineData(KeyNotificationType.XGroupCreate, 42, "__keyevent@42__:xgroup-create", false)]
+    public void CreateKeyEventNotification(KeyNotificationType type, int? database, string expected, bool isPattern)
+    {
+        var channel = RedisChannel.KeyEvent(type, database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        if (isPattern)
+        {
+            Assert.True(channel.IsPattern);
+        }
+        else
+        {
+            Assert.False(channel.IsPattern);
+        }
     }
 }

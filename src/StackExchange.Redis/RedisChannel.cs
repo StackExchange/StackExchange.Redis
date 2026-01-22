@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Buffers.Text;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -21,10 +24,11 @@ namespace StackExchange.Redis
             Pattern = 1 << 0,
             Sharded = 1 << 1,
             KeyRouted = 1 << 2,
+            MultiNode = 1 << 3,
         }
 
         // we don't consider Routed for equality - it's an implementation detail, not a fundamental feature
-        private const RedisChannelOptions EqualityMask = ~RedisChannelOptions.KeyRouted;
+        private const RedisChannelOptions EqualityMask = ~(RedisChannelOptions.KeyRouted | RedisChannelOptions.MultiNode);
 
         internal RedisCommand PublishCommand => IsSharded ? RedisCommand.SPUBLISH : RedisCommand.PUBLISH;
 
@@ -33,6 +37,8 @@ namespace StackExchange.Redis
         /// or to scenarios using <see cref="RedisChannel.WithKeyRouting" />.
         /// </summary>
         internal bool IsKeyRouted => (Options & RedisChannelOptions.KeyRouted) != 0;
+
+        internal bool IsMultiNode => (Options & RedisChannelOptions.MultiNode) != 0;
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value.
@@ -142,6 +148,100 @@ namespace StackExchange.Redis
         /// <remarks>Note that sharded subscriptions are completely separate to regular subscriptions; subscriptions
         /// using sharded channels must also be published with sharded channels (and vice versa).</remarks>
         public static RedisChannel Sharded(string value) => new(value, RedisChannelOptions.Sharded | RedisChannelOptions.KeyRouted);
+
+        /// <summary>
+        /// Create a key-notification channel for a single key in a single database.
+        /// </summary>
+        public static RedisChannel KeySpace(in RedisKey key, int database)
+            => BuildKeySpace(key, database, RedisChannelOptions.None);
+
+        /// <summary>
+        /// Create a key-notification channel for a pattern, optionally in a specified database.
+        /// </summary>
+        public static RedisChannel KeySpacePattern(in RedisKey pattern, int? database = null)
+            => BuildKeySpace(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode);
+
+        private const int DatabaseScratchBufferSize = 16; // largest non-negative int32 is 10 digits
+
+        private static ReadOnlySpan<byte> AppendDatabase(Span<byte> target, int? database, RedisChannelOptions options)
+        {
+            if (database is null)
+            {
+                if ((options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(database));
+                target[0] = (byte)'*';
+                return target.Slice(0, 1);
+            }
+            else
+            {
+                var db32 = database.GetValueOrDefault();
+                if (db32 < 0) throw new ArgumentOutOfRangeException(nameof(database));
+                return target.Slice(0, Format.FormatInt32(db32, target));
+            }
+        }
+
+        /// <summary>
+        /// Create a key-notification channel for a pattern, optionally in a specified database.
+        /// </summary>
+        public static RedisChannel KeyEvent(KeyNotificationType type, int? database = null)
+        {
+            RedisChannelOptions options = RedisChannelOptions.MultiNode;
+            if (database is null) options |= RedisChannelOptions.Pattern;
+            var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);
+            var typeBytes = KeyNotificationTypeFastHash.GetRawBytes(type);
+
+            // __keyevent@{db}__:{type}
+            var arr = new byte[14 + db.Length + typeBytes.Length];
+
+            Span<byte> target = AppendAndAdvance(arr.AsSpan(), "__keyevent@"u8);
+            target = AppendAndAdvance(target, db);
+            target = AppendAndAdvance(target, "__:"u8);
+            target = AppendAndAdvance(target, typeBytes);
+            Debug.Assert(target.IsEmpty); // should have calculated length correctly
+
+            return new RedisChannel(arr, options);
+        }
+
+        private static Span<byte> AppendAndAdvance(Span<byte> target, scoped ReadOnlySpan<byte> value)
+        {
+            value.CopyTo(target);
+            return target.Slice(value.Length);
+        }
+
+        private static RedisChannel BuildKeySpace(in RedisKey key, int? database, RedisChannelOptions options)
+        {
+            int keyLen;
+            if (key.IsNull)
+            {
+                if ((options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(key));
+                keyLen = 1;
+            }
+            else
+            {
+                keyLen = key.TotalLength();
+                if (keyLen == 0) throw new ArgumentOutOfRangeException(nameof(key));
+            }
+
+            var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);
+
+            // __keyspace@{db}__:{key}
+            var arr = new byte[14 + db.Length + keyLen];
+
+            Span<byte> target = AppendAndAdvance(arr.AsSpan(), "__keyspace@"u8);
+            target = AppendAndAdvance(target, db);
+            target = AppendAndAdvance(target, "__:"u8);
+            Debug.Assert(keyLen == target.Length); // should have exactly "len" bytes remaining
+            if (key.IsNull)
+            {
+                target[0] = (byte)'*';
+                target = target.Slice(1);
+            }
+            else
+            {
+                target = target.Slice(key.CopyTo(target));
+            }
+            Debug.Assert(target.IsEmpty); // should have calculated length correctly
+            return new RedisChannel(arr, options);
+        }
 
         internal RedisChannel(byte[]? value, RedisChannelOptions options)
         {

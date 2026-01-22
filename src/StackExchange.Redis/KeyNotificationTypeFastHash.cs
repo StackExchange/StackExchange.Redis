@@ -346,4 +346,67 @@ internal static partial class KeyNotificationTypeFastHash
 
     // ReSharper restore InconsistentNaming
 #pragma warning restore SA1300, CS8981
+
+    internal static ReadOnlySpan<byte> GetRawBytes(KeyNotificationType type)
+    {
+        return type switch
+        {
+            KeyNotificationType.Append => append.U8,
+            KeyNotificationType.Copy => copy.U8,
+            KeyNotificationType.Del => del.U8,
+            KeyNotificationType.Expire => expire.U8,
+            KeyNotificationType.HDel => hdel.U8,
+            KeyNotificationType.HExpired => hexpired.U8,
+            KeyNotificationType.HIncrByFloat => hincrbyfloat.U8,
+            KeyNotificationType.HIncrBy => hincrby.U8,
+            KeyNotificationType.HPersist => hpersist.U8,
+            KeyNotificationType.HSet => hset.U8,
+            KeyNotificationType.IncrByFloat => incrbyfloat.U8,
+            KeyNotificationType.IncrBy => incrby.U8,
+            KeyNotificationType.LInsert => linsert.U8,
+            KeyNotificationType.LPop => lpop.U8,
+            KeyNotificationType.LPush => lpush.U8,
+            KeyNotificationType.LRem => lrem.U8,
+            KeyNotificationType.LSet => lset.U8,
+            KeyNotificationType.LTrim => ltrim.U8,
+            KeyNotificationType.MoveFrom => move_from.U8,
+            KeyNotificationType.MoveTo => move_to.U8,
+            KeyNotificationType.Persist => persist.U8,
+            KeyNotificationType.RenameFrom => rename_from.U8,
+            KeyNotificationType.RenameTo => rename_to.U8,
+            KeyNotificationType.Restore => restore.U8,
+            KeyNotificationType.RPop => rpop.U8,
+            KeyNotificationType.RPush => rpush.U8,
+            KeyNotificationType.SAdd => sadd.U8,
+            KeyNotificationType.Set => set.U8,
+            KeyNotificationType.SetRange => setrange.U8,
+            KeyNotificationType.SortStore => sortstore.U8,
+            KeyNotificationType.SRem => srem.U8,
+            KeyNotificationType.SPop => spop.U8,
+            KeyNotificationType.XAdd => xadd.U8,
+            KeyNotificationType.XDel => xdel.U8,
+            KeyNotificationType.XGroupCreateConsumer => xgroup_createconsumer.U8,
+            KeyNotificationType.XGroupCreate => xgroup_create.U8,
+            KeyNotificationType.XGroupDelConsumer => xgroup_delconsumer.U8,
+            KeyNotificationType.XGroupDestroy => xgroup_destroy.U8,
+            KeyNotificationType.XGroupSetId => xgroup_setid.U8,
+            KeyNotificationType.XSetId => xsetid.U8,
+            KeyNotificationType.XTrim => xtrim.U8,
+            KeyNotificationType.ZAdd => zadd.U8,
+            KeyNotificationType.ZDiffStore => zdiffstore.U8,
+            KeyNotificationType.ZInterStore => zinterstore.U8,
+            KeyNotificationType.ZUnionStore => zunionstore.U8,
+            KeyNotificationType.ZIncr => zincr.U8,
+            KeyNotificationType.ZRemByRank => zrembyrank.U8,
+            KeyNotificationType.ZRemByScore => zrembyscore.U8,
+            KeyNotificationType.ZRem => zrem.U8,
+            KeyNotificationType.Expired => expired.U8,
+            KeyNotificationType.Evicted => evicted.U8,
+            KeyNotificationType.New => _new.U8,
+            KeyNotificationType.Overwritten => overwritten.U8,
+            KeyNotificationType.TypeChanged => type_changed.U8,
+            _ => Throw(),
+        };
+        static ReadOnlySpan<byte> Throw() => throw new ArgumentOutOfRangeException(nameof(type));
+    }
 }
