@@ -353,11 +353,11 @@ public class KeyNotificationTests
     [InlineData(KeyNotificationTypeFastHash.spop.Text, KeyNotificationType.SPop)]
     [InlineData(KeyNotificationTypeFastHash.xadd.Text, KeyNotificationType.XAdd)]
     [InlineData(KeyNotificationTypeFastHash.xdel.Text, KeyNotificationType.XDel)]
-    [InlineData(KeyNotificationTypeFastHash.xgroupcreateconsumer.Text, KeyNotificationType.XGroupCreateConsumer)]
-    [InlineData(KeyNotificationTypeFastHash.xgroupcreate.Text, KeyNotificationType.XGroupCreate)]
-    [InlineData(KeyNotificationTypeFastHash.xgroupdelconsumer.Text, KeyNotificationType.XGroupDelConsumer)]
-    [InlineData(KeyNotificationTypeFastHash.xgroupdestroy.Text, KeyNotificationType.XGroupDestroy)]
-    [InlineData(KeyNotificationTypeFastHash.xgroupsetid.Text, KeyNotificationType.XGroupSetId)]
+    [InlineData(KeyNotificationTypeFastHash.xgroup_createconsumer.Text, KeyNotificationType.XGroupCreateConsumer)]
+    [InlineData(KeyNotificationTypeFastHash.xgroup_create.Text, KeyNotificationType.XGroupCreate)]
+    [InlineData(KeyNotificationTypeFastHash.xgroup_delconsumer.Text, KeyNotificationType.XGroupDelConsumer)]
+    [InlineData(KeyNotificationTypeFastHash.xgroup_destroy.Text, KeyNotificationType.XGroupDestroy)]
+    [InlineData(KeyNotificationTypeFastHash.xgroup_setid.Text, KeyNotificationType.XGroupSetId)]
     [InlineData(KeyNotificationTypeFastHash.xsetid.Text, KeyNotificationType.XSetId)]
     [InlineData(KeyNotificationTypeFastHash.xtrim.Text, KeyNotificationType.XTrim)]
     [InlineData(KeyNotificationTypeFastHash.zadd.Text, KeyNotificationType.ZAdd)]
@@ -373,9 +373,19 @@ public class KeyNotificationTests
     [InlineData(KeyNotificationTypeFastHash._new.Text, KeyNotificationType.New)]
     [InlineData(KeyNotificationTypeFastHash.overwritten.Text, KeyNotificationType.Overwritten)]
     [InlineData(KeyNotificationTypeFastHash.type_changed.Text, KeyNotificationType.TypeChanged)]
-    public void FastHashParse_AllKnownValues_ParseCorrectly(string input, KeyNotificationType expected)
+    public unsafe void FastHashParse_AllKnownValues_ParseCorrectly(string input, KeyNotificationType expected)
     {
-        var result = KeyNotificationTypeFastHash.Parse(Encoding.UTF8.GetBytes(input));
+        var arr = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(input.Length));
+        int bytes;
+        fixed (byte* bPtr = arr) // encode into the buffer
+        {
+            fixed (char* cPtr = input)
+            {
+                bytes = Encoding.UTF8.GetBytes(cPtr, input.Length, bPtr, arr.Length);
+            }
+        }
+        var result = KeyNotificationTypeFastHash.Parse(arr.AsSpan(0, bytes));
+        ArrayPool<byte>.Shared.Return(arr);
         Assert.Equal(expected, result);
     }
 }

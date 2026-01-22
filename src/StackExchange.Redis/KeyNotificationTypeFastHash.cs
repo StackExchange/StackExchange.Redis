@@ -2,6 +2,9 @@
 
 namespace StackExchange.Redis;
 
+/// <summary>
+/// Internal helper type for fast parsing of key notification types, using [FastHash].
+/// </summary>
 internal static partial class KeyNotificationTypeFastHash
 {
     // these are checked by KeyNotificationTypeFastHash_MinMaxBytes_ReflectsActualLengths
@@ -46,11 +49,11 @@ internal static partial class KeyNotificationTypeFastHash
             spop.Hash when spop.Is(hash, value) => KeyNotificationType.SPop,
             xadd.Hash when xadd.Is(hash, value) => KeyNotificationType.XAdd,
             xdel.Hash when xdel.Is(hash, value) => KeyNotificationType.XDel,
-            xgroupcreateconsumer.Hash when xgroupcreateconsumer.Is(hash, value) => KeyNotificationType.XGroupCreateConsumer,
-            xgroupcreate.Hash when xgroupcreate.Is(hash, value) => KeyNotificationType.XGroupCreate,
-            xgroupdelconsumer.Hash when xgroupdelconsumer.Is(hash, value) => KeyNotificationType.XGroupDelConsumer,
-            xgroupdestroy.Hash when xgroupdestroy.Is(hash, value) => KeyNotificationType.XGroupDestroy,
-            xgroupsetid.Hash when xgroupsetid.Is(hash, value) => KeyNotificationType.XGroupSetId,
+            xgroup_createconsumer.Hash when xgroup_createconsumer.Is(hash, value) => KeyNotificationType.XGroupCreateConsumer,
+            xgroup_create.Hash when xgroup_create.Is(hash, value) => KeyNotificationType.XGroupCreate,
+            xgroup_delconsumer.Hash when xgroup_delconsumer.Is(hash, value) => KeyNotificationType.XGroupDelConsumer,
+            xgroup_destroy.Hash when xgroup_destroy.Is(hash, value) => KeyNotificationType.XGroupDestroy,
+            xgroup_setid.Hash when xgroup_setid.Is(hash, value) => KeyNotificationType.XGroupSetId,
             xsetid.Hash when xsetid.Is(hash, value) => KeyNotificationType.XSetId,
             xtrim.Hash when xtrim.Is(hash, value) => KeyNotificationType.XTrim,
             zadd.Hash when zadd.Is(hash, value) => KeyNotificationType.ZAdd,
@@ -161,12 +164,12 @@ internal static partial class KeyNotificationTypeFastHash
     {
     }
 
-    [FastHash("move_from")]
+    [FastHash("move_from")] // by default, the generator interprets underscore as hyphen
     internal static partial class move_from
     {
     }
 
-    [FastHash("move_to")]
+    [FastHash("move_to")] // by default, the generator interprets underscore as hyphen
     internal static partial class move_to
     {
     }
@@ -176,12 +179,12 @@ internal static partial class KeyNotificationTypeFastHash
     {
     }
 
-    [FastHash("rename_from")]
+    [FastHash("rename_from")] // by default, the generator interprets underscore as hyphen
     internal static partial class rename_from
     {
     }
 
-    [FastHash("rename_to")]
+    [FastHash("rename_to")] // by default, the generator interprets underscore as hyphen
     internal static partial class rename_to
     {
     }
@@ -241,28 +244,28 @@ internal static partial class KeyNotificationTypeFastHash
     {
     }
 
-    [FastHash("xgroup-createconsumer")]
-    internal static partial class xgroupcreateconsumer
+    [FastHash] // note: becomes hyphenated
+    internal static partial class xgroup_createconsumer
     {
     }
 
-    [FastHash("xgroup-create")]
-    internal static partial class xgroupcreate
+    [FastHash] // note: becomes hyphenated
+    internal static partial class xgroup_create
     {
     }
 
-    [FastHash("xgroup-delconsumer")]
-    internal static partial class xgroupdelconsumer
+    [FastHash] // note: becomes hyphenated
+    internal static partial class xgroup_delconsumer
     {
     }
 
-    [FastHash("xgroup-destroy")]
-    internal static partial class xgroupdestroy
+    [FastHash] // note: becomes hyphenated
+    internal static partial class xgroup_destroy
     {
     }
 
-    [FastHash("xgroup-setid")]
-    internal static partial class xgroupsetid
+    [FastHash] // note: becomes hyphenated
+    internal static partial class xgroup_setid
     {
     }
 
