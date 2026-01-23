@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Buffers.Text;
 using System.Diagnostics;
-
+using static StackExchange.Redis.KeyNotificationChannels;
 namespace StackExchange.Redis;
 
 /// <summary>
@@ -16,19 +16,34 @@ public readonly struct KeyNotification
     {
         // validate that it looks reasonable
         var span = channel.Span;
-        if (span.StartsWith("__keyspace@"u8) || span.StartsWith("__keyevent@"u8))
+
+        const int PREFIX_LEN = KeySpaceStart.Length, MIN_LEN = PREFIX_LEN + MinSuffixBytes; // need "0__:x" or similar after prefix
+        Debug.Assert(KeyEventStart.Length == PREFIX_LEN); // prove these are the same, DEBUG only
+
+        if (span.Length >= MIN_LEN)
         {
-            // check that there is *something* non-empty after the prefix, with __: as the suffix (we don't verify *what*)
-            if (span.Slice(11).IndexOf("__:"u8) > 0)
+            var prefix = span.Slice(0, PREFIX_LEN);
+            var hash = prefix.Hash64();
+            switch (hash)
             {
-                notification = new KeyNotification(in channel, in value);
-                return true;
+                case KeySpaceStart.Hash when KeySpaceStart.Is(hash, prefix):
+                case KeyEventStart.Hash when KeyEventStart.Is(hash, prefix):
+                    // check that there is *something* non-empty after the prefix, with __: as the suffix (we don't verify *what*)
+                    if (span.Slice(PREFIX_LEN).IndexOf("__:"u8) > 0)
+                    {
+                        notification = new KeyNotification(in channel, in value);
+                        return true;
+                    }
+
+                    break;
             }
         }
 
         notification = default;
         return false;
     }
+
+    private const int MinSuffixBytes = 5; // need "0__:x" or similar after prefix
 
     /// <summary>
     /// The channel associated with this notification.
@@ -194,10 +209,37 @@ public readonly struct KeyNotification
     /// <summary>
     /// Indicates whether this notification originated from a keyspace notification, for example <c>__keyspace@0__:mykey</c> with payload <c>set</c>.
     /// </summary>
-    public bool IsKeySpace => _channel.Span.StartsWith("__keyspace@"u8);
+    public bool IsKeySpace
+    {
+        get
+        {
+            var span = _channel.Span;
+            return span.Length >= KeySpaceStart.Length + MinSuffixBytes && KeySpaceStart.Is(span.Hash64(), span.Slice(0, KeySpaceStart.Length));
+        }
+    }
 
     /// <summary>
     /// Indicates whether this notification originated from a keyevent notification, for example <c>__keyevent@0__:set</c> with payload <c>mykey</c>.
     /// </summary>
-    public bool IsKeyEvent => _channel.Span.StartsWith("__keyevent@"u8);
+    public bool IsKeyEvent
+    {
+        get
+        {
+            var span = _channel.Span;
+            return span.Length >= KeyEventStart.Length + MinSuffixBytes && KeyEventStart.Is(span.Hash64(), span.Slice(0, KeyEventStart.Length));
+        }
+    }
+}
+
+internal static partial class KeyNotificationChannels
+{
+    [FastHash("__keyspace@")]
+    internal static partial class KeySpaceStart
+    {
+    }
+
+    [FastHash("__keyevent@")]
+    internal static partial class KeyEventStart
+    {
+    }
 }
