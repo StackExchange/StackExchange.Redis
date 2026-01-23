@@ -409,6 +409,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeySpace("abc", 42);
         Assert.Equal("__keyspace@42__:abc", channel.ToString());
         Assert.False(channel.IsMultiNode);
+        Assert.True(channel.IsKeyRouted);
         Assert.False(channel.IsSharded);
         Assert.False(channel.IsPattern);
     }
@@ -423,6 +424,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeySpacePattern(pattern, database);
         Assert.Equal(expected, channel.ToString());
         Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
         Assert.False(channel.IsSharded);
         Assert.True(channel.IsPattern);
     }
@@ -437,6 +439,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeyEvent(type, database);
         Assert.Equal(expected, channel.ToString());
         Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
         Assert.False(channel.IsSharded);
         if (isPattern)
         {
@@ -446,5 +449,48 @@ public class KeyNotificationTests(ITestOutputHelper log)
         {
             Assert.False(channel.IsPattern);
         }
+    }
+
+    [Fact]
+    public void Cannot_KeyRoute_KeySpace_SingleKeyIsKeyRouted()
+    {
+        var channel = RedisChannel.KeySpace("abc", 42);
+        Assert.False(channel.IsMultiNode);
+        Assert.True(channel.IsKeyRouted);
+        Assert.True(channel.WithKeyRouting().IsKeyRouted); // no change, still key-routed
+    }
+
+    [Fact]
+    public void Cannot_KeyRoute_KeySpacePattern()
+    {
+        var channel = RedisChannel.KeySpacePattern("abc", 42);
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
+    }
+
+    [Fact]
+    public void Cannot_KeyRoute_KeyEvent()
+    {
+        var channel = RedisChannel.KeyEvent(KeyNotificationType.Set, 42);
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
+    }
+
+    [Fact]
+    public void Cannot_KeyRoute_KeyEvent_Custom()
+    {
+        var channel = RedisChannel.KeyEvent("foo"u8, 42);
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
+    }
+
+    [Fact]
+    public void KeyEventPrefix_KeySpacePrefix_Length_Matches()
+    {
+        // this is a sanity check for the parsing step in KeyNotification.TryParse
+        Assert.Equal(KeyNotificationChannels.KeySpacePrefix.Length, KeyNotificationChannels.KeyEventPrefix.Length);
     }
 }

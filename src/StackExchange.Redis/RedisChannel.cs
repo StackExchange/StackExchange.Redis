@@ -167,7 +167,7 @@ namespace StackExchange.Redis
         /// Create a key-notification channel for a single key in a single database.
         /// </summary>
         public static RedisChannel KeySpace(in RedisKey key, int database)
-            => BuildKeySpace(key, database, RedisChannelOptions.None);
+            => BuildKeySpace(key, database, RedisChannelOptions.KeyRouted);
 
         /// <summary>
         /// Create a key-notification channel for a pattern, optionally in a specified database.

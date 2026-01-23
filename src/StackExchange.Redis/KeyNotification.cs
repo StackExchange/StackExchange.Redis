@@ -17,19 +17,18 @@ public readonly struct KeyNotification
         // validate that it looks reasonable
         var span = channel.Span;
 
-        const int PREFIX_LEN = KeySpaceStart.Length, MIN_LEN = PREFIX_LEN + MinSuffixBytes;
-        Debug.Assert(KeyEventStart.Length == PREFIX_LEN); // prove these are the same, DEBUG only
-
-        if (span.Length >= MIN_LEN)
+        // KeySpaceStart and KeyEventStart are the same size, see KeyEventPrefix_KeySpacePrefix_Length_Matches
+        if (span.Length >= KeySpacePrefix.Length + MinSuffixBytes)
         {
-            var prefix = span.Slice(0, PREFIX_LEN);
+            // check that the prefix is valid, i.e. "__keyspace@" or "__keyevent@"
+            var prefix = span.Slice(0, KeySpacePrefix.Length);
             var hash = prefix.Hash64();
             switch (hash)
             {
-                case KeySpaceStart.Hash when KeySpaceStart.Is(hash, prefix):
-                case KeyEventStart.Hash when KeyEventStart.Is(hash, prefix):
+                case KeySpacePrefix.Hash when KeySpacePrefix.Is(hash, prefix):
+                case KeyEventPrefix.Hash when KeyEventPrefix.Is(hash, prefix):
                     // check that there is *something* non-empty after the prefix, with __: as the suffix (we don't verify *what*)
-                    if (span.Slice(PREFIX_LEN).IndexOf("__:"u8) > 0)
+                    if (span.Slice(KeySpacePrefix.Length).IndexOf("__:"u8) > 0)
                     {
                         notification = new KeyNotification(in channel, in value);
                         return true;
@@ -74,8 +73,8 @@ public readonly struct KeyNotification
         {
             // prevalidated format, so we can just skip past the prefix (except for the default value)
             if (_channel.IsNull) return -1;
-            var span = _channel.Span.Slice(11);
-            var end = span.IndexOf((byte)'_'); // expecting __:
+            var span = _channel.Span.Slice(KeySpacePrefix.Length); // also works for KeyEventPrefix
+            var end = span.IndexOf((byte)'_'); // expecting "__:foo" - we'll just stop at the underscore
             if (end <= 0) return -1;
 
             span = span.Slice(0, end);
@@ -207,26 +206,26 @@ public readonly struct KeyNotification
     }
 
     /// <summary>
-    /// Indicates whether this notification originated from a keyspace notification, for example <c>__keyspace@0__:mykey</c> with payload <c>set</c>.
+    /// Indicates whether this notification originated from a keyspace notification, for example <c>__keyspace@4__:mykey</c> with payload <c>set</c>.
     /// </summary>
     public bool IsKeySpace
     {
         get
         {
             var span = _channel.Span;
-            return span.Length >= KeySpaceStart.Length + MinSuffixBytes && KeySpaceStart.Is(span.Hash64(), span.Slice(0, KeySpaceStart.Length));
+            return span.Length >= KeySpacePrefix.Length + MinSuffixBytes && KeySpacePrefix.Is(span.Hash64(), span.Slice(0, KeySpacePrefix.Length));
         }
     }
 
     /// <summary>
-    /// Indicates whether this notification originated from a keyevent notification, for example <c>__keyevent@0__:set</c> with payload <c>mykey</c>.
+    /// Indicates whether this notification originated from a keyevent notification, for example <c>__keyevent@4__:set</c> with payload <c>mykey</c>.
     /// </summary>
     public bool IsKeyEvent
     {
         get
         {
             var span = _channel.Span;
-            return span.Length >= KeyEventStart.Length + MinSuffixBytes && KeyEventStart.Is(span.Hash64(), span.Slice(0, KeyEventStart.Length));
+            return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.Is(span.Hash64(), span.Slice(0, KeyEventPrefix.Length));
         }
     }
 }
@@ -234,12 +233,12 @@ public readonly struct KeyNotification
 internal static partial class KeyNotificationChannels
 {
     [FastHash("__keyspace@")]
-    internal static partial class KeySpaceStart
+    internal static partial class KeySpacePrefix
     {
     }
 
     [FastHash("__keyevent@")]
-    internal static partial class KeyEventStart
+    internal static partial class KeyEventPrefix
     {
     }
 }
