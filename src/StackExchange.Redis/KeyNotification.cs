@@ -17,7 +17,7 @@ public readonly struct KeyNotification
         // validate that it looks reasonable
         var span = channel.Span;
 
-        const int PREFIX_LEN = KeySpaceStart.Length, MIN_LEN = PREFIX_LEN + MinSuffixBytes; // need "0__:x" or similar after prefix
+        const int PREFIX_LEN = KeySpaceStart.Length, MIN_LEN = PREFIX_LEN + MinSuffixBytes;
         Debug.Assert(KeyEventStart.Length == PREFIX_LEN); // prove these are the same, DEBUG only
 
         if (span.Length >= MIN_LEN)
