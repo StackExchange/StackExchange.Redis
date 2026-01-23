@@ -29,7 +29,17 @@ namespace StackExchange.Redis
         private const RedisChannelOptions EqualityMask =
             ~(RedisChannelOptions.KeyRouted | RedisChannelOptions.MultiNode);
 
-        internal RedisCommand PublishCommand => IsSharded ? RedisCommand.SPUBLISH : RedisCommand.PUBLISH;
+        internal RedisCommand GetPublishCommand()
+        {
+            return (Options & (RedisChannelOptions.Sharded | RedisChannelOptions.MultiNode)) switch
+            {
+                RedisChannelOptions.None => RedisCommand.PUBLISH,
+                RedisChannelOptions.Sharded => RedisCommand.SPUBLISH,
+                _ => ThrowKeyRouted(),
+            };
+
+            static RedisCommand ThrowKeyRouted() => throw new InvalidOperationException("Publishing is not supported for multi-node channels");
+        }
 
         /// <summary>
         /// Should we use cluster routing for this channel? This applies *either* to sharded (<c>SPUBLISH</c>) scenarios,

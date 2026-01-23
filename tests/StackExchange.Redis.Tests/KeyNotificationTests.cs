@@ -458,6 +458,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.False(channel.IsMultiNode);
         Assert.True(channel.IsKeyRouted);
         Assert.True(channel.WithKeyRouting().IsKeyRouted); // no change, still key-routed
+        Assert.Equal(RedisCommand.PUBLISH, channel.GetPublishCommand());
     }
 
     [Fact]
@@ -467,6 +468,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(channel.IsMultiNode);
         Assert.False(channel.IsKeyRouted);
         Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
+        Assert.StartsWith("Publishing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.GetPublishCommand()).Message);
     }
 
     [Fact]
@@ -476,6 +478,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(channel.IsMultiNode);
         Assert.False(channel.IsKeyRouted);
         Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
+        Assert.StartsWith("Publishing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.GetPublishCommand()).Message);
     }
 
     [Fact]
@@ -485,6 +488,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(channel.IsMultiNode);
         Assert.False(channel.IsKeyRouted);
         Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
+        Assert.StartsWith("Publishing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.GetPublishCommand()).Message);
     }
 
     [Fact]
