@@ -507,10 +507,9 @@ namespace StackExchange.Redis
                 return HashFieldGetAndSetExpiryMessage(key, in hashFields[0], expiry, flags);
             }
 
-            // precision, time, FIELDS, hashFields.Length
+            // precision, time, FIELDS, hashFields.Length, {N x fields}
             int extraTokens = expiry.TokenCount + 2;
-
-            RedisValue[] values = new RedisValue[expiry.TokenCount + 2 + hashFields.Length];
+            RedisValue[] values = new RedisValue[extraTokens + hashFields.Length];
 
             int index = 0;
             // add PERSIST or expiry values
@@ -528,7 +527,7 @@ namespace StackExchange.Redis
             values[index++] = RedisLiterals.FIELDS;
             values[index++] = hashFields.Length;
             // check we've added everything we expected to
-            Debug.Assert(index == extraTokens + hashFields.Length);
+            Debug.Assert(index == extraTokens, $"token mismatch: {index} vs {extraTokens}");
 
             // Add hash fields to the array
             hashFields.AsSpan().CopyTo(values.AsSpan(index));
