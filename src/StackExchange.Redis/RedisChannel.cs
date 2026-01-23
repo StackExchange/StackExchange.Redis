@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Buffers.Text;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -34,11 +32,14 @@ namespace StackExchange.Redis
         internal RedisCommand PublishCommand => IsSharded ? RedisCommand.SPUBLISH : RedisCommand.PUBLISH;
 
         /// <summary>
-        /// Should we use cluster routing for this channel? This applies *either* to sharded (SPUBLISH) scenarios,
+        /// Should we use cluster routing for this channel? This applies *either* to sharded (<c>SPUBLISH</c>) scenarios,
         /// or to scenarios using <see cref="RedisChannel.WithKeyRouting" />.
         /// </summary>
         internal bool IsKeyRouted => (Options & RedisChannelOptions.KeyRouted) != 0;
 
+        /// <summary>
+        ///  Should this channel be subscribed to on all nodes? This is only relevant for cluster scenarios and keyspace notifications.
+        /// </summary>
         internal bool IsMultiNode => (Options & RedisChannelOptions.MultiNode) != 0;
 
         /// <summary>
@@ -92,7 +93,13 @@ namespace StackExchange.Redis
         /// a consideration.
         /// </summary>
         /// <remarks>Note that channels from <c>Sharded</c> are always routed.</remarks>
-        public RedisChannel WithKeyRouting() => new(Value, Options | RedisChannelOptions.KeyRouted);
+        public RedisChannel WithKeyRouting()
+        {
+            if (IsMultiNode) Throw();
+            return new(Value, Options | RedisChannelOptions.KeyRouted);
+
+            static void Throw() => throw new InvalidOperationException("Key routing is not supported for multi-node channels");
+        }
 
         /// <summary>
         /// Creates a new <see cref="RedisChannel"/> that acts as a wildcard subscription. In cluster
@@ -187,7 +194,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a key-notification channel for a pattern, optionally in a specified database.
+        /// Create an event-notification channel for a given event type, optionally in a specified database.
         /// </summary>
 #pragma warning disable RS0027
         public static RedisChannel KeyEvent(KeyNotificationType type, int? database = null)
@@ -195,7 +202,7 @@ namespace StackExchange.Redis
             => KeyEvent(KeyNotificationTypeFastHash.GetRawBytes(type), database);
 
         /// <summary>
-        /// Create a key-notification channel for a pattern, optionally in a specified database.
+        /// Create an event-notification channel for a given event type, optionally in a specified database.
         /// </summary>
         /// <remarks>This API is intended for use with custom/unknown event types; for well-known types, use <see cref="KeyEvent(KeyNotificationType, int?)"/>.</remarks>
         public static RedisChannel KeyEvent(ReadOnlySpan<byte> type, int? database)
@@ -209,7 +216,7 @@ namespace StackExchange.Redis
             // __keyevent@{db}__:{type}
             var arr = new byte[14 + db.Length + type.Length];
 
-            Span<byte> target = AppendAndAdvance(arr.AsSpan(), "__keyevent@"u8);
+            var target = AppendAndAdvance(arr.AsSpan(), "__keyevent@"u8);
             target = AppendAndAdvance(target, db);
             target = AppendAndAdvance(target, "__:"u8);
             target = AppendAndAdvance(target, type);
@@ -243,7 +250,7 @@ namespace StackExchange.Redis
             // __keyspace@{db}__:{key}
             var arr = new byte[14 + db.Length + keyLen];
 
-            Span<byte> target = AppendAndAdvance(arr.AsSpan(), "__keyspace@"u8);
+            var target = AppendAndAdvance(arr.AsSpan(), "__keyspace@"u8);
             target = AppendAndAdvance(target, db);
             target = AppendAndAdvance(target, "__:"u8);
             Debug.Assert(keyLen == target.Length); // should have exactly "len" bytes remaining
@@ -470,7 +477,7 @@ namespace StackExchange.Redis
             {
                 return Encoding.UTF8.GetString(arr);
             }
-            catch (Exception e) when // Only catch exception throwed by Encoding.UTF8.GetString
+            catch (Exception e) when // Only catch exception thrown by Encoding.UTF8.GetString
                 (e is DecoderFallbackException or ArgumentException or ArgumentNullException)
             {
                     return BitConverter.ToString(arr);
