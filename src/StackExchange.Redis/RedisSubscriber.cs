@@ -181,21 +181,25 @@ namespace StackExchange.Redis
             /// <summary>
             /// Gets the configured (P)SUBSCRIBE or (P)UNSUBSCRIBE <see cref="Message"/> for an action.
             /// </summary>
-            internal Message GetMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
+            internal Message GetSubscriptionMessage(RedisChannel channel, SubscriptionAction action, CommandFlags flags, bool internalCall)
             {
                 var command = action switch // note that the Routed flag doesn't impact the message here - just the routing
                 {
                     SubscriptionAction.Subscribe => (channel.Options & ~RedisChannel.RedisChannelOptions.KeyRouted) switch
                     {
                         RedisChannel.RedisChannelOptions.None => RedisCommand.SUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.MultiNode => RedisCommand.SUBSCRIBE,
                         RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Pattern | RedisChannel.RedisChannelOptions.MultiNode => RedisCommand.PSUBSCRIBE,
                         RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SSUBSCRIBE,
                         _ => Unknown(action, channel.Options),
                     },
                     SubscriptionAction.Unsubscribe => (channel.Options & ~RedisChannel.RedisChannelOptions.KeyRouted) switch
                     {
                         RedisChannel.RedisChannelOptions.None => RedisCommand.UNSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.MultiNode => RedisCommand.UNSUBSCRIBE,
                         RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PUNSUBSCRIBE,
+                        RedisChannel.RedisChannelOptions.Pattern | RedisChannel.RedisChannelOptions.MultiNode => RedisCommand.PUNSUBSCRIBE,
                         RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SUNSUBSCRIBE,
                         _ => Unknown(action, channel.Options),
                     },
@@ -432,7 +436,7 @@ namespace StackExchange.Redis
 
             // TODO: Cleanup old hangers here?
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
-            var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
+            var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = multiplexer.SelectServer(message);
             return ExecuteSync(message, sub.Processor, selected);
         }
@@ -446,7 +450,7 @@ namespace StackExchange.Redis
                 {
                     // we'll *try* for a simple resubscribe, following any -MOVED etc, but if that fails: fall back
                     // to full reconfigure; importantly, note that we've already recorded the disconnect
-                    var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
+                    var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
                     _ = ExecuteAsync(message, sub.Processor, serverEndPoint).ContinueWith(
                         t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
                         TaskContinuationOptions.OnlyOnFaulted);
@@ -486,7 +490,7 @@ namespace StackExchange.Redis
 
             // TODO: Cleanup old hangers here?
             sub.SetCurrentServer(null); // we're not appropriately connected, so blank it out for eligible reconnection
-            var message = sub.GetMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
+            var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             server ??= multiplexer.SelectServer(message);
             return ExecuteAsync(message, sub.Processor, server);
         }
@@ -509,7 +513,7 @@ namespace StackExchange.Redis
         {
             if (sub.GetCurrentServer() is ServerEndPoint oldOwner)
             {
-                var message = sub.GetMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
+                var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 return multiplexer.ExecuteSyncImpl(message, sub.Processor, oldOwner);
             }
             return false;
@@ -531,7 +535,7 @@ namespace StackExchange.Redis
         {
             if (sub.GetCurrentServer() is ServerEndPoint oldOwner)
             {
-                var message = sub.GetMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
+                var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 return multiplexer.ExecuteAsyncImpl(message, sub.Processor, asyncState, oldOwner);
             }
             return CompletedTask<bool>.FromResult(true, asyncState);
