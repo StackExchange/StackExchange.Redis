@@ -287,6 +287,7 @@ namespace StackExchange.Redis
             counters.SocketCount = Interlocked.Read(ref socketCount);
             counters.WriterCount = Interlocked.CompareExchange(ref activeWriters, 0, 0);
             counters.NonPreferredEndpointCount = Interlocked.Read(ref nonPreferredEndpointCount);
+            counters.PendingUnsentItems = Volatile.Read(ref _backlogCurrentEnqueued);
             physical?.GetCounters(counters);
         }
 
