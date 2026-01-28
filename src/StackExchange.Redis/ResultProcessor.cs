@@ -469,12 +469,21 @@ namespace StackExchange.Redis
                         connection.SubscriptionCount = count;
                         SetResult(message, true);
 
-                        var newServer = message.Command switch
+                        var ep = connection.BridgeCouldBeNull?.ServerEndPoint;
+                        if (ep is not null)
                         {
-                            RedisCommand.SUBSCRIBE or RedisCommand.SSUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
-                            _ => null,
-                        };
-                        Subscription?.SetCurrentServer(newServer);
+                            switch (message.Command)
+                            {
+                                case RedisCommand.SUBSCRIBE:
+                                case RedisCommand.SSUBSCRIBE:
+                                case RedisCommand.PSUBSCRIBE:
+                                    Subscription?.AddEndpoint(ep);
+                                    break;
+                                default:
+                                    Subscription?.TryRemoveEndpoint(ep);
+                                    break;
+                            }
+                        }
                         return true;
                     }
                 }

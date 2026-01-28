@@ -730,6 +730,7 @@ namespace StackExchange.Redis
 
         ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => _serverSnapshot.AsSpan();
         internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.AsSpan();
+        internal ReadOnlyMemory<ServerEndPoint> GetServerSnaphotMemory() => _serverSnapshot.AsMemory();
         internal sealed class ServerSnapshot : IEnumerable<ServerEndPoint>
         {
             public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);

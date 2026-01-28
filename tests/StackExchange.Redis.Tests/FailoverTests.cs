@@ -263,7 +263,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         foreach (var pair in muxerSubs)
         {
             var muxerSub = pair.Value;
-            Log($"  Muxer Sub: {pair.Key}: (EndPoint: {muxerSub.GetCurrentServer()}, Connected: {muxerSub.IsConnected})");
+            Log($"  Muxer Sub: {pair.Key}: (EndPoint: {muxerSub.GetAnyCurrentServer()}, Connected: {muxerSub.IsConnectedAny()})");
         }
 
         Log("Publishing");
