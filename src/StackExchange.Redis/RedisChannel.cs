@@ -185,6 +185,16 @@ namespace StackExchange.Redis
         public static RedisChannel KeySpacePattern(in RedisKey pattern, int? database = null)
             => BuildKeySpace(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode);
 
+        /// <summary>
+        /// Create a key-notification channel using a raw prefix, optionally in a specified database.
+        /// </summary>
+        public static RedisChannel KeySpacePrefix(ReadOnlySpan<byte> prefix, int? database = null)
+        {
+            if (prefix.IsEmpty) Throw();
+            return BuildKeySpace(RedisKey.Null, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, prefix);
+            static void Throw() => throw new ArgumentNullException(nameof(prefix));
+        }
+
         private const int DatabaseScratchBufferSize = 16; // largest non-negative int32 is 10 digits
 
         private static ReadOnlySpan<byte> AppendDatabase(Span<byte> target, int? database, RedisChannelOptions options)
@@ -241,18 +251,25 @@ namespace StackExchange.Redis
             return target.Slice(value.Length);
         }
 
-        private static RedisChannel BuildKeySpace(in RedisKey key, int? database, RedisChannelOptions options)
+        private static RedisChannel BuildKeySpace(in RedisKey key, int? database, RedisChannelOptions options, ReadOnlySpan<byte> prefix = default)
         {
             int keyLen;
-            if (key.IsNull)
+            if (prefix.IsEmpty)
             {
-                if ((options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(key));
-                keyLen = 1;
+                if (key.IsNull)
+                {
+                    if ((options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(key));
+                    keyLen = 1;
+                }
+                else
+                {
+                    keyLen = key.TotalLength();
+                    if (keyLen == 0) throw new ArgumentOutOfRangeException(nameof(key));
+                }
             }
             else
             {
-                keyLen = key.TotalLength();
-                if (keyLen == 0) throw new ArgumentOutOfRangeException(nameof(key));
+                keyLen = prefix.Length + 1; // allow for the *
             }
 
             var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);
@@ -264,15 +281,25 @@ namespace StackExchange.Redis
             target = AppendAndAdvance(target, db);
             target = AppendAndAdvance(target, "__:"u8);
             Debug.Assert(keyLen == target.Length); // should have exactly "len" bytes remaining
-            if (key.IsNull)
+            if (prefix.IsEmpty)
             {
-                target[0] = (byte)'*';
-                target = target.Slice(1);
+                if (key.IsNull)
+                {
+                    target[0] = (byte)'*';
+                    target = target.Slice(1);
+                }
+                else
+                {
+                    target = target.Slice(key.CopyTo(target));
+                }
             }
             else
             {
-                target = target.Slice(key.CopyTo(target));
+                prefix.CopyTo(target);
+                target[prefix.Length] = (byte)'*';
+                target = target.Slice(prefix.Length + 1);
             }
+
             Debug.Assert(target.IsEmpty); // should have calculated length correctly
             return new RedisChannel(arr, options);
         }
