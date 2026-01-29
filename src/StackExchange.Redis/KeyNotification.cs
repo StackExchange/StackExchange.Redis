@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics;
 using System.Text;
@@ -116,6 +117,7 @@ public readonly ref struct KeyNotification
     /// <summary>
     /// Get the number of bytes in the key.
     /// </summary>
+    /// <remarks>If a scratch-buffer is required, it may be preferable to use <see cref="GetKeyMaxByteCount"/>, which is less expensive.</remarks>
     public int GetKeyByteCount()
     {
         if (IsKeySpace)
@@ -126,6 +128,24 @@ public readonly ref struct KeyNotification
         if (IsKeyEvent)
         {
             return _value.GetByteCount();
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Get the maximum number of bytes in the key.
+    /// </summary>
+    public int GetKeyMaxByteCount()
+    {
+        if (IsKeySpace)
+        {
+            return ChannelSuffix.Length;
+        }
+
+        if (IsKeyEvent)
+        {
+            return _value.GetMaxByteCount();
         }
 
         return 0;
@@ -239,6 +259,40 @@ public readonly ref struct KeyNotification
             var index = span.IndexOf("__:"u8);
             return index > 0 ? span.Slice(index + 3) : default;
         }
+    }
+
+    /// <summary>
+    /// Indicates whether this notification is of the given type, specified as raw bytes.
+    /// </summary>
+    /// <remarks>This is especially useful for working with unknown event types, but repeated calls to this method will be more expensive than
+    /// a single successful call to <see cref="Type"/>.</remarks>
+    public bool IsType(ReadOnlySpan<byte> type)
+    {
+        if (IsKeySpace)
+        {
+            if (_value.TryGetSpan(out var direct))
+            {
+                return direct.SequenceEqual(type);
+            }
+
+            const int MAX_STACK = 64;
+            byte[]? lease = null;
+            var maxCount = _value.GetMaxByteCount();
+            Span<byte> localCopy = maxCount <= MAX_STACK
+                ? stackalloc byte[MAX_STACK]
+                : (lease = ArrayPool<byte>.Shared.Rent(maxCount));
+            var count = _value.CopyTo(localCopy);
+            bool result = localCopy.Slice(0, count).SequenceEqual(type);
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+            return result;
+        }
+
+        if (IsKeyEvent)
+        {
+            return ChannelSuffix.SequenceEqual(type);
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -20,8 +20,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.False(notification.IsKeyEvent);
         Assert.Equal(1, notification.Database);
         Assert.Equal(KeyNotificationType.Del, notification.Type);
+        Assert.True(notification.IsType("del"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
         Assert.Equal(5, notification.GetKeyByteCount());
+        Assert.Equal(5, notification.GetKeyMaxByteCount());
+        Assert.Equal(5, notification.GetKeyCharCount());
+        Assert.Equal(6, notification.GetKeyMaxCharCount());
     }
 
     [Fact]
@@ -37,8 +41,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(42, notification.Database);
         Assert.Equal(KeyNotificationType.Del, notification.Type);
+        Assert.True(notification.IsType("del"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
         Assert.Equal(5, notification.GetKeyByteCount());
+        Assert.Equal(18, notification.GetKeyMaxByteCount());
+        Assert.Equal(5, notification.GetKeyCharCount());
+        Assert.Equal(5, notification.GetKeyMaxCharCount());
     }
 
     [Fact]
@@ -52,7 +60,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeySpace);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.Set, notification.Type);
+        Assert.True(notification.IsType("set"u8));
         Assert.Equal("testkey", (string?)notification.GetKey());
+        Assert.Equal(7, notification.GetKeyByteCount());
+        Assert.Equal(7, notification.GetKeyMaxByteCount());
+        Assert.Equal(7, notification.GetKeyCharCount());
+        Assert.Equal(8, notification.GetKeyMaxCharCount());
     }
 
     [Fact]
@@ -66,7 +79,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(5, notification.Database);
         Assert.Equal(KeyNotificationType.Expire, notification.Type);
+        Assert.True(notification.IsType("expire"u8));
         Assert.Equal("session:12345", (string?)notification.GetKey());
+        Assert.Equal(13, notification.GetKeyByteCount());
+        Assert.Equal(42, notification.GetKeyMaxByteCount());
+        Assert.Equal(13, notification.GetKeyCharCount());
+        Assert.Equal(13, notification.GetKeyMaxCharCount());
     }
 
     [Fact]
@@ -80,7 +98,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeySpace);
         Assert.Equal(3, notification.Database);
         Assert.Equal(KeyNotificationType.Expired, notification.Type);
+        Assert.True(notification.IsType("expired"u8));
         Assert.Equal("cache:item", (string?)notification.GetKey());
+        Assert.Equal(10, notification.GetKeyByteCount());
+        Assert.Equal(10, notification.GetKeyMaxByteCount());
+        Assert.Equal(10, notification.GetKeyCharCount());
+        Assert.Equal(11, notification.GetKeyMaxCharCount());
     }
 
     [Fact]
@@ -94,7 +117,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.LPush, notification.Type);
+        Assert.True(notification.IsType("lpush"u8));
         Assert.Equal("queue:tasks", (string?)notification.GetKey());
+        Assert.Equal(11, notification.GetKeyByteCount());
+        Assert.Equal(36, notification.GetKeyMaxByteCount());
+        Assert.Equal(11, notification.GetKeyCharCount());
+        Assert.Equal(11, notification.GetKeyMaxCharCount());
     }
 
     [Fact]
@@ -108,7 +136,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeySpace);
         Assert.Equal(2, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.True(notification.IsType("hset"u8));
         Assert.Equal("user:1000", (string?)notification.GetKey());
+        Assert.Equal(9, notification.GetKeyByteCount());
+        Assert.Equal(9, notification.GetKeyMaxByteCount());
+        Assert.Equal(9, notification.GetKeyCharCount());
+        Assert.Equal(10, notification.GetKeyMaxCharCount());
     }
 
     [Fact]
@@ -122,7 +155,32 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(7, notification.Database);
         Assert.Equal(KeyNotificationType.ZAdd, notification.Type);
+        Assert.True(notification.IsType("zadd"u8));
         Assert.Equal("leaderboard", (string?)notification.GetKey());
+        Assert.Equal(11, notification.GetKeyByteCount());
+        Assert.Equal(36, notification.GetKeyMaxByteCount());
+        Assert.Equal(11, notification.GetKeyCharCount());
+        Assert.Equal(11, notification.GetKeyMaxCharCount());
+    }
+
+    [Fact]
+    public void CustomEventWithUnusualValue_Works()
+    {
+        var channel = RedisChannel.Literal("__keyevent@7__:flooble");
+        RedisValue value = 17.5;
+
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(7, notification.Database);
+        Assert.Equal(KeyNotificationType.Unknown, notification.Type);
+        Assert.False(notification.IsType("zadd"u8));
+        Assert.True(notification.IsType("flooble"u8));
+        Assert.Equal("17.5", (string?)notification.GetKey());
+        Assert.Equal(4, notification.GetKeyByteCount());
+        Assert.Equal(40, notification.GetKeyMaxByteCount());
+        Assert.Equal(4, notification.GetKeyCharCount());
+        Assert.Equal(40, notification.GetKeyMaxCharCount());
     }
 
     [Fact]
@@ -183,6 +241,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeySpace);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
+        Assert.False(notification.IsType("del"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
     }
 
@@ -197,6 +256,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
+        Assert.False(notification.IsType("del"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
     }
 
@@ -211,6 +271,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeySpace);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.Del, notification.Type);
+        Assert.True(notification.IsType("del"u8));
         Assert.Equal("user:session:12345", (string?)notification.GetKey());
     }
 
@@ -225,6 +286,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(1, notification.Database);
         Assert.Equal(KeyNotificationType.Evicted, notification.Type);
+        Assert.True(notification.IsType("evicted"u8));
         Assert.Equal("cache:old", (string?)notification.GetKey());
     }
 
@@ -239,6 +301,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeySpace);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.New, notification.Type);
+        Assert.True(notification.IsType("new"u8));
         Assert.Equal("newkey", (string?)notification.GetKey());
     }
 
@@ -253,6 +316,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.XGroupCreate, notification.Type);
+        Assert.True(notification.IsType("xgroup-create"u8));
         Assert.Equal("mystream", (string?)notification.GetKey());
     }
 
@@ -267,6 +331,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeySpace);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.TypeChanged, notification.Type);
+        Assert.True(notification.IsType("type_changed"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
     }
 
@@ -281,6 +346,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(999, notification.Database);
         Assert.Equal(KeyNotificationType.Set, notification.Type);
+        Assert.True(notification.IsType("set"u8));
         Assert.Equal("testkey", (string?)notification.GetKey());
     }
 
@@ -295,6 +361,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.IsKeyEvent);
         Assert.Equal(-1, notification.Database);
         Assert.Equal(KeyNotificationType.Set, notification.Type);
+        Assert.True(notification.IsType("set"u8));
         Assert.Equal("testkey", (string?)notification.GetKey());
     }
 
@@ -307,8 +374,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.False(notification.IsKeyEvent);
         Assert.Equal(-1, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
+        Assert.False(notification.IsType("del"u8));
         Assert.True(notification.GetKey().IsNull);
         Assert.Equal(0, notification.GetKeyByteCount());
+        Assert.Equal(0, notification.GetKeyMaxByteCount());
+        Assert.Equal(0, notification.GetKeyCharCount());
+        Assert.Equal(0, notification.GetKeyMaxCharCount());
         Assert.True(notification.GetChannel().IsNull);
         Assert.True(notification.GetValue().IsNull);
 

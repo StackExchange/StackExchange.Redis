@@ -881,9 +881,23 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
+        /// Gets the maximum length of the value in bytes.
+        /// </summary>
+        internal int GetMaxByteCount() => Type switch
+        {
+            StorageType.Null => 0,
+            StorageType.Raw => _memory.Length,
+            StorageType.String => Encoding.UTF8.GetMaxByteCount(((string)_objectOrSentinel!).Length),
+            StorageType.Int64 => Format.MaxInt64TextLen,
+            StorageType.UInt64 => Format.MaxInt64TextLen,
+            StorageType.Double => Format.MaxDoubleTextLen,
+            _ => ThrowUnableToMeasure(),
+        };
+
+        /// <summary>
         /// Gets the length of the value in characters, assuming UTF8 interpretation of BLOB payloads.
         /// </summary>
-        public int GetCharCount() => Type switch
+        internal int GetCharCount() => Type switch
         {
             StorageType.Null => 0,
             StorageType.Raw => Encoding.UTF8.GetCharCount(_memory.Span),
@@ -897,14 +911,14 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the length of the value in characters, assuming UTF8 interpretation of BLOB payloads.
         /// </summary>
-        public int GetMaxCharCount() => Type switch
+        internal int GetMaxCharCount() => Type switch
         {
             StorageType.Null => 0,
             StorageType.Raw => Encoding.UTF8.GetMaxCharCount(_memory.Length),
             StorageType.String => ((string)_objectOrSentinel!).Length,
-            StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
-            StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
-            StorageType.Double => Format.MeasureDouble(OverlappedValueDouble),
+            StorageType.Int64 => Format.MaxInt64TextLen,
+            StorageType.UInt64 => Format.MaxInt64TextLen,
+            StorageType.Double => Format.MaxDoubleTextLen,
             _ => ThrowUnableToMeasure(),
         };
 
@@ -946,7 +960,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Copy the value as character data to the provided <paramref name="destination"/>.
         /// </summary>
-        public int CopyTo(Span<char> destination)
+        internal int CopyTo(Span<char> destination)
         {
             switch (Type)
             {
