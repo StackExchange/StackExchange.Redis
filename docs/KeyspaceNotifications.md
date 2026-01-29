@@ -75,6 +75,11 @@ sub.Subscribe(channel, (recvChannel, recvValue) =>
 });
 ```
 
+Note that the channels created by the `KeySpace...` and `KeyEvent...` methods cannot be used to manually *publish* events,
+only to subscribe to them. The events are published automatically by the Redis server when keys are modified. If you
+want to simulate keyspace notifications by publishing events manually, you should use regular pub/sub channels that avoid
+the `__keyspace@` and `__keyevent@` prefixes.
+
 ## Performance considerations for KeyNotification
 
 The `KeyNotification` struct provides parsed notification data, including (as already shown) the key, event type,
