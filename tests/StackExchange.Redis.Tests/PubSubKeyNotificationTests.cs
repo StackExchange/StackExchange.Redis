@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -121,6 +122,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, Share
         {
             observedCounts[key.ToString()] = new();
         }
+
 #if NET9_0_OR_GREATER
         // demonstrate that we can use the alt-lookup APIs to avoid string allocations
         var altLookup = observedCounts.GetAlternateLookup<ReadOnlySpan<char>>();
@@ -128,11 +130,18 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, Share
             in KeyNotification notification,
             ConcurrentDictionary<string, Counter>.AlternateLookup<ReadOnlySpan<char>> lookup)
         {
-            Span<char> scratch = stackalloc char[1024];
-            notification.TryCopyKey(scratch, out var bytesWritten);
-            return lookup.TryGetValue(scratch.Slice(0, bytesWritten), out var counter)
-                ? counter
-                : null;
+            // Demonstrate typical alt-lookup usage; this is an advanced topic, so it
+            // isn't trivial to grok, but: this is typical of perf-focused APIs.
+            char[]? lease = null;
+            const int MAX_STACK = 128;
+            var maxLength = notification.GetKeyMaxCharCount();
+            Span<char> scratch = maxLength <= MAX_STACK
+                ? stackalloc char[MAX_STACK]
+                : (lease = ArrayPool<char>.Shared.Rent(maxLength));
+            Assert.True(notification.TryCopyKey(scratch, out var length));
+            if (!lookup.TryGetValue(scratch.Slice(0, length), out var counter)) counter = null;
+            if (lease is not null) ArrayPool<char>.Shared.Return(lease);
+            return counter;
         }
 #endif
 
