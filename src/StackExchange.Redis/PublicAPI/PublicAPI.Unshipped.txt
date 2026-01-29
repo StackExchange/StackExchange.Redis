@@ -1,15 +1,23 @@
 ﻿#nullable enable
 StackExchange.Redis.KeyNotification
 StackExchange.Redis.KeyNotification.Channel.get -> StackExchange.Redis.RedisChannel
+StackExchange.Redis.KeyNotification.GetKeyByteCount() -> int
+StackExchange.Redis.KeyNotification.GetKeyCharCount() -> int
+StackExchange.Redis.KeyNotification.GetKeyMaxCharCount() -> int
+StackExchange.Redis.KeyNotification.KeyStartsWith(System.ReadOnlySpan<byte> prefix) -> bool
+StackExchange.Redis.KeyNotification.TryCopyKey(System.Span<char> destination, out int charsWritten) -> bool
 StackExchange.Redis.KeyNotification.Value.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.KeyNotification.Database.get -> int
 StackExchange.Redis.KeyNotification.GetKey() -> StackExchange.Redis.RedisKey
 StackExchange.Redis.KeyNotification.IsKeyEvent.get -> bool
 StackExchange.Redis.KeyNotification.IsKeySpace.get -> bool
-StackExchange.Redis.KeyNotification.KeyByteCount.get -> int
 StackExchange.Redis.KeyNotification.KeyNotification() -> void
 StackExchange.Redis.KeyNotification.TryCopyKey(System.Span<byte> destination, out int bytesWritten) -> bool
 StackExchange.Redis.KeyNotification.Type.get -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.RedisValue.CopyTo(System.Span<char> destination) -> int
+StackExchange.Redis.RedisValue.GetCharCount() -> int
+StackExchange.Redis.RedisValue.GetMaxCharCount() -> int
+StackExchange.Redis.RedisValue.StartsWith(System.ReadOnlySpan<byte> value) -> bool
 static StackExchange.Redis.KeyNotification.TryParse(in StackExchange.Redis.RedisChannel channel, in StackExchange.Redis.RedisValue value, out StackExchange.Redis.KeyNotification notification) -> bool
 StackExchange.Redis.ChannelMessage.TryParseKeyNotification(out StackExchange.Redis.KeyNotification notification) -> bool
 static StackExchange.Redis.RedisChannel.KeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel

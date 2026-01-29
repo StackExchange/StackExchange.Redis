@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -24,12 +26,14 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, Share
     private const int DefaultKeyCount = 10;
     private const int DefaultEventCount = 512;
 
-    private RedisKey[] InventKeys(int count = DefaultKeyCount)
+    private RedisKey[] InventKeys(out byte[] prefix, int count = DefaultKeyCount)
     {
         RedisKey[] keys = new RedisKey[count];
+        var prefixString = $"{Guid.NewGuid()}/";
+        prefix = Encoding.UTF8.GetBytes(prefixString);
         for (int i = 0; i < count; i++)
         {
-            keys[i] = Guid.NewGuid().ToString();
+            keys[i] = $"{prefixString}{Guid.NewGuid()}";
         }
         return keys;
     }
@@ -92,31 +96,67 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, Share
         => muxer is ConnectionMultiplexer typed && typed.TryGetSubscription(channel, out var sub)
             ? sub.GetConnectionCount() : 1;
 
+    private sealed class Counter
+    {
+        private int _count;
+        public int Count => Volatile.Read(ref _count);
+        public int Increment() => Interlocked.Increment(ref _count);
+    }
+
     [Fact]
     public async Task KeyEvent_CanObserveSimple_ViaCallbackHandler()
     {
         await using var conn = Create();
         var db = conn.GetDatabase();
 
-        var keys = InventKeys();
+        var keys = InventKeys(out var prefix);
         var channel = RedisChannel.KeyEvent(KeyNotificationType.SAdd);
         var sub = conn.GetSubscriber();
         await sub.UnsubscribeAsync(channel);
-        HashSet<RedisKey> observedKeys = [];
         int count = 0, callbackCount = 0;
         TaskCompletionSource<bool> allDone = new();
+
+        ConcurrentDictionary<string, Counter> observedCounts = new();
+        foreach (var key in keys)
+        {
+            observedCounts[key.ToString()] = new();
+        }
+#if NET9_0_OR_GREATER
+        // demonstrate that we can use the alt-lookup APIs to avoid string allocations
+        var altLookup = observedCounts.GetAlternateLookup<ReadOnlySpan<char>>();
+        static Counter? FindViaAltLookup(
+            in KeyNotification notification,
+            ConcurrentDictionary<string, Counter>.AlternateLookup<ReadOnlySpan<char>> lookup)
+        {
+            Span<char> scratch = stackalloc char[1024];
+            notification.TryCopyKey(scratch, out var bytesWritten);
+            return lookup.TryGetValue(scratch.Slice(0, bytesWritten), out var counter)
+                ? counter
+                : null;
+        }
+#endif
+
         await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
         {
             Interlocked.Increment(ref callbackCount);
             if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
                 && notification is { IsKeyEvent: true, Type: KeyNotificationType.SAdd })
             {
-                var recvKey = notification.GetKey();
-                lock (observedKeys)
+                if (notification.KeyStartsWith(prefix)) // avoid problems with parallel SADD tests
                 {
-                    int currentCount = ++count;
-                    var newKey = observedKeys.Add(recvKey);
-                    if (newKey)
+                    int currentCount = Interlocked.Increment(ref count);
+
+                    // get the key and check that we expected it
+                    var recvKey = notification.GetKey();
+                    Assert.True(observedCounts.TryGetValue(recvKey.ToString(), out var counter));
+
+#if NET9_0_OR_GREATER
+                    var viaAlt = FindViaAltLookup(notification, altLookup);
+                    Assert.Same(counter, viaAlt);
+#endif
+
+                    // accounting...
+                    if (counter.Increment() == 1)
                     {
                         Log($"Observed key: '{recvKey}' after {currentCount} events");
                     }
@@ -131,12 +171,17 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, Share
 
         await Task.Delay(300).ForAwait(); // give it a moment to settle
 
-        HashSet<RedisKey> sentKeys = new(keys.Length);
+        Dictionary<RedisKey, Counter> sentCounts = new(keys.Length);
+        foreach (var key in keys)
+        {
+            sentCounts[key] = new();
+        }
+
         for (int i = 0; i < DefaultEventCount; i++)
         {
             var key = SelectKey(keys);
+            sentCounts[key].Increment();
             await db.SetAddAsync(key, i);
-            sentKeys.Add(key); // just in case Random has a bad day (obvious Dilbert link is obvious)
         }
 
         // Wait for all events to be observed
@@ -150,13 +195,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, Share
             throw new TimeoutException($"Timeout; {Volatile.Read(ref callbackCount)} events observed", ex);
         }
 
-        lock (observedKeys)
+        foreach (var key in keys)
         {
-            Assert.Equal(sentKeys.Count, observedKeys.Count);
-            foreach (var key in sentKeys)
-            {
-                Assert.Contains(key, observedKeys);
-            }
+            Assert.Equal(sentCounts[key].Count, observedCounts[key.ToString()].Count);
         }
     }
 }

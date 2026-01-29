@@ -1,11 +1,15 @@
 ﻿using System;
 using System.Buffers.Text;
 using System.Diagnostics;
+using System.Text;
 using static StackExchange.Redis.KeyNotificationChannels;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Represents keyspace and keyevent notifications.
+/// Represents keyspace and keyevent notifications, with utility methods for accessing the component data. Additionally,
+/// since notifications can be high volume, a range of utility APIs is provided for avoiding allocations, in particular
+/// to assist in filtering and inspecting the key <em>without</em> performing string allocations and substring operations.
+/// In particular, note that this allows use with the alt-lookup (span-based) APIs on dictionaries.
 /// </summary>
 public readonly struct KeyNotification
 {
@@ -87,7 +91,7 @@ public readonly struct KeyNotification
     /// The key associated with this event.
     /// </summary>
     /// <remarks>Note that this will allocate a copy of the key bytes; to avoid allocations,
-    /// the <see cref="KeyByteCount"/> and <see cref="TryCopyKey(Span{byte}, out int)"/> APIs can be used.</remarks>
+    /// the <see cref="GetKeyByteCount"/>, <see cref="GetKeyMaxCharCount"/>, and <see cref="TryCopyKey(Span{byte}, out int)"/> APIs can be used.</remarks>
     public RedisKey GetKey()
     {
         if (IsKeySpace)
@@ -108,22 +112,56 @@ public readonly struct KeyNotification
     /// <summary>
     /// Get the number of bytes in the key.
     /// </summary>
-    public int KeyByteCount
+    public int GetKeyByteCount()
     {
-        get
+        if (IsKeySpace)
         {
-            if (IsKeySpace)
-            {
-                return ChannelSuffix.Length;
-            }
-
-            if (IsKeyEvent)
-            {
-                return _value.GetByteCount();
-            }
-
-            return 0;
+            return ChannelSuffix.Length;
         }
+
+        if (IsKeyEvent)
+        {
+            return _value.GetByteCount();
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Get the maximum number of characters in the key, interpreting as UTF8.
+    /// </summary>
+    public int GetKeyMaxCharCount()
+    {
+        if (IsKeySpace)
+        {
+            return Encoding.UTF8.GetMaxCharCount(ChannelSuffix.Length);
+        }
+
+        if (IsKeyEvent)
+        {
+            return _value.GetMaxCharCount();
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Get the number of characters in the key, interpreting as UTF8.
+    /// </summary>
+    /// <remarks>If a scratch-buffer is required, it may be preferable to use <see cref="GetKeyMaxCharCount"/>, which is less expensive.</remarks>
+    public int GetKeyCharCount()
+    {
+        if (IsKeySpace)
+        {
+            return Encoding.UTF8.GetCharCount(ChannelSuffix);
+        }
+
+        if (IsKeyEvent)
+        {
+            return _value.GetCharCount();
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -154,6 +192,35 @@ public readonly struct KeyNotification
         }
 
         bytesWritten = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempt to copy the bytes from the key to a buffer, returning the number of bytes written.
+    /// </summary>
+    public bool TryCopyKey(Span<char> destination, out int charsWritten)
+    {
+        if (IsKeySpace)
+        {
+            var suffix = ChannelSuffix;
+            if (Encoding.UTF8.GetMaxCharCount(suffix.Length) <= destination.Length ||
+                Encoding.UTF8.GetCharCount(suffix) <= destination.Length)
+            {
+                charsWritten = Encoding.UTF8.GetChars(suffix, destination);
+                return true;
+            }
+        }
+
+        if (IsKeyEvent)
+        {
+            if (_value.GetMaxCharCount() <= destination.Length || _value.GetCharCount() <= destination.Length)
+            {
+                charsWritten = _value.CopyTo(destination);
+                return true;
+            }
+        }
+
+        charsWritten = 0;
         return false;
     }
 
@@ -227,6 +294,25 @@ public readonly struct KeyNotification
             var span = _channel.Span;
             return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.Is(span.Hash64(), span.Slice(0, KeyEventPrefix.Length));
         }
+    }
+
+    /// <summary>
+    /// Indicates whether the key associated with this notification starts with the specified prefix.
+    /// </summary>
+    /// <returns>This API is intended as a high-throughput filter API.</returns>
+    public bool KeyStartsWith(ReadOnlySpan<byte> prefix) // intentionally leading people to the BLOB API
+    {
+        if (IsKeySpace)
+        {
+            return ChannelSuffix.StartsWith(prefix);
+        }
+
+        if (IsKeyEvent)
+        {
+            return _value.StartsWith(prefix);
+        }
+
+        return false;
     }
 }
 

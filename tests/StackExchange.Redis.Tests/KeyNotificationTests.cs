@@ -21,7 +21,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal(1, notification.Database);
         Assert.Equal(KeyNotificationType.Del, notification.Type);
         Assert.Equal("mykey", (string?)notification.GetKey());
-        Assert.Equal(5, notification.KeyByteCount);
+        Assert.Equal(5, notification.GetKeyByteCount());
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal(42, notification.Database);
         Assert.Equal(KeyNotificationType.Del, notification.Type);
         Assert.Equal("mykey", (string?)notification.GetKey());
-        Assert.Equal(5, notification.KeyByteCount);
+        Assert.Equal(5, notification.GetKeyByteCount());
     }
 
     [Fact]
@@ -308,7 +308,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal(-1, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
         Assert.True(notification.GetKey().IsNull);
-        Assert.Equal(0, notification.KeyByteCount);
+        Assert.Equal(0, notification.GetKeyByteCount());
         Assert.True(notification.Channel.IsNull);
         Assert.True(notification.Value.IsNull);
 
