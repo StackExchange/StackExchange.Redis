@@ -21,7 +21,6 @@ static StackExchange.Redis.KeyNotification.TryParse(scoped in StackExchange.Redi
 StackExchange.Redis.ChannelMessage.TryParseKeyNotification(out StackExchange.Redis.KeyNotification notification) -> bool
 static StackExchange.Redis.RedisChannel.KeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.KeyEvent(System.ReadOnlySpan<byte> type, int? database) -> StackExchange.Redis.RedisChannel
-static StackExchange.Redis.RedisChannel.KeySpace(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.KeySpacePattern(in StackExchange.Redis.RedisKey pattern, int? database = null) -> StackExchange.Redis.RedisChannel
 StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.Append = 1 -> StackExchange.Redis.KeyNotificationType
@@ -80,3 +79,4 @@ StackExchange.Redis.KeyNotificationType.ZRemByRank = 47 -> StackExchange.Redis.K
 StackExchange.Redis.KeyNotificationType.ZRemByScore = 48 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ZUnionStore = 45 -> StackExchange.Redis.KeyNotificationType
 static StackExchange.Redis.RedisChannel.KeySpacePrefix(System.ReadOnlySpan<byte> prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.KeySpaceSingleKey(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel

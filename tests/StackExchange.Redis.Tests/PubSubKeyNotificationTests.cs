@@ -117,6 +117,8 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
 
         var keys = InventKeys(out var prefix);
         var channel = RedisChannel.KeyEvent(KeyNotificationType.SAdd, db.Database);
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsPattern);
         Log($"Monitoring channel: {channel}");
         var sub = conn.GetSubscriber();
         await sub.UnsubscribeAsync(channel);
@@ -151,6 +153,8 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
 
         var keys = InventKeys(out var prefix);
         var channel = RedisChannel.KeyEvent(KeyNotificationType.SAdd, db.Database);
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsPattern);
         Log($"Monitoring channel: {channel}");
         var sub = conn.GetSubscriber();
         await sub.UnsubscribeAsync(channel);
@@ -189,6 +193,8 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
 
         var keys = InventKeys(out var prefix);
         var channel = RedisChannel.KeySpacePrefix(prefix, db.Database);
+        Assert.True(channel.IsMultiNode);
+        Assert.True(channel.IsPattern);
         Log($"Monitoring channel: {channel}");
         var sub = conn.GetSubscriber();
         await sub.UnsubscribeAsync(channel);
@@ -227,6 +233,8 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
 
         var keys = InventKeys(out var prefix);
         var channel = RedisChannel.KeySpacePrefix(prefix, db.Database);
+        Assert.True(channel.IsMultiNode);
+        Assert.True(channel.IsPattern);
         Log($"Monitoring channel: {channel}");
         var sub = conn.GetSubscriber();
         await sub.UnsubscribeAsync(channel);
@@ -246,6 +254,47 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
                 && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
             {
                 OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
+            }
+        });
+
+        await SendAndObserveAsync(keys, db, allDone, callbackCount, observedCounts);
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Fact]
+    public async Task KeyNotification_CanObserveSingleKey_ViaQueue()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+
+        var keys = InventKeys(out var prefix, count: 1);
+        var channel = RedisChannel.KeySpaceSingleKey(keys.Single(), db.Database);
+        Assert.False(channel.IsMultiNode);
+        Assert.False(channel.IsPattern);
+        Log($"Monitoring channel: {channel}, routing via {Encoding.UTF8.GetString(channel.RoutingSpan)}");
+
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+        Counter callbackCount = new(), matchingEventCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        ConcurrentDictionary<string, Counter> observedCounts = new();
+        foreach (var key in keys)
+        {
+            observedCounts[key.ToString()] = new();
+        }
+
+        var queue = await sub.SubscribeAsync(channel);
+        _ = Task.Run(async () =>
+        {
+            await foreach (var msg in queue.WithCancellation(CancellationToken))
+            {
+                callbackCount.Increment();
+                if (msg.TryParseKeyNotification(out var notification)
+                    && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
+                {
+                    OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
+                }
             }
         });
 

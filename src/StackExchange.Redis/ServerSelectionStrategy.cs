@@ -103,7 +103,7 @@ namespace StackExchange.Redis
         public int HashSlot(in RedisChannel channel)
             // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
             // (we deal with channels far less frequently, so pay the encoding cost up-front)
-            => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot((byte[])channel!);
+            => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot(channel.RoutingSpan);
 
         /// <summary>
         /// Gets the hashslot for a given byte sequence.

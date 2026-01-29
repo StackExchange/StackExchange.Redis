@@ -13,6 +13,33 @@ namespace StackExchange.Redis
 
         internal ReadOnlySpan<byte> Span => Value is null ? default : Value.AsSpan();
 
+        internal ReadOnlySpan<byte> RoutingSpan
+        {
+            get
+            {
+                var span = Span;
+                if ((Options & (RedisChannelOptions.KeyRouted | RedisChannelOptions.Pattern |
+                                RedisChannelOptions.Sharded | RedisChannelOptions.MultiNode)) == RedisChannelOptions.KeyRouted)
+                {
+                    // this *could* be a single-key __keyspace@{db}__:{key} subscription, in which case we want to use the key
+                    // part for routing, but to avoid overhead we'll only even look if the channel starts with an underscore
+                    if (span.Length >= 16 && span[0] == (byte)'_') span = StripKeySpacePrefix(span);
+                }
+                return span;
+            }
+        }
+
+        internal static ReadOnlySpan<byte> StripKeySpacePrefix(ReadOnlySpan<byte> span)
+        {
+            if (span.Length >= 16 && span.StartsWith("__keyspace@"u8))
+            {
+                var subspan = span.Slice(12);
+                int end = subspan.IndexOf("__:"u8);
+                if (end >= 0) return subspan.Slice(end + 3);
+            }
+            return span;
+        }
+
         internal readonly RedisChannelOptions Options;
 
         [Flags]
@@ -176,7 +203,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a key-notification channel for a single key in a single database.
         /// </summary>
-        public static RedisChannel KeySpace(in RedisKey key, int database)
+        public static RedisChannel KeySpaceSingleKey(in RedisKey key, int database)
             => BuildKeySpace(key, database, RedisChannelOptions.KeyRouted);
 
         /// <summary>

@@ -7,6 +7,24 @@ namespace StackExchange.Redis.Tests;
 
 public class KeyNotificationTests(ITestOutputHelper log)
 {
+    [Theory]
+    [InlineData("foo", "foo")]
+    [InlineData("__foo__", "__foo__")]
+    [InlineData("__keyspace@4__:", "__keyspace@4__:")] // not long enough
+    [InlineData("__keyspace@4__:f", "f")]
+    [InlineData("__keyspace@4__:fo", "fo")]
+    [InlineData("__keyspace@4__:foo", "foo")]
+    [InlineData("__keyspace@42__:foo", "foo")] // check multi-char db
+    [InlineData("__keyevent@4__:foo", "__keyevent@4__:foo")] // key-event
+    [InlineData("__keyevent@42__:foo", "__keyevent@42__:foo")] // key-event
+    public void RoutingSpan_StripKeySpacePrefix(string raw, string routed)
+    {
+        ReadOnlySpan<byte> srcBytes = Encoding.UTF8.GetBytes(raw);
+        var strippedBytes = RedisChannel.StripKeySpacePrefix(srcBytes);
+        var result = Encoding.UTF8.GetString(strippedBytes);
+        Assert.Equal(routed, result);
+    }
+
     [Fact]
     public void Keyspace_Del_ParsesCorrectly()
     {
@@ -477,7 +495,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
     [Fact]
     public void CreateKeySpaceNotification_Valid()
     {
-        var channel = RedisChannel.KeySpace("abc", 42);
+        var channel = RedisChannel.KeySpaceSingleKey("abc", 42);
         Assert.Equal("__keyspace@42__:abc", channel.ToString());
         Assert.False(channel.IsMultiNode);
         Assert.True(channel.IsKeyRouted);
@@ -525,7 +543,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
     [Fact]
     public void Cannot_KeyRoute_KeySpace_SingleKeyIsKeyRouted()
     {
-        var channel = RedisChannel.KeySpace("abc", 42);
+        var channel = RedisChannel.KeySpaceSingleKey("abc", 42);
         Assert.False(channel.IsMultiNode);
         Assert.True(channel.IsKeyRouted);
         Assert.True(channel.WithKeyRouting().IsKeyRouted); // no change, still key-routed
