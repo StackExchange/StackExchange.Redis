@@ -309,8 +309,8 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
         Assert.True(notification.GetKey().IsNull);
         Assert.Equal(0, notification.GetKeyByteCount());
-        Assert.True(notification.Channel.IsNull);
-        Assert.True(notification.Value.IsNull);
+        Assert.True(notification.GetChannel().IsNull);
+        Assert.True(notification.GetValue().IsNull);
 
         // TryCopyKey should return false and write 0 bytes
         Span<byte> buffer = stackalloc byte[10];

@@ -11,12 +11,16 @@ namespace StackExchange.Redis;
 /// to assist in filtering and inspecting the key <em>without</em> performing string allocations and substring operations.
 /// In particular, note that this allows use with the alt-lookup (span-based) APIs on dictionaries.
 /// </summary>
-public readonly struct KeyNotification
+public readonly ref struct KeyNotification
 {
+    // this type has been designed with the intent of being able to move the entire thing alloc-free in some future
+    // high-throughput callback, potentially with a ReadOnlySpan<byte> field for the key fragment; this is
+    // not implemented currently, but is why this is a ref struct
+
     /// <summary>
     /// If the channel is either a keyspace or keyevent notification, parsed the data.
     /// </summary>
-    public static bool TryParse(in RedisChannel channel, in RedisValue value, out KeyNotification notification)
+    public static bool TryParse(scoped in RedisChannel channel, scoped in RedisValue value, out KeyNotification notification)
     {
         // validate that it looks reasonable
         var span = channel.Span;
@@ -51,18 +55,18 @@ public readonly struct KeyNotification
     /// <summary>
     /// The channel associated with this notification.
     /// </summary>
-    public RedisChannel Channel => _channel;
+    public RedisChannel GetChannel() => _channel;
 
     /// <summary>
     /// The payload associated with this notification.
     /// </summary>
-    public RedisValue Value => _value;
+    public RedisValue GetValue() => _value;
 
     // effectively we just wrap a channel, but: we've pre-validated that things make sense
     private readonly RedisChannel _channel;
     private readonly RedisValue _value;
 
-    internal KeyNotification(in RedisChannel channel, in RedisValue value)
+    internal KeyNotification(scoped in RedisChannel channel, scoped in RedisValue value)
     {
         _channel = channel;
         _value = value;
@@ -103,7 +107,7 @@ public readonly struct KeyNotification
         if (IsKeyEvent)
         {
             // then the channel contains the event-type, and the payload contains the key
-            return (byte[]?)Value; // todo: this could probably side-step
+            return (byte[]?)_value; // todo: this could probably side-step
         }
 
         return RedisKey.Null;
@@ -240,7 +244,7 @@ public readonly struct KeyNotification
     /// <summary>
     /// The type of notification associated with this event, if it is well-known - otherwise <see cref="KeyNotificationType.Unknown"/>.
     /// </summary>
-    /// <remarks>Unexpected values can be processed manually from the <see cref="Channel"/> and <see cref="Value"/>.</remarks>
+    /// <remarks>Unexpected values can be processed manually from the <see cref="GetChannel()"/> and <see cref="GetValue()"/>.</remarks>
     public KeyNotificationType Type
     {
         get
