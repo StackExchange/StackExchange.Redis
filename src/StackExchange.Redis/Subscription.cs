@@ -80,12 +80,12 @@ public partial class ConnectionMultiplexer
             CommandFlags flags,
             bool internalCall)
         {
+            const RedisChannel.RedisChannelOptions OPTIONS_MASK = ~(
+                RedisChannel.RedisChannelOptions.KeyRouted | RedisChannel.RedisChannelOptions.IgnoreChannelPrefix);
             var command =
                 action switch // note that the Routed flag doesn't impact the message here - just the routing
                 {
-                    SubscriptionAction.Subscribe => (channel.Options &
-                                                     ~RedisChannel.RedisChannelOptions
-                                                         .KeyRouted) switch
+                    SubscriptionAction.Subscribe => (channel.Options & OPTIONS_MASK) switch
                     {
                         RedisChannel.RedisChannelOptions.None => RedisCommand.SUBSCRIBE,
                         RedisChannel.RedisChannelOptions.MultiNode => RedisCommand.SUBSCRIBE,
@@ -95,8 +95,7 @@ public partial class ConnectionMultiplexer
                         RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SSUBSCRIBE,
                         _ => Unknown(action, channel.Options),
                     },
-                    SubscriptionAction.Unsubscribe => (channel.Options &
-                                                       ~RedisChannel.RedisChannelOptions.KeyRouted) switch
+                    SubscriptionAction.Unsubscribe => (channel.Options & OPTIONS_MASK) switch
                     {
                         RedisChannel.RedisChannelOptions.None => RedisCommand.UNSUBSCRIBE,
                         RedisChannel.RedisChannelOptions.MultiNode => RedisCommand.UNSUBSCRIBE,

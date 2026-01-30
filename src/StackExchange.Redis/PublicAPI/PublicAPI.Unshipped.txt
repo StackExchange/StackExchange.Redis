@@ -78,5 +78,6 @@ StackExchange.Redis.KeyNotificationType.ZRem = 49 -> StackExchange.Redis.KeyNoti
 StackExchange.Redis.KeyNotificationType.ZRemByRank = 47 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ZRemByScore = 48 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ZUnionStore = 45 -> StackExchange.Redis.KeyNotificationType
+static StackExchange.Redis.RedisChannel.KeySpacePrefix(in StackExchange.Redis.RedisKey prefix, int? database = null) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.KeySpacePrefix(System.ReadOnlySpan<byte> prefix, int? database = null) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.KeySpaceSingleKey(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel

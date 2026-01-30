@@ -3,10 +3,10 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -31,17 +31,22 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     private const int DefaultEventCount = 512;
     private CancellationToken CancellationToken => context.Current.CancellationToken;
 
-    private RedisKey[] InventKeys(out byte[] prefix, int count = DefaultKeyCount)
+    private RedisKey[] InventKeys(out byte[] prefix, int count = DefaultKeyCount, string isolationKeyPrefix = "")
     {
         RedisKey[] keys = new RedisKey[count];
         var prefixString = $"{Guid.NewGuid()}/";
-        prefix = Encoding.UTF8.GetBytes(prefixString);
+        prefix = Encoding.UTF8.GetBytes(isolationKeyPrefix + prefixString);
         for (int i = 0; i < count; i++)
         {
             keys[i] = $"{prefixString}{Guid.NewGuid()}";
         }
         return keys;
     }
+
+    [Obsolete("Use Create(withChannelPrefix: false) instead", error: true)]
+    private IInternalConnectionMultiplexer Create() => Create(withChannelPrefix: false);
+    private IInternalConnectionMultiplexer Create(bool withChannelPrefix) =>
+        Create(channelPrefix: withChannelPrefix ? "prefix:" : null);
 
     private RedisKey SelectKey(RedisKey[] keys) => keys[SharedRandom.Next(0, keys.Length)];
 
@@ -76,7 +81,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     [Fact]
     public async Task KeySpace_CanSubscribe_ManualPublish()
     {
-        await using var conn = Create();
+        await using var conn = Create(withChannelPrefix: false);
         var db = conn.GetDatabase();
 
         var channel = RedisChannel.KeyEvent("nonesuch"u8, database: null);
@@ -109,10 +114,12 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         public int Increment() => Interlocked.Increment(ref _count);
     }
 
-    [Fact]
-    public async Task KeyEvent_CanObserveSimple_ViaCallbackHandler()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task KeyEvent_CanObserveSimple_ViaCallbackHandler(bool withChannelPrefix)
     {
-        await using var conn = Create();
+        await using var conn = Create(withChannelPrefix);
         var db = conn.GetDatabase();
 
         var keys = InventKeys(out var prefix);
@@ -145,10 +152,12 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         await sub.UnsubscribeAsync(channel);
     }
 
-    [Fact]
-    public async Task KeyEvent_CanObserveSimple_ViaQueue()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task KeyEvent_CanObserveSimple_ViaQueue(bool withChannelPrefix)
     {
-        await using var conn = Create();
+        await using var conn = Create(withChannelPrefix);
         var db = conn.GetDatabase();
 
         var keys = InventKeys(out var prefix);
@@ -185,10 +194,12 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         await queue.UnsubscribeAsync();
     }
 
-    [Fact]
-    public async Task KeyNotification_CanObserveSimple_ViaCallbackHandler()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task KeyNotification_CanObserveSimple_ViaCallbackHandler(bool withChannelPrefix)
     {
-        await using var conn = Create();
+        await using var conn = Create(withChannelPrefix);
         var db = conn.GetDatabase();
 
         var keys = InventKeys(out var prefix);
@@ -225,10 +236,12 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         await sub.UnsubscribeAsync(channel);
     }
 
-    [Fact]
-    public async Task KeyNotification_CanObserveSimple_ViaQueue()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task KeyNotification_CanObserveSimple_ViaQueue(bool withChannelPrefix)
     {
-        await using var conn = Create();
+        await using var conn = Create(withChannelPrefix);
         var db = conn.GetDatabase();
 
         var keys = InventKeys(out var prefix);
@@ -261,14 +274,20 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         await sub.UnsubscribeAsync(channel);
     }
 
-    [Fact]
-    public async Task KeyNotification_CanObserveSingleKey_ViaQueue()
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task KeyNotification_CanObserveSingleKey_ViaQueue(bool withChannelPrefix, bool withKeyPrefix)
     {
-        await using var conn = Create();
-        var db = conn.GetDatabase();
+        await using var conn = Create(withChannelPrefix);
+        string keyPrefix = withKeyPrefix ? "isolated:" : "";
+        var db = conn.GetDatabase().WithKeyPrefix(keyPrefix);
 
-        var keys = InventKeys(out var prefix, count: 1);
-        var channel = RedisChannel.KeySpaceSingleKey(keys.Single(), db.Database);
+        var keys = InventKeys(out var prefix, count: 1, isolationKeyPrefix: keyPrefix);
+        Log($"Using {Encoding.UTF8.GetString(prefix)} as filter prefix, sample key: {SelectKey(keys)}");
+        var channel = RedisChannel.KeySpaceSingleKey(RedisKey.WithPrefix(Encoding.UTF8.GetBytes(keyPrefix), keys.Single()), db.Database);
         Assert.False(channel.IsMultiNode);
         Assert.False(channel.IsPattern);
         Log($"Monitoring channel: {channel}, routing via {Encoding.UTF8.GetString(channel.RoutingSpan)}");
@@ -281,7 +300,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         ConcurrentDictionary<string, Counter> observedCounts = new();
         foreach (var key in keys)
         {
-            observedCounts[key.ToString()] = new();
+            observedCounts[keyPrefix + key.ToString()] = new();
         }
 
         var queue = await sub.SubscribeAsync(channel);
@@ -298,7 +317,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             }
         });
 
-        await SendAndObserveAsync(keys, db, allDone, callbackCount, observedCounts);
+        await SendAndObserveAsync(keys, db, allDone, callbackCount, observedCounts, keyPrefix);
         await sub.UnsubscribeAsync(channel);
     }
 
@@ -342,7 +361,8 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         IDatabase db,
         TaskCompletionSource<bool> allDone,
         Counter callbackCount,
-        ConcurrentDictionary<string, Counter> observedCounts)
+        ConcurrentDictionary<string, Counter> observedCounts,
+        string keyPrefix = "")
     {
         await Task.Delay(300).ForAwait(); // give it a moment to settle
 
@@ -371,7 +391,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
 
         foreach (var key in keys)
         {
-            Assert.Equal(sentCounts[key].Count, observedCounts[key.ToString()].Count);
+            Assert.Equal(sentCounts[key].Count, observedCounts[keyPrefix + key.ToString()].Count);
         }
     }
 

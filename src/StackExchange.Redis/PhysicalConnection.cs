@@ -820,7 +820,7 @@ namespace StackExchange.Redis
         }
 
         internal void Write(in RedisChannel channel)
-            => WriteUnifiedPrefixedBlob(_ioPipe?.Output, ChannelPrefix, channel.Value);
+            => WriteUnifiedPrefixedBlob(_ioPipe?.Output, channel.IgnoreChannelPrefix ? null : ChannelPrefix, channel.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteBulkString(in RedisValue value)

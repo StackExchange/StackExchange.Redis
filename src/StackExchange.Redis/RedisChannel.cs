@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -18,8 +20,9 @@ namespace StackExchange.Redis
             get
             {
                 var span = Span;
-                if ((Options & (RedisChannelOptions.KeyRouted | RedisChannelOptions.Pattern |
-                                RedisChannelOptions.Sharded | RedisChannelOptions.MultiNode)) == RedisChannelOptions.KeyRouted)
+                if ((Options & (RedisChannelOptions.KeyRouted | RedisChannelOptions.IgnoreChannelPrefix |
+                                RedisChannelOptions.Sharded | RedisChannelOptions.MultiNode | RedisChannelOptions.Pattern))
+                    == (RedisChannelOptions.KeyRouted | RedisChannelOptions.IgnoreChannelPrefix))
                 {
                     // this *could* be a single-key __keyspace@{db}__:{key} subscription, in which case we want to use the key
                     // part for routing, but to avoid overhead we'll only even look if the channel starts with an underscore
@@ -50,11 +53,12 @@ namespace StackExchange.Redis
             Sharded = 1 << 1,
             KeyRouted = 1 << 2,
             MultiNode = 1 << 3,
+            IgnoreChannelPrefix = 1 << 4,
         }
 
         // we don't consider Routed for equality - it's an implementation detail, not a fundamental feature
         private const RedisChannelOptions EqualityMask =
-            ~(RedisChannelOptions.KeyRouted | RedisChannelOptions.MultiNode);
+            ~(RedisChannelOptions.KeyRouted | RedisChannelOptions.MultiNode | RedisChannelOptions.IgnoreChannelPrefix);
 
         internal RedisCommand GetPublishCommand()
         {
@@ -75,9 +79,14 @@ namespace StackExchange.Redis
         internal bool IsKeyRouted => (Options & RedisChannelOptions.KeyRouted) != 0;
 
         /// <summary>
-        ///  Should this channel be subscribed to on all nodes? This is only relevant for cluster scenarios and keyspace notifications.
+        /// Should this channel be subscribed to on all nodes? This is only relevant for cluster scenarios and keyspace notifications.
         /// </summary>
         internal bool IsMultiNode => (Options & RedisChannelOptions.MultiNode) != 0;
+
+        /// <summary>
+        /// Should the channel prefix be ignored when writing this channel.
+        /// </summary>
+        internal bool IgnoreChannelPrefix => (Options & RedisChannelOptions.IgnoreChannelPrefix) != 0;
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value.
@@ -204,23 +213,37 @@ namespace StackExchange.Redis
         /// Create a key-notification channel for a single key in a single database.
         /// </summary>
         public static RedisChannel KeySpaceSingleKey(in RedisKey key, int database)
-            => BuildKeySpace(key, database, RedisChannelOptions.KeyRouted);
+            // note we can allow patterns, because we aren't using PSUBSCRIBE
+            => BuildKeySpaceChannel(key, database, RedisChannelOptions.KeyRouted, default, false, true);
 
         /// <summary>
         /// Create a key-notification channel for a pattern, optionally in a specified database.
         /// </summary>
         public static RedisChannel KeySpacePattern(in RedisKey pattern, int? database = null)
-            => BuildKeySpace(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode);
+            => BuildKeySpaceChannel(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, appendStar: pattern.IsNull, allowKeyPatterns: true);
+
+#pragma  warning disable RS0026 // competing overloads - disambiguated via OverloadResolutionPriority
+        /// <summary>
+        /// Create a key-notification channel using a raw prefix, optionally in a specified database.
+        /// </summary>
+        public static RedisChannel KeySpacePrefix(in RedisKey prefix, int? database = null)
+        {
+            if (prefix.IsEmpty) Throw();
+            return BuildKeySpaceChannel(prefix, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, true, false);
+            static void Throw() => throw new ArgumentNullException(nameof(prefix));
+        }
 
         /// <summary>
         /// Create a key-notification channel using a raw prefix, optionally in a specified database.
         /// </summary>
+        [OverloadResolutionPriority(1)]
         public static RedisChannel KeySpacePrefix(ReadOnlySpan<byte> prefix, int? database = null)
         {
             if (prefix.IsEmpty) Throw();
-            return BuildKeySpace(RedisKey.Null, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, prefix);
+            return BuildKeySpaceChannel(RedisKey.Null, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, prefix, true, false);
             static void Throw() => throw new ArgumentNullException(nameof(prefix));
         }
+#pragma  warning restore RS0026 // competing overloads - disambiguated via OverloadResolutionPriority
 
         private const int DatabaseScratchBufferSize = 16; // largest non-negative int32 is 10 digits
 
@@ -269,7 +292,7 @@ namespace StackExchange.Redis
             target = AppendAndAdvance(target, type);
             Debug.Assert(target.IsEmpty); // should have calculated length correctly
 
-            return new RedisChannel(arr, options);
+            return new RedisChannel(arr, options | RedisChannelOptions.IgnoreChannelPrefix);
         }
 
         private static Span<byte> AppendAndAdvance(Span<byte> target, scoped ReadOnlySpan<byte> value)
@@ -278,57 +301,38 @@ namespace StackExchange.Redis
             return target.Slice(value.Length);
         }
 
-        private static RedisChannel BuildKeySpace(in RedisKey key, int? database, RedisChannelOptions options, ReadOnlySpan<byte> prefix = default)
+        private static RedisChannel BuildKeySpaceChannel(in RedisKey key, int? database, RedisChannelOptions options, ReadOnlySpan<byte> suffix, bool appendStar, bool allowKeyPatterns)
         {
-            int keyLen;
-            if (prefix.IsEmpty)
-            {
-                if (key.IsNull)
-                {
-                    if ((options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(key));
-                    keyLen = 1;
-                }
-                else
-                {
-                    keyLen = key.TotalLength();
-                    if (keyLen == 0) throw new ArgumentOutOfRangeException(nameof(key));
-                }
-            }
-            else
-            {
-                keyLen = prefix.Length + 1; // allow for the *
-            }
+            int fullKeyLength = key.TotalLength() + suffix.Length + (appendStar ? 1 : 0);
+            if (appendStar & (options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(key));
+            if (fullKeyLength == 0) throw new ArgumentOutOfRangeException(nameof(key));
 
             var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);
 
-            // __keyspace@{db}__:{key}
-            var arr = new byte[14 + db.Length + keyLen];
+            // __keyspace@{db}__:{key}[*]
+            var arr = new byte[14 + db.Length + fullKeyLength];
 
             var target = AppendAndAdvance(arr.AsSpan(), "__keyspace@"u8);
             target = AppendAndAdvance(target, db);
             target = AppendAndAdvance(target, "__:"u8);
-            Debug.Assert(keyLen == target.Length); // should have exactly "len" bytes remaining
-            if (prefix.IsEmpty)
+            var keySpan = target; // remember this for if we need to check for patterns
+            var keyLen = key.CopyTo(target);
+            target = target.Slice(keyLen);
+            target = AppendAndAdvance(target, suffix);
+            if (!allowKeyPatterns)
             {
-                if (key.IsNull)
-                {
-                    target[0] = (byte)'*';
-                    target = target.Slice(1);
-                }
-                else
-                {
-                    target = target.Slice(key.CopyTo(target));
-                }
+                keySpan = keySpan.Slice(0, keyLen + suffix.Length);
+                if (keySpan.IndexOfAny((byte)'*', (byte)'?', (byte)'[') >= 0) ThrowPattern();
             }
-            else
+            if (appendStar)
             {
-                prefix.CopyTo(target);
-                target[prefix.Length] = (byte)'*';
-                target = target.Slice(prefix.Length + 1);
+                target[0] = (byte)'*';
+                target = target.Slice(1);
             }
+            Debug.Assert(target.IsEmpty, "length calculated incorrectly");
+            return new RedisChannel(arr, options | RedisChannelOptions.IgnoreChannelPrefix);
 
-            Debug.Assert(target.IsEmpty); // should have calculated length correctly
-            return new RedisChannel(arr, options);
+            static void ThrowPattern() => throw new ArgumentException("The supplied key contains pattern characters, but patterns are not supported in this context.");
         }
 
         internal RedisChannel(byte[]? value, RedisChannelOptions options)

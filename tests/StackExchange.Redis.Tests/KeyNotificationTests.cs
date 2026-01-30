@@ -30,6 +30,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
     {
         // __keyspace@1__:mykey with payload "del"
         var channel = RedisChannel.Literal("__keyspace@1__:mykey");
+        Assert.False(channel.IgnoreChannelPrefix); // because constructed manually
         RedisValue value = "del";
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
@@ -501,6 +502,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(channel.IsKeyRouted);
         Assert.False(channel.IsSharded);
         Assert.False(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
     }
 
     [Theory]
@@ -516,6 +518,54 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.False(channel.IsKeyRouted);
         Assert.False(channel.IsSharded);
         Assert.True(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
+    }
+
+    [Theory]
+    [InlineData("abc", null, "__keyspace@*__:abc*")]
+    [InlineData("abc", 42, "__keyspace@42__:abc*")]
+    public void CreateKeySpaceNotificationPrefix_Key(string prefix, int? database, string expected)
+    {
+        var channel = RedisChannel.KeySpacePrefix((RedisKey)prefix, database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.True(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
+    }
+
+    [Theory]
+    [InlineData("abc", null, "__keyspace@*__:abc*")]
+    [InlineData("abc", 42, "__keyspace@42__:abc*")]
+    public void CreateKeySpaceNotificationPrefix_Span(string prefix, int? database, string expected)
+    {
+        var channel = RedisChannel.KeySpacePrefix((ReadOnlySpan<byte>)Encoding.UTF8.GetBytes(prefix), database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.True(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
+    }
+
+    [Theory]
+    [InlineData("a?bc", null)]
+    [InlineData("a?bc", 42)]
+    [InlineData("a*bc", null)]
+    [InlineData("a*bc", 42)]
+    [InlineData("a[bc", null)]
+    [InlineData("a[bc", 42)]
+    public void CreateKeySpaceNotificationPrefix_DisallowGlob(string prefix, int? database)
+    {
+        var bytes = Encoding.UTF8.GetBytes(prefix);
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RedisChannel.KeySpacePrefix((RedisKey)bytes, database));
+        Assert.StartsWith("The supplied key contains pattern characters, but patterns are not supported in this context.", ex.Message);
+
+        ex = Assert.Throws<ArgumentException>(() =>
+            RedisChannel.KeySpacePrefix((ReadOnlySpan<byte>)bytes, database));
+        Assert.StartsWith("The supplied key contains pattern characters, but patterns are not supported in this context.", ex.Message);
     }
 
     [Theory]
@@ -530,6 +580,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(channel.IsMultiNode);
         Assert.False(channel.IsKeyRouted);
         Assert.False(channel.IsSharded);
+        Assert.True(channel.IgnoreChannelPrefix);
         if (isPattern)
         {
             Assert.True(channel.IsPattern);
@@ -540,11 +591,17 @@ public class KeyNotificationTests(ITestOutputHelper log)
         }
     }
 
-    [Fact]
-    public void Cannot_KeyRoute_KeySpace_SingleKeyIsKeyRouted()
+    [Theory]
+    [InlineData("abc", "__keyspace@42__:abc")]
+    [InlineData("a*bc", "__keyspace@42__:a*bc")] // pattern-like is allowed, since not using PSUBSCRIBE
+    public void Cannot_KeyRoute_KeySpace_SingleKeyIsKeyRouted(string key, string pattern)
     {
-        var channel = RedisChannel.KeySpaceSingleKey("abc", 42);
+        var channel = RedisChannel.KeySpaceSingleKey(key, 42);
+        Assert.Equal(pattern, channel.ToString());
         Assert.False(channel.IsMultiNode);
+        Assert.False(channel.IsPattern);
+        Assert.False(channel.IsSharded);
+        Assert.True(channel.IgnoreChannelPrefix);
         Assert.True(channel.IsKeyRouted);
         Assert.True(channel.WithKeyRouting().IsKeyRouted); // no change, still key-routed
         Assert.Equal(RedisCommand.PUBLISH, channel.GetPublishCommand());
@@ -556,6 +613,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeySpacePattern("abc", 42);
         Assert.True(channel.IsMultiNode);
         Assert.False(channel.IsKeyRouted);
+        Assert.True(channel.IgnoreChannelPrefix);
         Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
         Assert.StartsWith("Publishing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.GetPublishCommand()).Message);
     }
@@ -566,6 +624,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeyEvent(KeyNotificationType.Set, 42);
         Assert.True(channel.IsMultiNode);
         Assert.False(channel.IsKeyRouted);
+        Assert.True(channel.IgnoreChannelPrefix);
         Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
         Assert.StartsWith("Publishing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.GetPublishCommand()).Message);
     }
@@ -576,6 +635,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         var channel = RedisChannel.KeyEvent("foo"u8, 42);
         Assert.True(channel.IsMultiNode);
         Assert.False(channel.IsKeyRouted);
+        Assert.True(channel.IgnoreChannelPrefix);
         Assert.StartsWith("Key routing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.WithKeyRouting()).Message);
         Assert.StartsWith("Publishing is not supported for multi-node channels", Assert.Throws<InvalidOperationException>(() => channel.GetPublishCommand()).Message);
     }

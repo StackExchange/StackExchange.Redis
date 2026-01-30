@@ -39,9 +39,17 @@ we need to create a `RedisChannel`:
 var channel = RedisChannel.KeySpacePrefix(prefix: "user:"u8, database: 0);
 ```
 
-Note that there are a range of other `KeySpace...` and `KeyEvent...` methods for different scenarios.
+Note that there are a range of other `KeySpace...` and `KeyEvent...` methods for different scenarios, including:
 
-Next, we subscribe to the channel and process the notifications; there are two main approaches: callback-based and queue-based.
+- `KeySpaceSingleKey` - subscribe to notifications for a single key in a specific database
+- `KeySpacePattern` - subscribe to notifications for a key pattern, optionally in a specific database
+- `KeySpacePrefix` - subscribe to notifications for all keys with a specific prefix, optionally in a specific database
+- `KeyEvent` - subscribe to notifications for a specific event type, optionally in a specific database
+
+Note that `KeySpacePattern("foo*")` is equivalent to `KeySpacePrefix("foo")`, and will subscribe to all keys beginning with `"foo"`.
+
+Next, we subscribe to the channel and process the notifications using the normal pub/sub subscription API; there are two
+main approaches: queue-based and callback-based.
 
 Queue-based:
 
@@ -96,3 +104,19 @@ the key bytes into a buffer, and then use the alt-lookup API to find the value. 
 for the key entirely, and instead just copy the bytes into a buffer. If we consider that commonly a local cache will *not*
 contain the key for the majority of notifications (since they are for cache invalidation), this can be a significant
 performance win.
+
+## Considerations when using keyspace or channel isolation
+
+StackExchange.Redis supports the concept of keyspace and channel (pub/sub) isolation.
+
+Channel isolation is controlled using the `ConfigurationOptioons.ChannelPrefix` option when connecting to Redis. Intentionally, this feature
+*is ignored* by the `KeySpace...` and `KeyEvent...` APIs, because they are designed to subscribe to specific channels
+that are outside of the control of the client.
+
+Keyspace isolation is controlled using the `WithKeyPrefix` extension method on `IDatabase`. This is *not* ignored
+by the `KeySpace...` and `KeyEvent...` APIs. Since the database and pub/sub APIs are independent, keyspace isolation
+*is not applied*. The caller is responsible for ensuring that the prefix is applied consistently when constructing
+the `RedisChannel`, and note that when using the `GetKey()` etc features; the key returned will represent the full key,
+including any prefix. Consequently, when using keyspace isolation, you should ensure that your notification processing
+takes the prefix into account. The `KeyStartsWith` method can be used to efficiently filter out notifications that do not
+have the prefix, and then you can slice the retrieved key accordingly.
