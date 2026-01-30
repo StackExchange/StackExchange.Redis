@@ -126,6 +126,22 @@ For example:
 Additionally, note that while most of these examples require multi-node subscriptions on Redis Cluster, `KeySpaceSingleKey`
 is an exception, and will only subscribe to the single node that owns the key `foo`.
 
+When subscribing without specifying a database (i.e. listening to changes in all database), the database relating
+to the notification can be fetched via `KeyNotification.Database`:
+
+``` c#
+var channel = RedisChannel.KeySpacePrefix("foo");
+sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+{
+    if (KeyNotification.TryParse(recvChannel, recvValue, out var notification))
+    {
+        var key = notification.GetKey();
+        var db = notification.Database;
+        // ...
+    }
+}
+```
+
 ## Considerations when using keyspace or channel isolation
 
 StackExchange.Redis supports the concept of keyspace and channel (pub/sub) isolation.
@@ -165,22 +181,24 @@ var sub = conn.GetSubscriber();
 var channel = RedisChannel.KeySpacePrefix("client1234:order/", db.Database);
 
 byte[] prefix = Encoding.UTF8.GetBytes("client1234:");
-sub.SubscribeAsync(channel, (channel, value) =>
+sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
 {
     // by including prefix in the TryParse, we filter out notifications that are not for this client
     // *and* the key is sliced internally to remove this prefix when reading
-    if (KeyNotification.TryParse(prefix, channel, value, out var notification))
+    if (KeyNotification.TryParse(prefix, recvChannel, recvValue, out var notification))
     {
         // if we get here, the key prefix was a match
         var key = notification.GetKey(); // "order/123" - note no prefix
+        // ...
     }
 
-    // for contrast only: this is *not* usually the recommended approach
     /*
-    if (KeyNotification.TryParse(channel, value, out notification)
+    // for contrast only: this is *not* usually the recommended approach when using keyspace isolation
+    if (KeyNotification.TryParse(recvChannel, recvValue, out var notification)
         && notification.KeyStartsWith(prefix))
     {
         var key = notification.GetKey(); // "client1234:order/123" - note prefix is included
+        // ...
     }
     */
 });
