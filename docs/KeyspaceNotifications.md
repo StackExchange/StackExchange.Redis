@@ -46,7 +46,7 @@ Note that there are a range of other `KeySpace...` and `KeyEvent...` methods for
 - `KeySpacePrefix` - subscribe to notifications for all keys with a specific prefix, optionally in a specific database
 - `KeyEvent` - subscribe to notifications for a specific event type, optionally in a specific database
 
-Note that `KeySpacePattern("foo*")` is equivalent to `KeySpacePrefix("foo")`, and will subscribe to all keys beginning with `"foo"`.
+The `KeySpace*` methods are similar, and are presented separately to make the intent clear. For example, `KeySpacePattern("foo*")` is equivalent to `KeySpacePrefix("foo")`, and will subscribe to all keys beginning with `"foo"`.
 
 Next, we subscribe to the channel and process the notifications using the normal pub/sub subscription API; there are two
 main approaches: queue-based and callback-based.
