@@ -1,4 +1,5 @@
 ﻿#nullable enable
+StackExchange.Redis.ChannelMessage.TryParseKeyNotification(System.ReadOnlySpan<byte> keyPrefix, out StackExchange.Redis.KeyNotification notification) -> bool
 StackExchange.Redis.KeyNotification
 StackExchange.Redis.KeyNotification.GetChannel() -> StackExchange.Redis.RedisChannel
 StackExchange.Redis.KeyNotification.GetKeyByteCount() -> int
@@ -19,6 +20,7 @@ StackExchange.Redis.KeyNotification.Type.get -> StackExchange.Redis.KeyNotificat
 StackExchange.Redis.RedisValue.StartsWith(System.ReadOnlySpan<byte> value) -> bool
 static StackExchange.Redis.KeyNotification.TryParse(scoped in StackExchange.Redis.RedisChannel channel, scoped in StackExchange.Redis.RedisValue value, out StackExchange.Redis.KeyNotification notification) -> bool
 StackExchange.Redis.ChannelMessage.TryParseKeyNotification(out StackExchange.Redis.KeyNotification notification) -> bool
+static StackExchange.Redis.KeyNotification.TryParse(scoped in System.ReadOnlySpan<byte> keyPrefix, scoped in StackExchange.Redis.RedisChannel channel, scoped in StackExchange.Redis.RedisValue value, out StackExchange.Redis.KeyNotification notification) -> bool
 static StackExchange.Redis.RedisChannel.KeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.KeyEvent(System.ReadOnlySpan<byte> type, int? database) -> StackExchange.Redis.RedisChannel
 static StackExchange.Redis.RedisChannel.KeySpacePattern(in StackExchange.Redis.RedisKey pattern, int? database = null) -> StackExchange.Redis.RedisChannel

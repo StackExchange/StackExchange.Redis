@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using static StackExchange.Redis.KeyNotificationChannels;
 namespace StackExchange.Redis;
@@ -14,12 +15,17 @@ namespace StackExchange.Redis;
 /// </summary>
 public readonly ref struct KeyNotification
 {
+    // effectively we just wrap a channel, but: we've pre-validated that things make sense
+    private readonly RedisChannel _channel;
+    private readonly RedisValue _value;
+    private readonly int _keyOffset; // used to efficiently strip key prefixes
+
     // this type has been designed with the intent of being able to move the entire thing alloc-free in some future
     // high-throughput callback, potentially with a ReadOnlySpan<byte> field for the key fragment; this is
     // not implemented currently, but is why this is a ref struct
 
     /// <summary>
-    /// If the channel is either a keyspace or keyevent notification, parsed the data.
+    /// If the channel is either a keyspace or keyevent notification, resolve the key and event type.
     /// </summary>
     public static bool TryParse(scoped in RedisChannel channel, scoped in RedisValue value, out KeyNotification notification)
     {
@@ -51,6 +57,29 @@ public readonly ref struct KeyNotification
         return false;
     }
 
+    /// <summary>
+    /// If the channel is either a keyspace or keyevent notification *with the requested prefix*, resolve the key and event type,
+    /// and remove the prefix when reading the key.
+    /// </summary>
+    public static bool TryParse(scoped in ReadOnlySpan<byte> keyPrefix, scoped in RedisChannel channel, scoped in RedisValue value, out KeyNotification notification)
+    {
+        if (TryParse(in channel, in value, out notification) && notification.KeyStartsWith(keyPrefix))
+        {
+            notification = notification.WithKeySlice(keyPrefix.Length);
+            return true;
+        }
+
+        notification = default;
+        return false;
+    }
+
+    internal KeyNotification WithKeySlice(int keyPrefixLength)
+    {
+        KeyNotification result = this;
+        Unsafe.AsRef(in result._keyOffset) = keyPrefixLength;
+        return result;
+    }
+
     private const int MinSuffixBytes = 5; // need "0__:x" or similar after prefix
 
     /// <summary>
@@ -63,15 +92,14 @@ public readonly ref struct KeyNotification
     /// </summary>
     public RedisValue GetValue() => _value;
 
-    // effectively we just wrap a channel, but: we've pre-validated that things make sense
-    private readonly RedisChannel _channel;
-    private readonly RedisValue _value;
-
     internal KeyNotification(scoped in RedisChannel channel, scoped in RedisValue value)
     {
         _channel = channel;
         _value = value;
+        _keyOffset = 0;
     }
+
+    internal int KeyOffset => _keyOffset;
 
     /// <summary>
     /// The database the key is in. If the database cannot be parsed, <c>-1</c> is returned.
@@ -102,13 +130,18 @@ public readonly ref struct KeyNotification
         if (IsKeySpace)
         {
             // then the channel contains the key, and the payload contains the event-type
-            return ChannelSuffix.ToArray(); // create an isolated copy
+            return ChannelSuffix.Slice(_keyOffset).ToArray(); // create an isolated copy
         }
 
         if (IsKeyEvent)
         {
             // then the channel contains the event-type, and the payload contains the key
-            return (byte[]?)_value; // todo: this could probably side-step
+            byte[]? blob = _value;
+            if (_keyOffset != 0 & blob is not null)
+            {
+                return blob.AsSpan(_keyOffset).ToArray();
+            }
+            return blob;
         }
 
         return RedisKey.Null;
@@ -122,12 +155,12 @@ public readonly ref struct KeyNotification
     {
         if (IsKeySpace)
         {
-            return ChannelSuffix.Length;
+            return ChannelSuffix.Length - _keyOffset;
         }
 
         if (IsKeyEvent)
         {
-            return _value.GetByteCount();
+            return _value.GetByteCount() - _keyOffset;
         }
 
         return 0;
@@ -140,12 +173,12 @@ public readonly ref struct KeyNotification
     {
         if (IsKeySpace)
         {
-            return ChannelSuffix.Length;
+            return ChannelSuffix.Length - _keyOffset;
         }
 
         if (IsKeyEvent)
         {
-            return _value.GetMaxByteCount();
+            return _value.GetMaxByteCount() - _keyOffset;
         }
 
         return 0;
@@ -158,12 +191,12 @@ public readonly ref struct KeyNotification
     {
         if (IsKeySpace)
         {
-            return Encoding.UTF8.GetMaxCharCount(ChannelSuffix.Length);
+            return Encoding.UTF8.GetMaxCharCount(ChannelSuffix.Length - _keyOffset);
         }
 
         if (IsKeyEvent)
         {
-            return _value.GetMaxCharCount();
+            return _value.GetMaxCharCount() - _keyOffset;
         }
 
         return 0;
@@ -177,15 +210,44 @@ public readonly ref struct KeyNotification
     {
         if (IsKeySpace)
         {
-            return Encoding.UTF8.GetCharCount(ChannelSuffix);
+            return Encoding.UTF8.GetCharCount(ChannelSuffix.Slice(_keyOffset));
         }
 
         if (IsKeyEvent)
         {
-            return _value.GetCharCount();
+            return _keyOffset == 0 ? _value.GetCharCount() : SlowMeasure(in this);
         }
 
         return 0;
+
+        static int SlowMeasure(in KeyNotification value)
+        {
+            var span = value.GetKeySpan(out var lease, stackalloc byte[128]);
+            var result = Encoding.UTF8.GetCharCount(span);
+            Return(lease);
+            return result;
+        }
+    }
+
+    private ReadOnlySpan<byte> GetKeySpan(out byte[]? lease, Span<byte> buffer) // buffer typically stackalloc
+    {
+        lease = null;
+        if (_value.TryGetSpan(out var direct))
+        {
+            return direct.Slice(_keyOffset);
+        }
+        var count = _value.GetMaxByteCount();
+        if (count > buffer.Length)
+        {
+            buffer = lease = ArrayPool<byte>.Shared.Rent(count);
+        }
+        count = _value.CopyTo(buffer);
+        return buffer.Slice(_keyOffset, count - _keyOffset);
+    }
+
+    private static void Return(byte[]? lease)
+    {
+        if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
     }
 
     /// <summary>
@@ -195,7 +257,7 @@ public readonly ref struct KeyNotification
     {
         if (IsKeySpace)
         {
-            var suffix = ChannelSuffix;
+            var suffix = ChannelSuffix.Slice(_keyOffset);
             bytesWritten = suffix.Length; // assume success
             if (bytesWritten <= destination.Length)
             {
@@ -206,12 +268,40 @@ public readonly ref struct KeyNotification
 
         if (IsKeyEvent)
         {
-            bytesWritten = _value.GetByteCount();
-            if (bytesWritten <= destination.Length)
+            if (_value.TryGetSpan(out var direct))
             {
-                var tmp = _value.CopyTo(destination);
-                Debug.Assert(tmp == bytesWritten);
-                return true;
+                bytesWritten = direct.Length - _keyOffset; // assume success
+                if (bytesWritten <= destination.Length)
+                {
+                    direct.Slice(_keyOffset).CopyTo(destination);
+                    return true;
+                }
+                bytesWritten = 0;
+                return false;
+            }
+
+            if (_keyOffset == 0)
+            {
+                // get the value to do the hard work
+                bytesWritten = _value.GetByteCount();
+                if (bytesWritten <= destination.Length)
+                {
+                    _value.CopyTo(destination);
+                    return true;
+                }
+                bytesWritten = 0;
+                return false;
+            }
+
+            return SlowCopy(in this, destination, out bytesWritten);
+
+            static bool SlowCopy(in KeyNotification value, Span<byte> destination, out int bytesWritten)
+            {
+                var span = value.GetKeySpan(out var lease, stackalloc byte[128]);
+                bool result = span.TryCopyTo(destination);
+                bytesWritten = result ? span.Length : 0;
+                Return(lease);
+                return result;
             }
         }
 
@@ -226,7 +316,7 @@ public readonly ref struct KeyNotification
     {
         if (IsKeySpace)
         {
-            var suffix = ChannelSuffix;
+            var suffix = ChannelSuffix.Slice(_keyOffset);
             if (Encoding.UTF8.GetMaxCharCount(suffix.Length) <= destination.Length ||
                 Encoding.UTF8.GetCharCount(suffix) <= destination.Length)
             {
@@ -237,11 +327,25 @@ public readonly ref struct KeyNotification
 
         if (IsKeyEvent)
         {
-            if (_value.GetMaxCharCount() <= destination.Length || _value.GetCharCount() <= destination.Length)
+            if (_keyOffset == 0) // can use short-cut
             {
-                charsWritten = _value.CopyTo(destination);
-                return true;
+                if (_value.GetMaxCharCount() <= destination.Length || _value.GetCharCount() <= destination.Length)
+                {
+                    charsWritten = _value.CopyTo(destination);
+                    return true;
+                }
             }
+            var span = GetKeySpan(out var lease, stackalloc byte[128]);
+            charsWritten = 0;
+            bool result = false;
+            if (Encoding.UTF8.GetMaxCharCount(span.Length) <= destination.Length ||
+                Encoding.UTF8.GetCharCount(span) <= destination.Length)
+            {
+                charsWritten = Encoding.UTF8.GetChars(span, destination);
+                result = true;
+            }
+            Return(lease);
+            return result;
         }
 
         charsWritten = 0;
@@ -362,12 +466,17 @@ public readonly ref struct KeyNotification
     {
         if (IsKeySpace)
         {
-            return ChannelSuffix.StartsWith(prefix);
+            return ChannelSuffix.Slice(_keyOffset).StartsWith(prefix);
         }
 
         if (IsKeyEvent)
         {
-            return _value.StartsWith(prefix);
+            if (_keyOffset == 0) return _value.StartsWith(prefix);
+
+            var span = GetKeySpan(out var lease, stackalloc byte[128]);
+            bool result = span.StartsWith(prefix);
+            Return(lease);
+            return result;
         }
 
         return false;

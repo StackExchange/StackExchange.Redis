@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using System;
+
+namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents a message that is broadcast via publish/subscribe.
@@ -61,4 +63,11 @@ public readonly struct ChannelMessage
     /// </summary>
     public bool TryParseKeyNotification(out KeyNotification notification)
         => KeyNotification.TryParse(in _channel, in _message, out notification);
+
+    /// <summary>
+    /// If the channel is either a keyspace or keyevent notification *with the requested prefix*, resolve the key and event type,
+    /// and remove the prefix when reading the key.
+    /// </summary>
+    public bool TryParseKeyNotification(ReadOnlySpan<byte> keyPrefix, out KeyNotification notification)
+        => KeyNotification.TryParse(keyPrefix, in _channel, in _message, out notification);
 }

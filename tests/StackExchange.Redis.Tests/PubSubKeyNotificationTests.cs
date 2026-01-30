@@ -31,11 +31,11 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     private const int DefaultEventCount = 512;
     private CancellationToken CancellationToken => context.Current.CancellationToken;
 
-    private RedisKey[] InventKeys(out byte[] prefix, int count = DefaultKeyCount, string isolationKeyPrefix = "")
+    private RedisKey[] InventKeys(out byte[] prefix, int count = DefaultKeyCount)
     {
         RedisKey[] keys = new RedisKey[count];
         var prefixString = $"{Guid.NewGuid()}/";
-        prefix = Encoding.UTF8.GetBytes(isolationKeyPrefix + prefixString);
+        prefix = Encoding.UTF8.GetBytes(prefixString);
         for (int i = 0; i < count; i++)
         {
             keys[i] = $"{prefixString}{Guid.NewGuid()}";
@@ -283,11 +283,13 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     {
         await using var conn = Create(withChannelPrefix);
         string keyPrefix = withKeyPrefix ? "isolated:" : "";
+        byte[] keyPrefixBytes = Encoding.UTF8.GetBytes(keyPrefix);
         var db = conn.GetDatabase().WithKeyPrefix(keyPrefix);
 
-        var keys = InventKeys(out var prefix, count: 1, isolationKeyPrefix: keyPrefix);
+        var keys = InventKeys(out var prefix, count: 1);
         Log($"Using {Encoding.UTF8.GetString(prefix)} as filter prefix, sample key: {SelectKey(keys)}");
-        var channel = RedisChannel.KeySpaceSingleKey(RedisKey.WithPrefix(Encoding.UTF8.GetBytes(keyPrefix), keys.Single()), db.Database);
+        var channel = RedisChannel.KeySpaceSingleKey(RedisKey.WithPrefix(keyPrefixBytes, keys.Single()), db.Database);
+
         Assert.False(channel.IsMultiNode);
         Assert.False(channel.IsPattern);
         Log($"Monitoring channel: {channel}, routing via {Encoding.UTF8.GetString(channel.RoutingSpan)}");
@@ -300,7 +302,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         ConcurrentDictionary<string, Counter> observedCounts = new();
         foreach (var key in keys)
         {
-            observedCounts[keyPrefix + key.ToString()] = new();
+            observedCounts[key.ToString()] = new();
         }
 
         var queue = await sub.SubscribeAsync(channel);
@@ -309,7 +311,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             await foreach (var msg in queue.WithCancellation(CancellationToken))
             {
                 callbackCount.Increment();
-                if (msg.TryParseKeyNotification(out var notification)
+                if (msg.TryParseKeyNotification(keyPrefixBytes, out var notification)
                     && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
                 {
                     OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
@@ -317,7 +319,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             }
         });
 
-        await SendAndObserveAsync(keys, db, allDone, callbackCount, observedCounts, keyPrefix);
+        await SendAndObserveAsync(keys, db, allDone, callbackCount, observedCounts);
         await sub.UnsubscribeAsync(channel);
     }
 
@@ -361,8 +363,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         IDatabase db,
         TaskCompletionSource<bool> allDone,
         Counter callbackCount,
-        ConcurrentDictionary<string, Counter> observedCounts,
-        string keyPrefix = "")
+        ConcurrentDictionary<string, Counter> observedCounts)
     {
         await Task.Delay(300).ForAwait(); // give it a moment to settle
 
@@ -391,7 +392,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
 
         foreach (var key in keys)
         {
-            Assert.Equal(sentCounts[key].Count, observedCounts[keyPrefix + key.ToString()].Count);
+            Assert.Equal(sentCounts[key].Count, observedCounts[key.ToString()].Count);
         }
     }
 

@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Text;
 using Xunit;
+using Xunit.Sdk;
 
 namespace StackExchange.Redis.Tests;
 
@@ -645,5 +646,53 @@ public class KeyNotificationTests(ITestOutputHelper log)
     {
         // this is a sanity check for the parsing step in KeyNotification.TryParse
         Assert.Equal(KeyNotificationChannels.KeySpacePrefix.Length, KeyNotificationChannels.KeyEventPrefix.Length);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void KeyNotificationKeyStripping(bool asString)
+    {
+        Span<byte> blob = stackalloc byte[32];
+        Span<char> clob = stackalloc char[32];
+
+        RedisChannel channel = RedisChannel.Literal("__keyevent@0__:sadd");
+        RedisValue value = asString ? "mykey:abc" : "mykey:abc"u8.ToArray();
+        KeyNotification.TryParse(in channel, in value, out var notification);
+        Assert.Equal("mykey:abc", (string?)notification.GetKey());
+        Assert.True(notification.KeyStartsWith("mykey:"u8));
+        Assert.Equal(0, notification.KeyOffset);
+
+        Assert.Equal(9, notification.GetKeyByteCount());
+        Assert.Equal(asString ? 30 : 9, notification.GetKeyMaxByteCount());
+        Assert.Equal(9, notification.GetKeyCharCount());
+        Assert.Equal(asString ? 9 : 10, notification.GetKeyMaxCharCount());
+
+        Assert.True(notification.TryCopyKey(blob, out var bytesWritten));
+        Assert.Equal(9, bytesWritten);
+        Assert.Equal("mykey:abc", Encoding.UTF8.GetString(blob.Slice(0, bytesWritten)));
+
+        Assert.True(notification.TryCopyKey(clob, out var charsWritten));
+        Assert.Equal(9, charsWritten);
+        Assert.Equal("mykey:abc", clob.Slice(0, charsWritten).ToString());
+
+        // now with a prefix
+        notification = notification.WithKeySlice("mykey:"u8.Length);
+        Assert.Equal("abc", (string?)notification.GetKey());
+        Assert.False(notification.KeyStartsWith("mykey:"u8));
+        Assert.Equal(6, notification.KeyOffset);
+
+        Assert.Equal(3, notification.GetKeyByteCount());
+        Assert.Equal(asString ? 24 : 3, notification.GetKeyMaxByteCount());
+        Assert.Equal(3, notification.GetKeyCharCount());
+        Assert.Equal(asString ? 3 : 4, notification.GetKeyMaxCharCount());
+
+        Assert.True(notification.TryCopyKey(blob, out bytesWritten));
+        Assert.Equal(3, bytesWritten);
+        Assert.Equal("abc", Encoding.UTF8.GetString(blob.Slice(0, bytesWritten)));
+
+        Assert.True(notification.TryCopyKey(clob, out charsWritten));
+        Assert.Equal(3, charsWritten);
+        Assert.Equal("abc", clob.Slice(0, charsWritten).ToString());
     }
 }
