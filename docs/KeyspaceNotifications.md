@@ -160,8 +160,8 @@ To observe this, we could use:
 ``` c#
 
 var sub = conn.GetSubscriber();
- 
-// we could subscribe to the specific client as a prefix:
+
+// subscribe to the specific tenant as a prefix:
 var channel = RedisChannel.KeySpacePrefix("client1234:order/", db.Database);
 
 byte[] prefix = Encoding.UTF8.GetBytes("client1234:");
@@ -172,13 +172,22 @@ sub.SubscribeAsync(channel, (channel, value) =>
     if (KeyNotification.TryParse(prefix, channel, value, out var notification))
     {
         // if we get here, the key prefix was a match
-        var key = notification.GetKey(); // will *not* include the "client1234:" prefix
+        var key = notification.GetKey(); // "order/123" - note no prefix
     }
+
+    // for contrast only: this is *not* usually the recommended approach
+    /*
+    if (KeyNotification.TryParse(channel, value, out notification)
+        && notification.KeyStartsWith(prefix))
+    {
+        var key = notification.GetKey(); // "client1234:order/123" - note prefix is included
+    }
+    */
 });
 
 ```
 
-Alternatively, if we wanted a single handler that observed all clients, we could use:
+Alternatively, if we wanted a single handler that observed *all* tenants, we could use:
 
 ``` c#
 var channel = RedisChannel.KeySpacePattern("client*:order/*", db.Database);
