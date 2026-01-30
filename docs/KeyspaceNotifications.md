@@ -165,7 +165,8 @@ As an example, with a multi-tenant scenario using keyspace isolation, we might h
 
 ``` c#
 // multi-tenant scenario using keyspace isolation
-var db = conn.GetDatabase().WithKeyPrefix("client1234:");
+byte[] keyPrefix = Encoding.UTF8.GetBytes("client1234:");
+var db = conn.GetDatabase().WithKeyPrefix(keyPrefix);
 
 // we will later commit order data for example:
 await db.StringSetAsync("order/123", "ISBN 9789123684434");
@@ -174,13 +175,11 @@ await db.StringSetAsync("order/123", "ISBN 9789123684434");
 To observe this, we could use:
 
 ``` c#
-
 var sub = conn.GetSubscriber();
 
 // subscribe to the specific tenant as a prefix:
 var channel = RedisChannel.KeySpacePrefix("client1234:order/", db.Database);
 
-byte[] prefix = Encoding.UTF8.GetBytes("client1234:");
 sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
 {
     // by including prefix in the TryParse, we filter out notifications that are not for this client
@@ -195,7 +194,7 @@ sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
     /*
     // for contrast only: this is *not* usually the recommended approach when using keyspace isolation
     if (KeyNotification.TryParse(recvChannel, recvValue, out var notification)
-        && notification.KeyStartsWith(prefix))
+        && notification.KeyStartsWith(keyPrefix))
     {
         var key = notification.GetKey(); // "client1234:order/123" - note prefix is included
         // ...
