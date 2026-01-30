@@ -105,6 +105,32 @@ namespace StackExchange.Redis
             // (we deal with channels far less frequently, so pay the encoding cost up-front)
             => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot(channel.RoutingSpan);
 
+        internal int HashSlot(byte[] prefix, in RedisChannel channel)
+        {
+            if (ServerType == ServerType.Standalone || channel.IsNull) return NoSlot;
+
+            return prefix.Length == 0 | channel.IgnoreChannelPrefix
+                ? GetClusterSlot(channel.RoutingSpan)
+                : WithPrefix(prefix, channel);
+
+            static int WithPrefix(byte[] prefix, in RedisChannel channel)
+            {
+                const int MAX_STACK = 128;
+                byte[]? lease = null;
+                var routingSpan = channel.RoutingSpan;
+                var totalLength = prefix.Length + routingSpan.Length;
+                var span = totalLength <= MAX_STACK
+                    ? stackalloc byte[MAX_STACK]
+                    : (lease = ArrayPool<byte>.Shared.Rent(totalLength));
+
+                prefix.CopyTo(span);
+                routingSpan.CopyTo(span.Slice(prefix.Length));
+                var result = GetClusterSlot(span.Slice(0, totalLength));
+                if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+                return result;
+            }
+        }
+
         /// <summary>
         /// Gets the hashslot for a given byte sequence.
         /// </summary>

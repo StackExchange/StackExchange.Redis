@@ -135,7 +135,7 @@ namespace StackExchange.Redis
             var subscriber = DefaultSubscriber;
             foreach (var pair in subscriptions)
             {
-                count += pair.Value.EnsureSubscribedToServer(subscriber, pair.Key, flags, true);
+                count += pair.Value.EnsureSubscribedToServer(subscriber, pair.Key, flags, true, this);
             }
             return count;
         }
@@ -162,14 +162,14 @@ namespace StackExchange.Redis
 
         public EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, multiplexer.ChannelPrefix);
             msg.SetInternalCall();
             return ExecuteSync(msg, ResultProcessor.ConnectionIdentity);
         }
 
         public Task<EndPoint?> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, multiplexer.ChannelPrefix);
             msg.SetInternalCall();
             return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
         }
@@ -232,7 +232,7 @@ namespace StackExchange.Redis
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
+            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message, multiplexer.ChannelPrefix);
             // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
             return ExecuteSync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
         }
@@ -240,7 +240,7 @@ namespace StackExchange.Redis
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
+            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message, multiplexer.ChannelPrefix);
             // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
             return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
         }
@@ -262,7 +262,7 @@ namespace StackExchange.Redis
 
             var sub = multiplexer.GetOrAddSubscription(channel, flags);
             sub.Add(handler, queue);
-            return sub.EnsureSubscribedToServer(this, channel, flags, false);
+            return sub.EnsureSubscribedToServer(this, channel, flags, false, multiplexer);
         }
 
         internal void ResubscribeToServer(Subscription sub, RedisChannel channel, ServerEndPoint serverEndPoint, string cause)
@@ -274,7 +274,7 @@ namespace StackExchange.Redis
                 {
                     // we'll *try* for a simple resubscribe, following any -MOVED etc, but if that fails: fall back
                     // to full reconfigure; importantly, note that we've already recorded the disconnect
-                    var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
+                    var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false, multiplexer);
                     _ = ExecuteAsync(message, sub.Processor, serverEndPoint).ContinueWith(
                         t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
                         TaskContinuationOptions.OnlyOnFaulted);
@@ -305,7 +305,7 @@ namespace StackExchange.Redis
 
             var sub = multiplexer.GetOrAddSubscription(channel, flags);
             sub.Add(handler, queue);
-            return sub.EnsureSubscribedToServerAsync(this, channel, flags, false, server);
+            return sub.EnsureSubscribedToServerAsync(this, channel, flags, false, multiplexer, server);
         }
 
         public EndPoint? SubscribedEndpoint(RedisChannel channel) => multiplexer.GetSubscribedServer(channel)?.EndPoint;
@@ -319,7 +319,7 @@ namespace StackExchange.Redis
             // Unregister the subscription handler/queue, and if that returns true (last handler removed), also disconnect from the server
             // ReSharper disable once SimplifyConditionalTernaryExpression
             return UnregisterSubscription(channel, handler, queue, out var sub)
-                ? sub.UnsubscribeFromServer(this, channel, flags, false)
+                ? sub.UnsubscribeFromServer(this, channel, flags, false, multiplexer)
                 : true;
         }
 
@@ -331,7 +331,7 @@ namespace StackExchange.Redis
             ThrowIfNull(channel);
             // Unregister the subscription handler/queue, and if that returns true (last handler removed), also disconnect from the server
             return UnregisterSubscription(channel, handler, queue, out var sub)
-                ? sub.UnsubscribeFromServerAsync(this, channel, flags, asyncState, false)
+                ? sub.UnsubscribeFromServerAsync(this, channel, flags, asyncState, false, multiplexer)
                 : CompletedTask<bool>.Default(asyncState);
         }
 
@@ -371,7 +371,7 @@ namespace StackExchange.Redis
                 if (subs.TryRemove(pair.Key, out var sub))
                 {
                     sub.MarkCompleted();
-                    sub.UnsubscribeFromServer(this, pair.Key, flags, false);
+                    sub.UnsubscribeFromServer(this, pair.Key, flags, false, multiplexer);
                 }
             }
         }
@@ -386,7 +386,7 @@ namespace StackExchange.Redis
                 if (subs.TryRemove(pair.Key, out var sub))
                 {
                     sub.MarkCompleted();
-                    last = sub.UnsubscribeFromServerAsync(this, pair.Key, flags, asyncState, false);
+                    last = sub.UnsubscribeFromServerAsync(this, pair.Key, flags, asyncState, false, multiplexer);
                 }
             }
             return last ?? CompletedTask<bool>.Default(asyncState);

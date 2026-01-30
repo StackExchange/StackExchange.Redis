@@ -1282,6 +1282,8 @@ namespace StackExchange.Redis
             }
         }
 
+        internal byte[] ChannelPrefix => ((byte[]?)RawConfig.ChannelPrefix) ?? [];
+
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration.
         /// </summary>

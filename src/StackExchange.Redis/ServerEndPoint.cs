@@ -1078,7 +1078,7 @@ namespace StackExchange.Redis
                 var configChannel = Multiplexer.ConfigurationChangedChannel;
                 if (configChannel != null)
                 {
-                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, RedisChannel.Literal(configChannel));
+                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, RedisChannel.Literal(configChannel), Multiplexer.ChannelPrefix);
                     // Note: this is NOT internal, we want it to queue in a backlog for sending when ready if necessary
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
                 }
