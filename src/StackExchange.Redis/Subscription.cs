@@ -38,8 +38,7 @@ public partial class ConnectionMultiplexer
             RedisSubscriber subscriber,
             in RedisChannel channel,
             CommandFlags flags,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer);
+            bool internalCall);
 
         // returns the number of changes required
         internal abstract Task<int> EnsureSubscribedToServerAsync(
@@ -47,23 +46,20 @@ public partial class ConnectionMultiplexer
             RedisChannel channel,
             CommandFlags flags,
             bool internalCall,
-            ConnectionMultiplexer multiplexer,
             ServerEndPoint? server = null);
 
         internal abstract bool UnsubscribeFromServer(
             RedisSubscriber subscriber,
             in RedisChannel channel,
             CommandFlags flags,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer);
+            bool internalCall);
 
         internal abstract Task<bool> UnsubscribeFromServerAsync(
             RedisSubscriber subscriber,
             RedisChannel channel,
             CommandFlags flags,
             object? asyncState,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer);
+            bool internalCall);
 
         internal abstract int GetConnectionCount();
 
@@ -82,8 +78,7 @@ public partial class ConnectionMultiplexer
             RedisChannel channel,
             SubscriptionAction action,
             CommandFlags flags,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer)
+            bool internalCall)
         {
             const RedisChannel.RedisChannelOptions OPTIONS_MASK = ~(
                 RedisChannel.RedisChannelOptions.KeyRouted | RedisChannel.RedisChannelOptions.IgnoreChannelPrefix);
@@ -114,7 +109,7 @@ public partial class ConnectionMultiplexer
                 };
 
             // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
-            var msg = Message.Create(-1, Flags | flags, command, channel, multiplexer.ChannelPrefix);
+            var msg = Message.Create(-1, Flags | flags, command, channel);
             msg.SetForSubscriptionBridge();
             if (internalCall)
             {
@@ -229,13 +224,12 @@ public partial class ConnectionMultiplexer
             RedisSubscriber subscriber,
             in RedisChannel channel,
             CommandFlags flags,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer)
+            bool internalCall)
         {
             var server = _currentServer;
             if (server is not null)
             {
-                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall, multiplexer);
+                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 return subscriber.multiplexer.ExecuteSyncImpl(message, Processor, server);
             }
 
@@ -247,13 +241,12 @@ public partial class ConnectionMultiplexer
             RedisChannel channel,
             CommandFlags flags,
             object? asyncState,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer)
+            bool internalCall)
         {
             var server = _currentServer;
             if (server is not null)
             {
-                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall, multiplexer);
+                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 return subscriber.multiplexer.ExecuteAsyncImpl(message, Processor, asyncState, server);
             }
 
@@ -281,14 +274,13 @@ public partial class ConnectionMultiplexer
             RedisSubscriber subscriber,
             in RedisChannel channel,
             CommandFlags flags,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer)
+            bool internalCall)
         {
             if (IsConnectedAny()) return 0;
 
             // we're not appropriately connected, so blank it out for eligible reconnection
             _currentServer = null;
-            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, multiplexer);
+            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             var selected = subscriber.multiplexer.SelectServer(message);
             _ = subscriber.ExecuteSync(message, Processor, selected);
             return 1;
@@ -299,14 +291,13 @@ public partial class ConnectionMultiplexer
             RedisChannel channel,
             CommandFlags flags,
             bool internalCall,
-            ConnectionMultiplexer multiplexer,
             ServerEndPoint? server = null)
         {
             if (IsConnectedAny()) return 0;
 
             // we're not appropriately connected, so blank it out for eligible reconnection
             _currentServer = null;
-            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, multiplexer);
+            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
             server ??= subscriber.multiplexer.SelectServer(message);
             await subscriber.ExecuteAsync(message, Processor, server).ForAwait();
             return 1;
@@ -413,8 +404,7 @@ public partial class ConnectionMultiplexer
             RedisSubscriber subscriber,
             in RedisChannel channel,
             CommandFlags flags,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer)
+            bool internalCall)
         {
             int delta = 0;
             var muxer = subscriber.multiplexer;
@@ -426,7 +416,7 @@ public partial class ConnectionMultiplexer
                 {
                     if (!IsConnectedTo(server.EndPoint))
                     {
-                        var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, multiplexer);
+                        var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
                         subscriber.ExecuteSync(message, Processor, server);
                         delta++;
                     }
@@ -441,7 +431,6 @@ public partial class ConnectionMultiplexer
             RedisChannel channel,
             CommandFlags flags,
             bool internalCall,
-            ConnectionMultiplexer multiplexer,
             ServerEndPoint? server = null)
         {
             int delta = 0;
@@ -459,7 +448,7 @@ public partial class ConnectionMultiplexer
                     {
                         if (!IsConnectedTo(loopServer.EndPoint))
                         {
-                            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, multiplexer);
+                            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
                             await subscriber.ExecuteAsync(message, Processor, loopServer).ForAwait();
                             delta++;
                         }
@@ -474,13 +463,12 @@ public partial class ConnectionMultiplexer
             RedisSubscriber subscriber,
             in RedisChannel channel,
             CommandFlags flags,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer)
+            bool internalCall)
         {
             bool any = false;
             foreach (var server in _servers)
             {
-                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall, multiplexer);
+                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 any |= subscriber.ExecuteSync(message, Processor, server.Value);
             }
 
@@ -492,13 +480,12 @@ public partial class ConnectionMultiplexer
             RedisChannel channel,
             CommandFlags flags,
             object? asyncState,
-            bool internalCall,
-            ConnectionMultiplexer multiplexer)
+            bool internalCall)
         {
             bool any = false;
             foreach (var server in _servers)
             {
-                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall, multiplexer);
+                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 any |= await subscriber.ExecuteAsync(message, Processor, server.Value).ForAwait();
             }
 

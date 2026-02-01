@@ -101,30 +101,26 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The <see cref="RedisChannel"/> to determine a slot ID for.</param>
         public int HashSlot(in RedisChannel channel)
-            // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
-            // (we deal with channels far less frequently, so pay the encoding cost up-front)
-            => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot(channel.RoutingSpan);
-
-        internal int HashSlot(byte[] prefix, in RedisChannel channel)
         {
             if (ServerType == ServerType.Standalone || channel.IsNull) return NoSlot;
 
-            return prefix.Length == 0 | channel.IgnoreChannelPrefix
-                ? GetClusterSlot(channel.RoutingSpan)
-                : WithPrefix(prefix, channel);
+            ReadOnlySpan<byte> routingSpan = channel.RoutingSpan;
+            byte[] prefix;
+            return channel.IgnoreChannelPrefix || (prefix = multiplexer.ChannelPrefix).Length == 0
+                ? GetClusterSlot(routingSpan) : GetClusterSlotWithPrefix(prefix, routingSpan);
 
-            static int WithPrefix(byte[] prefix, in RedisChannel channel)
+            static int GetClusterSlotWithPrefix(byte[] prefixRaw, ReadOnlySpan<byte> routingSpan)
             {
+                ReadOnlySpan<byte> prefixSpan = prefixRaw;
                 const int MAX_STACK = 128;
                 byte[]? lease = null;
-                var routingSpan = channel.RoutingSpan;
-                var totalLength = prefix.Length + routingSpan.Length;
+                var totalLength = prefixSpan.Length + routingSpan.Length;
                 var span = totalLength <= MAX_STACK
                     ? stackalloc byte[MAX_STACK]
                     : (lease = ArrayPool<byte>.Shared.Rent(totalLength));
 
-                prefix.CopyTo(span);
-                routingSpan.CopyTo(span.Slice(prefix.Length));
+                prefixSpan.CopyTo(span);
+                routingSpan.CopyTo(span.Slice(prefixSpan.Length));
                 var result = GetClusterSlot(span.Slice(0, totalLength));
                 if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
                 return result;

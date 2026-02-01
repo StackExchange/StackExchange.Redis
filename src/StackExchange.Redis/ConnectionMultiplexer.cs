@@ -1282,6 +1282,8 @@ namespace StackExchange.Redis
             }
         }
 
+        // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
+        // (we deal with channels far less frequently, so pay the encoding cost up-front)
         internal byte[] ChannelPrefix => ((byte[]?)RawConfig.ChannelPrefix) ?? [];
 
         /// <summary>

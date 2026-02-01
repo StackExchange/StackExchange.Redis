@@ -541,14 +541,14 @@ namespace StackExchange.Redis
         public RedisChannel[] SubscriptionChannels(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
-                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern, multiplexer.ChannelPrefix);
+                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
             return ExecuteSync(msg, ResultProcessor.RedisChannelArrayLiteral, defaultValue: Array.Empty<RedisChannel>());
         }
 
         public Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default, CommandFlags flags = CommandFlags.None)
         {
             var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
-                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern, multiplexer.ChannelPrefix);
+                : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
             return ExecuteAsync(msg, ResultProcessor.RedisChannelArrayLiteral, defaultValue: Array.Empty<RedisChannel>());
         }
 
@@ -566,13 +566,13 @@ namespace StackExchange.Redis
 
         public long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, multiplexer.ChannelPrefix);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
             return ExecuteSync(msg, ResultProcessor.PubSubNumSub);
         }
 
         public Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel, multiplexer.ChannelPrefix);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
             return ExecuteAsync(msg, ResultProcessor.PubSubNumSub);
         }
 

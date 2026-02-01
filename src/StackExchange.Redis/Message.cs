@@ -244,14 +244,14 @@ namespace StackExchange.Redis
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value) =>
             new CommandKeyValueMessage(db, flags, command, key, value);
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, byte[] channelPrefix) =>
-            new CommandChannelMessage(db, flags, command, channel, channelPrefix);
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel) =>
+            new CommandChannelMessage(db, flags, command, channel);
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value, byte[] channelPrefix) =>
-            new CommandChannelValueMessage(db, flags, command, channel, value, channelPrefix);
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value) =>
+            new CommandChannelValueMessage(db, flags, command, channel, value);
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisChannel channel, byte[] channelPrefix) =>
-            new CommandValueChannelMessage(db, flags, command, value, channel, channelPrefix);
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisChannel channel) =>
+            new CommandValueChannelMessage(db, flags, command, value, channel);
 
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1) =>
             new CommandKeyValueValueMessage(db, flags, command, key, value0, value1);
@@ -860,19 +860,17 @@ namespace StackExchange.Redis
         internal abstract class CommandChannelBase : Message
         {
             internal readonly RedisChannel Channel;
-            private readonly byte[] _channelPrefix;
 
-            protected CommandChannelBase(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, byte[] channelPrefix) : base(db, flags, command)
+            protected CommandChannelBase(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel) : base(db, flags, command)
             {
                 channel.AssertNotNull();
                 Channel = channel;
-                _channelPrefix = channelPrefix;
             }
 
             public override string CommandAndKey => Command + " " + Channel;
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-                => Channel.IsKeyRouted ? serverSelectionStrategy.HashSlot(_channelPrefix, Channel) : ServerSelectionStrategy.NoSlot;
+                => Channel.IsKeyRouted ? serverSelectionStrategy.HashSlot(Channel) : ServerSelectionStrategy.NoSlot;
         }
 
         internal abstract class CommandKeyBase : Message
@@ -892,8 +890,8 @@ namespace StackExchange.Redis
 
         private sealed class CommandChannelMessage : CommandChannelBase
         {
-            public CommandChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, byte[] channelPrefix)
-                : base(db, flags, command, channel, channelPrefix)
+            public CommandChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel)
+                : base(db, flags, command, channel)
             { }
             protected override void WriteImpl(PhysicalConnection physical)
             {
@@ -906,8 +904,8 @@ namespace StackExchange.Redis
         private sealed class CommandChannelValueMessage : CommandChannelBase
         {
             private readonly RedisValue value;
-            public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value, byte[] channelPrefix)
-                : base(db, flags, command, channel, channelPrefix)
+            public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value)
+                : base(db, flags, command, channel)
             {
                 value.AssertNotNull();
                 this.value = value;
@@ -1750,8 +1748,8 @@ namespace StackExchange.Redis
         private sealed class CommandValueChannelMessage : CommandChannelBase
         {
             private readonly RedisValue value;
-            public CommandValueChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisChannel channel, byte[] channelPrefix)
-                : base(db, flags, command, channel, channelPrefix)
+            public CommandValueChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisChannel channel)
+                : base(db, flags, command, channel)
             {
                 value.AssertNotNull();
                 this.value = value;

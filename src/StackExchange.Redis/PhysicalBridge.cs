@@ -401,7 +401,7 @@ namespace StackExchange.Redis
                     }
                     else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE, RedisChannel.Literal(Multiplexer.UniqueId), Multiplexer.ChannelPrefix);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE, RedisChannel.Literal(Multiplexer.UniqueId));
                         msg.SetSource(ResultProcessor.TrackSubscriptions, null);
                     }
                     break;
