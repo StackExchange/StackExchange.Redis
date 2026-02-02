@@ -410,20 +410,29 @@ public partial class ConnectionMultiplexer
             var muxer = subscriber.multiplexer;
             foreach (var server in muxer.GetServerSnapshot())
             {
-                // exclude sentinel, and only use replicas if we're explicitly asking for them
-                bool useReplica = (Flags & CommandFlags.DemandReplica) != 0;
-                if (server.ServerType != ServerType.Sentinel & server.IsReplica == useReplica)
+                var change = GetSubscriptionChange(server, flags);
+                if (change is not null)
                 {
-                    if (!IsConnectedTo(server.EndPoint))
-                    {
-                        var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-                        subscriber.ExecuteSync(message, Processor, server);
-                        delta++;
-                    }
+                    // make it so
+                    var message = GetSubscriptionMessage(channel, change.GetValueOrDefault(), flags, internalCall);
+                    subscriber.ExecuteSync(message, Processor, server);
+                    delta++;
                 }
             }
 
             return delta;
+        }
+
+        private SubscriptionAction? GetSubscriptionChange(ServerEndPoint server, CommandFlags flags)
+        {
+            // exclude sentinel, and only use replicas if we're explicitly asking for them
+            bool useReplica = (Flags & CommandFlags.DemandReplica) != 0;
+            bool shouldBeConnected = server.ServerType != ServerType.Sentinel & server.IsReplica == useReplica;
+            if (shouldBeConnected == IsConnectedTo(server.EndPoint))
+            {
+                return null;
+            }
+            return shouldBeConnected ? SubscriptionAction.Subscribe : SubscriptionAction.Unsubscribe;
         }
 
         internal override async Task<int> EnsureSubscribedToServerAsync(
@@ -440,18 +449,15 @@ public partial class ConnectionMultiplexer
             for (int i = 0; i < len; i++)
             {
                 var loopServer = snapshot.Span[i]; // spans and async do not mix well
-                if (server is null || server == loopServer)
+                if (server is null || server == loopServer) // either "all" or "just the one we passed in"
                 {
-                    // exclude sentinel, and only use replicas if we're explicitly asking for them
-                    bool useReplica = (Flags & CommandFlags.DemandReplica) != 0;
-                    if (loopServer.ServerType != ServerType.Sentinel & loopServer.IsReplica == useReplica)
+                    var change = GetSubscriptionChange(loopServer, flags);
+                    if (change is not null)
                     {
-                        if (!IsConnectedTo(loopServer.EndPoint))
-                        {
-                            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-                            await subscriber.ExecuteAsync(message, Processor, loopServer).ForAwait();
-                            delta++;
-                        }
+                        // make it so
+                        var message = GetSubscriptionMessage(channel, change.GetValueOrDefault(), flags, internalCall);
+                        await subscriber.ExecuteAsync(message, Processor, loopServer).ForAwait();
+                        delta++;
                     }
                 }
             }
