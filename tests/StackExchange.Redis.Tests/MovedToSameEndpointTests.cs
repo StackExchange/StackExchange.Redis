@@ -47,13 +47,14 @@ public class MovedToSameEndpointTests
     [Fact]
     public async Task MovedToSameEndpoint_TriggersReconnectAndRetry_CommandSucceeds()
     {
+        var keyName = "MovedToSameEndpoint_TriggersReconnectAndRetry_CommandSucceeds";
         // Arrange: Get a free port to avoid conflicts when tests run in parallel
         var port = GetFreePort();
         var listenEndpoint = new IPEndPoint(IPAddress.Loopback, port);
 
         var testServer = new MovedTestServer(
             getEndpoint: () => Format.ToString(listenEndpoint),
-            triggerKey: "testkey");
+            triggerKey: keyName);
 
         var socketServer = new RespSocketServer(testServer);
 
@@ -82,15 +83,14 @@ public class MovedToSameEndpointTests
             var initialSetCmdCount = testServer.SetCmdCount;
             var initialMovedResponseCount = testServer.MovedResponseCount;
             var initialConnectionCount = testServer.ConnectionCount;
-
             // Execute SET command: This should receive MOVED → reconnect → retry → succeed
-            var setResult = await db.StringSetAsync("testkey", "testvalue");
+            var setResult = await db.StringSetAsync(keyName, "testvalue");
 
             // Assert: Verify SET command succeeded
             Assert.True(setResult, "SET command should return true (OK)");
 
             // Verify the value was actually stored (proving retry succeeded)
-            var retrievedValue = await db.StringGetAsync("testkey");
+            var retrievedValue = await db.StringGetAsync(keyName);
             Assert.Equal("testvalue", (string?)retrievedValue);
 
             // Verify SET command was executed twice: once with MOVED response, once successfully
