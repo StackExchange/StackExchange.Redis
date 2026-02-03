@@ -7,6 +7,7 @@ on:
     paths:
       - '**'
       - '!/docs/*' # Don't run workflow when files are only in the /docs directory
+  workflow_dispatch:
 
 jobs:
   main:
