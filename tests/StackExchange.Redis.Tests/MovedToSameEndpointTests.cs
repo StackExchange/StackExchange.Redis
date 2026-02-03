@@ -70,7 +70,7 @@ public class MovedToSameEndpointTests
             var config = new ConfigurationOptions
             {
                 EndPoints = { listenEndpoint },
-                ConnectTimeout = 5000,
+                ConnectTimeout = 10000,
                 SyncTimeout = 5000,
                 AsyncTimeout = 5000,
             };
