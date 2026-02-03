@@ -1999,7 +1999,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool PeekChannelMessage(RedisCommand command, RedisChannel channel)
+        private bool PeekChannelMessage(RedisCommand command, in RedisChannel channel)
         {
             Message? msg;
             bool haveMsg;

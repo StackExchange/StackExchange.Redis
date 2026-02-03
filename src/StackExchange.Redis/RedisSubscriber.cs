@@ -265,7 +265,7 @@ namespace StackExchange.Redis
             return sub.EnsureSubscribedToServer(this, channel, flags, false);
         }
 
-        internal void ResubscribeToServer(Subscription sub, RedisChannel channel, ServerEndPoint serverEndPoint, string cause)
+        internal void ResubscribeToServer(Subscription sub, in RedisChannel channel, ServerEndPoint serverEndPoint, string cause)
         {
             // conditional: only if that's the server we were connected to, or "none"; we don't want to end up duplicated
             if (sub.TryRemoveEndpoint(serverEndPoint) || !sub.IsConnectedAny())

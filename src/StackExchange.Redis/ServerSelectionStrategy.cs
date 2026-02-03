@@ -382,5 +382,25 @@ namespace StackExchange.Redis
             }
             return Any(command, flags, allowDisconnected);
         }
+
+        internal bool CanServeSlot(ServerEndPoint server, in RedisChannel channel)
+            => CanServeSlot(server, HashSlot(in channel));
+
+        internal bool CanServeSlot(ServerEndPoint server, int slot)
+        {
+            if (slot == NoSlot) return true;
+            var arr = map;
+            if (arr is null) return true; // means "any"
+
+            var primary = arr[slot];
+            if (server == primary) return true;
+
+            var replicas = primary.Replicas;
+            for (int i = 0; i < replicas.Length; i++)
+            {
+                if (server == replicas[i]) return true;
+            }
+            return false;
+        }
     }
 }

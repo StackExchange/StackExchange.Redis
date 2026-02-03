@@ -75,7 +75,7 @@ public partial class ConnectionMultiplexer
         /// Gets the configured (P)SUBSCRIBE or (P)UNSUBSCRIBE <see cref="Message"/> for an action.
         /// </summary>
         internal Message GetSubscriptionMessage(
-            RedisChannel channel,
+            in RedisChannel channel,
             SubscriptionAction action,
             CommandFlags flags,
             bool internalCall)
@@ -276,6 +276,7 @@ public partial class ConnectionMultiplexer
             CommandFlags flags,
             bool internalCall)
         {
+            RemoveIncorrectRouting(subscriber, in channel, flags, internalCall);
             if (IsConnectedAny()) return 0;
 
             // we're not appropriately connected, so blank it out for eligible reconnection
@@ -286,6 +287,23 @@ public partial class ConnectionMultiplexer
             return 1;
         }
 
+        private void RemoveIncorrectRouting(RedisSubscriber subscriber, in RedisChannel channel, CommandFlags flags, bool internalCall)
+        {
+            // only applies to cluster, when using key-routed channels (sharded, explicit key-routed, or
+            // a single-key keyspace notification); is the subscribed server still handling that channel?
+            if (channel.IsKeyRouted && _currentServer is { ServerType: ServerType.Cluster } current)
+            {
+                // if we consider replicas, there can be multiple valid target servers; we can't ask
+                // "is this the correct server?", but we can ask "is it suitable?", based on the slot
+                if (!subscriber.multiplexer.ServerSelectionStrategy.CanServeSlot(_currentServer, channel))
+                {
+                    var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags | CommandFlags.FireAndForget, internalCall);
+                    subscriber.multiplexer.ExecuteSyncImpl(message, Processor, current);
+                    _currentServer = null; // pre-emptively disconnect - F+F
+                }
+            }
+        }
+
         internal override async Task<int> EnsureSubscribedToServerAsync(
             RedisSubscriber subscriber,
             RedisChannel channel,
@@ -293,6 +311,7 @@ public partial class ConnectionMultiplexer
             bool internalCall,
             ServerEndPoint? server = null)
         {
+            RemoveIncorrectRouting(subscriber, in channel, flags, internalCall);
             if (IsConnectedAny()) return 0;
 
             // we're not appropriately connected, so blank it out for eligible reconnection
