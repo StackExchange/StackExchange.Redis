@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
@@ -15,9 +16,27 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class MovedTestServer : MemoryCacheRedisServer
 {
+    /// <summary>
+    /// Represents the simulated server host state behind a proxy/load balancer.
+    /// </summary>
+    private enum SimulatedHost
+    {
+        /// <summary>
+        /// Old server that returns MOVED errors for the trigger key (pre-migration state).
+        /// </summary>
+        OldServer,
+
+        /// <summary>
+        /// New server that handles requests normally (post-migration state).
+        /// </summary>
+        NewServer,
+    }
+
     private int _setCmdCount = 0;
     private int _movedResponseCount = 0;
     private int _connectionCount = 0;
+    private SimulatedHost _currentServerHost = SimulatedHost.OldServer;
+    private readonly ConcurrentDictionary<RedisClient, SimulatedHost> _clientHostAssignments = new();
     private readonly Func<string> _getEndpoint;
     private readonly string _triggerKey;
     private readonly int _hashSlot;
@@ -31,13 +50,17 @@ public class MovedTestServer : MemoryCacheRedisServer
     }
 
     /// <summary>
-    /// Called when a new client connection is established. Increments the connection counter.
+    /// Called when a new client connection is established.
+    /// Assigns the client to the current server host state (simulating proxy/load balancer routing).
     /// </summary>
     public override RedisClient CreateClient()
     {
+        var client = base.CreateClient();
+        var assignedHost = _currentServerHost;
+        _clientHostAssignments[client] = assignedHost;
         Interlocked.Increment(ref _connectionCount);
-        Log($"New client connection established (total connections: {_connectionCount}), endpoint: {_actualEndpoint}");
-        return base.CreateClient();
+        Log($"New client connection established (assigned to {assignedHost}, total connections: {_connectionCount}), endpoint: {_actualEndpoint}");
+        return client;
     }
 
     /// <summary>
@@ -88,27 +111,38 @@ public class MovedTestServer : MemoryCacheRedisServer
     }
 
     /// <summary>
-    /// Handles SET commands. Returns MOVED error on first attempt for the trigger key,
-    /// then processes normally on subsequent attempts.
+    /// Handles SET commands. Returns MOVED error for the trigger key when requested by clients
+    /// connected to the old server, simulating a server migration behind a proxy/load balancer.
     /// </summary>
     protected override TypedRedisValue Set(RedisClient client, RedisRequest request)
     {
         var key = request.GetKey(1);
 
-        // Only trigger MOVED on FIRST attempt for the trigger key
-        if (key == _triggerKey && Interlocked.Increment(ref _setCmdCount) == 1)
+        // Increment SET command counter for every SET call
+        Interlocked.Increment(ref _setCmdCount);
+
+        // Get the client's assigned server host
+        if (!_clientHostAssignments.TryGetValue(client, out var clientHost))
         {
+            throw new InvalidOperationException("Client host assignment not found - this indicates a test infrastructure error");
+        }
+
+        // Check if this is the trigger key from an old server client
+        if (key == _triggerKey && clientHost == SimulatedHost.OldServer)
+        {
+            // Transition server to new host (so future connections route to new server)
+            _currentServerHost = SimulatedHost.NewServer;
+
             Interlocked.Increment(ref _movedResponseCount);
             var endpoint = _getEndpoint();
-            Log($"Returning MOVED {_hashSlot} {endpoint} for key '{key}', actual endpoint: {_actualEndpoint}");
+            Log($"Returning MOVED {_hashSlot} {endpoint} for key '{key}' from {clientHost} client, server transitioned to {SimulatedHost.NewServer}, actual endpoint: {_actualEndpoint}");
 
             // Return MOVED error pointing to same endpoint
-            // Don't close the connection - let the client handle reconnection naturally
             return TypedRedisValue.Error($"MOVED {_hashSlot} {endpoint}");
         }
 
-        // Normal processing on retry or other keys
-        Log($"Processing SET normally for key '{key}', endpoint: {_actualEndpoint}");
+        // Normal processing for new server clients or other keys
+        Log($"Processing SET normally for key '{key}' from {clientHost} client, endpoint: {_actualEndpoint}");
         return base.Set(client, request);
     }
 
