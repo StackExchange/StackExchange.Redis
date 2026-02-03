@@ -934,20 +934,40 @@ namespace StackExchange.Redis
         {
             if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) == 0)
             {
-                _backlogStatus = BacklogStatus.Activating;
-
-                // Start the backlog processor; this is a bit unorthodox, as you would *expect* this to just
-                // be Task.Run; that would work fine when healthy, but when we're falling on our face, it is
-                // easy to get into a thread-pool-starvation "spiral of death" if we rely on the thread-pool
-                // to unblock the thread-pool when there could be sync-over-async callers. Note that in reality,
-                // the initial "enough" of the back-log processor is typically sync, which means that the thread
-                // we start is actually useful, despite thinking "but that will just go async and back to the pool"
-                var thread = new Thread(s => ((PhysicalBridge)s!).ProcessBacklog())
+                var successfullyStarted = false;
+                try
                 {
-                    IsBackground = true,                  // don't keep process alive (also: act like the thread-pool used to)
-                    Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
-                };
-                thread.Start(this);
+                    _backlogStatus = BacklogStatus.Activating;
+
+                    // Start the backlog processor; this is a bit unorthodox, as you would *expect* this to just
+                    // be Task.Run; that would work fine when healthy, but when we're falling on our face, it is
+                    // easy to get into a thread-pool-starvation "spiral of death" if we rely on the thread-pool
+                    // to unblock the thread-pool when there could be sync-over-async callers. Note that in reality,
+                    // the initial "enough" of the back-log processor is typically sync, which means that the thread
+                    // we start is actually useful, despite thinking "but that will just go async and back to the pool"
+                    var thread = new Thread(s => ((PhysicalBridge)s!).ProcessBacklog())
+                    {
+                        IsBackground = true,                  // don't keep process alive (also: act like the thread-pool used to)
+                        Name = "StackExchange.Redis Backlog", // help anyone looking at thread-dumps
+                    };
+
+                    thread.Start(this);
+                    successfullyStarted = true;
+                }
+                catch (Exception ex)
+                {
+                    OnInternalError(ex);
+                    Trace("StartBacklogProcessor failed to start backlog processor thread: " + ex.Message);
+                }
+                finally
+                {
+                    // If thread failed to start - reset flag to ensure next call doesn't erroneously think backlog process is running
+                    if (!successfullyStarted)
+                    {
+                        _backlogStatus = BacklogStatus.Inactive;
+                        Interlocked.Exchange(ref _backlogProcessorIsRunning, 0);
+                    }
+                }
             }
             else
             {
