@@ -8,7 +8,10 @@ Current package versions:
 
 ## unreleased
 
+- Fix bug with connection startup failing in low-memory scenarios ([#3002 by nathan-miller23](https://github.com/StackExchange/StackExchange.Redis/pull/3002))
+- Fix under-count of `TotalOutstanding` in server-counters ([#2996 by nathan-miller23](https://github.com/StackExchange/StackExchange.Redis/pull/2996))
 - Fix incorrect debug assertion in `HGETEX` (no impact to release library) ([#2999 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2999))
+
 
 ## 2.10.1
 
