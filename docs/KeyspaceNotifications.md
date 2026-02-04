@@ -184,7 +184,7 @@ sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
 {
     // by including prefix in the TryParse, we filter out notifications that are not for this client
     // *and* the key is sliced internally to remove this prefix when reading
-    if (KeyNotification.TryParse(prefix, recvChannel, recvValue, out var notification))
+    if (KeyNotification.TryParse(keyPrefix, recvChannel, recvValue, out var notification))
     {
         // if we get here, the key prefix was a match
         var key = notification.GetKey(); // "order/123" - note no prefix
