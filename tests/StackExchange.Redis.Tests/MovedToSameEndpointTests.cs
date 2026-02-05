@@ -77,6 +77,11 @@ public class MovedToSameEndpointTests
             };
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+            // Ping the server to ensure it's responsive
+            var server = conn.GetServer(listenEndpoint);
+            await server.PingAsync();
+            // Verify server is detected as cluster mode
+            Assert.Equal(ServerType.Cluster, server.ServerType);
             var db = conn.GetDatabase();
 
             // Record baseline counters after initial connection

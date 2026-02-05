@@ -267,7 +267,8 @@ namespace StackExchange.Redis
                             // This occurs when Redis/Valkey servers are behind DNS records, load balancers, or proxies.
                             // The MOVED error signals that the client should reconnect to allow the DNS/proxy/load balancer
                             // to route the connection to a different underlying server host, then retry the command.
-                            bridge?.TryConnect(null)?.Dispose();
+                            // Mark the bridge to reconnect - reader loop will handle disconnection and reconnection.
+                            bridge?.MarkNeedsReconnect();
                         }
                         if (bridge is null)
                         {
