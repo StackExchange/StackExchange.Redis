@@ -1,1 +1,23 @@
 ﻿#nullable enable
+override StackExchange.Redis.StreamIdempotentId.Equals(object? obj) -> bool
+override StackExchange.Redis.StreamIdempotentId.GetHashCode() -> int
+override StackExchange.Redis.StreamIdempotentId.ToString() -> string!
+StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.StreamIdempotentId
+StackExchange.Redis.StreamIdempotentId.IdempotentId.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.StreamIdempotentId.ProducerId.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.StreamIdempotentId.StreamIdempotentId() -> void
+StackExchange.Redis.StreamIdempotentId.StreamIdempotentId(StackExchange.Redis.RedisValue producerId) -> void
+StackExchange.Redis.StreamIdempotentId.StreamIdempotentId(StackExchange.Redis.RedisValue producerId, StackExchange.Redis.RedisValue idempotentId) -> void
+StackExchange.Redis.StreamInfo.EntriesAdded.get -> long
+StackExchange.Redis.StreamInfo.IdmpDuration.get -> long
+StackExchange.Redis.StreamInfo.IdmpMaxsize.get -> long
+StackExchange.Redis.StreamInfo.IidsAdded.get -> long
+StackExchange.Redis.StreamInfo.IidsDuplicates.get -> long
+StackExchange.Redis.StreamInfo.IidsTracked.get -> long
+StackExchange.Redis.StreamInfo.MaxDeletedEntryId.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.StreamInfo.PidsTracked.get -> long
+StackExchange.Redis.StreamInfo.RecordedFirstEntryId.get -> StackExchange.Redis.RedisValue

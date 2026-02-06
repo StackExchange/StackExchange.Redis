@@ -2662,7 +2662,26 @@ namespace StackExchange.Redis
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
 #pragma warning disable RS0026 // different shape
         RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
-#pragma warning restore RS0026
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key.
+        /// If key does not exist, a new key holding a stream is created.
+        /// The command returns the ID of the newly created stream entry, using
+        /// the idempotent id (pid/iid) mechanism to ensure at-most-once production.
+        /// See <see cref="StreamIdempotentId"/> for more information of the idempotent API.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamField">The field name for the stream entry.</param>
+        /// <param name="streamValue">The value to set in the stream entry.</param>
+        /// <param name="idempotentId">The idempotent producer (pid) and optionally id (iid) to use for this entry.</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="limit">Specifies the maximal count of entries that will be evicted.</param>
+        /// <param name="trimMode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The ID of the newly created message.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds an entry using the specified values to the given stream key.
@@ -2679,8 +2698,26 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
-#pragma warning disable RS0026 // different shape
         RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key.
+        /// If key does not exist, a new key holding a stream is created.
+        /// The command returns the ID of the newly created stream entry, using
+        /// the idempotent id (pid/iid) mechanism to ensure at-most-once production.
+        /// See <see cref="StreamIdempotentId"/> for more information of the idempotent API.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
+        /// <param name="idempotentId">The idempotent producer (pid) and optionally id (iid) to use for this entry.</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="limit">Specifies the maximal count of entries that will be evicted.</param>
+        /// <param name="trimMode">Determines how stream trimming should be performed.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The ID of the newly created message.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <summary>
