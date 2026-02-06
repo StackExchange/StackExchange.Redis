@@ -98,32 +98,35 @@ public readonly struct StreamInfo
     public RedisValue MaxDeletedEntryId { get; }
 
     /// <summary>
-    /// The duration value configured for the stream’s IDMP map.
+    /// The duration value configured for the stream’s IDMP map (seconds), or <c>-1</c> if unavailable.
     /// </summary>
     public long IdmpDuration { get; }
 
     /// <summary>
-    /// The maxsize value configured for the stream’s IDMP map.
+    /// The maxsize value configured for the stream’s IDMP map, or <c>-1</c> if unavailable.
     /// </summary>
     public long IdmpMaxsize { get; }
 
     /// <summary>
-    /// The number of idempotent pids currently tracked in the stream.
+    /// The number of idempotent pids currently tracked in the stream, or <c>-1</c> if unavailable.
     /// </summary>
     public long PidsTracked { get; }
 
     /// <summary>
-    /// The number of idempotent ids currently tracked in the stream. This count reflects active iids that haven't expired or been evicted yet.
+    /// The number of idempotent ids currently tracked in the stream, or <c>-1</c> if unavailable.
+    /// This count reflects active iids that haven't expired or been evicted yet.
     /// </summary>
     public long IidsTracked { get; }
 
     /// <summary>
-    /// The count of all entries with an idempotent iid added to the stream during its lifetime.This is a cumulative counter that increases with each idempotent entry added.
+    /// The count of all entries with an idempotent iid added to the stream during its lifetime, or <c>-1</c> if unavailable.
+    /// This is a cumulative counter that increases with each idempotent entry added.
     /// </summary>
     public long IidsAdded { get; }
 
     /// <summary>
-    /// The count of all duplicate iids (for all pids) detected during the stream's lifetime. This is a cumulative counter that increases with each duplicate iid.
+    /// The count of all duplicate iids (for all pids) detected during the stream's lifetime, or <c>-1</c> if unavailable.
+    /// This is a cumulative counter that increases with each duplicate iid.
     /// </summary>
     public long IidsDuplicates { get; }
 }

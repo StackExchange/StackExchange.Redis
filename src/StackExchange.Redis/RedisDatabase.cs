@@ -2914,6 +2914,62 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
+        public void StreamConfigure(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamConfigureMessage(key, configuration, flags);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task StreamConfigureAsync(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamConfigureMessage(key, configuration, flags);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        private Message GetStreamConfigureMessage(RedisKey key, StreamConfiguration configuration, CommandFlags flags)
+        {
+            if (key.IsNull) throw new ArgumentNullException(nameof(key));
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            if (configuration.IdmpMaxsize.HasValue)
+            {
+                if (configuration.IdmpDuration.HasValue)
+                {
+                    // duration and maxsize
+                    return Message.Create(
+                        Database,
+                        flags,
+                        RedisCommand.XCFGSET,
+                        key,
+                        RedisLiterals.IDMP_DURATION,
+                        configuration.IdmpDuration.Value,
+                        RedisLiterals.IDMP_MAXSIZE,
+                        configuration.IdmpMaxsize.Value);
+                }
+                // just maxsize
+                return Message.Create(
+                    Database,
+                    flags,
+                    RedisCommand.XCFGSET,
+                    key,
+                    RedisLiterals.IDMP_MAXSIZE,
+                    configuration.IdmpMaxsize.Value);
+            }
+
+            if (configuration.IdmpDuration.HasValue)
+            {
+                // just duration
+                return Message.Create(
+                    Database,
+                    flags,
+                    RedisCommand.XCFGSET,
+                    key,
+                    RedisLiterals.IDMP_DURATION,
+                    configuration.IdmpDuration.Value);
+            }
+
+            return Message.Create(Database, flags, RedisCommand.XCFGSET, key); // this will manifest a -ERR, but let's use the server's message
+        }
+
         public StreamAutoClaimResult StreamAutoClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAutoClaimMessage(key, consumerGroup, claimingConsumer, minIdleTimeInMs, startAtId, count, idsOnly: false, flags);

@@ -128,6 +128,56 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(first, second); // idempotent id has avoided a duplicate
     }
 
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData(null, 42, false)]
+    [InlineData(13, null, false)]
+    [InlineData(13, 42, false)]
+    [InlineData(null, null, true)]
+    [InlineData(null, 42, true)]
+    [InlineData(13, null, true)]
+    [InlineData(13, 42, true)]
+    public async Task StreamConfigure(int? duration, int? maxsize, bool async)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_6_0);
+        var db = conn.GetDatabase();
+
+        var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+        var id = await db.StreamAddAsync(key, "field1", "value1");
+        Log($"id: {id}");
+        var settings = new StreamConfiguration { IdmpDuration = duration, IdmpMaxsize = maxsize };
+        bool doomed = duration is null && maxsize is null;
+        if (async)
+        {
+            if (doomed)
+            {
+                var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.StreamConfigureAsync(key, settings));
+                Assert.StartsWith("ERR At least one parameter must be specified", ex.Message);
+            }
+            else
+            {
+                await db.StreamConfigureAsync(key, settings);
+            }
+        }
+        else
+        {
+            if (doomed)
+            {
+                var ex = Assert.Throws<RedisServerException>(() => db.StreamConfigure(key, settings));
+                Assert.StartsWith("ERR At least one parameter must be specified", ex.Message);
+            }
+            else
+            {
+                db.StreamConfigure(key, settings);
+            }
+        }
+        var info = async ? await db.StreamInfoAsync(key) : db.StreamInfo(key);
+        const int SERVER_DEFAULT = 100;
+        Assert.Equal(duration ?? SERVER_DEFAULT, info.IdmpDuration);
+        Assert.Equal(maxsize ?? SERVER_DEFAULT, info.IdmpMaxsize);
+    }
+
     [Fact]
     public async Task StreamAddMultipleValuePairsWithManualId()
     {

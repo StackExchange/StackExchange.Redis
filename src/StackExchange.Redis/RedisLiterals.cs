@@ -113,6 +113,8 @@ namespace StackExchange.Redis
             IDLETIME = "IDLETIME",
             IDMP = "IDMP",
             IDMPAUTO = "IDMPAUTO",
+            IDMP_DURATION = "IDMP-DURATION",
+            IDMP_MAXSIZE = "IDMP-MAXSIZE",
             KEEPTTL = "KEEPTTL",
             KILL = "KILL",
             LADDR = "LADDR",

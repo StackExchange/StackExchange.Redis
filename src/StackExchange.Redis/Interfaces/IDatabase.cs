@@ -2721,6 +2721,14 @@ namespace StackExchange.Redis
 #pragma warning restore RS0026
 
         /// <summary>
+        /// Configures a stream, in particular the IDMP map.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="configuration">The configuration to apply.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        void StreamConfigure(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer.
         /// Messages that have been idle for more than <paramref name="minIdleTimeInMs"/> will be claimed.
         /// </summary>
