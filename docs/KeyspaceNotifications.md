@@ -155,7 +155,7 @@ by the `KeySpace...` and `KeyEvent...` APIs. Since the database and pub/sub APIs
 *is not applied* (and cannot be; consuming code could have zero, one, or multiple databases with different prefixes).
 The caller is responsible for ensuring that the prefix is applied appropriately when constructing the `RedisChannel`.
 
-By default, key-related featured of `KeyNotification` will return the full key reported by the server,
+By default, key-related features of `KeyNotification` will return the full key reported by the server,
 including any prefix. However, the `TryParseKeyNotification` and `TryParse` methods can optionally be passed a
 key prefix, which will be used both to filter unwanted notifications and strip the prefix from the key when reading.
 It is *possible* to handle keyspace isolation manually by checking the key with `KeyNotification.KeyStartsWith` and
