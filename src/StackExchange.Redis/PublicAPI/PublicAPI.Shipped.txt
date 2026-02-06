@@ -2100,3 +2100,87 @@ StackExchange.Redis.IDatabaseAsync.StringSetAsync(StackExchange.Redis.RedisKey k
 [SER002]static StackExchange.Redis.ValueCondition.NotEqual(in StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ValueCondition
 [SER002]static StackExchange.Redis.ValueCondition.ParseDigest(System.ReadOnlySpan<byte> digest) -> StackExchange.Redis.ValueCondition
 [SER002]static StackExchange.Redis.ValueCondition.ParseDigest(System.ReadOnlySpan<char> digest) -> StackExchange.Redis.ValueCondition
+StackExchange.Redis.ChannelMessage.TryParseKeyNotification(System.ReadOnlySpan<byte> keyPrefix, out StackExchange.Redis.KeyNotification notification) -> bool
+StackExchange.Redis.KeyNotification
+StackExchange.Redis.KeyNotification.GetChannel() -> StackExchange.Redis.RedisChannel
+StackExchange.Redis.KeyNotification.GetKeyByteCount() -> int
+StackExchange.Redis.KeyNotification.GetKeyCharCount() -> int
+StackExchange.Redis.KeyNotification.GetKeyMaxByteCount() -> int
+StackExchange.Redis.KeyNotification.GetKeyMaxCharCount() -> int
+StackExchange.Redis.KeyNotification.GetValue() -> StackExchange.Redis.RedisValue
+StackExchange.Redis.KeyNotification.IsType(System.ReadOnlySpan<byte> type) -> bool
+StackExchange.Redis.KeyNotification.KeyStartsWith(System.ReadOnlySpan<byte> prefix) -> bool
+StackExchange.Redis.KeyNotification.TryCopyKey(System.Span<char> destination, out int charsWritten) -> bool
+StackExchange.Redis.KeyNotification.Database.get -> int
+StackExchange.Redis.KeyNotification.GetKey() -> StackExchange.Redis.RedisKey
+StackExchange.Redis.KeyNotification.IsKeyEvent.get -> bool
+StackExchange.Redis.KeyNotification.IsKeySpace.get -> bool
+StackExchange.Redis.KeyNotification.KeyNotification() -> void
+StackExchange.Redis.KeyNotification.TryCopyKey(System.Span<byte> destination, out int bytesWritten) -> bool
+StackExchange.Redis.KeyNotification.Type.get -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.RedisValue.StartsWith(System.ReadOnlySpan<byte> value) -> bool
+static StackExchange.Redis.KeyNotification.TryParse(scoped in StackExchange.Redis.RedisChannel channel, scoped in StackExchange.Redis.RedisValue value, out StackExchange.Redis.KeyNotification notification) -> bool
+StackExchange.Redis.ChannelMessage.TryParseKeyNotification(out StackExchange.Redis.KeyNotification notification) -> bool
+static StackExchange.Redis.KeyNotification.TryParse(scoped in System.ReadOnlySpan<byte> keyPrefix, scoped in StackExchange.Redis.RedisChannel channel, scoped in StackExchange.Redis.RedisValue value, out StackExchange.Redis.KeyNotification notification) -> bool
+static StackExchange.Redis.RedisChannel.KeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.KeyEvent(System.ReadOnlySpan<byte> type, int? database) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.KeySpacePattern(in StackExchange.Redis.RedisKey pattern, int? database = null) -> StackExchange.Redis.RedisChannel
+StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Append = 1 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Copy = 2 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Del = 3 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Evicted = 1001 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Expire = 4 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Expired = 1000 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HDel = 5 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HExpired = 6 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HIncrBy = 8 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HIncrByFloat = 7 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HPersist = 9 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.HSet = 10 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.IncrBy = 12 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.IncrByFloat = 11 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LInsert = 13 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LPop = 14 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LPush = 15 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LRem = 16 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LSet = 17 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.LTrim = 18 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.MoveFrom = 19 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.MoveTo = 20 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.New = 1002 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Overwritten = 1003 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Persist = 21 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.RenameFrom = 22 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.RenameTo = 23 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Restore = 24 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.RPop = 25 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.RPush = 26 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SAdd = 27 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Set = 28 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SetRange = 29 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SortStore = 30 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SPop = 32 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SRem = 31 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.TypeChanged = 1004 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Unknown = 0 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XAdd = 33 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XDel = 34 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupCreate = 36 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupCreateConsumer = 35 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupDelConsumer = 37 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupDestroy = 38 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XGroupSetId = 39 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XSetId = 40 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.XTrim = 41 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZAdd = 42 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZDiffStore = 43 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZIncr = 46 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZInterStore = 44 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZRem = 49 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZRemByRank = 47 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZRemByScore = 48 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZUnionStore = 45 -> StackExchange.Redis.KeyNotificationType
+static StackExchange.Redis.RedisChannel.KeySpacePrefix(in StackExchange.Redis.RedisKey prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.KeySpacePrefix(System.ReadOnlySpan<byte> prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+static StackExchange.Redis.RedisChannel.KeySpaceSingleKey(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel
