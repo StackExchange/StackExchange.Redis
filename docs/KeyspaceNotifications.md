@@ -105,7 +105,7 @@ for the key entirely, and instead just copy the bytes into a buffer. If we consi
 contain the key for the majority of notifications (since they are for cache invalidation), this can be a significant
 performance win.
 
-## Considerations when database isolation
+## Considerations when using database isolation
 
 Database isolation is controlled either via the `ConfigurationOptions.DefaultDatabase` option when connecting to Redis,
 or by using the `GetDatabase(int? db = null)` method to get a specific database instance. Note that the
