@@ -161,21 +161,33 @@ namespace StackExchange.Redis
             }
             public ReadOnlySequence<byte> Current { get; private set; }
         }
+
         internal RedisChannel AsRedisChannel(byte[]? channelPrefix, RedisChannel.RedisChannelOptions options)
         {
             switch (Resp2TypeBulkString)
             {
                 case ResultType.SimpleString:
                 case ResultType.BulkString:
-                    if (channelPrefix == null)
+                    if (channelPrefix is null)
                     {
+                        // no channel-prefix enabled, just use as-is
                         return new RedisChannel(GetBlob(), options);
                     }
                     if (StartsWith(channelPrefix))
                     {
+                        // we have a channel-prefix, and it matches; strip it
                         byte[] copy = Payload.Slice(channelPrefix.Length).ToArray();
 
                         return new RedisChannel(copy, options);
+                    }
+
+                    // we shouldn't get unexpected events, so to get here: we've received a notification
+                    // on a channel that doesn't match our prefix; this *should* be limited to
+                    // key notifications (see: IgnoreChannelPrefix), but: we need to be sure
+                    if (StartsWith("__keyspace@"u8) || StartsWith("__keyevent@"u8))
+                    {
+                        // use as-is
+                        return new RedisChannel(GetBlob(), options);
                     }
                     return default;
                 default:
@@ -270,9 +282,8 @@ namespace StackExchange.Redis
             var rangeToCheck = Payload.Slice(0, len);
             return new CommandBytes(rangeToCheck).Equals(expected);
         }
-        internal bool StartsWith(byte[] expected)
+        internal bool StartsWith(ReadOnlySpan<byte> expected)
         {
-            if (expected == null) throw new ArgumentNullException(nameof(expected));
             if (expected.Length > Payload.Length) return false;
 
             var rangeToCheck = Payload.Slice(0, expected.Length);
@@ -282,7 +293,7 @@ namespace StackExchange.Redis
             foreach (var segment in rangeToCheck)
             {
                 var from = segment.Span;
-                var to = new Span<byte>(expected, offset, from.Length);
+                var to = expected.Slice(offset, from.Length);
                 if (!from.SequenceEqual(to)) return false;
 
                 offset += from.Length;

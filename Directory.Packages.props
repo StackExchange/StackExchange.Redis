@@ -8,7 +8,8 @@
     <PackageVersion Include="System.Threading.Channels" Version="5.0.0" />
     <PackageVersion Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
-    <PackageVersion Include="System.IO.Hashing" Version="9.0.10" />
+    <!-- note that this bumps System.Buffers, so is pinned in down-level in SE csproj --> 
+    <PackageVersion Include="System.IO.Hashing" Version="10.0.2" />
 
     <!-- For analyzers, tied to the consumer's build SDK; at the moment, that means "us" -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />

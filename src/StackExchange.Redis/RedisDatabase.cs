@@ -1900,7 +1900,7 @@ namespace StackExchange.Redis
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
-            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
+            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
             // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
             return ExecuteSync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
         }
@@ -1908,7 +1908,7 @@ namespace StackExchange.Redis
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
-            var msg = Message.Create(-1, flags, channel.PublishCommand, channel, message);
+            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
             // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
             return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
         }

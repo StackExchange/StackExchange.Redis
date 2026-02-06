@@ -869,19 +869,58 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the length of the value in bytes.
         /// </summary>
-        public int GetByteCount()
+        public int GetByteCount() => Type switch
         {
-            switch (Type)
-            {
-                case StorageType.Null: return 0;
-                case StorageType.Raw: return _memory.Length;
-                case StorageType.String: return Encoding.UTF8.GetByteCount((string)_objectOrSentinel!);
-                case StorageType.Int64: return Format.MeasureInt64(OverlappedValueInt64);
-                case StorageType.UInt64: return Format.MeasureUInt64(OverlappedValueUInt64);
-                case StorageType.Double: return Format.MeasureDouble(OverlappedValueDouble);
-                default: return ThrowUnableToMeasure();
-            }
-        }
+            StorageType.Null => 0,
+            StorageType.Raw => _memory.Length,
+            StorageType.String => Encoding.UTF8.GetByteCount((string)_objectOrSentinel!),
+            StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
+            StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
+            StorageType.Double => Format.MeasureDouble(OverlappedValueDouble),
+            _ => ThrowUnableToMeasure(),
+        };
+
+        /// <summary>
+        /// Gets the maximum length of the value in bytes.
+        /// </summary>
+        internal int GetMaxByteCount() => Type switch
+        {
+            StorageType.Null => 0,
+            StorageType.Raw => _memory.Length,
+            StorageType.String => Encoding.UTF8.GetMaxByteCount(((string)_objectOrSentinel!).Length),
+            StorageType.Int64 => Format.MaxInt64TextLen,
+            StorageType.UInt64 => Format.MaxInt64TextLen,
+            StorageType.Double => Format.MaxDoubleTextLen,
+            _ => ThrowUnableToMeasure(),
+        };
+
+        /// <summary>
+        /// Gets the length of the value in characters, assuming UTF8 interpretation of BLOB payloads.
+        /// </summary>
+        internal int GetCharCount() => Type switch
+        {
+            StorageType.Null => 0,
+            StorageType.Raw => Encoding.UTF8.GetCharCount(_memory.Span),
+            StorageType.String => ((string)_objectOrSentinel!).Length,
+            StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
+            StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
+            StorageType.Double => Format.MeasureDouble(OverlappedValueDouble),
+            _ => ThrowUnableToMeasure(),
+        };
+
+        /// <summary>
+        /// Gets the length of the value in characters, assuming UTF8 interpretation of BLOB payloads.
+        /// </summary>
+        internal int GetMaxCharCount() => Type switch
+        {
+            StorageType.Null => 0,
+            StorageType.Raw => Encoding.UTF8.GetMaxCharCount(_memory.Length),
+            StorageType.String => ((string)_objectOrSentinel!).Length,
+            StorageType.Int64 => Format.MaxInt64TextLen,
+            StorageType.UInt64 => Format.MaxInt64TextLen,
+            StorageType.Double => Format.MaxDoubleTextLen,
+            _ => ThrowUnableToMeasure(),
+        };
 
         private int ThrowUnableToMeasure() => throw new InvalidOperationException("Unable to compute length of type: " + Type);
 
@@ -907,6 +946,33 @@ namespace StackExchange.Redis
                     return srcBytes.Length;
                 case StorageType.String:
                     return Encoding.UTF8.GetBytes(((string)_objectOrSentinel!).AsSpan(), destination);
+                case StorageType.Int64:
+                    return Format.FormatInt64(OverlappedValueInt64, destination);
+                case StorageType.UInt64:
+                    return Format.FormatUInt64(OverlappedValueUInt64, destination);
+                case StorageType.Double:
+                    return Format.FormatDouble(OverlappedValueDouble, destination);
+                default:
+                    return ThrowUnableToMeasure();
+            }
+        }
+
+        /// <summary>
+        /// Copy the value as character data to the provided <paramref name="destination"/>.
+        /// </summary>
+        internal int CopyTo(Span<char> destination)
+        {
+            switch (Type)
+            {
+                case StorageType.Null:
+                    return 0;
+                case StorageType.Raw:
+                    var srcBytes = _memory.Span;
+                    return Encoding.UTF8.GetChars(srcBytes, destination);
+                case StorageType.String:
+                    var span = ((string)_objectOrSentinel!).AsSpan();
+                    span.CopyTo(destination);
+                    return span.Length;
                 case StorageType.Int64:
                     return Format.FormatInt64(OverlappedValueInt64, destination);
                 case StorageType.UInt64:
@@ -1243,6 +1309,62 @@ HaveString:
                     var digest = ValueCondition.CalculateDigest(buffer.Slice(0, len));
                     if (oversized is not null) ArrayPool<byte>.Shared.Return(oversized);
                     return digest;
+            }
+        }
+
+        internal bool TryGetSpan(out ReadOnlySpan<byte> span)
+        {
+            if (_objectOrSentinel == Sentinel_Raw)
+            {
+                span = _memory.Span;
+                return true;
+            }
+            span = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Indicates whether the current value has the supplied value as a prefix.
+        /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to check.</param>
+        [OverloadResolutionPriority(1)] // prefer this when it is an option (vs casting a byte[] to RedisValue)
+        public bool StartsWith(ReadOnlySpan<byte> value)
+        {
+            if (IsNull) return false;
+            if (value.IsEmpty) return true;
+            if (IsNullOrEmpty) return false;
+
+            int len;
+            switch (Type)
+            {
+                case StorageType.Raw:
+                    return _memory.Span.StartsWith(value);
+                case StorageType.Int64:
+                    Span<byte> buffer = stackalloc byte[Format.MaxInt64TextLen];
+                    len = Format.FormatInt64(OverlappedValueInt64, buffer);
+                    return buffer.Slice(0, len).StartsWith(value);
+                case StorageType.UInt64:
+                    buffer = stackalloc byte[Format.MaxInt64TextLen];
+                    len = Format.FormatUInt64(OverlappedValueUInt64, buffer);
+                    return buffer.Slice(0, len).StartsWith(value);
+                case StorageType.Double:
+                    buffer = stackalloc byte[Format.MaxDoubleTextLen];
+                    len = Format.FormatDouble(OverlappedValueDouble, buffer);
+                    return buffer.Slice(0, len).StartsWith(value);
+                case StorageType.String:
+                    var s = ((string)_objectOrSentinel!).AsSpan();
+                    if (s.Length < value.Length) return false; // not enough characters to match
+                    if (s.Length > value.Length) s = s.Slice(0, value.Length); // only need to match the prefix
+                    var maxBytes = Encoding.UTF8.GetMaxByteCount(s.Length);
+                    byte[]? lease = null;
+                    const int MAX_STACK = 128;
+                    buffer = maxBytes <= MAX_STACK ? stackalloc byte[MAX_STACK] : (lease = ArrayPool<byte>.Shared.Rent(maxBytes));
+                    var bytes = Encoding.UTF8.GetBytes(s, buffer);
+                    bool isMatch = buffer.Slice(0, bytes).StartsWith(value);
+                    if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+                    return isMatch;
+                default:
+                    return false;
             }
         }
     }

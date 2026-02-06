@@ -240,7 +240,9 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsSslServer), TestConfig.Current.RedisLabsSslServer);
         Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsPfxPath), TestConfig.Current.RedisLabsPfxPath);
 
+#pragma warning disable SYSLIB0057
         var cert = new X509Certificate2(TestConfig.Current.RedisLabsPfxPath, "");
+#pragma warning restore SYSLIB0057
         Assert.NotNull(cert);
         Log("Thumbprint: " + cert.Thumbprint);
 

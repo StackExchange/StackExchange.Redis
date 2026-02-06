@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net481;net8.0</TargetFrameworks>
+    <!-- can also run fine in net8.0, but: don't want triplicate by default, and don't want competition between runs --> 
+    <TargetFrameworks>net481;net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>

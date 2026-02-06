@@ -65,15 +65,25 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     [InlineData("contoso.redis.cache.windows.net")]
     [InlineData("contoso.REDIS.CACHE.chinacloudapi.cn")] // added a few upper case chars to validate comparison
     [InlineData("contoso.redis.cache.usgovcloudapi.net")]
-    [InlineData("contoso.redisenterprise.cache.azure.net")]
-    [InlineData("contoso.redis.azure.net")]
-    [InlineData("contoso.redis.chinacloudapi.cn")]
-    [InlineData("contoso.redis.usgovcloudapi.net")]
+    [InlineData("contoso.redis.cache.sovcloud-api.de")]
+    [InlineData("contoso.redis.cache.sovcloud-api.fr")]
     public void IsMatchOnAzureDomain(string hostName)
     {
         var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
         var provider = DefaultOptionsProvider.GetProvider(epc);
         Assert.IsType<AzureOptionsProvider>(provider);
+    }
+
+    [Theory]
+    [InlineData("contoso.redis.azure.net")]
+    [InlineData("contoso.redis.chinacloudapi.cn")]
+    [InlineData("contoso.redis.usgovcloudapi.net")]
+    [InlineData("contoso.redisenterprise.cache.azure.net")]
+    public void IsMatchOnAzureManagedRedisDomain(string hostName)
+    {
+        var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
+        var provider = DefaultOptionsProvider.GetProvider(epc);
+        Assert.IsType<AzureManagedRedisOptionsProvider>(provider);
     }
 
     [Fact]
