@@ -90,7 +90,7 @@ namespace StackExchange.Redis
             lastBeatTickCount = 0;
             connectionType = bridge.ConnectionType;
             _bridge = new WeakReference(bridge);
-            ChannelPrefix = bridge.Multiplexer.RawConfig.ChannelPrefix;
+            ChannelPrefix = bridge.Multiplexer.ChannelPrefix;
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
             _physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
@@ -820,7 +820,7 @@ namespace StackExchange.Redis
         }
 
         internal void Write(in RedisChannel channel)
-            => WriteUnifiedPrefixedBlob(_ioPipe?.Output, ChannelPrefix, channel.Value);
+            => WriteUnifiedPrefixedBlob(_ioPipe?.Output, channel.IgnoreChannelPrefix ? null : ChannelPrefix, channel.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteBulkString(in RedisValue value)
@@ -1999,7 +1999,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool PeekChannelMessage(RedisCommand command, RedisChannel channel)
+        private bool PeekChannelMessage(RedisCommand command, in RedisChannel channel)
         {
             Message? msg;
             bool haveMsg;

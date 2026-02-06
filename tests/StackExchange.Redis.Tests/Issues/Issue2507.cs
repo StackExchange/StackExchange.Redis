@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests.Issues;
 [Collection(NonParallelCollection.Name)]
 public class Issue2507(ITestOutputHelper output, SharedConnectionFixture? fixture = null) : TestBase(output, fixture)
 {
-    [Fact(Explicit = true)]
+    [Fact(Explicit = true)] // note this may show as Inconclusive, depending on the runner
     public async Task Execute()
     {
         await using var conn = Create(shared: false);

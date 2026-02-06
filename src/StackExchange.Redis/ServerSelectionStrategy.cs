@@ -101,9 +101,31 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The <see cref="RedisChannel"/> to determine a slot ID for.</param>
         public int HashSlot(in RedisChannel channel)
-            // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
-            // (we deal with channels far less frequently, so pay the encoding cost up-front)
-            => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot((byte[])channel!);
+        {
+            if (ServerType == ServerType.Standalone || channel.IsNull) return NoSlot;
+
+            ReadOnlySpan<byte> routingSpan = channel.RoutingSpan;
+            byte[] prefix;
+            return channel.IgnoreChannelPrefix || (prefix = multiplexer.ChannelPrefix).Length == 0
+                ? GetClusterSlot(routingSpan) : GetClusterSlotWithPrefix(prefix, routingSpan);
+
+            static int GetClusterSlotWithPrefix(byte[] prefixRaw, ReadOnlySpan<byte> routingSpan)
+            {
+                ReadOnlySpan<byte> prefixSpan = prefixRaw;
+                const int MAX_STACK = 128;
+                byte[]? lease = null;
+                var totalLength = prefixSpan.Length + routingSpan.Length;
+                var span = totalLength <= MAX_STACK
+                    ? stackalloc byte[MAX_STACK]
+                    : (lease = ArrayPool<byte>.Shared.Rent(totalLength));
+
+                prefixSpan.CopyTo(span);
+                routingSpan.CopyTo(span.Slice(prefixSpan.Length));
+                var result = GetClusterSlot(span.Slice(0, totalLength));
+                if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+                return result;
+            }
+        }
 
         /// <summary>
         /// Gets the hashslot for a given byte sequence.
@@ -359,6 +381,26 @@ namespace StackExchange.Redis
                 if (endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
             }
             return Any(command, flags, allowDisconnected);
+        }
+
+        internal bool CanServeSlot(ServerEndPoint server, in RedisChannel channel)
+            => CanServeSlot(server, HashSlot(in channel));
+
+        internal bool CanServeSlot(ServerEndPoint server, int slot)
+        {
+            if (slot == NoSlot) return true;
+            var arr = map;
+            if (arr is null) return true; // means "any"
+
+            var primary = arr[slot];
+            if (server == primary) return true;
+
+            var replicas = primary.Replicas;
+            for (int i = 0; i < replicas.Length; i++)
+            {
+                if (server == replicas[i]) return true;
+            }
+            return false;
         }
     }
 }

@@ -468,6 +468,31 @@ namespace StackExchange.Redis
 #endif
         }
 
+        internal static int FormatDouble(double value, Span<char> destination)
+        {
+            string s;
+            if (double.IsInfinity(value))
+            {
+                s = double.IsPositiveInfinity(value) ? "+inf" : "-inf";
+                if (!s.AsSpan().TryCopyTo(destination)) ThrowFormatFailed();
+                return 4;
+            }
+
+#if NET
+            if (!value.TryFormat(destination, out int len, "G17", NumberFormatInfo.InvariantInfo))
+            {
+                ThrowFormatFailed();
+            }
+
+            return len;
+#else
+            s = value.ToString("G17", NumberFormatInfo.InvariantInfo); // this looks inefficient, but is how Utf8Formatter works too, just: more direct
+            if (s.Length > destination.Length) ThrowFormatFailed();
+            s.AsSpan().CopyTo(destination);
+            return s.Length;
+#endif
+        }
+
         internal static int MeasureInt64(long value)
         {
             Span<byte> valueSpan = stackalloc byte[MaxInt64TextLen];
@@ -481,10 +506,36 @@ namespace StackExchange.Redis
             return len;
         }
 
+        internal static int FormatInt64(long value, Span<char> destination)
+        {
+#if NET
+            if (!value.TryFormat(destination, out var len))
+                ThrowFormatFailed();
+            return len;
+#else
+            Span<byte> buffer = stackalloc byte[MaxInt64TextLen];
+            var bytes = FormatInt64(value, buffer);
+            return Encoding.UTF8.GetChars(buffer.Slice(0, bytes), destination);
+#endif
+        }
+
         internal static int MeasureUInt64(ulong value)
         {
             Span<byte> valueSpan = stackalloc byte[MaxInt64TextLen];
             return FormatUInt64(value, valueSpan);
+        }
+
+        internal static int FormatUInt64(ulong value, Span<char> destination)
+        {
+#if NET
+            if (!value.TryFormat(destination, out var len))
+                ThrowFormatFailed();
+            return len;
+#else
+            Span<byte> buffer = stackalloc byte[MaxInt64TextLen];
+            var bytes = FormatUInt64(value, buffer);
+            return Encoding.UTF8.GetChars(buffer.Slice(0, bytes), destination);
+#endif
         }
 
         internal static int FormatUInt64(ulong value, Span<byte> destination)
@@ -499,6 +550,19 @@ namespace StackExchange.Redis
             if (!Utf8Formatter.TryFormat(value, destination, out var len))
                 ThrowFormatFailed();
             return len;
+        }
+
+        internal static int FormatInt32(int value, Span<char> destination)
+        {
+#if NET
+            if (!value.TryFormat(destination, out var len))
+                ThrowFormatFailed();
+            return len;
+#else
+            Span<byte> buffer = stackalloc byte[MaxInt32TextLen];
+            var bytes = FormatInt32(value, buffer);
+            return Encoding.UTF8.GetChars(buffer.Slice(0, bytes), destination);
+#endif
         }
 
         internal static bool TryParseVersion(ReadOnlySpan<char> input, [NotNullWhen(true)] out Version? version)
