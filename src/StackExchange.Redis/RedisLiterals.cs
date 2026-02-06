@@ -4,13 +4,14 @@ namespace StackExchange.Redis
 {
 #pragma warning disable SA1310 // Field names should not contain underscore
 #pragma warning disable SA1311 // Static readonly fields should begin with upper-case letter
-    internal static class CommonReplies
+    internal static partial class CommonReplies
     {
         public static readonly CommandBytes
             ASK = "ASK ",
             authFail_trimmed = CommandBytes.TrimToFit("ERR operation not permitted"),
             backgroundSavingStarted_trimmed = CommandBytes.TrimToFit("Background saving started"),
-            backgroundSavingAOFStarted_trimmed = CommandBytes.TrimToFit("Background append only file rewriting started"),
+            backgroundSavingAOFStarted_trimmed =
+                CommandBytes.TrimToFit("Background append only file rewriting started"),
             databases = "databases",
             loading = "LOADING ",
             MOVED = "MOVED ",
@@ -30,15 +31,6 @@ namespace StackExchange.Redis
             yes = "yes",
             zero = "0",
 
-            // streams
-            length = "length",
-            radixTreeKeys = "radix-tree-keys",
-            radixTreeNodes = "radix-tree-nodes",
-            groups = "groups",
-            lastGeneratedId = "last-generated-id",
-            firstEntry = "first-entry",
-            lastEntry = "last-entry",
-
             // HELLO
             version = "version",
             proto = "proto",
@@ -46,6 +38,32 @@ namespace StackExchange.Redis
             mode = "mode",
             id = "id";
     }
+
+    internal static partial class CommonRepliesHash
+    {
+#pragma warning disable CS8981, SA1300, SA1134 // forgive naming
+        // ReSharper disable InconsistentNaming
+        [FastHash] internal static partial class length { }
+        [FastHash] internal static partial class radix_tree_keys { }
+        [FastHash] internal static partial class radix_tree_nodes { }
+        [FastHash] internal static partial class last_generated_id { }
+        [FastHash] internal static partial class max_deleted_entry_id { }
+        [FastHash] internal static partial class entries_added { }
+        [FastHash] internal static partial class recorded_first_entry_id { }
+        [FastHash] internal static partial class idmp_duration { }
+        [FastHash] internal static partial class idmp_maxsize { }
+        [FastHash] internal static partial class pids_tracked { }
+        [FastHash] internal static partial class first_entry { }
+        [FastHash] internal static partial class last_entry { }
+        [FastHash] internal static partial class groups { }
+        [FastHash] internal static partial class iids_tracked { }
+        [FastHash] internal static partial class iids_added { }
+        [FastHash] internal static partial class iids_duplicates { }
+
+        // ReSharper restore InconsistentNaming
+#pragma warning restore CS8981, SA1300, SA1134 // forgive naming
+    }
+
     internal static class RedisLiterals
     {
         // unlike primary commands, these do not get altered by the command-map; we may as
@@ -93,6 +111,10 @@ namespace StackExchange.Redis
             ID = "ID",
             IDX = "IDX",
             IDLETIME = "IDLETIME",
+            IDMP = "IDMP",
+            IDMPAUTO = "IDMPAUTO",
+            IDMP_DURATION = "IDMP-DURATION",
+            IDMP_MAXSIZE = "IDMP-MAXSIZE",
             KEEPTTL = "KEEPTTL",
             KILL = "KILL",
             LADDR = "LADDR",

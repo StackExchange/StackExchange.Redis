@@ -229,6 +229,7 @@ internal enum RedisCommand
     XADD,
     XAUTOCLAIM,
     XCLAIM,
+    XCFGSET,
     XDEL,
     XDELEX,
     XGROUP,
@@ -375,6 +376,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.VREM:
             case RedisCommand.VSETATTR:
             case RedisCommand.XAUTOCLAIM:
+            case RedisCommand.XCFGSET:
             case RedisCommand.ZADD:
             case RedisCommand.ZDIFFSTORE:
             case RedisCommand.ZINTERSTORE:
