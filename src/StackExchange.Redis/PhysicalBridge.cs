@@ -48,6 +48,7 @@ namespace StackExchange.Redis
         private int failConnectCount = 0;
         private volatile bool isDisposed;
         private volatile bool shouldResetConnectionRetryCount;
+        private bool _needsReconnect;
         private long nonPreferredEndpointCount;
 
         // private volatile int missedHeartbeats;
@@ -131,6 +132,16 @@ namespace StackExchange.Redis
         private RedisProtocol _protocol; // note starts at zero, not RESP2
         internal void SetProtocol(RedisProtocol protocol) => _protocol = protocol;
 
+        /// <summary>
+        /// Indicates whether the bridge needs to reconnect.
+        /// </summary>
+        internal bool NeedsReconnect => Volatile.Read(ref _needsReconnect);
+
+        /// <summary>
+        /// Marks that the bridge needs to reconnect.
+        /// </summary>
+        internal void MarkNeedsReconnect() => Volatile.Write(ref _needsReconnect, true);
+
         public void Dispose()
         {
             isDisposed = true;
@@ -210,7 +221,7 @@ namespace StackExchange.Redis
         public WriteResult TryWriteSync(Message message, bool isReplica)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
-            if (!IsConnected) return QueueOrFailMessage(message);
+            if (!IsConnected || NeedsReconnect) return QueueOrFailMessage(message);
 
             var physical = this.physical;
             if (physical == null)
@@ -234,7 +245,7 @@ namespace StackExchange.Redis
         public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool bypassBacklog = false)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
-            if (!IsConnected && !bypassBacklog) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
+            if ((!IsConnected || NeedsReconnect) && !bypassBacklog) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
 
             var physical = this.physical;
             if (physical == null)
@@ -1478,6 +1489,8 @@ namespace StackExchange.Redis
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
+                            // Clear the reconnect flag as we're starting a new connection
+                            Volatile.Write(ref _needsReconnect, false);
                             Interlocked.Increment(ref socketCount);
                             Interlocked.Exchange(ref connectStartTicks, Environment.TickCount);
                             // separate creation and connection for case when connection completes synchronously

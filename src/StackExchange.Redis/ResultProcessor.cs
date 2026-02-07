@@ -259,43 +259,50 @@ namespace StackExchange.Redis
                     if (Format.TryParseInt32(parts[1], out int hashSlot)
                         && Format.TryParseEndPoint(parts[2], out var endpoint))
                     {
-                        // no point sending back to same server, and no point sending to a dead server
-                        if (!Equals(server?.EndPoint, endpoint))
+                        // Check if MOVED points to same endpoint
+                        bool isSameEndpoint = Equals(server?.EndPoint, endpoint);
+                        if (isSameEndpoint && isMoved)
                         {
-                            if (bridge is null)
+                            // MOVED to same endpoint detected.
+                            // This occurs when Redis/Valkey servers are behind DNS records, load balancers, or proxies.
+                            // The MOVED error signals that the client should reconnect to allow the DNS/proxy/load balancer
+                            // to route the connection to a different underlying server host, then retry the command.
+                            // Mark the bridge to reconnect - reader loop will handle disconnection and reconnection.
+                            bridge?.MarkNeedsReconnect();
+                        }
+                        if (bridge is null)
+                        {
+                            // already toast
+                        }
+                        else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
+                        {
+                            bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
+                            return false;
+                        }
+                        else
+                        {
+                            if (isMoved && wasNoRedirect)
                             {
-                                // already toast
-                            }
-                            else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
-                            {
-                                bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
-                                return false;
-                            }
-                            else
-                            {
-                                if (isMoved && wasNoRedirect)
+                                if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
                                 {
-                                    if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
-                                    {
-                                        err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
-                                    }
-                                    else
-                                    {
-                                        err = "Key has MOVED but CommandFlags.NoRedirect was specified - redirect not followed. ";
-                                    }
+                                    err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
                                 }
                                 else
                                 {
-                                    unableToConnectError = true;
-                                    if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
-                                    {
-                                        err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
-                                            + PerfCounterHelper.GetThreadPoolAndCPUSummary();
-                                    }
-                                    else
-                                    {
-                                        err = "Endpoint is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. ";
-                                    }
+                                    err = "Key has MOVED but CommandFlags.NoRedirect was specified - redirect not followed. ";
+                                }
+                            }
+                            else
+                            {
+                                unableToConnectError = true;
+                                if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
+                                {
+                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
+                                        + PerfCounterHelper.GetThreadPoolAndCPUSummary();
+                                }
+                                else
+                                {
+                                    err = "Endpoint is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. ";
                                 }
                             }
                         }
