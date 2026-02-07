@@ -1,1 +1,32 @@
 ﻿#nullable enable
+HotKeysMetrics
+HotKeysMetrics.Cpu = 1 -> HotKeysMetrics
+HotKeysMetrics.Network = 2 -> HotKeysMetrics
+HotKeysMetrics.None = 0 -> HotKeysMetrics
+HotKeysResult
+HotKeysResult.CollectionDuration.get -> System.TimeSpan
+HotKeysResult.CollectionStartTime.get -> System.DateTime
+HotKeysResult.CpuByKey.get -> HotKeysResult.MetricKeyCpu[]!
+HotKeysResult.MetricKeyBytes
+HotKeysResult.MetricKeyBytes.Bytes.get -> long
+HotKeysResult.MetricKeyBytes.Key.get -> StackExchange.Redis.RedisKey
+HotKeysResult.MetricKeyBytes.MetricKeyBytes() -> void
+HotKeysResult.MetricKeyBytes.MetricKeyBytes(in StackExchange.Redis.RedisKey key, long bytes) -> void
+HotKeysResult.MetricKeyCpu
+HotKeysResult.MetricKeyCpu.Duration.get -> System.TimeSpan
+HotKeysResult.MetricKeyCpu.Key.get -> StackExchange.Redis.RedisKey
+HotKeysResult.MetricKeyCpu.MetricKeyCpu() -> void
+HotKeysResult.MetricKeyCpu.MetricKeyCpu(in StackExchange.Redis.RedisKey key, long microSeconds) -> void
+HotKeysResult.MetricKeyCpu.MicroSeconds.get -> long
+HotKeysResult.NetworkBytesByKey.get -> HotKeysResult.MetricKeyBytes[]!
+HotKeysResult.SampleRatio.get -> long
+HotKeysResult.TotalCpuTime.get -> System.TimeSpan
+HotKeysResult.TotalCpuTimeSystem.get -> System.TimeSpan
+HotKeysResult.TotalCpuTimeUser.get -> System.TimeSpan
+HotKeysResult.TotalNetworkBytes.get -> long
+HotKeysResult.TotalNetworkBytes2.get -> long
+HotKeysResult.TrackingActive.get -> bool
+StackExchange.Redis.IServer.HotKeysGet(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> HotKeysResult!
+StackExchange.Redis.IServer.HotKeysReset(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+StackExchange.Redis.IServer.HotKeysStart(HotKeysMetrics metrics = (HotKeysMetrics)-1, long count = -1, System.TimeSpan duration = default(System.TimeSpan), long sampleRatio = 1, short[]? slots = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+StackExchange.Redis.IServer.HotKeysStop(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
