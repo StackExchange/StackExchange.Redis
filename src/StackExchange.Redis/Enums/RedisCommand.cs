@@ -81,6 +81,7 @@ internal enum RedisCommand
     HLEN,
     HMGET,
     HMSET,
+    HOTKEYS,
     HPERSIST,
     HPEXPIRE,
     HPEXPIREAT,
@@ -430,6 +431,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.HKEYS:
             case RedisCommand.HLEN:
             case RedisCommand.HMGET:
+            case RedisCommand.HOTKEYS:
             case RedisCommand.HPEXPIRETIME:
             case RedisCommand.HPTTL:
             case RedisCommand.HRANDFIELD:
