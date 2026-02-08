@@ -100,10 +100,6 @@ public enum HotKeysMetrics
 /// </summary>
 public sealed partial class HotKeysResult
 {
-    internal HotKeysResult()
-    {
-    }
-
     /// <summary>
     /// Indicates whether the capture currently active.
     /// </summary>
@@ -131,28 +127,28 @@ public sealed partial class HotKeysResult
     /// </summary>
     public long TotalNetworkBytes { get; }
 
-    internal long CollectionStartTimeUnixMilliseconds { get; }
+    private long CollectionStartTimeUnixMilliseconds { get; }
 
     /// <summary>
     /// The start time of the capture.
     /// </summary>
     public DateTime CollectionStartTime => RedisBase.UnixEpoch.AddMilliseconds(CollectionStartTimeUnixMilliseconds);
 
-    internal long CollectionDurationMilliseconds { get; }
+    private long CollectionDurationMilliseconds { get; }
 
     /// <summary>
     /// The duration of the capture.
     /// </summary>
     public TimeSpan CollectionDuration => TimeSpan.FromMilliseconds(CollectionDurationMilliseconds);
 
-    internal long TotalCpuTimeUserMilliseconds { get; }
+    private long TotalCpuTimeUserMilliseconds { get; }
 
     /// <summary>
     /// The total user CPU time measured.
     /// </summary>
     public TimeSpan TotalCpuTimeUser => TimeSpan.FromMilliseconds(TotalCpuTimeUserMilliseconds);
 
-    internal long TotalCpuTimeSystemMilliseconds { get; }
+    private long TotalCpuTimeSystemMilliseconds { get; }
 
     /// <summary>
     /// The total system CPU measured.
@@ -203,6 +199,16 @@ public sealed partial class HotKeysResult
         /// The time taken.
         /// </summary>
         public TimeSpan Duration => TimeSpan.FromTicks(microSeconds / TicksPerMicroSeconds);
+
+        /// <inheritdoc/>
+        public override string ToString() => $"{_key}: {Duration}";
+
+        /// <inheritdoc/>
+        public override int GetHashCode() => _key.GetHashCode() ^ microSeconds.GetHashCode();
+
+        /// <inheritdoc/>
+        public override bool Equals(object? obj)
+            => obj is MetricKeyCpu other && _key.Equals(other.Key) && MicroSeconds == other.MicroSeconds;
     }
 
     /// <summary>
@@ -223,5 +229,15 @@ public sealed partial class HotKeysResult
         /// The network activity, in bytes.
         /// </summary>
         public long Bytes => bytes;
+
+        /// <inheritdoc/>
+        public override string ToString() => $"{_key}: {bytes}B";
+
+        /// <inheritdoc/>
+        public override int GetHashCode() => _key.GetHashCode() ^ bytes.GetHashCode();
+
+        /// <inheritdoc/>
+        public override bool Equals(object? obj)
+            => obj is MetricKeyBytes other && _key.Equals(other.Key) && Bytes == other.Bytes;
     }
 }

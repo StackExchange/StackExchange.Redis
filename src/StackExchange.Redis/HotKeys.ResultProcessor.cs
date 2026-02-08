@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-
-namespace StackExchange.Redis;
+﻿namespace StackExchange.Redis;
 
 public sealed partial class HotKeysResult
 {
@@ -92,38 +89,34 @@ public sealed partial class HotKeysResult
                         TotalNetworkBytes2 = i64;
                         break;
                     case by_cpu_time_us.Hash when by_cpu_time_us.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
-                        len = value.ItemsCount;
+                        len = value.ItemsCount / 2;
                         if (len == 0) continue;
 
                         var cpuTime = new MetricKeyCpu[len];
                         items = value.GetItems().GetEnumerator();
                         for (int i = 0; i < len && items.MoveNext(); i++)
                         {
-                            ref readonly RawResult pair = ref items.Current;
-                            if (pair.Resp2TypeArray is ResultType.Array
-                                && pair.ItemsCount == 2
-                                && pair[1].TryGetInt64(out var cpu))
+                            var metricKey = items.Current.AsRedisKey();
+                            if (items.MoveNext() && items.Current.TryGetInt64(out var metricValue))
                             {
-                                cpuTime[i] = new(pair[0].AsRedisKey(), cpu);
+                                cpuTime[i] = new(metricKey, metricValue);
                             }
                         }
 
                         CpuByKey = cpuTime;
                         break;
                     case by_net_bytes.Hash when by_net_bytes.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
-                        len = value.ItemsCount;
+                        len = value.ItemsCount / 2;
                         if (len == 0) continue;
 
                         var netBytes = new MetricKeyBytes[len];
                         items = value.GetItems().GetEnumerator();
                         for (int i = 0; i < len && items.MoveNext(); i++)
                         {
-                            ref readonly RawResult pair = ref items.Current;
-                            if (pair.Resp2TypeArray is ResultType.Array
-                                && pair.ItemsCount == 2
-                                && pair[1].TryGetInt64(out var bytes))
+                            var metricKey = items.Current.AsRedisKey();
+                            if (items.MoveNext() && items.Current.TryGetInt64(out var metricValue))
                             {
-                                netBytes[i] = new(pair[0].AsRedisKey(), bytes);
+                                netBytes[i] = new(metricKey, metricValue);
                             }
                         }
 

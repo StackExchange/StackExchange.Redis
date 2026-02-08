@@ -1,4 +1,10 @@
 ﻿#nullable enable
+override StackExchange.Redis.HotKeysResult.MetricKeyBytes.Equals(object? obj) -> bool
+override StackExchange.Redis.HotKeysResult.MetricKeyBytes.GetHashCode() -> int
+override StackExchange.Redis.HotKeysResult.MetricKeyBytes.ToString() -> string!
+override StackExchange.Redis.HotKeysResult.MetricKeyCpu.Equals(object? obj) -> bool
+override StackExchange.Redis.HotKeysResult.MetricKeyCpu.GetHashCode() -> int
+override StackExchange.Redis.HotKeysResult.MetricKeyCpu.ToString() -> string!
 StackExchange.Redis.HotKeysMetrics
 StackExchange.Redis.HotKeysMetrics.Cpu = 1 -> StackExchange.Redis.HotKeysMetrics
 StackExchange.Redis.HotKeysMetrics.Network = 2 -> StackExchange.Redis.HotKeysMetrics

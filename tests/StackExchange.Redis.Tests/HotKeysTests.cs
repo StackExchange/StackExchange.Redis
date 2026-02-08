@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -7,7 +8,7 @@ namespace StackExchange.Redis.Tests;
 public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     private IInternalConnectionMultiplexer GetServer(out IServer server)
-        => GetServer(RedisKey.Null,  out server);
+        => GetServer(RedisKey.Null, out server);
 
     private IInternalConnectionMultiplexer GetServer(in RedisKey key, out IServer server)
     {
@@ -52,20 +53,50 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         RedisKey key = Me();
         using var muxer = GetServer(key, out var server);
         server.HotKeysStart();
-        muxer.GetDatabase().StringSet(key, "value1");
+        var db = muxer.GetDatabase();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 20; i++)
+        {
+            db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+        }
+
         var result = server.HotKeysGet();
         Assert.NotNull(result);
         Assert.True(result.TrackingActive);
+        CheckSimpleWithKey(key, result);
 
         Assert.True(server.HotKeysStop());
         result = server.HotKeysGet();
         Assert.NotNull(result);
         Assert.False(result.TrackingActive);
-        Assert.NotNull(result);
+        CheckSimpleWithKey(key, result);
 
         server.HotKeysReset();
         result = server.HotKeysGet();
         Assert.Null(result);
+    }
+
+    private static void CheckSimpleWithKey(RedisKey key, HotKeysResult hotKeys)
+    {
+        Assert.True(hotKeys.CollectionDuration > TimeSpan.Zero);
+        Assert.True(hotKeys.CollectionStartTime > new DateTime(2026, 2, 1));
+        var cpu = Assert.Single(hotKeys.CpuByKey);
+        Assert.Equal(key, cpu.Key);
+        Assert.True(cpu.Duration > TimeSpan.Zero);
+        var net = Assert.Single(hotKeys.NetworkBytesByKey);
+        Assert.Equal(key, net.Key);
+        Assert.True(net.Bytes > 0);
+
+        Assert.Equal(1, hotKeys.SampleRatio);
+        var slots = Assert.Single(hotKeys.SelectedSlots);
+        Assert.Equal(0, slots.From);
+        Assert.Equal(16383, slots.To);
+
+        Assert.True(hotKeys.TotalCpuTime > TimeSpan.Zero);
+        Assert.True(hotKeys.TotalCpuTimeSystem >= TimeSpan.Zero);
+        Assert.True(hotKeys.TotalCpuTimeUser >= TimeSpan.Zero);
+        Assert.True(hotKeys.TotalNetworkBytes > 0);
+        Assert.True(hotKeys.TotalNetworkBytes2 > 0);
     }
 
     [Fact]
@@ -74,16 +105,23 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         RedisKey key = Me();
         await using var muxer = GetServer(key, out var server);
         await server.HotKeysStartAsync();
-        await muxer.GetDatabase().StringSetAsync(key, "value1");
+        var db = muxer.GetDatabase();
+        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 20; i++)
+        {
+            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
+        }
+
         var result = await server.HotKeysGetAsync();
         Assert.NotNull(result);
         Assert.True(result.TrackingActive);
+        CheckSimpleWithKey(key, result);
 
         Assert.True(await server.HotKeysStopAsync());
         result = await server.HotKeysGetAsync();
         Assert.NotNull(result);
         Assert.False(result.TrackingActive);
-        Assert.NotNull(result);
+        CheckSimpleWithKey(key, result);
 
         await server.HotKeysResetAsync();
         result = await server.HotKeysGetAsync();
