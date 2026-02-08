@@ -8,7 +8,7 @@ Current package versions:
 
 ## unreleased
 
-- `HOTKEYS` support
+- Add support for `HOTKEYS` ([#3008 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3008))
 
 ## 2.10.14
 
