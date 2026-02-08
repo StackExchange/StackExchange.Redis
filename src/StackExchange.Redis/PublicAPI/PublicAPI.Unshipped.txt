@@ -1,42 +1,42 @@
 ﻿#nullable enable
-override StackExchange.Redis.HotKeysResult.MetricKeyBytes.Equals(object? obj) -> bool
-override StackExchange.Redis.HotKeysResult.MetricKeyBytes.GetHashCode() -> int
-override StackExchange.Redis.HotKeysResult.MetricKeyBytes.ToString() -> string!
-override StackExchange.Redis.HotKeysResult.MetricKeyCpu.Equals(object? obj) -> bool
-override StackExchange.Redis.HotKeysResult.MetricKeyCpu.GetHashCode() -> int
-override StackExchange.Redis.HotKeysResult.MetricKeyCpu.ToString() -> string!
-StackExchange.Redis.HotKeysMetrics
-StackExchange.Redis.HotKeysMetrics.Cpu = 1 -> StackExchange.Redis.HotKeysMetrics
-StackExchange.Redis.HotKeysMetrics.Network = 2 -> StackExchange.Redis.HotKeysMetrics
-StackExchange.Redis.HotKeysResult
-StackExchange.Redis.HotKeysResult.CollectionDuration.get -> System.TimeSpan
-StackExchange.Redis.HotKeysResult.CollectionStartTime.get -> System.DateTime
-StackExchange.Redis.HotKeysResult.CpuByKey.get -> StackExchange.Redis.HotKeysResult.MetricKeyCpu[]!
-StackExchange.Redis.HotKeysResult.MetricKeyBytes
-StackExchange.Redis.HotKeysResult.MetricKeyBytes.Bytes.get -> long
-StackExchange.Redis.HotKeysResult.MetricKeyBytes.Key.get -> StackExchange.Redis.RedisKey
-StackExchange.Redis.HotKeysResult.MetricKeyBytes.MetricKeyBytes() -> void
-StackExchange.Redis.HotKeysResult.MetricKeyBytes.MetricKeyBytes(in StackExchange.Redis.RedisKey key, long bytes) -> void
-StackExchange.Redis.HotKeysResult.MetricKeyCpu
-StackExchange.Redis.HotKeysResult.MetricKeyCpu.Duration.get -> System.TimeSpan
-StackExchange.Redis.HotKeysResult.MetricKeyCpu.Key.get -> StackExchange.Redis.RedisKey
-StackExchange.Redis.HotKeysResult.MetricKeyCpu.MetricKeyCpu() -> void
-StackExchange.Redis.HotKeysResult.MetricKeyCpu.MetricKeyCpu(in StackExchange.Redis.RedisKey key, long microSeconds) -> void
-StackExchange.Redis.HotKeysResult.MetricKeyCpu.MicroSeconds.get -> long
-StackExchange.Redis.HotKeysResult.NetworkBytesByKey.get -> StackExchange.Redis.HotKeysResult.MetricKeyBytes[]!
-StackExchange.Redis.HotKeysResult.SampleRatio.get -> long
-StackExchange.Redis.HotKeysResult.SelectedSlots.get -> StackExchange.Redis.SlotRange[]!
-StackExchange.Redis.HotKeysResult.TotalCpuTime.get -> System.TimeSpan
-StackExchange.Redis.HotKeysResult.TotalCpuTimeSystem.get -> System.TimeSpan
-StackExchange.Redis.HotKeysResult.TotalCpuTimeUser.get -> System.TimeSpan
-StackExchange.Redis.HotKeysResult.TotalNetworkBytes.get -> long
-StackExchange.Redis.HotKeysResult.TotalNetworkBytes2.get -> long
-StackExchange.Redis.HotKeysResult.TrackingActive.get -> bool
-StackExchange.Redis.IServer.HotKeysGet(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.HotKeysResult?
-StackExchange.Redis.IServer.HotKeysGetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.HotKeysResult?>!
-StackExchange.Redis.IServer.HotKeysReset(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
-StackExchange.Redis.IServer.HotKeysResetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
-StackExchange.Redis.IServer.HotKeysStart(StackExchange.Redis.HotKeysMetrics metrics = (StackExchange.Redis.HotKeysMetrics)-1, long count = 0, System.TimeSpan duration = default(System.TimeSpan), long sampleRatio = 1, short[]? slots = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
-StackExchange.Redis.IServer.HotKeysStartAsync(StackExchange.Redis.HotKeysMetrics metrics = (StackExchange.Redis.HotKeysMetrics)-1, long count = 0, System.TimeSpan duration = default(System.TimeSpan), long sampleRatio = 1, short[]? slots = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
-StackExchange.Redis.IServer.HotKeysStop(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
-StackExchange.Redis.IServer.HotKeysStopAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER003]StackExchange.Redis.HotKeysMetrics
+[SER003]StackExchange.Redis.HotKeysMetrics.Cpu = 1 -> StackExchange.Redis.HotKeysMetrics
+[SER003]StackExchange.Redis.HotKeysMetrics.Network = 2 -> StackExchange.Redis.HotKeysMetrics
+[SER003]StackExchange.Redis.HotKeysResult
+[SER003]StackExchange.Redis.HotKeysResult.CollectionDuration.get -> System.TimeSpan
+[SER003]StackExchange.Redis.HotKeysResult.CollectionStartTime.get -> System.DateTime
+[SER003]StackExchange.Redis.HotKeysResult.CpuByKey.get -> StackExchange.Redis.HotKeysResult.MetricKeyCpu[]!
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyBytes
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyBytes.Bytes.get -> long
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyBytes.Key.get -> StackExchange.Redis.RedisKey
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyBytes.MetricKeyBytes() -> void
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyBytes.MetricKeyBytes(in StackExchange.Redis.RedisKey key, long bytes) -> void
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyCpu
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyCpu.Duration.get -> System.TimeSpan
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyCpu.Key.get -> StackExchange.Redis.RedisKey
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyCpu.MetricKeyCpu() -> void
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyCpu.MetricKeyCpu(in StackExchange.Redis.RedisKey key, long microSeconds) -> void
+[SER003]StackExchange.Redis.HotKeysResult.MetricKeyCpu.MicroSeconds.get -> long
+[SER003]StackExchange.Redis.HotKeysResult.NetworkBytesByKey.get -> StackExchange.Redis.HotKeysResult.MetricKeyBytes[]!
+[SER003]StackExchange.Redis.HotKeysResult.SampleRatio.get -> long
+[SER003]StackExchange.Redis.HotKeysResult.SelectedSlots.get -> StackExchange.Redis.SlotRange[]!
+[SER003]StackExchange.Redis.HotKeysResult.TotalCpuTime.get -> System.TimeSpan
+[SER003]StackExchange.Redis.HotKeysResult.TotalCpuTimeSystem.get -> System.TimeSpan
+[SER003]StackExchange.Redis.HotKeysResult.TotalCpuTimeUser.get -> System.TimeSpan
+[SER003]StackExchange.Redis.HotKeysResult.TotalNetworkBytes.get -> long
+[SER003]StackExchange.Redis.HotKeysResult.TotalNetworkBytes2.get -> long
+[SER003]StackExchange.Redis.HotKeysResult.TrackingActive.get -> bool
+[SER003]StackExchange.Redis.IServer.HotKeysGet(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.HotKeysResult?
+[SER003]StackExchange.Redis.IServer.HotKeysGetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.HotKeysResult?>!
+[SER003]StackExchange.Redis.IServer.HotKeysReset(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+[SER003]StackExchange.Redis.IServer.HotKeysResetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+[SER003]StackExchange.Redis.IServer.HotKeysStart(StackExchange.Redis.HotKeysMetrics metrics = (StackExchange.Redis.HotKeysMetrics)-1, long count = 0, System.TimeSpan duration = default(System.TimeSpan), long sampleRatio = 1, short[]? slots = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+[SER003]StackExchange.Redis.IServer.HotKeysStartAsync(StackExchange.Redis.HotKeysMetrics metrics = (StackExchange.Redis.HotKeysMetrics)-1, long count = 0, System.TimeSpan duration = default(System.TimeSpan), long sampleRatio = 1, short[]? slots = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+[SER003]StackExchange.Redis.IServer.HotKeysStop(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+[SER003]StackExchange.Redis.IServer.HotKeysStopAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER003]override StackExchange.Redis.HotKeysResult.MetricKeyBytes.Equals(object? obj) -> bool
+[SER003]override StackExchange.Redis.HotKeysResult.MetricKeyBytes.GetHashCode() -> int
+[SER003]override StackExchange.Redis.HotKeysResult.MetricKeyBytes.ToString() -> string!
+[SER003]override StackExchange.Redis.HotKeysResult.MetricKeyCpu.Equals(object? obj) -> bool
+[SER003]override StackExchange.Redis.HotKeysResult.MetricKeyCpu.GetHashCode() -> int
+[SER003]override StackExchange.Redis.HotKeysResult.MetricKeyCpu.ToString() -> string!

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
@@ -14,6 +15,7 @@ public partial interface IServer
     /// <param name="sampleRatio">Profiling frequency; effectively: measure every Nth command.</param>
     /// <param name="slots">The key-slots to record during this capture (defaults to "all").</param>
     /// <param name="flags">The command flags to use.</param>
+    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     void HotKeysStart(
         HotKeysMetrics metrics = (HotKeysMetrics)~0, // everything by default
         long count = 0,
@@ -31,6 +33,7 @@ public partial interface IServer
     /// <param name="sampleRatio">Profiling frequency; effectively: measure every Nth command.</param>
     /// <param name="slots">The key-slots to record during this capture (defaults to "all").</param>
     /// <param name="flags">The command flags to use.</param>
+    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     Task HotKeysStartAsync(
         HotKeysMetrics metrics = (HotKeysMetrics)~0, // everything by default
         long count = 0,
@@ -43,24 +46,28 @@ public partial interface IServer
     /// Stop the current <c>HOTKEYS</c> capture, if any.
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
+    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     bool HotKeysStop(CommandFlags flags = CommandFlags.None);
 
     /// <summary>
     /// Stop the current <c>HOTKEYS</c> capture, if any.
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
+    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     Task<bool> HotKeysStopAsync(CommandFlags flags = CommandFlags.None);
 
     /// <summary>
     /// Discard the last <c>HOTKEYS</c> capture data, if any.
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
+    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     void HotKeysReset(CommandFlags flags = CommandFlags.None);
 
     /// <summary>
     /// Discard the last <c>HOTKEYS</c> capture data, if any.
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
+    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     Task HotKeysResetAsync(CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -68,6 +75,7 @@ public partial interface IServer
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
     /// <returns>The data captured during <c>HOTKEYS</c> profiling.</returns>
+    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     HotKeysResult? HotKeysGet(CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -75,6 +83,7 @@ public partial interface IServer
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
     /// <returns>The data captured during <c>HOTKEYS</c> profiling.</returns>
+    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     Task<HotKeysResult?> HotKeysGetAsync(CommandFlags flags = CommandFlags.None);
 }
 
@@ -82,6 +91,7 @@ public partial interface IServer
 /// Metrics to record during <c>HOTKEYS</c> profiling.
 /// </summary>
 [Flags]
+[Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
 public enum HotKeysMetrics
 {
     /// <summary>
@@ -98,6 +108,7 @@ public enum HotKeysMetrics
 /// <summary>
 /// Captured data from <c>HOTKEYS</c> profiling.
 /// </summary>
+[Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
 public sealed partial class HotKeysResult
 {
     /// <summary>
