@@ -5,15 +5,6 @@ namespace StackExchange.Redis;
 
 public partial interface IServer
 {
-    /*
-    HOTKEYS
-        <METRICS count [CPU] [NET]>
-        [COUNT k]
-        [DURATION duration]
-        [SAMPLE ratio]
-        [SLOTS count slot…]
-    */
-
     /// <summary>
     /// Start a new <c>HOTKEYS</c> profiling session.
     /// </summary>
@@ -77,14 +68,14 @@ public partial interface IServer
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
     /// <returns>The data captured during <c>HOTKEYS</c> profiling.</returns>
-    HotKeysResult HotKeysGet(CommandFlags flags = CommandFlags.None);
+    HotKeysResult? HotKeysGet(CommandFlags flags = CommandFlags.None);
 
     /// <summary>
     /// Fetch the most recent <c>HOTKEYS</c> profiling data.
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
     /// <returns>The data captured during <c>HOTKEYS</c> profiling.</returns>
-    Task<HotKeysResult> HotKeysGetAsync(CommandFlags flags = CommandFlags.None);
+    Task<HotKeysResult?> HotKeysGetAsync(CommandFlags flags = CommandFlags.None);
 }
 
 /// <summary>
@@ -107,7 +98,7 @@ public enum HotKeysMetrics
 /// <summary>
 /// Captured data from <c>HOTKEYS</c> profiling.
 /// </summary>
-public sealed class HotKeysResult
+public sealed partial class HotKeysResult
 {
     internal HotKeysResult()
     {
@@ -116,45 +107,45 @@ public sealed class HotKeysResult
     /// <summary>
     /// Indicates whether the capture currently active.
     /// </summary>
-    public bool TrackingActive { get; internal set; }
+    public bool TrackingActive { get; }
 
     /// <summary>
     /// Profiling frequency; effectively: measure every Nth command.
     /// </summary>
-    public long SampleRatio { get; internal set; }
+    public long SampleRatio { get; }
 
     /// <summary>
     /// The total CPU measured for all commands in all slots.
     /// </summary>
-    public TimeSpan TotalCpuTime { get; internal set; }
+    public TimeSpan TotalCpuTime { get; }
 
     /// <summary>
     /// The total network usage measured for all commands in all slots.
     /// </summary>
-    public long TotalNetworkBytes { get; internal set; }
+    public long TotalNetworkBytes { get; }
 
-    internal long CollectionStartTimeUnixMilliseconds { get; set; }
+    internal long CollectionStartTimeUnixMilliseconds { get; }
 
     /// <summary>
     /// The start time of the capture.
     /// </summary>
     public DateTime CollectionStartTime => RedisBase.UnixEpoch.AddMilliseconds(CollectionStartTimeUnixMilliseconds);
 
-    internal long CollectionDurationMilliseconds { get; set; }
+    internal long CollectionDurationMilliseconds { get; }
 
     /// <summary>
     /// The duration of the capture.
     /// </summary>
     public TimeSpan CollectionDuration => TimeSpan.FromMilliseconds(CollectionDurationMilliseconds);
 
-    internal long TotalCpuTimeUserMilliseconds { get; set; }
+    internal long TotalCpuTimeUserMilliseconds { get; }
 
     /// <summary>
     /// The total user CPU time measured.
     /// </summary>
     public TimeSpan TotalCpuTimeUser => TimeSpan.FromMilliseconds(TotalCpuTimeUserMilliseconds);
 
-    internal long TotalCpuTimeSystemMilliseconds { get; set; }
+    internal long TotalCpuTimeSystemMilliseconds { get; }
 
     /// <summary>
     /// The total system CPU measured.
@@ -164,7 +155,7 @@ public sealed class HotKeysResult
     /// <summary>
     /// The total network data measured.
     /// </summary>
-    public long TotalNetworkBytes2 { get; internal set; } // total-net-bytes vs net-bytes-all-commands-all-slots
+    public long TotalNetworkBytes2 { get; } // total-net-bytes vs net-bytes-all-commands-all-slots
 
     // Intentionally do construct a dictionary from the results; the caller is unlikely to be looking
     // for a particular key (lookup), but rather: is likely to want to list them for display; this way,
@@ -173,12 +164,12 @@ public sealed class HotKeysResult
     /// <summary>
     /// Hot keys, as measured by CPU activity.
     /// </summary>
-    public MetricKeyCpu[] CpuByKey { get; internal set; } = [];
+    public MetricKeyCpu[] CpuByKey { get; } = [];
 
     /// <summary>
     /// Hot keys, as measured by network activity.
     /// </summary>
-    public MetricKeyBytes[] NetworkBytesByKey { get; internal set; } = [];
+    public MetricKeyBytes[] NetworkBytesByKey { get; } = [];
 
     private const long TicksPerMicroSeconds = TimeSpan.TicksPerMillisecond / 1000; // 10, but: clearer
 
@@ -225,52 +216,5 @@ public sealed class HotKeysResult
         /// The network activity, in bytes.
         /// </summary>
         public long Bytes => bytes;
-    }
-}
-
-internal partial class RedisServer
-{
-    public void HotKeysStart(
-        HotKeysMetrics metrics = (HotKeysMetrics)~0,
-        long count = -1,
-        TimeSpan duration = default,
-        long sampleRatio = 1,
-        short[]? slots = null,
-        CommandFlags flags = CommandFlags.None)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task HotKeysStartAsync(
-        HotKeysMetrics metrics = (HotKeysMetrics)~0,
-        long count = -1,
-        TimeSpan duration = default,
-        long sampleRatio = 1,
-        short[]? slots = null,
-        CommandFlags flags = CommandFlags.None)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void HotKeysStop(CommandFlags flags = CommandFlags.None)
-        => ExecuteAsync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.STOP), ResultProcessor.DemandOK, server);
-
-    public Task HotKeysStopAsync(CommandFlags flags = CommandFlags.None)
-        => ExecuteAsync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.STOP), ResultProcessor.DemandOK, server);
-
-    public void HotKeysReset(CommandFlags flags = CommandFlags.None)
-        => ExecuteSync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.RESET), ResultProcessor.DemandOK, server);
-
-    public Task HotKeysResetAsync(CommandFlags flags = CommandFlags.None)
-        => ExecuteAsync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.RESET), ResultProcessor.DemandOK, server);
-
-    public HotKeysResult HotKeysGet(CommandFlags flags = CommandFlags.None)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<HotKeysResult> HotKeysGetAsync(CommandFlags flags = CommandFlags.None)
-    {
-        throw new NotImplementedException();
     }
 }

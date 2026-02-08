@@ -35,6 +35,8 @@
     <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' " />
 
     <None Include="README.md" Pack="true" PackagePath="\"/>
+
+    <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
   </ItemGroup>
 
   <ItemGroup>

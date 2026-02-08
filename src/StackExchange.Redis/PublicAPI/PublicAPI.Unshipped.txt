@@ -25,8 +25,8 @@ StackExchange.Redis.HotKeysResult.TotalCpuTimeUser.get -> System.TimeSpan
 StackExchange.Redis.HotKeysResult.TotalNetworkBytes.get -> long
 StackExchange.Redis.HotKeysResult.TotalNetworkBytes2.get -> long
 StackExchange.Redis.HotKeysResult.TrackingActive.get -> bool
-StackExchange.Redis.IServer.HotKeysGet(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.HotKeysResult!
-StackExchange.Redis.IServer.HotKeysGetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.HotKeysResult!>!
+StackExchange.Redis.IServer.HotKeysGet(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.HotKeysResult?
+StackExchange.Redis.IServer.HotKeysGetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.HotKeysResult?>!
 StackExchange.Redis.IServer.HotKeysReset(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.HotKeysResetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.HotKeysStart(StackExchange.Redis.HotKeysMetrics metrics = (StackExchange.Redis.HotKeysMetrics)-1, long count = -1, System.TimeSpan duration = default(System.TimeSpan), long sampleRatio = 1, short[]? slots = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
