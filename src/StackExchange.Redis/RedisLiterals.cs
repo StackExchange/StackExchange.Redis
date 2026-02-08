@@ -144,6 +144,7 @@ namespace StackExchange.Redis
             SETNAME = "SETNAME",
             SKIPME = "SKIPME",
             STATS = "STATS",
+            STOP = "STOP",
             STORE = "STORE",
             TYPE = "TYPE",
             USERNAME = "USERNAME",
