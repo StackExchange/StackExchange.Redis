@@ -16,7 +16,7 @@ internal partial class RedisServer
         protected override void WriteImpl(PhysicalConnection physical)
         {
             /*
-           HOTKEYS
+           HOTKEYS START
                <METRICS count [CPU] [NET]>
                [COUNT k]
                [DURATION duration]
@@ -24,6 +24,7 @@ internal partial class RedisServer
                [SLOTS count slot…]
            */
             physical.WriteHeader(Command, ArgCount);
+            physical.WriteBulkString("START"u8);
             physical.WriteBulkString("METRICS"u8);
             var metricCount = 0;
             if ((metrics & HotKeysMetrics.Cpu) != 0) metricCount++;
@@ -65,7 +66,7 @@ internal partial class RedisServer
         {
             get
             {
-                int argCount = 2;
+                int argCount = 3;
                 if ((metrics & HotKeysMetrics.Cpu) != 0) argCount++;
                 if ((metrics & HotKeysMetrics.Network) != 0) argCount++;
                 if (count != 0) argCount += 2;

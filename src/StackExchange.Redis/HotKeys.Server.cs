@@ -7,7 +7,7 @@ internal partial class RedisServer
 {
     public void HotKeysStart(
         HotKeysMetrics metrics = (HotKeysMetrics)~0,
-        long count = -1,
+        long count = 0,
         TimeSpan duration = default,
         long sampleRatio = 1,
         short[]? slots = null,
@@ -18,7 +18,7 @@ internal partial class RedisServer
 
     public Task HotKeysStartAsync(
         HotKeysMetrics metrics = (HotKeysMetrics)~0,
-        long count = -1,
+        long count = 0,
         TimeSpan duration = default,
         long sampleRatio = 1,
         short[]? slots = null,

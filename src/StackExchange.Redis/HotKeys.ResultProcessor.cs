@@ -17,11 +17,16 @@ public sealed partial class HotKeysResult
                 return true;
             }
 
-            if (result.Resp2TypeBulkString == ResultType.Array)
+            // an array with a single element that *is* an array/map that is the results
+            if (result is { Resp2TypeArray: ResultType.Array, ItemsCount: 1 })
             {
-                var hotKeys = new HotKeysResult(in result);
-                SetResult(message, hotKeys);
-                return true;
+                ref readonly RawResult inner = ref result[0];
+                if (inner is { Resp2TypeArray: ResultType.Array, IsNull: false })
+                {
+                    var hotKeys = new HotKeysResult(in inner);
+                    SetResult(message, hotKeys);
+                    return true;
+                }
             }
 
             return false;
@@ -40,13 +45,13 @@ public sealed partial class HotKeysResult
                 var hash = key.Payload.Hash64();
                 switch (hash)
                 {
-                    case tracking_active.Hash when tracking_active.Is(hash, value):
+                    case tracking_active.Hash when tracking_active.Is(hash, key):
                         TrackingActive = value.GetBoolean();
                         break;
-                    case sample_ratio.Hash when sample_ratio.Is(hash, value) && value.TryGetInt64(out var i64):
+                    case sample_ratio.Hash when sample_ratio.Is(hash, key) && value.TryGetInt64(out var i64):
                         SampleRatio = i64;
                         break;
-                    case selected_slots.Hash when selected_slots.Is(hash, value) & value.Resp2TypeArray is ResultType.Array:
+                    case selected_slots.Hash when selected_slots.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
                         var len = value.ItemsCount;
                         if (len == 0) continue;
 
@@ -65,28 +70,28 @@ public sealed partial class HotKeysResult
                         }
                         SelectedSlots = slots;
                         break;
-                    case all_commands_all_slots_us.Hash when all_commands_all_slots_us.Is(hash, value) && value.TryGetInt64(out var i64):
+                    case all_commands_all_slots_us.Hash when all_commands_all_slots_us.Is(hash, key) && value.TryGetInt64(out var i64):
                         TotalCpuTimeMilliseconds = i64;
                         break;
-                    case net_bytes_all_commands_all_slots.Hash when net_bytes_all_commands_all_slots.Is(hash, value) && value.TryGetInt64(out var i64):
+                    case net_bytes_all_commands_all_slots.Hash when net_bytes_all_commands_all_slots.Is(hash, key) && value.TryGetInt64(out var i64):
                         TotalNetworkBytes = i64;
                         break;
-                    case collection_start_time_unix_ms.Hash when collection_start_time_unix_ms.Is(hash, value) && value.TryGetInt64(out var i64):
+                    case collection_start_time_unix_ms.Hash when collection_start_time_unix_ms.Is(hash, key) && value.TryGetInt64(out var i64):
                         CollectionStartTimeUnixMilliseconds = i64;
                         break;
-                    case collection_duration_ms.Hash when collection_duration_ms.Is(hash, value) && value.TryGetInt64(out var i64):
+                    case collection_duration_ms.Hash when collection_duration_ms.Is(hash, key) && value.TryGetInt64(out var i64):
                         CollectionDurationMilliseconds = i64;
                         break;
-                    case total_cpu_time_sys_ms.Hash when total_cpu_time_sys_ms.Is(hash, value) && value.TryGetInt64(out var i64):
+                    case total_cpu_time_sys_ms.Hash when total_cpu_time_sys_ms.Is(hash, key) && value.TryGetInt64(out var i64):
                         TotalCpuTimeSystemMilliseconds = i64;
                         break;
-                    case total_cpu_time_user_ms.Hash when total_cpu_time_user_ms.Is(hash, value) && value.TryGetInt64(out var i64):
+                    case total_cpu_time_user_ms.Hash when total_cpu_time_user_ms.Is(hash, key) && value.TryGetInt64(out var i64):
                         TotalCpuTimeUserMilliseconds = i64;
                         break;
-                    case total_net_bytes.Hash when total_net_bytes.Is(hash, value) && value.TryGetInt64(out var i64):
+                    case total_net_bytes.Hash when total_net_bytes.Is(hash, key) && value.TryGetInt64(out var i64):
                         TotalNetworkBytes2 = i64;
                         break;
-                    case by_cpu_time_us.Hash when by_cpu_time_us.Is(hash, value) & value.Resp2TypeArray is ResultType.Array:
+                    case by_cpu_time_us.Hash when by_cpu_time_us.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
                         len = value.ItemsCount;
                         if (len == 0) continue;
 
@@ -105,7 +110,7 @@ public sealed partial class HotKeysResult
 
                         CpuByKey = cpuTime;
                         break;
-                    case by_net_bytes.Hash when by_net_bytes.Is(hash, value) & value.Resp2TypeArray is ResultType.Array:
+                    case by_net_bytes.Hash when by_net_bytes.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
                         len = value.ItemsCount;
                         if (len == 0) continue;
 

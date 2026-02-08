@@ -16,7 +16,7 @@ public partial interface IServer
     /// <param name="flags">The command flags to use.</param>
     void HotKeysStart(
         HotKeysMetrics metrics = (HotKeysMetrics)~0, // everything by default
-        long count = -1,
+        long count = 0,
         TimeSpan duration = default,
         long sampleRatio = 1,
         short[]? slots = null,
@@ -33,7 +33,7 @@ public partial interface IServer
     /// <param name="flags">The command flags to use.</param>
     Task HotKeysStartAsync(
         HotKeysMetrics metrics = (HotKeysMetrics)~0, // everything by default
-        long count = -1,
+        long count = 0,
         TimeSpan duration = default,
         long sampleRatio = 1,
         short[]? slots = null,
