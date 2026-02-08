@@ -43,6 +43,87 @@ public sealed partial class HotKeysResult
                     case tracking_active.Hash when tracking_active.Is(hash, value):
                         TrackingActive = value.GetBoolean();
                         break;
+                    case sample_ratio.Hash when sample_ratio.Is(hash, value) && value.TryGetInt64(out var i64):
+                        SampleRatio = i64;
+                        break;
+                    case selected_slots.Hash when selected_slots.Is(hash, value) & value.Resp2TypeArray is ResultType.Array:
+                        var len = value.ItemsCount;
+                        if (len == 0) continue;
+
+                        var items = value.GetItems().GetEnumerator();
+                        var slots = new SlotRange[len];
+                        for (int i = 0; i < len && items.MoveNext(); i++)
+                        {
+                            ref readonly RawResult pair = ref items.Current;
+                            if (pair.Resp2TypeArray is ResultType.Array
+                                && pair.ItemsCount == 2
+                                && pair[0].TryGetInt64(out var from)
+                                && pair[1].TryGetInt64(out var to))
+                            {
+                                slots[i] = new((int)from, (int)to);
+                            }
+                        }
+                        SelectedSlots = slots;
+                        break;
+                    case all_commands_all_slots_us.Hash when all_commands_all_slots_us.Is(hash, value) && value.TryGetInt64(out var i64):
+                        TotalCpuTimeMilliseconds = i64;
+                        break;
+                    case net_bytes_all_commands_all_slots.Hash when net_bytes_all_commands_all_slots.Is(hash, value) && value.TryGetInt64(out var i64):
+                        TotalNetworkBytes = i64;
+                        break;
+                    case collection_start_time_unix_ms.Hash when collection_start_time_unix_ms.Is(hash, value) && value.TryGetInt64(out var i64):
+                        CollectionStartTimeUnixMilliseconds = i64;
+                        break;
+                    case collection_duration_ms.Hash when collection_duration_ms.Is(hash, value) && value.TryGetInt64(out var i64):
+                        CollectionDurationMilliseconds = i64;
+                        break;
+                    case total_cpu_time_sys_ms.Hash when total_cpu_time_sys_ms.Is(hash, value) && value.TryGetInt64(out var i64):
+                        TotalCpuTimeSystemMilliseconds = i64;
+                        break;
+                    case total_cpu_time_user_ms.Hash when total_cpu_time_user_ms.Is(hash, value) && value.TryGetInt64(out var i64):
+                        TotalCpuTimeUserMilliseconds = i64;
+                        break;
+                    case total_net_bytes.Hash when total_net_bytes.Is(hash, value) && value.TryGetInt64(out var i64):
+                        TotalNetworkBytes2 = i64;
+                        break;
+                    case by_cpu_time_us.Hash when by_cpu_time_us.Is(hash, value) & value.Resp2TypeArray is ResultType.Array:
+                        len = value.ItemsCount;
+                        if (len == 0) continue;
+
+                        var cpuTime = new MetricKeyCpu[len];
+                        items = value.GetItems().GetEnumerator();
+                        for (int i = 0; i < len && items.MoveNext(); i++)
+                        {
+                            ref readonly RawResult pair = ref items.Current;
+                            if (pair.Resp2TypeArray is ResultType.Array
+                                && pair.ItemsCount == 2
+                                && pair[1].TryGetInt64(out var cpu))
+                            {
+                                cpuTime[i] = new(pair[0].AsRedisKey(), cpu);
+                            }
+                        }
+
+                        CpuByKey = cpuTime;
+                        break;
+                    case by_net_bytes.Hash when by_net_bytes.Is(hash, value) & value.Resp2TypeArray is ResultType.Array:
+                        len = value.ItemsCount;
+                        if (len == 0) continue;
+
+                        var netBytes = new MetricKeyBytes[len];
+                        items = value.GetItems().GetEnumerator();
+                        for (int i = 0; i < len && items.MoveNext(); i++)
+                        {
+                            ref readonly RawResult pair = ref items.Current;
+                            if (pair.Resp2TypeArray is ResultType.Array
+                                && pair.ItemsCount == 2
+                                && pair[1].TryGetInt64(out var bytes))
+                            {
+                                netBytes[i] = new(pair[0].AsRedisKey(), bytes);
+                            }
+                        }
+
+                        NetworkBytesByKey = netBytes;
+                        break;
                 }
             }
         }
@@ -51,6 +132,18 @@ public sealed partial class HotKeysResult
 #pragma warning disable SA1134, SA1300
     // ReSharper disable InconsistentNaming
     [FastHash] internal static partial class tracking_active { }
+    [FastHash] internal static partial class sample_ratio { }
+    [FastHash] internal static partial class selected_slots { }
+    [FastHash] internal static partial class all_commands_all_slots_us { }
+    [FastHash] internal static partial class net_bytes_all_commands_all_slots { }
+    [FastHash] internal static partial class collection_start_time_unix_ms { }
+    [FastHash] internal static partial class collection_duration_ms { }
+    [FastHash] internal static partial class total_cpu_time_user_ms { }
+    [FastHash] internal static partial class total_cpu_time_sys_ms { }
+    [FastHash] internal static partial class total_net_bytes { }
+    [FastHash] internal static partial class by_cpu_time_us { }
+    [FastHash] internal static partial class by_net_bytes { }
+
     // ReSharper restore InconsistentNaming
 #pragma warning restore SA1134, SA1300
 }

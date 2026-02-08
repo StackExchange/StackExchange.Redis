@@ -19,6 +19,7 @@ StackExchange.Redis.HotKeysResult.MetricKeyCpu.MetricKeyCpu(in StackExchange.Red
 StackExchange.Redis.HotKeysResult.MetricKeyCpu.MicroSeconds.get -> long
 StackExchange.Redis.HotKeysResult.NetworkBytesByKey.get -> StackExchange.Redis.HotKeysResult.MetricKeyBytes[]!
 StackExchange.Redis.HotKeysResult.SampleRatio.get -> long
+StackExchange.Redis.HotKeysResult.SelectedSlots.get -> StackExchange.Redis.SlotRange[]!
 StackExchange.Redis.HotKeysResult.TotalCpuTime.get -> System.TimeSpan
 StackExchange.Redis.HotKeysResult.TotalCpuTimeSystem.get -> System.TimeSpan
 StackExchange.Redis.HotKeysResult.TotalCpuTimeUser.get -> System.TimeSpan
@@ -31,5 +32,5 @@ StackExchange.Redis.IServer.HotKeysReset(StackExchange.Redis.CommandFlags flags 
 StackExchange.Redis.IServer.HotKeysResetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
 StackExchange.Redis.IServer.HotKeysStart(StackExchange.Redis.HotKeysMetrics metrics = (StackExchange.Redis.HotKeysMetrics)-1, long count = -1, System.TimeSpan duration = default(System.TimeSpan), long sampleRatio = 1, short[]? slots = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
 StackExchange.Redis.IServer.HotKeysStartAsync(StackExchange.Redis.HotKeysMetrics metrics = (StackExchange.Redis.HotKeysMetrics)-1, long count = -1, System.TimeSpan duration = default(System.TimeSpan), long sampleRatio = 1, short[]? slots = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
-StackExchange.Redis.IServer.HotKeysStop(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
-StackExchange.Redis.IServer.HotKeysStopAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+StackExchange.Redis.IServer.HotKeysStop(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IServer.HotKeysStopAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!

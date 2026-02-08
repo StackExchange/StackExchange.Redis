@@ -43,13 +43,13 @@ public partial interface IServer
     /// Stop the current <c>HOTKEYS</c> capture, if any.
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
-    void HotKeysStop(CommandFlags flags = CommandFlags.None);
+    bool HotKeysStop(CommandFlags flags = CommandFlags.None);
 
     /// <summary>
     /// Stop the current <c>HOTKEYS</c> capture, if any.
     /// </summary>
     /// <param name="flags">The command flags to use.</param>
-    Task HotKeysStopAsync(CommandFlags flags = CommandFlags.None);
+    Task<bool> HotKeysStopAsync(CommandFlags flags = CommandFlags.None);
 
     /// <summary>
     /// Discard the last <c>HOTKEYS</c> capture data, if any.
@@ -115,9 +115,16 @@ public sealed partial class HotKeysResult
     public long SampleRatio { get; }
 
     /// <summary>
+    /// The key slots active for this profiling session.
+    /// </summary>
+    public SlotRange[] SelectedSlots { get; } = [];
+
+    /// <summary>
     /// The total CPU measured for all commands in all slots.
     /// </summary>
-    public TimeSpan TotalCpuTime { get; }
+    public TimeSpan TotalCpuTime => TimeSpan.FromMilliseconds(TotalCpuTimeMilliseconds);
+
+    private long TotalCpuTimeMilliseconds { get; }
 
     /// <summary>
     /// The total network usage measured for all commands in all slots.

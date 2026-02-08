@@ -27,11 +27,11 @@ internal partial class RedisServer
             new HotKeysStartMessage(flags, metrics, count, duration, sampleRatio, slots),
             ResultProcessor.DemandOK);
 
-    public void HotKeysStop(CommandFlags flags = CommandFlags.None)
-        => ExecuteAsync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.STOP), ResultProcessor.DemandOK, server);
+    public bool HotKeysStop(CommandFlags flags = CommandFlags.None)
+        => ExecuteSync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.STOP), ResultProcessor.Boolean, server);
 
-    public Task HotKeysStopAsync(CommandFlags flags = CommandFlags.None)
-        => ExecuteAsync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.STOP), ResultProcessor.DemandOK, server);
+    public Task<bool> HotKeysStopAsync(CommandFlags flags = CommandFlags.None)
+        => ExecuteAsync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.STOP), ResultProcessor.Boolean, server);
 
     public void HotKeysReset(CommandFlags flags = CommandFlags.None)
         => ExecuteSync(Message.Create(-1, flags, RedisCommand.HOTKEYS, RedisLiterals.RESET), ResultProcessor.DemandOK, server);
