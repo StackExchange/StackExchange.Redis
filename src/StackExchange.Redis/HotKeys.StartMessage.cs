@@ -45,7 +45,7 @@ internal partial class RedisServer
                 physical.WriteBulkString(Math.Ceiling(duration.TotalSeconds));
             }
 
-            if (sampleRatio != 0)
+            if (sampleRatio != 1)
             {
                 physical.WriteBulkString("SAMPLE"u8);
                 physical.WriteBulkString(sampleRatio);
@@ -71,7 +71,7 @@ internal partial class RedisServer
                 if ((metrics & HotKeysMetrics.Network) != 0) argCount++;
                 if (count != 0) argCount += 2;
                 if (duration != TimeSpan.Zero) argCount += 2;
-                if (sampleRatio != 0) argCount += 2;
+                if (sampleRatio != 1) argCount += 2;
                 if (slots is { Length: > 0 }) argCount += 2 + slots.Length;
                 return argCount;
             }
