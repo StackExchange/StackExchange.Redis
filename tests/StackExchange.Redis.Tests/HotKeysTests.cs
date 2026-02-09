@@ -183,4 +183,32 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         result = await server.HotKeysGetAsync();
         Assert.Null(result);
     }
+
+    [Fact]
+    public async Task DurationFilterAsync()
+    {
+        Skip.UnlessLongRunning(); // time-based tests are horrible
+
+        RedisKey key = Me();
+        await using var muxer = GetServer(key, out var server);
+        await server.HotKeysStartAsync(duration: TimeSpan.FromSeconds(1));
+        var db = muxer.GetDatabase();
+        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 20; i++)
+        {
+            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
+        }
+        var before = await server.HotKeysGetAsync();
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        var after = await server.HotKeysGetAsync();
+
+        Assert.NotNull(before);
+        Assert.True(before.TrackingActive);
+
+        Assert.NotNull(after);
+        Assert.False(after.TrackingActive);
+
+        Log($"Duration: {after.CollectionDurationMilliseconds}ms");
+        Assert.True(after.CollectionDurationMilliseconds > 900 && after.CollectionDurationMilliseconds < 1100);
+    }
 }
