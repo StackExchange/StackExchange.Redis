@@ -8,6 +8,9 @@ Current package versions:
 
 ## unreleased
 
+
+- Add support for keyspace notifications ([#2995 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2995))
+- (internals) split AMR out to a separate options provider ([#2986 by NickCraver and philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2986))
 - Implement idempotent stream entry (IDMP) support  ([#3006 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3006))
 
 ## 2.10.14
