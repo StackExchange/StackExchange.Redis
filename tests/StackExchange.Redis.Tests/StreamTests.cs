@@ -81,6 +81,102 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(id, messageId);
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task StreamAddIdempotentId(bool iid, bool pairs, bool async)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_6_0);
+        var db = conn.GetDatabase();
+        StreamIdempotentId id = iid ? new StreamIdempotentId("pid", "iid") : new StreamIdempotentId("pid");
+        Log($"id: {id}");
+        var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+
+        async Task<RedisValue> Add()
+        {
+            if (pairs)
+            {
+                NameValueEntry[] fields = [new("field1", "value1"), new("field2", "value2"), new("field3", "value3")];
+                if (async)
+                {
+                    return await db.StreamAddAsync(key, fields, idempotentId: id);
+                }
+
+                return db.StreamAdd(key, fields, idempotentId: id);
+            }
+
+            if (async)
+            {
+                return await db.StreamAddAsync(key, "field1", "value1", idempotentId: id);
+            }
+
+            return db.StreamAdd(key, "field1", "value1", idempotentId: id);
+        }
+
+        RedisValue first = await Add();
+        Log($"Message ID: {first}");
+
+        RedisValue second = await Add();
+        Assert.Equal(first, second); // idempotent id has avoided a duplicate
+    }
+
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData(null, 42, false)]
+    [InlineData(13, null, false)]
+    [InlineData(13, 42, false)]
+    [InlineData(null, null, true)]
+    [InlineData(null, 42, true)]
+    [InlineData(13, null, true)]
+    [InlineData(13, 42, true)]
+    public async Task StreamConfigure(int? duration, int? maxsize, bool async)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_6_0);
+        var db = conn.GetDatabase();
+
+        var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+        var id = await db.StreamAddAsync(key, "field1", "value1");
+        Log($"id: {id}");
+        var settings = new StreamConfiguration { IdmpDuration = duration, IdmpMaxSize = maxsize };
+        bool doomed = duration is null && maxsize is null;
+        if (async)
+        {
+            if (doomed)
+            {
+                var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.StreamConfigureAsync(key, settings));
+                Assert.StartsWith("ERR At least one parameter must be specified", ex.Message);
+            }
+            else
+            {
+                await db.StreamConfigureAsync(key, settings);
+            }
+        }
+        else
+        {
+            if (doomed)
+            {
+                var ex = Assert.Throws<RedisServerException>(() => db.StreamConfigure(key, settings));
+                Assert.StartsWith("ERR At least one parameter must be specified", ex.Message);
+            }
+            else
+            {
+                db.StreamConfigure(key, settings);
+            }
+        }
+        var info = async ? await db.StreamInfoAsync(key) : db.StreamInfo(key);
+        const int SERVER_DEFAULT = 100;
+        Assert.Equal(duration ?? SERVER_DEFAULT, info.IdmpDuration);
+        Assert.Equal(maxsize ?? SERVER_DEFAULT, info.IdmpMaxSize);
+    }
+
     [Fact]
     public async Task StreamAddMultipleValuePairsWithManualId()
     {
@@ -1562,16 +1658,51 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var id1 = db.StreamAdd(key, "field1", "value1");
         db.StreamAdd(key, "field2", "value2");
-        db.StreamAdd(key, "field3", "value3");
-        var id4 = db.StreamAdd(key, "field4", "value4");
-
+        var id3 = db.StreamAdd(key, "field3", "value3");
+        db.StreamAdd(key, "field4", "value4");
+        var id5 = db.StreamAdd(key, "field5", "value5");
+        db.StreamDelete(key, [id3]);
         var streamInfo = db.StreamInfo(key);
 
         Assert.Equal(4, streamInfo.Length);
         Assert.True(streamInfo.RadixTreeKeys > 0);
         Assert.True(streamInfo.RadixTreeNodes > 0);
         Assert.Equal(id1, streamInfo.FirstEntry.Id);
-        Assert.Equal(id4, streamInfo.LastEntry.Id);
+        Assert.Equal(id5, streamInfo.LastEntry.Id);
+
+        var server = conn.GetServer(conn.GetEndPoints().First());
+        Log($"server version: {server.Version}");
+        if (server.Version.IsAtLeast(RedisFeatures.v7_0_0_rc1))
+        {
+            Assert.Equal(id3, streamInfo.MaxDeletedEntryId);
+            Assert.Equal(5, streamInfo.EntriesAdded);
+            Assert.False(streamInfo.RecordedFirstEntryId.IsNull);
+        }
+        else
+        {
+            Assert.True(streamInfo.MaxDeletedEntryId.IsNull);
+            Assert.Equal(-1, streamInfo.EntriesAdded);
+            Assert.True(streamInfo.RecordedFirstEntryId.IsNull);
+        }
+
+        if (server.Version.IsAtLeast(RedisFeatures.v8_6_0))
+        {
+            Assert.True(streamInfo.IdmpDuration > 0);
+            Assert.True(streamInfo.IdmpMaxSize > 0);
+            Assert.Equal(0, streamInfo.PidsTracked);
+            Assert.Equal(0, streamInfo.IidsTracked);
+            Assert.Equal(0, streamInfo.IidsDuplicates);
+            Assert.Equal(0, streamInfo.IidsAdded);
+        }
+        else
+        {
+            Assert.Equal(-1, streamInfo.IdmpDuration);
+            Assert.Equal(-1, streamInfo.IdmpMaxSize);
+            Assert.Equal(-1, streamInfo.PidsTracked);
+            Assert.Equal(-1, streamInfo.IidsTracked);
+            Assert.Equal(-1, streamInfo.IidsDuplicates);
+            Assert.Equal(-1, streamInfo.IidsAdded);
+        }
     }
 
     [Fact]
@@ -2188,26 +2319,34 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var db = conn.GetDatabase();
         var key = Me() + ":" + mode;
 
-        const int maxLength = 1000;
-        const int limit = 100;
+        const int maxLength = 100;
+        const int limit = 10;
 
+        // The behavior of ACKED etc is undefined when there are no consumer groups; or rather,
+        // it *is* defined, but it is defined/implemented differently < and >= server 8.6
+        // This *does* have the side-effect that the 3 modes behave the same in this test,
+        // but: we're trying to test the API, not the server.
+        const string groupName = "test_group", consumer = "consumer";
+        db.StreamCreateConsumerGroup(key, groupName, StreamPosition.NewMessages);
         for (var i = 0; i < maxLength; i++)
         {
             db.StreamAdd(key, $"field", $"value", 1111111110 + i);
         }
 
+        var entries = db.StreamReadGroup(
+            key,
+            groupName,
+            consumer,
+            StreamPosition.NewMessages);
+
+        Assert.Equal(maxLength, entries.Length);
+
         var numRemoved = db.StreamTrimByMinId(key, 1111111110 + maxLength, useApproximateMaxLength: true, limit: limit, mode: mode);
-        var expectRemoved = mode switch
-        {
-            StreamTrimMode.KeepReferences => limit,
-            StreamTrimMode.DeleteReferences => 0,
-            StreamTrimMode.Acknowledged => 0,
-            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
-        };
+        const int EXPECT_REMOVED = 0;
         var len = db.StreamLength(key);
 
-        Assert.Equal(expectRemoved, numRemoved);
-        Assert.Equal(maxLength - expectRemoved, len);
+        Assert.Equal(EXPECT_REMOVED, numRemoved);
+        Assert.Equal(maxLength - EXPECT_REMOVED, len);
     }
 
     [Fact]
