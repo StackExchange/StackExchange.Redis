@@ -7,6 +7,7 @@
 [SER003]StackExchange.Redis.HotKeysResult.CollectionDuration.get -> System.TimeSpan
 [SER003]StackExchange.Redis.HotKeysResult.CollectionStartTime.get -> System.DateTime
 [SER003]StackExchange.Redis.HotKeysResult.CpuByKey.get -> System.ReadOnlySpan<StackExchange.Redis.HotKeysResult.MetricKeyCpu>
+[SER003]StackExchange.Redis.HotKeysResult.IsSampled.get -> bool
 [SER003]StackExchange.Redis.HotKeysResult.MetricKeyBytes
 [SER003]StackExchange.Redis.HotKeysResult.MetricKeyBytes.Bytes.get -> long
 [SER003]StackExchange.Redis.HotKeysResult.MetricKeyBytes.Key.get -> StackExchange.Redis.RedisKey
@@ -27,6 +28,10 @@
 [SER003]StackExchange.Redis.HotKeysResult.TotalProfiledCpuTimeSystem.get -> System.TimeSpan
 [SER003]StackExchange.Redis.HotKeysResult.TotalProfiledCpuTimeUser.get -> System.TimeSpan
 [SER003]StackExchange.Redis.HotKeysResult.TotalProfiledNetworkBytes.get -> long
+[SER003]StackExchange.Redis.HotKeysResult.TotalSampledSelectedSlotsCpuTime.get -> System.TimeSpan
+[SER003]StackExchange.Redis.HotKeysResult.TotalSampledSelectedSlotsNetworkBytes.get -> long
+[SER003]StackExchange.Redis.HotKeysResult.TotalSelectedSlotsCpuTime.get -> System.TimeSpan
+[SER003]StackExchange.Redis.HotKeysResult.TotalSelectedSlotsNetworkBytes.get -> long
 [SER003]StackExchange.Redis.HotKeysResult.TrackingActive.get -> bool
 [SER003]StackExchange.Redis.IServer.HotKeysGet(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.HotKeysResult?
 [SER003]StackExchange.Redis.IServer.HotKeysGetAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.HotKeysResult?>!

@@ -33,12 +33,22 @@ The `HotKeysResult` class (our `result` value above) contains the following prop
 
 - `Metrics`: The metrics captured during this profiling session.
 - `TrackingActive`: Indicates whether the capture currently active.
-- `SampleRatio`: Profiling frequency; effectively: measure every Nth command.
+- `SampleRatio`: Profiling frequency; effectively: measure every Nth command. (also: `IsSampled`)
 - `SelectedSlots`: The key slots active for this profiling session.
 - `CollectionStartTime`: The start time of the capture.
 - `CollectionDuration`: The duration of the capture.
-- `TotalNetworkBytes`: The total network usage measured for all commands in all slots, without any sampling or filtering applied.
 - `TotalCpuTime`: The total CPU time measured for all commands in all slots, without any sampling or filtering applied.
+- `TotalNetworkBytes`: The total network usage measured for all commands in all slots, without any sampling or filtering applied.
+
+When slot filtering is used, the following properties are also available:
+
+- `TotalSelectedSlotsCpuTime`: The total CPU time measured for all commands in the selected slots.
+- `TotalSelectedSlotsNetworkBytes`: The total network usage measured for all commands in the selected slots.
+
+When slot filtering *and* sampling is used, the following properties are also available:
+
+- `TotalSampledSelectedSlotsCpuTime`: The total CPU time measured for the sampled commands in the selected slots.
+- `TotalSampledSelectedSlotsNetworkBytes`: The total network usage measured for the sampled commands in the selected slots.
 
 If CPU metrics were captured, the following properties are also available:
 

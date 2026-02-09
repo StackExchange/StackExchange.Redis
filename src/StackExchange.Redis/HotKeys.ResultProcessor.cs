@@ -94,8 +94,20 @@ public sealed partial class HotKeysResult
                 case all_commands_all_slots_us.Hash when all_commands_all_slots_us.Is(hash, key) && value.TryGetInt64(out var i64):
                     TotalCpuTimeMicroseconds = i64;
                     break;
+                case all_commands_selected_slots_us.Hash when all_commands_selected_slots_us.Is(hash, key) && value.TryGetInt64(out var i64):
+                    TotalSelectedSlotsCpuTimeMicroseconds = i64;
+                    break;
+                case sampled_command_selected_slots_us.Hash when sampled_command_selected_slots_us.Is(hash, key) && value.TryGetInt64(out var i64):
+                    TotalSampledSelectedSlotsCpuTimeMicroseconds = i64;
+                    break;
                 case net_bytes_all_commands_all_slots.Hash when net_bytes_all_commands_all_slots.Is(hash, key) && value.TryGetInt64(out var i64):
                     TotalNetworkBytes = i64;
+                    break;
+                case net_bytes_all_commands_selected_slots.Hash when net_bytes_all_commands_selected_slots.Is(hash, key) && value.TryGetInt64(out var i64):
+                    TotalSelectedSlotsNetworkBytesRaw = i64;
+                    break;
+                case net_bytes_sampled_commands_selected_slots.Hash when net_bytes_sampled_commands_selected_slots.Is(hash, key) && value.TryGetInt64(out var i64):
+                    TotalSampledSelectedSlotsNetworkBytesRaw = i64;
                     break;
                 case collection_start_time_unix_ms.Hash when collection_start_time_unix_ms.Is(hash, key) && value.TryGetInt64(out var i64):
                     CollectionStartTimeUnixMilliseconds = i64;
@@ -181,7 +193,11 @@ public sealed partial class HotKeysResult
     [FastHash] internal static partial class sample_ratio { }
     [FastHash] internal static partial class selected_slots { }
     [FastHash] internal static partial class all_commands_all_slots_us { }
+    [FastHash] internal static partial class all_commands_selected_slots_us { }
+    [FastHash] internal static partial class sampled_command_selected_slots_us { }
     [FastHash] internal static partial class net_bytes_all_commands_all_slots { }
+    [FastHash] internal static partial class net_bytes_all_commands_selected_slots { }
+    [FastHash] internal static partial class net_bytes_sampled_commands_selected_slots { }
     [FastHash] internal static partial class collection_start_time_unix_ms { }
     [FastHash] internal static partial class collection_duration_ms { }
     [FastHash] internal static partial class collection_duration_us { }

@@ -132,6 +132,11 @@ public sealed partial class HotKeysResult
     public long SampleRatio { get; }
 
     /// <summary>
+    /// Gets whether sampling is in use.
+    /// </summary>
+    public bool IsSampled => SampleRatio > 1;
+
+    /// <summary>
     /// The key slots active for this profiling session.
     /// </summary>
     public ReadOnlySpan<SlotRange> SelectedSlots => _selectedSlots;
@@ -142,6 +147,20 @@ public sealed partial class HotKeysResult
     /// The total CPU measured for all commands in all slots, without any sampling or filtering applied.
     /// </summary>
     public TimeSpan TotalCpuTime => NonNegativeMicroseconds(TotalCpuTimeMicroseconds);
+    internal long TotalCpuTimeMicroseconds { get; } = -1;
+
+    internal long TotalSelectedSlotsCpuTimeMicroseconds { get; } = -1;
+    internal long TotalSampledSelectedSlotsCpuTimeMicroseconds { get; } = -1;
+
+    /// <summary>
+    /// When slot filtering is used, this is the total CPU time measured for all commands in the selected slots. Otherwise: <see cref="TotalCpuTime"/>.
+    /// </summary>
+    public TimeSpan TotalSelectedSlotsCpuTime => TotalSelectedSlotsCpuTimeMicroseconds >= 0 ? NonNegativeMicroseconds(TotalSelectedSlotsCpuTimeMicroseconds) : TotalCpuTime;
+
+    /// <summary>
+    /// When sampling and slot filtering are used, this is the total CPU time measured for the sampled commands in the selected slots. Otherwise: <see cref="TotalCpuTime"/>.
+    /// </summary>
+    public TimeSpan TotalSampledSelectedSlotsCpuTime => TotalSampledSelectedSlotsCpuTimeMicroseconds >= 0 ? NonNegativeMicroseconds(TotalSampledSelectedSlotsCpuTimeMicroseconds) : TotalCpuTime;
 
     private static TimeSpan NonNegativeMicroseconds(long us)
     {
@@ -149,12 +168,22 @@ public sealed partial class HotKeysResult
         return TimeSpan.FromTicks(Math.Max(us, 0) / TICKS_PER_MICROSECOND);
     }
 
-    internal long TotalCpuTimeMicroseconds { get; } = -1;
-
     /// <summary>
     /// The total network usage measured for all commands in all slots, without any sampling or filtering applied.
     /// </summary>
     public long TotalNetworkBytes { get; }
+    internal long TotalSelectedSlotsNetworkBytesRaw { get; } = -1;
+    internal long TotalSampledSelectedSlotsNetworkBytesRaw { get; } = -1;
+
+    /// <summary>
+    /// When slot filtering is used, this is the total network usage measured for all commands in the selected slots. Otherwise: <see cref="TotalNetworkBytes"/>.
+    /// </summary>
+    public long TotalSelectedSlotsNetworkBytes => TotalSelectedSlotsNetworkBytesRaw >= 0 ? TotalSelectedSlotsNetworkBytesRaw : TotalNetworkBytes;
+
+    /// <summary>
+    /// When sampling and slot filtering are used, this is the total network usage measured for the sampled commands in the selected slots. Otherwise: <see cref="TotalNetworkBytes"/>.
+    /// </summary>
+    public long TotalSampledSelectedSlotsNetworkBytes => TotalSampledSelectedSlotsNetworkBytesRaw >= 0 ? TotalSampledSelectedSlotsNetworkBytesRaw : TotalNetworkBytes;
 
     internal long CollectionStartTimeUnixMilliseconds { get; } = -1;
 
