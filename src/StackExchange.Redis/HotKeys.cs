@@ -116,6 +116,11 @@ public enum HotKeysMetrics
 [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
 public sealed partial class HotKeysResult
 {
+    // Note: names are intentionally chosen to align reasonably well with the Redis command output; some
+    // liberties have been taken, for example "all-commands-all-slots-us" and "net-bytes-all-commands-all-slots"
+    // have been named "AllCommandsAllSlotsTime" and "AllCommandsAllSlotsNetworkBytes" for consistency
+    // with each-other.
+
     /// <summary>
     /// The metrics captured during this profiling session.
     /// </summary>
@@ -146,26 +151,32 @@ public sealed partial class HotKeysResult
     /// <summary>
     /// Gets whether slot filtering is in use.
     /// </summary>
-    public bool IsSlotFiltered => TotalSelectedSlotsNetworkBytesRaw >= 0; // this key only present if slot-filtering active
+    public bool IsSlotFiltered =>
+        NetworkBytesAllCommandsSelectedSlotsRaw >= 0; // this key only present if slot-filtering active
 
     /// <summary>
     /// The total CPU measured for all commands in all slots, without any sampling or filtering applied.
     /// </summary>
-    public TimeSpan TotalCpuTime => NonNegativeMicroseconds(TotalCpuTimeMicroseconds);
-    internal long TotalCpuTimeMicroseconds { get; } = -1;
+    public TimeSpan AllCommandsAllSlotsTime => NonNegativeMicroseconds(AllCommandsAllSlotsMicroseconds);
 
-    internal long TotalSelectedSlotsCpuTimeMicroseconds { get; } = -1;
-    internal long TotalSampledSelectedSlotsCpuTimeMicroseconds { get; } = -1;
+    internal long AllCommandsAllSlotsMicroseconds { get; } = -1;
 
-    /// <summary>
-    /// When slot filtering is used, this is the total CPU time measured for all commands in the selected slots. Otherwise: <see cref="TotalCpuTime"/>.
-    /// </summary>
-    public TimeSpan TotalSelectedSlotsCpuTime => TotalSelectedSlotsCpuTimeMicroseconds >= 0 ? NonNegativeMicroseconds(TotalSelectedSlotsCpuTimeMicroseconds) : TotalCpuTime;
+    internal long AllCommandSelectedSlotsMicroseconds { get; } = -1;
+    internal long SampledCommandsSelectedSlotsMicroseconds { get; } = -1;
 
     /// <summary>
-    /// When sampling and slot filtering are used, this is the total CPU time measured for the sampled commands in the selected slots. Otherwise: <see cref="TotalCpuTime"/>.
+    /// When slot filtering is used, this is the total CPU time measured for all commands in the selected slots.
     /// </summary>
-    public TimeSpan TotalSampledSelectedSlotsCpuTime => TotalSampledSelectedSlotsCpuTimeMicroseconds >= 0 ? NonNegativeMicroseconds(TotalSampledSelectedSlotsCpuTimeMicroseconds) : TotalCpuTime;
+    public TimeSpan? AllCommandsSelectedSlotsTime => AllCommandSelectedSlotsMicroseconds < 0
+        ? null
+        : NonNegativeMicroseconds(AllCommandSelectedSlotsMicroseconds);
+
+    /// <summary>
+    /// When sampling and slot filtering are used, this is the total CPU time measured for the sampled commands in the selected slots.
+    /// </summary>
+    public TimeSpan? SampledCommandsSelectedSlotsTime => SampledCommandsSelectedSlotsMicroseconds < 0
+        ? null
+        : NonNegativeMicroseconds(SampledCommandsSelectedSlotsMicroseconds);
 
     private static TimeSpan NonNegativeMicroseconds(long us)
     {
@@ -176,26 +187,32 @@ public sealed partial class HotKeysResult
     /// <summary>
     /// The total network usage measured for all commands in all slots, without any sampling or filtering applied.
     /// </summary>
-    public long TotalNetworkBytes { get; }
-    internal long TotalSelectedSlotsNetworkBytesRaw { get; } = -1;
-    internal long TotalSampledSelectedSlotsNetworkBytesRaw { get; } = -1;
+    public long AllCommandsAllSlotsNetworkBytes { get; }
+
+    internal long NetworkBytesAllCommandsSelectedSlotsRaw { get; } = -1;
+    internal long NetworkBytesSampledCommandsSelectedSlotsRaw { get; } = -1;
 
     /// <summary>
-    /// When slot filtering is used, this is the total network usage measured for all commands in the selected slots. Otherwise: <see cref="TotalNetworkBytes"/>.
+    /// When slot filtering is used, this is the total network usage measured for all commands in the selected slots.
     /// </summary>
-    public long TotalSelectedSlotsNetworkBytes => TotalSelectedSlotsNetworkBytesRaw >= 0 ? TotalSelectedSlotsNetworkBytesRaw : TotalNetworkBytes;
+    public long? AllCommandsSelectedSlotsNetworkBytes => NetworkBytesAllCommandsSelectedSlotsRaw < 0
+        ? null
+        : NetworkBytesAllCommandsSelectedSlotsRaw;
 
     /// <summary>
-    /// When sampling and slot filtering are used, this is the total network usage measured for the sampled commands in the selected slots. Otherwise: <see cref="TotalNetworkBytes"/>.
+    /// When sampling and slot filtering are used, this is the total network usage measured for the sampled commands in the selected slots.
     /// </summary>
-    public long TotalSampledSelectedSlotsNetworkBytes => TotalSampledSelectedSlotsNetworkBytesRaw >= 0 ? TotalSampledSelectedSlotsNetworkBytesRaw : TotalNetworkBytes;
+    public long? SampledCommandsSelectedSlotsNetworkBytes => NetworkBytesSampledCommandsSelectedSlotsRaw < 0
+        ? null
+        : NetworkBytesSampledCommandsSelectedSlotsRaw;
 
     internal long CollectionStartTimeUnixMilliseconds { get; } = -1;
 
     /// <summary>
     /// The start time of the capture.
     /// </summary>
-    public DateTime CollectionStartTime => RedisBase.UnixEpoch.AddMilliseconds(Math.Max(CollectionStartTimeUnixMilliseconds, 0));
+    public DateTime CollectionStartTime =>
+        RedisBase.UnixEpoch.AddMilliseconds(Math.Max(CollectionStartTimeUnixMilliseconds, 0));
 
     internal long CollectionDurationMicroseconds { get; }
 
@@ -209,24 +226,32 @@ public sealed partial class HotKeysResult
     /// <summary>
     /// The total user CPU time measured in the profiling session.
     /// </summary>
-    public TimeSpan TotalProfiledCpuTimeUser => NonNegativeMicroseconds(TotalCpuTimeUserMicroseconds);
+    public TimeSpan? TotalCpuTimeUser => TotalCpuTimeUserMicroseconds < 0
+        ? null
+        : NonNegativeMicroseconds(TotalCpuTimeUserMicroseconds);
 
     internal long TotalCpuTimeSystemMicroseconds { get; } = -1;
 
     /// <summary>
     /// The total system CPU measured in the profiling session.
     /// </summary>
-    public TimeSpan TotalProfiledCpuTimeSystem => NonNegativeMicroseconds(TotalCpuTimeSystemMicroseconds);
+    public TimeSpan? TotalCpuTimeSystem => TotalCpuTimeSystemMicroseconds < 0
+        ? null
+        : NonNegativeMicroseconds(TotalCpuTimeSystemMicroseconds);
 
     /// <summary>
-    /// The total CPU time measured in the profiling session (this is just <see cref="TotalProfiledCpuTimeUser"/> + <see cref="TotalProfiledCpuTimeSystem"/>).
+    /// The total CPU time measured in the profiling session (this is just <see cref="TotalCpuTimeUser"/> + <see cref="TotalCpuTimeSystem"/>).
     /// </summary>
-    public TimeSpan TotalProfiledCpuTime => TotalProfiledCpuTimeUser + TotalProfiledCpuTimeSystem;
+    public TimeSpan? TotalCpuTime => TotalCpuTimeUser + TotalCpuTimeSystem;
+
+    internal long TotalNetworkBytesRaw { get; } = -1;
 
     /// <summary>
     /// The total network data measured in the profiling session.
     /// </summary>
-    public long TotalProfiledNetworkBytes { get; }
+    public long? TotalNetworkBytes => TotalNetworkBytesRaw < 0
+        ? null
+        : TotalNetworkBytesRaw;
 
     // Intentionally do construct a dictionary from the results; the caller is unlikely to be looking
     // for a particular key (lookup), but rather: is likely to want to list them for display; this way,
@@ -275,7 +300,8 @@ public sealed partial class HotKeysResult
 
         /// <inheritdoc/>
         public override bool Equals(object? obj)
-            => obj is MetricKeyCpu other && _key.Equals(other.Key) && durationMicroseconds == other.DurationMicroseconds;
+            => obj is MetricKeyCpu other && _key.Equals(other.Key) &&
+               durationMicroseconds == other.DurationMicroseconds;
     }
 
     /// <summary>

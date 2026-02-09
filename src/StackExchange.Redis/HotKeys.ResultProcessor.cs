@@ -92,22 +92,22 @@ public sealed partial class HotKeysResult
                     _selectedSlots = slots;
                     break;
                 case all_commands_all_slots_us.Hash when all_commands_all_slots_us.Is(hash, key) && value.TryGetInt64(out var i64):
-                    TotalCpuTimeMicroseconds = i64;
+                    AllCommandsAllSlotsMicroseconds = i64;
                     break;
                 case all_commands_selected_slots_us.Hash when all_commands_selected_slots_us.Is(hash, key) && value.TryGetInt64(out var i64):
-                    TotalSelectedSlotsCpuTimeMicroseconds = i64;
+                    AllCommandSelectedSlotsMicroseconds = i64;
                     break;
                 case sampled_command_selected_slots_us.Hash when sampled_command_selected_slots_us.Is(hash, key) && value.TryGetInt64(out var i64):
-                    TotalSampledSelectedSlotsCpuTimeMicroseconds = i64;
+                    SampledCommandsSelectedSlotsMicroseconds = i64;
                     break;
                 case net_bytes_all_commands_all_slots.Hash when net_bytes_all_commands_all_slots.Is(hash, key) && value.TryGetInt64(out var i64):
-                    TotalNetworkBytes = i64;
+                    AllCommandsAllSlotsNetworkBytes = i64;
                     break;
                 case net_bytes_all_commands_selected_slots.Hash when net_bytes_all_commands_selected_slots.Is(hash, key) && value.TryGetInt64(out var i64):
-                    TotalSelectedSlotsNetworkBytesRaw = i64;
+                    NetworkBytesAllCommandsSelectedSlotsRaw = i64;
                     break;
                 case net_bytes_sampled_commands_selected_slots.Hash when net_bytes_sampled_commands_selected_slots.Is(hash, key) && value.TryGetInt64(out var i64):
-                    TotalSampledSelectedSlotsNetworkBytesRaw = i64;
+                    NetworkBytesSampledCommandsSelectedSlotsRaw = i64;
                     break;
                 case collection_start_time_unix_ms.Hash when collection_start_time_unix_ms.Is(hash, key) && value.TryGetInt64(out var i64):
                     CollectionStartTimeUnixMilliseconds = i64;
@@ -136,7 +136,7 @@ public sealed partial class HotKeysResult
                     break;
                 case total_net_bytes.Hash when total_net_bytes.Is(hash, key) && value.TryGetInt64(out var i64):
                     metrics |= HotKeysMetrics.Network;
-                    TotalProfiledNetworkBytes = i64;
+                    TotalNetworkBytesRaw = i64;
                     break;
                 case by_cpu_time_us.Hash when by_cpu_time_us.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
                     metrics |= HotKeysMetrics.Cpu;

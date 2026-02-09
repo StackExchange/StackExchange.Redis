@@ -37,31 +37,31 @@ The `HotKeysResult` class (our `result` value above) contains the following prop
 - `SelectedSlots`: The key slots active for this profiling session.
 - `CollectionStartTime`: The start time of the capture.
 - `CollectionDuration`: The duration of the capture.
-- `TotalCpuTime`: The total CPU time measured for all commands in all slots, without any sampling or filtering applied.
-- `TotalNetworkBytes`: The total network usage measured for all commands in all slots, without any sampling or filtering applied.
+- `AllCommandsAllSlotsTime`: The total CPU time measured for all commands in all slots, without any sampling or filtering applied.
+- `AllCommandsAllSlotsNetworkBytes`: The total network usage measured for all commands in all slots, without any sampling or filtering applied.
 
 When slot filtering is used, the following properties are also available:
 
-- `TotalSelectedSlotsCpuTime`: The total CPU time measured for all commands in the selected slots.
-- `TotalSelectedSlotsNetworkBytes`: The total network usage measured for all commands in the selected slots.
+- `AllCommandsSelectedSlotsTime`: The total CPU time measured for all commands in the selected slots.
+- `AllCommandsSelectedSlotsNetworkBytes`: The total network usage measured for all commands in the selected slots.
 
 When slot filtering *and* sampling is used, the following properties are also available:
 
-- `TotalSampledSelectedSlotsCpuTime`: The total CPU time measured for the sampled commands in the selected slots.
-- `TotalSampledSelectedSlotsNetworkBytes`: The total network usage measured for the sampled commands in the selected slots.
+- `SampledCommandsSelectedSlotsTime`: The total CPU time measured for the sampled commands in the selected slots.
+- `SampledCommandsSelectedSlotsNetworkBytes`: The total network usage measured for the sampled commands in the selected slots.
 
 If CPU metrics were captured, the following properties are also available:
 
-- `TotalProfiledCpuTimeUser`: The total user CPU time measured in the profiling session.
-- `TotalProfiledCpuTimeSystem`: The total system CPU time measured in the profiling session.
-- `TotalProfiledCpuTime`: The total CPU time measured in the profiling session.
+- `TotalCpuTimeUser`: The total user CPU time measured in the profiling session.
+- `TotalCpuTimeSystem`: The total system CPU time measured in the profiling session.
+- `TotalCpuTime`: The total CPU time measured in the profiling session.
 - `CpuByKey`: Hot keys, as measured by CPU activity; for each:
   - `Key`: The key observed.
   - `Duration`: The time taken. 
 
 If network metrics were captured, the following properties are also available:
 
-- `TotalProfiledNetworkBytes`: The total network data measured in the profiling session.
+- `TotalNetworkBytes`: The total network data measured in the profiling session.
 - `NetworkBytesByKey`: Hot keys, as measured by network activity; for each:
   - `Key`: The key observed.
   - `Bytes`: The network activity, in bytes.
