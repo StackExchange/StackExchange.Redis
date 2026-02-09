@@ -4,16 +4,53 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : HotKeysTests(output, fixture)
+{
+    protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
+
+    [Fact]
+    public void CanUseClusterFilter()
+    {
+        var key = Me();
+        using var muxer = GetServer(key, out var server);
+        Log($"server: {Format.ToString(server.EndPoint)}, key: '{key}'");
+
+        var slot = muxer.HashSlot(key);
+        server.HotKeysStart(slots: [(short)slot]);
+
+        var db = muxer.GetDatabase();
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 20; i++)
+        {
+            db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+        }
+
+        server.HotKeysStop();
+        var result = server.HotKeysGet();
+        Assert.NotNull(result);
+        var slots = result.SelectedSlots;
+        Assert.Equal(1, slots.Length);
+        Assert.Equal(slot, slots[0].From);
+        Assert.Equal(slot, slots[0].To);
+
+        Assert.Equal(1, result.CpuByKey.Length);
+        Assert.Equal(key, result.CpuByKey[0].Key);
+
+        Assert.Equal(1, result.NetworkBytesByKey.Length);
+        Assert.Equal(key, result.NetworkBytesByKey[0].Key);
+    }
+}
+
 [RunPerProtocol]
 [Collection(NonParallelCollection.Name)]
 public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    private IInternalConnectionMultiplexer GetServer(out IServer server)
+    private protected IInternalConnectionMultiplexer GetServer(out IServer server)
         => GetServer(RedisKey.Null, out server);
 
-    private IInternalConnectionMultiplexer GetServer(in RedisKey key, out IServer server)
+    private protected IInternalConnectionMultiplexer GetServer(in RedisKey key, out IServer server)
     {
-        var muxer = Create(require: RedisFeatures.v8_4_0_rc1); // TODO: 8.6
+        var muxer = Create(require: RedisFeatures.v8_4_0_rc1, allowAdmin: true); // TODO: 8.6
         server = key.IsNull ? muxer.GetServer(muxer.GetEndPoints()[0]) : muxer.GetServer(key);
         server.HotKeysStop(CommandFlags.FireAndForget);
         server.HotKeysReset(CommandFlags.FireAndForget);
@@ -64,20 +101,20 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var result = server.HotKeysGet();
         Assert.NotNull(result);
         Assert.True(result.TrackingActive);
-        CheckSimpleWithKey(key, result);
+        CheckSimpleWithKey(key, result, server);
 
         Assert.True(server.HotKeysStop());
         result = server.HotKeysGet();
         Assert.NotNull(result);
         Assert.False(result.TrackingActive);
-        CheckSimpleWithKey(key, result);
+        CheckSimpleWithKey(key, result, server);
 
         server.HotKeysReset();
         result = server.HotKeysGet();
         Assert.Null(result);
     }
 
-    private static void CheckSimpleWithKey(RedisKey key, HotKeysResult hotKeys)
+    private void CheckSimpleWithKey(RedisKey key, HotKeysResult hotKeys, IServer server)
     {
         Assert.True(hotKeys.CollectionDurationMilliseconds >= 0, nameof(hotKeys.CollectionDurationMilliseconds));
         Assert.True(hotKeys.CollectionStartTimeUnixMilliseconds >= 0, nameof(hotKeys.CollectionStartTimeUnixMilliseconds));
@@ -94,10 +131,22 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         Assert.Equal(1, hotKeys.SampleRatio);
 
-        Assert.Equal(1, hotKeys.SelectedSlots.Length);
-        var slots = hotKeys.SelectedSlots[0];
-        Assert.Equal(SlotRange.MinSlot, slots.From);
-        Assert.Equal(SlotRange.MaxSlot, slots.To);
+        if (server.ServerType is ServerType.Cluster)
+        {
+            Assert.NotEqual(0, hotKeys.SelectedSlots.Length);
+            Log("Cluster mode detected; not enforcing slots, but:");
+            foreach (var slot in hotKeys.SelectedSlots)
+            {
+                Log($"  {slot}");
+            }
+        }
+        else
+        {
+            Assert.Equal(1, hotKeys.SelectedSlots.Length);
+            var slots = hotKeys.SelectedSlots[0];
+            Assert.Equal(SlotRange.MinSlot, slots.From);
+            Assert.Equal(SlotRange.MaxSlot, slots.To);
+        }
 
         Assert.True(hotKeys.TotalCpuTimeMicroseconds >= 0,  nameof(hotKeys.TotalCpuTimeMicroseconds));
         Assert.True(hotKeys.TotalCpuTimeSystemMilliseconds >= 0, nameof(hotKeys.TotalCpuTimeSystemMilliseconds));
@@ -122,13 +171,13 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var result = await server.HotKeysGetAsync();
         Assert.NotNull(result);
         Assert.True(result.TrackingActive);
-        CheckSimpleWithKey(key, result);
+        CheckSimpleWithKey(key, result, server);
 
         Assert.True(await server.HotKeysStopAsync());
         result = await server.HotKeysGetAsync();
         Assert.NotNull(result);
         Assert.False(result.TrackingActive);
-        CheckSimpleWithKey(key, result);
+        CheckSimpleWithKey(key, result, server);
 
         await server.HotKeysResetAsync();
         result = await server.HotKeysGetAsync();

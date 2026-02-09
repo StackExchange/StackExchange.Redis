@@ -57,13 +57,25 @@ public sealed partial class HotKeysResult
                         for (int i = 0; i < len && items.MoveNext(); i++)
                         {
                             ref readonly RawResult pair = ref items.Current;
-                            if (pair.Resp2TypeArray is ResultType.Array
-                                && pair.ItemsCount == 2
-                                && pair[0].TryGetInt64(out var from)
-                                && pair[1].TryGetInt64(out var to))
+                            if (pair.Resp2TypeArray is ResultType.Array)
                             {
-                                if (len == 1 & from == SlotRange.MinSlot & to == SlotRange.MaxSlot)
+                                long from = -1, to = -1;
+                                switch (pair.ItemsCount)
                                 {
+                                    case 1 when pair[0].TryGetInt64(out from):
+                                        to = from; // single slot
+                                        break;
+                                    case 2 when pair[0].TryGetInt64(out from) && pair[1].TryGetInt64(out to):
+                                        break;
+                                }
+
+                                if (from < SlotRange.MinSlot)
+                                {
+                                    // skip invalid ranges
+                                }
+                                else if (len == 1 & from == SlotRange.MinSlot & to == SlotRange.MaxSlot)
+                                {
+                                    // this is the "normal" case when no slot filter was applied
                                     slots = SlotRange.SharedAllSlots; // avoid the alloc
                                 }
                                 else
