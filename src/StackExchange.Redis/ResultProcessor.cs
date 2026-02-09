@@ -2617,7 +2617,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     entriesAdded: entriesAdded,
                     recordedFirstEntryId: recordedFirstEntryId,
                     idmpDuration: idmpDuration,
-                    idmpMaxsize: idmpMaxsize,
+                    idmpMaxSize: idmpMaxsize,
                     pidsTracked: pidsTracked,
                     iidsTracked: iidsTracked,
                     iidsAdded: iidsAdded,

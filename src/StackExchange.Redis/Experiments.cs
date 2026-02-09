@@ -12,6 +12,8 @@ namespace StackExchange.Redis
         public const string VectorSets = "SER001";
         // ReSharper disable once InconsistentNaming
         public const string Server_8_4 = "SER002";
+        // ReSharper disable once InconsistentNaming
+        public const string Server_8_6 = "SER003";
     }
 }
 

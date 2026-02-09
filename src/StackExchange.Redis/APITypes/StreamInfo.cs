@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace StackExchange.Redis;
 
 /// <summary>
 /// Describes stream information retrieved using the XINFO STREAM command. <see cref="IDatabase.StreamInfo"/>.
@@ -19,7 +21,7 @@ public readonly struct StreamInfo
         long entriesAdded,
         RedisValue recordedFirstEntryId,
         long idmpDuration,
-        long idmpMaxsize,
+        long idmpMaxSize,
         long pidsTracked,
         long iidsTracked,
         long iidsAdded,
@@ -40,7 +42,7 @@ public readonly struct StreamInfo
 
         // 8.6
         IdmpDuration = idmpDuration;
-        IdmpMaxsize = idmpMaxsize;
+        IdmpMaxSize = idmpMaxSize;
         PidsTracked = pidsTracked;
         IidsTracked = iidsTracked;
         IidsAdded = iidsAdded;
@@ -100,33 +102,57 @@ public readonly struct StreamInfo
     /// <summary>
     /// The duration value configured for the stream’s IDMP map (seconds), or <c>-1</c> if unavailable.
     /// </summary>
-    public long IdmpDuration { get; }
+    public long IdmpDuration
+    {
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
+        get;
+    }
 
     /// <summary>
     /// The maxsize value configured for the stream’s IDMP map, or <c>-1</c> if unavailable.
     /// </summary>
-    public long IdmpMaxsize { get; }
+    public long IdmpMaxSize
+    {
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
+        get;
+    }
 
     /// <summary>
     /// The number of idempotent pids currently tracked in the stream, or <c>-1</c> if unavailable.
     /// </summary>
-    public long PidsTracked { get; }
+    public long PidsTracked
+    {
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
+        get;
+    }
 
     /// <summary>
     /// The number of idempotent ids currently tracked in the stream, or <c>-1</c> if unavailable.
     /// This count reflects active iids that haven't expired or been evicted yet.
     /// </summary>
-    public long IidsTracked { get; }
+    public long IidsTracked
+    {
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
+        get;
+    }
 
     /// <summary>
     /// The count of all entries with an idempotent iid added to the stream during its lifetime, or <c>-1</c> if unavailable.
     /// This is a cumulative counter that increases with each idempotent entry added.
     /// </summary>
-    public long IidsAdded { get; }
+    public long IidsAdded
+    {
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
+        get;
+    }
 
     /// <summary>
     /// The count of all duplicate iids (for all pids) detected during the stream's lifetime, or <c>-1</c> if unavailable.
     /// This is a cumulative counter that increases with each duplicate iid.
     /// </summary>
-    public long IidsDuplicates { get; }
+    public long IidsDuplicates
+    {
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
+        get;
+    }
 }

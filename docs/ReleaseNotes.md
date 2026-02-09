@@ -8,7 +8,7 @@ Current package versions:
 
 ## unreleased
 
-- Implement idempotent stream entry (IDMP) support 
+- Implement idempotent stream entry (IDMP) support  ([#3006 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3006))
 
 ## 2.10.14
 

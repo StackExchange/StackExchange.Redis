@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Data.Common;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -146,7 +145,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
         var id = await db.StreamAddAsync(key, "field1", "value1");
         Log($"id: {id}");
-        var settings = new StreamConfiguration { IdmpDuration = duration, IdmpMaxsize = maxsize };
+        var settings = new StreamConfiguration { IdmpDuration = duration, IdmpMaxSize = maxsize };
         bool doomed = duration is null && maxsize is null;
         if (async)
         {
@@ -175,7 +174,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var info = async ? await db.StreamInfoAsync(key) : db.StreamInfo(key);
         const int SERVER_DEFAULT = 100;
         Assert.Equal(duration ?? SERVER_DEFAULT, info.IdmpDuration);
-        Assert.Equal(maxsize ?? SERVER_DEFAULT, info.IdmpMaxsize);
+        Assert.Equal(maxsize ?? SERVER_DEFAULT, info.IdmpMaxSize);
     }
 
     [Fact]
@@ -1689,7 +1688,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         if (server.Version.IsAtLeast(RedisFeatures.v8_6_0))
         {
             Assert.True(streamInfo.IdmpDuration > 0);
-            Assert.True(streamInfo.IdmpMaxsize > 0);
+            Assert.True(streamInfo.IdmpMaxSize > 0);
             Assert.Equal(0, streamInfo.PidsTracked);
             Assert.Equal(0, streamInfo.IidsTracked);
             Assert.Equal(0, streamInfo.IidsDuplicates);
@@ -1698,7 +1697,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         else
         {
             Assert.Equal(-1, streamInfo.IdmpDuration);
-            Assert.Equal(-1, streamInfo.IdmpMaxsize);
+            Assert.Equal(-1, streamInfo.IdmpMaxSize);
             Assert.Equal(-1, streamInfo.PidsTracked);
             Assert.Equal(-1, streamInfo.IidsTracked);
             Assert.Equal(-1, streamInfo.IidsDuplicates);

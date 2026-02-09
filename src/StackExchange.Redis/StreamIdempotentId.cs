@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace StackExchange.Redis;
 
@@ -8,6 +9,7 @@ namespace StackExchange.Redis;
 /// caller can specify an <see cref="IdempotentId"/> that is unique and repeatable for a given data item, or omit it
 /// and let the server generate it from the content of the data item. In either event: duplicates are rejected.
 /// </summary>
+[Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
 public readonly struct StreamIdempotentId
 {
     // note: if exposing wider, maybe expose as a by-ref property rather than a readonly field

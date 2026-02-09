@@ -2930,7 +2930,7 @@ namespace StackExchange.Redis
         {
             if (key.IsNull) throw new ArgumentNullException(nameof(key));
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (configuration.IdmpMaxsize.HasValue)
+            if (configuration.IdmpMaxSize.HasValue)
             {
                 if (configuration.IdmpDuration.HasValue)
                 {
@@ -2943,7 +2943,7 @@ namespace StackExchange.Redis
                         RedisLiterals.IDMP_DURATION,
                         configuration.IdmpDuration.Value,
                         RedisLiterals.IDMP_MAXSIZE,
-                        configuration.IdmpMaxsize.Value);
+                        configuration.IdmpMaxSize.Value);
                 }
                 // just maxsize
                 return Message.Create(
@@ -2952,7 +2952,7 @@ namespace StackExchange.Redis
                     RedisCommand.XCFGSET,
                     key,
                     RedisLiterals.IDMP_MAXSIZE,
-                    configuration.IdmpMaxsize.Value);
+                    configuration.IdmpMaxSize.Value);
             }
 
             if (configuration.IdmpDuration.HasValue)

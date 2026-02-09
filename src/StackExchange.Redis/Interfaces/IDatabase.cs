@@ -2681,6 +2681,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2717,6 +2718,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
@@ -2726,6 +2728,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="configuration">The configuration to apply.</param>
         /// <param name="flags">The flags to use for this operation.</param>
+        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         void StreamConfigure(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

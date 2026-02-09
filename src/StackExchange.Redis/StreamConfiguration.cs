@@ -1,8 +1,11 @@
-﻿namespace StackExchange.Redis;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace StackExchange.Redis;
 
 /// <summary>
 /// Configuration parameters for a stream, for example idempotent producer (IDMP) duration and maxsize.
 /// </summary>
+[Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
 public sealed class StreamConfiguration
 {
     /// <summary>
@@ -13,5 +16,5 @@ public sealed class StreamConfiguration
     /// <summary>
     /// Maximum number of iids the server remembers per pid.
     /// </summary>
-    public long? IdmpMaxsize { get; set; }
+    public long? IdmpMaxSize { get; set; }
 }
