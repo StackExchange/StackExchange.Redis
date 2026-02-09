@@ -10,7 +10,7 @@ public partial interface IServer
     /// Start a new <c>HOTKEYS</c> profiling session.
     /// </summary>
     /// <param name="metrics">The metrics to record during this capture (defaults to "all").</param>
-    /// <param name="count">The total number of operations to profile.</param>
+    /// <param name="count">The number of keys to retain and report when <see cref="HotKeysGet"/> is invoked. If zero, the server default is used (currently 10).</param>
     /// <param name="duration">The duration of this profiling session.</param>
     /// <param name="sampleRatio">Profiling frequency; effectively: measure every Nth command.</param>
     /// <param name="slots">The key-slots to record during this capture (defaults to "all").</param>
@@ -28,7 +28,7 @@ public partial interface IServer
     /// Start a new <c>HOTKEYS</c> profiling session.
     /// </summary>
     /// <param name="metrics">The metrics to record during this capture (defaults to "all").</param>
-    /// <param name="count">The number of keys to retain and report when <see cref="HotKeysGet"/> is invoked.</param>
+    /// <param name="count">The number of keys to retain and report when <see cref="HotKeysGet"/> is invoked. If zero, the server default is used (currently 10).</param>
     /// <param name="duration">The duration of this profiling session.</param>
     /// <param name="sampleRatio">Profiling frequency; effectively: measure every Nth command.</param>
     /// <param name="slots">The key-slots to record during this capture (defaults to "all" / "all on this node").</param>
