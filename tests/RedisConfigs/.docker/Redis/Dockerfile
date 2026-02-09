@@ -1,4 +1,4 @@
-FROM redislabs/client-libs-test:8.4-GA-pre.3
+FROM redislabs/client-libs-test:custom-21651605017-debian-amd64
 
 COPY --from=configs ./Basic /data/Basic/
 COPY --from=configs ./Failover /data/Failover/

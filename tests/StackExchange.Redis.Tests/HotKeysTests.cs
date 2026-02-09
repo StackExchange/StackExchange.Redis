@@ -72,7 +72,7 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
     private protected IConnectionMultiplexer GetServer(in RedisKey key, out IServer server)
     {
-        var muxer = Create(require: RedisFeatures.v8_4_0_rc1, allowAdmin: true); // TODO: 8.6
+        var muxer = Create(require: RedisFeatures.v8_6_0, allowAdmin: true);
         server = key.IsNull ? muxer.GetServer(muxer.GetEndPoints()[0]) : muxer.GetServer(key);
         server.HotKeysStop(CommandFlags.FireAndForget);
         server.HotKeysReset(CommandFlags.FireAndForget);
