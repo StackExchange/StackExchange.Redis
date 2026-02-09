@@ -50,7 +50,11 @@ public sealed partial class HotKeysResult
                     break;
                 case selected_slots.Hash when selected_slots.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
                     var len = value.ItemsCount;
-                    if (len == 0) continue;
+                    if (len == 0)
+                    {
+                        _selectedSlots = [];
+                        continue;
+                    }
 
                     var items = value.GetItems().GetEnumerator();
                     var slots = len == 1 ? null : new SlotRange[len];
@@ -125,7 +129,11 @@ public sealed partial class HotKeysResult
                 case by_cpu_time_us.Hash when by_cpu_time_us.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
                     metrics |= HotKeysMetrics.Cpu;
                     len = value.ItemsCount / 2;
-                    if (len == 0) continue;
+                    if (len == 0)
+                    {
+                        _cpuByKey = [];
+                        continue;
+                    }
 
                     var cpuTime = new MetricKeyCpu[len];
                     items = value.GetItems().GetEnumerator();
@@ -143,7 +151,11 @@ public sealed partial class HotKeysResult
                 case by_net_bytes.Hash when by_net_bytes.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
                     metrics |= HotKeysMetrics.Network;
                     len = value.ItemsCount / 2;
-                    if (len == 0) continue;
+                    if (len == 0)
+                    {
+                        _networkBytesByKey = [];
+                        continue;
+                    }
 
                     var netBytes = new MetricKeyBytes[len];
                     items = value.GetItems().GetEnumerator();

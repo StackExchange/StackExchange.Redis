@@ -46,7 +46,9 @@ namespace StackExchange.Redis
         public int To => to;
 
         internal const int MinSlot = 0, MaxSlot = 16383;
-        internal static readonly SlotRange[] SharedAllSlots = [new(MinSlot, MaxSlot)];
+
+        private static SlotRange[]? s_SharedAllSlots;
+        internal static SlotRange[] SharedAllSlots => s_SharedAllSlots ??= [new(MinSlot, MaxSlot)];
 
         /// <summary>
         /// Indicates whether two ranges are not equal.
