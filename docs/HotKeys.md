@@ -7,7 +7,8 @@ This command is available via the `IServer.HotKeys*` methods:
 
 ``` c#
 // Get the server instance.
-var server = muxer.GetServer(endpoint);
+IConnectionMultiplexer muxer = ... // connect to Redis 8.6 or later
+var server = muxer.GetServer(endpoint); // or muxer.GetServer(key)
 
 // Start the capture; you can specify a duration, or manually use the HotKeysStop[Async] method; specifying
 // a duration is recommended, so that the profiler will not be left running in the case of failure.
@@ -50,3 +51,7 @@ If network metrics were captured, the following properties are also available:
 
 - `TotalProfiledNetworkBytes`: The total network data measured in the profiling session.
 - `NetworkBytesByKey`: Hot keys, as measured by network activity.
+
+Note: to use slot-based filtering, you must be connected to a Redis Cluster instance. The
+`IConnectionMultiplexer.HashSlot(RedisKey)` method can be used to determine the slot for a given key. The key
+can also be used in place of an endpoint when using `GetServer(...)` to get the `IServer` instance for a given key.
