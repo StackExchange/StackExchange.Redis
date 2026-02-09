@@ -48,3 +48,33 @@
 [SER003]override StackExchange.Redis.HotKeysResult.MetricKeyCpu.Equals(object? obj) -> bool
 [SER003]override StackExchange.Redis.HotKeysResult.MetricKeyCpu.GetHashCode() -> int
 [SER003]override StackExchange.Redis.HotKeysResult.MetricKeyCpu.ToString() -> string!
+[SER003]override StackExchange.Redis.StreamIdempotentId.Equals(object? obj) -> bool
+[SER003]override StackExchange.Redis.StreamIdempotentId.GetHashCode() -> int
+[SER003]override StackExchange.Redis.StreamIdempotentId.ToString() -> string!
+[SER003]StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+[SER003]StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+[SER003]StackExchange.Redis.IDatabase.StreamConfigure(StackExchange.Redis.RedisKey key, StackExchange.Redis.StreamConfiguration! configuration, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+[SER003]StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+[SER003]StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+[SER003]StackExchange.Redis.IDatabaseAsync.StreamConfigureAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.StreamConfiguration! configuration, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+[SER003]StackExchange.Redis.StreamConfiguration
+[SER003]StackExchange.Redis.StreamConfiguration.IdmpDuration.get -> long?
+[SER003]StackExchange.Redis.StreamConfiguration.IdmpDuration.set -> void
+[SER003]StackExchange.Redis.StreamConfiguration.IdmpMaxSize.get -> long?
+[SER003]StackExchange.Redis.StreamConfiguration.IdmpMaxSize.set -> void
+[SER003]StackExchange.Redis.StreamConfiguration.StreamConfiguration() -> void
+[SER003]StackExchange.Redis.StreamIdempotentId
+[SER003]StackExchange.Redis.StreamIdempotentId.IdempotentId.get -> StackExchange.Redis.RedisValue
+[SER003]StackExchange.Redis.StreamIdempotentId.ProducerId.get -> StackExchange.Redis.RedisValue
+[SER003]StackExchange.Redis.StreamIdempotentId.StreamIdempotentId() -> void
+[SER003]StackExchange.Redis.StreamIdempotentId.StreamIdempotentId(StackExchange.Redis.RedisValue producerId) -> void
+[SER003]StackExchange.Redis.StreamIdempotentId.StreamIdempotentId(StackExchange.Redis.RedisValue producerId, StackExchange.Redis.RedisValue idempotentId) -> void
+[SER003]StackExchange.Redis.StreamInfo.IdmpDuration.get -> long
+[SER003]StackExchange.Redis.StreamInfo.IdmpMaxSize.get -> long
+[SER003]StackExchange.Redis.StreamInfo.IidsAdded.get -> long
+[SER003]StackExchange.Redis.StreamInfo.IidsDuplicates.get -> long
+[SER003]StackExchange.Redis.StreamInfo.IidsTracked.get -> long
+[SER003]StackExchange.Redis.StreamInfo.PidsTracked.get -> long
+StackExchange.Redis.StreamInfo.EntriesAdded.get -> long
+StackExchange.Redis.StreamInfo.MaxDeletedEntryId.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.StreamInfo.RecordedFirstEntryId.get -> StackExchange.Redis.RedisValue

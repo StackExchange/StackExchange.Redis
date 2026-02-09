@@ -8,6 +8,7 @@ Current package versions:
 
 ## unreleased
 
+- Add support for idempotent stream entry (`XADD IDMP[AUTO]`) support  ([#3006 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3006))
 - Add support for `HOTKEYS` ([#3008 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3008))
 
 ## 2.10.14
