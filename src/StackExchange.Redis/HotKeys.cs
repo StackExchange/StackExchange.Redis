@@ -144,6 +144,11 @@ public sealed partial class HotKeysResult
     private readonly SlotRange[]? _selectedSlots;
 
     /// <summary>
+    /// Gets whether slot filtering is in use.
+    /// </summary>
+    public bool IsSlotFiltered => TotalSelectedSlotsNetworkBytesRaw >= 0; // this key only present if slot-filtering active
+
+    /// <summary>
     /// The total CPU measured for all commands in all slots, without any sampling or filtering applied.
     /// </summary>
     public TimeSpan TotalCpuTime => NonNegativeMicroseconds(TotalCpuTimeMicroseconds);

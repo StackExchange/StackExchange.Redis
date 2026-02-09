@@ -8,15 +8,17 @@ public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixtu
 {
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
-    [Fact]
-    public void CanUseClusterFilter()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CanUseClusterFilter(bool sample)
     {
         var key = Me();
         using var muxer = GetServer(key, out var server);
         Log($"server: {Format.ToString(server.EndPoint)}, key: '{key}'");
 
         var slot = muxer.HashSlot(key);
-        server.HotKeysStart(slots: [(short)slot]);
+        server.HotKeysStart(slots: [(short)slot], sampleRatio: sample ? 3 : 1);
 
         var db = muxer.GetDatabase();
         db.KeyDelete(key, flags: CommandFlags.FireAndForget);
@@ -28,6 +30,7 @@ public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixtu
         server.HotKeysStop();
         var result = server.HotKeysGet();
         Assert.NotNull(result);
+        Assert.True(result.IsSlotFiltered, nameof(result.IsSlotFiltered));
         var slots = result.SelectedSlots;
         Assert.Equal(1, slots.Length);
         Assert.Equal(slot, slots[0].From);
@@ -38,6 +41,23 @@ public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixtu
 
         Assert.Equal(1, result.NetworkBytesByKey.Length);
         Assert.Equal(key, result.NetworkBytesByKey[0].Key);
+
+        Assert.True(result.TotalSelectedSlotsCpuTimeMicroseconds >= 0, nameof(result.TotalSelectedSlotsCpuTimeMicroseconds));
+        Assert.True(result.TotalCpuTimeUserMicroseconds >= 0, nameof(result.TotalCpuTimeUserMicroseconds));
+
+        Assert.Equal(sample, result.IsSampled);
+        if (sample)
+        {
+            Assert.Equal(3, result.SampleRatio);
+            Assert.True(result.TotalSampledSelectedSlotsCpuTimeMicroseconds >= 0, nameof(result.TotalSampledSelectedSlotsCpuTimeMicroseconds));
+            Assert.True(result.TotalSampledSelectedSlotsNetworkBytesRaw >= 0, nameof(result.TotalSampledSelectedSlotsNetworkBytesRaw));
+        }
+        else
+        {
+            Assert.Equal(1, result.SampleRatio);
+            Assert.Equal(-1, result.TotalSampledSelectedSlotsCpuTimeMicroseconds);
+            Assert.Equal(-1, result.TotalSampledSelectedSlotsNetworkBytesRaw);
+        }
     }
 }
 
@@ -131,6 +151,8 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.True(net.Bytes > 0, nameof(net.Bytes));
 
         Assert.Equal(1, hotKeys.SampleRatio);
+        Assert.False(hotKeys.IsSampled, nameof(hotKeys.IsSampled));
+        Assert.False(hotKeys.IsSlotFiltered, nameof(hotKeys.IsSlotFiltered));
 
         if (server.ServerType is ServerType.Cluster)
         {
@@ -233,5 +255,27 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var result = await server.HotKeysGetAsync();
         Assert.NotNull(result);
         Assert.Equal(metrics, result.Metrics);
+    }
+
+    [Fact]
+    public async Task SampleRatioUsageAsync()
+    {
+        RedisKey key = Me();
+        await using var muxer = GetServer(key, out var server);
+        await server.HotKeysStartAsync(sampleRatio: 3);
+        var db = muxer.GetDatabase();
+        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 20; i++)
+        {
+            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
+        }
+
+        await server.HotKeysStopAsync(flags: CommandFlags.FireAndForget);
+        var result = await server.HotKeysGetAsync();
+        Assert.NotNull(result);
+        Assert.True(result.IsSampled, nameof(result.IsSampled));
+        Assert.Equal(3, result.SampleRatio);
+        Assert.NotEqual(result.TotalProfiledNetworkBytes, result.TotalNetworkBytes);
+        Assert.NotEqual(result.TotalProfiledCpuTime, result.TotalCpuTime);
     }
 }
