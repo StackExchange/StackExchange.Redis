@@ -16,7 +16,7 @@ var server = muxer.GetServer(endpoint); // or muxer.GetServer(key)
 // by default, all metrics are captured, every command is sampled, and all key slots are included.
 await server.HotKeysStartAsync(duration: TimeSpan.FromSeconds(30));
 
-// Wow either do some work ourselves, or await for some other activity to happen:
+// Now either do some work ourselves, or await for some other activity to happen:
 await Task.Delay(TimeSpan.FromSeconds(35)); // whatever happens: happens 
 
 // Fetch the results; note that this does not stop the capture, and you can fetch the results multiple times
