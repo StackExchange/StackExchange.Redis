@@ -21,17 +21,17 @@ public partial interface IServer
         long count = 0,
         TimeSpan duration = default,
         long sampleRatio = 1,
-        short[]? slots = null,
+        int[]? slots = null,
         CommandFlags flags = CommandFlags.None);
 
     /// <summary>
     /// Start a new <c>HOTKEYS</c> profiling session.
     /// </summary>
     /// <param name="metrics">The metrics to record during this capture (defaults to "all").</param>
-    /// <param name="count">The total number of operations to profile.</param>
+    /// <param name="count">The number of keys to retain and report when <see cref="HotKeysGet"/> is invoked.</param>
     /// <param name="duration">The duration of this profiling session.</param>
     /// <param name="sampleRatio">Profiling frequency; effectively: measure every Nth command.</param>
-    /// <param name="slots">The key-slots to record during this capture (defaults to "all").</param>
+    /// <param name="slots">The key-slots to record during this capture (defaults to "all" / "all on this node").</param>
     /// <param name="flags">The command flags to use.</param>
     [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
     Task HotKeysStartAsync(
@@ -39,7 +39,7 @@ public partial interface IServer
         long count = 0,
         TimeSpan duration = default,
         long sampleRatio = 1,
-        short[]? slots = null,
+        int[]? slots = null,
         CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -95,6 +95,11 @@ public partial interface IServer
 public enum HotKeysMetrics
 {
     /// <summary>
+    /// No metrics.
+    /// </summary>
+    None = 0,
+
+    /// <summary>
     /// Capture CPU time.
     /// </summary>
     Cpu = 1 << 0,
@@ -111,6 +116,11 @@ public enum HotKeysMetrics
 [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
 public sealed partial class HotKeysResult
 {
+    /// <summary>
+    /// The metrics captured during this profiling session.
+    /// </summary>
+    public HotKeysMetrics Metrics { get; }
+
     /// <summary>
     /// Indicates whether the capture currently active.
     /// </summary>
@@ -129,12 +139,9 @@ public sealed partial class HotKeysResult
     private readonly SlotRange[]? _selectedSlots;
 
     /// <summary>
-    /// The total CPU measured for all commands in all slots.
+    /// The total CPU measured for all commands in all slots, without any sampling or filtering applied.
     /// </summary>
     public TimeSpan TotalCpuTime => NonNegativeMicroseconds(TotalCpuTimeMicroseconds);
-
-    private static TimeSpan NonNegativeMilliseconds(long ms)
-        => TimeSpan.FromMilliseconds(Math.Max(ms, 0));
 
     private static TimeSpan NonNegativeMicroseconds(long us)
     {
@@ -142,60 +149,50 @@ public sealed partial class HotKeysResult
         return TimeSpan.FromTicks(Math.Max(us, 0) / TICKS_PER_MICROSECOND);
     }
 
-    /// <summary>
-    /// The total CPU measured for all commands in all slots.
-    /// </summary>
-    public long TotalCpuTimeMicroseconds { get; } = -1;
+    internal long TotalCpuTimeMicroseconds { get; } = -1;
 
     /// <summary>
-    /// The total network usage measured for all commands in all slots.
+    /// The total network usage measured for all commands in all slots, without any sampling or filtering applied.
     /// </summary>
     public long TotalNetworkBytes { get; }
 
-    /// <summary>
-    /// The start time of the capture.
-    /// </summary>
-    public long CollectionStartTimeUnixMilliseconds { get; } = -1;
+    internal long CollectionStartTimeUnixMilliseconds { get; } = -1;
 
     /// <summary>
     /// The start time of the capture.
     /// </summary>
     public DateTime CollectionStartTime => RedisBase.UnixEpoch.AddMilliseconds(Math.Max(CollectionStartTimeUnixMilliseconds, 0));
 
-    /// <summary>
-    /// The duration of the capture.
-    /// </summary>
-    public long CollectionDurationMilliseconds { get; }
+    internal long CollectionDurationMicroseconds { get; }
 
     /// <summary>
     /// The duration of the capture.
     /// </summary>
-    public TimeSpan CollectionDuration => NonNegativeMilliseconds(CollectionDurationMilliseconds);
+    public TimeSpan CollectionDuration => NonNegativeMicroseconds(CollectionDurationMicroseconds);
+
+    internal long TotalCpuTimeUserMicroseconds { get; } = -1;
 
     /// <summary>
-    /// The total user CPU time measured.
+    /// The total user CPU time measured in the profiling session.
     /// </summary>
-    public long TotalCpuTimeUserMilliseconds { get; } = -1;
+    public TimeSpan TotalProfiledCpuTimeUser => NonNegativeMicroseconds(TotalCpuTimeUserMicroseconds);
+
+    internal long TotalCpuTimeSystemMicroseconds { get; } = -1;
 
     /// <summary>
-    /// The total user CPU time measured.
+    /// The total system CPU measured in the profiling session.
     /// </summary>
-    public TimeSpan TotalCpuTimeUser => NonNegativeMilliseconds(TotalCpuTimeUserMilliseconds);
+    public TimeSpan TotalProfiledCpuTimeSystem => NonNegativeMicroseconds(TotalCpuTimeSystemMicroseconds);
 
     /// <summary>
-    /// The total system CPU measured.
+    /// The total CPU time measured in the profiling session (this is just <see cref="TotalProfiledCpuTimeUser"/> + <see cref="TotalProfiledCpuTimeSystem"/>).
     /// </summary>
-    public long TotalCpuTimeSystemMilliseconds { get; } = -1;
+    public TimeSpan TotalProfiledCpuTime => TotalProfiledCpuTimeUser + TotalProfiledCpuTimeSystem;
 
     /// <summary>
-    /// The total system CPU measured.
+    /// The total network data measured in the profiling session.
     /// </summary>
-    public TimeSpan TotalCpuTimeSystem => NonNegativeMilliseconds(TotalCpuTimeSystemMilliseconds);
-
-    /// <summary>
-    /// The total network data measured.
-    /// </summary>
-    public long TotalNetworkBytes2 { get; } // total-net-bytes vs net-bytes-all-commands-all-slots
+    public long TotalProfiledNetworkBytes { get; }
 
     // Intentionally do construct a dictionary from the results; the caller is unlikely to be looking
     // for a particular key (lookup), but rather: is likely to want to list them for display; this way,
@@ -229,10 +226,7 @@ public sealed partial class HotKeysResult
         /// </summary>
         public RedisKey Key => _key;
 
-        /// <summary>
-        /// The time taken, in microseconds.
-        /// </summary>
-        public long DurationMicroseconds => durationMicroseconds;
+        internal long DurationMicroseconds => durationMicroseconds;
 
         /// <summary>
         /// The time taken.
@@ -247,7 +241,7 @@ public sealed partial class HotKeysResult
 
         /// <inheritdoc/>
         public override bool Equals(object? obj)
-            => obj is MetricKeyCpu other && _key.Equals(other.Key) && durationMicroseconds == DurationMicroseconds;
+            => obj is MetricKeyCpu other && _key.Equals(other.Key) && durationMicroseconds == other.DurationMicroseconds;
     }
 
     /// <summary>

@@ -45,10 +45,10 @@ public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixtu
 [Collection(NonParallelCollection.Name)]
 public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    private protected IInternalConnectionMultiplexer GetServer(out IServer server)
+    private protected IConnectionMultiplexer GetServer(out IServer server)
         => GetServer(RedisKey.Null, out server);
 
-    private protected IInternalConnectionMultiplexer GetServer(in RedisKey key, out IServer server)
+    private protected IConnectionMultiplexer GetServer(in RedisKey key, out IServer server)
     {
         var muxer = Create(require: RedisFeatures.v8_4_0_rc1, allowAdmin: true); // TODO: 8.6
         server = key.IsNull ? muxer.GetServer(muxer.GetEndPoints()[0]) : muxer.GetServer(key);
@@ -116,7 +116,8 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
     private void CheckSimpleWithKey(RedisKey key, HotKeysResult hotKeys, IServer server)
     {
-        Assert.True(hotKeys.CollectionDurationMilliseconds >= 0, nameof(hotKeys.CollectionDurationMilliseconds));
+        Assert.Equal(HotKeysMetrics.Cpu | HotKeysMetrics.Network, hotKeys.Metrics);
+        Assert.True(hotKeys.CollectionDurationMicroseconds >= 0, nameof(hotKeys.CollectionDurationMicroseconds));
         Assert.True(hotKeys.CollectionStartTimeUnixMilliseconds >= 0, nameof(hotKeys.CollectionStartTimeUnixMilliseconds));
 
         Assert.Equal(1, hotKeys.CpuByKey.Length);
@@ -149,10 +150,10 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         }
 
         Assert.True(hotKeys.TotalCpuTimeMicroseconds >= 0,  nameof(hotKeys.TotalCpuTimeMicroseconds));
-        Assert.True(hotKeys.TotalCpuTimeSystemMilliseconds >= 0, nameof(hotKeys.TotalCpuTimeSystemMilliseconds));
-        Assert.True(hotKeys.TotalCpuTimeUserMilliseconds >= 0,  nameof(hotKeys.TotalCpuTimeUserMilliseconds));
+        Assert.True(hotKeys.TotalCpuTimeSystemMicroseconds >= 0, nameof(hotKeys.TotalCpuTimeSystemMicroseconds));
+        Assert.True(hotKeys.TotalCpuTimeUserMicroseconds >= 0,  nameof(hotKeys.TotalCpuTimeUserMicroseconds));
         Assert.True(hotKeys.TotalNetworkBytes > 0,  nameof(hotKeys.TotalNetworkBytes));
-        Assert.True(hotKeys.TotalNetworkBytes2 > 0,   nameof(hotKeys.TotalNetworkBytes2));
+        Assert.True(hotKeys.TotalProfiledNetworkBytes > 0, nameof(hotKeys.TotalProfiledNetworkBytes));
     }
 
     [Fact]
@@ -208,7 +209,29 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.NotNull(after);
         Assert.False(after.TrackingActive);
 
-        Log($"Duration: {after.CollectionDurationMilliseconds}ms");
-        Assert.True(after.CollectionDurationMilliseconds > 900 && after.CollectionDurationMilliseconds < 1100);
+        var millis = after.CollectionDuration.TotalMilliseconds;
+        Log($"Duration: {millis}ms");
+        Assert.True(millis > 900 && millis < 1100);
+    }
+
+    [Theory]
+    [InlineData(HotKeysMetrics.Cpu)]
+    [InlineData(HotKeysMetrics.Network)]
+    [InlineData(HotKeysMetrics.Network | HotKeysMetrics.Cpu)]
+    public async Task MetricsChoiceAsync(HotKeysMetrics metrics)
+    {
+        RedisKey key = Me();
+        await using var muxer = GetServer(key, out var server);
+        await server.HotKeysStartAsync(metrics);
+        var db = muxer.GetDatabase();
+        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 20; i++)
+        {
+            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
+        }
+        await server.HotKeysStopAsync(flags: CommandFlags.FireAndForget);
+        var result = await server.HotKeysGetAsync();
+        Assert.NotNull(result);
+        Assert.Equal(metrics, result.Metrics);
     }
 }

@@ -11,7 +11,7 @@ internal partial class RedisServer
         long count,
         TimeSpan duration,
         long sampleRatio,
-        short[]? slots) : Message(-1, flags, RedisCommand.HOTKEYS)
+        int[]? slots) : Message(-1, flags, RedisCommand.HOTKEYS)
     {
         protected override void WriteImpl(PhysicalConnection physical)
         {

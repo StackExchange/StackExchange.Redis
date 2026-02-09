@@ -10,7 +10,7 @@ internal partial class RedisServer
         long count = 0,
         TimeSpan duration = default,
         long sampleRatio = 1,
-        short[]? slots = null,
+        int[]? slots = null,
         CommandFlags flags = CommandFlags.None)
         => ExecuteSync(
             new HotKeysStartMessage(flags, metrics, count, duration, sampleRatio, slots),
@@ -21,7 +21,7 @@ internal partial class RedisServer
         long count = 0,
         TimeSpan duration = default,
         long sampleRatio = 1,
-        short[]? slots = null,
+        int[]? slots = null,
         CommandFlags flags = CommandFlags.None)
         => ExecuteAsync(
             new HotKeysStartMessage(flags, metrics, count, duration, sampleRatio, slots),
