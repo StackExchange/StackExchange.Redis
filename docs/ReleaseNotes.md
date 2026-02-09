@@ -6,10 +6,12 @@ Current package versions:
 | ------------ | ----------------- | ----- |
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
-## unreleased
+## 2.11.unreleased
 
-- Add support for idempotent stream entry (`XADD IDMP[AUTO]`) support  ([#3006 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3006))
 - Add support for `HOTKEYS` ([#3008 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3008))
+- Add support for keyspace notifications ([#2995 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2995))
+- Add support for idempotent stream entry (`XADD IDMP[AUTO]`) support  ([#3006 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3006))
+- (internals) split AMR out to a separate options provider ([#2986 by NickCraver and philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2986))
 
 ## 2.10.14
 
