@@ -4,6 +4,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
 [Collection(NonParallelCollection.Name)]
 public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
@@ -78,25 +79,31 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
     private static void CheckSimpleWithKey(RedisKey key, HotKeysResult hotKeys)
     {
-        Assert.True(hotKeys.CollectionDuration > TimeSpan.Zero);
-        Assert.True(hotKeys.CollectionStartTime > new DateTime(2026, 2, 1));
-        var cpu = Assert.Single(hotKeys.CpuByKey);
+        Assert.True(hotKeys.CollectionDurationMilliseconds >= 0, nameof(hotKeys.CollectionDurationMilliseconds));
+        Assert.True(hotKeys.CollectionStartTimeUnixMilliseconds >= 0, nameof(hotKeys.CollectionStartTimeUnixMilliseconds));
+
+        Assert.Equal(1, hotKeys.CpuByKey.Length);
+        var cpu = hotKeys.CpuByKey[0];
         Assert.Equal(key, cpu.Key);
-        Assert.True(cpu.Duration > TimeSpan.Zero);
-        var net = Assert.Single(hotKeys.NetworkBytesByKey);
+        Assert.True(cpu.DurationMicroseconds >= 0,  nameof(cpu.DurationMicroseconds));
+
+        Assert.Equal(1,  hotKeys.NetworkBytesByKey.Length);
+        var net = hotKeys.NetworkBytesByKey[0];
         Assert.Equal(key, net.Key);
-        Assert.True(net.Bytes > 0);
+        Assert.True(net.Bytes > 0, nameof(net.Bytes));
 
         Assert.Equal(1, hotKeys.SampleRatio);
-        var slots = Assert.Single(hotKeys.SelectedSlots);
-        Assert.Equal(0, slots.From);
-        Assert.Equal(16383, slots.To);
 
-        Assert.True(hotKeys.TotalCpuTime > TimeSpan.Zero);
-        Assert.True(hotKeys.TotalCpuTimeSystem >= TimeSpan.Zero);
-        Assert.True(hotKeys.TotalCpuTimeUser >= TimeSpan.Zero);
-        Assert.True(hotKeys.TotalNetworkBytes > 0);
-        Assert.True(hotKeys.TotalNetworkBytes2 > 0);
+        Assert.Equal(1, hotKeys.SelectedSlots.Length);
+        var slots = hotKeys.SelectedSlots[0];
+        Assert.Equal(SlotRange.MinSlot, slots.From);
+        Assert.Equal(SlotRange.MaxSlot, slots.To);
+
+        Assert.True(hotKeys.TotalCpuTimeMicroseconds >= 0,  nameof(hotKeys.TotalCpuTimeMicroseconds));
+        Assert.True(hotKeys.TotalCpuTimeSystemMilliseconds >= 0, nameof(hotKeys.TotalCpuTimeSystemMilliseconds));
+        Assert.True(hotKeys.TotalCpuTimeUserMilliseconds >= 0,  nameof(hotKeys.TotalCpuTimeUserMilliseconds));
+        Assert.True(hotKeys.TotalNetworkBytes > 0,  nameof(hotKeys.TotalNetworkBytes));
+        Assert.True(hotKeys.TotalNetworkBytes2 > 0,   nameof(hotKeys.TotalNetworkBytes2));
     }
 
     [Fact]

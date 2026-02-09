@@ -124,47 +124,73 @@ public sealed partial class HotKeysResult
     /// <summary>
     /// The key slots active for this profiling session.
     /// </summary>
-    public SlotRange[] SelectedSlots { get; } = [];
+    public ReadOnlySpan<SlotRange> SelectedSlots => _selectedSlots;
+
+    private readonly SlotRange[]? _selectedSlots;
 
     /// <summary>
     /// The total CPU measured for all commands in all slots.
     /// </summary>
-    public TimeSpan TotalCpuTime => TimeSpan.FromMilliseconds(TotalCpuTimeMilliseconds);
+    public TimeSpan TotalCpuTime => NonNegativeMicroseconds(TotalCpuTimeMicroseconds);
 
-    private long TotalCpuTimeMilliseconds { get; }
+    private static TimeSpan NonNegativeMilliseconds(long ms)
+        => TimeSpan.FromMilliseconds(Math.Max(ms, 0));
+
+    private static TimeSpan NonNegativeMicroseconds(long us)
+    {
+        const long TICKS_PER_MICROSECOND = TimeSpan.TicksPerMillisecond / 1000; // 10, but: clearer
+        return TimeSpan.FromTicks(Math.Max(us, 0) / TICKS_PER_MICROSECOND);
+    }
+
+    /// <summary>
+    /// The total CPU measured for all commands in all slots.
+    /// </summary>
+    public long TotalCpuTimeMicroseconds { get; } = -1;
 
     /// <summary>
     /// The total network usage measured for all commands in all slots.
     /// </summary>
     public long TotalNetworkBytes { get; }
 
-    private long CollectionStartTimeUnixMilliseconds { get; }
+    /// <summary>
+    /// The start time of the capture.
+    /// </summary>
+    public long CollectionStartTimeUnixMilliseconds { get; } = -1;
 
     /// <summary>
     /// The start time of the capture.
     /// </summary>
-    public DateTime CollectionStartTime => RedisBase.UnixEpoch.AddMilliseconds(CollectionStartTimeUnixMilliseconds);
-
-    private long CollectionDurationMilliseconds { get; }
+    public DateTime CollectionStartTime => RedisBase.UnixEpoch.AddMilliseconds(Math.Max(CollectionStartTimeUnixMilliseconds, 0));
 
     /// <summary>
     /// The duration of the capture.
     /// </summary>
-    public TimeSpan CollectionDuration => TimeSpan.FromMilliseconds(CollectionDurationMilliseconds);
+    public long CollectionDurationMilliseconds { get; }
 
-    private long TotalCpuTimeUserMilliseconds { get; }
+    /// <summary>
+    /// The duration of the capture.
+    /// </summary>
+    public TimeSpan CollectionDuration => NonNegativeMilliseconds(CollectionDurationMilliseconds);
 
     /// <summary>
     /// The total user CPU time measured.
     /// </summary>
-    public TimeSpan TotalCpuTimeUser => TimeSpan.FromMilliseconds(TotalCpuTimeUserMilliseconds);
+    public long TotalCpuTimeUserMilliseconds { get; } = -1;
 
-    private long TotalCpuTimeSystemMilliseconds { get; }
+    /// <summary>
+    /// The total user CPU time measured.
+    /// </summary>
+    public TimeSpan TotalCpuTimeUser => NonNegativeMilliseconds(TotalCpuTimeUserMilliseconds);
 
     /// <summary>
     /// The total system CPU measured.
     /// </summary>
-    public TimeSpan TotalCpuTimeSystem => TimeSpan.FromMilliseconds(TotalCpuTimeSystemMilliseconds);
+    public long TotalCpuTimeSystemMilliseconds { get; } = -1;
+
+    /// <summary>
+    /// The total system CPU measured.
+    /// </summary>
+    public TimeSpan TotalCpuTimeSystem => NonNegativeMilliseconds(TotalCpuTimeSystemMilliseconds);
 
     /// <summary>
     /// The total network data measured.
@@ -178,21 +204,23 @@ public sealed partial class HotKeysResult
     /// <summary>
     /// Hot keys, as measured by CPU activity.
     /// </summary>
-    public MetricKeyCpu[] CpuByKey { get; } = [];
+    public ReadOnlySpan<MetricKeyCpu> CpuByKey => _cpuByKey;
+
+    private readonly MetricKeyCpu[]? _cpuByKey;
 
     /// <summary>
     /// Hot keys, as measured by network activity.
     /// </summary>
-    public MetricKeyBytes[] NetworkBytesByKey { get; } = [];
+    public ReadOnlySpan<MetricKeyBytes> NetworkBytesByKey => _networkBytesByKey;
 
-    private const long TicksPerMicroSeconds = TimeSpan.TicksPerMillisecond / 1000; // 10, but: clearer
+    private readonly MetricKeyBytes[]? _networkBytesByKey;
 
     /// <summary>
     /// A hot key, as measured by CPU activity.
     /// </summary>
     /// <param name="key">The key observed.</param>
-    /// <param name="microSeconds">The time taken, in microseconds.</param>
-    public readonly struct MetricKeyCpu(in RedisKey key, long microSeconds)
+    /// <param name="durationMicroseconds">The time taken, in microseconds.</param>
+    public readonly struct MetricKeyCpu(in RedisKey key, long durationMicroseconds)
     {
         private readonly RedisKey _key = key;
 
@@ -204,22 +232,22 @@ public sealed partial class HotKeysResult
         /// <summary>
         /// The time taken, in microseconds.
         /// </summary>
-        public long MicroSeconds => microSeconds;
+        public long DurationMicroseconds => durationMicroseconds;
 
         /// <summary>
         /// The time taken.
         /// </summary>
-        public TimeSpan Duration => TimeSpan.FromTicks(microSeconds / TicksPerMicroSeconds);
+        public TimeSpan Duration => NonNegativeMicroseconds(durationMicroseconds);
 
         /// <inheritdoc/>
         public override string ToString() => $"{_key}: {Duration}";
 
         /// <inheritdoc/>
-        public override int GetHashCode() => _key.GetHashCode() ^ microSeconds.GetHashCode();
+        public override int GetHashCode() => _key.GetHashCode() ^ durationMicroseconds.GetHashCode();
 
         /// <inheritdoc/>
         public override bool Equals(object? obj)
-            => obj is MetricKeyCpu other && _key.Equals(other.Key) && MicroSeconds == other.MicroSeconds;
+            => obj is MetricKeyCpu other && _key.Equals(other.Key) && durationMicroseconds == DurationMicroseconds;
     }
 
     /// <summary>

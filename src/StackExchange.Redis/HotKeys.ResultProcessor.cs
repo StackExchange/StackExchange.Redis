@@ -53,7 +53,7 @@ public sealed partial class HotKeysResult
                         if (len == 0) continue;
 
                         var items = value.GetItems().GetEnumerator();
-                        var slots = new SlotRange[len];
+                        var slots = len == 1 ? null : new SlotRange[len];
                         for (int i = 0; i < len && items.MoveNext(); i++)
                         {
                             ref readonly RawResult pair = ref items.Current;
@@ -62,13 +62,21 @@ public sealed partial class HotKeysResult
                                 && pair[0].TryGetInt64(out var from)
                                 && pair[1].TryGetInt64(out var to))
                             {
-                                slots[i] = new((int)from, (int)to);
+                                if (len == 1 & from == SlotRange.MinSlot & to == SlotRange.MaxSlot)
+                                {
+                                    slots = SlotRange.SharedAllSlots; // avoid the alloc
+                                }
+                                else
+                                {
+                                    slots ??= new SlotRange[len];
+                                    slots[i] = new((int)from, (int)to);
+                                }
                             }
                         }
-                        SelectedSlots = slots;
+                        _selectedSlots = slots;
                         break;
                     case all_commands_all_slots_us.Hash when all_commands_all_slots_us.Is(hash, key) && value.TryGetInt64(out var i64):
-                        TotalCpuTimeMilliseconds = i64;
+                        TotalCpuTimeMicroseconds = i64;
                         break;
                     case net_bytes_all_commands_all_slots.Hash when net_bytes_all_commands_all_slots.Is(hash, key) && value.TryGetInt64(out var i64):
                         TotalNetworkBytes = i64;
@@ -103,7 +111,7 @@ public sealed partial class HotKeysResult
                             }
                         }
 
-                        CpuByKey = cpuTime;
+                        _cpuByKey = cpuTime;
                         break;
                     case by_net_bytes.Hash when by_net_bytes.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
                         len = value.ItemsCount / 2;
@@ -120,7 +128,7 @@ public sealed partial class HotKeysResult
                             }
                         }
 
-                        NetworkBytesByKey = netBytes;
+                        _networkBytesByKey = netBytes;
                         break;
                 }
             }
