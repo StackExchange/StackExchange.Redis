@@ -45,12 +45,16 @@ If CPU metrics were captured, the following properties are also available:
 - `TotalProfiledCpuTimeUser`: The total user CPU time measured in the profiling session.
 - `TotalProfiledCpuTimeSystem`: The total system CPU time measured in the profiling session.
 - `TotalProfiledCpuTime`: The total CPU time measured in the profiling session.
-- `CpuByKey`: Hot keys, as measured by CPU activity.
+- `CpuByKey`: Hot keys, as measured by CPU activity; for each:
+  - `Key`: The key observed.
+  - `Duration`: The time taken. 
 
 If network metrics were captured, the following properties are also available:
 
 - `TotalProfiledNetworkBytes`: The total network data measured in the profiling session.
-- `NetworkBytesByKey`: Hot keys, as measured by network activity.
+- `NetworkBytesByKey`: Hot keys, as measured by network activity; for each:
+  - `Key`: The key observed.
+  - `Bytes`: The network activity, in bytes.
 
 Note: to use slot-based filtering, you must be connected to a Redis Cluster instance. The
 `IConnectionMultiplexer.HashSlot(RedisKey)` method can be used to determine the slot for a given key. The key
