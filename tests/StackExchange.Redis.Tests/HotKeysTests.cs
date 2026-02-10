@@ -51,13 +51,20 @@ public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixtu
             Assert.Equal(3, result.SampleRatio);
             Assert.True(result.SampledCommandsSelectedSlotsMicroseconds >= 0, nameof(result.SampledCommandsSelectedSlotsMicroseconds));
             Assert.True(result.NetworkBytesSampledCommandsSelectedSlotsRaw >= 0, nameof(result.NetworkBytesSampledCommandsSelectedSlotsRaw));
+            Assert.True(result.SampledCommandsSelectedSlotsTime.HasValue);
+            Assert.True(result.SampledCommandsSelectedSlotsNetworkBytes.HasValue);
         }
         else
         {
             Assert.Equal(1, result.SampleRatio);
             Assert.Equal(-1, result.SampledCommandsSelectedSlotsMicroseconds);
             Assert.Equal(-1, result.NetworkBytesSampledCommandsSelectedSlotsRaw);
+            Assert.False(result.SampledCommandsSelectedSlotsTime.HasValue);
+            Assert.False(result.SampledCommandsSelectedSlotsNetworkBytes.HasValue);
         }
+
+        Assert.True(result.AllCommandsSelectedSlotsTime.HasValue);
+        Assert.True(result.AllCommandsSelectedSlotsNetworkBytes.HasValue);
     }
 }
 
@@ -178,6 +185,11 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.True(hotKeys.TotalCpuTimeUserMicroseconds >= 0,  nameof(hotKeys.TotalCpuTimeUserMicroseconds));
         Assert.True(hotKeys.AllCommandsAllSlotsNetworkBytes > 0,  nameof(hotKeys.AllCommandsAllSlotsNetworkBytes));
         Assert.True(hotKeys.TotalNetworkBytes > 0, nameof(hotKeys.TotalNetworkBytes));
+
+        Assert.False(hotKeys.AllCommandsSelectedSlotsTime.HasValue);
+        Assert.False(hotKeys.AllCommandsSelectedSlotsNetworkBytes.HasValue);
+        Assert.False(hotKeys.SampledCommandsSelectedSlotsTime.HasValue);
+        Assert.False(hotKeys.SampledCommandsSelectedSlotsNetworkBytes.HasValue);
     }
 
     [Fact]
