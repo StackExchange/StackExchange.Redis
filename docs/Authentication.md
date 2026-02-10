@@ -100,7 +100,7 @@ usage of passwords, and requires:
 For example:
 
 ``` csharp
-string certRoot = // some path to a folder with ca.crt, MyUSer2.crt and MyUser2.key
+string certRoot = // some path to a folder with ca.crt, MyUser2.crt and MyUser2.key
 
 var options = ConfigurationOptions.Parse("myserver:6380");
 options.SetUserPemCertificate(// automatically enables TLS
