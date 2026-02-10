@@ -1,4 +1,4 @@
-﻿Using Client Certificates
+Authentication
 ===
 
 There are multiple ways of connecting to a Redis server, depending on the authentication model. The simplest
@@ -65,7 +65,7 @@ If you have a local public / private key pair (such as `MyUser2.crt` and `MyUser
 
 ``` csharp
 config.SetUserPemCertificate(
-    userCertificatePath: userCrtPatah,
+    userCertificatePath: userCrtPath,
     userKeyPath: userKeyPath
 );
 ```
@@ -75,7 +75,7 @@ method can be used:
 
 ``` csharp
 config.SetUserPfxCertificate(
-    userCertificatePath: userCrtPatah,
+    userCertificatePath: userCrtPath,
     password: filePassword // optional
 );
 ```
