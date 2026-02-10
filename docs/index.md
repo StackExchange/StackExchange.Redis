@@ -31,7 +31,7 @@ Documentation
 ---
 
 - [Server](Server) - running a redis server
-- [Authentication](Authentication.md) - connecting to a Redis server with user authentication
+- [Authentication](Authentication) - connecting to a Redis server with user authentication
 - [Basic Usage](Basics) - getting started and basic usage
 - [Async Timeouts](AsyncTimeouts) - async timeouts and cancellation
 - [Configuration](Configuration) - options available when connecting to redis
