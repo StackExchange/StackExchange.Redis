@@ -6,7 +6,7 @@ There are multiple ways of connecting to a Redis server, depending on the authen
 This is as simple as:
 
 ``` csharp
-var muxer = ConnectionMultiplexer.Connect("myserver"); // or myserver:1241 to use a custom port
+var muxer = await ConnectionMultiplexer.ConnectAsync("myserver"); // or myserver:1241 to use a custom port
 ```
 
 This approach is often used for local transient servers - it is simple, but insecure. But from there,
@@ -20,7 +20,7 @@ library will recognize the endpoint address, meaning: *you do not need to do any
 *manually* enable TLS, the `ssl` token can be used:
 
 ``` csharp
-var muxer = ConnectionMultiplexer.Connect("myserver,ssl=true");
+var muxer = await ConnectionMultiplexer.ConnectAsync("myserver,ssl=true");
 ```
 
 This will work fine if the server is using a server-certificate that is already trusted by the local
@@ -31,7 +31,7 @@ the `ConfigurationOptions` type:
 var options = ConfigurationOptions.Parse("myserver,ssl=true");
 // or: var options = new ConfigurationOptions { Endpoints = { "myserver" }, Ssl = true };
 // TODO configure
-var muxer = ConnectionMultiplexer.Connect(options);
+var muxer = await ConnectionMultiplexer.ConnectAsync(options);
 ```
 
 If we have a local *issuer* public certificate (commonly `ca.crt`), we can use:
@@ -50,7 +50,7 @@ Usernames and Passwords
 Usernames and passwords can be specified with the `user` and `password` tokens, respectively:
 
 ``` csharp
-var muxer = ConnectionMultiplexer.Connect("myserver,ssl=true,user=myuser,password=mypassword");
+var muxer = await ConnectionMultiplexer.ConnectAsync("myserver,ssl=true,user=myuser,password=mypassword");
 ```
 
 If no `user` is provided, the `default` user is assumed. In some cases, an authentication-token can be
