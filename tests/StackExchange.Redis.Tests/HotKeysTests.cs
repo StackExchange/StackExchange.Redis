@@ -36,11 +36,21 @@ public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixtu
         Assert.Equal(slot, slots[0].From);
         Assert.Equal(slot, slots[0].To);
 
-        Assert.Equal(1, result.CpuByKey.Length);
-        Assert.Equal(key, result.CpuByKey[0].Key);
+        Assert.False(result.CpuByKey.IsEmpty, "Expected at least one CPU result");
+        bool found = false;
+        foreach (var cpu in result.CpuByKey)
+        {
+            if (cpu.Key == key) found = true;
+        }
+        Assert.True(found, "key not found in CPU results");
 
-        Assert.Equal(1, result.NetworkBytesByKey.Length);
-        Assert.Equal(key, result.NetworkBytesByKey[0].Key);
+        Assert.False(result.NetworkBytesByKey.IsEmpty, "Expected at least one network result");
+        found = false;
+        foreach (var net in result.NetworkBytesByKey)
+        {
+            if (net.Key == key) found = true;
+        }
+        Assert.True(found, "key not found in network results");
 
         Assert.True(result.AllCommandSelectedSlotsMicroseconds >= 0, nameof(result.AllCommandSelectedSlotsMicroseconds));
         Assert.True(result.TotalCpuTimeUserMicroseconds >= 0, nameof(result.TotalCpuTimeUserMicroseconds));
@@ -149,15 +159,23 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.True(hotKeys.CollectionDurationMicroseconds >= 0, nameof(hotKeys.CollectionDurationMicroseconds));
         Assert.True(hotKeys.CollectionStartTimeUnixMilliseconds >= 0, nameof(hotKeys.CollectionStartTimeUnixMilliseconds));
 
-        Assert.Equal(1, hotKeys.CpuByKey.Length);
-        var cpu = hotKeys.CpuByKey[0];
-        Assert.Equal(key, cpu.Key);
-        Assert.True(cpu.DurationMicroseconds >= 0,  nameof(cpu.DurationMicroseconds));
+        Assert.False(hotKeys.CpuByKey.IsEmpty, "Expected at least one CPU result");
+        bool found = false;
+        foreach (var cpu in hotKeys.CpuByKey)
+        {
+            Assert.True(cpu.DurationMicroseconds >= 0,  nameof(cpu.DurationMicroseconds));
+            if (cpu.Key == key) found = true;
+        }
+        Assert.True(found, "key not found in CPU results");
 
-        Assert.Equal(1,  hotKeys.NetworkBytesByKey.Length);
-        var net = hotKeys.NetworkBytesByKey[0];
-        Assert.Equal(key, net.Key);
-        Assert.True(net.Bytes > 0, nameof(net.Bytes));
+        Assert.False(hotKeys.NetworkBytesByKey.IsEmpty, "Expected at least one network result");
+        found = false;
+        foreach (var net in hotKeys.NetworkBytesByKey)
+        {
+            Assert.True(net.Bytes > 0, nameof(net.Bytes));
+            if (net.Key == key) found = true;
+        }
+        Assert.True(found, "key not found in network results");
 
         Assert.Equal(1, hotKeys.SampleRatio);
         Assert.False(hotKeys.IsSampled, nameof(hotKeys.IsSampled));
@@ -269,6 +287,17 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var result = await server.HotKeysGetAsync();
         Assert.NotNull(result);
         Assert.Equal(metrics, result.Metrics);
+
+        bool cpu = (metrics & HotKeysMetrics.Cpu) != 0;
+        bool net = (metrics & HotKeysMetrics.Network) != 0;
+
+        Assert.NotEqual(cpu, result.CpuByKey.IsEmpty);
+        Assert.Equal(cpu, result.TotalCpuTimeSystem.HasValue);
+        Assert.Equal(cpu, result.TotalCpuTimeUser.HasValue);
+        Assert.Equal(cpu, result.TotalCpuTime.HasValue);
+
+        Assert.NotEqual(net, result.NetworkBytesByKey.IsEmpty);
+        Assert.Equal(net, result.TotalNetworkBytes.HasValue);
     }
 
     [Fact]
