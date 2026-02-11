@@ -4,6 +4,8 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
+[Collection(NonParallelCollection.Name)]
 public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixture fixture) : HotKeysTests(output, fixture)
 {
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
