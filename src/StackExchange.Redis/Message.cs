@@ -182,6 +182,7 @@ namespace StackExchange.Redis
                     case RedisCommand.DEBUG:
                     case RedisCommand.FLUSHALL:
                     case RedisCommand.FLUSHDB:
+                    case RedisCommand.HOTKEYS:
                     case RedisCommand.INFO:
                     case RedisCommand.KEYS:
                     case RedisCommand.MONITOR:
@@ -553,6 +554,7 @@ namespace StackExchange.Redis
                 case RedisCommand.ECHO:
                 case RedisCommand.FLUSHALL:
                 case RedisCommand.HELLO:
+                case RedisCommand.HOTKEYS:
                 case RedisCommand.INFO:
                 case RedisCommand.LASTSAVE:
                 case RedisCommand.LATENCY:
