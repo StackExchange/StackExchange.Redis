@@ -70,7 +70,7 @@ else
 }
 ```
 
-(see also the Lock Operations section below)
+(see also the [Lock Operations section](#lock-operations) below)
 
 ## Digest-Based Checks
 
