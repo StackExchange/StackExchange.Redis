@@ -54,7 +54,7 @@ internal sealed partial class KeyPrefixedDatabase
         CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetSimilaritySearch(ToInner(key), query, flags);
 
-    public RedisValue[] VectorSetRange(
+    public Lease<RedisValue> VectorSetRange(
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,

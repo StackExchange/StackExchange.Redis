@@ -215,7 +215,7 @@ internal partial class RedisDatabase
             : Message.Create(Database, flags, RedisCommand.VRANGE, key, from, to, count);
     }
 
-    public RedisValue[] VectorSetRange(
+    public Lease<RedisValue> VectorSetRange(
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,
@@ -224,10 +224,10 @@ internal partial class RedisDatabase
         CommandFlags flags = CommandFlags.None)
     {
         var msg = GetVectorSetRangeMessage(key, start, end, count, exclude, flags);
-        return ExecuteSync(msg, ResultProcessor.RedisValueArray)!; // returns empty array if no key
+        return ExecuteSync(msg, ResultProcessor.LeaseRedisValue)!;
     }
 
-    public Task<RedisValue[]> VectorSetRangeAsync(
+    public Task<Lease<RedisValue>?> VectorSetRangeAsync(
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,
@@ -236,7 +236,7 @@ internal partial class RedisDatabase
         CommandFlags flags = CommandFlags.None)
     {
         var msg = GetVectorSetRangeMessage(key, start, end, count, exclude, flags);
-        return ExecuteAsync(msg, ResultProcessor.RedisValueArray)!; // returns empty array if no key
+        return ExecuteAsync(msg, ResultProcessor.LeaseRedisValue);
     }
 
     public IEnumerable<RedisValue> VectorSetRangeEnumerate(
@@ -250,15 +250,16 @@ internal partial class RedisDatabase
         // intentionally not using "scan" naming in case a VSCAN command is added later
         while (true)
         {
-            var batch = VectorSetRange(key, start, end, count, exclude, flags);
+            using var batch = VectorSetRange(key, start, end, count, exclude, flags);
             exclude |= Exclude.Start; // on subsequent iterations, exclude the start (we've already yielded it)
 
-            if (batch.Length == 0) yield break;
-            for (int i = 0; i < batch.Length; i++)
+            if (batch is null || batch.IsEmpty) yield break;
+            var segment = batch.ArraySegment;
+            for (int i = 0; i < segment.Count; i++)
             {
-                yield return batch[i];
+                // note side effect: use the last value as the exclusive start of the next batch
+                yield return start = segment.Array![segment.Offset + i];
             }
-            start = batch[batch.Length - 1]; // use the last value as the exclusive start of the next batch
             if (batch.Length < count || (!end.IsNull && end == start)) yield break; // no need to issue a final query
         }
     }
@@ -279,15 +280,16 @@ internal partial class RedisDatabase
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var batch = await VectorSetRangeAsync(key, start, end, count, exclude, flags);
+                using var batch = await VectorSetRangeAsync(key, start, end, count, exclude, flags);
                 exclude |= Exclude.Start; // on subsequent iterations, exclude the start (we've already yielded it)
 
-                if (batch.Length == 0) yield break;
-                for (int i = 0; i < batch.Length; i++)
+                if (batch is null || batch.IsEmpty) yield break;
+                var segment = batch.ArraySegment;
+                for (int i = 0; i < segment.Count; i++)
                 {
-                    yield return batch[i];
+                    // note side effect: use the last value as the exclusive start of the next batch
+                    yield return start = segment.Array![segment.Offset + i];
                 }
-                start = batch[batch.Length - 1]; // use the last value as the exclusive start of the next batch
                 if (batch.Length < count || (!end.IsNull && end == start)) yield break; // no need to issue a final query
             }
         }

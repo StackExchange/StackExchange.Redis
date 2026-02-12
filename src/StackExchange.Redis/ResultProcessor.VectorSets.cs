@@ -11,6 +11,8 @@ internal abstract partial class ResultProcessor
 
     public static readonly ResultProcessor<Lease<RedisValue>?> VectorSetLinks = new VectorSetLinksProcessor();
 
+    public static readonly ResultProcessor<Lease<RedisValue>?> LeaseRedisValue = new LeaseRedisValueProcessor();
+
     public static ResultProcessor<VectorSetInfo?> VectorSetInfo = new VectorSetInfoProcessor();
 
     private sealed class VectorSetLinksWithScoresProcessor : FlattenedLeaseProcessor<VectorSetLink>
@@ -39,6 +41,15 @@ internal abstract partial class ResultProcessor
         protected override bool TryReadOne(in RawResult result, out RedisValue value)
         {
             value = result.AsRedisValue();
+            return true;
+        }
+    }
+
+    private sealed class LeaseRedisValueProcessor : LeaseProcessor<RedisValue>
+    {
+        protected override bool TryParse(in RawResult raw, out RedisValue parsed)
+        {
+            parsed = raw.AsRedisValue();
             return true;
         }
     }

@@ -95,7 +95,7 @@ public partial interface IDatabaseAsync
 
     /// <inheritdoc cref="IDatabase.VectorSetRange(RedisKey, RedisValue, RedisValue, long, Exclude, CommandFlags)"/>
     [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-    Task<RedisValue[]> VectorSetRangeAsync(
+    Task<Lease<RedisValue>?> VectorSetRangeAsync(
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,

@@ -190,10 +190,10 @@ public partial interface IDatabase
     /// <param name="count">The maximum number of members to return (-1 for all).</param>
     /// <param name="exclude">Whether to exclude the start and/or end values.</param>
     /// <param name="flags">The flags to use for this operation.</param>
-    /// <returns>Members in the specified range.</returns>
+    /// <returns>Members in the specified range as a pooled memory lease.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vrange"/></remarks>
     [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
-    RedisValue[] VectorSetRange(
+    Lease<RedisValue> VectorSetRange(
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,

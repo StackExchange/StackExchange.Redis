@@ -57,7 +57,7 @@ internal partial class KeyPrefixed<TInner>
         CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetSimilaritySearchAsync(ToInner(key), query, flags);
 
-    public Task<RedisValue[]> VectorSetRangeAsync(
+    public Task<Lease<RedisValue>?> VectorSetRangeAsync(
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,

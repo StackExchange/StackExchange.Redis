@@ -694,12 +694,12 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get all members - should be in lexicographical order
-        var result = await db.VectorSetRangeAsync(key);
+        using var result = await db.VectorSetRangeAsync(key);
 
         Assert.NotNull(result);
         Assert.Equal(4, result.Length);
         // Lexicographical order: alpha, beta, delta, gamma
-        Assert.Equal(new[] { "alpha", "beta", "delta", "gamma" }, result.Select(r => (string?)r).ToArray());
+        Assert.Equal(new[] { "alpha", "beta", "delta", "gamma" }, result.Span.ToArray().Select(r => (string?)r).ToArray());
     }
 
     [Fact]
@@ -721,11 +721,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get range from "banana" to "date" (inclusive)
-        var result = await db.VectorSetRangeAsync(key, start: "banana", end: "date");
+        using var result = await db.VectorSetRangeAsync(key, start: "banana", end: "date");
 
         Assert.NotNull(result);
         Assert.Equal(3, result.Length);
-        Assert.Equal(new[] { "banana", "cherry", "date" }, result.Select(r => (string?)r).ToArray());
+        Assert.Equal(new[] { "banana", "cherry", "date" }, result.Span.ToArray().Select(r => (string?)r).ToArray());
     }
 
     [Fact]
@@ -747,7 +747,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get only 5 members
-        var result = await db.VectorSetRangeAsync(key, count: 5);
+        using var result = await db.VectorSetRangeAsync(key, count: 5);
 
         Assert.NotNull(result);
         Assert.Equal(5, result.Length);
@@ -772,11 +772,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get range excluding start
-        var result = await db.VectorSetRangeAsync(key, start: "a", end: "d", exclude: Exclude.Start);
+        using var result = await db.VectorSetRangeAsync(key, start: "a", end: "d", exclude: Exclude.Start);
 
         Assert.NotNull(result);
         Assert.Equal(3, result.Length);
-        Assert.Equal(new[] { "b", "c", "d" }, result.Select(r => (string?)r).ToArray());
+        Assert.Equal(new[] { "b", "c", "d" }, result.Span.ToArray().Select(r => (string?)r).ToArray());
     }
 
     [Fact]
@@ -798,11 +798,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get range excluding end
-        var result = await db.VectorSetRangeAsync(key, start: "a", end: "d", exclude: Exclude.Stop);
+        using var result = await db.VectorSetRangeAsync(key, start: "a", end: "d", exclude: Exclude.Stop);
 
         Assert.NotNull(result);
         Assert.Equal(3, result.Length);
-        Assert.Equal(new[] { "a", "b", "c" }, result.Select(r => (string?)r).ToArray());
+        Assert.Equal(new[] { "a", "b", "c" }, result.Span.ToArray().Select(r => (string?)r).ToArray());
     }
 
     [Fact]
@@ -824,11 +824,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get range excluding both boundaries
-        var result = await db.VectorSetRangeAsync(key, start: "a", end: "e", exclude: Exclude.Both);
+        using var result = await db.VectorSetRangeAsync(key, start: "a", end: "e", exclude: Exclude.Both);
 
         Assert.NotNull(result);
         Assert.Equal(3, result.Length);
-        Assert.Equal(new[] { "b", "c", "d" }, result.Select(r => (string?)r).ToArray());
+        Assert.Equal(new[] { "b", "c", "d" }, result.Span.ToArray().Select(r => (string?)r).ToArray());
     }
 
     [Fact]
@@ -841,10 +841,10 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         // Don't add any members
-        var result = await db.VectorSetRangeAsync(key);
+        using var result = await db.VectorSetRangeAsync(key);
 
         Assert.NotNull(result);
-        Assert.Empty(result);
+        Assert.Empty(result.Span.ToArray());
     }
 
     [Fact]
@@ -866,10 +866,10 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Query range with no matching members
-        var result = await db.VectorSetRangeAsync(key, start: "x", end: "z");
+        using var result = await db.VectorSetRangeAsync(key, start: "x", end: "z");
 
         Assert.NotNull(result);
-        Assert.Empty(result);
+        Assert.Empty(result.Span.ToArray());
     }
 
     [Fact]
@@ -891,11 +891,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get from beginning to "beta"
-        var result = await db.VectorSetRangeAsync(key, end: "beta");
+        using var result = await db.VectorSetRangeAsync(key, end: "beta");
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
-        Assert.Equal(new[] { "alpha", "beta" }, result.Select(r => (string?)r).ToArray());
+        Assert.Equal(new[] { "alpha", "beta" }, result.Span.ToArray().Select(r => (string?)r).ToArray());
     }
 
     [Fact]
@@ -917,11 +917,11 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get from "beta" to end
-        var result = await db.VectorSetRangeAsync(key, start: "beta");
+        using var result = await db.VectorSetRangeAsync(key, start: "beta");
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
-        Assert.Equal(new[] { "beta", "gamma" }, result.Select(r => (string?)r).ToArray());
+        Assert.Equal(new[] { "beta", "gamma" }, result.Span.ToArray().Select(r => (string?)r).ToArray());
     }
 
     [Fact]
@@ -943,13 +943,13 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Call both sync and async
-        var syncResult = db.VectorSetRange(key, start: "m05", end: "m15");
-        var asyncResult = await db.VectorSetRangeAsync(key, start: "m05", end: "m15");
+        using var syncResult = db.VectorSetRange(key, start: "m05", end: "m15");
+        using var asyncResult = await db.VectorSetRangeAsync(key, start: "m05", end: "m15");
 
         Assert.NotNull(syncResult);
         Assert.NotNull(asyncResult);
         Assert.Equal(syncResult.Length, asyncResult.Length);
-        Assert.Equal(syncResult.Select(r => (string?)r), asyncResult.Select(r => (string?)r));
+        Assert.Equal(syncResult.Span.ToArray().Select(r => (string?)r), asyncResult.Span.ToArray().Select(r => (string?)r));
     }
 
     [Fact]
@@ -971,12 +971,12 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         }
 
         // Get all - should be in lexicographical order, not numeric
-        var result = await db.VectorSetRangeAsync(key);
+        using var result = await db.VectorSetRangeAsync(key);
 
         Assert.NotNull(result);
         Assert.Equal(5, result.Length);
         // Lexicographical order: "1", "10", "2", "20", "3"
-        Assert.Equal(new[] { "1", "10", "2", "20", "3" }, result.Select(r => (string?)r).ToArray());
+        Assert.Equal(new[] { "1", "10", "2", "20", "3" }, result.Span.ToArray().Select(r => (string?)r).ToArray());
     }
 
     [Fact]

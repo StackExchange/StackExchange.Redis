@@ -135,23 +135,26 @@ Retrieve members in lexicographical order:
 
 ```csharp
 // Get all members
-var allMembers = await db.VectorSetRangeAsync(key);
+using var allMembers = await db.VectorSetRangeAsync(key);
+// ... access allMembers.Span, etc
 
 // Get members in a specific range
-var rangeMembers = await db.VectorSetRangeAsync(
+using var rangeMembers = await db.VectorSetRangeAsync(
     key,
     start: "product-100",
     end: "product-200",
     count: 50
 );
+// ... access rangeMembers.Span, etc
 
 // Exclude boundaries
-var members = await db.VectorSetRangeAsync(
+using var members = await db.VectorSetRangeAsync(
     key,
     start: "product-100",
     end: "product-200",
     exclude: Exclude.Both
 );
+// ... access members.Span, etc
 ```
 
 ### Enumerating Large Result Sets
@@ -194,7 +197,7 @@ await db.VectorSetAddAsync(key, request);
 
 ### Dimension Reduction
 
-Use random projection to reduce vector dimensions:
+Use projection to reduce vector dimensions:
 
 ```csharp
 var request = VectorSetAddRequest.Member("product-123", vector.AsMemory());
@@ -331,17 +334,20 @@ await Task.WhenAll(tasks);
 
 ### Range Query Pagination
 
-Use enumeration for large result sets to avoid loading everything into memory:
+Prefer enumeration for large result sets to avoid loading everything into memory:
 
 ```csharp
-// Good: Processes in batches
-await foreach (var member in db.VectorSetRangeEnumerateAsync(key, count: 1000))
+// Good: loads results in batches, processes items individually
+await foreach (var member in db.VectorSetRangeEnumerateAsync(key))
 {
     await ProcessMemberAsync(member);
 }
 
-// Avoid: Loads all results at once
-var allMembers = await db.VectorSetRangeAsync(key); // Could be millions
+// Avoid: loads all results at once
+using var allMembers1 = await db.VectorSetRangeAsync(key);
+
+// Avoid: loads resultsin batches, but still loads everything into memory at once
+var allMembers2 = await VectorSetRangeEnumerateAsync(key).ToArrayAsync();
 ```
 
 ## Common Patterns
