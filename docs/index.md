@@ -38,6 +38,7 @@ Documentation
 - [Pipelines and Multiplexers](PipelinesMultiplexers) - what is a multiplexer?
 - [Keys, Values and Channels](KeysValues) - discusses the data-types used on the API
 - [Transactions](Transactions) - how atomic transactions work in redis
+- [Compare-And-Swap / Compare-And-Delete (CAS/CAD)](CompareAndSwap) - atomic conditional operations using value comparison
 - [Events](Events) - the events available for logging / information purposes
 - [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
 - [Pub/Sub Key Notifications](KeyspaceNotifications) - how to use keyspace and keyevent notifications
