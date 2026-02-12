@@ -93,6 +93,26 @@ public partial interface IDatabaseAsync
         VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None);
 
+    /// <inheritdoc cref="IDatabase.VectorSetRange(RedisKey, RedisValue, RedisValue, long, Exclude, CommandFlags)"/>
+    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
+    Task<RedisValue[]> VectorSetRangeAsync(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = -1,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None);
+
+    /// <inheritdoc cref="IDatabase.VectorSetRangeEnumerate(RedisKey, RedisValue, RedisValue, long, Exclude, CommandFlags)"/>
+    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
+    System.Collections.Generic.IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None);
+
     /// <inheritdoc cref="IDatabase.StreamReadGroup(StreamPosition[], RedisValue, RedisValue, int?, bool, TimeSpan?, CommandFlags)"/>
     Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None);
 }

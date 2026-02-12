@@ -180,4 +180,44 @@ public partial interface IDatabase
         RedisKey key,
         VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None);
+
+    /// <summary>
+    /// Get a range of members from a vectorset by lexicographical order.
+    /// </summary>
+    /// <param name="key">The key of the vectorset.</param>
+    /// <param name="start">The minimum value to filter by (inclusive by default).</param>
+    /// <param name="end">The maximum value to filter by (inclusive by default).</param>
+    /// <param name="count">The maximum number of members to return (-1 for all).</param>
+    /// <param name="exclude">Whether to exclude the start and/or end values.</param>
+    /// <param name="flags">The flags to use for this operation.</param>
+    /// <returns>Members in the specified range.</returns>
+    /// <remarks><seealso href="https://redis.io/commands/vrange"/></remarks>
+    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
+    RedisValue[] VectorSetRange(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = -1,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None);
+
+    /// <summary>
+    /// Enumerate members from a vectorset by lexicographical order in batches.
+    /// </summary>
+    /// <param name="key">The key of the vectorset.</param>
+    /// <param name="start">The minimum value to filter by (inclusive by default).</param>
+    /// <param name="end">The maximum value to filter by (inclusive by default).</param>
+    /// <param name="count">The batch size for each iteration.</param>
+    /// <param name="exclude">Whether to exclude the start and/or end values.</param>
+    /// <param name="flags">The flags to use for this operation.</param>
+    /// <returns>An enumerable of members in the specified range.</returns>
+    /// <remarks><seealso href="https://redis.io/commands/vrange"/></remarks>
+    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
+    System.Collections.Generic.IEnumerable<RedisValue> VectorSetRangeEnumerate(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None);
 }

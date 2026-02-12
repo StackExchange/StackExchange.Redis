@@ -56,4 +56,22 @@ internal partial class KeyPrefixed<TInner>
         VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None) =>
         Inner.VectorSetSimilaritySearchAsync(ToInner(key), query, flags);
+
+    public Task<RedisValue[]> VectorSetRangeAsync(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = -1,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None) =>
+        Inner.VectorSetRangeAsync(ToInner(key), start, end, count, exclude, flags);
+
+    public System.Collections.Generic.IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None) =>
+        Inner.VectorSetRangeEnumerateAsync(ToInner(key), start, end, count, exclude, flags);
 }

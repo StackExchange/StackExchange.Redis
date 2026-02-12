@@ -219,6 +219,7 @@ internal enum RedisCommand
     VISMEMBER,
     VLINKS,
     VRANDMEMBER,
+    VRANGE,
     VREM,
     VSETATTR,
     VSIM,
@@ -533,6 +534,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.VISMEMBER:
             case RedisCommand.VLINKS:
             case RedisCommand.VRANDMEMBER:
+            case RedisCommand.VRANGE:
             case RedisCommand.VSIM:
             // Writable commands, but allowed for the writable-replicas scenario
             case RedisCommand.COPY:
