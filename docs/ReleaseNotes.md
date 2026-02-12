@@ -8,7 +8,7 @@ Current package versions:
 
 ## 2.11.unreleased
 
-- Add support for `VRANGE`
+- Add support for `VRANGE` ([#3011 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3011))
 
 ## 2.11.0
 
