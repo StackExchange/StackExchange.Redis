@@ -346,7 +346,7 @@ await foreach (var member in db.VectorSetRangeEnumerateAsync(key))
 // Avoid: loads all results at once
 using var allMembers1 = await db.VectorSetRangeAsync(key);
 
-// Avoid: loads resultsin batches, but still loads everything into memory at once
+// Avoid: loads results in batches, but still loads everything into memory at once
 var allMembers2 = await VectorSetRangeEnumerateAsync(key).ToArrayAsync();
 ```
 
