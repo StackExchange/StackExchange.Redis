@@ -178,7 +178,13 @@ if (await db.LockTakeAsync(lockKey, lockToken, lockExpiry))
         // Do work while holding the lock
 
         // Extend the lock (uses CAS internally on Redis 8.4+)
-        await db.LockExtendAsync(lockKey, lockToken, TimeSpan.FromSeconds(30));
+        if (!(await db.LockExtendAsync(lockKey, lockToken, TimeSpan.FromSeconds(30)))
+        {
+            // Failed to extend the lock - it expired, or was forcibly taken against our will
+            throw new InvalidOperationException("Lock extension failed - check expiry duration is appropriate.");
+        }
+
+        // Do more work...
     }
     finally
     {
