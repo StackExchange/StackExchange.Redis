@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
@@ -256,7 +255,7 @@ public sealed class ChannelMessageQueue : IAsyncEnumerable<ChannelMessage>
             try
             {
                 var task = handler?.Invoke(next);
-                if (task != null && task.Status != TaskStatus.RanToCompletion) await task.ForAwait();
+                if (task != null && !task.IsCompletedSuccessfully) await task.ForAwait();
             }
             catch { } // matches MessageCompletable
         }

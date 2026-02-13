@@ -55,6 +55,17 @@ namespace StackExchange.Redis
             public readonly T[]? ValuesOversized;
             public readonly int Count;
             public readonly bool IsPooled;
+            public ReadOnlySpan<T> Values => ValuesOversized is null ? [] : ValuesOversized.AsSpan(0, Count);
+
+            public void Recycle()
+            {
+                if (IsPooled && ValuesOversized != null)
+                {
+                    ArrayPool<T>.Shared.Return(ValuesOversized);
+                }
+
+                Unsafe.AsRef(in this) = default; // best effort wipe
+            }
             public ScanResult(RedisValue cursor, T[]? valuesOversized, int count, bool isPooled)
             {
                 Cursor = cursor;

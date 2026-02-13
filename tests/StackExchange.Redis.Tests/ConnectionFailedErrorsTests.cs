@@ -180,6 +180,7 @@ public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(ou
             {
                 conn.GetDatabase();
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
+                Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 
                 conn.AllowConnect = false;
 
