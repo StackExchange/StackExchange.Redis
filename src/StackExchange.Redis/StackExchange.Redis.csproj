@@ -2,7 +2,7 @@
   <PropertyGroup>
     <Nullable>enable</Nullable>
     <!-- extend the default lib targets for the main lib; mostly because of "vectors" -->
-    <TargetFrameworks>net461;netstandard2.0;net472;netcoreapp3.1;net6.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>net461;netstandard2.0;net472;net6.0;net8.0;net10.0</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyName>StackExchange.Redis</AssemblyName>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
@@ -41,10 +41,11 @@
 
   <ItemGroup>
     <!-- APIs for all target frameworks -->
-    <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
-    <!-- APIs for netcoreapp3.1+ -->
-    <AdditionalFiles Include="PublicAPI/$(TargetFramework)/PublicAPI.Shipped.txt" Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'" />
+    <AdditionalFiles Include="PublicAPI/PublicAPI.*.txt" />
+    <!-- progressively additive APIs in later frameworks -->
+    <AdditionalFiles Include="PublicAPI/net6.0/PublicAPI.*.txt" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))" />
+    <!-- for example... -->
+    <!-- <AdditionalFiles Include="PublicAPI/net10.0/PublicAPI.*.txt" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))" /> -->
   </ItemGroup>
 
   <ItemGroup>
@@ -55,5 +56,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\RESPite\RESPite.csproj" />
   </ItemGroup>
 </Project>

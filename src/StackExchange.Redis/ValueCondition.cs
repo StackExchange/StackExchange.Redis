@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Hashing;
 using System.Runtime.CompilerServices;
+using RESPite;
 
 namespace StackExchange.Redis;
 

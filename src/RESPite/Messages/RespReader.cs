@@ -7,7 +7,6 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using RESPite.Internal;
-using StackExchange.Redis;
 
 #if NETCOREAPP3_0_OR_GREATER
 using System.Runtime.Intrinsics;
@@ -1384,7 +1383,7 @@ public ref partial struct RespReader
     /// </summary>
     /// <param name="target">The destination for the copy operation.</param>
     /// <returns>The number of bytes successfully copied.</returns>
-    public readonly int CopyTo(Span<byte> target)
+    public readonly int CopyTo(scoped Span<byte> target)
     {
         if (TryGetSpan(out var value))
         {
