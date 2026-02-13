@@ -10,7 +10,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CodeAnalysisRuleset>$(MSBuildThisFileDirectory)Shared.ruleset</CodeAnalysisRuleset>
     <MSBuildWarningsAsMessages>NETSDK1069</MSBuildWarningsAsMessages>
-    <NoWarn>$(NoWarn);NU5105;NU1507;SER001;SER002;SER003</NoWarn>
+    <NoWarn>$(NoWarn);NU5105;NU1507;SER001;SER002;SER003;SER004</NoWarn>
     <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
     <PackageProjectUrl>https://stackexchange.github.io/StackExchange.Redis/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

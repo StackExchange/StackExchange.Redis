@@ -9,11 +9,12 @@ namespace StackExchange.Redis
     {
         public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/";
 
+        // ReSharper disable InconsistentNaming
         public const string VectorSets = "SER001";
-        // ReSharper disable once InconsistentNaming
         public const string Server_8_4 = "SER002";
-        // ReSharper disable once InconsistentNaming
         public const string Server_8_6 = "SER003";
+        public const string Respite = "SER004";
+        // ReSharper restore InconsistentNaming
     }
 }
 

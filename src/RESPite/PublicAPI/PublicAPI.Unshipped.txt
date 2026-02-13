@@ -1,0 +1,134 @@
+﻿#nullable enable
+[SER004]const RESPite.Messages.RespScanState.MinBytes = 3 -> int
+[SER004]override RESPite.Messages.RespScanState.Equals(object? obj) -> bool
+[SER004]override RESPite.Messages.RespScanState.GetHashCode() -> int
+[SER004]override RESPite.Messages.RespScanState.ToString() -> string!
+[SER004]RESPite.Messages.RespAttributeReader<T>
+[SER004]RESPite.Messages.RespAttributeReader<T>.RespAttributeReader() -> void
+[SER004]RESPite.Messages.RespFrameScanner
+[SER004]RESPite.Messages.RespFrameScanner.TryRead(ref RESPite.Messages.RespScanState state, in System.Buffers.ReadOnlySequence<byte> data) -> System.Buffers.OperationStatus
+[SER004]RESPite.Messages.RespFrameScanner.TryRead(ref RESPite.Messages.RespScanState state, System.ReadOnlySpan<byte> data) -> System.Buffers.OperationStatus
+[SER004]RESPite.Messages.RespFrameScanner.ValidateRequest(in System.Buffers.ReadOnlySequence<byte> message) -> void
+[SER004]RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Array = 42 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Attribute = 124 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.BigInteger = 40 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Boolean = 35 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.BulkError = 33 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.BulkString = 36 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Double = 44 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Integer = 58 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Map = 37 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.None = 0 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Null = 95 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Push = 62 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.Set = 126 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.SimpleError = 45 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.SimpleString = 43 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.StreamContinuation = 59 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.StreamTerminator = 46 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespPrefix.VerbatimString = 61 -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespReader
+[SER004]RESPite.Messages.RespReader.AggregateChildren() -> RESPite.Messages.RespReader.AggregateEnumerator
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.AggregateEnumerator() -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.AggregateEnumerator(scoped in RESPite.Messages.RespReader reader) -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.Current.get -> RESPite.Messages.RespReader
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.DemandNext() -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<T>(scoped System.Span<T> target, RESPite.Messages.RespReader.Projection<T>! projection) -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TFirst, TSecond, TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TFirst>! first, RESPite.Messages.RespReader.Projection<TSecond>! second, System.Func<TFirst, TSecond, TResult>! combine) -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.GetEnumerator() -> RESPite.Messages.RespReader.AggregateEnumerator
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNext() -> bool
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNext(RESPite.Messages.RespPrefix prefix) -> bool
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNext<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNext<T>(RESPite.Messages.RespPrefix prefix, RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.MovePast(out RESPite.Messages.RespReader reader) -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.ReadOne<T>(RESPite.Messages.RespReader.Projection<T>! projection) -> T
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.Value -> RESPite.Messages.RespReader
+[SER004]RESPite.Messages.RespReader.AggregateLength() -> int
+[SER004]RESPite.Messages.RespReader.BytesConsumed.get -> long
+[SER004]RESPite.Messages.RespReader.CopyTo(System.Buffers.IBufferWriter<byte>! target) -> int
+[SER004]RESPite.Messages.RespReader.CopyTo(System.Span<byte> target) -> int
+[SER004]RESPite.Messages.RespReader.DemandAggregate() -> void
+[SER004]RESPite.Messages.RespReader.DemandEnd() -> void
+[SER004]RESPite.Messages.RespReader.DemandNotNull() -> void
+[SER004]RESPite.Messages.RespReader.DemandScalar() -> void
+[SER004]RESPite.Messages.RespReader.FillAll<T>(scoped System.Span<T> target, RESPite.Messages.RespReader.Projection<T>! projection) -> void
+[SER004]RESPite.Messages.RespReader.Is(byte value) -> bool
+[SER004]RESPite.Messages.RespReader.Is(System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.Messages.RespReader.Is(System.ReadOnlySpan<char> value) -> bool
+[SER004]RESPite.Messages.RespReader.IsAggregate.get -> bool
+[SER004]RESPite.Messages.RespReader.IsAttribute.get -> bool
+[SER004]RESPite.Messages.RespReader.IsError.get -> bool
+[SER004]RESPite.Messages.RespReader.IsNull.get -> bool
+[SER004]RESPite.Messages.RespReader.IsScalar.get -> bool
+[SER004]RESPite.Messages.RespReader.IsStreaming.get -> bool
+[SER004]RESPite.Messages.RespReader.MoveNext() -> void
+[SER004]RESPite.Messages.RespReader.MoveNext(RESPite.Messages.RespPrefix prefix) -> void
+[SER004]RESPite.Messages.RespReader.MoveNext<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> void
+[SER004]RESPite.Messages.RespReader.MoveNext<T>(RESPite.Messages.RespPrefix prefix, RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> void
+[SER004]RESPite.Messages.RespReader.MoveNextAggregate() -> void
+[SER004]RESPite.Messages.RespReader.MoveNextScalar() -> void
+[SER004]RESPite.Messages.RespReader.ParseBytes<T, TState>(RESPite.Messages.RespReader.Parser<byte, TState, T>! parser, TState? state) -> T
+[SER004]RESPite.Messages.RespReader.ParseBytes<T>(RESPite.Messages.RespReader.Parser<byte, T>! parser) -> T
+[SER004]RESPite.Messages.RespReader.ParseChars<T, TState>(RESPite.Messages.RespReader.Parser<char, TState, T>! parser, TState? state) -> T
+[SER004]RESPite.Messages.RespReader.ParseChars<T>(RESPite.Messages.RespReader.Parser<char, T>! parser) -> T
+[SER004]RESPite.Messages.RespReader.Parser<TSource, TState, TValue>
+[SER004]RESPite.Messages.RespReader.Parser<TSource, TValue>
+[SER004]RESPite.Messages.RespReader.Prefix.get -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespReader.Projection<T>
+[SER004]RESPite.Messages.RespReader.ProtocolBytesRemaining.get -> long
+[SER004]RESPite.Messages.RespReader.ReadArray<TResult>(RESPite.Messages.RespReader.Projection<TResult>! projection, bool scalar = false) -> TResult[]?
+[SER004]RESPite.Messages.RespReader.ReadBoolean() -> bool
+[SER004]RESPite.Messages.RespReader.ReadByteArray() -> byte[]?
+[SER004]RESPite.Messages.RespReader.ReadDecimal() -> decimal
+[SER004]RESPite.Messages.RespReader.ReadDouble() -> double
+[SER004]RESPite.Messages.RespReader.ReadEnum<T>(T unknownValue = default(T)) -> T
+[SER004]RESPite.Messages.RespReader.ReadInt32() -> int
+[SER004]RESPite.Messages.RespReader.ReadInt64() -> long
+[SER004]RESPite.Messages.RespReader.ReadPairArray<TFirst, TSecond, TResult>(RESPite.Messages.RespReader.Projection<TFirst>! first, RESPite.Messages.RespReader.Projection<TSecond>! second, System.Func<TFirst, TSecond, TResult>! combine, bool scalar = true) -> TResult[]?
+[SER004]RESPite.Messages.RespReader.ReadString() -> string?
+[SER004]RESPite.Messages.RespReader.ReadString(out string! prefix) -> string?
+[SER004]RESPite.Messages.RespReader.RespReader() -> void
+[SER004]RESPite.Messages.RespReader.RespReader(scoped in System.Buffers.ReadOnlySequence<byte> value) -> void
+[SER004]RESPite.Messages.RespReader.RespReader(System.ReadOnlySpan<byte> value) -> void
+[SER004]RESPite.Messages.RespReader.ScalarChunks() -> RESPite.Messages.RespReader.ScalarEnumerator
+[SER004]RESPite.Messages.RespReader.ScalarEnumerator
+[SER004]RESPite.Messages.RespReader.ScalarEnumerator.Current.get -> System.ReadOnlySpan<byte>
+[SER004]RESPite.Messages.RespReader.ScalarEnumerator.CurrentLength.get -> int
+[SER004]RESPite.Messages.RespReader.ScalarEnumerator.GetEnumerator() -> RESPite.Messages.RespReader.ScalarEnumerator
+[SER004]RESPite.Messages.RespReader.ScalarEnumerator.MoveNext() -> bool
+[SER004]RESPite.Messages.RespReader.ScalarEnumerator.MovePast(out RESPite.Messages.RespReader reader) -> void
+[SER004]RESPite.Messages.RespReader.ScalarEnumerator.ScalarEnumerator() -> void
+[SER004]RESPite.Messages.RespReader.ScalarEnumerator.ScalarEnumerator(scoped in RESPite.Messages.RespReader reader) -> void
+[SER004]RESPite.Messages.RespReader.ScalarIsEmpty() -> bool
+[SER004]RESPite.Messages.RespReader.ScalarLength() -> int
+[SER004]RESPite.Messages.RespReader.ScalarLongLength() -> long
+[SER004]RESPite.Messages.RespReader.SkipChildren() -> void
+[SER004]RESPite.Messages.RespReader.TryGetSpan(out System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.Messages.RespReader.TryMoveNext() -> bool
+[SER004]RESPite.Messages.RespReader.TryMoveNext(bool checkError) -> bool
+[SER004]RESPite.Messages.RespReader.TryMoveNext(RESPite.Messages.RespPrefix prefix) -> bool
+[SER004]RESPite.Messages.RespReader.TryMoveNext<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+[SER004]RESPite.Messages.RespReader.TryReadDouble(out double value, bool allowTokens = true) -> bool
+[SER004]RESPite.Messages.RespReader.TryReadInt32(out int value) -> bool
+[SER004]RESPite.Messages.RespReader.TryReadInt64(out long value) -> bool
+[SER004]RESPite.Messages.RespReader.TryReadNext() -> bool
+[SER004]RESPite.Messages.RespScanState
+[SER004]RESPite.Messages.RespScanState.IsComplete.get -> bool
+[SER004]RESPite.Messages.RespScanState.Prefix.get -> RESPite.Messages.RespPrefix
+[SER004]RESPite.Messages.RespScanState.RespScanState() -> void
+[SER004]RESPite.Messages.RespScanState.TotalBytes.get -> long
+[SER004]RESPite.Messages.RespScanState.TryRead(in System.Buffers.ReadOnlySequence<byte> value, out long bytesRead) -> bool
+[SER004]RESPite.Messages.RespScanState.TryRead(ref RESPite.Messages.RespReader reader, out long bytesRead) -> bool
+[SER004]RESPite.Messages.RespScanState.TryRead(System.ReadOnlySpan<byte> value, out int bytesRead) -> bool
+[SER004]RESPite.RespException
+[SER004]RESPite.RespException.RespException(string! message) -> void
+[SER004]static RESPite.Messages.RespFrameScanner.Default.get -> RESPite.Messages.RespFrameScanner!
+[SER004]static RESPite.Messages.RespFrameScanner.Subscription.get -> RESPite.Messages.RespFrameScanner!
+[SER004]virtual RESPite.Messages.RespAttributeReader<T>.Read(ref RESPite.Messages.RespReader reader, ref T value) -> void
+[SER004]virtual RESPite.Messages.RespAttributeReader<T>.ReadKeyValuePair(scoped System.ReadOnlySpan<byte> key, ref RESPite.Messages.RespReader reader, ref T value) -> bool
+[SER004]virtual RESPite.Messages.RespAttributeReader<T>.ReadKeyValuePairs(ref RESPite.Messages.RespReader reader, ref T value) -> int
+[SER004]virtual RESPite.Messages.RespReader.Parser<TSource, TState, TValue>.Invoke(System.ReadOnlySpan<TSource> value, TState? state) -> TValue
+[SER004]virtual RESPite.Messages.RespReader.Parser<TSource, TValue>.Invoke(System.ReadOnlySpan<TSource> value) -> TValue
+[SER004]virtual RESPite.Messages.RespReader.Projection<T>.Invoke(ref RESPite.Messages.RespReader value) -> T
