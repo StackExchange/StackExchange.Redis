@@ -135,7 +135,14 @@ namespace StackExchange.Redis
             var subscriber = DefaultSubscriber;
             foreach (var pair in subscriptions)
             {
-                count += pair.Value.EnsureSubscribedToServer(subscriber, pair.Key, flags, true);
+                try
+                {
+                    count += pair.Value.EnsureSubscribedToServer(subscriber, pair.Key, flags, true);
+                }
+                catch (Exception ex)
+                {
+                    OnInternalError(ex);
+                }
             }
             return count;
         }
