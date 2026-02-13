@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <TargetFrameworks>net461;netstandard2.0;net472;net6.0;net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <DefineConstants>$(DefineConstants);RESPITE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces"/>
+    <PackageReference Include="System.Buffers"/>
+    <PackageReference Include="System.Memory"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RESPite.Tests"/>
+    <None Include="readme.md" Pack="true" PackagePath="/"/>
+    <None Include="../../eng/StackExchange.Redis.Build/bin/$(Configuration)/netstandard2.0/StackExchange.Redis.Build.dll" Pack="true" PackagePath="analyzers/dotnet" Visible="true"
+      Link="Shared/StackExchange.Redis.Build.dll"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Messages\RespReader.*.cs">
+      <DependentUpon>RespReader.cs</DependentUpon>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\Experiments.cs">
+      <Link>Shared/Experiments.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\FrameworkShims.cs">
+      <Link>Shared/FrameworkShims.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\NullableHacks.cs">
+      <Link>Shared/NullableHacks.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\SkipLocalsInit.cs">
+      <Link>Shared/SkipLocalsInit.cs</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Shared\" />
+    <AdditionalFiles Include="PublicAPI\PublicAPI.*.txt" />
+
+    <AdditionalFiles Include="PublicAPI/net8.0/PublicAPI.Shipped.txt" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))"/>
+  </ItemGroup>
+</Project>
