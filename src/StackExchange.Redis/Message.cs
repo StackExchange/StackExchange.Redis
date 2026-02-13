@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using RESPite.Messages;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
@@ -601,7 +602,7 @@ namespace StackExchange.Redis
         internal void Cancel() => resultBox?.Cancel();
 
         // true if ready to be completed (i.e. false if re-issued to another server)
-        internal bool ComputeResult(PhysicalConnection connection, in RawResult result)
+        internal bool ComputeResult(PhysicalConnection connection, in RespReader frame)
         {
             var box = resultBox;
             try
@@ -610,11 +611,12 @@ namespace StackExchange.Redis
                 if (resultProcessor == null) return true;
 
                 // false here would be things like resends (MOVED) - the message is not yet complete
-                return resultProcessor.SetResult(connection, this, result);
+                var mutable = frame;
+                return resultProcessor.SetResult(connection, this, ref mutable);
             }
             catch (Exception ex)
             {
-                ex.Data.Add("got", result.ToString());
+                ex.Data.Add("got", frame.Prefix.ToString());
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 box?.SetException(ex);
                 return box != null; // we still want to pulse/complete

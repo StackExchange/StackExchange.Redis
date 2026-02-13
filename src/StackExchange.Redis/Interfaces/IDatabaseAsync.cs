@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using RESPite;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis

@@ -94,24 +94,6 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, Sequence<RawResult> payload)
-        {
-            if (payload.IsSingleSegment)
-            {
-                foreach (var message in payload.FirstSpan)
-                {
-                    OnMessage(subscription, channel, message.AsRedisValue());
-                }
-            }
-            else
-            {
-                foreach (var message in payload)
-                {
-                    OnMessage(subscription, channel, message.AsRedisValue());
-                }
-            }
-        }
-
         /// <summary>
         /// Updates all subscriptions re-evaluating their state.
         /// This clears the current server if it's not connected, prepping them to reconnect.

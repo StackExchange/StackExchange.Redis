@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -222,18 +223,19 @@ namespace StackExchange.Redis
             box?.SetException(ex);
         }
         // true if ready to be completed (i.e. false if re-issued to another server)
-        public virtual bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
+        public bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
+            reader.SafeTryMoveNext();
             var bridge = connection.BridgeCouldBeNull;
             if (message is LoggingMessage logging)
             {
                 try
                 {
-                    logging.Log?.LogInformationResponse(bridge?.Name, message.CommandAndKey, result);
+                    logging.Log?.LogInformationResponse(bridge?.Name, message.CommandAndKey, reader.OverviewString());
                 }
                 catch { }
             }
-            if (result.IsError)
+            if (reader.IsError)
             {
                 if (result.StartsWith(CommonReplies.NOAUTH))
                 {

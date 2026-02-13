@@ -1,6 +1,5 @@
 ﻿using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
-using StackExchange.Redis;
 using static RESPite.Internal.RespConstants;
 namespace RESPite.Messages;
 

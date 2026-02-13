@@ -1,6 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-
-namespace StackExchange.Redis
+﻿namespace RESPite
 {
     // example usage:
     // [Experimental(Experiments.SomeFeature, UrlFormat = Experiments.UrlFormat)]
