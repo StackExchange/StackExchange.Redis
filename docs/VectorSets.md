@@ -97,7 +97,7 @@ See [Redis filtered search documentation](https://redis.io/docs/latest/develop/d
 
 ```csharp
 var info = await db.VectorSetInfoAsync(key);
-if (info != null)
+if (info is not null)
 {
     Console.WriteLine($"Dimension: {info.Value.Dimension}");
     Console.WriteLine($"Length: {info.Value.Length}");
