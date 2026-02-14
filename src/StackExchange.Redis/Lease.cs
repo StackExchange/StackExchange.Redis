@@ -19,6 +19,11 @@ namespace StackExchange.Redis
         private T[]? _arr;
 
         /// <summary>
+        /// Gets whether this lease is empty.
+        /// </summary>
+        public bool IsEmpty => Length == 0;
+
+        /// <summary>
         /// The length of the lease.
         /// </summary>
         public int Length { get; }

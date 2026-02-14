@@ -8,6 +8,10 @@ Current package versions:
 
 ## 2.11.unreleased
 
+- Add support for `VRANGE` ([#3011 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3011))
+
+## 2.11.0
+
 - Add support for `HOTKEYS` ([#3008 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3008))
 - Add support for keyspace notifications ([#2995 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2995))
 - Add support for idempotent stream entry (`XADD IDMP[AUTO]`) support  ([#3006 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3006))
