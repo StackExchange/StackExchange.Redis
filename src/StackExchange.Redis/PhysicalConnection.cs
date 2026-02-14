@@ -2091,9 +2091,9 @@ namespace StackExchange.Redis
                     Trace($"Processed {handled} messages");
                     input.AdvanceTo(buffer.Start, buffer.End);
 
-                    if (handled == 0 && readResult.IsCompleted)
+                    if ((handled == 0 && readResult.IsCompleted) || BridgeCouldBeNull?.NeedsReconnect == true)
                     {
-                        break; // no more data, or trailing incomplete messages
+                        break; // no more data, trailing incomplete messages, or reconnection required
                     }
                 }
                 Trace("EOF");
