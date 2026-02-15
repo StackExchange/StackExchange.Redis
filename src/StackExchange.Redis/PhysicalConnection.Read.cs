@@ -4,11 +4,11 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.IO.Pipelines;
 using System.Net;
-using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 using RESPite.Buffers;
 using RESPite.Internal;
 using RESPite.Messages;
@@ -17,6 +17,8 @@ namespace StackExchange.Redis;
 
 internal sealed partial class PhysicalConnection
 {
+    internal static PhysicalConnection Dummy() => new(null!);
+
     private volatile ReadStatus _readStatus = ReadStatus.NotStarted;
     internal ReadStatus GetReadStatus() => _readStatus;
 

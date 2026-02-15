@@ -17,23 +17,8 @@ namespace StackExchange.Redis.Tests;
 
 public class SharedConnectionFixture : IDisposable
 {
-    public bool IsEnabled { get; }
-
-    private readonly ConnectionMultiplexer _actualConnection;
-    public string Configuration { get; }
-
-    public SharedConnectionFixture()
-    {
-        IsEnabled = TestConfig.Current.UseSharedConnection;
-        Configuration = TestBase.GetDefaultConfiguration();
-        _actualConnection = TestBase.CreateDefault(
-            output: null,
-            clientName: nameof(SharedConnectionFixture),
-            configuration: Configuration,
-            allowAdmin: true);
-        _actualConnection.InternalError += OnInternalError;
-        _actualConnection.ConnectionFailed += OnConnectionFailed;
-    }
+    public bool IsEnabled { get; } = TestConfig.Current.UseSharedConnection;
+    public string Configuration { get; } = TestBase.GetDefaultConfiguration();
 
     private NonDisposingConnection? resp2, resp3;
     internal IInternalConnectionMultiplexer GetConnection(TestBase obj, RedisProtocol protocol, [CallerMemberName] string caller = "")
@@ -273,11 +258,16 @@ public class SharedConnectionFixture : IDisposable
             }
             // Assert.True(false, $"There were {privateFailCount} private ambient exceptions.");
         }
+        TearDown(resp2, output);
+        TearDown(resp3, output);
+    }
 
-        if (_actualConnection != null)
+    private void TearDown(IInternalConnectionMultiplexer? connection, TextWriter output)
+    {
+        if (connection is { } conn)
         {
-            TestBase.Log(output, "Connection Counts: " + _actualConnection.GetCounters().ToString());
-            foreach (var ep in _actualConnection.GetServerSnapshot())
+            TestBase.Log(output, "Connection Counts: " + conn.GetCounters().ToString());
+            foreach (var ep in conn.GetServerSnapshot())
             {
                 var interactive = ep.GetBridge(ConnectionType.Interactive);
                 TestBase.Log(output, $"  {Format.ToString(interactive)}: {interactive?.GetStatus()}");
