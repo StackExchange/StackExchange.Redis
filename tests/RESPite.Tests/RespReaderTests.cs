@@ -462,7 +462,9 @@ public class RespReaderTests(ITestOutputHelper logger)
         reader.MoveNext(RespPrefix.Array);
         int[] arr = new int[reader.AggregateLength()];
         int i = 0;
+#pragma warning disable SERDBG // warning about .Current vs .Value
         foreach (var sub in reader.AggregateChildren())
+#pragma warning restore SERDBG
         {
             sub.MoveNext(RespPrefix.Integer);
             arr[i++] = sub.ReadInt32();

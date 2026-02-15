@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -487,72 +488,55 @@ namespace StackExchange.Redis
                 return base.SetResult(connection, message, ref copy);
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 var muxer = connection.BridgeCouldBeNull?.Multiplexer;
-                muxer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
+                muxer?.OnTransactionLog($"got {reader.GetOverview()} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
                     var wrapped = tran.InnerOperations;
-                    switch (result.Resp2TypeArray)
+
+                    if (reader.IsNull & !tran.IsAborted) // EXEC returned with a NULL
                     {
-                        case ResultType.SimpleString:
-                            if (tran.IsAborted && result.IsEqual(CommonReplies.OK))
+                        muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
+                        connection.Trace("Server aborted due to failed WATCH");
+                        foreach (var op in wrapped)
+                        {
+                            var inner = op.Wrapped;
+                            inner.Cancel();
+                            inner.Complete();
+                        }
+                        SetResult(message, false);
+                        return true;
+                    }
+
+                    switch (reader.Resp2PrefixArray)
+                    {
+                        case RespPrefix.SimpleString when tran.IsAborted & reader.IsOK():
+                            connection.Trace("Acknowledging UNWATCH (aborted electively)");
+                            SetResult(message, false);
+                            return true;
+                        case RespPrefix.Array when !tran.IsAborted:
+                            var len = reader.AggregateLength();
+                            if (len == wrapped.Length)
                             {
-                                connection.Trace("Acknowledging UNWATCH (aborted electively)");
-                                SetResult(message, false);
-                                return true;
-                            }
-                            // EXEC returned with a NULL
-                            if (!tran.IsAborted && result.IsNull)
-                            {
-                                connection.Trace("Server aborted due to failed EXEC");
-                                // cancel the commands in the transaction and mark them as complete with the completion manager
-                                foreach (var op in wrapped)
+                                connection.Trace("Server committed; processing nested replies");
+                                muxer?.OnTransactionLog($"Processing {len} wrapped messages");
+
+                                var iter = reader.AggregateChildren();
+                                int i = 0;
+                                while (iter.MoveNext())
                                 {
-                                    var inner = op.Wrapped;
-                                    inner.Cancel();
-                                    inner.Complete();
-                                }
-                                SetResult(message, false);
-                                return true;
-                            }
-                            break;
-                        case ResultType.Array:
-                            if (!tran.IsAborted)
-                            {
-                                var arr = result.GetItems();
-                                if (result.IsNull)
-                                {
-                                    muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
-                                    connection.Trace("Server aborted due to failed WATCH");
-                                    foreach (var op in wrapped)
+                                    var inner = wrapped[i++].Wrapped;
+                                    muxer?.OnTransactionLog($"> got {iter.Value.GetOverview()} for {inner.CommandAndKey}");
+                                    if (inner.ComputeResult(connection, ref iter.Value))
                                     {
-                                        var inner = op.Wrapped;
-                                        inner.Cancel();
                                         inner.Complete();
                                     }
-                                    SetResult(message, false);
-                                    return true;
                                 }
-                                else if (wrapped.Length == arr.Length)
-                                {
-                                    connection.Trace("Server committed; processing nested replies");
-                                    muxer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
-
-                                    int i = 0;
-                                    foreach (ref RawResult item in arr)
-                                    {
-                                        var inner = wrapped[i++].Wrapped;
-                                        muxer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
-                                        if (inner.ComputeResult(connection, in item))
-                                        {
-                                            inner.Complete();
-                                        }
-                                    }
-                                    SetResult(message, true);
-                                    return true;
-                                }
+                                Debug.Assert(i == len, "we pre-checked the lengths");
+                                SetResult(message, true);
+                                return true;
                             }
                             break;
                     }

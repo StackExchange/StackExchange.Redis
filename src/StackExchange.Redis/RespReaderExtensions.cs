@@ -28,7 +28,7 @@ internal static class RespReaderExtensions
             };
         }
 
-        public string OverviewString()
+        public string GetOverview()
         {
             if (reader.IsNull) return "(null)";
 

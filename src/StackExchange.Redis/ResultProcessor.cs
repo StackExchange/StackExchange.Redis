@@ -231,7 +231,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    logging.Log?.LogInformationResponse(bridge?.Name, message.CommandAndKey, reader.OverviewString());
+                    logging.Log?.LogInformationResponse(bridge?.Name, message.CommandAndKey, reader.GetOverview());
                 }
                 catch (Exception ex)
                 {
@@ -246,7 +246,7 @@ namespace StackExchange.Redis
             var copy = reader;
             if (SetResultCore(connection, message, ref reader))
             {
-                bridge?.Multiplexer.Trace("Completed with success: " + copy.OverviewString() + " (" + GetType().Name + ")", ToString());
+                bridge?.Multiplexer.Trace("Completed with success: " + copy.GetOverview() + " (" + GetType().Name + ")", ToString());
             }
             else
             {
@@ -263,7 +263,7 @@ namespace StackExchange.Redis
             }
             else if (reader.StartsWith(Literals.WRONGPASS.U8))
             {
-                bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(reader.OverviewString()));
+                bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(reader.GetOverview()));
             }
 
             var server = bridge?.ServerEndPoint;
@@ -359,7 +359,7 @@ namespace StackExchange.Redis
         private void UnexpectedResponse(Message message, in RespReader reader)
         {
             ConnectionMultiplexer.TraceWithoutContext("From " + GetType().Name, "Unexpected Response");
-            ConnectionFail(message, ConnectionFailureType.ProtocolFailure, "Unexpected response to " + (message?.CommandString ?? "n/a") + ": " + reader.OverviewString());
+            ConnectionFail(message, ConnectionFailureType.ProtocolFailure, "Unexpected response to " + (message?.CommandString ?? "n/a") + ": " + reader.GetOverview());
         }
 
         public sealed class TimeSpanProcessor : ResultProcessor<TimeSpan?>
@@ -1411,14 +1411,14 @@ namespace StackExchange.Redis
 
         private class Int32Processor : ResultProcessor<int>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if (result.TryGetInt64(out long i64))
+                    case RespPrefix.Integer:
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        if (reader.TryReadInt64(out long i64))
                         {
                             SetResult(message, checked((int)i64));
                             return true;
@@ -2879,7 +2879,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     reader = copy; // rewind and re-parse
                     if (reader.StartsWith(Literals.ERR_not_permitted.U8) || reader.StartsWith(Literals.NOAUTH.U8))
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(reader.OverviewString() + " Verify if the Redis password provided is correct. Attempted command: " + message.Command));
+                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(reader.GetOverview() + " Verify if the Redis password provided is correct. Attempted command: " + message.Command));
                     }
                     else if (reader.StartsWith(Literals.LOADING.U8))
                     {
@@ -2887,7 +2887,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     }
                     else
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(reader.OverviewString()));
+                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(reader.GetOverview()));
                     }
                 }
 
