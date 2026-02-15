@@ -463,7 +463,7 @@ internal sealed partial class PhysicalConnection
                 var iter = reader.AggregateChildren();
                 while (iter.MoveNext())
                 {
-                    muxer.OnMessage(subscriptionChannel, messageChannel, iter.Current.ReadRedisValue());
+                    muxer.OnMessage(subscriptionChannel, messageChannel, iter.Value.ReadRedisValue());
                 }
 
                 break;

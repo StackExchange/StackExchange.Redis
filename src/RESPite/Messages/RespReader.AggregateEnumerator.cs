@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable CS0282 // There is no defined ordering between fields in multiple declarations of partial struct
@@ -41,6 +42,13 @@ public ref partial struct RespReader
 
         /// <inheritdoc cref="IEnumerator{T}.Current"/>
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+#if DEBUG
+#if NET6_0 || NET8_0
+        [Experimental("SERDBG")]
+#else
+        [Experimental("SERDBG", Message = $"Prefer {nameof(Value)}")]
+#endif
+#endif
         public RespReader Current => Value;
 
         /// <summary>
