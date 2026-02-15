@@ -8,8 +8,12 @@ internal static class RespReaderExtensions
     extension(in RespReader reader)
     {
         public RespPrefix Resp2PrefixBulkString => reader.Prefix.ToResp2(RespPrefix.BulkString);
-        // if null, assume array
         public RespPrefix Resp2PrefixArray => reader.Prefix.ToResp2(RespPrefix.Array);
+
+        [Obsolete("Use Resp2PrefixBulkString instead", error: true)]
+        public RespPrefix Resp2TypeBulkString => reader.Resp2PrefixBulkString;
+        [Obsolete("Use Resp2PrefixArray instead", error: true)]
+        public RespPrefix Resp2TypeArray => reader.Resp2PrefixArray;
 
         public RedisValue ReadRedisValue()
         {
@@ -36,11 +40,32 @@ internal static class RespReaderExtensions
                 _ => $"(unknown: {reader.Prefix})",
             };
         }
+
+        public RespPrefix GetFirstPrefix()
+        {
+            var prefix = reader.Prefix;
+            if (prefix is RespPrefix.None)
+            {
+                var mutable = reader;
+                mutable.MovePastBof();
+                prefix = mutable.Prefix;
+            }
+            return prefix;
+        }
     }
 
     extension(ref RespReader reader)
     {
         public bool SafeTryMoveNext() => reader.TryMoveNext(checkError: false) & !reader.IsError;
+
+        public void MovePastBof()
+        {
+            // if we're at BOF, read the first element, ignoring errors
+            if (reader.Prefix is RespPrefix.None) reader.SafeTryMoveNext();
+        }
+
+        public RedisValue[]? ReadPastRedisValues()
+            => reader.ReadPastArray(static (ref r) => r.ReadRedisValue(), scalar: true);
     }
 
     public static RespPrefix GetRespPrefix(ReadOnlySpan<byte> frame)
@@ -67,6 +92,19 @@ internal static class RespReaderExtensions
                 // RESP 2 or anything exotic: leave alone
                 _ => prefix,
             };
+        }
+    }
+
+    extension<T>(T?[] array) where T : class
+    {
+        internal bool AnyNull()
+        {
+            foreach (var el in array)
+            {
+                if (el is null) return true;
+            }
+
+            return false;
         }
     }
 }

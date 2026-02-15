@@ -87,7 +87,7 @@ internal abstract class VectorSetSimilaritySearchMessage(
         public static readonly VectorSetSimilaritySearchProcessor Instance = new();
         private VectorSetSimilaritySearchProcessor() { }
 
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             if (result.Resp2TypeArray == ResultType.Array && message is VectorSetSimilaritySearchMessage vssm)
             {

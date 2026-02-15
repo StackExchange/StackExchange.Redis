@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -201,7 +202,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 if (result.Resp2TypeBulkString == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
                 {
@@ -469,11 +470,13 @@ namespace StackExchange.Redis
         {
             public static readonly TransactionProcessor Default = new();
 
-            public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.IsError && message is TransactionMessage tran)
+                var copy = reader;
+                reader.MovePastBof();
+                if (reader.IsError && message is TransactionMessage tran)
                 {
-                    string error = result.GetString()!;
+                    string error = reader.ReadString()!;
                     foreach (var op in tran.InnerOperations)
                     {
                         var inner = op.Wrapped;
@@ -481,10 +484,10 @@ namespace StackExchange.Redis
                         inner.Complete();
                     }
                 }
-                return base.SetResult(connection, message, result);
+                return base.SetResult(connection, message, ref copy);
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 var muxer = connection.BridgeCouldBeNull?.Multiplexer;
                 muxer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");

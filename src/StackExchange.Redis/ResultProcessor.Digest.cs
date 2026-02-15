@@ -11,7 +11,7 @@ internal abstract partial class ResultProcessor
 
     private sealed class DigestProcessor : ResultProcessor<ValueCondition?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             if (result.IsNull) // for example, key doesn't exist
             {

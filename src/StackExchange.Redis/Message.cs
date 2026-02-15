@@ -602,8 +602,14 @@ namespace StackExchange.Redis
         internal void Cancel() => resultBox?.Cancel();
 
         // true if ready to be completed (i.e. false if re-issued to another server)
-        internal bool ComputeResult(PhysicalConnection connection, in RespReader frame)
+        internal bool ComputeResult(PhysicalConnection connection, ref RespReader reader)
         {
+            // we don't want to mutate reader, so that processors can consume attributes; however,
+            // we also don't want to force the entire reader to copy each time, so: snapshot
+            // just the prefix
+            var prefix = reader.GetFirstPrefix();
+
+            // intentionally "frame" is an isolated copy
             var box = resultBox;
             try
             {
@@ -611,12 +617,11 @@ namespace StackExchange.Redis
                 if (resultProcessor == null) return true;
 
                 // false here would be things like resends (MOVED) - the message is not yet complete
-                var mutable = frame;
-                return resultProcessor.SetResult(connection, this, ref mutable);
+                return resultProcessor.SetResult(connection, this, ref reader);
             }
             catch (Exception ex)
             {
-                ex.Data.Add("got", frame.Prefix.ToString());
+                ex.Data.Add("got", prefix.ToString());
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 box?.SetException(ex);
                 return box != null; // we still want to pulse/complete

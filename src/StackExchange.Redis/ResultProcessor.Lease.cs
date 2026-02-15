@@ -17,7 +17,7 @@ internal abstract partial class ResultProcessor
 
     private abstract class LeaseProcessor<T> : ResultProcessor<Lease<T>?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             if (result.Resp2TypeArray != ResultType.Array)
             {
@@ -56,7 +56,7 @@ internal abstract partial class ResultProcessor
 
     private abstract class InterleavedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             if (result.Resp2TypeArray != ResultType.Array)
             {
@@ -120,7 +120,7 @@ internal abstract partial class ResultProcessor
             return false;
         }
 
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             if (result.Resp2TypeArray != ResultType.Array)
             {
@@ -183,7 +183,7 @@ internal abstract partial class ResultProcessor
 
     private sealed class LeaseProcessor : ResultProcessor<Lease<byte>>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             switch (result.Resp2TypeBulkString)
             {
@@ -199,7 +199,7 @@ internal abstract partial class ResultProcessor
 
     private sealed class LeaseFromArrayProcessor : ResultProcessor<Lease<byte>>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             switch (result.Resp2TypeBulkString)
             {

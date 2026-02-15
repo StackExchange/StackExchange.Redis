@@ -5580,7 +5580,7 @@ namespace StackExchange.Redis
         {
             protected abstract T[]? Parse(in RawResult result, out int count);
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 switch (result.Resp2TypeArray)
                 {
@@ -5927,7 +5927,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 switch (result.Resp2TypeBulkString)
                 {

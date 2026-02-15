@@ -109,6 +109,7 @@ static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool 
 [SER004]RESPite.Messages.RespReader.ReadInt32() -> int
 [SER004]RESPite.Messages.RespReader.ReadInt64() -> long
 [SER004]RESPite.Messages.RespReader.ReadPairArray<TFirst, TSecond, TResult>(RESPite.Messages.RespReader.Projection<TFirst>! first, RESPite.Messages.RespReader.Projection<TSecond>! second, System.Func<TFirst, TSecond, TResult>! combine, bool scalar = true) -> TResult[]?
+[SER004]RESPite.Messages.RespReader.ReadPastArray<TResult>(RESPite.Messages.RespReader.Projection<TResult>! projection, bool scalar = false) -> TResult[]?
 [SER004]RESPite.Messages.RespReader.ReadString() -> string?
 [SER004]RESPite.Messages.RespReader.ReadString(out string! prefix) -> string?
 [SER004]RESPite.Messages.RespReader.RespReader() -> void
@@ -127,6 +128,7 @@ static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool 
 [SER004]RESPite.Messages.RespReader.ScalarLength() -> int
 [SER004]RESPite.Messages.RespReader.ScalarLongLength() -> long
 [SER004]RESPite.Messages.RespReader.SkipChildren() -> void
+[SER004]RESPite.Messages.RespReader.StartsWith(System.ReadOnlySpan<byte> value) -> bool
 [SER004]RESPite.Messages.RespReader.TryGetSpan(out System.ReadOnlySpan<byte> value) -> bool
 [SER004]RESPite.Messages.RespReader.TryMoveNext() -> bool
 [SER004]RESPite.Messages.RespReader.TryMoveNext(bool checkError) -> bool
