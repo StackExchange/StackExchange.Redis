@@ -6,7 +6,7 @@ public sealed partial class HotKeysResult
 
     private sealed class HotKeysResultProcessor : ResultProcessor<HotKeysResult?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             if (result.IsNull)
             {

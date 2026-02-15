@@ -289,7 +289,7 @@ namespace StackExchange.Redis
 
         private sealed class ClientInfoProcessor : ResultProcessor<ClientInfo[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 switch (result.Resp2TypeBulkString)
                 {

@@ -511,7 +511,7 @@ internal sealed partial class PhysicalConnection
         Trace("Response to: " + msg);
         _readStatus = ReadStatus.ComputeResult;
         var reader = new RespReader(frame);
-        if (msg.ComputeResult(this, reader))
+        if (msg.ComputeResult(this, ref reader))
         {
             _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
             if (!msg.IsHighIntegrity)

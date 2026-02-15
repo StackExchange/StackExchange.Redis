@@ -1294,6 +1294,13 @@ public ref partial struct RespReader
         => TryGetSpan(out var span) ? span.SequenceEqual(value) : IsSlow(value);
 
     /// <summary>
+    /// Indicates whether the current element is a scalar with a value that starts with the provided <paramref name="value"/>.
+    /// </summary>
+    /// <param name="value">The payload value to verify.</param>
+    public readonly bool StartsWith(ReadOnlySpan<byte> value)
+        => TryGetSpan(out var span) ? span.StartsWith(value) : StartsWithSlow(value);
+
+    /// <summary>
     /// Indicates whether the current element is a scalar with a value that matches the provided <paramref name="value"/>.
     /// </summary>
     /// <param name="value">The payload value to verify.</param>
@@ -1372,6 +1379,42 @@ public ref partial struct RespReader
             var current = iterator.Current;
             if (testValue.Length < current.Length) return false; // payload is longer
 
+            if (!current.SequenceEqual(testValue.Slice(0, current.Length))) return false; // payload is different
+
+            testValue = testValue.Slice(current.Length); // validated; continue
+        }
+    }
+
+    private readonly bool StartsWithSlow(ReadOnlySpan<byte> testValue)
+    {
+        DemandScalar();
+        if (IsNull) return false; // nothing equals null
+        if (testValue.IsEmpty) return true; // every non-null scalar starts-with empty
+        if (TotalAvailable < testValue.Length) return false;
+
+        if (!IsStreaming && testValue.Length < ScalarLength()) return false;
+
+        var iterator = ScalarChunks();
+        while (true)
+        {
+            if (testValue.IsEmpty)
+            {
+                return true;
+            }
+
+            if (!iterator.MoveNext())
+            {
+                return false; // test is longer
+            }
+
+            var current = iterator.Current;
+            if (testValue.Length <= current.Length)
+            {
+                // current fragment exhausts the test data; check it with StartsWith
+                return testValue.StartsWith(current);
+            }
+
+            // current fragment is longer than the test data; the overlap must match exactly
             if (!current.SequenceEqual(testValue.Slice(0, current.Length))) return false; // payload is different
 
             testValue = testValue.Slice(current.Length); // validated; continue
@@ -1667,7 +1710,21 @@ public ref partial struct RespReader
 #endif
     }
 
+    /// <summary>
+    /// Reads an aggregate as an array of elements without changing the position.
+    /// </summary>
+    /// <typeparam name="TResult">The type of data to be projected.</typeparam>
     public TResult[]? ReadArray<TResult>(Projection<TResult> projection, bool scalar = false)
+    {
+        var copy = this;
+        return copy.ReadPastArray(projection, scalar);
+    }
+
+    /// <summary>
+    /// Reads an aggregate as an array of elements, moving past the data as a side effect.
+    /// </summary>
+    /// <typeparam name="TResult">The type of data to be projected.</typeparam>
+    public TResult[]? ReadPastArray<TResult>(Projection<TResult> projection, bool scalar = false)
     {
         DemandAggregate();
         if (IsNull) return null;

@@ -45,7 +45,7 @@ internal abstract partial class ResultProcessor
 
     private sealed partial class VectorSetInfoProcessor : ResultProcessor<VectorSetInfo?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
         {
             if (result.Resp2TypeArray == ResultType.Array)
             {

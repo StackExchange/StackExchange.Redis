@@ -1,4 +1,5 @@
 ﻿using System;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -71,21 +72,33 @@ namespace StackExchange.Redis
 
         private sealed class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                // see: SLOWLOG GET
+                switch (reader.Resp2PrefixArray)
                 {
-                    case ResultType.Array:
-                        var parts = result.GetItems();
-                        CommandTrace[] arr = new CommandTrace[parts.Length];
-                        int i = 0;
-                        foreach (var item in parts)
+                    case RespPrefix.Array:
+
+                        static CommandTrace ParseOne(ref RespReader reader)
                         {
-                            var subParts = item.GetItems();
-                            if (!subParts[0].TryGetInt64(out long uniqueid) || !subParts[1].TryGetInt64(out long time) || !subParts[2].TryGetInt64(out long duration))
-                                return false;
-                            arr[i++] = new CommandTrace(uniqueid, time, duration, subParts[3].GetItemsAsValues()!);
+                            CommandTrace result = null!;
+                            if (reader.IsAggregate)
+                            {
+                                long uniqueId = 0, time = 0, duration = 0;
+                                if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out uniqueId)
+                                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out time)
+                                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out duration)
+                                    && reader.TryMoveNext() && reader.IsAggregate)
+                                {
+                                    var values = reader.ReadPastRedisValues() ?? [];
+                                    result = new CommandTrace(uniqueId, time, duration, values);
+                                }
+                            }
+                            return result;
                         }
+                        var arr = reader.ReadPastArray(ParseOne, scalar: false)!;
+                        if (arr.AnyNull()) return false;
+
                         SetResult(message, arr);
                         return true;
                 }
