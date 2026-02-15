@@ -348,8 +348,50 @@ namespace StackExchange.Redis
 
         protected virtual bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            // temp hack so we can compile; this should be abstract
-            return false;
+            // spoof the old API from the new API; this is a transitional step only, and is inefficient
+            var rawResult = AsRaw(ref reader, connection.Protocol is RedisProtocol.Resp3);
+            return SetResultCore(connection, message, rawResult);
+        }
+
+        private static RawResult AsRaw(ref RespReader reader, bool resp3)
+        {
+            var flags = RawResult.ResultFlags.HasValue;
+            if (!reader.IsNull) flags |= RawResult.ResultFlags.NonNull;
+            if (resp3) flags |= RawResult.ResultFlags.Resp3;
+            var type = Type(reader.Prefix);
+            if (reader.IsAggregate)
+            {
+                var inner = reader.ReadPastArray((ref value) => AsRaw(ref value, resp3), false) ?? [];
+                return new RawResult(type, new Sequence<RawResult>(inner), flags);
+            }
+
+            if (reader.IsScalar)
+            {
+                ReadOnlySequence<byte> blob = new(reader.ReadByteArray() ?? []);
+                return new RawResult(type, blob, flags);
+            }
+
+            return default;
+
+            static ResultType Type(RespPrefix prefix) => prefix switch
+            {
+                RespPrefix.Array => ResultType.Array,
+                RespPrefix.Attribute => ResultType.Attribute,
+                RespPrefix.BigInteger => ResultType.BigInteger,
+                RespPrefix.Boolean => ResultType.Boolean,
+                RespPrefix.BulkError => ResultType.BlobError,
+                RespPrefix.BulkString => ResultType.BulkString,
+                RespPrefix.SimpleString => ResultType.SimpleString,
+                RespPrefix.Map => ResultType.Map,
+                RespPrefix.Set => ResultType.Set,
+                RespPrefix.Double => ResultType.Double,
+                RespPrefix.Integer => ResultType.Integer,
+                RespPrefix.SimpleError => ResultType.Error,
+                RespPrefix.Null => ResultType.Null,
+                RespPrefix.VerbatimString => ResultType.VerbatimString,
+                RespPrefix.Push=> ResultType.Push,
+                _ => throw new ArgumentOutOfRangeException(nameof(prefix), prefix, null),
+            };
         }
 
         // temp hack so we can compile; this should be removed
@@ -1733,7 +1775,13 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if (result.Resp2TypeArray == ResultType.Array && !result.IsNull)
+                if (result.IsNull)
+                {
+                    SetResult(message, null!);
+                    return true;
+                }
+
+                if (result.Resp2TypeArray == ResultType.Array)
                 {
                     var arr = result.ToArray((in RawResult x) => (long)x.AsRedisValue())!;
                     SetResult(message, arr);

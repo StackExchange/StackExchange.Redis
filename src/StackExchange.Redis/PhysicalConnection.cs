@@ -85,6 +85,21 @@ namespace StackExchange.Redis
         private Socket? _socket;
         internal Socket? VolatileSocket => Volatile.Read(ref _socket);
 
+        // used for dummy test connections
+        public PhysicalConnection(
+            ConnectionType connectionType = ConnectionType.Interactive,
+            RedisProtocol protocol = RedisProtocol.Resp2,
+            [CallerMemberName] string name = "")
+        {
+            lastWriteTickCount = lastReadTickCount = Environment.TickCount;
+            lastBeatTickCount = 0;
+            this.connectionType = connectionType;
+            _protocol = protocol;
+            _bridge = new WeakReference(null);
+            _physicalName = name;
+
+            OnCreateEcho();
+        }
         public PhysicalConnection(PhysicalBridge bridge)
         {
             lastWriteTickCount = lastReadTickCount = Environment.TickCount;
@@ -275,7 +290,7 @@ namespace StackExchange.Redis
         private RedisProtocol _protocol; // note starts at **zero**, not RESP2
         public RedisProtocol? Protocol => _protocol == 0 ? null : _protocol;
 
-        internal void SetProtocol(RedisProtocol value)
+        public void SetProtocol(RedisProtocol value)
         {
             _protocol = value;
             BridgeCouldBeNull?.SetProtocol(value);
