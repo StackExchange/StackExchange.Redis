@@ -22,20 +22,21 @@ internal sealed partial class PhysicalConnection
     private volatile ReadStatus _readStatus = ReadStatus.NotStarted;
     internal ReadStatus GetReadStatus() => _readStatus;
 
-    internal void StartReading() => ReadAllAsync(Stream.Null).RedisFireAndForget();
+    internal void StartReading() => ReadAllAsync().RedisFireAndForget();
 
-    private async Task ReadAllAsync(Stream tail)
+    private async Task ReadAllAsync()
     {
+        var tail = _ioStream ?? Stream.Null;
         _readStatus = ReadStatus.Init;
         RespScanState state = default;
-        var readBuffer = CycleBuffer.Create();
+        _readBuffer = CycleBuffer.Create();
         try
         {
             int read;
             do
             {
                 _readStatus = ReadStatus.ReadAsync;
-                var buffer = readBuffer.GetUncommittedMemory();
+                var buffer = _readBuffer.GetUncommittedMemory();
                 var pending = tail.ReadAsync(buffer, CancellationToken.None);
 #if DEBUG
                 bool inline = pending.IsCompleted;
@@ -49,11 +50,12 @@ internal sealed partial class PhysicalConnection
                 _readStatus = ReadStatus.TryParseResult;
             }
             // another formatter glitch
-            while (CommitAndParseFrames(ref state, ref readBuffer, read));
+            while (CommitAndParseFrames(ref state, read));
+
             _readStatus = ReadStatus.ProcessBufferComplete;
 
             // Volatile.Write(ref _readStatus, ReaderCompleted);
-            readBuffer.Release(); // clean exit, we can recycle
+            _readBuffer.Release(); // clean exit, we can recycle
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
         }
@@ -67,37 +69,56 @@ internal sealed partial class PhysicalConnection
             _readStatus = ReadStatus.Faulted;
             RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
         }
+        finally
+        {
+            _readBuffer = default; // wipe, however we exited
+        }
     }
 
     private static byte[]? SharedNoLease;
 
-    private bool CommitAndParseFrames(ref RespScanState state, ref CycleBuffer readBuffer, int bytesRead)
+    private CycleBuffer _readBuffer;
+    private long GetReadCommittedLength()
+    {
+        try
+        {
+            var len = _readBuffer.GetCommittedLength();
+            return len < 0 ? -1 : len;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    private bool CommitAndParseFrames(ref RespScanState state, int bytesRead)
     {
         if (bytesRead <= 0)
         {
             return false;
         }
 
+        totalBytesReceived += bytesRead;
 #if PARSE_DETAIL
         string src = $"parse {bytesRead}";
         try
 #endif
         {
-            Debug.Assert(readBuffer.GetCommittedLength() >= 0, "multi-segment running-indices are corrupt");
+            Debug.Assert(_readBuffer.GetCommittedLength() >= 0, "multi-segment running-indices are corrupt");
 #if PARSE_DETAIL
             src += $" ({readBuffer.GetCommittedLength()}+{bytesRead}-{state.TotalBytes})";
 #endif
             Debug.Assert(
-                bytesRead <= readBuffer.UncommittedAvailable,
-                $"Insufficient bytes in {nameof(CommitAndParseFrames)}; got {bytesRead}, Available={readBuffer.UncommittedAvailable}");
-            readBuffer.Commit(bytesRead);
+                bytesRead <= _readBuffer.UncommittedAvailable,
+                $"Insufficient bytes in {nameof(CommitAndParseFrames)}; got {bytesRead}, Available={_readBuffer.UncommittedAvailable}");
+            _readBuffer.Commit(bytesRead);
 #if PARSE_DETAIL
             src += $",total {readBuffer.GetCommittedLength()}";
 #endif
             var scanner = RespFrameScanner.Default;
 
             OperationStatus status = OperationStatus.NeedMoreData;
-            if (readBuffer.TryGetCommitted(out var fullSpan))
+            if (_readBuffer.TryGetCommitted(out var fullSpan))
             {
                 int fullyConsumed = 0;
                 var toParse = fullSpan.Slice((int)state.TotalBytes); // skip what we've already parsed
@@ -138,11 +159,11 @@ internal sealed partial class PhysicalConnection
                     status = OperationStatus.NeedMoreData;
                 }
 
-                readBuffer.DiscardCommitted(fullyConsumed);
+                _readBuffer.DiscardCommitted(fullyConsumed);
             }
             else // the same thing again, but this time with multi-segment sequence
             {
-                var fullSequence = readBuffer.GetAllCommitted();
+                var fullSequence = _readBuffer.GetAllCommitted();
                 Debug.Assert(
                     fullSequence is { IsEmpty: false, IsSingleSegment: false },
                     "non-trivial sequence expected");
@@ -184,7 +205,7 @@ internal sealed partial class PhysicalConnection
                     status = OperationStatus.NeedMoreData;
                 }
 
-                readBuffer.DiscardCommitted(fullyConsumed);
+                _readBuffer.DiscardCommitted(fullyConsumed);
             }
 
             if (status != OperationStatus.NeedMoreData)

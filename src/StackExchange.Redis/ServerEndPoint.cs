@@ -673,7 +673,7 @@ namespace StackExchange.Redis
 
                 var handshake = HandshakeAsync(connection, log);
 
-                if (handshake.Status != TaskStatus.RanToCompletion)
+                if (!handshake.IsCompletedSuccessfully)
                 {
                     return OnEstablishingAsyncAwaited(connection, handshake);
                 }

@@ -32,7 +32,6 @@ internal partial class ResultProcessor
         [FastHash] internal static partial class iids_tracked { }
         [FastHash] internal static partial class iids_added { }
         [FastHash] internal static partial class iids_duplicates { }
-
         // ReSharper restore InconsistentNaming
 #pragma warning restore CS8981, SA1300, SA1134 // forgive naming etc
     }
