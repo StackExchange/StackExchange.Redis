@@ -149,6 +149,7 @@ public partial struct CycleBuffer
     private void DiscardCommittedSlow(long count)
     {
         DebugCounters.OnDiscardPartial(count);
+        DebugAssertValid();
 #if DEBUG
         var originalLength = GetCommittedLength();
         var originalCount = count;
@@ -262,7 +263,6 @@ public partial struct CycleBuffer
 
     public long GetCommittedLength()
     {
-        DebugAssertValid();
         if (ReferenceEquals(startSegment, endSegment))
         {
             return endSegmentCommitted;
@@ -427,6 +427,10 @@ public partial struct CycleBuffer
         return MemoryMarshal.AsMemory(GetNextSegment().Memory);
     }
 
+    /// <summary>
+    /// This is the available unused buffer space, commonly used as the IO read-buffer to avoid
+    /// additional buffer-copy operations.
+    /// </summary>
     public int UncommittedAvailable
     {
         get
