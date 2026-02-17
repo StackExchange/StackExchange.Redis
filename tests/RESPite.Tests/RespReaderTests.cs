@@ -729,7 +729,7 @@ public class RespReaderTests(ITestOutputHelper logger)
         Assert.Equal(3, iterator.Value.ReadInt32());
         iterator.Value.DemandEnd();
 
-        Assert.False(iterator.MoveNext(TestAttributeReader.Instance, ref state));
+        Assert.False(iterator.MoveNextRaw(TestAttributeReader.Instance, ref state));
         Assert.Equal(0, state.Count);
         iterator.MovePast(out reader);
         reader.DemandEnd();
