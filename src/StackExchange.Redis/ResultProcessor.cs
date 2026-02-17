@@ -1607,14 +1607,16 @@ namespace StackExchange.Redis
                         // RESP3 nulls are neither scalar nor aggregate
                         if (reader.IsNull && (reader.Prefix == RespPrefix.Null | reader.IsScalar))
                         {
-                            if (reader.TryReadNext()) break; // not length 1
-                            SetResult(message, null);
-                            return true;
+                            if (!reader.TryReadNext()) // only if unit, else ignore
+                            {
+                                SetResult(message, null);
+                                return true;
+                            }
                         }
-                        if (reader.IsScalar && reader.TryReadInt64(out long value) && !reader.TryReadNext())
+                        else if (reader.IsScalar && reader.TryReadInt64(out i64) && !reader.TryReadNext())
                         {
                             // treat an array of 1 like a single reply
-                            SetResult(message, value);
+                            SetResult(message, i64);
                             return true;
                         }
                         break;
