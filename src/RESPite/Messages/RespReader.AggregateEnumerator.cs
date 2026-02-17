@@ -61,7 +61,7 @@ public ref partial struct RespReader
         /// </summary>
         public bool MoveNext(RespPrefix prefix)
         {
-            bool result = MoveNext();
+            bool result = MoveNextRaw();
             if (result)
             {
                 Value.MoveNext(prefix);
@@ -75,7 +75,7 @@ public ref partial struct RespReader
         /// <typeparam name="T">The type of data represented by this reader.</typeparam>
         public bool MoveNext<T>(RespPrefix prefix, RespAttributeReader<T> respAttributeReader, ref T attributes)
         {
-            bool result = MoveNext(respAttributeReader, ref attributes);
+            bool result = MoveNextRaw(respAttributeReader, ref attributes);
             if (result)
             {
                 Value.MoveNext(prefix);
@@ -83,16 +83,38 @@ public ref partial struct RespReader
             return result;
         }
 
-        /// <inheritdoc cref="IEnumerator.MoveNext()"/>>
-        public bool MoveNext()
+        /// <summary>
+        /// Move to the next child and leave the reader *ahead of* the first element,
+        /// allowing us to read attribute data.
+        /// </summary>
+        /// <remarks>If you are not consuming attribute data, <see cref="MoveNext()"/> is preferred.</remarks>
+        public bool MoveNextRaw()
         {
             object? attributes = null;
             return MoveNextCore(null, ref attributes);
         }
 
-        /// <inheritdoc cref="IEnumerator.MoveNext()"/>>
-        /// <typeparam name="T">The type of data represented by this reader.</typeparam>
-        public bool MoveNext<T>(RespAttributeReader<T> respAttributeReader, ref T attributes)
+        /// <summary>
+        /// Move to the next child and move into the first element (skipping attributes etc), leaving it ready to consume.
+        /// </summary>
+        public bool MoveNext()
+        {
+            object? attributes = null;
+            if (MoveNextCore(null, ref attributes))
+            {
+                Value.MoveNext();
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Move to the next child (capturing attribute data) and leave the reader *ahead of* the first element,
+        /// allowing us to also read attribute data of the child.
+        /// </summary>
+        /// <typeparam name="T">The type of attribute data represented by this reader.</typeparam>
+        /// <remarks>If you are not consuming attribute data, <see cref="MoveNext()"/> is preferred.</remarks>
+        public bool MoveNextRaw<T>(RespAttributeReader<T> respAttributeReader, ref T attributes)
             => MoveNextCore<T>(respAttributeReader, ref attributes);
 
         /// <inheritdoc cref="IEnumerator.MoveNext()"/>>
@@ -146,14 +168,16 @@ public ref partial struct RespReader
         /// used to update a tree reader, to get to the next data after the aggregate.</param>
         public void MovePast(out RespReader reader)
         {
-            while (MoveNext()) { }
+            while (MoveNextRaw()) { }
             reader = _reader;
         }
 
+        /// <summary>
+        /// Moves to the next element, and moves into that element (skipping attributes etc), leaving it ready to consume.
+        /// </summary>
         public void DemandNext()
         {
             if (!MoveNext()) ThrowEof();
-            Value.MoveNext(); // skip any attributes etc
         }
 
         public T ReadOne<T>(Projection<T> projection)
@@ -166,9 +190,7 @@ public ref partial struct RespReader
         {
             for (int i = 0; i < target.Length; i++)
             {
-                if (!MoveNext()) ThrowEof();
-
-                Value.MoveNext(); // skip any attributes etc
+                DemandNext();
                 target[i] = projection(ref Value);
             }
         }
@@ -181,14 +203,12 @@ public ref partial struct RespReader
         {
             for (int i = 0; i < target.Length; i++)
             {
-                if (!MoveNext()) ThrowEof();
+                DemandNext();
 
-                Value.MoveNext(); // skip any attributes etc
                 var x = first(ref Value);
 
-                if (!MoveNext()) ThrowEof();
+                DemandNext();
 
-                Value.MoveNext(); // skip any attributes etc
                 var y = second(ref Value);
                 target[i] = combine(x, y);
             }

@@ -29,13 +29,13 @@ public abstract class RespAttributeReader<T>
         byte[] pooledBuffer = [];
         Span<byte> localBuffer = stackalloc byte[128];
         int count = 0;
-        while (iterator.MoveNext() && iterator.Value.TryReadNext())
+        while (iterator.MoveNext())
         {
             if (iterator.Value.IsScalar)
             {
                 var key = iterator.Value.Buffer(ref pooledBuffer, localBuffer);
 
-                if (iterator.MoveNext() && iterator.Value.TryReadNext())
+                if (iterator.MoveNext())
                 {
                     if (ReadKeyValuePair(key, ref iterator.Value, ref value))
                     {
@@ -49,7 +49,7 @@ public abstract class RespAttributeReader<T>
             }
             else
             {
-                if (iterator.MoveNext() && iterator.Value.TryReadNext())
+                if (iterator.MoveNext())
                 {
                     // we won't try to handle aggregate keys; skip the value
                 }
