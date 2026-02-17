@@ -188,9 +188,9 @@ namespace StackExchange.Redis
                 set => wasQueued = value;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                Wrapped.WriteTo(physical);
+                Wrapped.WriteTo(writer);
                 Wrapped.SetRequestSent();
             }
             public override int ArgCount => Wrapped.ArgCount;
@@ -443,7 +443,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            protected override void WriteImpl(PhysicalConnection physical) => physical.WriteHeader(Command, 0);
+            protected override void WriteImpl(in MessageWriter writer) => writer.WriteHeader(Command, 0);
 
             public override int ArgCount => 0;
 

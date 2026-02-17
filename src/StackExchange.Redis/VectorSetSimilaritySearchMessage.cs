@@ -33,20 +33,20 @@ internal abstract class VectorSetSimilaritySearchMessage(
         internal override int GetSearchTargetArgCount(bool packed) =>
             packed ? 2 : 2 + vector.Length; // FP32 {vector} or VALUES {num} {vector}
 
-        internal override void WriteSearchTarget(bool packed, PhysicalConnection physical)
+        internal override void WriteSearchTarget(bool packed, in MessageWriter writer)
         {
             if (packed)
             {
-                physical.WriteBulkString("FP32"u8);
-                physical.WriteBulkString(System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.Span));
+                writer.WriteBulkString("FP32"u8);
+                writer.WriteBulkString(System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.Span));
             }
             else
             {
-                physical.WriteBulkString("VALUES"u8);
-                physical.WriteBulkString(vector.Length);
+                writer.WriteBulkString("VALUES"u8);
+                writer.WriteBulkString(vector.Length);
                 foreach (var val in vector.Span)
                 {
-                    physical.WriteBulkString(val);
+                    writer.WriteBulkString(val);
                 }
             }
         }
@@ -68,15 +68,15 @@ internal abstract class VectorSetSimilaritySearchMessage(
     {
         internal override int GetSearchTargetArgCount(bool packed) => 2; // ELE {member}
 
-        internal override void WriteSearchTarget(bool packed, PhysicalConnection physical)
+        internal override void WriteSearchTarget(bool packed, in MessageWriter writer)
         {
-            physical.WriteBulkString("ELE"u8);
-            physical.WriteBulkString(member);
+            writer.WriteBulkString("ELE"u8);
+            writer.WriteBulkString(member);
         }
     }
 
     internal abstract int GetSearchTargetArgCount(bool packed);
-    internal abstract void WriteSearchTarget(bool packed, PhysicalConnection physical);
+    internal abstract void WriteSearchTarget(bool packed, in MessageWriter writer);
 
     public ResultProcessor<Lease<VectorSetSimilaritySearchResult>?> GetResultProcessor() =>
         VectorSetSimilaritySearchProcessor.Instance;
@@ -194,67 +194,67 @@ internal abstract class VectorSetSimilaritySearchMessage(
         return argCount;
     }
 
-    protected override void WriteImpl(PhysicalConnection physical)
+    protected override void WriteImpl(in MessageWriter writer)
     {
         // snapshot to avoid race in debug scenarios
         bool packed = VectorSetAddMessage.UseFp32;
-        physical.WriteHeader(Command, GetArgCount(packed));
+        writer.WriteHeader(Command, GetArgCount(packed));
 
         // Write key
-        physical.Write(key);
+        writer.Write(key);
 
         // Write search target: either "ELE {member}" or vector data
-        WriteSearchTarget(packed, physical);
+        WriteSearchTarget(packed, writer);
 
         if (HasFlag(VsimFlags.WithScores))
         {
-            physical.WriteBulkString("WITHSCORES"u8);
+            writer.WriteBulkString("WITHSCORES"u8);
         }
 
         if (HasFlag(VsimFlags.WithAttributes))
         {
-            physical.WriteBulkString("WITHATTRIBS"u8);
+            writer.WriteBulkString("WITHATTRIBS"u8);
         }
 
         // Write optional parameters
         if (HasFlag(VsimFlags.Count))
         {
-            physical.WriteBulkString("COUNT"u8);
-            physical.WriteBulkString(count);
+            writer.WriteBulkString("COUNT"u8);
+            writer.WriteBulkString(count);
         }
 
         if (HasFlag(VsimFlags.Epsilon))
         {
-            physical.WriteBulkString("EPSILON"u8);
-            physical.WriteBulkString(epsilon);
+            writer.WriteBulkString("EPSILON"u8);
+            writer.WriteBulkString(epsilon);
         }
 
         if (HasFlag(VsimFlags.SearchExplorationFactor))
         {
-            physical.WriteBulkString("EF"u8);
-            physical.WriteBulkString(searchExplorationFactor);
+            writer.WriteBulkString("EF"u8);
+            writer.WriteBulkString(searchExplorationFactor);
         }
 
         if (HasFlag(VsimFlags.FilterExpression))
         {
-            physical.WriteBulkString("FILTER"u8);
-            physical.WriteBulkString(filterExpression);
+            writer.WriteBulkString("FILTER"u8);
+            writer.WriteBulkString(filterExpression);
         }
 
         if (HasFlag(VsimFlags.MaxFilteringEffort))
         {
-            physical.WriteBulkString("FILTER-EF"u8);
-            physical.WriteBulkString(maxFilteringEffort);
+            writer.WriteBulkString("FILTER-EF"u8);
+            writer.WriteBulkString(maxFilteringEffort);
         }
 
         if (HasFlag(VsimFlags.UseExactSearch))
         {
-            physical.WriteBulkString("TRUTH"u8);
+            writer.WriteBulkString("TRUTH"u8);
         }
 
         if (HasFlag(VsimFlags.DisableThreading))
         {
-            physical.WriteBulkString("NOTHREAD"u8);
+            writer.WriteBulkString("NOTHREAD"u8);
         }
     }
 

@@ -1277,7 +1277,7 @@ HaveString:
                     goto HaveString;
                 case StorageType.Int64:
                     leased = ArrayPool<byte>.Shared.Rent(Format.MaxInt64TextLen + 2); // reused code has CRLF terminator
-                    len = PhysicalConnection.WriteRaw(leased, OverlappedValueInt64) - 2; // drop the CRLF
+                    len = MessageWriter.WriteRaw(leased, OverlappedValueInt64) - 2; // drop the CRLF
                     return new ReadOnlyMemory<byte>(leased, 0, len);
                 case StorageType.UInt64:
                     leased = ArrayPool<byte>.Shared.Rent(Format.MaxInt64TextLen); // reused code has CRLF terminator

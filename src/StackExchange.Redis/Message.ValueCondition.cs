@@ -22,11 +22,11 @@ internal partial class Message
 
         public override int ArgCount => 1 + _when.TokenCount;
 
-        protected override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteImpl(in MessageWriter writer)
         {
-            physical.WriteHeader(Command, ArgCount);
-            physical.Write(Key);
-            _when.WriteTo(physical);
+            writer.WriteHeader(Command, ArgCount);
+            writer.Write(Key);
+            _when.WriteTo(writer);
         }
     }
 
@@ -46,13 +46,13 @@ internal partial class Message
 
         public override int ArgCount => 2 + _expiry.TokenCount + _when.TokenCount;
 
-        protected override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteImpl(in MessageWriter writer)
         {
-            physical.WriteHeader(Command, ArgCount);
-            physical.Write(Key);
-            physical.WriteBulkString(_value);
-            _expiry.WriteTo(physical);
-            _when.WriteTo(physical);
+            writer.WriteHeader(Command, ArgCount);
+            writer.Write(Key);
+            writer.WriteBulkString(_value);
+            _expiry.WriteTo(writer);
+            _when.WriteTo(writer);
         }
     }
 }

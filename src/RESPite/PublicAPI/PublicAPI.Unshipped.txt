@@ -1,26 +1,26 @@
 ﻿#nullable enable
-const RESPite.Buffers.CycleBuffer.GetAnything = 0 -> int
-const RESPite.Buffers.CycleBuffer.GetFullPagesOnly = -1 -> int
-RESPite.Buffers.CycleBuffer
-RESPite.Buffers.CycleBuffer.Commit(int count) -> void
-RESPite.Buffers.CycleBuffer.CommittedIsEmpty.get -> bool
-RESPite.Buffers.CycleBuffer.CycleBuffer() -> void
-RESPite.Buffers.CycleBuffer.DiscardCommitted(int count) -> void
-RESPite.Buffers.CycleBuffer.DiscardCommitted(long count) -> void
-RESPite.Buffers.CycleBuffer.GetAllCommitted() -> System.Buffers.ReadOnlySequence<byte>
-RESPite.Buffers.CycleBuffer.GetCommittedLength() -> long
-RESPite.Buffers.CycleBuffer.GetUncommittedMemory(int hint = 0) -> System.Memory<byte>
-RESPite.Buffers.CycleBuffer.GetUncommittedSpan(int hint = 0) -> System.Span<byte>
-RESPite.Buffers.CycleBuffer.PageSize.get -> int
-RESPite.Buffers.CycleBuffer.Pool.get -> System.Buffers.MemoryPool<byte>!
-RESPite.Buffers.CycleBuffer.Release() -> void
-RESPite.Buffers.CycleBuffer.TryGetCommitted(out System.ReadOnlySpan<byte> span) -> bool
-RESPite.Buffers.CycleBuffer.TryGetFirstCommittedMemory(int minBytes, out System.ReadOnlyMemory<byte> memory) -> bool
-RESPite.Buffers.CycleBuffer.TryGetFirstCommittedSpan(int minBytes, out System.ReadOnlySpan<byte> span) -> bool
-RESPite.Buffers.CycleBuffer.UncommittedAvailable.get -> int
-RESPite.Buffers.CycleBuffer.Write(in System.Buffers.ReadOnlySequence<byte> value) -> void
-RESPite.Buffers.CycleBuffer.Write(System.ReadOnlySpan<byte> value) -> void
-static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, int pageSize = 8192) -> RESPite.Buffers.CycleBuffer
+[SER004]const RESPite.Buffers.CycleBuffer.GetAnything = 0 -> int
+[SER004]const RESPite.Buffers.CycleBuffer.GetFullPagesOnly = -1 -> int
+[SER004]RESPite.Buffers.CycleBuffer
+[SER004]RESPite.Buffers.CycleBuffer.Commit(int count) -> void
+[SER004]RESPite.Buffers.CycleBuffer.CommittedIsEmpty.get -> bool
+[SER004]RESPite.Buffers.CycleBuffer.CycleBuffer() -> void
+[SER004]RESPite.Buffers.CycleBuffer.DiscardCommitted(int count) -> void
+[SER004]RESPite.Buffers.CycleBuffer.DiscardCommitted(long count) -> void
+[SER004]RESPite.Buffers.CycleBuffer.GetAllCommitted() -> System.Buffers.ReadOnlySequence<byte>
+[SER004]RESPite.Buffers.CycleBuffer.GetCommittedLength() -> long
+[SER004]RESPite.Buffers.CycleBuffer.GetUncommittedMemory(int hint = 0) -> System.Memory<byte>
+[SER004]RESPite.Buffers.CycleBuffer.GetUncommittedSpan(int hint = 0) -> System.Span<byte>
+[SER004]RESPite.Buffers.CycleBuffer.PageSize.get -> int
+[SER004]RESPite.Buffers.CycleBuffer.Pool.get -> System.Buffers.MemoryPool<byte>!
+[SER004]RESPite.Buffers.CycleBuffer.Release() -> void
+[SER004]RESPite.Buffers.CycleBuffer.TryGetCommitted(out System.ReadOnlySpan<byte> span) -> bool
+[SER004]RESPite.Buffers.CycleBuffer.TryGetFirstCommittedMemory(int minBytes, out System.ReadOnlyMemory<byte> memory) -> bool
+[SER004]RESPite.Buffers.CycleBuffer.TryGetFirstCommittedSpan(int minBytes, out System.ReadOnlySpan<byte> span) -> bool
+[SER004]RESPite.Buffers.CycleBuffer.UncommittedAvailable.get -> int
+[SER004]RESPite.Buffers.CycleBuffer.Write(in System.Buffers.ReadOnlySequence<byte> value) -> void
+[SER004]RESPite.Buffers.CycleBuffer.Write(System.ReadOnlySpan<byte> value) -> void
+[SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, int pageSize = 8192) -> RESPite.Buffers.CycleBuffer
 [SER004]const RESPite.Messages.RespScanState.MinBytes = 3 -> int
 [SER004]override RESPite.Messages.RespScanState.Equals(object? obj) -> bool
 [SER004]override RESPite.Messages.RespScanState.GetHashCode() -> int

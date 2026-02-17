@@ -3,17 +3,13 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.IO.Pipelines;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
 using RESPite.Buffers;
-using RESPite.Internal;
 using RESPite.Messages;
 using static StackExchange.Redis.PhysicalConnection;
 
@@ -30,13 +26,13 @@ public abstract class LoggingTunnel : Tunnel
     private readonly bool _ssl;
     private readonly Tunnel? _tail;
 
-    private sealed class StreamRespReader(Stream source, bool isInbound) : IDisposable
+    internal sealed class StreamRespReader(Stream source, bool isInbound) : IDisposable
     {
         private CycleBuffer _readBuffer = CycleBuffer.Create();
         private RespScanState _state;
         private bool _reading, _disposed; // we need to track the state of the reader to avoid releasing the buffer while it's in use
 
-        public bool TryTakeOne(out ContextualRedisResult result, bool withData = true)
+        internal bool TryTakeOne(out ContextualRedisResult result, bool withData = true)
         {
             var fullBuffer = _readBuffer.GetAllCommitted();
             var newData = fullBuffer.Slice(_state.TotalBytes);
@@ -266,7 +262,7 @@ public abstract class LoggingTunnel : Tunnel
         return await reader.ValidateAsync();
     }
 
-    private readonly struct ContextualRedisResult
+    internal readonly struct ContextualRedisResult
     {
         public readonly RedisResult? Result;
         public readonly bool IsOutOfBand;

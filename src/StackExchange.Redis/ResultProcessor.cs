@@ -485,17 +485,17 @@ namespace StackExchange.Redis
                     this.value = value;
                 }
 
-                protected override void WriteImpl(PhysicalConnection physical)
+                protected override void WriteImpl(in MessageWriter writer)
                 {
                     StartedWritingTimestamp = Stopwatch.GetTimestamp();
                     if (value.IsNull)
                     {
-                        physical.WriteHeader(command, 0);
+                        writer.WriteHeader(command, 0);
                     }
                     else
                     {
-                        physical.WriteHeader(command, 1);
-                        physical.WriteBulkString(value);
+                        writer.WriteHeader(command, 1);
+                        writer.WriteBulkString(value);
                     }
                 }
                 public override int ArgCount => value.IsNull ? 0 : 1;
