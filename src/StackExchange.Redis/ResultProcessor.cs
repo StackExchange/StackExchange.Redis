@@ -1120,37 +1120,33 @@ namespace StackExchange.Redis
 
         private sealed class BooleanProcessor : ResultProcessor<bool>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.IsNull)
+                if (reader.IsNull)
                 {
                     SetResult(message, false); // lots of ops return (nil) when they mean "no"
                     return true;
                 }
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.SimpleString:
-                        if (result.IsEqual(CommonReplies.OK))
+                    case RespPrefix.SimpleString:
+                        if (reader.IsOK())
                         {
                             SetResult(message, true);
                         }
                         else
                         {
-                            SetResult(message, result.GetBoolean());
+                            SetResult(message, reader.ReadBoolean());
                         }
                         return true;
-                    case ResultType.Integer:
-                    case ResultType.BulkString:
-                        SetResult(message, result.GetBoolean());
+                    case RespPrefix.Integer:
+                    case RespPrefix.BulkString:
+                        SetResult(message, reader.ReadBoolean());
                         return true;
-                    case ResultType.Array:
-                        var items = result.GetItems();
-                        if (items.Length == 1)
-                        { // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
-                            SetResult(message, items[0].GetBoolean());
-                            return true;
-                        }
-                        break;
+                    case RespPrefix.Array when reader.TryReadNext() && reader.IsScalar && reader.ReadBoolean() is var value && !reader.TryReadNext():
+                        // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
+                        SetResult(message, value);
+                        return true;
                 }
                 return false;
             }
@@ -1158,12 +1154,12 @@ namespace StackExchange.Redis
 
         private sealed class ByteArrayProcessor : ResultProcessor<byte[]?>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.BulkString:
-                        SetResult(message, result.GetBlob());
+                    case RespPrefix.BulkString:
+                        SetResult(message, reader.ReadByteArray());
                         return true;
                 }
                 return false;
@@ -2838,20 +2834,21 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class StringProcessor : ResultProcessor<string?>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        SetResult(message, result.GetString());
+                    case RespPrefix.Integer:
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        SetResult(message, reader.ReadString());
                         return true;
-                    case ResultType.Array:
-                        var arr = result.GetItems();
-                        if (arr.Length == 1)
+                    case RespPrefix.Array when reader.TryReadNext() && reader.IsScalar:
+                        // treat an array of 1 like a single reply
+                        var value = reader.ReadString();
+                        if (!reader.TryReadNext())
                         {
-                            SetResult(message, arr[0].GetString());
+                            SetResult(message, value);
                             return true;
                         }
                         break;

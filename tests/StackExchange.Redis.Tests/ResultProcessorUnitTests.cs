@@ -99,6 +99,48 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(ATTRIB_FOO_BAR + ",3.14\r\n", 3.14)]
     public void NullableDouble(string resp, double? value) => Assert.Equal(value, Execute(resp, ResultProcessor.NullableDouble));
 
+    [Theory]
+    [InlineData("_\r\n", false)] // null = false
+    [InlineData(":0\r\n", false)]
+    [InlineData(":1\r\n", true)]
+    [InlineData("#f\r\n", false)]
+    [InlineData("#t\r\n", true)]
+    [InlineData("+OK\r\n", true)]
+    [InlineData(ATTRIB_FOO_BAR + ":1\r\n", true)]
+    public void Boolean(string resp, bool value) => Assert.Equal(value, Execute(resp, ResultProcessor.Boolean));
+
+    [Theory]
+    [InlineData("*1\r\n:1\r\n", true)] // SCRIPT EXISTS returns array
+    [InlineData("*1\r\n:0\r\n", false)]
+    [InlineData(ATTRIB_FOO_BAR + "*1\r\n:1\r\n", true)]
+    public void BooleanArrayOfOne(string resp, bool value) => Assert.Equal(value, Execute(resp, ResultProcessor.Boolean));
+
+    [Theory]
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n:1\r\n:0\r\n")] // two elements
+    [InlineData("*1\r\n*1\r\n:1\r\n")] // nested array (not scalar)
+    public void FailingBooleanArrayOfNonOne(string resp) => ExecuteUnexpected(resp, ResultProcessor.Boolean);
+
+    [Theory]
+    [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("+world\r\n", "world")]
+    [InlineData(":42\r\n", "42")]
+    [InlineData("$-1\r\n", null)]
+    [InlineData(ATTRIB_FOO_BAR + "$3\r\nfoo\r\n", "foo")]
+    public void String(string resp, string? value) => Assert.Equal(value, Execute(resp, ResultProcessor.String));
+
+    [Theory]
+    [InlineData("*1\r\n$3\r\nbar\r\n", "bar")]
+    [InlineData(ATTRIB_FOO_BAR + "*1\r\n$3\r\nbar\r\n", "bar")]
+    public void StringArrayOfOne(string resp, string? value) => Assert.Equal(value, Execute(resp, ResultProcessor.String));
+
+    [Theory]
+    [InlineData("*-1\r\n")] // null array
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")] // two elements
+    [InlineData("*1\r\n*1\r\n$3\r\nfoo\r\n")] // nested array (not scalar)
+    public void FailingStringArrayOfNonOne(string resp) => ExecuteUnexpected(resp, ResultProcessor.String);
+
     [return: NotNullIfNotNull(nameof(array))]
     protected static string? Join<T>(T[]? array, string separator = ",")
     {
