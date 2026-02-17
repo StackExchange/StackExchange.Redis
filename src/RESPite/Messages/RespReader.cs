@@ -1726,6 +1726,7 @@ public ref partial struct RespReader
     /// <typeparam name="TResult">The type of data to be projected.</typeparam>
     public TResult[]? ReadPastArray<TResult>(Projection<TResult> projection, bool scalar = false)
     {
+        if (Prefix is RespPrefix.Null) return null; // RESP3 nulls are neither aggregate nor scalar
         DemandAggregate();
         if (IsNull) return null;
         var len = AggregateLength();
