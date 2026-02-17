@@ -10,13 +10,18 @@ namespace StackExchange.Redis.Tests;
 
 public class ResultProcessorUnitTests(ITestOutputHelper log)
 {
+    private const string ATTRIB_FOO_BAR = "|1\r\n+foo\r\n+bar\r\n";
+
     [Theory]
     [InlineData(":1\r\n", 1)]
     [InlineData("+1\r\n", 1)]
     [InlineData("$1\r\n1\r\n", 1)]
+    [InlineData(",1\r\n", 1)]
+    [InlineData(ATTRIB_FOO_BAR + ":1\r\n", 1)]
     [InlineData(":-42\r\n", -42)]
     [InlineData("+-42\r\n", -42)]
     [InlineData("$3\r\n-42\r\n", -42)]
+    [InlineData(",-42\r\n", -42)]
     public void Int32(string resp, int value) => Assert.Equal(value, Execute(resp, ResultProcessor.Int32));
 
     [Theory]
@@ -28,9 +33,12 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(":1\r\n", 1)]
     [InlineData("+1\r\n", 1)]
     [InlineData("$1\r\n1\r\n", 1)]
+    [InlineData(",1\r\n", 1)]
+    [InlineData(ATTRIB_FOO_BAR + ":1\r\n", 1)]
     [InlineData(":-42\r\n", -42)]
     [InlineData("+-42\r\n", -42)]
     [InlineData("$3\r\n-42\r\n", -42)]
+    [InlineData(",-42\r\n", -42)]
     public void Int64(string resp, long value) => Assert.Equal(value, Execute(resp, ResultProcessor.Int64));
 
     [Theory]
@@ -43,7 +51,53 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData("*0\r\n", "")]
     [InlineData("*1\r\n+42\r\n", "42")]
     [InlineData("*2\r\n+42\r\n:78\r\n", "42,78")]
+    [InlineData(ATTRIB_FOO_BAR + "*1\r\n+42\r\n", "42")]
     public void Int64Array(string resp, string? value) => Assert.Equal(value, Join(Execute(resp, ResultProcessor.Int64Array)));
+
+    [Theory]
+    [InlineData(":42\r\n", 42.0)]
+    [InlineData("+3.14\r\n", 3.14)]
+    [InlineData("$4\r\n3.14\r\n", 3.14)]
+    [InlineData(",3.14\r\n", 3.14)]
+    [InlineData(ATTRIB_FOO_BAR + ",3.14\r\n", 3.14)]
+    [InlineData(":-1\r\n", -1.0)]
+    [InlineData("+inf\r\n", double.PositiveInfinity)]
+    [InlineData(",inf\r\n", double.PositiveInfinity)]
+    [InlineData("$4\r\n-inf\r\n", double.NegativeInfinity)]
+    [InlineData(",-inf\r\n", double.NegativeInfinity)]
+    [InlineData(",nan\r\n", double.NaN)]
+    public void Double(string resp, double value) => Assert.Equal(value, Execute(resp, ResultProcessor.Double));
+
+    [Theory]
+    [InlineData("_\r\n", null)]
+    [InlineData("$-1\r\n", null)]
+    [InlineData(":42\r\n", 42L)]
+    [InlineData("+42\r\n", 42L)]
+    [InlineData("$2\r\n42\r\n", 42L)]
+    [InlineData(",42\r\n", 42L)]
+    [InlineData(ATTRIB_FOO_BAR + ":42\r\n", 42L)]
+    public void NullableInt64(string resp, long? value) => Assert.Equal(value, Execute(resp, ResultProcessor.NullableInt64));
+
+    [Theory]
+    [InlineData("*1\r\n:99\r\n", 99L)]
+    [InlineData(ATTRIB_FOO_BAR + "*1\r\n:99\r\n", 99L)]
+    public void NullableInt64ArrayOfOne(string resp, long? value) => Assert.Equal(value, Execute(resp, ResultProcessor.NullableInt64));
+
+    [Theory]
+    [InlineData("*-1\r\n")] // null array
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n:1\r\n:2\r\n")] // two elements
+    public void FailingNullableInt64ArrayOfNonOne(string resp) => ExecuteUnexpected(resp, ResultProcessor.NullableInt64);
+
+    [Theory]
+    [InlineData("_\r\n", null)]
+    [InlineData("$-1\r\n", null)]
+    [InlineData(":42\r\n", 42.0)]
+    [InlineData("+3.14\r\n", 3.14)]
+    [InlineData("$4\r\n3.14\r\n", 3.14)]
+    [InlineData(",3.14\r\n", 3.14)]
+    [InlineData(ATTRIB_FOO_BAR + ",3.14\r\n", 3.14)]
+    public void NullableDouble(string resp, double? value) => Assert.Equal(value, Execute(resp, ResultProcessor.NullableDouble));
 
     [return: NotNullIfNotNull(nameof(array))]
     protected static string? Join<T>(T[]? array, string separator = ",")

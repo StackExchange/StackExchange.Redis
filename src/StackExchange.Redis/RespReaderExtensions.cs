@@ -53,6 +53,26 @@ internal static class RespReaderExtensions
             }
             return prefix;
         }
+
+        public bool AggregateHasAtLeast(int count)
+        {
+            reader.DemandAggregate();
+            if (reader.IsNull) return false;
+            if (reader.IsStreaming) return CheckStreamingAggregateAtLeast(in reader, count);
+            return reader.AggregateLength() >= count;
+
+            static bool CheckStreamingAggregateAtLeast(in RespReader reader, int count)
+            {
+                var iter = reader.AggregateChildren();
+                object? attributes = null;
+                while (count > 0 && iter.MoveNextRaw(null!, ref attributes))
+                {
+                    count--;
+                }
+
+                return count == 0;
+            }
+        }
     }
 
     extension(ref RespReader reader)

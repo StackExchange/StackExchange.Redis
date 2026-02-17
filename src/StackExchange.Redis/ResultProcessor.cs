@@ -1312,20 +1312,20 @@ namespace StackExchange.Redis
 
         private sealed class DoubleProcessor : ResultProcessor<double>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                        if (result.TryGetInt64(out long i64))
+                    case RespPrefix.Integer:
+                        if (reader.TryReadInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
                         }
                         break;
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if (result.TryGetDouble(out double val))
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        if (reader.TryReadDouble(out double val))
                         {
                             SetResult(message, val);
                             return true;
@@ -1403,14 +1403,14 @@ namespace StackExchange.Redis
 
             public Int64DefaultValueProcessor(long defaultValue) => _defaultValue = defaultValue;
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.IsNull)
+                if (reader.IsNull)
                 {
                     SetResult(message, _defaultValue);
                     return true;
                 }
-                if (result.Resp2TypeBulkString == ResultType.Integer && result.TryGetInt64(out var i64))
+                if (reader.Resp2PrefixBulkString == RespPrefix.Integer && reader.TryReadInt64(out var i64))
                 {
                     SetResult(message, i64);
                     return true;
@@ -1421,14 +1421,14 @@ namespace StackExchange.Redis
 
         private class Int64Processor : ResultProcessor<long>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if (result.TryGetInt64(out long i64))
+                    case RespPrefix.Integer:
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        if (reader.TryReadInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
@@ -1532,18 +1532,19 @@ namespace StackExchange.Redis
 
         private sealed class PubSubNumSubProcessor : Int64Processor
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray == ResultType.Array)
+                var snapshot = reader;
+                if (reader.Resp2PrefixArray == RespPrefix.Array && reader.AggregateLength() == 2)
                 {
-                    var arr = result.GetItems();
-                    if (arr.Length == 2 && arr[1].TryGetInt64(out long val))
+                    var agg = reader.AggregateChildren();
+                    if (agg.MoveNext() && agg.MoveNext() && agg.Value.TryReadInt64(out long val))
                     {
                         SetResult(message, val);
                         return true;
                     }
                 }
-                return base.SetResultCore(connection, message, result);
+                return base.SetResultCore(connection, message, ref snapshot);
             }
         }
 
@@ -1563,19 +1564,19 @@ namespace StackExchange.Redis
 
         private sealed class NullableDoubleProcessor : ResultProcessor<double?>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if (result.IsNull)
+                    case RespPrefix.Integer:
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        if (reader.IsNull)
                         {
                             SetResult(message, null);
                             return true;
                         }
-                        if (result.TryGetDouble(out double val))
+                        if (reader.TryReadDouble(out double val))
                         {
                             SetResult(message, val);
                             return true;
@@ -1588,35 +1589,28 @@ namespace StackExchange.Redis
 
         private sealed class NullableInt64Processor : ResultProcessor<long?>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if (result.IsNull)
+                    case RespPrefix.Integer:
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        if (reader.IsNull)
                         {
                             SetResult(message, null);
                             return true;
                         }
-                        if (result.TryGetInt64(out long i64))
+                        if (reader.TryReadInt64(out long i64))
                         {
                             SetResult(message, i64);
                             return true;
                         }
                         break;
-                    case ResultType.Array:
-                        var items = result.GetItems();
-                        if (items.Length == 1)
-                        { // treat an array of 1 like a single reply
-                            if (items[0].TryGetInt64(out long value))
-                            {
-                                SetResult(message, value);
-                                return true;
-                            }
-                        }
-                        break;
+                    case RespPrefix.Array when reader.TryReadNext() && reader.IsScalar && reader.TryReadInt64(out long value) && !reader.TryReadNext():
+                        // treat an array of 1 like a single reply
+                        SetResult(message, value);
+                        return true;
                 }
                 return false;
             }
@@ -1703,14 +1697,14 @@ namespace StackExchange.Redis
 
         private sealed class RedisKeyProcessor : ResultProcessor<RedisKey>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        SetResult(message, result.AsRedisKey());
+                    case RespPrefix.Integer:
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        SetResult(message, reader.ReadByteArray());
                         return true;
                 }
                 return false;
@@ -1719,13 +1713,13 @@ namespace StackExchange.Redis
 
         private sealed class RedisTypeProcessor : ResultProcessor<RedisType>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        string s = result.GetString()!;
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        string s = reader.ReadString()!;
                         RedisType value;
                         if (string.Equals(s, "zset", StringComparison.OrdinalIgnoreCase)) value = Redis.RedisType.SortedSet;
                         else if (!Enum.TryParse<RedisType>(s, true, out value)) value = global::StackExchange.Redis.RedisType.Unknown;
@@ -1977,14 +1971,14 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class RedisValueProcessor : ResultProcessor<RedisValue>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        SetResult(message, result.AsRedisValue());
+                    case RespPrefix.Integer:
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        SetResult(message, reader.ReadRedisValue());
                         return true;
                 }
                 return false;
