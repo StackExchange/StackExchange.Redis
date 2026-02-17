@@ -1200,14 +1200,14 @@ namespace StackExchange.Redis
 
         private sealed class ClusterNodesRawProcessor : ResultProcessor<string?>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        string nodes = result.GetString()!;
+                    case RespPrefix.Integer:
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        string nodes = reader.ReadString()!;
                         try
                         {
                             ClusterNodesProcessor.Parse(connection, nodes);
@@ -1603,10 +1603,21 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
-                    case RespPrefix.Array when reader.TryReadNext() && reader.IsScalar && reader.TryReadInt64(out long value) && !reader.TryReadNext():
-                        // treat an array of 1 like a single reply
-                        SetResult(message, value);
-                        return true;
+                    case RespPrefix.Array when reader.TryReadNext(): // handle unit arrays
+                        // RESP3 nulls are neither scalar nor aggregate
+                        if (reader.IsNull && (reader.Prefix == RespPrefix.Null | reader.IsScalar))
+                        {
+                            if (reader.TryReadNext()) break; // not length 1
+                            SetResult(message, null);
+                            return true;
+                        }
+                        if (reader.IsScalar && reader.TryReadInt64(out long value) && !reader.TryReadNext())
+                        {
+                            // treat an array of 1 like a single reply
+                            SetResult(message, value);
+                            return true;
+                        }
+                        break;
                 }
                 return false;
             }
@@ -1678,13 +1689,13 @@ namespace StackExchange.Redis
 
         private sealed class RedisKeyArrayProcessor : ResultProcessor<RedisKey[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                switch (reader.Resp2PrefixArray)
                 {
-                    case ResultType.Array:
-                        var arr = result.GetItemsAsKeys()!;
-                        SetResult(message, arr);
+                    case RespPrefix.Array:
+                        var arr = reader.ReadPastArray(static (ref RespReader r) => (RedisKey)r.ReadByteArray(), scalar: true);
+                        SetResult(message, arr!);
                         return true;
                 }
                 return false;
@@ -1728,20 +1739,20 @@ namespace StackExchange.Redis
 
         private sealed class RedisValueArrayProcessor : ResultProcessor<RedisValue[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
                     // allow a single item to pass explicitly pretending to be an array; example: SPOP {key} 1
-                    case ResultType.BulkString:
+                    case RespPrefix.BulkString:
                         // If the result is nil, the result should be an empty array
-                        var arr = result.IsNull
+                        var arr = reader.IsNull
                             ? Array.Empty<RedisValue>()
-                            : new[] { result.AsRedisValue() };
+                            : new[] { reader.ReadRedisValue() };
                         SetResult(message, arr);
                         return true;
-                    case ResultType.Array:
-                        arr = result.GetItemsAsValues()!;
+                    case RespPrefix.Array:
+                        arr = reader.ReadPastRedisValues()!;
                         SetResult(message, arr);
                         return true;
                 }
@@ -1751,18 +1762,12 @@ namespace StackExchange.Redis
 
         private sealed class Int64ArrayProcessor : ResultProcessor<long[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.IsNull)
+                if (reader.Resp2PrefixArray == RespPrefix.Array)
                 {
-                    SetResult(message, null!);
-                    return true;
-                }
-
-                if (result.Resp2TypeArray == ResultType.Array)
-                {
-                    var arr = result.ToArray((in RawResult x) => (long)x.AsRedisValue())!;
-                    SetResult(message, arr);
+                    var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadInt64(), scalar: true);
+                    SetResult(message, arr!);
                     return true;
                 }
 
@@ -1772,14 +1777,14 @@ namespace StackExchange.Redis
 
         private sealed class NullableStringArrayProcessor : ResultProcessor<string?[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                switch (reader.Resp2PrefixArray)
                 {
-                    case ResultType.Array:
-                        var arr = result.GetItemsAsStrings()!;
+                    case RespPrefix.Array:
+                        var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadString(), scalar: true);
 
-                        SetResult(message, arr);
+                        SetResult(message, arr!);
                         return true;
                 }
                 return false;
@@ -1788,13 +1793,13 @@ namespace StackExchange.Redis
 
         private sealed class StringArrayProcessor : ResultProcessor<string[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                switch (reader.Resp2PrefixArray)
                 {
-                    case ResultType.Array:
-                        var arr = result.GetItemsAsStringsNotNullable()!;
-                        SetResult(message, arr);
+                    case RespPrefix.Array:
+                        var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadString()!, scalar: true);
+                        SetResult(message, arr!);
                         return true;
                 }
                 return false;
@@ -1803,12 +1808,12 @@ namespace StackExchange.Redis
 
         private sealed class BooleanArrayProcessor : ResultProcessor<bool[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray == ResultType.Array && !result.IsNull)
+                if (reader.Resp2PrefixArray == RespPrefix.Array)
                 {
-                    var arr = result.GetItemsAsBooleans()!;
-                    SetResult(message, arr);
+                    var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadBoolean(), scalar: true);
+                    SetResult(message, arr!);
                     return true;
                 }
                 return false;
@@ -2859,13 +2864,13 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class TieBreakerProcessor : ResultProcessor<string?>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                switch (reader.Resp2PrefixBulkString)
                 {
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        var tieBreaker = result.GetString()!;
+                    case RespPrefix.SimpleString:
+                    case RespPrefix.BulkString:
+                        var tieBreaker = reader.ReadString()!;
                         SetResult(message, tieBreaker);
 
                         try
