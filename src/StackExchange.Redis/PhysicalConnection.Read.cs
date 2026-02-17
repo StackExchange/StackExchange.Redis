@@ -326,15 +326,15 @@ internal sealed partial class PhysicalConnection
         SUnsubscribe,
     }
 
+    internal static ReadOnlySpan<byte> StackCopyLengthChecked(scoped in RespReader reader, Span<byte> buffer)
+    {
+        var len = reader.CopyTo(buffer);
+        if (len == buffer.Length && reader.ScalarLength() > len) return default; // too small
+        return buffer.Slice(0, len);
+    }
+
     private bool OnOutOfBand(ReadOnlySpan<byte> payload, ref byte[]? lease)
     {
-        static ReadOnlySpan<byte> StackCopyLenChecked(scoped in RespReader reader, Span<byte> buffer)
-        {
-            var len = reader.CopyTo(buffer);
-            if (len == buffer.Length && reader.ScalarLength() > len) return default; // too small
-            return buffer.Slice(0, len);
-        }
-
         var muxer = BridgeCouldBeNull?.Multiplexer;
         if (muxer is null) return true; // consume it blindly
 
@@ -348,7 +348,7 @@ internal sealed partial class PhysicalConnection
         {
             const int MAX_TYPE_LEN = 16;
             var span = reader.TryGetSpan(out var tmp)
-                ? tmp : StackCopyLenChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
+                ? tmp : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
 
             var hash = span.Hash64();
             RedisChannel.RedisChannelOptions channelOptions = RedisChannel.RedisChannelOptions.None;
@@ -636,13 +636,13 @@ internal sealed partial class PhysicalConnection
     }
 
     [FastHash("message")]
-    private static partial class PushMessage { }
+    internal static partial class PushMessage { }
 
     [FastHash("pmessage")]
-    private static partial class PushPMessage { }
+    internal static partial class PushPMessage { }
 
     [FastHash("smessage")]
-    private static partial class PushSMessage { }
+    internal static partial class PushSMessage { }
 
     [FastHash("subscribe")]
     private static partial class PushSubscribe { }

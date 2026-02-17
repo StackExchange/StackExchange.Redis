@@ -358,11 +358,19 @@ namespace StackExchange.Redis
             var flags = RawResult.ResultFlags.HasValue;
             if (!reader.IsNull) flags |= RawResult.ResultFlags.NonNull;
             if (resp3) flags |= RawResult.ResultFlags.Resp3;
-            var type = Type(reader.Prefix);
+            var type = reader.Prefix.ToResultType();
             if (reader.IsAggregate)
             {
-                var inner = reader.ReadPastArray((ref value) => AsRaw(ref value, resp3), false) ?? [];
-                return new RawResult(type, new Sequence<RawResult>(inner), flags);
+                var len = reader.AggregateLength();
+                var arr = len == 0 ? [] : new RawResult[len];
+                int i = 0;
+                var iter = reader.AggregateChildren();
+                while (iter.MoveNext())
+                {
+                    arr[i++] = AsRaw(ref iter.Value, resp3);
+                }
+                iter.MovePast(out reader);
+                return new RawResult(type, new Sequence<RawResult>(arr), flags);
             }
 
             if (reader.IsScalar)
@@ -372,26 +380,6 @@ namespace StackExchange.Redis
             }
 
             return default;
-
-            static ResultType Type(RespPrefix prefix) => prefix switch
-            {
-                RespPrefix.Array => ResultType.Array,
-                RespPrefix.Attribute => ResultType.Attribute,
-                RespPrefix.BigInteger => ResultType.BigInteger,
-                RespPrefix.Boolean => ResultType.Boolean,
-                RespPrefix.BulkError => ResultType.BlobError,
-                RespPrefix.BulkString => ResultType.BulkString,
-                RespPrefix.SimpleString => ResultType.SimpleString,
-                RespPrefix.Map => ResultType.Map,
-                RespPrefix.Set => ResultType.Set,
-                RespPrefix.Double => ResultType.Double,
-                RespPrefix.Integer => ResultType.Integer,
-                RespPrefix.SimpleError => ResultType.Error,
-                RespPrefix.Null => ResultType.Null,
-                RespPrefix.VerbatimString => ResultType.VerbatimString,
-                RespPrefix.Push=> ResultType.Push,
-                _ => throw new ArgumentOutOfRangeException(nameof(prefix), prefix, null),
-            };
         }
 
         // temp hack so we can compile; this should be removed
@@ -2168,9 +2156,9 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             // note that top-level error messages still get handled by SetResult, but nested errors
             // (is that a thing?) will be wrapped in the RedisResult
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (RedisResult.TryCreate(connection, result, out var value))
+                if (RedisResult.TryCreate(connection, ref reader, out var value))
                 {
                     SetResult(message, value);
                     return true;

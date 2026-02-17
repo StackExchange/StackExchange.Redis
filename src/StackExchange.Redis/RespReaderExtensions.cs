@@ -94,6 +94,26 @@ internal static class RespReaderExtensions
                 _ => prefix,
             };
         }
+
+        public ResultType ToResultType() => prefix switch
+        {
+            RespPrefix.Array => ResultType.Array,
+            RespPrefix.Attribute => ResultType.Attribute,
+            RespPrefix.BigInteger => ResultType.BigInteger,
+            RespPrefix.Boolean => ResultType.Boolean,
+            RespPrefix.BulkError => ResultType.BlobError,
+            RespPrefix.BulkString => ResultType.BulkString,
+            RespPrefix.SimpleString => ResultType.SimpleString,
+            RespPrefix.Map => ResultType.Map,
+            RespPrefix.Set => ResultType.Set,
+            RespPrefix.Double => ResultType.Double,
+            RespPrefix.Integer => ResultType.Integer,
+            RespPrefix.SimpleError => ResultType.Error,
+            RespPrefix.Null => ResultType.Null,
+            RespPrefix.VerbatimString => ResultType.VerbatimString,
+            RespPrefix.Push=> ResultType.Push,
+            _ => throw new ArgumentOutOfRangeException(nameof(prefix), prefix, null),
+        };
     }
 
     extension<T>(T?[] array) where T : class
