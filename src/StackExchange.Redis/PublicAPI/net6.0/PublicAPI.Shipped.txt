@@ -1,4 +1,5 @@
-﻿StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.get -> System.Func<string!, System.Net.Security.SslClientAuthenticationOptions!>?
+﻿#nullable enable
+StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.get -> System.Func<string!, System.Net.Security.SslClientAuthenticationOptions!>?
 StackExchange.Redis.ConfigurationOptions.SslClientAuthenticationOptions.set -> void
 System.Runtime.CompilerServices.IsExternalInit (forwarded, contained in System.Runtime)
 StackExchange.Redis.ConfigurationOptions.SetUserPemCertificate(string! userCertificatePath, string? userKeyPath = null) -> void

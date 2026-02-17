@@ -891,7 +891,7 @@ namespace StackExchange.Redis
             public static readonly ResultProcessor<ScanResult> processor = new ScanResultProcessor();
             private sealed class ScanResultProcessor : ResultProcessor<ScanResult>
             {
-                protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+                protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
                 {
                     switch (result.Resp2TypeArray)
                     {

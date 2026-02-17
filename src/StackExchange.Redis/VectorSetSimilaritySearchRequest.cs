@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using RESPite;
 using VsimFlags = StackExchange.Redis.VectorSetSimilaritySearchMessage.VsimFlags;
 
 namespace StackExchange.Redis;

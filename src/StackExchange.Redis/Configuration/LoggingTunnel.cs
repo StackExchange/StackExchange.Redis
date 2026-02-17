@@ -3,15 +3,14 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.IO.Pipelines;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite.Buffers;
+using RESPite.Messages;
 using static StackExchange.Redis.PhysicalConnection;
 
 namespace StackExchange.Redis.Configuration;
@@ -27,25 +26,152 @@ public abstract class LoggingTunnel : Tunnel
     private readonly bool _ssl;
     private readonly Tunnel? _tail;
 
+    internal sealed class StreamRespReader(Stream source, bool isInbound) : IDisposable
+    {
+        private CycleBuffer _readBuffer = CycleBuffer.Create();
+        private RespScanState _state;
+        private bool _reading, _disposed; // we need to track the state of the reader to avoid releasing the buffer while it's in use
+
+        internal bool TryTakeOne(out ContextualRedisResult result, bool withData = true)
+        {
+            var fullBuffer = _readBuffer.GetAllCommitted();
+            var newData = fullBuffer.Slice(_state.TotalBytes);
+            var status = RespFrameScanner.Default.TryRead(ref _state, newData);
+            switch (status)
+            {
+                case OperationStatus.Done:
+                    var frame = fullBuffer.Slice(0, _state.TotalBytes);
+                    var reader = new RespReader(frame);
+                    reader.MovePastBof();
+                    bool isOutOfBand = reader.Prefix is RespPrefix.Push
+                                       || (isInbound && reader.IsAggregate &&
+                                           !IsArrayOutOfBand(in reader));
+
+                    RedisResult? parsed;
+                    if (withData)
+                    {
+                        if (!RedisResult.TryCreate(null, ref reader, out parsed))
+                        {
+                            ThrowInvalidReadStatus(OperationStatus.InvalidData);
+                        }
+                    }
+                    else
+                    {
+                        parsed = null;
+                    }
+                    result = new(parsed, isOutOfBand);
+                    return true;
+                case OperationStatus.NeedMoreData:
+                    result = default;
+                    return false;
+                default:
+                    ThrowInvalidReadStatus(status);
+                    goto case OperationStatus.NeedMoreData; // never reached
+            }
+        }
+
+        private static bool IsArrayOutOfBand(in RespReader source)
+        {
+            var reader = source;
+            int len;
+            if (!reader.IsStreaming
+                && (len = reader.AggregateLength()) >= 2
+                && (reader.SafeTryMoveNext() & reader.IsInlineScalar & !reader.IsError))
+            {
+                const int MAX_TYPE_LEN = 16;
+                var span = reader.TryGetSpan(out var tmp)
+                    ? tmp
+                    : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
+
+                var hash = span.Hash64();
+                switch (hash)
+                {
+                    case PushMessage.Hash when PushMessage.Is(hash, span) & len >= 3:
+                    case PushPMessage.Hash when PushPMessage.Is(hash, span) & len >= 4:
+                    case PushSMessage.Hash when PushSMessage.Is(hash, span) & len >= 3:
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        public ValueTask<ContextualRedisResult> ReadOneAsync(CancellationToken cancellationToken = default)
+            => TryTakeOne(out var result) ? new(result) : ReadMoreAsync(cancellationToken);
+
+        [DoesNotReturn]
+        private static void ThrowInvalidReadStatus(OperationStatus status)
+            => throw new InvalidOperationException($"Unexpected read status: {status}");
+
+        private async ValueTask<ContextualRedisResult> ReadMoreAsync(CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                var buffer = _readBuffer.GetUncommittedMemory();
+                Debug.Assert(!buffer.IsEmpty, "rule out zero-length reads");
+                _reading = true;
+                var read = await source.ReadAsync(buffer, cancellationToken).ForAwait();
+                _reading = false;
+                if (read <= 0)
+                {
+                    // EOF
+                    return default;
+                }
+                _readBuffer.Commit(read);
+
+                if (TryTakeOne(out var result)) return result;
+            }
+        }
+
+        public void Dispose()
+        {
+            bool disposed = _disposed;
+            _disposed = true;
+            _state = default;
+
+            if (!(_reading | disposed)) _readBuffer.Release();
+            _readBuffer = default;
+            if (!disposed) source.Dispose();
+        }
+
+        public async ValueTask<long> ValidateAsync(CancellationToken cancellationToken = default)
+        {
+            long count = 0;
+            while (true)
+            {
+                var buffer = _readBuffer.GetUncommittedMemory();
+                Debug.Assert(!buffer.IsEmpty, "rule out zero-length reads");
+                _reading = true;
+                var read = await source.ReadAsync(buffer, cancellationToken).ForAwait();
+                _reading = false;
+                if (read <= 0)
+                {
+                    // EOF
+                    return count;
+                }
+                _readBuffer.Commit(read);
+                while (TryTakeOne(out _, withData: false)) count++;
+            }
+        }
+    }
+
     /// <summary>
     /// Replay the RESP messages for a pair of streams, invoking a callback per operation.
     /// </summary>
     public static async Task<long> ReplayAsync(Stream @out, Stream @in, Action<RedisResult, RedisResult> pair)
     {
-        using Arena<RawResult> arena = new();
-        var outPipe = StreamConnection.GetReader(@out);
-        var inPipe = StreamConnection.GetReader(@in);
-
         long count = 0;
+        using var outReader = new StreamRespReader(@out, isInbound: false);
+        using var inReader = new StreamRespReader(@in, isInbound: true);
         while (true)
         {
-            var sent = await ReadOneAsync(outPipe, arena, isInbound: false).ForAwait();
+            if (!outReader.TryTakeOne(out var sent)) sent = await outReader.ReadOneAsync().ForAwait();
             ContextualRedisResult received;
             try
             {
                 do
                 {
-                    received = await ReadOneAsync(inPipe, arena, isInbound: true).ForAwait();
+                    if (!inReader.TryTakeOne(out received)) received = await inReader.ReadOneAsync().ForAwait();
                     if (received.IsOutOfBand && received.Result is not null)
                     {
                         // spoof an empty request for OOB messages
@@ -93,26 +219,6 @@ public abstract class LoggingTunnel : Tunnel
         return total;
     }
 
-    private static async ValueTask<ContextualRedisResult> ReadOneAsync(PipeReader input, Arena<RawResult> arena, bool isInbound)
-    {
-        while (true)
-        {
-            var readResult = await input.ReadAsync().ForAwait();
-            var buffer = readResult.Buffer;
-            int handled = 0;
-            var result = buffer.IsEmpty ? default : ProcessBuffer(arena, ref buffer, isInbound);
-            input.AdvanceTo(buffer.Start, buffer.End);
-
-            if (result.Result is not null) return result;
-
-            if (handled == 0 && readResult.IsCompleted)
-            {
-                break; // no more data, or trailing incomplete messages
-            }
-        }
-        return default;
-    }
-
     /// <summary>
     /// Validate a RESP stream and return the number of top-level RESP fragments.
     /// </summary>
@@ -152,63 +258,11 @@ public abstract class LoggingTunnel : Tunnel
     /// </summary>
     public static async Task<long> ValidateAsync(Stream stream)
     {
-        using var arena = new Arena<RawResult>();
-        var input = StreamConnection.GetReader(stream);
-        long total = 0, position = 0;
-        while (true)
-        {
-            var readResult = await input.ReadAsync().ForAwait();
-            var buffer = readResult.Buffer;
-            int handled = 0;
-            if (!buffer.IsEmpty)
-            {
-                try
-                {
-                    ProcessBuffer(arena, ref buffer, ref position, ref handled); // updates buffer.Start
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException($"Invalid fragment starting at {position} (fragment {total + handled})", ex);
-                }
-                total += handled;
-            }
-
-            input.AdvanceTo(buffer.Start, buffer.End);
-
-            if (handled == 0 && readResult.IsCompleted)
-            {
-                break; // no more data, or trailing incomplete messages
-            }
-        }
-        return total;
-    }
-    private static void ProcessBuffer(Arena<RawResult> arena, ref ReadOnlySequence<byte> buffer, ref long position, ref int messageCount)
-    {
-        while (!buffer.IsEmpty)
-        {
-            var reader = new BufferReader(buffer);
-            try
-            {
-                var result = TryParseResult(true, arena, in buffer, ref reader, true, null);
-                if (result.HasValue)
-                {
-                    buffer = reader.SliceFromCurrent();
-                    position += reader.TotalConsumed;
-                    messageCount++;
-                }
-                else
-                {
-                    break; // remaining buffer isn't enough; give up
-                }
-            }
-            finally
-            {
-                arena.Reset();
-            }
-        }
+        using var reader = new StreamRespReader(stream, isInbound: false);
+        return await reader.ValidateAsync();
     }
 
-    private readonly struct ContextualRedisResult
+    internal readonly struct ContextualRedisResult
     {
         public readonly RedisResult? Result;
         public readonly bool IsOutOfBand;
@@ -218,42 +272,6 @@ public abstract class LoggingTunnel : Tunnel
             IsOutOfBand = isOutOfBand;
         }
     }
-
-    private static ContextualRedisResult ProcessBuffer(Arena<RawResult> arena, ref ReadOnlySequence<byte> buffer, bool isInbound)
-    {
-        if (!buffer.IsEmpty)
-        {
-            var reader = new BufferReader(buffer);
-            try
-            {
-                var result = TryParseResult(true, arena, in buffer, ref reader, true, null);
-                bool isOutOfBand = result.Resp3Type == ResultType.Push
-                    || (isInbound && result.Resp2TypeArray == ResultType.Array && IsArrayOutOfBand(result));
-                if (result.HasValue)
-                {
-                    buffer = reader.SliceFromCurrent();
-                    if (!RedisResult.TryCreate(null, result, out var parsed))
-                    {
-                        throw new InvalidOperationException("Unable to parse raw result to RedisResult");
-                    }
-                    return new(parsed, isOutOfBand);
-                }
-            }
-            finally
-            {
-                arena.Reset();
-            }
-        }
-        return default;
-
-        static bool IsArrayOutOfBand(in RawResult result)
-        {
-            var items = result.GetItems();
-            return (items.Length >= 3 && (items[0].IsEqual(message) || items[0].IsEqual(smessage)))
-                || (items.Length >= 4 && items[0].IsEqual(pmessage));
-        }
-    }
-    private static readonly CommandBytes message = "message", pmessage = "pmessage", smessage = "smessage";
 
     /// <summary>
     /// Create a new instance of a <see cref="LoggingTunnel"/>.

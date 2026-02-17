@@ -1,34 +1,5 @@
-﻿#pragma warning disable SA1403 // single namespace
-
-#if NET5_0_OR_GREATER
-// context: https://github.com/StackExchange/StackExchange.Redis/issues/2619
-[assembly: System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.Runtime.CompilerServices.IsExternalInit))]
-#else
-// To support { get; init; } properties
-using System.ComponentModel;
-using System.Text;
-
-namespace System.Runtime.CompilerServices
-{
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    internal static class IsExternalInit { }
-}
-#endif
-
-#if !NET9_0_OR_GREATER
-namespace System.Runtime.CompilerServices
-{
-    // see https://learn.microsoft.com/dotnet/api/system.runtime.compilerservices.overloadresolutionpriorityattribute
-    [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method | AttributeTargets.Property, Inherited = false)]
-    internal sealed class OverloadResolutionPriorityAttribute(int priority) : Attribute
-    {
-        public int Priority => priority;
-    }
-}
-#endif
-
 #if !(NETCOREAPP || NETSTANDARD2_1_OR_GREATER)
-
+// ReSharper disable once CheckNamespace
 namespace System.Text
 {
     internal static class EncodingExtensions
@@ -73,6 +44,3 @@ namespace System.Text
     }
 }
 #endif
-
-
-#pragma warning restore SA1403

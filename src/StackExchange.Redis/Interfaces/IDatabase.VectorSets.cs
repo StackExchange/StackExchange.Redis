@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;

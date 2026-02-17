@@ -1323,18 +1323,18 @@ namespace StackExchange.Redis
                 this.migrateOptions = migrateOptions;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
                 bool isCopy = (migrateOptions & MigrateOptions.Copy) != 0;
                 bool isReplace = (migrateOptions & MigrateOptions.Replace) != 0;
-                physical.WriteHeader(Command, 5 + (isCopy ? 1 : 0) + (isReplace ? 1 : 0));
-                physical.WriteBulkString(toHost);
-                physical.WriteBulkString(toPort);
-                physical.Write(Key);
-                physical.WriteBulkString(toDatabase);
-                physical.WriteBulkString(timeoutMilliseconds);
-                if (isCopy) physical.WriteBulkString("COPY"u8);
-                if (isReplace) physical.WriteBulkString("REPLACE"u8);
+                writer.WriteHeader(Command, 5 + (isCopy ? 1 : 0) + (isReplace ? 1 : 0));
+                writer.WriteBulkString(toHost);
+                writer.WriteBulkString(toPort);
+                writer.Write(Key);
+                writer.WriteBulkString(toDatabase);
+                writer.WriteBulkString(timeoutMilliseconds);
+                if (isCopy) writer.WriteBulkString("COPY"u8);
+                if (isReplace) writer.WriteBulkString("REPLACE"u8);
             }
 
             public override int ArgCount
@@ -4255,38 +4255,38 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                physical.WriteHeader(Command, argCount);
-                physical.WriteBulkString("GROUP"u8);
-                physical.WriteBulkString(groupName);
-                physical.WriteBulkString(consumerName);
+                writer.WriteHeader(Command, argCount);
+                writer.WriteBulkString("GROUP"u8);
+                writer.WriteBulkString(groupName);
+                writer.WriteBulkString(consumerName);
 
                 if (countPerStream.HasValue)
                 {
-                    physical.WriteBulkString("COUNT"u8);
-                    physical.WriteBulkString(countPerStream.Value);
+                    writer.WriteBulkString("COUNT"u8);
+                    writer.WriteBulkString(countPerStream.Value);
                 }
 
                 if (noAck)
                 {
-                    physical.WriteBulkString("NOACK"u8);
+                    writer.WriteBulkString("NOACK"u8);
                 }
 
                 if (claimMinIdleTime.HasValue)
                 {
-                    physical.WriteBulkString("CLAIM"u8);
-                    physical.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
+                    writer.WriteBulkString("CLAIM"u8);
+                    writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
-                physical.WriteBulkString("STREAMS"u8);
+                writer.WriteBulkString("STREAMS"u8);
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
-                    physical.Write(streamPositions[i].Key);
+                    writer.Write(streamPositions[i].Key);
                 }
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
-                    physical.WriteBulkString(StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP));
+                    writer.WriteBulkString(StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP));
                 }
             }
 
@@ -4335,24 +4335,24 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                physical.WriteHeader(Command, argCount);
+                writer.WriteHeader(Command, argCount);
 
                 if (countPerStream.HasValue)
                 {
-                    physical.WriteBulkString("COUNT"u8);
-                    physical.WriteBulkString(countPerStream.Value);
+                    writer.WriteBulkString("COUNT"u8);
+                    writer.WriteBulkString(countPerStream.Value);
                 }
 
-                physical.WriteBulkString("STREAMS"u8);
+                writer.WriteBulkString("STREAMS"u8);
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
-                    physical.Write(streamPositions[i].Key);
+                    writer.Write(streamPositions[i].Key);
                 }
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
-                    physical.WriteBulkString(StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP));
+                    writer.WriteBulkString(StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP));
                 }
             }
 
@@ -5058,33 +5058,33 @@ namespace StackExchange.Redis
                 argCount = 6 + (count.HasValue ? 2 : 0) + (noAck ? 1 : 0) + (claimMinIdleTime.HasValue ? 2 : 0);
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                physical.WriteHeader(Command, argCount);
-                physical.WriteBulkString("GROUP"u8);
-                physical.WriteBulkString(groupName);
-                physical.WriteBulkString(consumerName);
+                writer.WriteHeader(Command, argCount);
+                writer.WriteBulkString("GROUP"u8);
+                writer.WriteBulkString(groupName);
+                writer.WriteBulkString(consumerName);
 
                 if (count.HasValue)
                 {
-                    physical.WriteBulkString("COUNT"u8);
-                    physical.WriteBulkString(count.Value);
+                    writer.WriteBulkString("COUNT"u8);
+                    writer.WriteBulkString(count.Value);
                 }
 
                 if (noAck)
                 {
-                    physical.WriteBulkString("NOACK"u8);
+                    writer.WriteBulkString("NOACK"u8);
                 }
 
                 if (claimMinIdleTime.HasValue)
                 {
-                    physical.WriteBulkString("CLAIM"u8);
-                    physical.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
+                    writer.WriteBulkString("CLAIM"u8);
+                    writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
-                physical.WriteBulkString("STREAMS"u8);
-                physical.Write(Key);
-                physical.WriteBulkString(afterId);
+                writer.WriteBulkString("STREAMS"u8);
+                writer.Write(Key);
+                writer.WriteBulkString(afterId);
             }
 
             public override int ArgCount => argCount;
@@ -5114,19 +5114,19 @@ namespace StackExchange.Redis
                 argCount = count.HasValue ? 5 : 3;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                physical.WriteHeader(Command, argCount);
+                writer.WriteHeader(Command, argCount);
 
                 if (count.HasValue)
                 {
-                    physical.WriteBulkString("COUNT"u8);
-                    physical.WriteBulkString(count.Value);
+                    writer.WriteBulkString("COUNT"u8);
+                    writer.WriteBulkString(count.Value);
                 }
 
-                physical.WriteBulkString("STREAMS"u8);
-                physical.Write(Key);
-                physical.WriteBulkString(afterId);
+                writer.WriteBulkString("STREAMS"u8);
+                writer.Write(Key);
+                writer.WriteBulkString(afterId);
             }
 
             public override int ArgCount => argCount;
@@ -5559,11 +5559,11 @@ namespace StackExchange.Redis
                 Script = script ?? throw new ArgumentNullException(nameof(script));
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                physical.WriteHeader(Command, 2);
-                physical.WriteBulkString("LOAD"u8);
-                physical.WriteBulkString((RedisValue)Script);
+                writer.WriteHeader(Command, 2);
+                writer.WriteBulkString("LOAD"u8);
+                writer.WriteBulkString((RedisValue)Script);
             }
             public override int ArgCount => 2;
         }
@@ -5580,7 +5580,7 @@ namespace StackExchange.Redis
         {
             protected abstract T[]? Parse(in RawResult result, out int count);
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 switch (result.Resp2TypeArray)
                 {
@@ -5610,7 +5610,7 @@ namespace StackExchange.Redis
 
             public ExecuteMessage(CommandMap? map, int db, CommandFlags flags, string command, ICollection<object>? args) : base(db, flags, RedisCommand.UNKNOWN)
             {
-                if (args != null && args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                if (args != null && args.Count >= MessageWriter.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
                 {
                     throw ExceptionFactory.TooManyArgs(command, args.Count);
                 }
@@ -5619,24 +5619,24 @@ namespace StackExchange.Redis
                 _args = args ?? Array.Empty<object>();
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                physical.WriteHeader(RedisCommand.UNKNOWN, _args.Count, Command);
+                writer.WriteHeader(RedisCommand.UNKNOWN, _args.Count, Command);
                 foreach (object arg in _args)
                 {
                     if (arg is RedisKey key)
                     {
-                        physical.Write(key);
+                        writer.Write(key);
                     }
                     else if (arg is RedisChannel channel)
                     {
-                        physical.Write(channel);
+                        writer.Write(channel);
                     }
                     else
                     { // recognises well-known types
                         var val = RedisValue.TryParse(arg, out var valid);
                         if (!valid) throw new InvalidCastException($"Unable to parse value: '{arg}'");
-                        physical.WriteBulkString(val);
+                        writer.WriteBulkString(val);
                     }
                 }
             }
@@ -5725,28 +5725,28 @@ namespace StackExchange.Redis
                 yield return this;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
                 if (hexHash != null)
                 {
-                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
-                    physical.WriteSha1AsHex(hexHash);
+                    writer.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    writer.WriteSha1AsHex(hexHash);
                 }
                 else if (asciiHash != null)
                 {
-                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
-                    physical.WriteBulkString((RedisValue)asciiHash);
+                    writer.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    writer.WriteBulkString((RedisValue)asciiHash);
                 }
                 else
                 {
-                    physical.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
-                    physical.WriteBulkString((RedisValue)script);
+                    writer.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
+                    writer.WriteBulkString((RedisValue)script);
                 }
-                physical.WriteBulkString(keys.Length);
+                writer.WriteBulkString(keys.Length);
                 for (int i = 0; i < keys.Length; i++)
-                    physical.Write(keys[i]);
+                    writer.Write(keys[i]);
                 for (int i = 0; i < values.Length; i++)
-                    physical.WriteBulkString(values[i]);
+                    writer.WriteBulkString(values[i]);
             }
             public override int ArgCount => 2 + keys.Length + values.Length;
         }
@@ -5858,15 +5858,15 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                physical.WriteHeader(Command, 2 + keys.Length + values.Length);
-                physical.Write(Key);
-                physical.WriteBulkString(keys.Length);
+                writer.WriteHeader(Command, 2 + keys.Length + values.Length);
+                writer.Write(Key);
+                writer.WriteBulkString(keys.Length);
                 for (int i = 0; i < keys.Length; i++)
-                    physical.Write(keys[i]);
+                    writer.Write(keys[i]);
                 for (int i = 0; i < values.Length; i++)
-                    physical.WriteBulkString(values[i]);
+                    writer.WriteBulkString(values[i]);
             }
             public override int ArgCount => 2 + keys.Length + values.Length;
         }
@@ -5915,10 +5915,10 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                physical.WriteHeader(command, 1);
-                physical.Write(Key);
+                writer.WriteHeader(command, 1);
+                writer.Write(Key);
             }
             public override int ArgCount => 1;
         }
@@ -5927,7 +5927,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 switch (result.Resp2TypeBulkString)
                 {

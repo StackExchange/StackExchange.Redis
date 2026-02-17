@@ -309,20 +309,21 @@ namespace StackExchange.Redis.Server
 
         public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value)
         {
-            static void WritePrefix(PipeWriter ooutput, char pprefix)
+            static void WritePrefix(IBufferWriter<byte> output, char prefix)
             {
-                var span = ooutput.GetSpan(1);
-                span[0] = (byte)pprefix;
-                ooutput.Advance(1);
+                var span = output.GetSpan(1);
+                span[0] = (byte)prefix;
+                output.Advance(1);
             }
 
             if (value.IsNil) return; // not actually a request (i.e. empty/whitespace request)
             if (client != null && client.ShouldSkipResponse()) return; // intentionally skipping the result
             char prefix;
+
             switch (value.Type.ToResp2())
             {
                 case ResultType.Integer:
-                    PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
+                    MessageWriter.WriteInteger(output, (long)value.AsRedisValue());
                     break;
                 case ResultType.Error:
                     prefix = '-';
@@ -333,21 +334,21 @@ namespace StackExchange.Redis.Server
                     WritePrefix(output, prefix);
                     var val = (string)value.AsRedisValue();
                     var expectedLength = Encoding.UTF8.GetByteCount(val);
-                    PhysicalConnection.WriteRaw(output, val, expectedLength);
-                    PhysicalConnection.WriteCrlf(output);
+                    MessageWriter.WriteRaw(output, val, expectedLength);
+                    MessageWriter.WriteCrlf(output);
                     break;
                 case ResultType.BulkString:
-                    PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
+                    MessageWriter.WriteBulkString(value.AsRedisValue(), output);
                     break;
                 case ResultType.Array:
                     if (value.IsNullArray)
                     {
-                        PhysicalConnection.WriteMultiBulkHeader(output, -1);
+                        MessageWriter.WriteMultiBulkHeader(output, -1);
                     }
                     else
                     {
                         var segment = value.Segment;
-                        PhysicalConnection.WriteMultiBulkHeader(output, segment.Count);
+                        MessageWriter.WriteMultiBulkHeader(output, segment.Count);
                         var arr = segment.Array;
                         int offset = segment.Offset;
                         for (int i = 0; i < segment.Count; i++)
@@ -382,8 +383,6 @@ namespace StackExchange.Redis.Server
 
             return false;
         }
-
-        private readonly Arena<RawResult> _arena = new Arena<RawResult>();
 
         public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {

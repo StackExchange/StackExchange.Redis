@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -105,52 +106,62 @@ namespace StackExchange.Redis
         /// Internally, this is very similar to RawResult, except it is designed to be usable,
         /// outside of the IO-processing pipeline: the buffers are standalone, etc.
         /// </summary>
-        internal static bool TryCreate(PhysicalConnection? connection, in RawResult result, [NotNullWhen(true)] out RedisResult? redisResult)
+        internal static bool TryCreate(PhysicalConnection? connection, ref RespReader reader, [NotNullWhen(true)] out RedisResult? redisResult)
         {
             try
             {
-                switch (result.Resp2TypeBulkString)
+                var type = reader.Prefix.ToResultType();
+                if (reader.Prefix is RespPrefix.Null)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        redisResult = new SingleRedisResult(result.AsRedisValue(), result.Resp3Type);
-                        return true;
-                    case ResultType.Array:
-                        if (result.IsNull)
-                        {
-                            redisResult = NullArray;
-                            return true;
-                        }
-                        var items = result.GetItems();
-                        if (items.Length == 0)
-                        {
-                            redisResult = EmptyArray(result.Resp3Type);
-                            return true;
-                        }
-                        var arr = new RedisResult[items.Length];
-                        int i = 0;
-                        foreach (ref RawResult item in items)
-                        {
-                            if (TryCreate(connection, in item, out var next))
-                            {
-                                arr[i++] = next;
-                            }
-                            else
-                            {
-                                redisResult = null;
-                                return false;
-                            }
-                        }
-                        redisResult = new ArrayRedisResult(arr, result.Resp3Type);
-                        return true;
-                    case ResultType.Error:
-                        redisResult = new ErrorRedisResult(result.GetString(), result.Resp3Type);
-                        return true;
-                    default:
-                        redisResult = null;
-                        return false;
+                    redisResult = NullSingle;
+                    return true;
                 }
+
+                if (reader.IsError)
+                {
+                    redisResult = new ErrorRedisResult(reader.ReadString(), type);
+                    return true;
+                }
+
+                if (reader.IsScalar)
+                {
+                    redisResult = new SingleRedisResult(reader.ReadRedisValue(), type);
+                    return true;
+                }
+
+                if (reader.IsAggregate)
+                {
+                    if (reader.IsNull)
+                    {
+                        redisResult = new ArrayRedisResult(null, type);
+                        return true;
+                    }
+                    var len = reader.AggregateLength();
+                    if (len == 0)
+                    {
+                        redisResult = EmptyArray(type);
+                        return true;
+                    }
+
+                    var arr = new RedisResult[len];
+                    var iter = reader.AggregateChildren();
+                    int i = 0;
+                    while (iter.MoveNext()) // avoiding ReadPastArray here as we can't make it static in this case
+                    {
+                        if (!TryCreate(connection, ref iter.Value, out var next))
+                        {
+                            redisResult = null;
+                            return false;
+                        }
+                        arr[i++] = next;
+                    }
+                    iter.MovePast(out reader);
+                    redisResult = new ArrayRedisResult(arr, type);
+                    return true;
+                }
+
+                redisResult = null;
+                return false;
             }
             catch (Exception ex)
             {

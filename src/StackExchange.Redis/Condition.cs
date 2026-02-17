@@ -388,7 +388,7 @@ namespace StackExchange.Redis
                 new ConditionMessage(condition, db, flags, command, key, value, value1, value2, value3, value4);
 
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
                 var msg = message as ConditionMessage;
@@ -432,26 +432,26 @@ namespace StackExchange.Redis
                     this.value4 = value4; // note no assert here
                 }
 
-                protected override void WriteImpl(PhysicalConnection physical)
+                protected override void WriteImpl(in MessageWriter writer)
                 {
                     if (value.IsNull)
                     {
-                        physical.WriteHeader(command, 1);
-                        physical.Write(Key);
+                        writer.WriteHeader(command, 1);
+                        writer.Write(Key);
                     }
                     else
                     {
-                        physical.WriteHeader(command, value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6);
-                        physical.Write(Key);
-                        physical.WriteBulkString(value);
+                        writer.WriteHeader(command, value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6);
+                        writer.Write(Key);
+                        writer.WriteBulkString(value);
                         if (!value1.IsNull)
-                            physical.WriteBulkString(value1);
+                            writer.WriteBulkString(value1);
                         if (!value2.IsNull)
-                            physical.WriteBulkString(value2);
+                            writer.WriteBulkString(value2);
                         if (!value3.IsNull)
-                            physical.WriteBulkString(value3);
+                            writer.WriteBulkString(value3);
                         if (!value4.IsNull)
-                            physical.WriteBulkString(value4);
+                            writer.WriteBulkString(value4);
                     }
                 }
                 public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6;
