@@ -1,6 +1,7 @@
-﻿using Pipelines.Sockets.Unofficial.Arenas;
+﻿// ReSharper disable once CheckNamespace
 
-// ReSharper disable once CheckNamespace
+using Pipelines.Sockets.Unofficial.Arenas;
+
 namespace StackExchange.Redis;
 
 internal abstract partial class ResultProcessor

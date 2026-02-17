@@ -18,7 +18,7 @@ namespace StackExchange.Redis
             fixed (char* c = value)
             {
                 byte* b = stackalloc byte[ChunkLength * sizeof(ulong)];
-                var encoder = PhysicalConnection.GetPerThreadEncoder();
+                var encoder = MessageWriter.GetPerThreadEncoder();
                 encoder.Convert(c, value.Length, b, MaxLength, true, out var maxLen, out _, out var isComplete);
                 if (!isComplete) maxLen--;
                 return new CommandBytes(value.Substring(0, maxLen));

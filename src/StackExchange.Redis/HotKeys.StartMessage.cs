@@ -13,7 +13,7 @@ internal partial class RedisServer
         long sampleRatio,
         int[]? slots) : Message(-1, flags, RedisCommand.HOTKEYS)
     {
-        protected override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteImpl(in MessageWriter writer)
         {
             /*
            HOTKEYS START
@@ -23,41 +23,41 @@ internal partial class RedisServer
                [SAMPLE ratio]
                [SLOTS count slot…]
            */
-            physical.WriteHeader(Command, ArgCount);
-            physical.WriteBulkString("START"u8);
-            physical.WriteBulkString("METRICS"u8);
+            writer.WriteHeader(Command, ArgCount);
+            writer.WriteBulkString("START"u8);
+            writer.WriteBulkString("METRICS"u8);
             var metricCount = 0;
             if ((metrics & HotKeysMetrics.Cpu) != 0) metricCount++;
             if ((metrics & HotKeysMetrics.Network) != 0) metricCount++;
-            physical.WriteBulkString(metricCount);
-            if ((metrics & HotKeysMetrics.Cpu) != 0) physical.WriteBulkString("CPU"u8);
-            if ((metrics & HotKeysMetrics.Network) != 0) physical.WriteBulkString("NET"u8);
+            writer.WriteBulkString(metricCount);
+            if ((metrics & HotKeysMetrics.Cpu) != 0) writer.WriteBulkString("CPU"u8);
+            if ((metrics & HotKeysMetrics.Network) != 0) writer.WriteBulkString("NET"u8);
 
             if (count != 0)
             {
-                physical.WriteBulkString("COUNT"u8);
-                physical.WriteBulkString(count);
+                writer.WriteBulkString("COUNT"u8);
+                writer.WriteBulkString(count);
             }
 
             if (duration != TimeSpan.Zero)
             {
-                physical.WriteBulkString("DURATION"u8);
-                physical.WriteBulkString(Math.Ceiling(duration.TotalSeconds));
+                writer.WriteBulkString("DURATION"u8);
+                writer.WriteBulkString(Math.Ceiling(duration.TotalSeconds));
             }
 
             if (sampleRatio != 1)
             {
-                physical.WriteBulkString("SAMPLE"u8);
-                physical.WriteBulkString(sampleRatio);
+                writer.WriteBulkString("SAMPLE"u8);
+                writer.WriteBulkString(sampleRatio);
             }
 
             if (slots is { Length: > 0 })
             {
-                physical.WriteBulkString("SLOTS"u8);
-                physical.WriteBulkString(slots.Length);
+                writer.WriteBulkString("SLOTS"u8);
+                writer.WriteBulkString(slots.Length);
                 foreach (var slot in slots)
                 {
-                    physical.WriteBulkString(slot);
+                    writer.WriteBulkString(slot);
                 }
             }
         }

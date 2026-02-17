@@ -282,21 +282,21 @@ namespace StackExchange.Redis
                     && Format.TryParseEndPoint(parts[2], out var endpoint))
                 {
                     // Check if MOVED points to same endpoint
-                    // bool isSameEndpoint = Equals(server?.EndPoint, endpoint);
-                    // if (isSameEndpoint && isMoved)
-                    // {
-                    //     // MOVED to same endpoint detected.
-                    //     // This occurs when Redis/Valkey servers are behind DNS records, load balancers, or proxies.
-                    //     // The MOVED error signals that the client should reconnect to allow the DNS/proxy/load balancer
-                    //     // to route the connection to a different underlying server host, then retry the command.
-                    //     // Mark the bridge to reconnect - reader loop will handle disconnection and reconnection.
-                    //     bridge?.MarkNeedsReconnect();
-                    // }
+                    bool isSameEndpoint = Equals(server?.EndPoint, endpoint);
+                    if (isSameEndpoint && isMoved)
+                    {
+                        // MOVED to same endpoint detected.
+                        // This occurs when Redis/Valkey servers are behind DNS records, load balancers, or proxies.
+                        // The MOVED error signals that the client should reconnect to allow the DNS/proxy/load balancer
+                        // to route the connection to a different underlying server host, then retry the command.
+                        // Mark the bridge to reconnect - reader loop will handle disconnection and reconnection.
+                        bridge?.MarkNeedsReconnect();
+                    }
                     if (bridge is null)
                     {
                         // already toast
                     }
-                    else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
+                    else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved, isSameEndpoint))
                     {
                         bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
                         return false;
@@ -492,17 +492,17 @@ namespace StackExchange.Redis
                     this.value = value;
                 }
 
-                protected override void WriteImpl(PhysicalConnection physical)
+                protected override void WriteImpl(in MessageWriter writer)
                 {
                     StartedWritingTimestamp = Stopwatch.GetTimestamp();
                     if (value.IsNull)
                     {
-                        physical.WriteHeader(command, 0);
+                        writer.WriteHeader(command, 0);
                     }
                     else
                     {
-                        physical.WriteHeader(command, 1);
-                        physical.WriteBulkString(value);
+                        writer.WriteHeader(command, 1);
+                        writer.WriteBulkString(value);
                     }
                 }
                 public override int ArgCount => value.IsNull ? 0 : 1;

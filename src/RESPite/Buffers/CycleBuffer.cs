@@ -27,6 +27,7 @@ namespace RESPite.Buffers;
 ///
 /// There is a *lot* of validation in debug mode; we want to be super sure that we don't corrupt buffer state.
 /// </remarks>
+[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public partial struct CycleBuffer
 {
     // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud

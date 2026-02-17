@@ -267,6 +267,8 @@ namespace StackExchange.Redis.Server
             DoShutdown(ShutdownReason.ServerDisposed);
         }
 
+        private readonly Arena _arena = new();
+
         public virtual RedisServer.Node DefaultNode => null;
 
         public async Task RunClientAsync(IDuplexPipe pipe, RedisServer.Node node = null, object state = null)
@@ -332,7 +334,7 @@ namespace StackExchange.Redis.Server
 
         public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value, RedisProtocol protocol)
         {
-            static void WritePrefix(PipeWriter output, char prefix)
+            static void WritePrefix(IBufferWriter<byte> output, char prefix)
             {
                 var span = output.GetSpan(1);
                 span[0] = (byte)prefix;
@@ -353,7 +355,7 @@ namespace StackExchange.Redis.Server
                 }
                 type = type.ToResp2();
             }
-RetryResp2:
+            RetryResp2:
             if (protocol is RedisProtocol.Resp3 && value.IsNullValueOrArray)
             {
                 output.Write("_\r\n"u8);
@@ -364,7 +366,7 @@ RetryResp2:
                 switch (type)
                 {
                     case ResultType.Integer:
-                        PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
+                        MessageWriter.WriteInteger(output, (long)value.AsRedisValue());
                         break;
                     case ResultType.Error:
                         prefix = '-';
@@ -375,11 +377,11 @@ RetryResp2:
                         WritePrefix(output, prefix);
                         var val = (string)value.AsRedisValue();
                         var expectedLength = Encoding.UTF8.GetByteCount(val);
-                        PhysicalConnection.WriteRaw(output, val, expectedLength);
-                        PhysicalConnection.WriteCrlf(output);
+                        MessageWriter.WriteRaw(output, val, expectedLength);
+                        MessageWriter.WriteCrlf(output);
                         break;
                     case ResultType.BulkString:
-                        PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
+                        MessageWriter.WriteBulkString(value.AsRedisValue(), output);
                         break;
                     case ResultType.Null:
                     case ResultType.Push when value.IsNullArray:
@@ -389,7 +391,7 @@ RetryResp2:
                         output.Write("_\r\n"u8);
                         break;
                     case ResultType.Array when value.IsNullArray:
-                        PhysicalConnection.WriteMultiBulkHeader(output, -1, type);
+                        MessageWriter.WriteMultiBulkHeader(output, -1);
                         break;
                     case ResultType.Push:
                     case ResultType.Map:
@@ -397,7 +399,7 @@ RetryResp2:
                     case ResultType.Set:
                     case ResultType.Attribute:
                         var segment = value.Segment;
-                        PhysicalConnection.WriteMultiBulkHeader(output, segment.Count, type);
+                        MessageWriter.WriteMultiBulkHeader(output, segment.Count, type);
                         var arr = segment.Array;
                         int offset = segment.Offset;
                         for (int i = 0; i < segment.Count; i++)
@@ -441,8 +443,6 @@ RetryResp2:
 
             return false;
         }
-
-        private readonly Arena<RawResult> _arena = new Arena<RawResult>();
 
         public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {
