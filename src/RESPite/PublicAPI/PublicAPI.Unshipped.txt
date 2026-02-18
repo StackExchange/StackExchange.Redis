@@ -25,6 +25,7 @@
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TResult>(scoped System.Span<TResult> target, in TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw() -> bool
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+[SER004]RESPite.Messages.RespReader.AggregateLengthIs(int count) -> bool
 [SER004]RESPite.Messages.RespReader.Projection<TState, TResult>
 [SER004]RESPite.Messages.RespReader.ReadArray<TState, TResult>(in TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
 [SER004]RESPite.Messages.RespReader.ReadPastArray<TState, TResult>(in TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
@@ -132,6 +133,7 @@
 [SER004]RESPite.Messages.RespReader.ScalarEnumerator.ScalarEnumerator(scoped in RESPite.Messages.RespReader reader) -> void
 [SER004]RESPite.Messages.RespReader.ScalarIsEmpty() -> bool
 [SER004]RESPite.Messages.RespReader.ScalarLength() -> int
+[SER004]RESPite.Messages.RespReader.ScalarLengthIs(int count) -> bool
 [SER004]RESPite.Messages.RespReader.ScalarLongLength() -> long
 [SER004]RESPite.Messages.RespReader.SkipChildren() -> void
 [SER004]RESPite.Messages.RespReader.StartsWith(System.ReadOnlySpan<byte> value) -> bool
