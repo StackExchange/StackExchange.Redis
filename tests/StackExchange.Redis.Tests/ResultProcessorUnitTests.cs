@@ -80,6 +80,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("*1\r\n:99\r\n", 99L)]
+    [InlineData("*?\r\n:99\r\n.\r\n", 99L)] // streaming aggregate
     [InlineData("*1\r\n$-1\r\n", null)] // unit array with RESP2 null bulk string
     [InlineData("*1\r\n_\r\n", null)] // unit array with RESP3 null
     [InlineData(ATTRIB_FOO_BAR + "*1\r\n:99\r\n", 99L)]
@@ -88,7 +89,9 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [Theory]
     [InlineData("*-1\r\n")] // null array
     [InlineData("*0\r\n")] // empty array
+    [InlineData("*?\r\n.\r\n")] // streaming empty aggregate
     [InlineData("*2\r\n:1\r\n:2\r\n")] // two elements
+    [InlineData("*?\r\n:1\r\n:2\r\n.\r\n")] // streaming aggregate with two elements
     public void FailingNullableInt64ArrayOfNonOne(string resp) => ExecuteUnexpected(resp, ResultProcessor.NullableInt64);
 
     [Theory]
@@ -114,13 +117,16 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("*1\r\n:1\r\n", true)] // SCRIPT EXISTS returns array
+    [InlineData("*?\r\n:1\r\n.\r\n", true)] // streaming aggregate
     [InlineData("*1\r\n:0\r\n", false)]
     [InlineData(ATTRIB_FOO_BAR + "*1\r\n:1\r\n", true)]
     public void BooleanArrayOfOne(string resp, bool value) => Assert.Equal(value, Execute(resp, ResultProcessor.Boolean));
 
     [Theory]
     [InlineData("*0\r\n")] // empty array
+    [InlineData("*?\r\n.\r\n")] // streaming empty aggregate
     [InlineData("*2\r\n:1\r\n:0\r\n")] // two elements
+    [InlineData("*?\r\n:1\r\n:0\r\n.\r\n")] // streaming aggregate with two elements
     [InlineData("*1\r\n*1\r\n:1\r\n")] // nested array (not scalar)
     public void FailingBooleanArrayOfNonOne(string resp) => ExecuteUnexpected(resp, ResultProcessor.Boolean);
 
@@ -136,13 +142,16 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("*1\r\n$3\r\nbar\r\n", "bar")]
+    [InlineData("*?\r\n$3\r\nbar\r\n.\r\n", "bar")] // streaming aggregate
     [InlineData(ATTRIB_FOO_BAR + "*1\r\n$3\r\nbar\r\n", "bar")]
     public void StringArrayOfOne(string resp, string? value) => Assert.Equal(value, Execute(resp, ResultProcessor.String));
 
     [Theory]
     [InlineData("*-1\r\n")] // null array
     [InlineData("*0\r\n")] // empty array
+    [InlineData("*?\r\n.\r\n")] // streaming empty aggregate
     [InlineData("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")] // two elements
+    [InlineData("*?\r\n$3\r\nfoo\r\n$3\r\nbar\r\n.\r\n")] // streaming aggregate with two elements
     [InlineData("*1\r\n*1\r\n$3\r\nfoo\r\n")] // nested array (not scalar)
     public void FailingStringArrayOfNonOne(string resp) => ExecuteUnexpected(resp, ResultProcessor.String);
 
@@ -163,8 +172,10 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("*3\r\n:1\r\n:2\r\n:3\r\n", "1,2,3")]
+    [InlineData("*?\r\n:1\r\n:2\r\n:3\r\n.\r\n", "1,2,3")] // streaming aggregate
     [InlineData("*2\r\n,42\r\n,-99\r\n", "42,-99")]
     [InlineData("*0\r\n", "")]
+    [InlineData("*?\r\n.\r\n", "")] // streaming empty aggregate
     [InlineData("*-1\r\n", null)]
     [InlineData("_\r\n", null)]
     [InlineData(ATTRIB_FOO_BAR + "*2\r\n:10\r\n:20\r\n", "10,20")]
@@ -172,8 +183,10 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("*3\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$3\r\nbaz\r\n", "foo,bar,baz")]
+    [InlineData("*?\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$3\r\nbaz\r\n.\r\n", "foo,bar,baz")] // streaming aggregate
     [InlineData("*2\r\n+hello\r\n+world\r\n", "hello,world")]
     [InlineData("*0\r\n", "")]
+    [InlineData("*?\r\n.\r\n", "")] // streaming empty aggregate
     [InlineData("*-1\r\n", null)]
     [InlineData("_\r\n", null)]
     [InlineData(ATTRIB_FOO_BAR + "*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a,b")]
@@ -181,8 +194,10 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("*3\r\n:1\r\n:0\r\n:1\r\n", "True,False,True")]
+    [InlineData("*?\r\n:1\r\n:0\r\n:1\r\n.\r\n", "True,False,True")] // streaming aggregate
     [InlineData("*2\r\n#t\r\n#f\r\n", "True,False")]
     [InlineData("*0\r\n", "")]
+    [InlineData("*?\r\n.\r\n", "")] // streaming empty aggregate
     [InlineData("*-1\r\n", null)]
     [InlineData("_\r\n", null)]
     [InlineData(ATTRIB_FOO_BAR + "*2\r\n:1\r\n:0\r\n", "True,False")]
@@ -190,10 +205,12 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("*3\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$3\r\nbaz\r\n", "foo,bar,baz")]
+    [InlineData("*?\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$3\r\nbaz\r\n.\r\n", "foo,bar,baz")] // streaming aggregate
     [InlineData("*3\r\n$3\r\nfoo\r\n$-1\r\n$3\r\nbaz\r\n", "foo,,baz")] // null element in middle (RESP2)
     [InlineData("*3\r\n$3\r\nfoo\r\n_\r\n$3\r\nbaz\r\n", "foo,,baz")] // null element in middle (RESP3)
     [InlineData("*2\r\n:42\r\n:-99\r\n", "42,-99")]
     [InlineData("*0\r\n", "")]
+    [InlineData("*?\r\n.\r\n", "")] // streaming empty aggregate
     [InlineData("$3\r\nfoo\r\n", "foo")] // single bulk string treated as array
     [InlineData("$-1\r\n", "")] // null bulk string treated as empty array
     [InlineData(ATTRIB_FOO_BAR + "*2\r\n$1\r\na\r\n:1\r\n", "a,1")]
@@ -203,7 +220,9 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData("*3\r\n$3\r\nfoo\r\n$-1\r\n$3\r\nbaz\r\n", "foo,,baz")] // null element in middle (RESP2)
     [InlineData("*3\r\n$3\r\nfoo\r\n_\r\n$3\r\nbaz\r\n", "foo,,baz")] // null element in middle (RESP3)
     [InlineData("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n", "hello,world")]
+    [InlineData("*?\r\n$5\r\nhello\r\n$5\r\nworld\r\n.\r\n", "hello,world")] // streaming aggregate
     [InlineData("*0\r\n", "")]
+    [InlineData("*?\r\n.\r\n", "")] // streaming empty aggregate
     [InlineData("*-1\r\n", null)]
     [InlineData("_\r\n", null)]
     [InlineData(ATTRIB_FOO_BAR + "*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a,b")]
@@ -211,10 +230,12 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("*3\r\n$3\r\nkey\r\n$4\r\nkey2\r\n$4\r\nkey3\r\n", "key,key2,key3")]
+    [InlineData("*?\r\n$3\r\nkey\r\n$4\r\nkey2\r\n$4\r\nkey3\r\n.\r\n", "key,key2,key3")] // streaming aggregate
     [InlineData("*3\r\n$3\r\nkey\r\n$-1\r\n$4\r\nkey3\r\n", "key,(null),key3")] // null element in middle (RESP2)
     [InlineData("*3\r\n$3\r\nkey\r\n_\r\n$4\r\nkey3\r\n", "key,(null),key3")] // null element in middle (RESP3)
     [InlineData("*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a,b")]
     [InlineData("*0\r\n", "")]
+    [InlineData("*?\r\n.\r\n", "")] // streaming empty aggregate
     [InlineData("*-1\r\n", null)]
     [InlineData("_\r\n", null)]
     [InlineData(ATTRIB_FOO_BAR + "*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n", "foo,bar")]

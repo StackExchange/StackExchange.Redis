@@ -203,7 +203,7 @@ public class RespReaderTests(ITestOutputHelper logger)
     public void SimpleError_Careful(RespPayload payload)
     {
         var reader = payload.Reader();
-        Assert.True(reader.TryReadNext());
+        Assert.True(reader.TryMoveNext(checkError: false));
         Assert.Equal(RespPrefix.SimpleError, reader.Prefix);
         Assert.True(reader.Is("ERR this is the error description"u8));
         Assert.Equal("ERR this is the error description", reader.ReadString());
@@ -400,7 +400,7 @@ public class RespReaderTests(ITestOutputHelper logger)
     public void BlobError_Careful(RespPayload payload)
     {
         var reader = payload.Reader();
-        Assert.True(reader.TryReadNext());
+        Assert.True(reader.TryMoveNext(checkError: false));
         Assert.Equal(RespPrefix.BulkError, reader.Prefix);
         Assert.True(reader.Is("SYNTAX invalid syntax"u8));
         Assert.Equal("SYNTAX invalid syntax", reader.ReadString());

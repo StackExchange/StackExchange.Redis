@@ -166,7 +166,7 @@ public ref partial struct RespReader
         var reader = Clone();
         while (true)
         {
-            if (!reader.TryMoveNext()) ThrowEof();
+            if (!reader.TryReadNextSkipAttributes(skipStreamTerminator: false)) ThrowEof();
             if (reader.Prefix == RespPrefix.StreamTerminator)
             {
                 return count;
@@ -242,6 +242,7 @@ public ref partial struct RespReader
     /// <exception cref="InvalidOperationException">If additional elements are available.</exception>
     public void DemandEnd()
     {
+#pragma warning disable CS0618 // avoid TryReadNext unless you know what you're doing
         while (IsStreamingScalar)
         {
             if (!TryReadNext()) ThrowEof();
@@ -251,35 +252,47 @@ public ref partial struct RespReader
         {
             Throw(Prefix);
         }
+#pragma warning restore CS0618
 
         static void Throw(RespPrefix prefix) =>
             throw new InvalidOperationException($"Expected end of payload, but found {prefix}");
     }
 
-    private bool TryReadNextSkipAttributes()
+    private bool TryReadNextSkipAttributes(bool skipStreamTerminator)
     {
+#pragma warning disable CS0618 // avoid TryReadNext unless you know what you're doing
         while (TryReadNext())
         {
             if (IsAttribute)
             {
                 SkipChildren();
             }
+            else if (skipStreamTerminator & Prefix is RespPrefix.StreamTerminator)
+            {
+                // skip terminator
+            }
             else
             {
                 return true;
             }
         }
-
+#pragma warning restore CS0618
         return false;
     }
 
-    private bool TryReadNextProcessAttributes<T>(RespAttributeReader<T> respAttributeReader, ref T attributes)
+    private bool TryReadNextProcessAttributes<T>(RespAttributeReader<T> respAttributeReader, ref T attributes, bool skipStreamTerminator)
     {
+#pragma warning disable CS0618 // avoid TryReadNext unless you know what you're doing
         while (TryReadNext())
+#pragma warning restore CS0618
         {
             if (IsAttribute)
             {
                 respAttributeReader.Read(ref this, ref attributes);
+            }
+            else if (skipStreamTerminator & Prefix is RespPrefix.StreamTerminator)
+            {
+                // skip terminator
             }
             else
             {
@@ -299,10 +312,10 @@ public ref partial struct RespReader
     {
         while (IsStreamingScalar) // close out the current streaming scalar
         {
-            if (!TryReadNextSkipAttributes()) ThrowEof();
+            if (!TryReadNextSkipAttributes(false)) ThrowEof();
         }
 
-        if (TryReadNextSkipAttributes())
+        if (TryReadNextSkipAttributes(true))
         {
             if (IsError) ThrowError();
             return true;
@@ -321,10 +334,10 @@ public ref partial struct RespReader
     {
         while (IsStreamingScalar) // close out the current streaming scalar
         {
-            if (!TryReadNextSkipAttributes()) ThrowEof();
+            if (!TryReadNextSkipAttributes(false)) ThrowEof();
         }
 
-        if (TryReadNextSkipAttributes())
+        if (TryReadNextSkipAttributes(true))
         {
             if (checkError && IsError) ThrowError();
             return true;
@@ -345,10 +358,10 @@ public ref partial struct RespReader
     {
         while (IsStreamingScalar) // close out the current streaming scalar
         {
-            if (!TryReadNextSkipAttributes()) ThrowEof();
+            if (!TryReadNextSkipAttributes(false)) ThrowEof();
         }
 
-        if (TryReadNextProcessAttributes(respAttributeReader, ref attributes))
+        if (TryReadNextProcessAttributes(respAttributeReader, ref attributes, true))
         {
             if (IsError) ThrowError();
             return true;
@@ -398,7 +411,9 @@ public ref partial struct RespReader
     {
         if (IsStreamingScalar)
         {
+#pragma warning disable CS0618 // avoid TryReadNext unless you know what you're doing
             while (TryReadNext())
+#pragma warning restore CS0618
             {
                 if (IsAttribute)
                 {
@@ -864,6 +879,7 @@ public ref partial struct RespReader
     /// </summary>
     /// <remarks>Unless you are intentionally handling errors, attributes and streaming data, <see cref="TryMoveNext()"/> should be preferred.</remarks>
     [EditorBrowsable(EditorBrowsableState.Never), Browsable(false)]
+    [Obsolete("Unless you are manually handling errors, attributes and streaming data, TryMoveNext() should be preferred.", false)]
     public unsafe bool TryReadNext()
     {
         MovePastCurrent();
