@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial.Arenas;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;
@@ -87,6 +89,27 @@ internal static class RespReaderExtensions
 
         public RedisValue[]? ReadPastRedisValues()
             => reader.ReadPastArray(static (ref r) => r.ReadRedisValue(), scalar: true);
+
+        public Lease<byte>? AsLease()
+        {
+            if (!reader.IsScalar) throw new InvalidCastException("Cannot convert to Lease: " + reader.Prefix);
+            if (reader.IsNull) return null;
+
+            var length = reader.ScalarLength();
+            if (length == 0) return Lease<byte>.Empty;
+
+            var lease = Lease<byte>.Create(length, clear: false);
+            if (reader.TryGetSpan(out var span))
+            {
+                span.CopyTo(lease.Span);
+            }
+            else
+            {
+                var buffer = reader.Buffer(lease.Span);
+                Debug.Assert(buffer.Length == length, "buffer length mismatch");
+            }
+            return lease;
+        }
     }
 
     public static RespPrefix GetRespPrefix(ReadOnlySpan<byte> frame)

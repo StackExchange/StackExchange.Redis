@@ -361,15 +361,10 @@ namespace StackExchange.Redis
             var type = reader.Prefix.ToResultType();
             if (reader.IsAggregate)
             {
-                var len = reader.AggregateLength();
-                var arr = len == 0 ? [] : new RawResult[len];
-                int i = 0;
-                var iter = reader.AggregateChildren();
-                while (iter.MoveNext())
-                {
-                    arr[i++] = AsRaw(ref iter.Value, resp3);
-                }
-                iter.MovePast(out reader);
+                var arr = reader.ReadPastArray(
+                    resp3,
+                    static (in resp3, ref reader) => AsRaw(ref reader, resp3),
+                    scalar: false) ?? [];
                 return new RawResult(type, new Sequence<RawResult>(arr), flags);
             }
 

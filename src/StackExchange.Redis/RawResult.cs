@@ -233,6 +233,7 @@ namespace StackExchange.Redis
             if (IsNull) return null;
             switch (Resp2TypeBulkString)
             {
+                case ResultType.Integer:
                 case ResultType.SimpleString:
                 case ResultType.BulkString:
                     var payload = Payload;
