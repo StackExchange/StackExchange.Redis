@@ -192,6 +192,9 @@ public ref partial struct RespReader
         }
 
         public void FillAll<TState, TResult>(scoped Span<TResult> target, in TState state, Projection<TState, TResult> projection)
+#if NET9_0_OR_GREATER
+            where TState : allows ref struct
+#endif
         {
             for (int i = 0; i < target.Length; i++)
             {
@@ -216,6 +219,29 @@ public ref partial struct RespReader
 
                 var y = second(ref Value);
                 target[i] = combine(x, y);
+            }
+        }
+
+        public void FillAll<TState, TFirst, TSecond, TResult>(
+            scoped Span<TResult> target,
+            in TState state,
+            Projection<TState, TFirst> first,
+            Projection<TState, TSecond> second,
+            Func<TState, TFirst, TSecond, TResult> combine)
+#if NET9_0_OR_GREATER
+            where TState : allows ref struct
+#endif
+        {
+            for (int i = 0; i < target.Length; i++)
+            {
+                DemandNext();
+
+                var x = first(state, ref Value);
+
+                DemandNext();
+
+                var y = second(state, ref Value);
+                target[i] = combine(state, x, y);
             }
         }
     }
