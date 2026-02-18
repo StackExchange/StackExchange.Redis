@@ -209,6 +209,22 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(ATTRIB_FOO_BAR + "*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n", "foo,bar")]
     public void RedisKeyArray(string resp, string? expected) => Assert.Equal(expected, Join(Execute(resp, ResultProcessor.RedisKeyArray)));
 
+    [Theory]
+    [InlineData("*2\r\n+foo\r\n:42\r\n", 42)]
+    [InlineData($"{ATTRIB_FOO_BAR}*2\r\n+foo\r\n:42\r\n", 42)]
+    [InlineData($"*2\r\n{ATTRIB_FOO_BAR}+foo\r\n:42\r\n", 42)]
+    [InlineData($"*2\r\n+foo\r\n{ATTRIB_FOO_BAR}:42\r\n", 42)]
+    public void PubSubNumSub(string resp, long expected) => Assert.Equal(expected, Execute(resp, ResultProcessor.PubSubNumSub));
+
+    [Theory]
+    [InlineData("*-1\r\n")]
+    [InlineData("_\r\n")]
+    [InlineData(":42\r\n")]
+    [InlineData("$-1\r\n")]
+    [InlineData("*3\r\n+foo\r\n:42\r\n+bar\r\n")]
+    [InlineData("*4\r\n+foo\r\n:42\r\n+bar\r\n:6\r\n")]
+    public void FailingPubSubNumSub(string resp) => ExecuteUnexpected(resp, ResultProcessor.PubSubNumSub);
+
     [return: NotNullIfNotNull(nameof(array))]
     protected static string? Join<T>(T[]? array, string separator = ",")
     {
