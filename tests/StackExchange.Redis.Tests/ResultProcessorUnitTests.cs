@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Tests;
 public class ResultProcessorUnitTests(ITestOutputHelper log)
 {
     private const string ATTRIB_FOO_BAR = "|1\r\n+foo\r\n+bar\r\n";
+    private static readonly ResultProcessor.Int64DefaultValueProcessor Int64DefaultValue999 = new(999);
 
     [Theory]
     [InlineData(":1\r\n", 1)]
@@ -224,6 +225,116 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData("*3\r\n+foo\r\n:42\r\n+bar\r\n")]
     [InlineData("*4\r\n+foo\r\n:42\r\n+bar\r\n:6\r\n")]
     public void FailingPubSubNumSub(string resp) => ExecuteUnexpected(resp, ResultProcessor.PubSubNumSub);
+
+    [Theory]
+    [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("+world\r\n", "world")]
+    [InlineData(":42\r\n", "42")]
+    [InlineData("$-1\r\n", null)]
+    [InlineData("_\r\n", null)]
+    [InlineData(ATTRIB_FOO_BAR + "$3\r\nfoo\r\n", "foo")]
+    public void ByteArray(string resp, string? expected)
+    {
+        var result = Execute(resp, ResultProcessor.ByteArray);
+        if (expected is null)
+        {
+            Assert.Null(result);
+        }
+        else
+        {
+            Assert.NotNull(result);
+            Assert.Equal(expected, Encoding.UTF8.GetString(result));
+        }
+    }
+
+    [Theory]
+    [InlineData("*-1\r\n")] // null array
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")] // array
+    public void FailingByteArray(string resp) => ExecuteUnexpected(resp, ResultProcessor.ByteArray);
+
+    [Theory]
+    [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("+world\r\n", "world")]
+    [InlineData("$-1\r\n", null)]
+    [InlineData("_\r\n", null)]
+    [InlineData(ATTRIB_FOO_BAR + "$11\r\nclusterinfo\r\n", "clusterinfo")]
+    // note that this test does not include a valid cluster nodes response
+    public void ClusterNodesRaw(string resp, string? expected) => Assert.Equal(expected, Execute(resp, ResultProcessor.ClusterNodesRaw));
+
+    [Theory]
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")] // array
+    public void FailingClusterNodesRaw(string resp) => ExecuteUnexpected(resp, ResultProcessor.ClusterNodesRaw);
+
+    [Theory]
+    [InlineData(":42\r\n", 42L)]
+    [InlineData("+99\r\n", 99L)]
+    [InlineData("$2\r\n10\r\n", 10L)]
+    [InlineData(",123\r\n", 123L)]
+    [InlineData(ATTRIB_FOO_BAR + ":42\r\n", 42L)]
+    public void Int64DefaultValue(string resp, long expected) => Assert.Equal(expected, Execute(resp, Int64DefaultValue999));
+
+    [Theory]
+    [InlineData("_\r\n", 999L)] // null returns default
+    [InlineData("$-1\r\n", 999L)] // null returns default
+    public void Int64DefaultValueNull(string resp, long expected) => Assert.Equal(expected, Execute(resp, Int64DefaultValue999));
+
+    [Theory]
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n:1\r\n:2\r\n")] // array
+    [InlineData("+notanumber\r\n")] // invalid number
+    public void FailingInt64DefaultValue(string resp) => ExecuteUnexpected(resp, Int64DefaultValue999);
+
+    [Theory]
+    [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("+world\r\n", "world")]
+    [InlineData(":42\r\n", "42")]
+    [InlineData("$-1\r\n", "(null)")]
+    [InlineData("_\r\n", "(null)")]
+    [InlineData(ATTRIB_FOO_BAR + "$3\r\nfoo\r\n", "foo")]
+    public void RedisKey(string resp, string expected)
+    {
+        var result = Execute(resp, ResultProcessor.RedisKey);
+        Assert.Equal(expected, result.ToString());
+    }
+
+    [Theory]
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")] // array
+    public void FailingRedisKey(string resp) => ExecuteUnexpected(resp, ResultProcessor.RedisKey);
+
+    [Theory]
+    [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("+world\r\n", "world")]
+    [InlineData(":42\r\n", "42")]
+    [InlineData("$-1\r\n", "")]
+    [InlineData("_\r\n", "")]
+    [InlineData(",3.14\r\n", "3.14")]
+    [InlineData(ATTRIB_FOO_BAR + "$3\r\nfoo\r\n", "foo")]
+    public void RedisValue(string resp, string expected)
+    {
+        var result = Execute(resp, ResultProcessor.RedisValue);
+        Assert.Equal(expected, result.ToString());
+    }
+
+    [Theory]
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")] // array
+    public void FailingRedisValue(string resp) => ExecuteUnexpected(resp, ResultProcessor.RedisValue);
+
+    [Theory]
+    [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("+world\r\n", "world")]
+    [InlineData("$-1\r\n", null)]
+    [InlineData("_\r\n", null)]
+    [InlineData(ATTRIB_FOO_BAR + "$10\r\ntiebreaker\r\n", "tiebreaker")]
+    public void TieBreaker(string resp, string? expected) => Assert.Equal(expected, Execute(resp, ResultProcessor.TieBreaker));
+
+    [Theory]
+    [InlineData("*0\r\n")] // empty array
+    [InlineData("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")] // array
+    public void FailingTieBreaker(string resp) => ExecuteUnexpected(resp, ResultProcessor.TieBreaker);
 
     [return: NotNullIfNotNull(nameof(array))]
     protected static string? Join<T>(T[]? array, string separator = ",")

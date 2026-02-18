@@ -1381,7 +1381,7 @@ namespace StackExchange.Redis
                 category.IsNullOrWhiteSpace() ? "miscellaneous" : category.Trim();
         }
 
-        private sealed class Int64DefaultValueProcessor : ResultProcessor<long>
+        internal sealed class Int64DefaultValueProcessor : ResultProcessor<long>
         {
             private readonly long _defaultValue;
 
