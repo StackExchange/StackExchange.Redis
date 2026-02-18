@@ -21,6 +21,12 @@ internal static class RespReaderExtensions
             };
         }
 
+        public RedisKey ReadRedisKey()
+        {
+            reader.DemandScalar();
+            return (RedisKey)reader.ReadByteArray();
+        }
+
         public string GetOverview()
         {
             if (reader.IsNull) return "(null)";

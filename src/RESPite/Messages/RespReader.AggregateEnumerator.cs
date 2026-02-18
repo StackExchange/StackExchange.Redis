@@ -186,12 +186,17 @@ public ref partial struct RespReader
             return projection(ref Value);
         }
 
-        public void FillAll<T>(scoped Span<T> target, Projection<T> projection)
+        public void FillAll<TResult>(scoped Span<TResult> target, Projection<TResult> projection)
+        {
+            FillAll(target, projection, static (in projection, ref reader) => projection(ref reader));
+        }
+
+        public void FillAll<TState, TResult>(scoped Span<TResult> target, in TState state, Projection<TState, TResult> projection)
         {
             for (int i = 0; i < target.Length; i++)
             {
                 DemandNext();
-                target[i] = projection(ref Value);
+                target[i] = projection(in state, ref Value);
             }
         }
 
