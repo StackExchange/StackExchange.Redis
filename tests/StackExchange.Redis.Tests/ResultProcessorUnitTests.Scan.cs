@@ -11,7 +11,7 @@ public partial class ResultProcessorUnitTests
     [InlineData("*2\r\n$1\r\n0\r\n*0\r\n", 0L, 0)] // cursor 0, empty array
     [InlineData("*2\r\n$1\r\n5\r\n*0\r\n", 5L, 0)] // cursor 5, empty array
     [InlineData("*2\r\n$1\r\n0\r\n*1\r\n$3\r\nfoo\r\n", 0L, 1)] // cursor 0, 1 key
-    [InlineData("*2\r\n$1\r\n0\r\n*3\r\n$3\r\nkey1\r\n$3\r\nkey2\r\n$3\r\nkey3\r\n", 0L, 3)] // cursor 0, 3 keys
+    [InlineData("*2\r\n$1\r\n0\r\n*3\r\n$4\r\nkey1\r\n$4\r\nkey2\r\n$4\r\nkey3\r\n", 0L, 3)] // cursor 0, 3 keys
     [InlineData("*2\r\n$2\r\n42\r\n*2\r\n$4\r\ntest\r\n$5\r\nhello\r\n", 42L, 2)] // cursor 42, 2 keys
     public void SetScanResultProcessor_ValidInput(string resp, long expectedCursor, int expectedCount)
     {
