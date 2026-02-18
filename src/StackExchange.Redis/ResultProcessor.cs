@@ -3298,34 +3298,26 @@ The coordinates as a two items x,y array (longitude,latitude).
 
     internal abstract class ArrayResultProcessor<T> : ResultProcessor<T[]>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            switch (result.Resp2TypeArray)
-            {
-                case ResultType.Array:
-                    var items = result.GetItems();
-                    T[] arr;
-                    if (items.IsEmpty)
+            if (!reader.IsAggregate) return false;
+
+            var arr = reader.ReadPastArray(
+                this,
+                static (in ArrayResultProcessor<T> self, ref RespReader r) =>
+                {
+                    if (!self.TryParse(ref r, out var parsed))
                     {
-                        arr = [];
+                        throw new InvalidOperationException("Failed to parse array element");
                     }
-                    else
-                    {
-                        arr = new T[checked((int)items.Length)];
-                        int index = 0;
-                        foreach (ref RawResult inner in items)
-                        {
-                            if (!TryParse(inner, out arr[index++]))
-                                return false;
-                        }
-                    }
-                    SetResult(message, arr);
-                    return true;
-                default:
-                    return false;
-            }
+                    return parsed;
+                },
+                scalar: false);
+
+            SetResult(message, arr!);
+            return true;
         }
 
-        protected abstract bool TryParse(in RawResult raw, out T parsed);
+        protected abstract bool TryParse(ref RespReader reader, out T parsed);
     }
 }
