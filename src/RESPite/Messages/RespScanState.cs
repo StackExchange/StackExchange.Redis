@@ -120,7 +120,9 @@ public struct RespScanState
     /// <returns>The number of bytes consumed in this operation.</returns>
     private long ReadCore(ref RespReader reader, long startOffset = 0)
     {
+#pragma warning disable CS0618 // avoid TryReadNext unless you know what you're doing
         while (_delta >= 0 && reader.TryReadNext())
+#pragma warning restore CS0618
         {
 #if DEBUG
             _elementCount++;

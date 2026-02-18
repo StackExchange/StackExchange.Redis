@@ -1141,7 +1141,7 @@ namespace StackExchange.Redis
                     return true;
                 }
 
-                if (reader.IsAggregate && reader.TryReadNext() && reader.IsScalar)
+                if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
                 {
                     // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
                     var value = reader.ReadBoolean();
@@ -1584,13 +1584,13 @@ namespace StackExchange.Redis
                 {
                     if (reader.IsNull)
                     {
-                        if (!reader.TryReadNext()) // only if unit, else ignore
+                        if (!reader.TryMoveNext()) // only if unit, else ignore
                         {
                             SetResult(message, null);
                             return true;
                         }
                     }
-                    else if (reader.TryReadInt64(out var i64) && !reader.TryReadNext())
+                    else if (reader.TryReadInt64(out var i64) && !reader.TryMoveNext())
                     {
                         // treat an array of 1 like a single reply
                         SetResult(message, i64);
@@ -2843,11 +2843,11 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return true;
                 }
 
-                if (reader.IsAggregate && reader.TryReadNext() && reader.IsScalar)
+                if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
                 {
                     // treat an array of 1 like a single reply
                     var value = reader.ReadString();
-                    if (!reader.TryReadNext())
+                    if (!reader.TryMoveNext())
                     {
                         SetResult(message, value);
                         return true;
