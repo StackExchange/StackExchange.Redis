@@ -671,6 +671,9 @@ namespace StackExchange.Redis
 
         internal sealed class SortedSetEntryArrayProcessor : ValuePairInterleavedProcessorBase<SortedSetEntry>
         {
+            protected override SortedSetEntry Parse(ref RespReader first, ref RespReader second, object? state) =>
+                new SortedSetEntry(first.ReadRedisValue(), second.TryReadDouble(out double val) ? val : double.NaN);
+
             protected override SortedSetEntry Parse(in RawResult first, in RawResult second, object? state) =>
                 new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
@@ -757,6 +760,9 @@ namespace StackExchange.Redis
 
         internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {
+            protected override HashEntry Parse(ref RespReader first, ref RespReader second, object? state) =>
+                new HashEntry(first.ReadRedisValue(), second.ReadRedisValue());
+
             protected override HashEntry Parse(in RawResult first, in RawResult second, object? state) =>
                 new HashEntry(first.AsRedisValue(), second.AsRedisValue());
         }
@@ -770,8 +776,87 @@ namespace StackExchange.Redis
             // on a per-processor basis if needed
             protected virtual bool AllowJaggedPairs => true;
 
-            public bool TryParse(in RawResult result, out T[]? pairs)
-                => TryParse(result, out pairs, false, out _);
+            private static bool IsAllJaggedPairsReader(in RespReader reader)
+            {
+                // Check whether each child element is an array of exactly length 2
+                // Use AggregateChildren to create isolated child iterators without mutating the reader
+                var iter = reader.AggregateChildren();
+                while (iter.MoveNext())
+                {
+                    // Check if this child is an array with exactly 2 elements
+                    if (!(iter.Value.IsAggregate && iter.Value.AggregateLengthIs(2)))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            public T[]? ParseArray(ref RespReader reader, RedisProtocol protocol, bool allowOversized, out int count, object? state)
+            {
+                if (reader.IsNull)
+                {
+                    count = 0;
+                    return null;
+                }
+
+                // Get the aggregate length first
+                count = reader.AggregateLength();
+                if (count == 0)
+                {
+                    return [];
+                }
+
+                // Check if we have jagged pairs (RESP3 style) or interleaved (RESP2 style)
+                bool isJagged = protocol == RedisProtocol.Resp3 && AllowJaggedPairs && IsAllJaggedPairsReader(reader);
+
+                if (isJagged)
+                {
+                    // Jagged format: [[k1, v1], [k2, v2], ...]
+                    // Count is the number of pairs (outer array length)
+                    var pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
+                    var iter = reader.AggregateChildren();
+                    for (int i = 0; i < count; i++)
+                    {
+                        iter.DemandNext();
+
+                        var pairIter = iter.Value.AggregateChildren();
+                        pairIter.DemandNext();
+                        var first = pairIter.Value;
+
+                        pairIter.DemandNext();
+                        var second = pairIter.Value;
+
+                        pairs[i] = Parse(ref first, ref second, state);
+                    }
+                    return pairs;
+                }
+                else
+                {
+                    // Interleaved format: [k1, v1, k2, v2, ...]
+                    // Count is half the array length (>> 1 discards odd element if present)
+                    count >>= 1; // divide by 2
+                    var pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
+                    var iter = reader.AggregateChildren();
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        iter.DemandNext();
+                        var first = iter.Value;
+
+                        iter.DemandNext();
+                        var second = iter.Value;
+
+                        pairs[i] = Parse(ref first, ref second, state);
+                    }
+                    return pairs;
+                }
+            }
+
+            protected abstract T Parse(ref RespReader first, ref RespReader second, object? state);
+
+            // Old RawResult API - kept for backwards compatibility with code not yet migrated
+            protected abstract T Parse(in RawResult first, in RawResult second, object? state);
 
             public T[]? ParseArray(in RawResult result, bool allowOversized, out int count, object? state)
             {
@@ -781,110 +866,64 @@ namespace StackExchange.Redis
                     return null;
                 }
 
-                var arr = result.GetItems();
-                count = (int)arr.Length;
+                var items = result.GetItems();
+                count = checked((int)items.Length);
                 if (count == 0)
                 {
                     return [];
                 }
 
-                bool interleaved = !(result.IsResp3 && AllowJaggedPairs && IsAllJaggedPairs(arr));
-                if (interleaved) count >>= 1; // so: half of that
-                var pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
+                // Check if we have jagged pairs (RESP3 style) or interleaved (RESP2 style)
+                bool isJagged = result.Resp3Type == ResultType.Array && AllowJaggedPairs && IsAllJaggedPairs(result);
 
-                if (interleaved)
+                if (isJagged)
                 {
-                    // linear elements i.e. {key,value,key,value,key,value}
-                    if (arr.IsSingleSegment)
+                    // Jagged format: [[k1, v1], [k2, v2], ...]
+                    var pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
+                    for (int i = 0; i < count; i++)
                     {
-                        var span = arr.FirstSpan;
-                        int offset = 0;
-                        for (int i = 0; i < count; i++)
-                        {
-                            pairs[i] = Parse(span[offset++], span[offset++], state);
-                        }
+                        ref readonly RawResult pair = ref items[i];
+                        var pairItems = pair.GetItems();
+                        pairs[i] = Parse(pairItems[0], pairItems[1], state);
                     }
-                    else
-                    {
-                        var iter = arr.GetEnumerator(); // simplest way of getting successive values
-                        for (int i = 0; i < count; i++)
-                        {
-                            pairs[i] = Parse(iter.GetNext(), iter.GetNext(), state);
-                        }
-                    }
+                    return pairs;
                 }
                 else
                 {
-                    // jagged elements i.e. {{key,value},{key,value},{key,value}}
-                    // to get here, we've already asserted that all elements are arrays with length 2
-                    if (arr.IsSingleSegment)
+                    // Interleaved format: [k1, v1, k2, v2, ...]
+                    count >>= 1; // divide by 2
+                    var pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
+                    for (int i = 0; i < count; i++)
                     {
-                        int i = 0;
-                        foreach (var el in arr.FirstSpan)
-                        {
-                            var inner = el.GetItems();
-                            pairs[i++] = Parse(inner[0], inner[1], state);
-                        }
+                        pairs[i] = Parse(items[(i * 2) + 0], items[(i * 2) + 1], state);
                     }
-                    else
-                    {
-                        var iter = arr.GetEnumerator(); // simplest way of getting successive values
-                        for (int i = 0; i < count; i++)
-                        {
-                            var inner = iter.GetNext().GetItems();
-                            pairs[i] = Parse(inner[0], inner[1], state);
-                        }
-                    }
-                }
-                return pairs;
-
-                static bool IsAllJaggedPairs(in Sequence<RawResult> arr)
-                {
-                    return arr.IsSingleSegment ? CheckSpan(arr.FirstSpan) : CheckSpans(arr);
-
-                    static bool CheckSpans(in Sequence<RawResult> arr)
-                    {
-                        foreach (var chunk in arr.Spans)
-                        {
-                            if (!CheckSpan(chunk)) return false;
-                        }
-                        return true;
-                    }
-                    static bool CheckSpan(ReadOnlySpan<RawResult> chunk)
-                    {
-                        // check whether each value is actually an array of length 2
-                        foreach (ref readonly RawResult el in chunk)
-                        {
-                            if (el is not { Resp2TypeArray: ResultType.Array, ItemsCount: 2 }) return false;
-                        }
-                        return true;
-                    }
+                    return pairs;
                 }
             }
 
-            public bool TryParse(in RawResult result, out T[]? pairs, bool allowOversized, out int count)
+            private static bool IsAllJaggedPairs(in RawResult result)
             {
-                switch (result.Resp2TypeArray)
+                var items = result.GetItems();
+                foreach (ref readonly var item in items)
                 {
-                    case ResultType.Array:
-                        pairs = ParseArray(in result, allowOversized, out count, null);
-                        return true;
-                    default:
-                        count = 0;
-                        pairs = null;
+                    if (item.Resp2TypeArray != ResultType.Array || item.GetItems().Length != 2)
+                    {
                         return false;
+                    }
                 }
+                return true;
             }
 
-            protected abstract T Parse(in RawResult first, in RawResult second, object? state);
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (TryParse(result, out T[]? arr))
+                if (!reader.IsAggregate)
                 {
-                    SetResult(message, arr!);
-                    return true;
+                    return false;
                 }
-                return false;
+
+                var pairs = ParseArray(ref reader, connection.Protocol.GetValueOrDefault(), false, out _, null);
+                SetResult(message, pairs!);
+                return true;
             }
         }
 
@@ -2321,38 +2360,61 @@ The coordinates as a two items x,y array (longitude,latitude).
                 (note that XREADGROUP may include additional interior elements; see ParseRedisStreamEntries)
             */
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.IsNull)
+                if (reader.IsNull)
                 {
                     // Nothing returned for any of the requested streams. The server returns 'nil'.
                     SetResult(message, []);
                     return true;
                 }
 
-                if (result.Resp2TypeArray != ResultType.Array)
+                if (!reader.IsAggregate)
                 {
                     return false;
                 }
 
+                var protocol = connection.Protocol.GetValueOrDefault();
                 RedisStream[] streams;
-                if (result.Resp3Type == ResultType.Map) // see SetResultCore for the shape delta between RESP2 and RESP3
+
+                if (reader.Prefix == RespPrefix.Map) // see SetResultCore for the shape delta between RESP2 and RESP3
                 {
                     // root is a map of named inner-arrays
-                    streams = RedisStreamInterleavedProcessor.Instance.ParseArray(result, false, out _, this)!; // null-checked
+                    streams = RedisStreamInterleavedProcessor.Instance.ParseArray(ref reader, protocol, false, out _, this)!; // null-checked
                 }
                 else
                 {
-                    streams = result.GetItems().ToArray(
-                        (in item, in obj) =>
-                        {
-                            var details = item.GetItems();
+                    int count = reader.AggregateLength();
+                    if (count == 0)
+                    {
+                        SetResult(message, []);
+                        return true;
+                    }
 
-                            // details[0] = Name of the Stream
-                            // details[1] = Multibulk Array of Stream Entries
-                            return new RedisStream(key: details[0].AsRedisKey(), entries: obj.ParseRedisStreamEntries(details[1])!);
-                        },
-                        this);
+                    streams = new RedisStream[count];
+                    var iter = reader.AggregateChildren();
+                    for (int i = 0; i < count; i++)
+                    {
+                        iter.DemandNext();
+                        var itemReader = iter.Value;
+
+                        if (!itemReader.IsAggregate)
+                        {
+                            return false;
+                        }
+
+                        var details = itemReader.AggregateChildren();
+
+                        // details[0] = Name of the Stream
+                        details.DemandNext();
+                        var key = details.Value.ReadRedisKey();
+
+                        // details[1] = Multibulk Array of Stream Entries
+                        details.DemandNext();
+                        var entries = ParseRedisStreamEntries(ref details.Value, protocol);
+
+                        streams[i] = new RedisStream(key: key, entries: entries);
+                    }
                 }
 
                 SetResult(message, streams);
@@ -2369,8 +2431,16 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
             }
 
+            protected override RedisStream Parse(ref RespReader first, ref RespReader second, object? state)
+                => throw new NotImplementedException("RedisStreamInterleavedProcessor.Parse(ref RespReader) should not be called - MultiStreamProcessor handles this directly");
+
             protected override RedisStream Parse(in RawResult first, in RawResult second, object? state)
-                => new(key: first.AsRedisKey(), entries: ((MultiStreamProcessor)state!).ParseRedisStreamEntries(second));
+            {
+                var processor = (MultiStreamProcessor)state!;
+                var key = first.AsRedisKey();
+                var entries = processor.ParseRedisStreamEntries(second);
+                return new RedisStream(key, entries);
+            }
         }
 
         /// <summary>
@@ -2805,6 +2875,9 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
             }
 
+            protected override NameValueEntry Parse(ref RespReader first, ref RespReader second, object? state)
+                => new NameValueEntry(first.ReadRedisValue(), second.ReadRedisValue());
+
             protected override NameValueEntry Parse(in RawResult first, in RawResult second, object? state)
                 => new NameValueEntry(first.AsRedisValue(), second.AsRedisValue());
         }
@@ -2844,8 +2917,76 @@ The coordinates as a two items x,y array (longitude,latitude).
                     id: id,
                     values: values);
             }
+
+            protected static StreamEntry ParseRedisStreamEntry(ref RespReader reader, RedisProtocol protocol)
+            {
+                if (!reader.IsAggregate || reader.IsNull)
+                {
+                    return StreamEntry.Null;
+                }
+                // Process the Multibulk array for each entry. The entry contains the following elements:
+                //  [0] = SimpleString (the ID of the stream entry)
+                //  [1] = Multibulk array of the name/value pairs of the stream entry's data
+                // optional (XREADGROUP with CLAIM):
+                //  [2] = idle time (in milliseconds)
+                //  [3] = delivery count
+                int length = reader.AggregateLength();
+                var iter = reader.AggregateChildren();
+
+                iter.DemandNext();
+                var id = iter.Value.ReadRedisValue();
+
+                iter.DemandNext();
+                var values = ParseStreamEntryValues(ref iter.Value, protocol);
+
+                // check for optional fields (XREADGROUP with CLAIM)
+                if (length >= 4)
+                {
+                    iter.DemandNext();
+                    if (iter.Value.TryReadInt64(out var idleTimeInMs))
+                    {
+                        iter.DemandNext();
+                        if (iter.Value.TryReadInt64(out var deliveryCount))
+                        {
+                            return new StreamEntry(
+                                id: id,
+                                values: values,
+                                idleTime: TimeSpan.FromMilliseconds(idleTimeInMs),
+                                deliveryCount: checked((int)deliveryCount));
+                        }
+                    }
+                }
+
+                return new StreamEntry(
+                    id: id,
+                    values: values);
+            }
             protected internal StreamEntry[] ParseRedisStreamEntries(in RawResult result) =>
                 result.GetItems().ToArray((in item, in _) => ParseRedisStreamEntry(item), this);
+
+            protected internal StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
+            {
+                if (!reader.IsAggregate || reader.IsNull)
+                {
+                    return [];
+                }
+
+                int count = reader.AggregateLength();
+                if (count == 0)
+                {
+                    return [];
+                }
+
+                var entries = new StreamEntry[count];
+                var iter = reader.AggregateChildren();
+                for (int i = 0; i < count; i++)
+                {
+                    iter.DemandNext();
+                    entries[i] = ParseRedisStreamEntry(ref iter.Value, protocol);
+                }
+
+                return entries;
+            }
 
             protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
             {
@@ -2869,10 +3010,22 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 return StreamNameValueEntryProcessor.Instance.ParseArray(result, false, out _, null)!; // ! because we checked null above
             }
+
+            protected static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, RedisProtocol protocol)
+            {
+                if (!reader.IsAggregate || reader.IsNull)
+                {
+                    return [];
+                }
+                return StreamNameValueEntryProcessor.Instance.ParseArray(ref reader, protocol, false, out _, null)!;
+            }
         }
 
         private sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<KeyValuePair<string, string>>
         {
+            protected override KeyValuePair<string, string> Parse(ref RespReader first, ref RespReader second, object? state) =>
+                new KeyValuePair<string, string>(first.ReadString()!, second.ReadString()!);
+
             protected override KeyValuePair<string, string> Parse(in RawResult first, in RawResult second, object? state) =>
                 new KeyValuePair<string, string>(first.GetString()!, second.GetString()!);
         }
@@ -3119,34 +3272,33 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class SentinelArrayOfArraysProcessor : ResultProcessor<KeyValuePair<string, string>[][]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 if (StringPairInterleaved is not StringPairInterleavedProcessor innerProcessor)
                 {
                     return false;
                 }
 
-                switch (result.Resp2TypeArray)
+                if (reader.IsAggregate && !reader.IsNull)
                 {
-                    case ResultType.Array:
-                        var arrayOfArrays = result.GetItems();
+                    int outerCount = reader.AggregateLength();
+                    var returnArray = new KeyValuePair<string, string>[outerCount][];
+                    var iter = reader.AggregateChildren();
+                    var protocol = connection.Protocol.GetValueOrDefault();
 
-                        var returnArray = result.ToArray<KeyValuePair<string, string>[], StringPairInterleavedProcessor>(
-                            (in rawInnerArray, in proc) =>
-                            {
-                                if (proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[]? kvpArray))
-                                {
-                                    return kvpArray!;
-                                }
-                                else
-                                {
-                                    throw new ArgumentOutOfRangeException(nameof(rawInnerArray), $"Error processing {message.CommandAndKey}, could not decode array '{rawInnerArray}'");
-                                }
-                            },
-                            innerProcessor)!;
+                    for (int i = 0; i < outerCount; i++)
+                    {
+                        iter.DemandNext();
+                        var innerReader = iter.Value;
+                        if (!innerReader.IsAggregate)
+                        {
+                            throw new ArgumentOutOfRangeException(nameof(innerReader), $"Error processing {message.CommandAndKey}, expected array but got scalar");
+                        }
+                        returnArray[i] = innerProcessor.ParseArray(ref innerReader, protocol, false, out _, null)!;
+                    }
 
-                        SetResult(message, returnArray);
-                        return true;
+                    SetResult(message, returnArray);
+                    return true;
                 }
                 return false;
             }

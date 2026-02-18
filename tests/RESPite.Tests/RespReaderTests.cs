@@ -845,6 +845,204 @@ public class RespReaderTests(ITestOutputHelper logger)
         reader.DemandEnd();
     }
 
+    // Tests for ScalarLengthIs
+    [Theory, Resp("$-1\r\n")] // null bulk string
+    public void ScalarLengthIs_NullBulkString(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+        Assert.True(reader.ScalarLengthIs(0));
+        Assert.False(reader.ScalarLengthIs(1));
+        Assert.False(reader.ScalarLengthIs(5));
+        reader.DemandEnd();
+    }
+
+    // Note: Null prefix (_\r\n) is tested in the existing Null() test above
+    [Theory, Resp("$0\r\n\r\n", "$?\r\n;0\r\n")] // empty scalar (simple and streaming)
+    public void ScalarLengthIs_Empty(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+        Assert.True(reader.ScalarLengthIs(0));
+        Assert.False(reader.ScalarLengthIs(1));
+        Assert.False(reader.ScalarLengthIs(5));
+        reader.DemandEnd();
+    }
+
+    [Theory, Resp("$5\r\nhello\r\n")] // simple scalar
+    public void ScalarLengthIs_Simple(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+        Assert.True(reader.ScalarLengthIs(5));
+        Assert.False(reader.ScalarLengthIs(0));
+        Assert.False(reader.ScalarLengthIs(4));
+        Assert.False(reader.ScalarLengthIs(6));
+        Assert.False(reader.ScalarLengthIs(10));
+        reader.DemandEnd();
+    }
+
+    [Theory, Resp("$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n")] // streaming scalar
+    public void ScalarLengthIs_Streaming(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+        Assert.True(reader.ScalarLengthIs(5));
+        Assert.False(reader.ScalarLengthIs(0));
+        Assert.False(reader.ScalarLengthIs(2)); // short-circuit: stops early
+        Assert.False(reader.ScalarLengthIs(3)); // short-circuit: stops early
+        Assert.False(reader.ScalarLengthIs(6)); // short-circuit: stops early
+        Assert.False(reader.ScalarLengthIs(10)); // short-circuit: stops early
+        reader.DemandEnd();
+    }
+
+    [Fact] // streaming scalar - verify short-circuiting stops before reading malformed data
+    public void ScalarLengthIs_Streaming_ShortCircuits()
+    {
+        // Streaming scalar: 2 bytes "he", then 3 bytes "llo", then 1 byte "X", then MALFORMED
+        // To check if length == N, we need to read N+1 bytes to verify there isn't more
+        // So malformed data must come AFTER the N+1 threshold
+        var data = "$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;1\r\nX\r\nMALFORMED"u8.ToArray();
+        var reader = new RespReader(new ReadOnlySequence<byte>(data));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        // When checking length < 6, we read up to 6 bytes (he+llo+X), see 6 > expected, stop
+        Assert.False(reader.ScalarLengthIs(0)); // reads "he" (2), 2 > 0, stops before "llo"
+        Assert.False(reader.ScalarLengthIs(2)); // reads "he" (2), "llo" (5 total), 5 > 2, stops before "X"
+        Assert.False(reader.ScalarLengthIs(4)); // reads "he" (2), "llo" (5 total), 5 > 4, stops before "X"
+        Assert.False(reader.ScalarLengthIs(5)); // reads "he" (2), "llo" (5), "X" (6 total), 6 > 5, stops before MALFORMED
+
+        // All of the above should succeed without hitting MALFORMED because we short-circuit
+    }
+
+    [Theory, Resp("+hello\r\n")] // simple string
+    public void ScalarLengthIs_SimpleString(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.SimpleString);
+        Assert.True(reader.ScalarLengthIs(5));
+        Assert.False(reader.ScalarLengthIs(0));
+        Assert.False(reader.ScalarLengthIs(4));
+        reader.DemandEnd();
+    }
+
+    // Tests for AggregateLengthIs
+    [Theory, Resp("*-1\r\n")] // null array
+    public void AggregateLengthIs_NullArray(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.Array);
+        Assert.True(reader.IsNull);
+        // Note: AggregateLength() would throw on null, but AggregateLengthIs should handle it
+        reader.DemandEnd();
+    }
+
+    [Theory, Resp("*0\r\n", "*?\r\n.\r\n")] // empty array (simple and streaming)
+    public void AggregateLengthIs_Empty(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.Array);
+        Assert.True(reader.AggregateLengthIs(0));
+        Assert.False(reader.AggregateLengthIs(1));
+        Assert.False(reader.AggregateLengthIs(3));
+        reader.SkipChildren();
+        reader.DemandEnd();
+    }
+
+    [Theory, Resp("*3\r\n:1\r\n:2\r\n:3\r\n")] // simple array
+    public void AggregateLengthIs_Simple(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.Array);
+        Assert.True(reader.AggregateLengthIs(3));
+        Assert.False(reader.AggregateLengthIs(0));
+        Assert.False(reader.AggregateLengthIs(2));
+        Assert.False(reader.AggregateLengthIs(4));
+        Assert.False(reader.AggregateLengthIs(10));
+        reader.SkipChildren();
+        reader.DemandEnd();
+    }
+
+    [Theory, Resp("*?\r\n:1\r\n:2\r\n:3\r\n.\r\n")] // streaming array
+    public void AggregateLengthIs_Streaming(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.Array);
+        Assert.True(reader.AggregateLengthIs(3));
+        Assert.False(reader.AggregateLengthIs(0));
+        Assert.False(reader.AggregateLengthIs(2)); // short-circuit: stops early
+        Assert.False(reader.AggregateLengthIs(4)); // short-circuit: stops early
+        Assert.False(reader.AggregateLengthIs(10)); // short-circuit: stops early
+        reader.SkipChildren();
+        reader.DemandEnd();
+    }
+
+    [Fact] // streaming array - verify short-circuiting works even with extra data present
+    public void AggregateLengthIs_Streaming_ShortCircuits()
+    {
+        // Streaming array: 3 elements (:1, :2, :3), then extra elements
+        // Short-circuiting means we can return false without reading all elements
+        var data = "*?\r\n:1\r\n:2\r\n:3\r\n:999\r\n:888\r\n.\r\n"u8.ToArray();
+        var reader = new RespReader(new ReadOnlySequence<byte>(data));
+        reader.MoveNext(RespPrefix.Array);
+
+        // These should all return false via short-circuiting
+        // (we know the answer before reading all elements)
+        Assert.False(reader.AggregateLengthIs(0)); // can tell after 1 element
+        Assert.False(reader.AggregateLengthIs(2)); // can tell after 3 elements
+        Assert.False(reader.AggregateLengthIs(4)); // can tell after 4 elements (count > expected)
+        Assert.False(reader.AggregateLengthIs(10)); // can tell after 4 elements (count > expected)
+
+        // The actual length is 5 (:1, :2, :3, :999, :888)
+        Assert.True(reader.AggregateLengthIs(5));
+    }
+
+    [Fact] // streaming array - verify short-circuiting stops before reading malformed data
+    public void AggregateLengthIs_Streaming_MalformedAfterShortCircuit()
+    {
+        // Streaming array: 3 elements (:1, :2, :3), then :4, then MALFORMED
+        // To check if length == N, we need to read N+1 elements to verify there isn't more
+        // So malformed data must come AFTER the N+1 threshold
+        var data = "*?\r\n:1\r\n:2\r\n:3\r\n:4\r\nGARBAGE_NOT_A_VALID_ELEMENT"u8.ToArray();
+        var reader = new RespReader(new ReadOnlySequence<byte>(data));
+        reader.MoveNext(RespPrefix.Array);
+
+        // When checking length < 4, we read up to 4 elements, see 4 > expected, stop
+        Assert.False(reader.AggregateLengthIs(0)); // reads :1 (1 element), 1 > 0, stops before :2
+        Assert.False(reader.AggregateLengthIs(2)); // reads :1, :2, :3 (3 elements), 3 > 2, stops before :4
+        Assert.False(reader.AggregateLengthIs(3)); // reads :1, :2, :3, :4 (4 elements), 4 > 3, stops before MALFORMED
+
+        // All of the above should succeed without hitting MALFORMED because we short-circuit
+    }
+
+    [Theory, Resp("%2\r\n+first\r\n:1\r\n+second\r\n:2\r\n", "%?\r\n+first\r\n:1\r\n+second\r\n:2\r\n.\r\n")] // map (simple and streaming)
+    public void AggregateLengthIs_Map(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.Map);
+        // Map length is doubled (2 pairs = 4 elements)
+        Assert.True(reader.AggregateLengthIs(4));
+        Assert.False(reader.AggregateLengthIs(0));
+        Assert.False(reader.AggregateLengthIs(2));
+        Assert.False(reader.AggregateLengthIs(3));
+        Assert.False(reader.AggregateLengthIs(5));
+        reader.SkipChildren();
+        reader.DemandEnd();
+    }
+
+    [Theory, Resp("~5\r\n+orange\r\n+apple\r\n#t\r\n:100\r\n:999\r\n", "~?\r\n+orange\r\n+apple\r\n#t\r\n:100\r\n:999\r\n.\r\n")] // set (simple and streaming)
+    public void AggregateLengthIs_Set(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.Set);
+        Assert.True(reader.AggregateLengthIs(5));
+        Assert.False(reader.AggregateLengthIs(0));
+        Assert.False(reader.AggregateLengthIs(4));
+        Assert.False(reader.AggregateLengthIs(6));
+        reader.SkipChildren();
+        reader.DemandEnd();
+    }
+
     private sealed class Segment : ReadOnlySequenceSegment<byte>
     {
         public override string ToString() => RespConstants.UTF8.GetString(Memory.Span)

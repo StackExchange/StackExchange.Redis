@@ -115,6 +115,12 @@ public ref partial struct RespReader
     /// </summary>
     public readonly long ScalarLongLength() => IsInlineScalar ? _length : IsNullScalar ? 0 : ScalarLengthSlow();
 
+    /// <summary>
+    /// Indicates whether the payload length of this scalar element is exactly the specified <paramref name="count"/> value.
+    /// </summary>
+    public readonly bool ScalarLengthIs(int count)
+        => IsInlineScalar ? _length == count : (IsNullScalar ? count == 0 : ScalarLengthIsSlow(count));
+
     private readonly long ScalarLengthSlow()
     {
         DemandScalar();
@@ -128,6 +134,19 @@ public ref partial struct RespReader
         return length;
     }
 
+    private readonly bool ScalarLengthIsSlow(int expected)
+    {
+        DemandScalar();
+        int length = 0;
+        var iterator = ScalarChunks();
+        while (length <= expected && iterator.MoveNext()) // short-circuit if we've read enough to know
+        {
+            length += iterator.CurrentLength;
+        }
+
+        return length == expected;
+    }
+
     /// <summary>
     /// The number of child elements associated with an aggregate.
     /// </summary>
@@ -138,8 +157,17 @@ public ref partial struct RespReader
     /// the <see cref="AggregateChildren"/> API, using the <see cref="RespReader.AggregateEnumerator.MovePast(out RespReader)"/> API to update the outer reader.</remarks>
     public readonly int AggregateLength() =>
         (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming)) == RespFlags.IsAggregate
-            ? _length
-            : AggregateLengthSlow();
+            ? _length : AggregateLengthSlow();
+
+    /// <summary>
+    /// Indicates whether the number of child elements associated with an aggregate is exactly the specified <paramref name="count"/> value.
+    /// </summary>
+    /// <remarks>For <see cref="RespPrefix.Map"/>
+    /// and <see cref="RespPrefix.Attribute"/> aggregates, this is <b>twice</b> the value reported in the RESP protocol,
+    /// i.e. a map of the form <c>%2\r\n...</c> will report <c>4</c> as the length.</remarks>
+    public readonly bool AggregateLengthIs(int count)
+        => (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming)) == RespFlags.IsAggregate
+            ? _length == count : AggregateLengthIsSlow(count);
 
     public delegate T Projection<out T>(ref RespReader value);
 
@@ -181,6 +209,35 @@ public ref partial struct RespReader
             reader.SkipChildren();
             count++;
         }
+    }
+
+    private readonly bool AggregateLengthIsSlow(int expected)
+    {
+        switch (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming))
+        {
+            case RespFlags.IsAggregate:
+                return _length == expected;
+            case RespFlags.IsAggregate | RespFlags.IsStreaming:
+                break;
+            default:
+                DemandAggregate(); // we expect this to throw
+                break;
+        }
+
+        int count = 0;
+        var reader = Clone();
+        while (count <= expected) // short-circuit if we've read enough to know
+        {
+            if (!reader.TryReadNextSkipAttributes(skipStreamTerminator: false)) ThrowEof();
+            if (reader.Prefix == RespPrefix.StreamTerminator)
+            {
+                break;
+            }
+
+            reader.SkipChildren();
+            count++;
+        }
+        return count == expected;
     }
 
     /// <summary>

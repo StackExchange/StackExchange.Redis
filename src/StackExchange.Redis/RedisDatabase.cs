@@ -6,6 +6,7 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -5568,36 +5569,35 @@ namespace StackExchange.Redis
             public override int ArgCount => 2;
         }
 
-        private sealed class HashScanResultProcessor : ScanResultProcessor<HashEntry>
+        internal sealed class HashScanResultProcessor : ScanResultProcessor<HashEntry>
         {
             public static readonly ResultProcessor<ScanEnumerable<HashEntry>.ScanResult> Default = new HashScanResultProcessor();
-            private HashScanResultProcessor() { }
-            protected override HashEntry[]? Parse(in RawResult result, out int count)
-                => HashEntryArray.TryParse(result, out HashEntry[]? pairs, true, out count) ? pairs : null;
+            internal HashScanResultProcessor() { }
+            protected override HashEntry[]? Parse(ref RespReader reader, RedisProtocol protocol, out int count)
+                => HashEntryArray.ParseArray(ref reader, protocol, true, out count, null);
         }
 
-        private abstract class ScanResultProcessor<T> : ResultProcessor<ScanEnumerable<T>.ScanResult>
+        internal abstract class ScanResultProcessor<T> : ResultProcessor<ScanEnumerable<T>.ScanResult>
         {
-            protected abstract T[]? Parse(in RawResult result, out int count);
+            protected abstract T[]? Parse(ref RespReader reader, RedisProtocol protocol, out int count);
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                // AggregateLengthIs also handles null (equivalent to zero, in terms of length)
+                if (reader.IsAggregate && reader.AggregateLengthIs(2))
                 {
-                    case ResultType.Array:
-                        var arr = result.GetItems();
-                        if (arr.Length == 2)
+                    var iter = reader.AggregateChildren();
+                    if (iter.MoveNext() && iter.Value.TryReadInt64(out var i64) && iter.MoveNext())
+                    {
+                        var innerReader = iter.Value;
+                        if (innerReader.IsAggregate)
                         {
-                            ref RawResult inner = ref arr[1];
-                            if (inner.Resp2TypeArray == ResultType.Array && arr[0].TryGetInt64(out var i64))
-                            {
-                                T[]? oversized = Parse(inner, out int count);
-                                var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count, true);
-                                SetResult(message, sscanResult);
-                                return true;
-                            }
+                            T[]? oversized = Parse(ref innerReader, connection.Protocol.GetValueOrDefault(), out int count);
+                            var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count, true);
+                            SetResult(message, sscanResult);
+                            return true;
                         }
-                        break;
+                    }
                 }
                 return false;
             }
@@ -5751,21 +5751,29 @@ namespace StackExchange.Redis
             public override int ArgCount => 2 + keys.Length + values.Length;
         }
 
-        private sealed class SetScanResultProcessor : ScanResultProcessor<RedisValue>
+        internal sealed class SetScanResultProcessor : ScanResultProcessor<RedisValue>
         {
             public static readonly ResultProcessor<ScanEnumerable<RedisValue>.ScanResult> Default = new SetScanResultProcessor();
-            private SetScanResultProcessor() { }
-            protected override RedisValue[] Parse(in RawResult result, out int count)
+            internal SetScanResultProcessor() { }
+            protected override RedisValue[] Parse(ref RespReader reader, RedisProtocol protocol, out int count)
             {
-                var items = result.GetItems();
-                if (items.IsEmpty)
+                if (reader.IsNull)
                 {
                     count = 0;
                     return Array.Empty<RedisValue>();
                 }
-                count = (int)items.Length;
+                count = reader.AggregateLength();
+                if (count == 0)
+                {
+                    return Array.Empty<RedisValue>();
+                }
                 RedisValue[] arr = ArrayPool<RedisValue>.Shared.Rent(count);
-                items.CopyTo(arr, (in RawResult r) => r.AsRedisValue());
+                var iter = reader.AggregateChildren();
+                for (int i = 0; i < count; i++)
+                {
+                    iter.DemandNext();
+                    arr[i] = iter.Value.ReadRedisValue();
+                }
                 return arr;
             }
         }
@@ -5871,12 +5879,12 @@ namespace StackExchange.Redis
             public override int ArgCount => 2 + keys.Length + values.Length;
         }
 
-        private sealed class SortedSetScanResultProcessor : ScanResultProcessor<SortedSetEntry>
+        internal sealed class SortedSetScanResultProcessor : ScanResultProcessor<SortedSetEntry>
         {
             public static readonly ResultProcessor<ScanEnumerable<SortedSetEntry>.ScanResult> Default = new SortedSetScanResultProcessor();
-            private SortedSetScanResultProcessor() { }
-            protected override SortedSetEntry[]? Parse(in RawResult result, out int count)
-                => SortedSetWithScores.TryParse(result, out SortedSetEntry[]? pairs, true, out count) ? pairs : null;
+            internal SortedSetScanResultProcessor() { }
+            protected override SortedSetEntry[]? Parse(ref RespReader reader, RedisProtocol protocol, out int count)
+                => SortedSetWithScores.ParseArray(ref reader, protocol, true, out count, null);
         }
 
         private sealed class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage

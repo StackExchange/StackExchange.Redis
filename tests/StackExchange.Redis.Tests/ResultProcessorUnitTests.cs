@@ -36,7 +36,7 @@ public partial class ResultProcessorUnitTests(ITestOutputHelper log)
         RedisProtocol protocol = RedisProtocol.Resp2,
         [CallerMemberName] string caller = "")
     {
-        Assert.False(TryExecute(resp, processor, out _, out var ex));
+        Assert.False(TryExecute(resp, processor, out _, out var ex, connectionType, protocol, caller), caller);
         if (ex is not null) Log(ex.Message);
         Assert.StartsWith("Unexpected response to UNKNOWN:", Assert.IsType<RedisConnectionException>(ex).Message);
     }
@@ -47,7 +47,7 @@ public partial class ResultProcessorUnitTests(ITestOutputHelper log)
         RedisProtocol protocol = RedisProtocol.Resp2,
         [CallerMemberName] string caller = "")
     {
-        Assert.True(TryExecute<T>(resp, processor, out var value, out var ex));
+        Assert.True(TryExecute<T>(resp, processor, out var value, out var ex, connectionType, protocol, caller));
         Assert.Null(ex);
         return value;
     }
