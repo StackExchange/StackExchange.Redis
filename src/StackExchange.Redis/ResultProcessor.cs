@@ -1234,42 +1234,40 @@ namespace StackExchange.Redis
 
         private sealed class DateTimeProcessor : ResultProcessor<DateTime>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                long unixTime;
-                switch (result.Resp2TypeArray)
+                // Handle scalar integer (seconds since Unix epoch)
+                if (reader.IsScalar && reader.TryReadInt64(out long unixTime))
                 {
-                    case ResultType.Integer:
-                        if (result.TryGetInt64(out unixTime))
+                    var time = RedisBase.UnixEpoch.AddSeconds(unixTime);
+                    SetResult(message, time);
+                    return true;
+                }
+
+                // Handle array (TIME command returns [seconds, microseconds])
+                if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
+                {
+                    if (reader.TryReadInt64(out unixTime))
+                    {
+                        // Check if there's a second element (microseconds)
+                        if (!reader.TryMoveNext())
                         {
+                            // Array of 1: just seconds
                             var time = RedisBase.UnixEpoch.AddSeconds(unixTime);
                             SetResult(message, time);
                             return true;
                         }
-                        break;
-                    case ResultType.Array:
-                        var arr = result.GetItems();
-                        switch (arr.Length)
+
+                        // Array of 2: seconds + microseconds - verify no third element
+                        if (reader.IsScalar && reader.TryReadInt64(out long micros) && !reader.TryMoveNext())
                         {
-                            case 1:
-                                if (arr.FirstSpan[0].TryGetInt64(out unixTime))
-                                {
-                                    var time = RedisBase.UnixEpoch.AddSeconds(unixTime);
-                                    SetResult(message, time);
-                                    return true;
-                                }
-                                break;
-                            case 2:
-                                if (arr[0].TryGetInt64(out unixTime) && arr[1].TryGetInt64(out long micros))
-                                {
-                                    var time = RedisBase.UnixEpoch.AddSeconds(unixTime).AddTicks(micros * 10); // DateTime ticks are 100ns
-                                    SetResult(message, time);
-                                    return true;
-                                }
-                                break;
+                            var time = RedisBase.UnixEpoch.AddSeconds(unixTime).AddTicks(micros * 10); // DateTime ticks are 100ns
+                            SetResult(message, time);
+                            return true;
                         }
-                        break;
+                    }
                 }
+
                 return false;
             }
         }
@@ -1279,11 +1277,20 @@ namespace StackExchange.Redis
             private readonly bool isMilliseconds;
             public NullableDateTimeProcessor(bool fromMilliseconds) => isMilliseconds = fromMilliseconds;
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                if (reader.IsScalar)
                 {
-                    case ResultType.Integer when result.TryGetInt64(out var duration):
+                    // Handle null (e.g., OBJECT IDLETIME on a key that doesn't exist)
+                    if (reader.IsNull)
+                    {
+                        SetResult(message, null);
+                        return true;
+                    }
+
+                    // Handle integer (TTL/PTTL/EXPIRETIME commands)
+                    if (reader.TryReadInt64(out var duration))
+                    {
                         DateTime? expiry = duration switch
                         {
                             // -1 means no expiry and -2 means key does not exist
@@ -1293,11 +1300,9 @@ namespace StackExchange.Redis
                         };
                         SetResult(message, expiry);
                         return true;
-
-                    case ResultType.BulkString when result.IsNull:
-                        SetResult(message, null);
-                        return true;
+                    }
                 }
+
                 return false;
             }
         }
