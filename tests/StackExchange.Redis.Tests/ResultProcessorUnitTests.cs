@@ -17,11 +17,13 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(":1\r\n", 1)]
     [InlineData("+1\r\n", 1)]
     [InlineData("$1\r\n1\r\n", 1)]
+    [InlineData("$?\r\n;1\r\n1\r\n;0\r\n", 1)] // streaming string
     [InlineData(",1\r\n", 1)]
     [InlineData(ATTRIB_FOO_BAR + ":1\r\n", 1)]
     [InlineData(":-42\r\n", -42)]
     [InlineData("+-42\r\n", -42)]
     [InlineData("$3\r\n-42\r\n", -42)]
+    [InlineData("$?\r\n;1\r\n-\r\n;2\r\n42\r\n;0\r\n", -42)] // streaming string
     [InlineData(",-42\r\n", -42)]
     public void Int32(string resp, int value) => Assert.Equal(value, Execute(resp, ResultProcessor.Int32));
 
@@ -34,11 +36,13 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(":1\r\n", 1)]
     [InlineData("+1\r\n", 1)]
     [InlineData("$1\r\n1\r\n", 1)]
+    [InlineData("$?\r\n;1\r\n1\r\n;0\r\n", 1)] // streaming string
     [InlineData(",1\r\n", 1)]
     [InlineData(ATTRIB_FOO_BAR + ":1\r\n", 1)]
     [InlineData(":-42\r\n", -42)]
     [InlineData("+-42\r\n", -42)]
     [InlineData("$3\r\n-42\r\n", -42)]
+    [InlineData("$?\r\n;1\r\n-\r\n;2\r\n42\r\n;0\r\n", -42)] // streaming string
     [InlineData(",-42\r\n", -42)]
     public void Int64(string resp, long value) => Assert.Equal(value, Execute(resp, ResultProcessor.Int64));
 
@@ -51,12 +55,14 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(":42\r\n", 42.0)]
     [InlineData("+3.14\r\n", 3.14)]
     [InlineData("$4\r\n3.14\r\n", 3.14)]
+    [InlineData("$?\r\n;1\r\n3\r\n;3\r\n.14\r\n;0\r\n", 3.14)] // streaming string
     [InlineData(",3.14\r\n", 3.14)]
     [InlineData(ATTRIB_FOO_BAR + ",3.14\r\n", 3.14)]
     [InlineData(":-1\r\n", -1.0)]
     [InlineData("+inf\r\n", double.PositiveInfinity)]
     [InlineData(",inf\r\n", double.PositiveInfinity)]
     [InlineData("$4\r\n-inf\r\n", double.NegativeInfinity)]
+    [InlineData("$?\r\n;2\r\n-i\r\n;2\r\nnf\r\n;0\r\n", double.NegativeInfinity)] // streaming string
     [InlineData(",-inf\r\n", double.NegativeInfinity)]
     [InlineData(",nan\r\n", double.NaN)]
     public void Double(string resp, double value) => Assert.Equal(value, Execute(resp, ResultProcessor.Double));
@@ -67,6 +73,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(":42\r\n", 42L)]
     [InlineData("+42\r\n", 42L)]
     [InlineData("$2\r\n42\r\n", 42L)]
+    [InlineData("$?\r\n;1\r\n4\r\n;1\r\n2\r\n;0\r\n", 42L)] // streaming string
     [InlineData(",42\r\n", 42L)]
     [InlineData(ATTRIB_FOO_BAR + ":42\r\n", 42L)]
     public void NullableInt64(string resp, long? value) => Assert.Equal(value, Execute(resp, ResultProcessor.NullableInt64));
@@ -90,6 +97,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(":42\r\n", 42.0)]
     [InlineData("+3.14\r\n", 3.14)]
     [InlineData("$4\r\n3.14\r\n", 3.14)]
+    [InlineData("$?\r\n;1\r\n3\r\n;3\r\n.14\r\n;0\r\n", 3.14)] // streaming string
     [InlineData(",3.14\r\n", 3.14)]
     [InlineData(ATTRIB_FOO_BAR + ",3.14\r\n", 3.14)]
     public void NullableDouble(string resp, double? value) => Assert.Equal(value, Execute(resp, ResultProcessor.NullableDouble));
@@ -118,6 +126,8 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n", "hello")] // streaming string
+    [InlineData("$?\r\n;0\r\n", "")] // streaming empty string
     [InlineData("+world\r\n", "world")]
     [InlineData(":42\r\n", "42")]
     [InlineData("$-1\r\n", null)]
@@ -228,6 +238,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n", "hello")] // streaming string
     [InlineData("+world\r\n", "world")]
     [InlineData(":42\r\n", "42")]
     [InlineData("$-1\r\n", null)]
@@ -255,6 +266,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n", "hello")] // streaming string
     [InlineData("+world\r\n", "world")]
     [InlineData("$-1\r\n", null)]
     [InlineData("_\r\n", null)]
@@ -271,6 +283,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     [InlineData(":42\r\n", 42L)]
     [InlineData("+99\r\n", 99L)]
     [InlineData("$2\r\n10\r\n", 10L)]
+    [InlineData("$?\r\n;1\r\n1\r\n;1\r\n0\r\n;0\r\n", 10L)] // streaming string
     [InlineData(",123\r\n", 123L)]
     [InlineData(ATTRIB_FOO_BAR + ":42\r\n", 42L)]
     public void Int64DefaultValue(string resp, long expected) => Assert.Equal(expected, Execute(resp, Int64DefaultValue999));
@@ -288,6 +301,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n", "hello")] // streaming string
     [InlineData("+world\r\n", "world")]
     [InlineData(":42\r\n", "42")]
     [InlineData("$-1\r\n", "(null)")]
@@ -306,6 +320,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n", "hello")] // streaming string
     [InlineData("+world\r\n", "world")]
     [InlineData(":42\r\n", "42")]
     [InlineData("$-1\r\n", "")]
@@ -325,6 +340,7 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
 
     [Theory]
     [InlineData("$5\r\nhello\r\n", "hello")]
+    [InlineData("$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n", "hello")] // streaming string
     [InlineData("+world\r\n", "world")]
     [InlineData("$-1\r\n", null)]
     [InlineData("_\r\n", null)]
