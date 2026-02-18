@@ -616,7 +616,7 @@ namespace StackExchange.Redis
                                 Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                                 tmp.BridgeCouldBeNull?.ServerEndPoint?.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
-                            int timedOutThisHeartbeat = tmp.OnBridgeHeartbeat();
+                            tmp.OnBridgeHeartbeat(out int asyncTimeoutThisHeartbeat, out int syncTimeoutThisHeartbeat);
                             int writeEverySeconds = ServerEndPoint.WriteEverySeconds;
                             bool configCheckDue = ServerEndPoint.ConfigCheckSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= ServerEndPoint.ConfigCheckSeconds;
 
@@ -665,14 +665,16 @@ namespace StackExchange.Redis
                             }
 
                             // This is an "always" check - we always want to evaluate a dead connection from a non-responsive sever regardless of the need to heartbeat above
-                            if (timedOutThisHeartbeat > 0
-                                && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds * 4))
+                            var totalTimeoutThisHeartbeat = asyncTimeoutThisHeartbeat + syncTimeoutThisHeartbeat;
+                            bool deadConnectionOnAsync = asyncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.AsyncTimeoutMilliseconds * 4);
+                            bool deadConnectionOnSync = syncTimeoutThisHeartbeat > 0 && tmp.LastReadSecondsAgo * 1_000 > (tmp.BridgeCouldBeNull?.Multiplexer.TimeoutMilliseconds * 4);
+                            if (deadConnectionOnAsync || deadConnectionOnSync)
                             {
                                 // If we've received *NOTHING* on the pipe in 4 timeouts worth of time and we're timing out commands, issue a connection failure so that we reconnect
                                 // This is meant to address the scenario we see often in Linux configs where TCP retries will happen for 15 minutes.
                                 // To us as a client, we'll see the socket as green/open/fine when writing but we'll bet getting nothing back.
                                 // Since we can't depend on the pipe to fail in that case, we want to error here based on the criteria above so we reconnect broken clients much faster.
-                                tmp.BridgeCouldBeNull?.Multiplexer.Logger?.LogWarningDeadSocketDetected(tmp.LastReadSecondsAgo, timedOutThisHeartbeat);
+                                tmp.BridgeCouldBeNull?.Multiplexer.Logger?.LogWarningDeadSocketDetected(tmp.LastReadSecondsAgo, totalTimeoutThisHeartbeat);
                                 OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out _, out State oldState);
                                 tmp.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                             }
