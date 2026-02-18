@@ -136,6 +136,21 @@ public class ResultProcessorUnitTests(ITestOutputHelper log)
     public void FailingStringArrayOfNonOne(string resp) => ExecuteUnexpected(resp, ResultProcessor.String);
 
     [Theory]
+    [InlineData("+string\r\n", Redis.RedisType.String)]
+    [InlineData("+hash\r\n", Redis.RedisType.Hash)]
+    [InlineData("+zset\r\n", Redis.RedisType.SortedSet)]
+    [InlineData("+set\r\n", Redis.RedisType.Set)]
+    [InlineData("+list\r\n", Redis.RedisType.List)]
+    [InlineData("+stream\r\n", Redis.RedisType.Stream)]
+    [InlineData("+vectorset\r\n", Redis.RedisType.VectorSet)]
+    [InlineData("+blah\r\n", Redis.RedisType.Unknown)]
+    [InlineData("$-1\r\n", Redis.RedisType.None)]
+    [InlineData("_\r\n", Redis.RedisType.None)]
+    [InlineData("$0\r\n\r\n", Redis.RedisType.None)]
+    [InlineData(ATTRIB_FOO_BAR + "$6\r\nstring\r\n", Redis.RedisType.String)]
+    public void RedisType(string resp, RedisType value) => Assert.Equal(value, Execute(resp, ResultProcessor.RedisType));
+
+    [Theory]
     [InlineData("*3\r\n:1\r\n:2\r\n:3\r\n", "1,2,3")]
     [InlineData("*2\r\n,42\r\n,-99\r\n", "42,-99")]
     [InlineData("*0\r\n", "")]

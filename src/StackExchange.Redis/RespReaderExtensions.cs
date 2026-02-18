@@ -8,14 +8,6 @@ internal static class RespReaderExtensions
 {
     extension(in RespReader reader)
     {
-        public RespPrefix Resp2PrefixBulkString => reader.Prefix.ToResp2(RespPrefix.BulkString);
-        public RespPrefix Resp2PrefixArray => reader.Prefix.ToResp2(RespPrefix.Array);
-
-        [Obsolete("Use Resp2PrefixBulkString instead", error: true)]
-        public RespPrefix Resp2TypeBulkString => reader.Resp2PrefixBulkString;
-        [Obsolete("Use Resp2PrefixArray instead", error: true)]
-        public RespPrefix Resp2TypeArray => reader.Resp2PrefixArray;
-
         public RedisValue ReadRedisValue()
         {
             reader.DemandScalar();
@@ -33,9 +25,9 @@ internal static class RespReaderExtensions
         {
             if (reader.IsNull) return "(null)";
 
-            return reader.Resp2PrefixBulkString switch
+            return reader.Prefix switch
             {
-                RespPrefix.SimpleString or RespPrefix.Integer or RespPrefix.SimpleError => $"{reader.Prefix}: {reader.ReadString()}",
+                RespPrefix.SimpleString or RespPrefix.Integer or RespPrefix.SimpleError or RespPrefix.Double => $"{reader.Prefix}: {reader.ReadString()}",
                 _ when reader.IsScalar => $"{reader.Prefix}: {reader.ScalarLength()} bytes",
                 _ when reader.IsAggregate => $"{reader.Prefix}: {reader.AggregateLength()} items",
                 _ => $"(unknown: {reader.Prefix})",
@@ -54,6 +46,7 @@ internal static class RespReaderExtensions
             return prefix;
         }
 
+        /*
         public bool AggregateHasAtLeast(int count)
         {
             reader.DemandAggregate();
@@ -73,6 +66,7 @@ internal static class RespReaderExtensions
                 return count == 0;
             }
         }
+        */
     }
 
     extension(ref RespReader reader)
@@ -98,23 +92,6 @@ internal static class RespReaderExtensions
 
     extension(RespPrefix prefix)
     {
-        public RespPrefix ToResp2(RespPrefix nullValue)
-        {
-            return prefix switch
-            {
-                // null: map to what the caller prefers
-                RespPrefix.Null => nullValue,
-                // RESP 3: map to closest RESP 2 equivalent
-                RespPrefix.Boolean => RespPrefix.Integer,
-                RespPrefix.Double or RespPrefix.BigInteger => RespPrefix.SimpleString,
-                RespPrefix.BulkError => RespPrefix.SimpleError,
-                RespPrefix.VerbatimString => RespPrefix.BulkString,
-                RespPrefix.Map or RespPrefix.Set or RespPrefix.Push or RespPrefix.Attribute => RespPrefix.Array,
-                // RESP 2 or anything exotic: leave alone
-                _ => prefix,
-            };
-        }
-
         public ResultType ToResultType() => prefix switch
         {
             RespPrefix.Array => ResultType.Array,

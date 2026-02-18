@@ -1127,27 +1127,24 @@ namespace StackExchange.Redis
                     SetResult(message, false); // lots of ops return (nil) when they mean "no"
                     return true;
                 }
-                switch (reader.Resp2PrefixBulkString)
+
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.SimpleString:
-                        if (reader.IsOK())
-                        {
-                            SetResult(message, true);
-                        }
-                        else
-                        {
-                            SetResult(message, reader.ReadBoolean());
-                        }
-                        return true;
-                    case RespPrefix.Integer:
-                    case RespPrefix.BulkString:
-                        SetResult(message, reader.ReadBoolean());
-                        return true;
-                    case RespPrefix.Array when reader.TryReadNext() && reader.IsScalar && reader.ReadBoolean() is var value && !reader.TryReadNext():
-                        // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
+                    SetResult(message, reader.ReadBoolean());
+                    return true;
+                }
+
+                if (reader.IsAggregate && reader.TryReadNext() && reader.IsScalar)
+                {
+                    // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
+                    var value = reader.ReadBoolean();
+                    if (!reader.TryMoveNext())
+                    {
                         SetResult(message, value);
                         return true;
+                    }
                 }
+
                 return false;
             }
         }
@@ -1156,11 +1153,10 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.BulkString:
-                        SetResult(message, reader.ReadByteArray());
-                        return true;
+                    SetResult(message, reader.ReadByteArray());
+                    return true;
                 }
                 return false;
             }
@@ -1202,22 +1198,22 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.Integer:
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        string nodes = reader.ReadString()!;
-                        try
+                    var nodes = reader.ReadString();
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(nodes))
                         {
-                            ClusterNodesProcessor.Parse(connection, nodes);
+                            ClusterNodesProcessor.Parse(connection, nodes!);
                         }
-                        catch
-                        {
-                            /* tralalalala */
-                        }
-                        SetResult(message, nodes);
-                        return true;
+                    }
+                    catch
+                    {
+                        /* tralalalala */
+                    }
+                    SetResult(message, nodes);
+                    return true;
                 }
                 return false;
             }
@@ -1310,23 +1306,15 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.Prefix is RespPrefix.Integer && reader.TryReadInt64(out long i64))
                 {
-                    case RespPrefix.Integer:
-                        if (reader.TryReadInt64(out long i64))
-                        {
-                            SetResult(message, i64);
-                            return true;
-                        }
-                        break;
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        if (reader.TryReadDouble(out double val))
-                        {
-                            SetResult(message, val);
-                            return true;
-                        }
-                        break;
+                    SetResult(message, i64);
+                    return true;
+                }
+                if (reader.IsScalar && reader.TryReadDouble(out double val))
+                {
+                    SetResult(message, val);
+                    return true;
                 }
                 return false;
             }
@@ -1406,7 +1394,7 @@ namespace StackExchange.Redis
                     SetResult(message, _defaultValue);
                     return true;
                 }
-                if (reader.Resp2PrefixBulkString == RespPrefix.Integer && reader.TryReadInt64(out var i64))
+                if (reader.IsScalar && reader.TryReadInt64(out var i64))
                 {
                     SetResult(message, i64);
                     return true;
@@ -1419,17 +1407,10 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar && reader.TryReadInt64(out long i64))
                 {
-                    case RespPrefix.Integer:
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        if (reader.TryReadInt64(out long i64))
-                        {
-                            SetResult(message, i64);
-                            return true;
-                        }
-                        break;
+                    SetResult(message, i64);
+                    return true;
                 }
                 return false;
             }
@@ -1439,17 +1420,10 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar && reader.TryReadInt64(out long i64))
                 {
-                    case RespPrefix.Integer:
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        if (reader.TryReadInt64(out long i64))
-                        {
-                            SetResult(message, checked((int)i64));
-                            return true;
-                        }
-                        break;
+                    SetResult(message, checked((int)i64));
+                    return true;
                 }
                 return false;
             }
@@ -1526,21 +1500,21 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class PubSubNumSubProcessor : Int64Processor
+        private sealed class PubSubNumSubProcessor : ResultProcessor<long>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                var snapshot = reader;
-                if (reader.Resp2PrefixArray == RespPrefix.Array && reader.AggregateLength() == 2)
+                if (reader.IsAggregate // name/count pairs
+                    && reader.TryMoveNext() && reader.IsScalar // name, ignored
+                    && reader.TryMoveNext() && reader.IsScalar // count
+                    && reader.TryReadInt64(out long val) // parse the count
+                    && !reader.TryMoveNext()) // no more elements
                 {
-                    var agg = reader.AggregateChildren();
-                    if (agg.MoveNext() && agg.MoveNext() && agg.Value.TryReadInt64(out long val))
-                    {
-                        SetResult(message, val);
-                        return true;
-                    }
+                    SetResult(message, val);
+                    return true;
                 }
-                return base.SetResultCore(connection, message, ref snapshot);
+
+                return false;
             }
         }
 
@@ -1562,22 +1536,18 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.Integer:
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        if (reader.IsNull)
-                        {
-                            SetResult(message, null);
-                            return true;
-                        }
-                        if (reader.TryReadDouble(out double val))
-                        {
-                            SetResult(message, val);
-                            return true;
-                        }
-                        break;
+                    if (reader.IsNull)
+                    {
+                        SetResult(message, null);
+                        return true;
+                    }
+                    if (reader.TryReadDouble(out double val))
+                    {
+                        SetResult(message, val);
+                        return true;
+                    }
                 }
                 return false;
             }
@@ -1587,39 +1557,38 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.Integer:
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        if (reader.IsNull)
+                    if (reader.IsNull)
+                    {
+                        SetResult(message, null);
+                        return true;
+                    }
+
+                    if (reader.TryReadInt64(out var i64))
+                    {
+                        SetResult(message, i64);
+                        return true;
+                    }
+                }
+
+                // handle unit arrays with a scalar
+                if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
+                {
+                    if (reader.IsNull)
+                    {
+                        if (!reader.TryReadNext()) // only if unit, else ignore
                         {
                             SetResult(message, null);
                             return true;
                         }
-                        if (reader.TryReadInt64(out long i64))
-                        {
-                            SetResult(message, i64);
-                            return true;
-                        }
-                        break;
-                    case RespPrefix.Array when reader.TryReadNext(): // handle unit arrays
-                        // RESP3 nulls are neither scalar nor aggregate
-                        if (reader.IsNull && (reader.Prefix == RespPrefix.Null | reader.IsScalar))
-                        {
-                            if (!reader.TryReadNext()) // only if unit, else ignore
-                            {
-                                SetResult(message, null);
-                                return true;
-                            }
-                        }
-                        else if (reader.IsScalar && reader.TryReadInt64(out i64) && !reader.TryReadNext())
-                        {
-                            // treat an array of 1 like a single reply
-                            SetResult(message, i64);
-                            return true;
-                        }
-                        break;
+                    }
+                    else if (reader.TryReadInt64(out var i64) && !reader.TryReadNext())
+                    {
+                        // treat an array of 1 like a single reply
+                        SetResult(message, i64);
+                        return true;
+                    }
                 }
                 return false;
             }
@@ -1693,12 +1662,11 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixArray)
+                if (reader.IsAggregate)
                 {
-                    case RespPrefix.Array:
-                        var arr = reader.ReadPastArray(static (ref RespReader r) => (RedisKey)r.ReadByteArray(), scalar: true);
-                        SetResult(message, arr!);
-                        return true;
+                    var arr = reader.ReadPastArray(static (ref RespReader r) => (RedisKey)r.ReadByteArray(), scalar: true);
+                    SetResult(message, arr!);
+                    return true;
                 }
                 return false;
             }
@@ -1708,32 +1676,56 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.Integer:
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        SetResult(message, reader.ReadByteArray());
-                        return true;
+                    SetResult(message, reader.ReadByteArray());
+                    return true;
                 }
                 return false;
             }
         }
 
+#pragma warning disable SA1300, SA1134
+        // ReSharper disable InconsistentNaming
+        [FastHash("string")] private static partial class redistype_string { }
+        [FastHash("list")] private static partial class redistype_list { }
+        [FastHash("set")] private static partial class redistype_set { }
+        [FastHash("zset")] private static partial class redistype_zset { }
+        [FastHash("hash")] private static partial class redistype_hash { }
+        [FastHash("stream")] private static partial class redistype_stream { }
+        [FastHash("vectorset")] private static partial class redistype_vectorset { }
+        // ReSharper restore InconsistentNaming
+#pragma warning restore SA1300, SA1134
+
         private sealed class RedisTypeProcessor : ResultProcessor<RedisType>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                static RedisType FastParse(ReadOnlySpan<byte> span)
                 {
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        string s = reader.ReadString()!;
-                        RedisType value;
-                        if (string.Equals(s, "zset", StringComparison.OrdinalIgnoreCase)) value = Redis.RedisType.SortedSet;
-                        else if (!Enum.TryParse<RedisType>(s, true, out value)) value = global::StackExchange.Redis.RedisType.Unknown;
-                        SetResult(message, value);
-                        return true;
+                    if (span.IsEmpty) return Redis.RedisType.None; // includes null
+                    var hash = span.Hash64();
+                    return hash switch
+                    {
+                        redistype_string.Hash when redistype_string.Is(hash, span) => Redis.RedisType.String,
+                        redistype_list.Hash when redistype_list.Is(hash, span) => Redis.RedisType.List,
+                        redistype_set.Hash when redistype_set.Is(hash, span) => Redis.RedisType.Set,
+                        redistype_zset.Hash when redistype_zset.Is(hash, span) => Redis.RedisType.SortedSet,
+                        redistype_hash.Hash when redistype_hash.Is(hash, span) => Redis.RedisType.Hash,
+                        redistype_stream.Hash when redistype_stream.Is(hash, span) => Redis.RedisType.Stream,
+                        redistype_vectorset.Hash when redistype_vectorset.Is(hash, span) => Redis.RedisType.VectorSet,
+                        _ => Redis.RedisType.Unknown,
+                    };
+                }
+                if (reader.IsScalar)
+                {
+                    const int MAX_STACK = 16;
+                    Debug.Assert(reader.ScalarLength() <= MAX_STACK); // we don't expect anything huge here
+                    var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[MAX_STACK]);
+                    var value = FastParse(span);
+
+                    SetResult(message, value);
+                    return true;
                 }
                 return false;
             }
@@ -1743,20 +1735,21 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsAggregate)
+                {
+                    var arr = reader.ReadPastRedisValues()!;
+                    SetResult(message, arr);
+                    return true;
+                }
+                if (reader.IsScalar)
                 {
                     // allow a single item to pass explicitly pretending to be an array; example: SPOP {key} 1
-                    case RespPrefix.BulkString:
-                        // If the result is nil, the result should be an empty array
-                        var arr = reader.IsNull
-                            ? Array.Empty<RedisValue>()
-                            : new[] { reader.ReadRedisValue() };
-                        SetResult(message, arr);
-                        return true;
-                    case RespPrefix.Array:
-                        arr = reader.ReadPastRedisValues()!;
-                        SetResult(message, arr);
-                        return true;
+                    // If the result is nil, the result should be an empty array
+                    var arr = reader.IsNull
+                        ? Array.Empty<RedisValue>()
+                        : new[] { reader.ReadRedisValue() };
+                    SetResult(message, arr);
+                    return true;
                 }
                 return false;
             }
@@ -1766,7 +1759,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.Resp2PrefixArray == RespPrefix.Array)
+                if (reader.IsAggregate)
                 {
                     var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadInt64(), scalar: true);
                     SetResult(message, arr!);
@@ -1781,13 +1774,11 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixArray)
+                if (reader.IsAggregate)
                 {
-                    case RespPrefix.Array:
-                        var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadString(), scalar: true);
-
-                        SetResult(message, arr!);
-                        return true;
+                    var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadString(), scalar: true);
+                    SetResult(message, arr!);
+                    return true;
                 }
                 return false;
             }
@@ -1797,12 +1788,11 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixArray)
+                if (reader.IsAggregate)
                 {
-                    case RespPrefix.Array:
-                        var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadString()!, scalar: true);
-                        SetResult(message, arr!);
-                        return true;
+                    var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadString()!, scalar: true);
+                    SetResult(message, arr!);
+                    return true;
                 }
                 return false;
             }
@@ -1812,7 +1802,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.Resp2PrefixArray == RespPrefix.Array)
+                if (reader.IsAggregate)
                 {
                     var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadBoolean(), scalar: true);
                     SetResult(message, arr!);
@@ -1976,13 +1966,10 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.Integer:
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        SetResult(message, reader.ReadRedisValue());
-                        return true;
+                    SetResult(message, reader.ReadRedisValue());
+                    return true;
                 }
                 return false;
             }
@@ -2843,22 +2830,21 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.Integer:
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        SetResult(message, reader.ReadString());
+                    SetResult(message, reader.ReadString());
+                    return true;
+                }
+
+                if (reader.IsAggregate && reader.TryReadNext() && reader.IsScalar)
+                {
+                    // treat an array of 1 like a single reply
+                    var value = reader.ReadString();
+                    if (!reader.TryReadNext())
+                    {
+                        SetResult(message, value);
                         return true;
-                    case RespPrefix.Array when reader.TryReadNext() && reader.IsScalar:
-                        // treat an array of 1 like a single reply
-                        var value = reader.ReadString();
-                        if (!reader.TryReadNext())
-                        {
-                            SetResult(message, value);
-                            return true;
-                        }
-                        break;
+                    }
                 }
                 return false;
             }
@@ -2868,23 +2854,12 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (reader.Resp2PrefixBulkString)
+                if (reader.IsScalar)
                 {
-                    case RespPrefix.SimpleString:
-                    case RespPrefix.BulkString:
-                        var tieBreaker = reader.ReadString()!;
-                        SetResult(message, tieBreaker);
-
-                        try
-                        {
-                            if (connection.BridgeCouldBeNull?.ServerEndPoint is ServerEndPoint endpoint)
-                            {
-                                endpoint.TieBreakerResult = tieBreaker;
-                            }
-                        }
-                        catch { }
-
-                        return true;
+                    var tieBreaker = reader.ReadString();
+                    connection.BridgeCouldBeNull?.ServerEndPoint?.TieBreakerResult = tieBreaker;
+                    SetResult(message, tieBreaker);
+                    return true;
                 }
                 return false;
             }
