@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using RESPite.Messages;
 
 namespace StackExchange.Redis;
 
@@ -11,28 +12,18 @@ internal abstract partial class ResultProcessor
 
     private sealed class DigestProcessor : ResultProcessor<ValueCondition?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (result.IsNull) // for example, key doesn't exist
+            if (reader.IsNull) // for example, key doesn't exist
             {
                 SetResult(message, null);
                 return true;
             }
 
-            if (result.Resp2TypeBulkString == ResultType.BulkString
-                && result.Payload is { Length: 2 * ValueCondition.DigestBytes } payload)
+            if (reader.ScalarLengthIs(2 * ValueCondition.DigestBytes))
             {
-                ValueCondition digest;
-                if (payload.IsSingleSegment) // single chunk - fast path
-                {
-                    digest = ValueCondition.ParseDigest(payload.First.Span);
-                }
-                else // linearize
-                {
-                    Span<byte> buffer = stackalloc byte[2 * ValueCondition.DigestBytes];
-                    payload.CopyTo(buffer);
-                    digest = ValueCondition.ParseDigest(buffer);
-                }
+                var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[2 * ValueCondition.DigestBytes]);
+                var digest = ValueCondition.ParseDigest(span);
                 SetResult(message, digest);
                 return true;
             }

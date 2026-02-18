@@ -1292,14 +1292,10 @@ namespace StackExchange.Redis
 
         private sealed class ConnectionIdentityProcessor : ResultProcessor<EndPoint>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (connection.BridgeCouldBeNull is PhysicalBridge bridge)
-                {
-                    SetResult(message, bridge.ServerEndPoint.EndPoint);
-                    return true;
-                }
-                return false;
+                SetResult(message, connection.BridgeCouldBeNull?.ServerEndPoint.EndPoint!);
+                return true;
             }
         }
 
@@ -1516,32 +1512,28 @@ namespace StackExchange.Redis
             private Int32EnumProcessor() { }
             public static readonly Int32EnumProcessor<T> Instance = new();
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                // Accept integer, simple string, bulk string, or unit array
+                long i64;
+                if (reader.IsScalar && reader.TryReadInt64(out i64))
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if (result.TryGetInt64(out long i64))
-                        {
-                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
-                            int i32 = (int)i64;
-                            SetResult(message, Unsafe.As<int, T>(ref i32));
-                            return true;
-                        }
-                        break;
-                    case ResultType.Array when result.ItemsCount == 1: // pick a single element from a unit vector
-                        if (result.GetItems()[0].TryGetInt64(out i64))
-                        {
-                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
-                            int i32 = (int)i64;
-                            SetResult(message, Unsafe.As<int, T>(ref i32));
-                            return true;
-                        }
-                        break;
+                    // Direct scalar read
                 }
-                return false;
+                else if (reader.IsAggregate && reader.AggregateLengthIs(1)
+                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out i64))
+                {
+                    // Unit array - read the single element
+                }
+                else
+                {
+                    return false;
+                }
+
+                Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                int i32 = (int)i64;
+                SetResult(message, Unsafe.As<int, T>(ref i32));
+                return true;
             }
         }
 
@@ -1550,29 +1542,21 @@ namespace StackExchange.Redis
             private Int32EnumArrayProcessor() { }
             public static readonly Int32EnumArrayProcessor<T> Instance = new();
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
-                {
-                    case ResultType.Array:
-                        T[] arr;
-                        if (result.IsNull)
-                        {
-                            arr = null!;
-                        }
-                        else
-                        {
-                            Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
-                            arr = result.ToArray(static (in x) =>
-                            {
-                                int i32 = (int)x.AsRedisValue();
-                                return Unsafe.As<int, T>(ref i32);
-                            })!;
-                        }
-                        SetResult(message, arr);
-                        return true;
-                }
-                return false;
+                if (!reader.IsAggregate) return false;
+
+                Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
+                var arr = reader.ReadPastArray(
+                    static (ref RespReader r) =>
+                    {
+                        int i32 = (int)r.ReadInt64();
+                        return Unsafe.As<int, T>(ref i32);
+                    },
+                    scalar: true);
+
+                SetResult(message, arr!);
+                return true;
             }
         }
 
