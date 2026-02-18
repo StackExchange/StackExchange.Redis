@@ -131,14 +131,15 @@ public ref partial struct RespReader
             _reader.MovePastCurrent();
             var snapshot = _reader.Clone();
 
-            if (attributeReader is null)
+            if (!(attributeReader is null ? _reader.TryMoveNext() : _reader.TryMoveNext(attributeReader, ref attributes)))
             {
-                _reader.MoveNext();
+                // end of data
+                if (_remaining > 0) ThrowEof(); // well that's weird...
+                _remaining = 0;
+                Value = default;
+                return false;
             }
-            else
-            {
-                _reader.MoveNext(attributeReader, ref attributes);
-            }
+
             if (_remaining > 0)
             {
                 // non-streaming, decrement

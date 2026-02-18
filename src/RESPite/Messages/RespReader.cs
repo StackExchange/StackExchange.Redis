@@ -183,6 +183,12 @@ public ref partial struct RespReader
         AggregateChildren().FillAll(target, projection);
     }
 
+    public void FillAll<TState, TResult>(scoped Span<TResult> target, in TState state, Projection<TState, TResult> projection)
+    {
+        DemandNotNull();
+        AggregateChildren().FillAll(target, in state, projection);
+    }
+
     private readonly int AggregateLengthSlow()
     {
         switch (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming))

@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite.Messages;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;
@@ -17,41 +18,44 @@ internal abstract partial class ResultProcessor
 
     private abstract class LeaseProcessor<T> : ResultProcessor<Lease<T>?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (result.Resp2TypeArray != ResultType.Array)
+            if (!reader.IsAggregate)
             {
                 return false; // not an array
             }
 
             // deal with null
-            if (result.IsNull)
+            if (reader.IsNull)
+            {
+                SetResult(message, null);
+                return true;
+            }
+
+            // lease and fill
+            var length = reader.AggregateLength();
+            if (length == 0)
             {
                 SetResult(message, Lease<T>.Empty);
                 return true;
             }
 
-            // lease and fill
-            var items = result.GetItems();
-            var length = checked((int)items.Length);
-            var lease = Lease<T>.Create(length, clear: false); // note this handles zero nicely
-            var target = lease.Span;
-            int index = 0;
-            foreach (ref RawResult item in items)
+            var lease = Lease<T>.Create(length, clear: false);
+            try
             {
-                if (!TryParse(item, out target[index++]))
-                {
-                    // something went wrong; recycle and quit
-                    lease.Dispose();
-                    return false;
-                }
+                reader.FillAll(lease.Span, this, static (in self, ref r) => self.TryParse(ref r));
+                SetResult(message, lease);
+                return true;
             }
-            Debug.Assert(index == length, "length mismatch");
-            SetResult(message, lease);
-            return true;
+            catch
+            {
+                // something went wrong; recycle and quit
+                lease.Dispose();
+                throw;
+            }
         }
 
-        protected abstract bool TryParse(in RawResult raw, out T parsed);
+        protected abstract T TryParse(ref RespReader reader);
     }
 
     private abstract class InterleavedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
@@ -173,25 +177,17 @@ internal abstract partial class ResultProcessor
 
     private sealed class LeaseFloat32Processor : LeaseProcessor<float>
     {
-        protected override bool TryParse(in RawResult raw, out float parsed)
-        {
-            var result = raw.TryGetDouble(out double val);
-            parsed = (float)val;
-            return result;
-        }
+        protected override float TryParse(ref RespReader reader) => (float)reader.ReadDouble();
     }
 
     private sealed class LeaseProcessor : ResultProcessor<Lease<byte>>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            switch (result.Resp2TypeBulkString)
+            if (reader.IsScalar)
             {
-                case ResultType.Integer:
-                case ResultType.SimpleString:
-                case ResultType.BulkString:
-                    SetResult(message, result.AsLease()!);
-                    return true;
+                SetResult(message, reader.AsLease()!);
+                return true;
             }
             return false;
         }
@@ -199,18 +195,14 @@ internal abstract partial class ResultProcessor
 
     private sealed class LeaseFromArrayProcessor : ResultProcessor<Lease<byte>>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            switch (result.Resp2TypeBulkString)
+            if (reader.IsAggregate && reader.AggregateLengthIs(1)
+                && reader.TryMoveNext() && reader.IsScalar)
             {
-                case ResultType.Array:
-                    var items = result.GetItems();
-                    if (items.Length == 1)
-                    { // treat an array of 1 like a single reply
-                        SetResult(message, items[0].AsLease()!);
-                        return true;
-                    }
-                    break;
+                // treat an array of 1 like a single reply
+                SetResult(message, reader.AsLease()!);
+                return true;
             }
             return false;
         }
