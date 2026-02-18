@@ -496,50 +496,55 @@ namespace StackExchange.Redis
                 {
                     var wrapped = tran.InnerOperations;
 
-                    if (reader.IsNull & !tran.IsAborted) // EXEC returned with a NULL
+                    if (reader.IsNull) // EXEC returned with a NULL
                     {
-                        muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
-                        connection.Trace("Server aborted due to failed WATCH");
-                        foreach (var op in wrapped)
+                        if (tran.IsAborted)
                         {
-                            var inner = op.Wrapped;
-                            inner.Cancel();
-                            inner.Complete();
+                            muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
+                            connection.Trace("Server aborted due to failed WATCH");
+                            foreach (var op in wrapped)
+                            {
+                                var inner = op.Wrapped;
+                                inner.Cancel();
+                                inner.Complete();
+                            }
                         }
                         SetResult(message, false);
                         return true;
                     }
-
-                    switch (reader.Resp2PrefixArray)
+                    if (reader.IsScalar && (tran.IsAborted & reader.IsOK()))
                     {
-                        case RespPrefix.SimpleString when tran.IsAborted & reader.IsOK():
-                            connection.Trace("Acknowledging UNWATCH (aborted electively)");
-                            SetResult(message, false);
-                            return true;
-                        case RespPrefix.Array when !tran.IsAborted:
-                            var len = reader.AggregateLength();
-                            if (len == wrapped.Length)
-                            {
-                                connection.Trace("Server committed; processing nested replies");
-                                muxer?.OnTransactionLog($"Processing {len} wrapped messages");
-
-                                var iter = reader.AggregateChildren();
-                                int i = 0;
-                                while (iter.MoveNext())
-                                {
-                                    var inner = wrapped[i++].Wrapped;
-                                    muxer?.OnTransactionLog($"> got {iter.Value.GetOverview()} for {inner.CommandAndKey}");
-                                    if (inner.ComputeResult(connection, ref iter.Value))
-                                    {
-                                        inner.Complete();
-                                    }
-                                }
-                                Debug.Assert(i == len, "we pre-checked the lengths");
-                                SetResult(message, true);
-                                return true;
-                            }
-                            break;
+                        connection.Trace("Acknowledging UNWATCH (aborted electively)");
+                        SetResult(message, false);
+                        return true;
                     }
+
+                    if (reader.IsAggregate && !tran.IsAborted)
+                    {
+                        var len = reader.AggregateLength();
+                        if (len == wrapped.Length)
+                        {
+                            connection.Trace("Server committed; processing nested replies");
+                            muxer?.OnTransactionLog($"Processing {len} wrapped messages");
+
+                            var iter = reader.AggregateChildren();
+                            int i = 0;
+                            while (iter.MoveNext())
+                            {
+                                var inner = wrapped[i++].Wrapped;
+                                muxer?.OnTransactionLog($"> got {iter.Value.GetOverview()} for {inner.CommandAndKey}");
+                                if (inner.ComputeResult(connection, ref iter.Value))
+                                {
+                                    inner.Complete();
+                                }
+                            }
+
+                            Debug.Assert(i == len, "we pre-checked the lengths");
+                            SetResult(message, true);
+                            return true;
+                        }
+                    }
+
                     // even if we didn't fully understand the result, we still need to do something with
                     // the pending tasks
                     foreach (var op in wrapped)

@@ -75,34 +75,34 @@ namespace StackExchange.Redis
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 // see: SLOWLOG GET
-                switch (reader.Resp2PrefixArray)
+                if (reader.IsAggregate)
                 {
-                    case RespPrefix.Array:
+                    var arr = reader.ReadPastArray(ParseOne, scalar: false)!;
+                    if (arr.AnyNull()) return false;
 
-                        static CommandTrace ParseOne(ref RespReader reader)
-                        {
-                            CommandTrace result = null!;
-                            if (reader.IsAggregate)
-                            {
-                                long uniqueId = 0, time = 0, duration = 0;
-                                if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out uniqueId)
-                                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out time)
-                                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out duration)
-                                    && reader.TryMoveNext() && reader.IsAggregate)
-                                {
-                                    var values = reader.ReadPastRedisValues() ?? [];
-                                    result = new CommandTrace(uniqueId, time, duration, values);
-                                }
-                            }
-                            return result;
-                        }
-                        var arr = reader.ReadPastArray(ParseOne, scalar: false)!;
-                        if (arr.AnyNull()) return false;
-
-                        SetResult(message, arr);
-                        return true;
+                    SetResult(message, arr);
+                    return true;
                 }
+
                 return false;
+
+                static CommandTrace ParseOne(ref RespReader reader)
+                {
+                    CommandTrace result = null!;
+                    if (reader.IsAggregate)
+                    {
+                        long uniqueId = 0, time = 0, duration = 0;
+                        if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out uniqueId)
+                            && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out time)
+                            && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out duration)
+                            && reader.TryMoveNext() && reader.IsAggregate)
+                        {
+                            var values = reader.ReadPastRedisValues() ?? [];
+                            result = new CommandTrace(uniqueId, time, duration, values);
+                        }
+                    }
+                    return result;
+                }
             }
         }
     }

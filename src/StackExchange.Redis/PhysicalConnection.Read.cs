@@ -556,9 +556,8 @@ internal sealed partial class PhysicalConnection
         {
             bool isValid = false;
             var reader = new RespReader(frame);
-            if (reader.SafeTryMoveNext()
-                & reader.Resp2PrefixBulkString is RespPrefix.BulkString
-                & reader.ScalarLength() is 4)
+            if ((reader.SafeTryMoveNext() & reader.IsScalar)
+                && reader.ScalarLength() is 4)
             {
                 uint interpreted;
                 if (reader.TryGetSpan(out var span))

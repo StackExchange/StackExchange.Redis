@@ -1,1 +1,2 @@
 ﻿#nullable enable
+StackExchange.Redis.RedisType.VectorSet = 8 -> StackExchange.Redis.RedisType

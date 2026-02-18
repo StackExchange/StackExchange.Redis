@@ -1085,7 +1085,10 @@ public ref partial struct RespReader
                 case RespPrefix.Null: // null
                     // note we already checked we had 3 bytes
                     UnsafeAssertClLf(1);
-                    _flags = RespFlags.IsScalar | RespFlags.IsNull;
+                    // treat as both scalar and aggregate; this might seem weird, but makes
+                    // sense when considering how .IsScalar and .IsAggregate are typically used,
+                    // and that a pure null can apply to either
+                    _flags = RespFlags.IsScalar | RespFlags.IsAggregate | RespFlags.IsNull;
                     _bufferIndex += 3; // skip prefix+terminator
                     return true;
                 case RespPrefix.StreamTerminator:
@@ -1726,7 +1729,6 @@ public ref partial struct RespReader
     /// <typeparam name="TResult">The type of data to be projected.</typeparam>
     public TResult[]? ReadPastArray<TResult>(Projection<TResult> projection, bool scalar = false)
     {
-        if (Prefix is RespPrefix.Null) return null; // RESP3 nulls are neither aggregate nor scalar
         DemandAggregate();
         if (IsNull) return null;
         var len = AggregateLength();
