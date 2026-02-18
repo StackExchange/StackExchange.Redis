@@ -21,6 +21,7 @@
 [SER004]RESPite.Buffers.CycleBuffer.Write(in System.Buffers.ReadOnlySequence<byte> value) -> void
 [SER004]RESPite.Buffers.CycleBuffer.Write(System.ReadOnlySpan<byte> value) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TResult>! projection) -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TFirst, TSecond, TResult>(scoped System.Span<TResult> target, in TState state, RESPite.Messages.RespReader.Projection<TState, TFirst>! first, RESPite.Messages.RespReader.Projection<TState, TSecond>! second, System.Func<TState, TFirst, TSecond, TResult>! combine) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TResult>(scoped System.Span<TResult> target, in TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw() -> bool
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool

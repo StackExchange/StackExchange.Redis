@@ -136,26 +136,25 @@ namespace StackExchange.Redis
                         redisResult = new ArrayRedisResult(null, type);
                         return true;
                     }
-                    var len = reader.AggregateLength();
-                    if (len == 0)
+
+                    var arr = reader.ReadPastArray(
+                        connection,
+                        static (in PhysicalConnection? conn, ref RespReader r) =>
+                        {
+                            if (!TryCreate(conn, ref r, out var result))
+                            {
+                                return null!; // Will be caught by null check below
+                            }
+                            return result;
+                        },
+                        scalar: false);
+
+                    if (arr is null || arr.AnyNull())
                     {
-                        redisResult = EmptyArray(type);
-                        return true;
+                        redisResult = null;
+                        return false;
                     }
 
-                    var arr = new RedisResult[len];
-                    var iter = reader.AggregateChildren();
-                    int i = 0;
-                    while (iter.MoveNext()) // avoiding ReadPastArray here as we can't make it static in this case
-                    {
-                        if (!TryCreate(connection, ref iter.Value, out var next))
-                        {
-                            redisResult = null;
-                            return false;
-                        }
-                        arr[i++] = next;
-                    }
-                    iter.MovePast(out reader);
                     redisResult = new ArrayRedisResult(arr, type);
                     return true;
                 }

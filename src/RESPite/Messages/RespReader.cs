@@ -142,7 +142,12 @@ public ref partial struct RespReader
             : AggregateLengthSlow();
 
     public delegate T Projection<out T>(ref RespReader value);
-    public delegate TResult Projection<TState, out TResult>(in TState state, ref RespReader value);
+
+    public delegate TResult Projection<TState, out TResult>(in TState state, ref RespReader value)
+#if NET9_0_OR_GREATER
+        where TState : allows ref struct
+#endif
+        ;
 
     public void FillAll<T>(scoped Span<T> target, Projection<T> projection)
     {
@@ -1747,6 +1752,9 @@ public ref partial struct RespReader
     /// <typeparam name="TState">Additional state required by the projection.</typeparam>
     /// <typeparam name="TResult">The type of data to be projected.</typeparam>
     public TResult[]? ReadArray<TState, TResult>(in TState state, Projection<TState, TResult> projection, bool scalar = false)
+#if NET9_0_OR_GREATER
+        where TState : allows ref struct
+#endif
     {
         var copy = this;
         return copy.ReadPastArray(in state, projection, scalar);
@@ -1765,6 +1773,9 @@ public ref partial struct RespReader
     /// <typeparam name="TState">Additional state required by the projection.</typeparam>
     /// <typeparam name="TResult">The type of data to be projected.</typeparam>
     public TResult[]? ReadPastArray<TState, TResult>(in TState state, Projection<TState, TResult> projection, bool scalar = false)
+#if NET9_0_OR_GREATER
+        where TState : allows ref struct
+#endif
 #pragma warning restore RS0026
     {
         DemandAggregate();
