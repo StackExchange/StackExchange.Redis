@@ -142,6 +142,7 @@ public ref partial struct RespReader
             : AggregateLengthSlow();
 
     public delegate T Projection<out T>(ref RespReader value);
+    public delegate TResult Projection<TState, out TResult>(in TState state, ref RespReader value);
 
     public void FillAll<T>(scoped Span<T> target, Projection<T> projection)
     {
@@ -1729,6 +1730,7 @@ public ref partial struct RespReader
 #endif
     }
 
+#pragma warning disable RS0026 // unambiguous due to signature
     /// <summary>
     /// Reads an aggregate as an array of elements without changing the position.
     /// </summary>
@@ -1740,10 +1742,30 @@ public ref partial struct RespReader
     }
 
     /// <summary>
+    /// Reads an aggregate as an array of elements without changing the position.
+    /// </summary>
+    /// <typeparam name="TState">Additional state required by the projection.</typeparam>
+    /// <typeparam name="TResult">The type of data to be projected.</typeparam>
+    public TResult[]? ReadArray<TState, TResult>(in TState state, Projection<TState, TResult> projection, bool scalar = false)
+    {
+        var copy = this;
+        return copy.ReadPastArray(in state, projection, scalar);
+    }
+
+    /// <summary>
     /// Reads an aggregate as an array of elements, moving past the data as a side effect.
     /// </summary>
     /// <typeparam name="TResult">The type of data to be projected.</typeparam>
     public TResult[]? ReadPastArray<TResult>(Projection<TResult> projection, bool scalar = false)
+        => ReadPastArray(projection, static (in projection, ref reader) => projection(ref reader), scalar);
+
+    /// <summary>
+    /// Reads an aggregate as an array of elements, moving past the data as a side effect.
+    /// </summary>
+    /// <typeparam name="TState">Additional state required by the projection.</typeparam>
+    /// <typeparam name="TResult">The type of data to be projected.</typeparam>
+    public TResult[]? ReadPastArray<TState, TResult>(in TState state, Projection<TState, TResult> projection, bool scalar = false)
+#pragma warning restore RS0026
     {
         DemandAggregate();
         if (IsNull) return null;
@@ -1757,13 +1779,13 @@ public ref partial struct RespReader
             for (int i = 0; i < result.Length; i++)
             {
                 MoveNextScalar();
-                result[i] = projection(ref this);
+                result[i] = projection(in state, ref this);
             }
         }
         else
         {
             var agg = AggregateChildren();
-            agg.FillAll(result, projection);
+            agg.FillAll(result, in state, projection);
             agg.MovePast(out this);
         }
 

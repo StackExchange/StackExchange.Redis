@@ -643,34 +643,28 @@ namespace StackExchange.Redis
 
         internal sealed class SortedSetEntryProcessor : ResultProcessor<SortedSetEntry?>
         {
-            public static bool TryParse(in RawResult result, out SortedSetEntry? entry)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                // Handle array with at least 2 elements: [element, score, ...], or null/empty array
+                if (reader.IsAggregate)
                 {
-                    case ResultType.Array:
-                        if (result.IsNull || result.ItemsCount < 2)
-                        {
-                            entry = null;
-                        }
-                        else
-                        {
-                            var arr = result.GetItems();
-                            entry = new SortedSetEntry(arr[0].AsRedisValue(), arr[1].TryGetDouble(out double val) ? val : double.NaN);
-                        }
-                        return true;
-                    default:
-                        entry = null;
-                        return false;
-                }
-            }
+                    SortedSetEntry? result = null;
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                if (TryParse(result, out SortedSetEntry? entry))
-                {
-                    SetResult(message, entry);
+                    // Note: null arrays report false for TryMoveNext, so no explicit null check needed
+                    if (reader.TryMoveNext() && reader.IsScalar)
+                    {
+                        var element = reader.ReadRedisValue();
+                        if (reader.TryMoveNext() && reader.IsScalar)
+                        {
+                            var score = reader.TryReadDouble(out var val) ? val : double.NaN;
+                            result = new SortedSetEntry(element, score);
+                        }
+                    }
+
+                    SetResult(message, result);
                     return true;
                 }
+
                 return false;
             }
         }
@@ -683,19 +677,46 @@ namespace StackExchange.Redis
 
         internal sealed class SortedSetPopResultProcessor : ResultProcessor<SortedSetPopResult>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray == ResultType.Array)
+                // Handle array of 2: [key, array of SortedSetEntry] or null aggregate
+                if (reader.IsAggregate)
                 {
-                    if (result.IsNull)
+                    // Handle null (RESP3 pure null or RESP2 null array)
+                    if (reader.IsNull)
                     {
                         SetResult(message, Redis.SortedSetPopResult.Null);
                         return true;
                     }
 
-                    var arr = result.GetItems();
-                    SetResult(message, new SortedSetPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsSortedSetEntryArray()!));
-                    return true;
+                    if (reader.TryMoveNext() && reader.IsScalar)
+                    {
+                        var key = reader.ReadRedisKey();
+
+                        // Read the second element (array of SortedSetEntry)
+                        if (reader.TryMoveNext() && reader.IsAggregate)
+                        {
+                            var entries = reader.ReadPastArray(
+                                static (ref r) =>
+                                {
+                                    // Each entry is an array of 2: [element, score]
+                                    if (r.IsAggregate && r.TryMoveNext() && r.IsScalar)
+                                    {
+                                        var element = r.ReadRedisValue();
+                                        if (r.TryMoveNext() && r.IsScalar)
+                                        {
+                                            var score = r.TryReadDouble(out var val) ? val : double.NaN;
+                                            return new SortedSetEntry(element, score);
+                                        }
+                                    }
+                                    return default;
+                                },
+                                scalar: false);
+
+                            SetResult(message, new SortedSetPopResult(key, entries!));
+                            return true;
+                        }
+                    }
                 }
 
                 return false;
@@ -704,19 +725,30 @@ namespace StackExchange.Redis
 
         internal sealed class ListPopResultProcessor : ResultProcessor<ListPopResult>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray == ResultType.Array)
+                // Handle array of 2: [key, array of values] or null aggregate
+                if (reader.IsAggregate)
                 {
-                    if (result.IsNull)
+                    // Handle null (RESP3 pure null or RESP2 null array)
+                    if (reader.IsNull)
                     {
                         SetResult(message, Redis.ListPopResult.Null);
                         return true;
                     }
 
-                    var arr = result.GetItems();
-                    SetResult(message, new ListPopResult(arr[0].AsRedisKey(), arr[1].GetItemsAsValues()!));
-                    return true;
+                    if (reader.TryMoveNext() && reader.IsScalar)
+                    {
+                        var key = reader.ReadRedisKey();
+
+                        // Read the second element (array of RedisValue)
+                        if (reader.TryMoveNext() && reader.IsAggregate)
+                        {
+                            var values = reader.ReadPastRedisValues();
+                            SetResult(message, new ListPopResult(key, values!));
+                            return true;
+                        }
+                    }
                 }
 
                 return false;
@@ -1492,7 +1524,7 @@ namespace StackExchange.Redis
                         else
                         {
                             Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
-                            arr = result.ToArray(static (in RawResult x) =>
+                            arr = result.ToArray(static (in x) =>
                             {
                                 int i32 = (int)x.AsRedisValue();
                                 return Unsafe.As<int, T>(ref i32);
@@ -1525,12 +1557,18 @@ namespace StackExchange.Redis
 
         private sealed class NullableDoubleArrayProcessor : ResultProcessor<double?[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray == ResultType.Array && !result.IsNull)
+                if (reader.IsAggregate)
                 {
-                    var arr = result.GetItemsAsDoubles()!;
-                    SetResult(message, arr);
+                    var arr = reader.ReadPastArray(
+                        static (ref r) =>
+                        {
+                            if (r.IsNull) return (double?)null;
+                            return r.TryReadDouble(out var val) ? val : null;
+                        },
+                        scalar: true);
+                    SetResult(message, arr!);
                     return true;
                 }
                 return false;
@@ -1601,13 +1639,18 @@ namespace StackExchange.Redis
 
         private sealed class ExpireResultArrayProcessor : ResultProcessor<ExpireResult[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
+                if (reader.IsAggregate)
                 {
-                    var arr = result.ToArray((in RawResult x) => (ExpireResult)(long)x.AsRedisValue())!;
-
-                    SetResult(message, arr);
+                    var arr = reader.ReadPastArray(
+                        static (ref r) =>
+                        {
+                            r.TryReadInt64(out var val);
+                            return (ExpireResult)val;
+                        },
+                        scalar: true);
+                    SetResult(message, arr!);
                     return true;
                 }
                 return false;
@@ -1616,13 +1659,18 @@ namespace StackExchange.Redis
 
         private sealed class PersistResultArrayProcessor : ResultProcessor<PersistResult[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray == ResultType.Array || result.IsNull)
+                if (reader.IsAggregate)
                 {
-                    var arr = result.ToArray((in RawResult x) => (PersistResult)(long)x.AsRedisValue())!;
-
-                    SetResult(message, arr);
+                    var arr = reader.ReadPastArray(
+                        static (ref r) =>
+                        {
+                            r.TryReadInt64(out var val);
+                            return (PersistResult)val;
+                        },
+                        scalar: true);
+                    SetResult(message, arr!);
                     return true;
                 }
                 return false;
@@ -1637,27 +1685,25 @@ namespace StackExchange.Redis
                 this.options = options;
             }
 
-            private readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
+            // think "value-tuple", just: without the dependency hell on netfx
+            private readonly struct ChannelState(PhysicalConnection connection, RedisChannel.RedisChannelOptions options)
             {
-                public readonly byte[]? Prefix;
-                public readonly RedisChannel.RedisChannelOptions Options;
-                public ChannelState(byte[]? prefix, RedisChannel.RedisChannelOptions options)
-                {
-                    Prefix = prefix;
-                    Options = options;
-                }
+                public readonly PhysicalConnection Connection = connection;
+                public readonly RedisChannel.RedisChannelOptions Options = options;
             }
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                switch (result.Resp2TypeArray)
-                {
-                    case ResultType.Array:
-                        var final = result.ToArray(
-                                (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Options),
-                                new ChannelState(connection.ChannelPrefix, options))!;
 
-                        SetResult(message, final);
-                        return true;
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                if (reader.IsAggregate)
+                {
+                    var state = new ChannelState(connection, options);
+                    var arr = reader.ReadPastArray(
+                        in state,
+                        static (in s, ref r) =>
+                            s.Connection.AsRedisChannel(in r, s.Options),
+                        scalar: true);
+                    SetResult(message, arr!);
+                    return true;
                 }
                 return false;
             }
@@ -1669,7 +1715,7 @@ namespace StackExchange.Redis
             {
                 if (reader.IsAggregate)
                 {
-                    var arr = reader.ReadPastArray(static (ref RespReader r) => (RedisKey)r.ReadByteArray(), scalar: true);
+                    var arr = reader.ReadPastArray(static (ref r) => r.ReadRedisKey(), scalar: true);
                     SetResult(message, arr!);
                     return true;
                 }
@@ -1766,7 +1812,7 @@ namespace StackExchange.Redis
             {
                 if (reader.IsAggregate)
                 {
-                    var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadInt64(), scalar: true);
+                    var arr = reader.ReadPastArray(static (ref r) => r.ReadInt64(), scalar: true);
                     SetResult(message, arr!);
                     return true;
                 }
@@ -1781,7 +1827,7 @@ namespace StackExchange.Redis
             {
                 if (reader.IsAggregate)
                 {
-                    var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadString(), scalar: true);
+                    var arr = reader.ReadPastArray(static (ref r) => r.ReadString(), scalar: true);
                     SetResult(message, arr!);
                     return true;
                 }
@@ -1795,7 +1841,7 @@ namespace StackExchange.Redis
             {
                 if (reader.IsAggregate)
                 {
-                    var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadString()!, scalar: true);
+                    var arr = reader.ReadPastArray(static (ref r) => r.ReadString()!, scalar: true);
                     SetResult(message, arr!);
                     return true;
                 }
@@ -1809,7 +1855,7 @@ namespace StackExchange.Redis
             {
                 if (reader.IsAggregate)
                 {
-                    var arr = reader.ReadPastArray(static (ref RespReader r) => r.ReadBoolean(), scalar: true);
+                    var arr = reader.ReadPastArray(static (ref r) => r.ReadBoolean(), scalar: true);
                     SetResult(message, arr!);
                     return true;
                 }
@@ -1878,7 +1924,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.Array:
                         var typed = result.ToArray(
-                            (in RawResult item, in GeoRadiusOptions radiusOptions) => Parse(item, radiusOptions), options)!;
+                            (in item, in radiusOptions) => Parse(item, radiusOptions), options)!;
                         SetResult(message, typed);
                         return true;
                 }
@@ -2298,7 +2344,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 else
                 {
                     streams = result.GetItems().ToArray(
-                        (in RawResult item, in MultiStreamProcessor obj) =>
+                        (in item, in obj) =>
                         {
                             var details = item.GetItems();
 
@@ -2545,7 +2591,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 var arr = result.GetItems();
-                var parsedItems = arr.ToArray((in RawResult item, in InterleavedStreamInfoProcessorBase<T> obj) => obj.ParseItem(item), this);
+                var parsedItems = arr.ToArray((in item, in obj) => obj.ParseItem(item), this);
 
                 SetResult(message, parsedItems);
                 return true;
@@ -2707,7 +2753,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 ref RawResult third = ref arr[3];
                 if (!third.IsNull)
                 {
-                    consumers = third.ToArray((in RawResult item) =>
+                    consumers = third.ToArray((in item) =>
                     {
                         var details = item.GetItems();
                         return new StreamConsumer(
@@ -2736,7 +2782,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                var messageInfoArray = result.GetItems().ToArray((in RawResult item) =>
+                var messageInfoArray = result.GetItems().ToArray((in item) =>
                 {
                     var details = item.GetItems().GetEnumerator();
 
@@ -2799,7 +2845,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     values: values);
             }
             protected internal StreamEntry[] ParseRedisStreamEntries(in RawResult result) =>
-                result.GetItems().ToArray((in RawResult item, in StreamProcessorBase<T> _) => ParseRedisStreamEntry(item), this);
+                result.GetItems().ToArray((in item, in _) => ParseRedisStreamEntry(item), this);
 
             protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
             {
@@ -3086,7 +3132,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         var arrayOfArrays = result.GetItems();
 
                         var returnArray = result.ToArray<KeyValuePair<string, string>[], StringPairInterleavedProcessor>(
-                            (in RawResult rawInnerArray, in StringPairInterleavedProcessor proc) =>
+                            (in rawInnerArray, in proc) =>
                             {
                                 if (proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[]? kvpArray))
                                 {
