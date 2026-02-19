@@ -426,12 +426,34 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (TryParse(result, out TimeSpan? expiry))
+                if (reader.IsScalar)
                 {
-                    SetResult(message, expiry);
-                    return true;
+                    if (reader.IsNull)
+                    {
+                        SetResult(message, null);
+                        return true;
+                    }
+
+                    if (reader.TryReadInt64(out long time))
+                    {
+                        TimeSpan? expiry;
+                        if (time < 0)
+                        {
+                            expiry = null;
+                        }
+                        else if (isMilliseconds)
+                        {
+                            expiry = TimeSpan.FromMilliseconds(time);
+                        }
+                        else
+                        {
+                            expiry = TimeSpan.FromSeconds(time);
+                        }
+                        SetResult(message, expiry);
+                        return true;
+                    }
                 }
                 return false;
             }
@@ -444,30 +466,23 @@ namespace StackExchange.Redis
             public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default) =>
                 new TimerMessage(db, flags, command, value);
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.IsError)
+                // don't check the actual reply; there are multiple ways of constructing
+                // a timing message, and we don't actually care about what approach was used
+                TimeSpan duration;
+                if (message is TimerMessage timingMessage)
                 {
-                    return false;
+                    var timestampDelta = Stopwatch.GetTimestamp() - timingMessage.StartedWritingTimestamp;
+                    var ticks = (long)(TimestampToTicks * timestampDelta);
+                    duration = new TimeSpan(ticks);
                 }
                 else
                 {
-                    // don't check the actual reply; there are multiple ways of constructing
-                    // a timing message, and we don't actually care about what approach was used
-                    TimeSpan duration;
-                    if (message is TimerMessage timingMessage)
-                    {
-                        var timestampDelta = Stopwatch.GetTimestamp() - timingMessage.StartedWritingTimestamp;
-                        var ticks = (long)(TimestampToTicks * timestampDelta);
-                        duration = new TimeSpan(ticks);
-                    }
-                    else
-                    {
-                        duration = TimeSpan.MaxValue;
-                    }
-                    SetResult(message, duration);
-                    return true;
+                    duration = TimeSpan.MaxValue;
                 }
+                SetResult(message, duration);
+                return true;
             }
 
             internal sealed class TimerMessage : Message
@@ -583,7 +598,7 @@ namespace StackExchange.Redis
             internal static bool IsSHA1(string? script) => script is not null && script.Length == SHA1Length && sha1.IsMatch(script);
 
             internal const int Sha1HashLength = 20;
-            internal static byte[] ParseSHA1(byte[] value)
+            internal static byte[] ParseSHA1(ReadOnlySpan<byte> value)
             {
                 static int FromHex(char c)
                 {
@@ -593,7 +608,7 @@ namespace StackExchange.Redis
                     return -1;
                 }
 
-                if (value?.Length == Sha1HashLength * 2)
+                if (value.Length == Sha1HashLength * 2)
                 {
                     var tmp = new byte[Sha1HashLength];
                     int charIndex = 0;
@@ -613,24 +628,31 @@ namespace StackExchange.Redis
 
             // note that top-level error messages still get handled by SetResult, but nested errors
             // (is that a thing?) will be wrapped in the RedisResult
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                // We expect a scalar with exactly 40 ASCII hex characters (20 bytes when parsed)
+                if (reader.IsScalar && reader.ScalarLengthIs(Sha1HashLength * 2))
                 {
-                    case ResultType.BulkString:
-                        var asciiHash = result.GetBlob();
-                        if (asciiHash == null || asciiHash.Length != (Sha1HashLength * 2)) return false;
+                    var asciiHash = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[Sha1HashLength * 2]);
 
-                        // External caller wants the hex bytes, not the ASCII bytes
-                        // For nullability/consistency reasons, we always do the parse here.
-                        byte[] hash = ParseSHA1(asciiHash);
+                    // External caller wants the hex bytes, not the ASCII bytes
+                    // For nullability/consistency reasons, we always do the parse here.
+                    byte[] hash;
+                    try
+                    {
+                        hash = ParseSHA1(asciiHash.ToArray());
+                    }
+                    catch (ArgumentException)
+                    {
+                        return false; // Invalid hex characters
+                    }
 
-                        if (message is RedisDatabase.ScriptLoadMessage sl)
-                        {
-                            connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, asciiHash);
-                        }
-                        SetResult(message, hash);
-                        return true;
+                    if (message is RedisDatabase.ScriptLoadMessage sl)
+                    {
+                        connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, hash);
+                    }
+                    SetResult(message, hash);
+                    return true;
                 }
                 return false;
             }
