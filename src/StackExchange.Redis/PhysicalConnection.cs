@@ -82,6 +82,7 @@ namespace StackExchange.Redis
         public PhysicalConnection(
             ConnectionType connectionType = ConnectionType.Interactive,
             RedisProtocol protocol = RedisProtocol.Resp2,
+            Stream? ioStream = null,
             [CallerMemberName] string name = "")
         {
             lastWriteTickCount = lastReadTickCount = Environment.TickCount;
@@ -90,6 +91,7 @@ namespace StackExchange.Redis
             _protocol = protocol;
             _bridge = new WeakReference(null);
             _physicalName = name;
+            _ioStream = ioStream;
 
             OnCreateEcho();
         }
@@ -194,7 +196,7 @@ namespace StackExchange.Redis
                             log?.LogInformationStartingRead(new(endpoint));
                             try
                             {
-                                StartReading();
+                                StartReading(CancellationToken.None);
                                 // Normal return
                             }
                             catch (Exception ex)
@@ -613,10 +615,10 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void EnqueueInsideWriteLock(Message next)
+        internal void EnqueueInsideWriteLock(Message next, bool enforceMuxer = true)
         {
             var multiplexer = BridgeCouldBeNull?.Multiplexer;
-            if (multiplexer is null)
+            if (multiplexer is null & enforceMuxer) // note: this should only be false for testing
             {
                 // multiplexer already collected? then we're almost certainly doomed;
                 // we can still process it to avoid making things worse/more complex,

@@ -75,7 +75,7 @@ public partial class ResultProcessorUnitTests(ITestOutputHelper log)
             msg.SetSource(processor, box);
 
             var reader = new RespReader(oversized.Slice(0, Encoding.UTF8.GetBytes(resp, oversized)));
-            PhysicalConnection connection = new(connectionType, protocol, caller);
+            PhysicalConnection connection = new(connectionType, protocol, name: caller);
             Assert.True(processor.SetResult(connection, msg, ref reader));
             value = box.GetResult(out exception, canRecycle: true);
             return exception is null;

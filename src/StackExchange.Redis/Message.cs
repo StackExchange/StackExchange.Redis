@@ -41,12 +41,13 @@ namespace StackExchange.Redis
 
         protected override void WriteImpl(in MessageWriter writer)
         {
+#if VERBOSE
             try
             {
-                var bridge = writer.BridgeCouldBeNull;
-                log?.LogTrace($"{bridge?.Name}: Writing: {tail.CommandAndKey}");
+                log?.LogTrace($"{writer.Name}: Writing: {tail.CommandAndKey}");
             }
             catch { }
+#endif
             tail.WriteTo(writer);
         }
         public override int ArgCount => tail.ArgCount;

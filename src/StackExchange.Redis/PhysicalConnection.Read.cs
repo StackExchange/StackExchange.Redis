@@ -22,9 +22,9 @@ internal sealed partial class PhysicalConnection
     private volatile ReadStatus _readStatus = ReadStatus.NotStarted;
     internal ReadStatus GetReadStatus() => _readStatus;
 
-    internal void StartReading() => ReadAllAsync().RedisFireAndForget();
+    internal void StartReading(CancellationToken cancellationToken = default) => ReadAllAsync(cancellationToken).RedisFireAndForget();
 
-    private async Task ReadAllAsync()
+    private async Task ReadAllAsync(CancellationToken cancellationToken)
     {
         var tail = _ioStream ?? Stream.Null;
         _readStatus = ReadStatus.Init;
@@ -37,7 +37,7 @@ internal sealed partial class PhysicalConnection
             {
                 _readStatus = ReadStatus.ReadAsync;
                 var buffer = _readBuffer.GetUncommittedMemory();
-                var pending = tail.ReadAsync(buffer, CancellationToken.None);
+                var pending = tail.ReadAsync(buffer, cancellationToken);
 #if DEBUG
                 bool inline = pending.IsCompleted;
 #endif
