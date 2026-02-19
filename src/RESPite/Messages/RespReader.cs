@@ -171,7 +171,7 @@ public ref partial struct RespReader
 
     public delegate T Projection<out T>(ref RespReader value);
 
-    public delegate TResult Projection<TState, out TResult>(in TState state, ref RespReader value)
+    public delegate TResult Projection<TState, out TResult>(ref TState state, ref RespReader value)
 #if NET9_0_OR_GREATER
         where TState : allows ref struct
 #endif
@@ -183,10 +183,10 @@ public ref partial struct RespReader
         AggregateChildren().FillAll(target, projection);
     }
 
-    public void FillAll<TState, TResult>(scoped Span<TResult> target, in TState state, Projection<TState, TResult> projection)
+    public void FillAll<TState, TResult>(scoped Span<TResult> target, ref TState state, Projection<TState, TResult> projection)
     {
         DemandNotNull();
-        AggregateChildren().FillAll(target, in state, projection);
+        AggregateChildren().FillAll(target, ref state, projection);
     }
 
     private readonly int AggregateLengthSlow()
@@ -705,6 +705,22 @@ public ref partial struct RespReader
         }
     }
 
+    /// <summary>
+    /// Buffers the current scalar value into the provided target span.
+    /// </summary>
+    /// <param name="target">The target span to buffer data into.</param>
+    /// <returns>
+    /// A span containing the buffered data. If the scalar data fits entirely within <paramref name="target"/>,
+    /// returns a slice of <paramref name="target"/> containing all the data. If the scalar data is larger than
+    /// <paramref name="target"/>, returns <paramref name="target"/> filled with the first <c>target.Length</c> bytes
+    /// of the scalar data (the remaining data is not buffered).
+    /// </returns>
+    /// <remarks>
+    /// This method first attempts to use <see cref="TryGetSpan"/> to avoid copying. If the data is non-contiguous
+    /// (e.g., streaming scalars or data spanning multiple buffer segments), it will copy data into <paramref name="target"/>.
+    /// When the source data exceeds <paramref name="target"/>'s capacity, only the first <c>target.Length</c> bytes
+    /// are copied and returned.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal readonly ReadOnlySpan<byte> Buffer(Span<byte> target)
     {
@@ -1814,13 +1830,13 @@ public ref partial struct RespReader
     /// </summary>
     /// <typeparam name="TState">Additional state required by the projection.</typeparam>
     /// <typeparam name="TResult">The type of data to be projected.</typeparam>
-    public TResult[]? ReadArray<TState, TResult>(in TState state, Projection<TState, TResult> projection, bool scalar = false)
+    public TResult[]? ReadArray<TState, TResult>(ref TState state, Projection<TState, TResult> projection, bool scalar = false)
 #if NET9_0_OR_GREATER
         where TState : allows ref struct
 #endif
     {
         var copy = this;
-        return copy.ReadPastArray(in state, projection, scalar);
+        return copy.ReadPastArray(ref state, projection, scalar);
     }
 
     /// <summary>
@@ -1828,14 +1844,14 @@ public ref partial struct RespReader
     /// </summary>
     /// <typeparam name="TResult">The type of data to be projected.</typeparam>
     public TResult[]? ReadPastArray<TResult>(Projection<TResult> projection, bool scalar = false)
-        => ReadPastArray(projection, static (in projection, ref reader) => projection(ref reader), scalar);
+        => ReadPastArray(ref projection, static (ref projection, ref reader) => projection(ref reader), scalar);
 
     /// <summary>
     /// Reads an aggregate as an array of elements, moving past the data as a side effect.
     /// </summary>
     /// <typeparam name="TState">Additional state required by the projection.</typeparam>
     /// <typeparam name="TResult">The type of data to be projected.</typeparam>
-    public TResult[]? ReadPastArray<TState, TResult>(in TState state, Projection<TState, TResult> projection, bool scalar = false)
+    public TResult[]? ReadPastArray<TState, TResult>(ref TState state, Projection<TState, TResult> projection, bool scalar = false)
 #if NET9_0_OR_GREATER
         where TState : allows ref struct
 #endif
@@ -1853,13 +1869,13 @@ public ref partial struct RespReader
             for (int i = 0; i < result.Length; i++)
             {
                 MoveNextScalar();
-                result[i] = projection(in state, ref this);
+                result[i] = projection(ref state, ref this);
             }
         }
         else
         {
             var agg = AggregateChildren();
-            agg.FillAll(result, in state, projection);
+            agg.FillAll(result, ref state, projection);
             agg.MovePast(out this);
         }
 

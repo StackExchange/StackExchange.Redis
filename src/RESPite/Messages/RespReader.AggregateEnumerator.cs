@@ -189,10 +189,10 @@ public ref partial struct RespReader
 
         public void FillAll<TResult>(scoped Span<TResult> target, Projection<TResult> projection)
         {
-            FillAll(target, projection, static (in projection, ref reader) => projection(ref reader));
+            FillAll(target, ref projection, static (ref projection, ref reader) => projection(ref reader));
         }
 
-        public void FillAll<TState, TResult>(scoped Span<TResult> target, in TState state, Projection<TState, TResult> projection)
+        public void FillAll<TState, TResult>(scoped Span<TResult> target, ref TState state, Projection<TState, TResult> projection)
 #if NET9_0_OR_GREATER
             where TState : allows ref struct
 #endif
@@ -200,7 +200,7 @@ public ref partial struct RespReader
             for (int i = 0; i < target.Length; i++)
             {
                 DemandNext();
-                target[i] = projection(in state, ref Value);
+                target[i] = projection(ref state, ref Value);
             }
         }
 
@@ -225,7 +225,7 @@ public ref partial struct RespReader
 
         public void FillAll<TState, TFirst, TSecond, TResult>(
             scoped Span<TResult> target,
-            in TState state,
+            ref TState state,
             Projection<TState, TFirst> first,
             Projection<TState, TSecond> second,
             Func<TState, TFirst, TSecond, TResult> combine)
@@ -237,11 +237,11 @@ public ref partial struct RespReader
             {
                 DemandNext();
 
-                var x = first(state, ref Value);
+                var x = first(ref state, ref Value);
 
                 DemandNext();
 
-                var y = second(state, ref Value);
+                var y = second(ref state, ref Value);
                 target[i] = combine(state, x, y);
             }
         }

@@ -138,8 +138,8 @@ namespace StackExchange.Redis
                     }
 
                     var arr = reader.ReadPastArray(
-                        connection,
-                        static (in PhysicalConnection? conn, ref RespReader r) =>
+                        ref connection,
+                        static (ref PhysicalConnection? conn, ref RespReader r) =>
                         {
                             if (!TryCreate(conn, ref r, out var result))
                             {

@@ -915,6 +915,24 @@ public class RespReaderTests(ITestOutputHelper logger)
         // All of the above should succeed without hitting MALFORMED because we short-circuit
     }
 
+    [Fact] // streaming scalar - verify TryGetSpan fails and Buffer works correctly
+    public void StreamingScalar_BufferPartial()
+    {
+        // 32 bytes total: "abcdefgh" (8) + "ijklmnop" (8) + "qrstuvwx" (8) + "yz012345" (8) + "6789" (4)
+        var data = "$?\r\n;8\r\nabcdefgh\r\n;8\r\nijklmnop\r\n;8\r\nqrstuvwx\r\n;8\r\nyz012345\r\n;4\r\n6789\r\n;0\r\n"u8.ToArray();
+        var reader = new RespReader(new ReadOnlySequence<byte>(data));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Assert.True(reader.IsScalar);
+        Assert.False(reader.TryGetSpan(out _)); // Should fail - data is non-contiguous
+
+        // Buffer should fetch just the first 16 bytes
+        Span<byte> buffer = stackalloc byte[16];
+        var buffered = reader.Buffer(buffer);
+        Assert.Equal(16, buffered.Length);
+        Assert.True(buffered.SequenceEqual("abcdefghijklmnop"u8));
+    }
+
     [Theory, Resp("+hello\r\n")] // simple string
     public void ScalarLengthIs_SimpleString(RespPayload payload)
     {
