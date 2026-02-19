@@ -8,7 +8,10 @@ Current package versions:
 
 ## 2.11.unreleased
 
+## 2.11.3
+
 - Add support for `VRANGE` ([#3011 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3011))
+- Add defensive code in azure-maintenance-events handling ([#3013 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3013))
 
 ## 2.11.0
 
