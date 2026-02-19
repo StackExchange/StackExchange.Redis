@@ -8,9 +8,36 @@ using RESPite.Internal;
 
 namespace StackExchange.Redis;
 
-internal readonly ref struct MessageWriter(PhysicalConnection connection)
+internal readonly ref struct MessageWriter
 {
-    public PhysicalBridge? BridgeCouldBeNull => connection.BridgeCouldBeNull;
+    public string Name { get; }
+    private readonly CommandMap _map;
+    private readonly byte[]? _channelPrefix;
+
+    public MessageWriter(byte[]? channelPrefix = null, CommandMap? map = null, [CallerMemberName] string name = "")
+    {
+        // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
+        _map = map ?? CommandMap.Default;
+        Name = name;
+        _channelPrefix = channelPrefix;
+    }
+
+    public MessageWriter(PhysicalConnection connection)
+    {
+        if (connection.BridgeCouldBeNull is { } bridge)
+        {
+            _map = bridge.Multiplexer.CommandMap;
+            Name = bridge.Name;
+            _channelPrefix = connection.ChannelPrefix;
+        }
+        else
+        {
+            _map = CommandMap.Default;
+            Name = "";
+            _channelPrefix = null;
+        }
+    }
+
     private readonly IBufferWriter<byte> _writer = BlockBufferSerializer.Shared;
 
     public ReadOnlyMemory<byte> Flush() =>
@@ -44,7 +71,7 @@ internal readonly ref struct MessageWriter(PhysicalConnection connection)
     }
 
     internal void Write(in RedisChannel channel)
-        => WriteUnifiedPrefixedBlob(_writer, channel.IgnoreChannelPrefix ? null : connection.ChannelPrefix, channel.Value);
+        => WriteUnifiedPrefixedBlob(_writer, channel.IgnoreChannelPrefix ? null : _channelPrefix, channel.Value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void WriteBulkString(in RedisValue value)
@@ -85,8 +112,6 @@ internal readonly ref struct MessageWriter(PhysicalConnection connection)
 
     internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
     {
-        var bridge = connection.BridgeCouldBeNull ?? throw new ObjectDisposedException(connection.ToString());
-
         if (command == RedisCommand.UNKNOWN)
         {
             // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
@@ -98,7 +123,7 @@ internal readonly ref struct MessageWriter(PhysicalConnection connection)
             if (arguments >= REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(command.ToString(), arguments);
 
             // for everything that isn't custom commands: ask the muxer for the actual bytes
-            commandBytes = bridge.Multiplexer.CommandMap.GetBytes(command);
+            commandBytes = _map.GetBytes(command);
         }
 
         // in theory we should never see this; CheckMessage dealt with "regular" messages, and
