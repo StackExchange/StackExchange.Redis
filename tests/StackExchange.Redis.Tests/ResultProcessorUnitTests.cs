@@ -26,28 +26,30 @@ public partial class ResultProcessorUnitTests(ITestOutputHelper log)
 
     public void Log(string message) => log?.WriteLine(message);
 
-    private protected static Message DummyMessage<T>()
+    private protected static Message DummyMessage()
         => Message.Create(0, default, RedisCommand.UNKNOWN);
 
     private protected void ExecuteUnexpected<T>(
         string resp,
         ResultProcessor<T> processor,
+        Message? message = null,
         ConnectionType connectionType = ConnectionType.Interactive,
         RedisProtocol protocol = RedisProtocol.Resp2,
         [CallerMemberName] string caller = "")
     {
-        Assert.False(TryExecute(resp, processor, out _, out var ex, connectionType, protocol, caller), caller);
+        Assert.False(TryExecute(resp, processor, out _, out var ex, message, connectionType, protocol, caller), caller);
         if (ex is not null) Log(ex.Message);
         Assert.StartsWith("Unexpected response to UNKNOWN:", Assert.IsType<RedisConnectionException>(ex).Message);
     }
     private protected static T? Execute<T>(
         string resp,
         ResultProcessor<T> processor,
+        Message? message = null,
         ConnectionType connectionType = ConnectionType.Interactive,
         RedisProtocol protocol = RedisProtocol.Resp2,
         [CallerMemberName] string caller = "")
     {
-        Assert.True(TryExecute<T>(resp, processor, out var value, out var ex, connectionType, protocol, caller));
+        Assert.True(TryExecute<T>(resp, processor, out var value, out var ex, message, connectionType, protocol, caller));
         Assert.Null(ex);
         return value;
     }
@@ -57,6 +59,7 @@ public partial class ResultProcessorUnitTests(ITestOutputHelper log)
         ResultProcessor<T> processor,
         out T? value,
         out Exception? exception,
+        Message? message = null,
         ConnectionType connectionType = ConnectionType.Interactive,
         RedisProtocol protocol = RedisProtocol.Resp2,
         [CallerMemberName] string caller = "")
@@ -70,13 +73,13 @@ public partial class ResultProcessorUnitTests(ITestOutputHelper log)
                 ? stackalloc byte[MAX_STACK]
                 : (lease = ArrayPool<byte>.Shared.Rent(maxLen));
 
-            var msg = DummyMessage<T>();
+            message ??= DummyMessage();
             var box = SimpleResultBox<T>.Get();
-            msg.SetSource(processor, box);
+            message.SetSource(processor, box);
 
             var reader = new RespReader(oversized.Slice(0, Encoding.UTF8.GetBytes(resp, oversized)));
             PhysicalConnection connection = new(connectionType, protocol, name: caller);
-            Assert.True(processor.SetResult(connection, msg, ref reader));
+            Assert.True(processor.SetResult(connection, message, ref reader));
             value = box.GetResult(out exception, canRecycle: true);
             return exception is null;
         }
