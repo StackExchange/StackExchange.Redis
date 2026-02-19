@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -289,18 +290,16 @@ namespace StackExchange.Redis
 
         private sealed class ClientInfoProcessor : ResultProcessor<ClientInfo[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                if (reader.Prefix == RespPrefix.BulkString)
                 {
-                    case ResultType.BulkString:
-                        var raw = result.GetString();
-                        if (TryParse(raw, out var clients))
-                        {
-                            SetResult(message, clients);
-                            return true;
-                        }
-                        break;
+                    var raw = reader.ReadString();
+                    if (TryParse(raw, out var clients))
+                    {
+                        SetResult(message, clients);
+                        return true;
+                    }
                 }
                 return false;
             }

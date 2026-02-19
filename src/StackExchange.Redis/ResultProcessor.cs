@@ -19,15 +19,15 @@ namespace StackExchange.Redis
     {
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
-            DemandOK = new ExpectBasicStringProcessor(CommonReplies.OK),
-            DemandPONG = new ExpectBasicStringProcessor(CommonReplies.PONG),
+            DemandOK = new ExpectBasicStringProcessor(OK.Hash, OK.Length),
+            DemandPONG = new ExpectBasicStringProcessor(PONG.Hash, PONG.Length),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
             TrackSubscriptions = new TrackSubscriptionsProcessor(null),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
-            BackgroundSaveStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingStarted_trimmed, startsWith: true),
-            BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingAOFStarted_trimmed, startsWith: true);
+            BackgroundSaveStarted = new ExpectBasicStringProcessor(background_saving_started.Hash, background_saving_started.Length, startsWith: true),
+            BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(background_aof_rewriting_started.Hash, background_aof_rewriting_started.Length, startsWith: true);
 
         public static readonly ResultProcessor<byte[]?>
             ByteArray = new ByteArrayProcessor();
@@ -575,12 +575,21 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (TryGet(result, out bool value))
+                if (reader.IsScalar && reader.ScalarLengthIs(1))
                 {
-                    SetResult(message, value);
-                    return true;
+                    var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[1]);
+                    if (span[0] == (byte)'1')
+                    {
+                        SetResult(message, true);
+                        return true;
+                    }
+                    else if (span[0] == (byte)'0')
+                    {
+                        SetResult(message, false);
+                        return true;
+                    }
                 }
                 return false;
             }
@@ -1411,39 +1420,75 @@ namespace StackExchange.Redis
 
         private sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
         {
-            private readonly CommandBytes _expected;
+            private readonly long _expectedHash;
+            private readonly int _expectedLength;
             private readonly bool _startsWith;
-            public ExpectBasicStringProcessor(CommandBytes expected, bool startsWith = false)
+
+            public ExpectBasicStringProcessor(long expectedHash, int expectedLength, bool startsWith = false)
             {
-                _expected = expected;
+                _expectedHash = expectedHash;
+                _expectedLength = expectedLength;
                 _startsWith = startsWith;
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (_startsWith ? result.StartsWith(_expected) : result.IsEqual(_expected))
+                if (!reader.IsScalar) return false;
+
+                if (_startsWith)
                 {
-                    SetResult(message, true);
-                    return true;
+                    // For StartsWith, we need at least _expectedLength bytes
+                    if (reader.ScalarLength() < _expectedLength) return false;
+
+                    var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[_expectedLength]);
+                    var hash = bytes.Slice(0, _expectedLength).Hash64();
+                    if (hash == _expectedHash)
+                    {
+                        SetResult(message, true);
+                        return true;
+                    }
                 }
+                else
+                {
+                    // For exact match, length must be exact
+                    if (!reader.ScalarLengthIs(_expectedLength)) return false;
+
+                    var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[_expectedLength]);
+                    var hash = bytes.Hash64();
+                    if (hash == _expectedHash)
+                    {
+                        SetResult(message, true);
+                        return true;
+                    }
+                }
+
                 if (message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect(new RedisException("Unknown AUTH exception"));
                 return false;
             }
         }
 
+#pragma warning disable SA1300, SA1134
+        // ReSharper disable InconsistentNaming
+        [FastHash] private static partial class OK { }
+        [FastHash] private static partial class PONG { }
+        [FastHash("Background saving started")] private static partial class background_saving_started { }
+        [FastHash("Background append only file rewriting started")] private static partial class background_aof_rewriting_started { }
+        // ReSharper restore InconsistentNaming
+#pragma warning restore SA1300, SA1134
+
         private sealed class InfoProcessor : ResultProcessor<IGrouping<string, KeyValuePair<string, string>>[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeBulkString == ResultType.BulkString)
+                if (reader.IsScalar)
                 {
                     string category = Normalize(null);
                     var list = new List<Tuple<string, KeyValuePair<string, string>>>();
-                    var raw = result.GetString();
+                    var raw = reader.ReadString();
                     if (raw is not null)
                     {
-                        using var reader = new StringReader(raw);
-                        while (reader.ReadLine() is string line)
+                        using var stringReader = new StringReader(raw);
+                        while (stringReader.ReadLine() is string line)
                         {
                             if (string.IsNullOrWhiteSpace(line)) continue;
                             if (line.StartsWith("# "))
@@ -2045,35 +2090,43 @@ The coordinates as a two items x,y array (longitude,latitude).
         /// </example>
         private sealed class LongestCommonSubsequenceProcessor : ResultProcessor<LCSMatchResult>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                if (reader.IsAggregate && reader.AggregateLengthIs(4))
                 {
-                    case ResultType.Array:
-                        SetResult(message, Parse(result));
-                        return true;
+                    // Top-level array: ["matches", matches_array, "len", length_value]
+                    reader.MoveNext(); // Skip "matches" string
+                    reader.MoveNextAggregate(); // Move to matches array
+                    var matchCount = reader.AggregateLength();
+                    var matches = new LCSMatchResult.LCSMatch[matchCount];
+
+                    for (int i = 0; i < matchCount; i++)
+                    {
+                        reader.MoveNextAggregate(); // Move to match (3-element array)
+                        reader.MoveNextAggregate(); // Move to first range (2-element array)
+                        reader.MoveNext(); // Move to first range start index
+                        var firstStringIndex = reader.TryReadInt64(out var first) ? first : 0;
+                        reader.MoveNext(); // Skip first range end index
+
+                        reader.MoveNextAggregate(); // Move to second range (2-element array)
+                        reader.MoveNext(); // Move to second range start index
+                        var secondStringIndex = reader.TryReadInt64(out var second) ? second : 0;
+                        reader.MoveNext(); // Skip second range end index
+
+                        reader.MoveNext(); // Move to length
+                        var length = reader.TryReadInt64(out var len) ? len : 0;
+
+                        matches[i] = new LCSMatchResult.LCSMatch(firstStringIndex, secondStringIndex, length);
+                    }
+
+                    reader.MoveNext(); // Skip "len" string
+                    reader.MoveNext(); // Move to length value
+                    var longestMatchLength = reader.TryReadInt64(out var totalLen) ? totalLen : 0;
+
+                    SetResult(message, new LCSMatchResult(matches, longestMatchLength));
+                    return true;
                 }
                 return false;
-            }
-
-            private static LCSMatchResult Parse(in RawResult result)
-            {
-                var topItems = result.GetItems();
-                var matches = new LCSMatchResult.LCSMatch[topItems[1].GetItems().Length];
-                int i = 0;
-                var matchesRawArray = topItems[1]; // skip the first element (title "matches")
-                foreach (var match in matchesRawArray.GetItems())
-                {
-                    var matchItems = match.GetItems();
-
-                    matches[i++] = new LCSMatchResult.LCSMatch(
-                        firstStringIndex: (long)matchItems[0].GetItems()[0].AsRedisValue(),
-                        secondStringIndex: (long)matchItems[1].GetItems()[0].AsRedisValue(),
-                        length: (long)matchItems[2].AsRedisValue());
-                }
-                var len = (long)topItems[3].AsRedisValue();
-
-                return new LCSMatchResult(matches, len);
             }
         }
 
@@ -2092,18 +2145,13 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class RedisValueFromArrayProcessor : ResultProcessor<RedisValue>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                if (reader.IsAggregate && reader.AggregateLengthIs(1))
                 {
-                    case ResultType.Array:
-                        var items = result.GetItems();
-                        if (items.Length == 1)
-                        { // treat an array of 1 like a single reply
-                            SetResult(message, items[0].AsRedisValue());
-                            return true;
-                        }
-                        break;
+                    reader.MoveNext();
+                    SetResult(message, reader.ReadRedisValue());
+                    return true;
                 }
                 return false;
             }
@@ -3225,27 +3273,23 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class SentinelGetPrimaryAddressByNameProcessor : ResultProcessor<EndPoint?>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                if (reader.IsAggregate && reader.AggregateLengthIs(2))
                 {
-                    case ResultType.Array:
-                        var items = result.GetItems();
-                        if (result.IsNull)
-                        {
-                            return true;
-                        }
-                        else if (items.Length == 2 && items[1].TryGetInt64(out var port))
-                        {
-                            SetResult(message, Format.ParseEndPoint(items[0].GetString()!, checked((int)port)));
-                            return true;
-                        }
-                        else if (items.Length == 0)
-                        {
-                            SetResult(message, null);
-                            return true;
-                        }
-                        break;
+                    reader.MoveNext();
+                    var host = reader.ReadString();
+                    reader.MoveNext();
+                    if (host is not null && reader.TryReadInt64(out var port))
+                    {
+                        SetResult(message, Format.ParseEndPoint(host, checked((int)port)));
+                        return true;
+                    }
+                }
+                else if (reader.IsNull || (reader.IsAggregate && reader.AggregateLengthIs(0)))
+                {
+                    SetResult(message, null);
+                    return true;
                 }
                 return false;
             }
@@ -3287,36 +3331,58 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class SentinelGetReplicaAddressesProcessor : ResultProcessor<EndPoint[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                List<EndPoint> endPoints = [];
-
-                switch (result.Resp2TypeArray)
+                if (reader.IsAggregate)
                 {
-                    case ResultType.Array:
-                        foreach (RawResult item in result.GetItems())
+                    var endPoints = reader.ReadPastArray(
+                        static (ref RespReader r) =>
                         {
-                            var pairs = item.GetItems();
-                            string? ip = null;
-                            int port = default;
-                            if (KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.IP, ref ip)
-                                && KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.Port, ref port))
+                            if (r.IsAggregate)
                             {
-                                endPoints.Add(Format.ParseEndPoint(ip, port));
+                                // Parse key-value pairs by name: ["ip", "127.0.0.1", "port", "6380"]
+                                // or ["port", "6380", "ip", "127.0.0.1"] - order doesn't matter
+                                string? host = null;
+                                long port = 0;
+
+                                while (r.TryMoveNext())
+                                {
+                                    var key = r.ReadString();
+                                    if (r.TryMoveNext())
+                                    {
+                                        if (key == "ip")
+                                        {
+                                            host = r.ReadString();
+                                        }
+                                        else if (key == "port")
+                                        {
+                                            r.TryReadInt64(out port);
+                                        }
+                                    }
+                                }
+
+                                if (host is not null && port > 0)
+                                {
+                                    return Format.ParseEndPoint(host, checked((int)port));
+                                }
                             }
-                        }
-                        break;
+                            return null;
+                        },
+                        scalar: false);
 
-                    case ResultType.SimpleString:
-                        // We don't want to blow up if the primary is not found
-                        if (result.IsNull)
+                    if (endPoints is not null && endPoints.Length > 0)
+                    {
+                        var filtered = endPoints.Where(ep => ep is not null).ToArray();
+                        if (filtered.Length > 0)
+                        {
+                            SetResult(message, filtered!);
                             return true;
-                        break;
+                        }
+                    }
                 }
-
-                if (endPoints.Count > 0)
+                else if (reader.IsScalar && reader.IsNull)
                 {
-                    SetResult(message, endPoints.ToArray());
+                    // We don't want to blow up if the primary is not found
                     return true;
                 }
 
