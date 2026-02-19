@@ -1,6 +1,8 @@
 ﻿// ReSharper disable once CheckNamespace
 
+using System;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite.Messages;
 
 namespace StackExchange.Redis;
 
@@ -46,78 +48,93 @@ internal abstract partial class ResultProcessor
 
     private sealed partial class VectorSetInfoProcessor : ResultProcessor<VectorSetInfo?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (result.Resp2TypeArray == ResultType.Array)
+            if (!reader.IsAggregate) return false;
+
+            if (reader.IsNull)
             {
-                if (result.IsNull)
-                {
-                    SetResult(message, null);
-                    return true;
-                }
-
-                var quantType = VectorSetQuantization.Unknown;
-                string? quantTypeRaw = null;
-                int vectorDim = 0, maxLevel = 0;
-                long resultSize = 0, vsetUid = 0, hnswMaxNodeUid = 0;
-                var iter = result.GetItems().GetEnumerator();
-                while (iter.MoveNext())
-                {
-                    ref readonly RawResult key = ref iter.Current;
-                    if (!iter.MoveNext()) break;
-                    ref readonly RawResult value = ref iter.Current;
-
-                    var len = key.Payload.Length;
-                    var keyHash = key.Payload.Hash64();
-                    switch (key.Payload.Length)
-                    {
-                        case size.Length when size.Is(keyHash, key) && value.TryGetInt64(out var i64):
-                            resultSize = i64;
-                            break;
-                        case vset_uid.Length when vset_uid.Is(keyHash, key) && value.TryGetInt64(out var i64):
-                            vsetUid = i64;
-                            break;
-                        case max_level.Length when max_level.Is(keyHash, key) && value.TryGetInt64(out var i64):
-                            maxLevel = checked((int)i64);
-                            break;
-                        case vector_dim.Length
-                            when vector_dim.Is(keyHash, key) && value.TryGetInt64(out var i64):
-                            vectorDim = checked((int)i64);
-                            break;
-                        case quant_type.Length when quant_type.Is(keyHash, key):
-                            var qHash = value.Payload.Hash64();
-                            switch (value.Payload.Length)
-                            {
-                                case bin.Length when bin.Is(qHash, value):
-                                    quantType = VectorSetQuantization.Binary;
-                                    break;
-                                case f32.Length when f32.Is(qHash, value):
-                                    quantType = VectorSetQuantization.None;
-                                    break;
-                                case int8.Length when int8.Is(qHash, value):
-                                    quantType = VectorSetQuantization.Int8;
-                                    break;
-                                default:
-                                    quantTypeRaw = value.GetString();
-                                    quantType = VectorSetQuantization.Unknown;
-                                    break;
-                            }
-
-                            break;
-                        case hnsw_max_node_uid.Length
-                            when hnsw_max_node_uid.Is(keyHash, key) && value.TryGetInt64(out var i64):
-                            hnswMaxNodeUid = i64;
-                            break;
-                    }
-                }
-
-                SetResult(
-                    message,
-                    new VectorSetInfo(quantType, quantTypeRaw, vectorDim, resultSize, maxLevel, vsetUid, hnswMaxNodeUid));
+                SetResult(message, null);
                 return true;
             }
 
-            return false;
+            var quantType = VectorSetQuantization.Unknown;
+            string? quantTypeRaw = null;
+            int vectorDim = 0, maxLevel = 0;
+            long resultSize = 0, vsetUid = 0, hnswMaxNodeUid = 0;
+
+            // capacity for expected keys and quants
+            Span<byte> stackBuffer = stackalloc byte[24];
+
+            // Iterate through key-value pairs
+            while (reader.TryMoveNext())
+            {
+                // Read key
+                if (!reader.IsScalar) break;
+
+                var len = reader.ScalarLength();
+                var testBytes =
+                    (len > stackBuffer.Length | reader.IsNull) ? default :
+                    reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackBuffer);
+
+                // Move to value
+                if (!reader.TryMoveNext()) break;
+
+                // Skip non-scalar values (future-proofing)
+                if (!reader.IsScalar)
+                {
+                    reader.SkipChildren();
+                    continue;
+                }
+
+                var hash = testBytes.Hash64(); // this still contains the key, even though we've advanced
+                switch (hash)
+                {
+                    case size.Hash when size.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                        resultSize = i64;
+                        break;
+                    case vset_uid.Hash when vset_uid.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                        vsetUid = i64;
+                        break;
+                    case max_level.Hash when max_level.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                        maxLevel = checked((int)i64);
+                        break;
+                    case vector_dim.Hash when vector_dim.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                        vectorDim = checked((int)i64);
+                        break;
+                    case quant_type.Hash when quant_type.Is(hash, testBytes):
+                        len = reader.ScalarLength();
+                        testBytes = (len > stackBuffer.Length | reader.IsNull) ? default :
+                            reader.TryGetSpan(out tmp) ? tmp : reader.Buffer(stackBuffer);
+
+                        hash = testBytes.Hash64();
+                        switch (hash)
+                        {
+                            case bin.Hash when bin.Is(hash, testBytes):
+                                quantType = VectorSetQuantization.Binary;
+                                break;
+                            case f32.Hash when f32.Is(hash, testBytes):
+                                quantType = VectorSetQuantization.None;
+                                break;
+                            case int8.Hash when int8.Is(hash, testBytes):
+                                quantType = VectorSetQuantization.Int8;
+                                break;
+                            default:
+                                quantTypeRaw = reader.ReadString(); // don't use testBytes - we might have more bytes
+                                quantType = VectorSetQuantization.Unknown;
+                                break;
+                        }
+                        break;
+                    case hnsw_max_node_uid.Hash when hnsw_max_node_uid.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                        hnswMaxNodeUid = i64;
+                        break;
+                }
+            }
+
+            SetResult(
+                message,
+                new VectorSetInfo(quantType, quantTypeRaw, vectorDim, resultSize, maxLevel, vsetUid, hnswMaxNodeUid));
+            return true;
         }
 
 #pragma warning disable CS8981, SA1134, SA1300, SA1303, SA1502
