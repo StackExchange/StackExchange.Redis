@@ -402,7 +402,7 @@ namespace StackExchange.Redis
         }
 
         internal GeoPosition?[]? GetItemsAsGeoPositionArray()
-            => this.ToArray<GeoPosition?>((in RawResult item) => item.IsNull ? default : AsGeoPosition(item.GetItems()));
+            => this.ToArray<GeoPosition?>((in RawResult item) => item.IsNull ? (GeoPosition?)null : AsGeoPosition(item.GetItems()));
 
         internal unsafe string? GetString() => GetString(out _);
         internal unsafe string? GetString(out ReadOnlySpan<char> verbatimPrefix)

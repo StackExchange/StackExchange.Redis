@@ -1905,15 +1905,20 @@ namespace StackExchange.Redis
 
         private sealed class RedisValueGeoPositionProcessor : ResultProcessor<GeoPosition?>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                if (reader.IsAggregate)
                 {
-                    case ResultType.Array:
-                        var pos = result.GetItemsAsGeoPosition();
-
-                        SetResult(message, pos);
-                        return true;
+                    if (reader.AggregateLengthIs(1))
+                    {
+                        reader.MoveNext();
+                        SetResult(message, ParseGeoPosition(ref reader));
+                    }
+                    else
+                    {
+                        SetResult(message, null);
+                    }
+                    return true;
                 }
                 return false;
             }
@@ -1921,68 +1926,76 @@ namespace StackExchange.Redis
 
         private sealed class RedisValueGeoPositionArrayProcessor : ResultProcessor<GeoPosition?[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                if (reader.IsAggregate)
                 {
-                    case ResultType.Array:
-                        var arr = result.GetItemsAsGeoPositionArray()!;
-
-                        SetResult(message, arr);
-                        return true;
+                    var arr = reader.ReadPastArray(static (ref r) => ParseGeoPosition(ref r));
+                    SetResult(message, arr!);
+                    return true;
                 }
                 return false;
             }
         }
 
+        private static GeoPosition? ParseGeoPosition(ref RespReader reader)
+        {
+            if (reader.IsAggregate && reader.AggregateLengthIs(2)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var longitude)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var latitude)
+                && !reader.TryMoveNext())
+            {
+                return new GeoPosition(longitude, latitude);
+            }
+            return null;
+        }
+
         private sealed class GeoRadiusResultArrayProcessor : ResultProcessor<GeoRadiusResult[]>
         {
-            private static readonly GeoRadiusResultArrayProcessor[] instances;
+            private static readonly GeoRadiusResultArrayProcessor?[] instances = new GeoRadiusResultArrayProcessor?[8];
             private readonly GeoRadiusOptions options;
 
-            static GeoRadiusResultArrayProcessor()
-            {
-                instances = new GeoRadiusResultArrayProcessor[8];
-                for (int i = 0; i < 8; i++) instances[i] = new GeoRadiusResultArrayProcessor((GeoRadiusOptions)i);
-            }
-
             public static GeoRadiusResultArrayProcessor Get(GeoRadiusOptions options)
-            {
-                int i = (int)options;
-                if (i < 0 || i >= instances.Length) throw new ArgumentOutOfRangeException(nameof(options));
-                return instances[i];
-            }
+                => instances[(int)options] ??= new(options);
 
             private GeoRadiusResultArrayProcessor(GeoRadiusOptions options)
             {
                 this.options = options;
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeArray)
+                if (reader.IsAggregate)
                 {
-                    case ResultType.Array:
-                        var typed = result.ToArray(
-                            (in item, in radiusOptions) => Parse(item, radiusOptions), options)!;
-                        SetResult(message, typed);
-                        return true;
+                    var opts = options;
+                    var typed = reader.ReadPastArray(
+                        ref opts,
+                        static (ref options, ref reader) => Parse(ref reader, options),
+                        scalar: options == GeoRadiusOptions.None);
+                    SetResult(message, typed!);
+                    return true;
                 }
                 return false;
             }
 
-            private static GeoRadiusResult Parse(in RawResult item, GeoRadiusOptions options)
+            private static GeoRadiusResult Parse(ref RespReader reader, GeoRadiusOptions options)
             {
                 if (options == GeoRadiusOptions.None)
                 {
                     // Without any WITH option specified, the command just returns a linear array like ["New York","Milan","Paris"].
-                    return new GeoRadiusResult(item.AsRedisValue(), null, null, null);
+                    return new GeoRadiusResult(reader.ReadString(), null, null, null);
                 }
+
                 // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
-                var iter = item.GetItems().GetEnumerator();
+                if (!reader.IsAggregate)
+                {
+                    return default;
+                }
+
+                reader.MoveNext(); // Move to first element in the sub-array
 
                 // the first item in the sub-array is always the name of the returned item.
-                var member = iter.GetNext().AsRedisValue();
+                var member = reader.ReadString();
 
                 /*  The other information is returned in the following order as successive elements of the sub-array.
 The distance from the center as a floating point number, in the same unit specified in the radius.
@@ -1992,14 +2005,25 @@ The coordinates as a two items x,y array (longitude,latitude).
                 double? distance = null;
                 GeoPosition? position = null;
                 long? hash = null;
-                if ((options & GeoRadiusOptions.WithDistance) != 0) { distance = (double?)iter.GetNext().AsRedisValue(); }
-                if ((options & GeoRadiusOptions.WithGeoHash) != 0) { hash = (long?)iter.GetNext().AsRedisValue(); }
+
+                if ((options & GeoRadiusOptions.WithDistance) != 0)
+                {
+                    reader.MoveNextScalar();
+                    distance = reader.ReadDouble();
+                }
+
+                if ((options & GeoRadiusOptions.WithGeoHash) != 0)
+                {
+                    reader.MoveNextScalar();
+                    hash = reader.TryReadInt64(out var h) ? h : null;
+                }
+
                 if ((options & GeoRadiusOptions.WithCoordinates) != 0)
                 {
-                    var coords = iter.GetNext().GetItems();
-                    double longitude = (double)coords[0].AsRedisValue(), latitude = (double)coords[1].AsRedisValue();
-                    position = new GeoPosition(longitude, latitude);
+                    reader.MoveNextAggregate();
+                    position = ParseGeoPosition(ref reader);
                 }
+
                 return new GeoRadiusResult(member, distance, hash, position);
             }
         }
