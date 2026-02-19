@@ -42,11 +42,7 @@ namespace StackExchange.Redis
         protected override void WriteImpl(in MessageWriter writer)
         {
 #if VERBOSE
-            try
-            {
-                log?.LogTrace($"{writer.Name}: Writing: {tail.CommandAndKey}");
-            }
-            catch { }
+            log?.LogTrace($"Writing: {tail.CommandAndKey}");
 #endif
             tail.WriteTo(writer);
         }
@@ -810,6 +806,27 @@ namespace StackExchange.Redis
         internal void WriteTo(PhysicalConnection physical)
         {
             MessageWriter writer = new MessageWriter(physical);
+            try
+            {
+                WriteImpl(in writer);
+                var bytes = writer.Flush();
+                physical.WriteDirect(bytes);
+                MessageWriter.Release(bytes);
+            }
+            catch (Exception ex) when (ex is not RedisCommandException) // these have specific meaning; don't wrap
+            {
+                physical?.OnInternalError(ex);
+                Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
+            }
+            finally
+            {
+                writer.Revert();
+            }
+        }
+
+        internal void WriteTo(PhysicalConnection physical, CommandMap commandMap, byte[]? channelPrefix)
+        {
+            MessageWriter writer = new MessageWriter(channelPrefix, commandMap);
             try
             {
                 WriteImpl(in writer);

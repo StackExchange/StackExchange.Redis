@@ -10,15 +10,13 @@ namespace StackExchange.Redis;
 
 internal readonly ref struct MessageWriter
 {
-    public string Name { get; }
     private readonly CommandMap _map;
     private readonly byte[]? _channelPrefix;
 
-    public MessageWriter(byte[]? channelPrefix = null, CommandMap? map = null, [CallerMemberName] string name = "")
+    public MessageWriter(byte[]? channelPrefix = null, CommandMap? map = null)
     {
         // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
         _map = map ?? CommandMap.Default;
-        Name = name;
         _channelPrefix = channelPrefix;
     }
 
@@ -27,13 +25,11 @@ internal readonly ref struct MessageWriter
         if (connection.BridgeCouldBeNull is { } bridge)
         {
             _map = bridge.Multiplexer.CommandMap;
-            Name = bridge.Name;
             _channelPrefix = connection.ChannelPrefix;
         }
         else
         {
             _map = CommandMap.Default;
-            Name = "";
             _channelPrefix = null;
         }
     }

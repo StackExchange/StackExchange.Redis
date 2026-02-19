@@ -11,7 +11,7 @@ public class EchoRoundTrip
     public async Task EchoRoundTripTest(string payload, string requestResp, string responseResp)
     {
         var msg = Message.Create(-1, CommandFlags.None, RedisCommand.ECHO, (RedisValue)payload);
-        var result = await TestConnection.Test(msg, ResultProcessor.String, requestResp, responseResp);
+        var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.String, requestResp, responseResp);
         Assert.Equal(payload, result);
     }
 }
