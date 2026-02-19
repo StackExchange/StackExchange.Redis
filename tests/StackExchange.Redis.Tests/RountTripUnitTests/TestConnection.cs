@@ -26,13 +26,15 @@ public static class CancellationTokenExtensions
 }
 public class TestConnection : IDisposable
 {
-    internal static async Task<T> Test<T>(
+    internal static async Task<T> ExecuteAsync<T>(
         Message message,
         ResultProcessor<T> processor,
         string requestResp,
         string responseResp,
         ConnectionType connectionType = ConnectionType.Interactive,
         RedisProtocol protocol = RedisProtocol.Resp2,
+        CommandMap? commandMap = null,
+        byte[]? channelPrefix = null,
         [CallerMemberName] string caller = "")
     {
         // Validate RESP samples are not null/empty to avoid test setup mistakes
@@ -45,7 +47,7 @@ public class TestConnection : IDisposable
         using var timeout = tcs.CancelWithTest();
 
         message.SetSource(box, processor);
-        conn.WriteOutbound(message);
+        conn.WriteOutbound(message, commandMap, channelPrefix);
         Assert.Equal(TaskStatus.WaitingForActivation, tcs.Task.Status); // should be pending, since we haven't responded yet
 
         // check the request
@@ -86,10 +88,10 @@ public class TestConnection : IDisposable
         _stream.Dispose();
     }
 
-    internal void WriteOutbound(Message message)
+    internal void WriteOutbound(Message message, CommandMap? commandMap = null, byte[]? channelPrefix = null)
     {
         _physical.EnqueueInsideWriteLock(message, enforceMuxer: false);
-        message.WriteTo(_physical);
+        message.WriteTo(_physical, commandMap ?? CommandMap.Default, channelPrefix);
     }
 
     public void AssertOutbound(string expected)
