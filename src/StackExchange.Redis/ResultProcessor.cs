@@ -362,8 +362,8 @@ namespace StackExchange.Redis
             if (reader.IsAggregate)
             {
                 var arr = reader.ReadPastArray(
-                    resp3,
-                    static (in resp3, ref reader) => AsRaw(ref reader, resp3),
+                    ref resp3,
+                    static (ref resp3, ref reader) => AsRaw(ref reader, resp3),
                     scalar: false) ?? [];
                 return new RawResult(type, new Sequence<RawResult>(arr), flags);
             }
@@ -1543,7 +1543,7 @@ namespace StackExchange.Redis
 
                 Debug.Assert(Unsafe.SizeOf<T>() == sizeof(int));
                 var arr = reader.ReadPastArray(
-                    static (ref RespReader r) =>
+                    static (ref r) =>
                     {
                         int i32 = (int)r.ReadInt64();
                         return Unsafe.As<int, T>(ref i32);
@@ -1716,8 +1716,8 @@ namespace StackExchange.Redis
                 {
                     var state = new ChannelState(connection, options);
                     var arr = reader.ReadPastArray(
-                        in state,
-                        static (in s, ref r) =>
+                        ref state,
+                        static (ref s, ref r) =>
                             s.Connection.AsRedisChannel(in r, s.Options),
                         scalar: true);
                     SetResult(message, arr!);
@@ -2065,81 +2065,92 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class RoleProcessor : ResultProcessor<Role>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                var items = result.GetItems();
-                if (items.IsEmpty)
+                // Null, non-aggregate, empty, or non-scalar first element returns null Role
+                if (!(reader.IsAggregate && !reader.IsNull && reader.TryMoveNext() && reader.IsScalar))
                 {
-                    return false;
+                    SetResult(message, null!);
+                    return true;
                 }
 
-                ref var val = ref items[0];
-                Role? role;
-                if (val.IsEqual(RedisLiterals.master)) role = ParsePrimary(items);
-                else if (val.IsEqual(RedisLiterals.slave)) role = ParseReplica(items, RedisLiterals.slave!);
-                else if (val.IsEqual(RedisLiterals.replica)) role = ParseReplica(items, RedisLiterals.replica!); // for when "slave" is deprecated
-                else if (val.IsEqual(RedisLiterals.sentinel)) role = ParseSentinel(items);
-                else role = new Role.Unknown(val.GetString()!);
+                ReadOnlySpan<byte> roleBytes = reader.TryGetSpan(out var span)
+                    ? span
+                    : reader.Buffer(stackalloc byte[16]); // word-aligned, enough for longest role type
 
-                if (role is null) return false;
-                SetResult(message, role);
+                var hash = FastHash.Hash64(roleBytes);
+                var role = hash switch
+                {
+                    Literals.master.Hash when Literals.master.Is(hash, roleBytes) => ParsePrimary(ref reader),
+                    Literals.slave.Hash when Literals.slave.Is(hash, roleBytes) => ParseReplica(ref reader, Literals.slave.Text),
+                    Literals.replica.Hash when Literals.replica.Is(hash, roleBytes) => ParseReplica(ref reader, Literals.replica.Text),
+                    Literals.sentinel.Hash when Literals.sentinel.Is(hash, roleBytes) => ParseSentinel(ref reader),
+                    _ => new Role.Unknown(reader.ReadString()!),
+                };
+
+                SetResult(message, role!);
                 return true;
             }
 
-            private static Role? ParsePrimary(in Sequence<RawResult> items)
+            private static Role? ParsePrimary(ref RespReader reader)
             {
-                if (items.Length < 3)
+                // Expect: offset (int64), replicas (array)
+                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var offset)))
                 {
                     return null;
                 }
 
-                if (!items[1].TryGetInt64(out var offset))
+                if (!(reader.TryMoveNext() && reader.IsAggregate))
                 {
                     return null;
                 }
 
-                var replicaItems = items[2].GetItems();
-                ICollection<Role.Master.Replica> replicas;
-                if (replicaItems.IsEmpty)
-                {
-                    replicas = Array.Empty<Role.Master.Replica>();
-                }
-                else
-                {
-                    replicas = new List<Role.Master.Replica>((int)replicaItems.Length);
-                    for (int i = 0; i < replicaItems.Length; i++)
+                var failed = false;
+                var replicas = reader.ReadPastArray(
+                    ref failed,
+                    static (ref isFailed, ref r) =>
                     {
-                        if (TryParsePrimaryReplica(replicaItems[i].GetItems(), out var replica))
+                        if (isFailed) return default; // bail early if already failed
+                        if (!TryParsePrimaryReplica(ref r, out var replica))
                         {
-                            replicas.Add(replica);
+                            isFailed = true;
+                            return default;
                         }
-                        else
-                        {
-                            return null;
-                        }
-                    }
-                }
+                        return replica;
+                    },
+                    scalar: false) ?? [];
+
+                if (failed) return null;
 
                 return new Role.Master(offset, replicas);
             }
 
-            private static bool TryParsePrimaryReplica(in Sequence<RawResult> items, out Role.Master.Replica replica)
+            private static bool TryParsePrimaryReplica(ref RespReader reader, out Role.Master.Replica replica)
             {
-                if (items.Length < 3)
+                // Expect: [ip, port, offset]
+                if (!reader.IsAggregate || reader.IsNull)
                 {
                     replica = default;
                     return false;
                 }
 
-                var primaryIp = items[0].GetString()!;
+                // IP
+                if (!(reader.TryMoveNext() && reader.IsScalar))
+                {
+                    replica = default;
+                    return false;
+                }
+                var primaryIp = reader.ReadString()!;
 
-                if (!items[1].TryGetInt64(out var primaryPort) || primaryPort > int.MaxValue)
+                // Port
+                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var primaryPort) && primaryPort <= int.MaxValue))
                 {
                     replica = default;
                     return false;
                 }
 
-                if (!items[2].TryGetInt64(out var replicationOffset))
+                // Offset
+                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var replicationOffset)))
                 {
                     replica = default;
                     return false;
@@ -2149,31 +2160,47 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return true;
             }
 
-            private static Role? ParseReplica(in Sequence<RawResult> items, string role)
+            private static Role? ParseReplica(ref RespReader reader, string role)
             {
-                if (items.Length < 5)
+                // Expect: masterIp, masterPort, state, offset
+
+                // Master IP
+                if (!(reader.TryMoveNext() && reader.IsScalar))
+                {
+                    return null;
+                }
+                var primaryIp = reader.ReadString()!;
+
+                // Master Port
+                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var primaryPort) && primaryPort <= int.MaxValue))
                 {
                     return null;
                 }
 
-                var primaryIp = items[1].GetString()!;
-
-                if (!items[2].TryGetInt64(out var primaryPort) || primaryPort > int.MaxValue)
+                // Replication State
+                if (!(reader.TryMoveNext() && reader.IsScalar))
                 {
                     return null;
                 }
 
-                ref var val = ref items[3];
-                string replicationState;
-                if (val.IsEqual(RedisLiterals.connect)) replicationState = RedisLiterals.connect!;
-                else if (val.IsEqual(RedisLiterals.connecting)) replicationState = RedisLiterals.connecting!;
-                else if (val.IsEqual(RedisLiterals.sync)) replicationState = RedisLiterals.sync!;
-                else if (val.IsEqual(RedisLiterals.connected)) replicationState = RedisLiterals.connected!;
-                else if (val.IsEqual(RedisLiterals.none)) replicationState = RedisLiterals.none!;
-                else if (val.IsEqual(RedisLiterals.handshake)) replicationState = RedisLiterals.handshake!;
-                else replicationState = val.GetString()!;
+                ReadOnlySpan<byte> stateBytes = reader.TryGetSpan(out var span)
+                    ? span
+                    : reader.Buffer(stackalloc byte[16]); // word-aligned, enough for longest state
 
-                if (!items[4].TryGetInt64(out var replicationOffset))
+                var hash = FastHash.Hash64(stateBytes);
+                var replicationState = hash switch
+                {
+                    Literals.connect.Hash when Literals.connect.Is(hash, stateBytes) => Literals.connect.Text,
+                    Literals.connecting.Hash when Literals.connecting.Is(hash, stateBytes) => Literals.connecting.Text,
+                    Literals.sync.Hash when Literals.sync.Is(hash, stateBytes) => Literals.sync.Text,
+                    Literals.connected.Hash when Literals.connected.Is(hash, stateBytes) => Literals.connected.Text,
+                    Literals.none.Hash when Literals.none.Is(hash, stateBytes) => Literals.none.Text,
+                    Literals.handshake.Hash when Literals.handshake.Is(hash, stateBytes) => Literals.handshake.Text,
+                    _ => reader.ReadString()!,
+                };
+
+                // Replication Offset
+                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var replicationOffset)))
                 {
                     return null;
                 }
@@ -2181,14 +2208,16 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return new Role.Replica(role, primaryIp, (int)primaryPort, replicationState, replicationOffset);
             }
 
-            private static Role? ParseSentinel(in Sequence<RawResult> items)
+            private static Role? ParseSentinel(ref RespReader reader)
             {
-                if (items.Length < 2)
+                // Expect: array of master names
+                if (!(reader.TryMoveNext() && reader.IsAggregate))
                 {
                     return null;
                 }
-                var primaries = items[1].GetItemsAsStrings()!;
-                return new Role.Sentinel(primaries);
+
+                var primaries = reader.ReadPastArray(static (ref r) => r.ReadString(), scalar: true);
+                return new Role.Sentinel(primaries ?? []);
             }
         }
 
@@ -3302,11 +3331,12 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             if (!reader.IsAggregate) return false;
 
+            var self = this;
             var arr = reader.ReadPastArray(
-                this,
-                static (in ArrayResultProcessor<T> self, ref RespReader r) =>
+                ref self,
+                static (ref s, ref r) =>
                 {
-                    if (!self.TryParse(ref r, out var parsed))
+                    if (!s.TryParse(ref r, out var parsed))
                     {
                         throw new InvalidOperationException("Failed to parse array element");
                     }

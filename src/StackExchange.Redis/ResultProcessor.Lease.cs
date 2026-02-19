@@ -43,7 +43,8 @@ internal abstract partial class ResultProcessor
             var lease = Lease<T>.Create(length, clear: false);
             try
             {
-                reader.FillAll(lease.Span, this, static (in self, ref r) => self.TryParse(ref r));
+                var self = this;
+                reader.FillAll(lease.Span, ref self, static (ref s, ref r) => s.TryParse(ref r));
                 SetResult(message, lease);
                 return true;
             }

@@ -21,15 +21,15 @@
 [SER004]RESPite.Buffers.CycleBuffer.Write(in System.Buffers.ReadOnlySequence<byte> value) -> void
 [SER004]RESPite.Buffers.CycleBuffer.Write(System.ReadOnlySpan<byte> value) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TResult>! projection) -> void
-[SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TFirst, TSecond, TResult>(scoped System.Span<TResult> target, in TState state, RESPite.Messages.RespReader.Projection<TState, TFirst>! first, RESPite.Messages.RespReader.Projection<TState, TSecond>! second, System.Func<TState, TFirst, TSecond, TResult>! combine) -> void
-[SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TResult>(scoped System.Span<TResult> target, in TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TFirst, TSecond, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TFirst>! first, RESPite.Messages.RespReader.Projection<TState, TSecond>! second, System.Func<TState, TFirst, TSecond, TResult>! combine) -> void
+[SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw() -> bool
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
 [SER004]RESPite.Messages.RespReader.AggregateLengthIs(int count) -> bool
-[SER004]RESPite.Messages.RespReader.FillAll<TState, TResult>(scoped System.Span<TResult> target, in TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
+[SER004]RESPite.Messages.RespReader.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
 [SER004]RESPite.Messages.RespReader.Projection<TState, TResult>
-[SER004]RESPite.Messages.RespReader.ReadArray<TState, TResult>(in TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
-[SER004]RESPite.Messages.RespReader.ReadPastArray<TState, TResult>(in TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
+[SER004]RESPite.Messages.RespReader.ReadArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
+[SER004]RESPite.Messages.RespReader.ReadPastArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
 [SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, int pageSize = 8192) -> RESPite.Buffers.CycleBuffer
 [SER004]const RESPite.Messages.RespScanState.MinBytes = 3 -> int
 [SER004]override RESPite.Messages.RespScanState.Equals(object? obj) -> bool
@@ -165,4 +165,4 @@
 [SER004]virtual RESPite.Messages.RespReader.Parser<TSource, TState, TValue>.Invoke(System.ReadOnlySpan<TSource> value, TState? state) -> TValue
 [SER004]virtual RESPite.Messages.RespReader.Parser<TSource, TValue>.Invoke(System.ReadOnlySpan<TSource> value) -> TValue
 [SER004]virtual RESPite.Messages.RespReader.Projection<T>.Invoke(ref RESPite.Messages.RespReader value) -> T
-[SER004]virtual RESPite.Messages.RespReader.Projection<TState, TResult>.Invoke(in TState state, ref RESPite.Messages.RespReader value) -> TResult
+[SER004]virtual RESPite.Messages.RespReader.Projection<TState, TResult>.Invoke(ref TState state, ref RESPite.Messages.RespReader value) -> TResult

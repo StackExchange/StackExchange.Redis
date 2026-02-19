@@ -32,6 +32,20 @@ internal partial class ResultProcessor
         [FastHash] internal static partial class iids_tracked { }
         [FastHash] internal static partial class iids_added { }
         [FastHash] internal static partial class iids_duplicates { }
+
+        // Role types
+        [FastHash] internal static partial class master { }
+        [FastHash] internal static partial class slave { }
+        [FastHash] internal static partial class replica { }
+        [FastHash] internal static partial class sentinel { }
+
+        // Replication states
+        [FastHash] internal static partial class connect { }
+        [FastHash] internal static partial class connecting { }
+        [FastHash] internal static partial class sync { }
+        [FastHash] internal static partial class connected { }
+        [FastHash] internal static partial class none { }
+        [FastHash] internal static partial class handshake { }
         // ReSharper restore InconsistentNaming
 #pragma warning restore CS8981, SA1300, SA1134 // forgive naming etc
     }
