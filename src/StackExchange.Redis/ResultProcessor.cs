@@ -2098,34 +2098,47 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 // Read the matches array
                                 if (iter.Value.IsAggregate)
                                 {
-                                    var matchCount = iter.Value.AggregateLength();
-                                    matchesArray = new LCSMatchResult.LCSMatch[matchCount];
-                                    var matchIter = iter.Value.AggregateChildren();
-                                    for (int i = 0; i < matchCount; i++)
+                                    bool failed = false;
+                                    matchesArray = iter.Value.ReadPastArray(ref failed, static (ref failed, ref reader) =>
                                     {
-                                        if (!matchIter.MoveNext() || !matchIter.Value.IsAggregate) break;
+                                        // Don't even bother if we've already failed
+                                        if (failed) return default;
 
-                                        var matchReader = matchIter.Value;
-                                        var matchChildren = matchReader.AggregateChildren();
+                                        if (!reader.IsAggregate)
+                                        {
+                                            failed = true;
+                                            return default;
+                                        }
 
-                                        // First range (2-element array)
-                                        if (!matchChildren.MoveNext() || !matchChildren.Value.IsAggregate) break;
-                                        var firstRangeIter = matchChildren.Value.AggregateChildren();
-                                        if (!firstRangeIter.MoveNext() || !firstRangeIter.Value.IsScalar) break;
-                                        var firstStringIndex = firstRangeIter.Value.TryReadInt64(out var first) ? first : 0;
+                                        var matchChildren = reader.AggregateChildren();
 
-                                        // Second range (2-element array)
-                                        if (!matchChildren.MoveNext() || !matchChildren.Value.IsAggregate) break;
-                                        var secondRangeIter = matchChildren.Value.AggregateChildren();
-                                        if (!secondRangeIter.MoveNext() || !secondRangeIter.Value.IsScalar) break;
-                                        var secondStringIndex = secondRangeIter.Value.TryReadInt64(out var second) ? second : 0;
+                                        // First range (2-element array: [start, end])
+                                        if (!(matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var firstPos)))
+                                        {
+                                            failed = true;
+                                            return default;
+                                        }
+
+                                        // Second range (2-element array: [start, end])
+                                        if (!(matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var secondPos)))
+                                        {
+                                            failed = true;
+                                            return default;
+                                        }
 
                                         // Length
-                                        if (!matchChildren.MoveNext() || !matchChildren.Value.IsScalar) break;
+                                        if (!(matchChildren.MoveNext() && matchChildren.Value.IsScalar))
+                                        {
+                                            failed = true;
+                                            return default;
+                                        }
                                         var length = matchChildren.Value.TryReadInt64(out var matchLen) ? matchLen : 0;
 
-                                        matchesArray[i] = new LCSMatchResult.LCSMatch(firstStringIndex, secondStringIndex, length);
-                                    }
+                                        return new LCSMatchResult.LCSMatch(firstPos, secondPos, length);
+                                    });
+
+                                    // Check if anything went wrong
+                                    if (failed) matchesArray = null;
                                 }
                                 break;
 
@@ -2146,6 +2159,20 @@ The coordinates as a two items x,y array (longitude,latitude).
                     }
                 }
                 return false;
+            }
+
+            private static bool TryReadPosition(ref RespReader reader, out LCSMatchResult.LCSPosition position)
+            {
+                // Expecting a 2-element array: [start, end]
+                position = default;
+                if (!reader.IsAggregate) return false;
+
+                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var start))) return false;
+
+                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var end))) return false;
+
+                position = new LCSMatchResult.LCSPosition(start, end);
+                return true;
             }
         }
 

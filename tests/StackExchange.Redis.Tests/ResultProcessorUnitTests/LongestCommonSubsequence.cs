@@ -22,9 +22,17 @@ public class LongestCommonSubsequence(ITestOutputHelper log) : ResultProcessorUn
 
         Assert.Equal(6, result.LongestMatchLength);
         Assert.Single(result.Matches);
+
+        // Verify backward-compatible properties
         Assert.Equal(4, result.Matches[0].FirstStringIndex);
         Assert.Equal(5, result.Matches[0].SecondStringIndex);
         Assert.Equal(4, result.Matches[0].Length);
+
+        // Verify new Position properties
+        Assert.Equal(4, result.Matches[0].First.Start);
+        Assert.Equal(7, result.Matches[0].First.End);
+        Assert.Equal(5, result.Matches[0].Second.Start);
+        Assert.Equal(8, result.Matches[0].Second.End);
     }
 
     [Fact]
@@ -49,12 +57,28 @@ public class LongestCommonSubsequence(ITestOutputHelper log) : ResultProcessorUn
 
         Assert.Equal(6, result.LongestMatchLength);
         Assert.Equal(2, result.Matches.Length);
+
+        // First match - verify backward-compatible properties
         Assert.Equal(4, result.Matches[0].FirstStringIndex);
         Assert.Equal(5, result.Matches[0].SecondStringIndex);
         Assert.Equal(4, result.Matches[0].Length);
+
+        // First match - verify new Position properties
+        Assert.Equal(4, result.Matches[0].First.Start);
+        Assert.Equal(7, result.Matches[0].First.End);
+        Assert.Equal(5, result.Matches[0].Second.Start);
+        Assert.Equal(8, result.Matches[0].Second.End);
+
+        // Second match - verify backward-compatible properties
         Assert.Equal(2, result.Matches[1].FirstStringIndex);
         Assert.Equal(0, result.Matches[1].SecondStringIndex);
         Assert.Equal(2, result.Matches[1].Length);
+
+        // Second match - verify new Position properties
+        Assert.Equal(2, result.Matches[1].First.Start);
+        Assert.Equal(3, result.Matches[1].First.End);
+        Assert.Equal(0, result.Matches[1].Second.Start);
+        Assert.Equal(1, result.Matches[1].Second.End);
     }
 
     [Fact]
