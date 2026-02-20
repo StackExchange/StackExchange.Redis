@@ -19,8 +19,6 @@ internal abstract partial class ResultProcessor
 
     private sealed class VectorSetLinksWithScoresProcessor : FlattenedLeaseProcessor<VectorSetLink>
     {
-        protected override long GetArrayLength(in RawResult array) => array.GetItems().Length / 2;
-
         protected override long GetArrayLength(in RespReader reader) => reader.AggregateLength() / 2;
 
         protected override bool TryReadOne(ref RespReader reader, out VectorSetLink value)
@@ -41,22 +39,6 @@ internal abstract partial class ResultProcessor
             value = new VectorSetLink(member, score);
             return true;
         }
-
-        protected override bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out VectorSetLink value)
-        {
-            if (reader.MoveNext())
-            {
-                ref readonly RawResult first = ref reader.Current;
-                if (reader.MoveNext() && reader.Current.TryGetDouble(out var score))
-                {
-                    value = new VectorSetLink(first.AsRedisValue(), score);
-                    return true;
-                }
-            }
-
-            value = default;
-            return false;
-        }
     }
 
     private sealed class VectorSetLinksProcessor : FlattenedLeaseProcessor<RedisValue>
@@ -70,12 +52,6 @@ internal abstract partial class ResultProcessor
             }
 
             value = reader.ReadRedisValue();
-            return true;
-        }
-
-        protected override bool TryReadOne(in RawResult result, out RedisValue value)
-        {
-            value = result.AsRedisValue();
             return true;
         }
     }

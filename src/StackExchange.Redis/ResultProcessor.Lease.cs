@@ -63,25 +63,7 @@ internal abstract partial class ResultProcessor
     // especially useful for VLINKS
     private abstract class FlattenedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
     {
-        protected virtual long GetArrayLength(in RawResult array) => array.GetItems().Length;
-
         protected virtual long GetArrayLength(in RespReader reader) => reader.AggregateLength();
-
-        protected virtual bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out T value)
-        {
-            if (reader.MoveNext())
-            {
-                return TryReadOne(in reader.Current, out value);
-            }
-            value = default!;
-            return false;
-        }
-
-        protected virtual bool TryReadOne(in RawResult result, out T value)
-        {
-            value = default!;
-            return false;
-        }
 
         protected virtual bool TryReadOne(ref RespReader reader, out T value)
         {
@@ -158,56 +140,6 @@ internal abstract partial class ResultProcessor
                 lease.Dispose();
                 throw;
             }
-        }
-
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-        {
-            if (result.Resp2TypeArray != ResultType.Array)
-            {
-                return false; // not an array
-            }
-            if (result.IsNull)
-            {
-                SetResult(message, Lease<T>.Empty);
-                return true;
-            }
-            var items = result.GetItems();
-            long length = 0;
-            foreach (ref RawResult item in items)
-            {
-                if (item.Resp2TypeArray == ResultType.Array && !item.IsNull)
-                {
-                    length += GetArrayLength(in item);
-                }
-            }
-
-            if (length == 0)
-            {
-                SetResult(message, Lease<T>.Empty);
-                return true;
-            }
-            var lease = Lease<T>.Create(checked((int)length), clear: false);
-            int index = 0;
-            var target = lease.Span;
-            foreach (ref RawResult item in items)
-            {
-                if (item.Resp2TypeArray == ResultType.Array && !item.IsNull)
-                {
-                    var iter = item.GetItems().GetEnumerator();
-                    while (index < target.Length && TryReadOne(ref iter, out target[index]))
-                    {
-                        index++;
-                    }
-                }
-            }
-
-            if (index == length)
-            {
-                SetResult(message, lease);
-                return true;
-            }
-            lease.Dispose(); // failed to fill?
-            return false;
         }
     }
 
