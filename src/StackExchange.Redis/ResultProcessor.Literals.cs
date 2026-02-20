@@ -40,6 +40,24 @@ internal partial class ResultProcessor
         [FastHash] internal static partial class slave { }
         [FastHash] internal static partial class replica { }
         [FastHash] internal static partial class sentinel { }
+        [FastHash] internal static partial class primary { }
+        [FastHash] internal static partial class standalone { }
+        [FastHash] internal static partial class cluster { }
+
+        // Config keys
+        [FastHash] internal static partial class timeout { }
+        [FastHash] internal static partial class databases { }
+        [FastHash("slave-read-only")] internal static partial class slave_read_only { }
+        [FastHash("replica-read-only")] internal static partial class replica_read_only { }
+        [FastHash] internal static partial class yes { }
+        [FastHash] internal static partial class no { }
+
+        // HELLO keys
+        [FastHash] internal static partial class version { }
+        [FastHash] internal static partial class proto { }
+        [FastHash] internal static partial class id { }
+        [FastHash] internal static partial class mode { }
+        [FastHash] internal static partial class role { }
 
         // Replication states
         [FastHash] internal static partial class connect { }

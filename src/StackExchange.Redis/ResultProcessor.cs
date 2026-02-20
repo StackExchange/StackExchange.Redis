@@ -998,40 +998,38 @@ namespace StackExchange.Redis
                 return base.SetResult(connection, message, ref copy);
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 var server = connection.BridgeCouldBeNull?.ServerEndPoint;
                 if (server == null) return false;
 
-                switch (result.Resp2TypeBulkString)
+                // Handle CLIENT command (returns integer client ID)
+                if (message?.Command == RedisCommand.CLIENT && reader.Prefix == RespPrefix.Integer)
                 {
-                    case ResultType.Integer:
-                        if (message?.Command == RedisCommand.CLIENT)
-                        {
-                            if (result.TryGetInt64(out long clientId))
-                            {
-                                connection.ConnectionId = clientId;
-                                Log?.LogInformationAutoConfiguredClientConnectionId(new(server), clientId);
+                    if (reader.TryReadInt64(out long clientId))
+                    {
+                        connection.ConnectionId = clientId;
+                        Log?.LogInformationAutoConfiguredClientConnectionId(new(server), clientId);
+                        SetResult(message, true);
+                        return true;
+                    }
+                    return false;
+                }
 
-                                SetResult(message, true);
-                                return true;
-                            }
-                        }
-                        break;
-                    case ResultType.BulkString:
-                        if (message?.Command == RedisCommand.INFO)
-                        {
-                            string? info = result.GetString();
-                            if (string.IsNullOrWhiteSpace(info))
-                            {
-                                SetResult(message, true);
-                                return true;
-                            }
-                            string? primaryHost = null, primaryPort = null;
-                            bool roleSeen = false;
-                            using (var reader = new StringReader(info))
-                            {
-                                while (reader.ReadLine() is string line)
+                // Handle INFO command (returns bulk string)
+                if (message?.Command == RedisCommand.INFO && reader.IsScalar)
+                {
+                    string? info = reader.ReadString();
+                    if (string.IsNullOrWhiteSpace(info))
+                    {
+                        SetResult(message, true);
+                        return true;
+                    }
+                    string? primaryHost = null, primaryPort = null;
+                    bool roleSeen = false;
+                    using (var stringReader = new StringReader(info))
+                    {
+                        while (stringReader.ReadLine() is string line)
                                 {
                                     if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# "))
                                     {
@@ -1077,66 +1075,77 @@ namespace StackExchange.Redis
                                         server.RunId = val;
                                     }
                                 }
-                                if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))
+                        if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))
+                        {
+                            // These are in the same section, if present
+                            server.PrimaryEndPoint = sep;
+                        }
+                    }
+                    SetResult(message, true);
+                    return true;
+                }
+
+                // Handle SENTINEL command (returns bulk string)
+                if (message?.Command == RedisCommand.SENTINEL && reader.IsScalar)
+                {
+                    server.ServerType = ServerType.Sentinel;
+                    Log?.LogInformationAutoConfiguredSentinelServerType(new(server));
+                    SetResult(message, true);
+                    return true;
+                }
+
+                // Handle CONFIG command (returns array of key-value pairs)
+                if (message?.Command == RedisCommand.CONFIG && reader.IsAggregate)
+                {
+                    var iter = reader.AggregateChildren();
+                    while (iter.MoveNext())
+                    {
+                        var key = iter.Value;
+                        if (!iter.MoveNext()) break;
+                        var val = iter.Value;
+
+                        if (key.TryGetSpan(out var keySpan))
+                        {
+                            var keyHash = FastHash.HashCS(keySpan);
+                            if (Literals.timeout.IsCS(keyHash, keySpan) && val.TryReadInt64(out long i64))
+                            {
+                                // note the configuration is in seconds
+                                int timeoutSeconds = checked((int)i64), targetSeconds;
+                                if (timeoutSeconds > 0)
                                 {
-                                    // These are in the same section, if present
-                                    server.PrimaryEndPoint = sep;
+                                    if (timeoutSeconds >= 60)
+                                    {
+                                        targetSeconds = timeoutSeconds - 20; // time to spare...
+                                    }
+                                    else
+                                    {
+                                        targetSeconds = (timeoutSeconds * 3) / 4;
+                                    }
+                                    Log?.LogInformationAutoConfiguredConfigTimeout(new(server), targetSeconds);
+                                    server.WriteEverySeconds = targetSeconds;
                                 }
                             }
-                        }
-                        else if (message?.Command == RedisCommand.SENTINEL)
-                        {
-                            server.ServerType = ServerType.Sentinel;
-                            Log?.LogInformationAutoConfiguredSentinelServerType(new(server));
-                        }
-                        SetResult(message, true);
-                        return true;
-                    case ResultType.Array:
-                        if (message?.Command == RedisCommand.CONFIG)
-                        {
-                            var iter = result.GetItems().GetEnumerator();
-                            while (iter.MoveNext())
+                            else if (Literals.databases.IsCS(keyHash, keySpan) && val.TryReadInt64(out i64))
                             {
-                                ref RawResult key = ref iter.Current;
-                                if (!iter.MoveNext()) break;
-                                ref RawResult val = ref iter.Current;
-
-                                if (key.IsEqual(CommonReplies.timeout) && val.TryGetInt64(out long i64))
+                                int dbCount = checked((int)i64);
+                                Log?.LogInformationAutoConfiguredConfigDatabases(new(server), dbCount);
+                                server.Databases = dbCount;
+                                if (dbCount > 1)
                                 {
-                                    // note the configuration is in seconds
-                                    int timeoutSeconds = checked((int)i64), targetSeconds;
-                                    if (timeoutSeconds > 0)
-                                    {
-                                        if (timeoutSeconds >= 60)
-                                        {
-                                            targetSeconds = timeoutSeconds - 20; // time to spare...
-                                        }
-                                        else
-                                        {
-                                            targetSeconds = (timeoutSeconds * 3) / 4;
-                                        }
-                                        Log?.LogInformationAutoConfiguredConfigTimeout(new(server), targetSeconds);
-                                        server.WriteEverySeconds = targetSeconds;
-                                    }
+                                    connection.MultiDatabasesOverride = true;
                                 }
-                                else if (key.IsEqual(CommonReplies.databases) && val.TryGetInt64(out i64))
+                            }
+                            else if (Literals.slave_read_only.IsCS(keyHash, keySpan) || Literals.replica_read_only.IsCS(keyHash, keySpan))
+                            {
+                                if (val.TryGetSpan(out var valSpan))
                                 {
-                                    int dbCount = checked((int)i64);
-                                    Log?.LogInformationAutoConfiguredConfigDatabases(new(server), dbCount);
-                                    server.Databases = dbCount;
-                                    if (dbCount > 1)
-                                    {
-                                        connection.MultiDatabasesOverride = true;
-                                    }
-                                }
-                                else if (key.IsEqual(CommonReplies.slave_read_only) || key.IsEqual(CommonReplies.replica_read_only))
-                                {
-                                    if (val.IsEqual(CommonReplies.yes))
+                                    var valHash = FastHash.HashCS(valSpan);
+                                    if (Literals.yes.IsCS(valHash, valSpan))
                                     {
                                         server.ReplicaReadOnly = true;
                                         Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), true);
                                     }
-                                    else if (val.IsEqual(CommonReplies.no))
+                                    else if (Literals.no.IsCS(valHash, valSpan))
                                     {
                                         server.ReplicaReadOnly = false;
                                         Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), false);
@@ -1144,50 +1153,55 @@ namespace StackExchange.Redis
                                 }
                             }
                         }
-                        else if (message?.Command == RedisCommand.HELLO)
-                        {
-                            var iter = result.GetItems().GetEnumerator();
-                            while (iter.MoveNext())
-                            {
-                                ref RawResult key = ref iter.Current;
-                                if (!iter.MoveNext()) break;
-                                ref RawResult val = ref iter.Current;
+                    }
+                    SetResult(message, true);
+                    return true;
+                }
 
-                                if (key.IsEqual(CommonReplies.version) && Format.TryParseVersion(val.GetString(), out var version))
-                                {
-                                    server.Version = version;
-                                    Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
-                                }
-                                else if (key.IsEqual(CommonReplies.proto) && val.TryGetInt64(out var i64))
-                                {
-                                    connection.SetProtocol(i64 >= 3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
-                                    Log?.LogInformationAutoConfiguredHelloProtocol(new(server), connection.Protocol ?? RedisProtocol.Resp2);
-                                }
-                                else if (key.IsEqual(CommonReplies.id) && val.TryGetInt64(out i64))
-                                {
-                                    connection.ConnectionId = i64;
-                                    Log?.LogInformationAutoConfiguredHelloConnectionId(new(server), i64);
-                                }
-                                else if (key.IsEqual(CommonReplies.mode) && TryParseServerType(val.GetString(), out var serverType))
-                                {
-                                    server.ServerType = serverType;
-                                    Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
-                                }
-                                else if (key.IsEqual(CommonReplies.role) && TryParseRole(val.GetString(), out bool isReplica))
-                                {
-                                    server.IsReplica = isReplica;
-                                    Log?.LogInformationAutoConfiguredHelloRole(new(server), isReplica ? "replica" : "primary");
-                                }
+                // Handle HELLO command (returns array/map of key-value pairs)
+                if (message?.Command == RedisCommand.HELLO && reader.IsAggregate)
+                {
+                    var iter = reader.AggregateChildren();
+                    while (iter.MoveNext())
+                    {
+                        var key = iter.Value;
+                        if (!iter.MoveNext()) break;
+                        var val = iter.Value;
+
+                        if (key.TryGetSpan(out var keySpan))
+                        {
+                            var keyHash = FastHash.HashCS(keySpan);
+                            if (Literals.version.IsCS(keyHash, keySpan) && Format.TryParseVersion(val.ReadString(), out var version))
+                            {
+                                server.Version = version;
+                                Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
+                            }
+                            else if (Literals.proto.IsCS(keyHash, keySpan) && val.TryReadInt64(out var i64))
+                            {
+                                connection.SetProtocol(i64 >= 3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
+                                Log?.LogInformationAutoConfiguredHelloProtocol(new(server), connection.Protocol ?? RedisProtocol.Resp2);
+                            }
+                            else if (Literals.id.IsCS(keyHash, keySpan) && val.TryReadInt64(out i64))
+                            {
+                                connection.ConnectionId = i64;
+                                Log?.LogInformationAutoConfiguredHelloConnectionId(new(server), i64);
+                            }
+                            else if (Literals.mode.IsCS(keyHash, keySpan) && TryParseServerType(val.ReadString(), out var serverType))
+                            {
+                                server.ServerType = serverType;
+                                Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
+                            }
+                            else if (Literals.role.IsCS(keyHash, keySpan) && TryParseRole(val.ReadString(), out bool isReplica))
+                            {
+                                server.IsReplica = isReplica;
+                                Log?.LogInformationAutoConfiguredHelloRole(new(server), isReplica ? "replica" : "primary");
                             }
                         }
-                        else if (message?.Command == RedisCommand.SENTINEL)
-                        {
-                            server.ServerType = ServerType.Sentinel;
-                            Log?.LogInformationAutoConfiguredSentinelServerType(new(server));
-                        }
-                        SetResult(message, true);
-                        return true;
+                    }
+                    SetResult(message, true);
+                    return true;
                 }
+
                 return false;
             }
 
