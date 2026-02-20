@@ -59,120 +59,87 @@ internal abstract partial class ResultProcessor
         protected abstract T TryParse(ref RespReader reader);
     }
 
-    private abstract class InterleavedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
+    // takes a nested vector of the form [[A],[B,C],[D]] and exposes it as [A,B,C,D]; this is
+    // especially useful for VLINKS
+    private abstract class FlattenedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+        protected virtual long GetArrayLength(in RespReader reader) => reader.AggregateLength();
+
+        protected virtual bool TryReadOne(ref RespReader reader, out T value)
         {
-            if (result.Resp2TypeArray != ResultType.Array)
+            value = default!;
+            return false;
+        }
+
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+        {
+            if (!reader.IsAggregate)
             {
                 return false; // not an array
             }
 
             // deal with null
-            if (result.IsNull)
+            if (reader.IsNull)
             {
                 SetResult(message, Lease<T>.Empty);
                 return true;
             }
 
-            // lease and fill
-            var items = result.GetItems();
-            var length = checked((int)items.Length) / 2;
-            var lease = Lease<T>.Create(length, clear: false); // note this handles zero nicely
-            var target = lease.Span;
-
-            var iter = items.GetEnumerator();
-            for (int i = 0; i < target.Length; i++)
+            // First pass: count total elements across all nested arrays
+            long totalLength = 0;
+            var iter = reader.AggregateChildren();
+            while (iter.MoveNext())
             {
-                bool ok = iter.MoveNext();
-                if (ok)
+                if (iter.Value.IsAggregate && !iter.Value.IsNull)
                 {
-                    ref readonly RawResult first = ref iter.Current;
-                    ok = iter.MoveNext() && TryParse(in first, in iter.Current, out target[i]);
-                }
-                if (!ok)
-                {
-                    lease.Dispose();
-                    return false;
+                    totalLength += GetArrayLength(in iter.Value);
                 }
             }
-            SetResult(message, lease);
-            return true;
-        }
 
-        protected abstract bool TryParse(in RawResult first, in RawResult second, out T parsed);
-    }
-
-    // takes a nested vector of the form [[A],[B,C],[D]] and exposes it as [A,B,C,D]; this is
-    // especially useful for VLINKS
-    private abstract class FlattenedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
-    {
-        protected virtual long GetArrayLength(in RawResult array) => array.GetItems().Length;
-
-        protected virtual bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out T value)
-        {
-            if (reader.MoveNext())
-            {
-                return TryReadOne(in reader.Current, out value);
-            }
-            value = default!;
-            return false;
-        }
-
-        protected virtual bool TryReadOne(in RawResult result, out T value)
-        {
-            value = default!;
-            return false;
-        }
-
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-        {
-            if (result.Resp2TypeArray != ResultType.Array)
-            {
-                return false; // not an array
-            }
-            if (result.IsNull)
+            if (totalLength == 0)
             {
                 SetResult(message, Lease<T>.Empty);
                 return true;
             }
-            var items = result.GetItems();
-            long length = 0;
-            foreach (ref RawResult item in items)
-            {
-                if (item.Resp2TypeArray == ResultType.Array && !item.IsNull)
-                {
-                    length += GetArrayLength(in item);
-                }
-            }
 
-            if (length == 0)
-            {
-                SetResult(message, Lease<T>.Empty);
-                return true;
-            }
-            var lease = Lease<T>.Create(checked((int)length), clear: false);
+            // Second pass: fill the lease
+            var lease = Lease<T>.Create(checked((int)totalLength), clear: false);
             int index = 0;
             var target = lease.Span;
-            foreach (ref RawResult item in items)
+
+            try
             {
-                if (item.Resp2TypeArray == ResultType.Array && !item.IsNull)
+                iter = reader.AggregateChildren();
+                while (iter.MoveNext())
                 {
-                    var iter = item.GetItems().GetEnumerator();
-                    while (index < target.Length && TryReadOne(ref iter, out target[index]))
+                    if (iter.Value.IsAggregate && !iter.Value.IsNull)
                     {
-                        index++;
+                        var childReader = iter.Value;
+                        while (childReader.TryMoveNext() && index < target.Length)
+                        {
+                            if (!TryReadOne(ref childReader, out target[index]))
+                            {
+                                lease.Dispose();
+                                return false;
+                            }
+                            index++;
+                        }
                     }
                 }
-            }
 
-            if (index == length)
-            {
-                SetResult(message, lease);
-                return true;
+                if (index == totalLength)
+                {
+                    SetResult(message, lease);
+                    return true;
+                }
+                lease.Dispose(); // failed to fill?
+                return false;
             }
-            lease.Dispose(); // failed to fill?
-            return false;
+            catch
+            {
+                lease.Dispose();
+                throw;
+            }
         }
     }
 

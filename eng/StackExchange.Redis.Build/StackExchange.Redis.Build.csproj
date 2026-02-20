@@ -12,8 +12,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\StackExchange.Redis\FastHash.cs">
-      <Link>FastHash.cs</Link>
+    <Compile Include="..\..\src\RESPite\Shared\FastHash.cs">
+      <Link>Shared/FastHash.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\RESPite\Shared\Experiments.cs">
+      <Link>Shared/Experiments.cs</Link>
     </Compile>
   </ItemGroup>
 

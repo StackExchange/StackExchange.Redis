@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RESPite;
 
 namespace StackExchange.Redis.Build;
 
@@ -78,7 +79,15 @@ public class FastHashGenerator : IIncrementalGenerator
         string name = named.Name, value = "";
         foreach (var attrib in named.GetAttributes())
         {
-            if (attrib.AttributeClass?.Name == "FastHashAttribute")
+            if (attrib.AttributeClass is {
+                    Name: "FastHashAttribute",
+                    ContainingType: null,
+                    ContainingNamespace:
+                    {
+                        Name: "RESPite",
+                        ContainingNamespace.IsGlobalNamespace: true,
+                    }
+            })
             {
                 if (attrib.ConstructorArguments.Length == 1)
                 {
@@ -178,25 +187,28 @@ public class FastHashGenerator : IIncrementalGenerator
                 // perform string escaping on the generated value (this includes the quotes, note)
                 var csValue = SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(literal.Value)).ToFullString();
 
-                var hash = FastHash.Hash64(buffer.AsSpan(0, len));
+                var hashCS = FastHash.HashCS(buffer.AsSpan(0, len));
+                var hashCI = FastHash.HashCI(buffer.AsSpan(0, len));
                 NewLine().Append("static partial class ").Append(literal.Name);
                 NewLine().Append("{");
                 indent++;
                 NewLine().Append("public const int Length = ").Append(len).Append(';');
-                NewLine().Append("public const long Hash = ").Append(hash).Append(';');
+                NewLine().Append("public const long HashCS = ").Append(hashCS).Append(';');
+                NewLine().Append("public const long HashCI = ").Append(hashCI).Append(';');
                 NewLine().Append("public static ReadOnlySpan<byte> U8 => ").Append(csValue).Append("u8;");
                 NewLine().Append("public const string Text = ").Append(csValue).Append(';');
-                if (len <= 8)
+                if (len <= FastHash.MaxBytesHashIsEqualityCS)
                 {
-                    // the hash enforces all the values
-                    NewLine().Append("public static bool Is(long hash, in RawResult value) => hash == Hash && value.Payload.Length == Length;");
-                    NewLine().Append("public static bool Is(long hash, ReadOnlySpan<byte> value) => hash == Hash & value.Length == Length;");
+                    // the case-sensitive hash enforces all the values
+                    NewLine().Append("public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;");
+                    NewLine().Append("public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.FastHash.HashCS(value) == HashCS || global::RESPite.FastHash.EqualsCI(value, U8));");
                 }
                 else
                 {
-                    NewLine().Append("public static bool Is(long hash, in RawResult value) => hash == Hash && value.IsEqual(U8);");
-                    NewLine().Append("public static bool Is(long hash, ReadOnlySpan<byte> value) => hash == Hash && value.SequenceEqual(U8);");
+                    NewLine().Append("public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);");
+                    NewLine().Append("public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);");
                 }
+
                 indent--;
                 NewLine().Append("}");
             }

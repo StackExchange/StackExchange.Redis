@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using RESPite;
+
+namespace StackExchange.Redis;
 
 internal partial class ResultProcessor
 {
@@ -38,6 +40,24 @@ internal partial class ResultProcessor
         [FastHash] internal static partial class slave { }
         [FastHash] internal static partial class replica { }
         [FastHash] internal static partial class sentinel { }
+        [FastHash] internal static partial class primary { }
+        [FastHash] internal static partial class standalone { }
+        [FastHash] internal static partial class cluster { }
+
+        // Config keys
+        [FastHash] internal static partial class timeout { }
+        [FastHash] internal static partial class databases { }
+        [FastHash("slave-read-only")] internal static partial class slave_read_only { }
+        [FastHash("replica-read-only")] internal static partial class replica_read_only { }
+        [FastHash] internal static partial class yes { }
+        [FastHash] internal static partial class no { }
+
+        // HELLO keys
+        [FastHash] internal static partial class version { }
+        [FastHash] internal static partial class proto { }
+        [FastHash] internal static partial class id { }
+        [FastHash] internal static partial class mode { }
+        [FastHash] internal static partial class role { }
 
         // Replication states
         [FastHash] internal static partial class connect { }
@@ -46,6 +66,48 @@ internal partial class ResultProcessor
         [FastHash] internal static partial class connected { }
         [FastHash] internal static partial class none { }
         [FastHash] internal static partial class handshake { }
+
+        // Result processor literals
+        [FastHash]
+        internal static partial class OK
+        {
+            public static readonly FastHash Hash = new(U8);
+        }
+
+        [FastHash]
+        internal static partial class PONG
+        {
+            public static readonly FastHash Hash = new(U8);
+        }
+
+        [FastHash("Background saving started")]
+        internal static partial class background_saving_started
+        {
+            public static readonly FastHash Hash = new(U8);
+        }
+
+        [FastHash("Background append only file rewriting started")]
+        internal static partial class background_aof_rewriting_started
+        {
+            public static readonly FastHash Hash = new(U8);
+        }
+
+        // LCS processor literals
+        [FastHash] internal static partial class matches { }
+        [FastHash] internal static partial class len { }
+
+        // Sentinel processor literals
+        [FastHash] internal static partial class ip { }
+        [FastHash] internal static partial class port { }
+
+        // Stream info processor literals
+        [FastHash] internal static partial class name { }
+        [FastHash] internal static partial class pending { }
+        [FastHash] internal static partial class idle { }
+        [FastHash] internal static partial class consumers { }
+        [FastHash("last-delivered-id")] internal static partial class last_delivered_id { }
+        [FastHash("entries-read")] internal static partial class entries_read { }
+        [FastHash] internal static partial class lag { }
         // ReSharper restore InconsistentNaming
 #pragma warning restore CS8981, SA1300, SA1134 // forgive naming etc
     }

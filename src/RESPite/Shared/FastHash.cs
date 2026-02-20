@@ -2,10 +2,11 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace StackExchange.Redis;
+namespace RESPite;
 
 /// <summary>
 /// This type is intended to provide fast hashing functions for small strings, for example well-known
@@ -15,54 +16,126 @@ namespace StackExchange.Redis;
 /// <remarks>See HastHashGenerator.md for more information and intended usage.</remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 [Conditional("DEBUG")] // evaporate in release
-internal sealed class FastHashAttribute(string token = "") : Attribute
+[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+public sealed class FastHashAttribute(string token = "") : Attribute
 {
     public string Token => token;
 }
 
-internal static class FastHash
+[Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+public readonly struct FastHash
 {
-    /* not sure we need this, but: retain for reference
+    private readonly long _hashCI;
+    private readonly long _hashCS;
+    private readonly ReadOnlyMemory<byte> _value;
+    public int Length => _value.Length;
 
-    // Perform case-insensitive hash by masking (X and x differ by only 1 bit); this halves
-    // our entropy, but is still useful when case doesn't matter.
+    public FastHash(ReadOnlySpan<byte> value) : this((ReadOnlyMemory<byte>)value.ToArray()) { }
+    public FastHash(ReadOnlyMemory<byte> value)
+    {
+        _value = value;
+        var span = value.Span;
+        _hashCI = HashCI(span);
+        _hashCS = HashCS(span);
+    }
+
     private const long CaseMask = ~0x2020202020202020;
 
-    public static long Hash64CI(this ReadOnlySequence<byte> value)
-        => value.Hash64() & CaseMask;
-    public static long Hash64CI(this scoped ReadOnlySpan<byte> value)
-        => value.Hash64() & CaseMask;
-*/
+    public bool IsCS(ReadOnlySpan<byte> value) => IsCS(HashCS(value), value);
 
-    public static long Hash64(this ReadOnlySequence<byte> value)
+    public bool IsCS(long hash, ReadOnlySpan<byte> value)
+    {
+        var len = _value.Length;
+        if (hash != _hashCS | (value.Length != len)) return false;
+        return len <= MaxBytesHashIsEqualityCS || EqualsCS(_value.Span, value);
+    }
+
+    public bool IsCI(ReadOnlySpan<byte> value) => IsCI(HashCI(value), value);
+    public bool IsCI(long hash, ReadOnlySpan<byte> value)
+    {
+        var len = _value.Length;
+        if (hash != _hashCI | (value.Length != len)) return false;
+        if (len <= MaxBytesHashIsEqualityCS && HashCS(value) == _hashCS) return true;
+        return EqualsCI(_value.Span, value);
+    }
+
+    public static long HashCS(ReadOnlySequence<byte> value)
     {
 #if NETCOREAPP3_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
         var first = value.FirstSpan;
 #else
         var first = value.First.Span;
 #endif
-        return first.Length >= sizeof(long) || value.IsSingleSegment
-            ? first.Hash64() : SlowHash64(value);
+        return first.Length >= MaxBytesHashed || value.IsSingleSegment
+            ? HashCS(first) : SlowHashCS(value);
 
-        static long SlowHash64(ReadOnlySequence<byte> value)
+        static long SlowHashCS(ReadOnlySequence<byte> value)
         {
-            Span<byte> buffer = stackalloc byte[sizeof(long)];
-            if (value.Length < sizeof(long))
+            Span<byte> buffer = stackalloc byte[MaxBytesHashed];
+            var len = value.Length;
+            if (len <= MaxBytesHashed)
             {
                 value.CopyTo(buffer);
-                buffer.Slice((int)value.Length).Clear();
+                buffer = buffer.Slice(0, (int)len);
             }
             else
             {
-                value.Slice(0, sizeof(long)).CopyTo(buffer);
+                value.Slice(0, MaxBytesHashed).CopyTo(buffer);
             }
-            return BitConverter.IsLittleEndian
-                ? Unsafe.ReadUnaligned<long>(ref MemoryMarshal.GetReference(buffer))
-                : BinaryPrimitives.ReadInt64LittleEndian(buffer);
+            return HashCS(buffer);
         }
     }
 
-    public static long Hash64(this scoped ReadOnlySpan<byte> value)
+    internal const int MaxBytesHashIsEqualityCS = sizeof(long), MaxBytesHashed = sizeof(long);
+
+    public static bool EqualsCS(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
+    {
+        var len = first.Length;
+        if (len != second.Length) return false;
+        // for very short values, the CS hash performs CS equality
+        return len <= MaxBytesHashIsEqualityCS ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
+    }
+
+    public static unsafe bool EqualsCI(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
+    {
+        var len = first.Length;
+        if (len != second.Length) return false;
+        // for very short values, the CS hash performs CS equality; check that first
+        if (len <= MaxBytesHashIsEqualityCS && HashCS(first) == HashCS(second)) return true;
+
+        // OK, don't be clever (SIMD, etc); the purpose of FashHash is to compare RESP key tokens, which are
+        // typically relatively short, think 3-20 bytes. That wouldn't even touch a SIMD vector, so:
+        // just loop (the exact thing we'd need to do *anyway* in a SIMD implementation, to mop up the non-SIMD
+        // trailing bytes).
+        fixed (byte* firstPtr = &MemoryMarshal.GetReference(first))
+        {
+            fixed (byte* secondPtr = &MemoryMarshal.GetReference(second))
+            {
+                const int CS_MASK = ~0x20;
+                for (int i = 0; i < len; i++)
+                {
+                    byte x = firstPtr[i];
+                    var xCI = x & CS_MASK;
+                    if (xCI >= 'A' & xCI <= 'Z')
+                    {
+                        // alpha mismatch
+                        if (xCI != (secondPtr[i] & CS_MASK)) return false;
+                    }
+                    else if (x != secondPtr[i])
+                    {
+                        // non-alpha mismatch
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+    }
+
+    public static long HashCI(scoped ReadOnlySpan<byte> value)
+        => HashCS(value) & CaseMask;
+
+    public static long HashCS(scoped ReadOnlySpan<byte> value)
     {
         if (BitConverter.IsLittleEndian)
         {

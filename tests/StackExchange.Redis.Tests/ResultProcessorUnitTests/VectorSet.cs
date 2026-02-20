@@ -78,4 +78,113 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         Assert.Equal(VectorSetQuantization.Unknown, result.Value.Quantization);
         Assert.Equal(0, result.Value.Dimension);
     }
+
+    [Fact]
+    public void VectorSetLinks_EmptyArray()
+    {
+        // VLINKS returns empty array
+        var resp = "*0\r\n";
+        var processor = ResultProcessor.VectorSetLinks;
+        using var result = Execute(resp, processor);
+
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Length);
+    }
+
+    [Theory]
+    [InlineData("*-1\r\n")] // null array (RESP2)
+    [InlineData("_\r\n")] // null (RESP3)
+    public void VectorSetLinks_NullArray(string resp)
+    {
+        var processor = ResultProcessor.VectorSetLinks;
+        using var result = Execute(resp, processor);
+
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Length);
+    }
+
+    [Fact]
+    public void VectorSetLinks_SingleNestedArray()
+    {
+        // VLINKS returns [[element1]]
+        var resp = "*1\r\n*1\r\n$8\r\nelement1\r\n";
+        var processor = ResultProcessor.VectorSetLinks;
+        using var result = Execute(resp, processor);
+
+        Assert.NotNull(result);
+        Assert.Equal(1, result.Length);
+        Assert.Equal("element1", result.Span[0].ToString());
+    }
+
+    [Fact]
+    public void VectorSetLinks_MultipleNestedArrays()
+    {
+        // VLINKS returns [[element1], [element2, element3], [element4]]
+        var resp = "*3\r\n*1\r\n$8\r\nelement1\r\n*2\r\n$8\r\nelement2\r\n$8\r\nelement3\r\n*1\r\n$8\r\nelement4\r\n";
+        var processor = ResultProcessor.VectorSetLinks;
+        using var result = Execute(resp, processor);
+
+        Assert.NotNull(result);
+        Assert.Equal(4, result.Length);
+        Assert.Equal("element1", result.Span[0].ToString());
+        Assert.Equal("element2", result.Span[1].ToString());
+        Assert.Equal("element3", result.Span[2].ToString());
+        Assert.Equal("element4", result.Span[3].ToString());
+    }
+
+    [Fact]
+    public void VectorSetLinksWithScores_EmptyArray()
+    {
+        // VLINKS WITHSCORES returns empty array
+        var resp = "*0\r\n";
+        var processor = ResultProcessor.VectorSetLinksWithScores;
+        using var result = Execute(resp, processor);
+
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Length);
+    }
+
+    [Theory]
+    [InlineData("*-1\r\n")] // null array (RESP2)
+    [InlineData("_\r\n")] // null (RESP3)
+    public void VectorSetLinksWithScores_NullArray(string resp)
+    {
+        var processor = ResultProcessor.VectorSetLinksWithScores;
+        using var result = Execute(resp, processor);
+
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Length);
+    }
+
+    [Fact]
+    public void VectorSetLinksWithScores_SingleNestedArray()
+    {
+        // VLINKS WITHSCORES returns [[element1, score1]]
+        var resp = "*1\r\n*2\r\n$8\r\nelement1\r\n$3\r\n1.5\r\n";
+        var processor = ResultProcessor.VectorSetLinksWithScores;
+        using var result = Execute(resp, processor);
+
+        Assert.NotNull(result);
+        Assert.Equal(1, result.Length);
+        Assert.Equal("element1", result.Span[0].Member.ToString());
+        Assert.Equal(1.5, result.Span[0].Score);
+    }
+
+    [Fact]
+    public void VectorSetLinksWithScores_MultipleNestedArrays()
+    {
+        // VLINKS WITHSCORES returns [[element1, score1], [element2, score2], [element3, score3]]
+        var resp = "*3\r\n*2\r\n$8\r\nelement1\r\n$3\r\n1.5\r\n*2\r\n$8\r\nelement2\r\n$3\r\n2.5\r\n*2\r\n$8\r\nelement3\r\n$3\r\n3.5\r\n";
+        var processor = ResultProcessor.VectorSetLinksWithScores;
+        using var result = Execute(resp, processor);
+
+        Assert.NotNull(result);
+        Assert.Equal(3, result.Length);
+        Assert.Equal("element1", result.Span[0].Member.ToString());
+        Assert.Equal(1.5, result.Span[0].Score);
+        Assert.Equal("element2", result.Span[1].Member.ToString());
+        Assert.Equal(2.5, result.Span[1].Score);
+        Assert.Equal("element3", result.Span[2].Member.ToString());
+        Assert.Equal(3.5, result.Span[2].Score);
+    }
 }

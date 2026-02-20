@@ -1,2 +1,17 @@
 ﻿#nullable enable
+override StackExchange.Redis.LCSMatchResult.LCSMatch.Equals(object? obj) -> bool
+override StackExchange.Redis.LCSMatchResult.LCSMatch.GetHashCode() -> int
+override StackExchange.Redis.LCSMatchResult.LCSMatch.ToString() -> string!
+override StackExchange.Redis.LCSMatchResult.LCSPosition.Equals(object? obj) -> bool
+override StackExchange.Redis.LCSMatchResult.LCSPosition.GetHashCode() -> int
+override StackExchange.Redis.LCSMatchResult.LCSPosition.ToString() -> string!
+StackExchange.Redis.LCSMatchResult.LCSMatch.Equals(in StackExchange.Redis.LCSMatchResult.LCSMatch other) -> bool
+StackExchange.Redis.LCSMatchResult.LCSMatch.First.get -> StackExchange.Redis.LCSMatchResult.LCSPosition
+StackExchange.Redis.LCSMatchResult.LCSMatch.Second.get -> StackExchange.Redis.LCSMatchResult.LCSPosition
+StackExchange.Redis.LCSMatchResult.LCSPosition
+StackExchange.Redis.LCSMatchResult.LCSPosition.End.get -> long
+StackExchange.Redis.LCSMatchResult.LCSPosition.Equals(in StackExchange.Redis.LCSMatchResult.LCSPosition other) -> bool
+StackExchange.Redis.LCSMatchResult.LCSPosition.LCSPosition() -> void
+StackExchange.Redis.LCSMatchResult.LCSPosition.LCSPosition(long start, long end) -> void
+StackExchange.Redis.LCSMatchResult.LCSPosition.Start.get -> long
 StackExchange.Redis.RedisType.VectorSet = 8 -> StackExchange.Redis.RedisType

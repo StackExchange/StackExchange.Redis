@@ -9,6 +9,7 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite;
 using RESPite.Buffers;
 using RESPite.Internal;
 using RESPite.Messages;
@@ -293,13 +294,13 @@ internal sealed partial class PhysicalConnection
         {
             if (payload.Length >= sizeof(ulong))
             {
-                var hash = payload.Hash64();
+                var hash = FastHash.HashCS(payload);
                 switch (hash)
                 {
-                    case ArrayPong_LC_Bulk.Hash when payload.StartsWith(ArrayPong_LC_Bulk.U8):
-                    case ArrayPong_UC_Bulk.Hash when payload.StartsWith(ArrayPong_UC_Bulk.U8):
-                    case ArrayPong_LC_Simple.Hash when payload.StartsWith(ArrayPong_LC_Simple.U8):
-                    case ArrayPong_UC_Simple.Hash when payload.StartsWith(ArrayPong_UC_Simple.U8):
+                    case ArrayPong_LC_Bulk.HashCS when payload.StartsWith(ArrayPong_LC_Bulk.U8):
+                    case ArrayPong_UC_Bulk.HashCS when payload.StartsWith(ArrayPong_UC_Bulk.U8):
+                    case ArrayPong_LC_Simple.HashCS when payload.StartsWith(ArrayPong_LC_Simple.U8):
+                    case ArrayPong_UC_Simple.HashCS when payload.StartsWith(ArrayPong_UC_Simple.U8):
                         var reader = new RespReader(payload);
                         return reader.SafeTryMoveNext() // have root
                                && reader.Prefix == RespPrefix.Array // root is array
@@ -350,41 +351,41 @@ internal sealed partial class PhysicalConnection
             var span = reader.TryGetSpan(out var tmp)
                 ? tmp : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
 
-            var hash = span.Hash64();
+            var hash = FastHash.HashCS(span);
             RedisChannel.RedisChannelOptions channelOptions = RedisChannel.RedisChannelOptions.None;
             PushKind kind;
             switch (hash)
             {
-                case PushMessage.Hash when PushMessage.Is(hash, span) & len >= 3:
+                case PushMessage.HashCS when PushMessage.IsCS(hash, span) & len >= 3:
                     kind = PushKind.Message;
                     break;
-                case PushPMessage.Hash when PushPMessage.Is(hash, span) & len >= 4:
+                case PushPMessage.HashCS when PushPMessage.IsCS(hash, span) & len >= 4:
                     channelOptions = RedisChannel.RedisChannelOptions.Pattern;
                     kind = PushKind.PMessage;
                     break;
-                case PushSMessage.Hash when PushSMessage.Is(hash, span) & len >= 3:
+                case PushSMessage.HashCS when PushSMessage.IsCS(hash, span) & len >= 3:
                     channelOptions = RedisChannel.RedisChannelOptions.Sharded;
                     kind = PushKind.SMessage;
                     break;
-                case PushSubscribe.Hash when PushSubscribe.Is(hash, span):
+                case PushSubscribe.HashCS when PushSubscribe.IsCS(hash, span):
                     kind = PushKind.Subscribe;
                     break;
-                case PushPSubscribe.Hash when PushPSubscribe.Is(hash, span):
+                case PushPSubscribe.HashCS when PushPSubscribe.IsCS(hash, span):
                     channelOptions = RedisChannel.RedisChannelOptions.Pattern;
                     kind = PushKind.PSubscribe;
                     break;
-                case PushSSubscribe.Hash when PushSSubscribe.Is(hash, span):
+                case PushSSubscribe.HashCS when PushSSubscribe.IsCS(hash, span):
                     channelOptions = RedisChannel.RedisChannelOptions.Sharded;
                     kind = PushKind.SSubscribe;
                     break;
-                case PushUnsubscribe.Hash when PushUnsubscribe.Is(hash, span):
+                case PushUnsubscribe.HashCS when PushUnsubscribe.IsCS(hash, span):
                     kind = PushKind.Unsubscribe;
                     break;
-                case PushPUnsubscribe.Hash when PushPUnsubscribe.Is(hash, span):
+                case PushPUnsubscribe.HashCS when PushPUnsubscribe.IsCS(hash, span):
                     channelOptions = RedisChannel.RedisChannelOptions.Pattern;
                     kind = PushKind.PUnsubscribe;
                     break;
-                case PushSUnsubscribe.Hash when PushSUnsubscribe.Is(hash, span):
+                case PushSUnsubscribe.HashCS when PushSUnsubscribe.IsCS(hash, span):
                     channelOptions = RedisChannel.RedisChannelOptions.Sharded;
                     kind = PushKind.SUnsubscribe;
                     break;

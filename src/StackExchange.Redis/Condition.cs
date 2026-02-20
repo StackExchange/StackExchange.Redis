@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -372,7 +373,8 @@ namespace StackExchange.Redis
         internal abstract IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox);
 
         internal abstract int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy);
-        internal abstract bool TryValidate(in RawResult result, out bool value);
+
+        internal abstract bool TryValidate(ref RespReader reader, out bool value);
 
         internal sealed class ConditionProcessor : ResultProcessor<bool>
         {
@@ -387,13 +389,12 @@ namespace StackExchange.Redis
             public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
                 new ConditionMessage(condition, db, flags, command, key, value, value1, value2, value3, value4);
 
-            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
+                connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{reader.GetOverview()}'");
                 var msg = message as ConditionMessage;
                 var condition = msg?.Condition;
-                if (condition != null && condition.TryValidate(result, out bool final))
+                if (condition != null && condition.TryValidate(ref reader, out bool final))
                 {
                     SetResult(message, final);
                     return true;
@@ -510,19 +511,20 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(in RawResult result, out bool value)
+            internal override bool TryValidate(ref RespReader reader, out bool value)
             {
                 switch (type)
                 {
                     case RedisType.SortedSet:
-                        var parsedValue = result.AsRedisValue();
-                        value = parsedValue.IsNull != expectedResult;
-                        ConnectionMultiplexer.TraceWithoutContext("exists: " + parsedValue + "; expected: " + expectedResult + "; voting: " + value);
+                        // ZSCORE returns bulk string (score) or null
+                        var parsedValue = reader.IsNull;
+                        value = parsedValue != expectedResult;
+                        ConnectionMultiplexer.TraceWithoutContext("exists: " + !parsedValue + "; expected: " + expectedResult + "; voting: " + value);
                         return true;
 
                     default:
-                        bool parsed;
-                        if (ResultProcessor.DemandZeroOrOneProcessor.TryGet(result, out parsed))
+                        // EXISTS, HEXISTS, SISMEMBER return integer 0 or 1
+                        if (ResultProcessor.DemandZeroOrOneProcessor.TryGet(ref reader, out bool parsed))
                         {
                             value = parsed == expectedResult;
                             ConnectionMultiplexer.TraceWithoutContext("exists: " + parsed + "; expected: " + expectedResult + "; voting: " + value);
@@ -586,12 +588,30 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(in RawResult result, out bool value)
+            internal override bool TryValidate(ref RespReader reader, out bool value)
             {
-                value = result.ItemsCount == 1 && result[0].AsRedisValue().StartsWith(prefix);
-
-                if (!expectedResult) value = !value;
-                return true;
+                // ZRANGEBYLEX returns an array with 0 or 1 elements
+                if (reader.IsAggregate)
+                {
+                    var count = reader.AggregateLength();
+                    if (count == 1)
+                    {
+                        // Check if the first element starts with prefix
+                        if (reader.TryMoveNext() && reader.IsScalar)
+                        {
+                            value = reader.ReadRedisValue().StartsWith(prefix);
+                            if (!expectedResult) value = !value;
+                            return true;
+                        }
+                    }
+                    else if (count == 0)
+                    {
+                        value = !expectedResult; // No match found
+                        return true;
+                    }
+                }
+                value = false;
+                return false;
             }
         }
 
@@ -640,13 +660,21 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(in RawResult result, out bool value)
+            internal override bool TryValidate(ref RespReader reader, out bool value)
             {
+                // All commands (ZSCORE, GET, HGET) return scalar values
+                if (!reader.IsScalar)
+                {
+                    value = false;
+                    return false;
+                }
+
                 switch (type)
                 {
                     case RedisType.SortedSet:
+                        // ZSCORE returns bulk string (score as double) or null
                         var parsedValue = RedisValue.Null;
-                        if (!result.IsNull && result.TryGetDouble(out var val))
+                        if (!reader.IsNull && reader.TryReadDouble(out var val))
                         {
                             parsedValue = val;
                         }
@@ -657,19 +685,12 @@ namespace StackExchange.Redis
                         return true;
 
                     default:
-                        switch (result.Resp2TypeBulkString)
-                        {
-                            case ResultType.BulkString:
-                            case ResultType.SimpleString:
-                            case ResultType.Integer:
-                                var parsed = result.AsRedisValue();
-                                value = (parsed == expectedValue) == expectedEqual;
-                                ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + (string?)expectedValue +
-                                                                          "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
-                                return true;
-                        }
-                        value = false;
-                        return false;
+                        // GET or HGET returns bulk string, simple string, or integer
+                        var parsed = reader.ReadRedisValue();
+                        value = (parsed == expectedValue) == expectedEqual;
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + (string?)expectedValue +
+                                                                  "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
+                        return true;
                 }
             }
         }
@@ -711,26 +732,24 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(in RawResult result, out bool value)
+            internal override bool TryValidate(ref RespReader reader, out bool value)
             {
-                switch (result.Resp2TypeBulkString)
+                // LINDEX returns bulk string, simple string, or integer
+                if (reader.IsScalar)
                 {
-                    case ResultType.BulkString:
-                    case ResultType.SimpleString:
-                    case ResultType.Integer:
-                        var parsed = result.AsRedisValue();
-                        if (expectedValue.HasValue)
-                        {
-                            value = (parsed == expectedValue.Value) == expectedResult;
-                            ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + (string?)expectedValue.Value +
-                                "; wanted: " + (expectedResult ? "==" : "!=") + "; voting: " + value);
-                        }
-                        else
-                        {
-                            value = parsed.IsNull != expectedResult;
-                            ConnectionMultiplexer.TraceWithoutContext("exists: " + parsed + "; expected: " + expectedResult + "; voting: " + value);
-                        }
-                        return true;
+                    var parsed = reader.ReadRedisValue();
+                    if (expectedValue.HasValue)
+                    {
+                        value = (parsed == expectedValue.Value) == expectedResult;
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + (string?)expectedValue.Value +
+                            "; wanted: " + (expectedResult ? "==" : "!=") + "; voting: " + value);
+                    }
+                    else
+                    {
+                        value = parsed.IsNull != expectedResult;
+                        ConnectionMultiplexer.TraceWithoutContext("exists: " + parsed + "; expected: " + expectedResult + "; voting: " + value);
+                    }
+                    return true;
                 }
                 value = false;
                 return false;
@@ -784,18 +803,15 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(in RawResult result, out bool value)
+            internal override bool TryValidate(ref RespReader reader, out bool value)
             {
-                switch (result.Resp2TypeBulkString)
+                // Length commands (HLEN, SCARD, LLEN, ZCARD, XLEN, STRLEN) return integer
+                if (reader.IsScalar && reader.TryReadInt64(out var parsed))
                 {
-                    case ResultType.BulkString:
-                    case ResultType.SimpleString:
-                    case ResultType.Integer:
-                        var parsed = result.AsRedisValue();
-                        value = parsed.IsInteger && (expectedLength.CompareTo((long)parsed) == compareToResult);
-                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + expectedLength +
-                            "; wanted: " + GetComparisonString() + "; voting: " + value);
-                        return true;
+                    value = expectedLength.CompareTo(parsed) == compareToResult;
+                    ConnectionMultiplexer.TraceWithoutContext("actual: " + parsed + "; expected: " + expectedLength +
+                        "; wanted: " + GetComparisonString() + "; voting: " + value);
+                    return true;
                 }
                 value = false;
                 return false;
@@ -841,18 +857,16 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(in RawResult result, out bool value)
+            internal override bool TryValidate(ref RespReader reader, out bool value)
             {
-                switch (result.Resp2TypeBulkString)
+                // Length commands (HLEN, SCARD, LLEN, ZCARD, XLEN, STRLEN) return integer
+                if (reader.IsScalar)
                 {
-                    case ResultType.BulkString:
-                    case ResultType.SimpleString:
-                    case ResultType.Integer:
-                        var parsed = result.AsRedisValue();
-                        value = parsed.IsInteger && (expectedLength.CompareTo((long)parsed) == compareToResult);
-                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + expectedLength +
-                            "; wanted: " + GetComparisonString() + "; voting: " + value);
-                        return true;
+                    var parsed = reader.ReadRedisValue();
+                    value = parsed.IsInteger && (expectedLength.CompareTo((long)parsed) == compareToResult);
+                    ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsed + "; expected: " + expectedLength +
+                        "; wanted: " + GetComparisonString() + "; voting: " + value);
+                    return true;
                 }
                 value = false;
                 return false;
@@ -898,17 +912,16 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(in RawResult result, out bool value)
+            internal override bool TryValidate(ref RespReader reader, out bool value)
             {
-                switch (result.Resp2TypeBulkString)
+                // ZCOUNT returns integer
+                if (reader.IsScalar)
                 {
-                    case ResultType.Integer:
-                        var parsedValue = result.AsRedisValue();
-                        value = (parsedValue == expectedValue) == expectedEqual;
-                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsedValue + "; expected: " + (string?)expectedValue + "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
-                        return true;
+                    var parsedValue = reader.ReadRedisValue();
+                    value = (parsedValue == expectedValue) == expectedEqual;
+                    ConnectionMultiplexer.TraceWithoutContext("actual: " + (string?)parsedValue + "; expected: " + (string?)expectedValue + "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
+                    return true;
                 }
-
                 value = false;
                 return false;
             }
