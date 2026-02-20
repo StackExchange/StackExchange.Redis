@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 using BenchmarkDotNet.Attributes;
+using RESPite;
 
 namespace StackExchange.Redis.Benchmarks;
 
@@ -51,11 +52,11 @@ public class FastHashBenchmarks
         var bytes = _sourceBytes.Span;
         var expected = FastHash.Hash64Fallback(bytes);
 
-        Assert(bytes.Hash64(), nameof(FastHash.Hash64));
+        Assert(FastHash.HashCS(bytes), nameof(FastHash.HashCS));
         Assert(FastHash.Hash64Unsafe(bytes), nameof(FastHash.Hash64Unsafe));
 #pragma warning restore CS0618 // Type or member is obsolete
-        Assert(SingleSegmentBytes.Hash64(), nameof(FastHash.Hash64) + " (single segment)");
-        Assert(_sourceMultiSegmentBytes.Hash64(), nameof(FastHash.Hash64) + " (multi segment)");
+        Assert(FastHash.HashCS(SingleSegmentBytes), nameof(FastHash.HashCS) + " (single segment)");
+        Assert(FastHash.HashCS(_sourceMultiSegmentBytes), nameof(FastHash.HashCS) + " (multi segment)");
 
         void Assert(long actual, string name)
         {
@@ -89,7 +90,7 @@ public class FastHashBenchmarks
         var val = _sourceBytes.Span;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = val.Hash64();
+            _ = FastHash.HashCS(val);
         }
     }
 
@@ -123,7 +124,7 @@ public class FastHashBenchmarks
         var val = SingleSegmentBytes;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = val.Hash64();
+            _ = FastHash.HashCS(val);
         }
     }
 
@@ -133,7 +134,7 @@ public class FastHashBenchmarks
         var val = _sourceMultiSegmentBytes;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = val.Hash64();
+            _ = FastHash.HashCS(val);
         }
     }
 }

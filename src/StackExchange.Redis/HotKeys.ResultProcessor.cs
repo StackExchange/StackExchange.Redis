@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using RESPite;
+
+namespace StackExchange.Redis;
 
 public sealed partial class HotKeysResult
 {
@@ -39,17 +41,19 @@ public sealed partial class HotKeysResult
             ref readonly RawResult key = ref iter.Current;
             if (!iter.MoveNext()) break; // lies about the length!
             ref readonly RawResult value = ref iter.Current;
-            var hash = key.Payload.Hash64();
+            var keyBytes = key.GetBlob();
+            if (keyBytes is null) continue;
+            var hash = FastHash.HashCS(keyBytes);
             long i64;
             switch (hash)
             {
-                case tracking_active.Hash when tracking_active.Is(hash, key):
+                case tracking_active.HashCS when tracking_active.IsCS(hash, keyBytes):
                     TrackingActive = value.GetBoolean();
                     break;
-                case sample_ratio.Hash when sample_ratio.Is(hash, key) && value.TryGetInt64(out i64):
+                case sample_ratio.HashCS when sample_ratio.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     SampleRatio = i64;
                     break;
-                case selected_slots.Hash when selected_slots.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
+                case selected_slots.HashCS when selected_slots.IsCS(hash, keyBytes) & value.Resp2TypeArray is ResultType.Array:
                     var len = value.ItemsCount;
                     if (len == 0)
                     {
@@ -92,55 +96,55 @@ public sealed partial class HotKeysResult
                     }
                     _selectedSlots = slots;
                     break;
-                case all_commands_all_slots_us.Hash when all_commands_all_slots_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case all_commands_all_slots_us.HashCS when all_commands_all_slots_us.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     AllCommandsAllSlotsMicroseconds = i64;
                     break;
-                case all_commands_selected_slots_us.Hash when all_commands_selected_slots_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case all_commands_selected_slots_us.HashCS when all_commands_selected_slots_us.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     AllCommandSelectedSlotsMicroseconds = i64;
                     break;
-                case sampled_command_selected_slots_us.Hash when sampled_command_selected_slots_us.Is(hash, key) && value.TryGetInt64(out i64):
-                case sampled_commands_selected_slots_us.Hash when sampled_commands_selected_slots_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case sampled_command_selected_slots_us.HashCS when sampled_command_selected_slots_us.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
+                case sampled_commands_selected_slots_us.HashCS when sampled_commands_selected_slots_us.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     SampledCommandsSelectedSlotsMicroseconds = i64;
                     break;
-                case net_bytes_all_commands_all_slots.Hash when net_bytes_all_commands_all_slots.Is(hash, key) && value.TryGetInt64(out i64):
+                case net_bytes_all_commands_all_slots.HashCS when net_bytes_all_commands_all_slots.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     AllCommandsAllSlotsNetworkBytes = i64;
                     break;
-                case net_bytes_all_commands_selected_slots.Hash when net_bytes_all_commands_selected_slots.Is(hash, key) && value.TryGetInt64(out i64):
+                case net_bytes_all_commands_selected_slots.HashCS when net_bytes_all_commands_selected_slots.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     NetworkBytesAllCommandsSelectedSlotsRaw = i64;
                     break;
-                case net_bytes_sampled_commands_selected_slots.Hash when net_bytes_sampled_commands_selected_slots.Is(hash, key) && value.TryGetInt64(out i64):
+                case net_bytes_sampled_commands_selected_slots.HashCS when net_bytes_sampled_commands_selected_slots.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     NetworkBytesSampledCommandsSelectedSlotsRaw = i64;
                     break;
-                case collection_start_time_unix_ms.Hash when collection_start_time_unix_ms.Is(hash, key) && value.TryGetInt64(out i64):
+                case collection_start_time_unix_ms.HashCS when collection_start_time_unix_ms.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     CollectionStartTimeUnixMilliseconds = i64;
                     break;
-                case collection_duration_ms.Hash when collection_duration_ms.Is(hash, key) && value.TryGetInt64(out i64):
+                case collection_duration_ms.HashCS when collection_duration_ms.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     CollectionDurationMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case collection_duration_us.Hash when collection_duration_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case collection_duration_us.HashCS when collection_duration_us.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     CollectionDurationMicroseconds = i64;
                     break;
-                case total_cpu_time_sys_ms.Hash when total_cpu_time_sys_ms.Is(hash, key) && value.TryGetInt64(out i64):
+                case total_cpu_time_sys_ms.HashCS when total_cpu_time_sys_ms.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeSystemMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case total_cpu_time_sys_us.Hash when total_cpu_time_sys_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case total_cpu_time_sys_us.HashCS when total_cpu_time_sys_us.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeSystemMicroseconds = i64;
                     break;
-                case total_cpu_time_user_ms.Hash when total_cpu_time_user_ms.Is(hash, key) && value.TryGetInt64(out i64):
+                case total_cpu_time_user_ms.HashCS when total_cpu_time_user_ms.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeUserMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case total_cpu_time_user_us.Hash when total_cpu_time_user_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case total_cpu_time_user_us.HashCS when total_cpu_time_user_us.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeUserMicroseconds = i64;
                     break;
-                case total_net_bytes.Hash when total_net_bytes.Is(hash, key) && value.TryGetInt64(out i64):
+                case total_net_bytes.HashCS when total_net_bytes.IsCS(hash, keyBytes) && value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Network;
                     TotalNetworkBytesRaw = i64;
                     break;
-                case by_cpu_time_us.Hash when by_cpu_time_us.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
+                case by_cpu_time_us.HashCS when by_cpu_time_us.IsCS(hash, keyBytes) & value.Resp2TypeArray is ResultType.Array:
                     metrics |= HotKeysMetrics.Cpu;
                     len = value.ItemsCount / 2;
                     if (len == 0)
@@ -162,7 +166,7 @@ public sealed partial class HotKeysResult
 
                     _cpuByKey = cpuTime;
                     break;
-                case by_net_bytes.Hash when by_net_bytes.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
+                case by_net_bytes.HashCS when by_net_bytes.IsCS(hash, keyBytes) & value.Resp2TypeArray is ResultType.Array:
                     metrics |= HotKeysMetrics.Network;
                     len = value.ItemsCount / 2;
                     if (len == 0)
