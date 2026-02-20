@@ -197,16 +197,16 @@ public class FastHashGenerator : IIncrementalGenerator
                 NewLine().Append("public const long HashCI = ").Append(hashCI).Append(';');
                 NewLine().Append("public static ReadOnlySpan<byte> U8 => ").Append(csValue).Append("u8;");
                 NewLine().Append("public const string Text = ").Append(csValue).Append(';');
-                if (len <= 8)
+                if (len <= FastHash.MaxBytesHashIsEqualityCS)
                 {
                     // the case-sensitive hash enforces all the values
                     NewLine().Append("public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;");
-                    NewLine().Append("public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (FastHash.HashCS(value) == HashCS || FastHash.EqualsCI(value, U8));");
+                    NewLine().Append("public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.FastHash.HashCS(value) == HashCS || global::RESPite.FastHash.EqualsCI(value, U8));");
                 }
                 else
                 {
                     NewLine().Append("public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);");
-                    NewLine().Append("public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && FastHash.EqualsCI(value, U8);");
+                    NewLine().Append("public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);");
                 }
 
                 indent--;

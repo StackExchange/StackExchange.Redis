@@ -2128,10 +2128,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var hash = FastHash.HashCS(roleBytes);
                 var role = hash switch
                 {
-                    Literals.master.Hash when Literals.master.Is(hash, roleBytes) => ParsePrimary(ref reader),
-                    Literals.slave.Hash when Literals.slave.Is(hash, roleBytes) => ParseReplica(ref reader, Literals.slave.Text),
-                    Literals.replica.Hash when Literals.replica.Is(hash, roleBytes) => ParseReplica(ref reader, Literals.replica.Text),
-                    Literals.sentinel.Hash when Literals.sentinel.Is(hash, roleBytes) => ParseSentinel(ref reader),
+                    Literals.master.HashCS when Literals.master.IsCS(hash, roleBytes) => ParsePrimary(ref reader),
+                    Literals.slave.HashCS when Literals.slave.IsCS(hash, roleBytes) => ParseReplica(ref reader, Literals.slave.Text),
+                    Literals.replica.HashCS when Literals.replica.IsCS(hash, roleBytes) => ParseReplica(ref reader, Literals.replica.Text),
+                    Literals.sentinel.HashCS when Literals.sentinel.IsCS(hash, roleBytes) => ParseSentinel(ref reader),
                     _ => new Role.Unknown(reader.ReadString()!),
                 };
 
@@ -2237,12 +2237,12 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var hash = FastHash.HashCS(stateBytes);
                 var replicationState = hash switch
                 {
-                    Literals.connect.Hash when Literals.connect.Is(hash, stateBytes) => Literals.connect.Text,
-                    Literals.connecting.Hash when Literals.connecting.Is(hash, stateBytes) => Literals.connecting.Text,
-                    Literals.sync.Hash when Literals.sync.Is(hash, stateBytes) => Literals.sync.Text,
-                    Literals.connected.Hash when Literals.connected.Is(hash, stateBytes) => Literals.connected.Text,
-                    Literals.none.Hash when Literals.none.Is(hash, stateBytes) => Literals.none.Text,
-                    Literals.handshake.Hash when Literals.handshake.Is(hash, stateBytes) => Literals.handshake.Text,
+                    Literals.connect.HashCS when Literals.connect.IsCS(hash, stateBytes) => Literals.connect.Text,
+                    Literals.connecting.HashCS when Literals.connecting.IsCS(hash, stateBytes) => Literals.connecting.Text,
+                    Literals.sync.HashCS when Literals.sync.IsCS(hash, stateBytes) => Literals.sync.Text,
+                    Literals.connected.HashCS when Literals.connected.IsCS(hash, stateBytes) => Literals.connected.Text,
+                    Literals.none.HashCS when Literals.none.IsCS(hash, stateBytes) => Literals.none.Text,
+                    Literals.handshake.HashCS when Literals.handshake.IsCS(hash, stateBytes) => Literals.handshake.Text,
                     _ => reader.ReadString()!,
                 };
 
@@ -2767,57 +2767,59 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     ref RawResult key = ref iter.GetNext(), value = ref iter.GetNext();
                     if (key.Payload.Length > CommandBytes.MaxLength) continue;
-                    var hash = key.Payload.Hash64();
+                    var keyBytes = key.GetBlob();
+                    if (keyBytes is null) continue;
+                    var hash = FastHash.HashCS(keyBytes);
                     switch (hash)
                     {
-                        case Literals.length.Hash when Literals.length.Is(hash, key):
+                        case Literals.length.HashCS when Literals.length.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out length)) return false;
                             break;
-                        case Literals.radix_tree_keys.Hash when Literals.radix_tree_keys.Is(hash, key):
+                        case Literals.radix_tree_keys.HashCS when Literals.radix_tree_keys.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out radixTreeKeys)) return false;
                             break;
-                        case Literals.radix_tree_nodes.Hash when Literals.radix_tree_nodes.Is(hash, key):
+                        case Literals.radix_tree_nodes.HashCS when Literals.radix_tree_nodes.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out radixTreeNodes)) return false;
                             break;
-                        case Literals.groups.Hash when Literals.groups.Is(hash, key):
+                        case Literals.groups.HashCS when Literals.groups.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out groups)) return false;
                             break;
-                        case Literals.last_generated_id.Hash when Literals.last_generated_id.Is(hash, key):
+                        case Literals.last_generated_id.HashCS when Literals.last_generated_id.IsCS(hash, keyBytes):
                             lastGeneratedId = value.AsRedisValue();
                             break;
-                        case Literals.first_entry.Hash when Literals.first_entry.Is(hash, key):
+                        case Literals.first_entry.HashCS when Literals.first_entry.IsCS(hash, keyBytes):
                             firstEntry = ParseRedisStreamEntry(value);
                             break;
-                        case Literals.last_entry.Hash when Literals.last_entry.Is(hash, key):
+                        case Literals.last_entry.HashCS when Literals.last_entry.IsCS(hash, keyBytes):
                             lastEntry = ParseRedisStreamEntry(value);
                             break;
                         // 7.0
-                        case Literals.max_deleted_entry_id.Hash when Literals.max_deleted_entry_id.Is(hash, key):
+                        case Literals.max_deleted_entry_id.HashCS when Literals.max_deleted_entry_id.IsCS(hash, keyBytes):
                             maxDeletedEntryId = value.AsRedisValue();
                             break;
-                        case Literals.recorded_first_entry_id.Hash when Literals.recorded_first_entry_id.Is(hash, key):
+                        case Literals.recorded_first_entry_id.HashCS when Literals.recorded_first_entry_id.IsCS(hash, keyBytes):
                             recordedFirstEntryId = value.AsRedisValue();
                             break;
-                        case Literals.entries_added.Hash when Literals.entries_added.Is(hash, key):
+                        case Literals.entries_added.HashCS when Literals.entries_added.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out entriesAdded)) return false;
                             break;
                         // 8.6
-                        case Literals.idmp_duration.Hash when Literals.idmp_duration.Is(hash, key):
+                        case Literals.idmp_duration.HashCS when Literals.idmp_duration.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out idmpDuration)) return false;
                             break;
-                        case Literals.idmp_maxsize.Hash when Literals.idmp_maxsize.Is(hash, key):
+                        case Literals.idmp_maxsize.HashCS when Literals.idmp_maxsize.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out idmpMaxsize)) return false;
                             break;
-                        case Literals.pids_tracked.Hash when Literals.pids_tracked.Is(hash, key):
+                        case Literals.pids_tracked.HashCS when Literals.pids_tracked.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out pidsTracked)) return false;
                             break;
-                        case Literals.iids_tracked.Hash when Literals.iids_tracked.Is(hash, key):
+                        case Literals.iids_tracked.HashCS when Literals.iids_tracked.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out iidsTracked)) return false;
                             break;
-                        case Literals.iids_added.Hash when Literals.iids_added.Is(hash, key):
+                        case Literals.iids_added.HashCS when Literals.iids_added.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out iidsAdded)) return false;
                             break;
-                        case Literals.iids_duplicates.Hash when Literals.iids_duplicates.Is(hash, key):
+                        case Literals.iids_duplicates.HashCS when Literals.iids_duplicates.IsCS(hash, keyBytes):
                             if (!value.TryGetInt64(out iidsDuplicates)) return false;
                             break;
                     }

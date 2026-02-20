@@ -38,11 +38,11 @@ public readonly ref struct KeyNotification
         {
             // check that the prefix is valid, i.e. "__keyspace@" or "__keyevent@"
             var prefix = span.Slice(0, KeySpacePrefix.Length);
-            var hash = prefix.HashCS();
+            var hash = FastHash.HashCS(prefix);
             switch (hash)
             {
-                case KeySpacePrefix.Hash when KeySpacePrefix.Is(hash, prefix):
-                case KeyEventPrefix.Hash when KeyEventPrefix.Is(hash, prefix):
+                case KeySpacePrefix.HashCS when KeySpacePrefix.IsCS(hash, prefix):
+                case KeyEventPrefix.HashCS when KeyEventPrefix.IsCS(hash, prefix):
                     // check that there is *something* non-empty after the prefix, with __: as the suffix (we don't verify *what*)
                     if (span.Slice(KeySpacePrefix.Length).IndexOf("__:"u8) > 0)
                     {
@@ -443,7 +443,7 @@ public readonly ref struct KeyNotification
         get
         {
             var span = _channel.Span;
-            return span.Length >= KeySpacePrefix.Length + MinSuffixBytes && KeySpacePrefix.Is(span.HashCS(), span.Slice(0, KeySpacePrefix.Length));
+            return span.Length >= KeySpacePrefix.Length + MinSuffixBytes && KeySpacePrefix.IsCS(FastHash.HashCS(span), span.Slice(0, KeySpacePrefix.Length));
         }
     }
 
@@ -455,7 +455,7 @@ public readonly ref struct KeyNotification
         get
         {
             var span = _channel.Span;
-            return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.Is(span.HashCS(), span.Slice(0, KeyEventPrefix.Length));
+            return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.IsCS(FastHash.HashCS(span), span.Slice(0, KeyEventPrefix.Length));
         }
     }
 

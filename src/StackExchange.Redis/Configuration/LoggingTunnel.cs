@@ -9,6 +9,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
 using static StackExchange.Redis.PhysicalConnection;
@@ -83,12 +84,12 @@ public abstract class LoggingTunnel : Tunnel
                     ? tmp
                     : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
 
-                var hash = span.HashCS();
+                var hash = FastHash.HashCS(span);
                 switch (hash)
                 {
-                    case PushMessage.Hash when PushMessage.Is(hash, span) & len >= 3:
-                    case PushPMessage.Hash when PushPMessage.Is(hash, span) & len >= 4:
-                    case PushSMessage.Hash when PushSMessage.Is(hash, span) & len >= 3:
+                    case PushMessage.HashCS when PushMessage.IsCS(hash, span) & len >= 3:
+                    case PushPMessage.HashCS when PushPMessage.IsCS(hash, span) & len >= 4:
+                    case PushSMessage.HashCS when PushSMessage.IsCS(hash, span) & len >= 3:
                         return true;
                 }
             }
