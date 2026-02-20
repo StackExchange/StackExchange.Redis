@@ -20,15 +20,15 @@ namespace StackExchange.Redis
     {
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
-            DemandOK = new ExpectBasicStringProcessor(OK.Hash),
-            DemandPONG = new ExpectBasicStringProcessor(PONG.Hash),
+            DemandOK = new ExpectBasicStringProcessor(Literals.OK.Hash),
+            DemandPONG = new ExpectBasicStringProcessor(Literals.PONG.Hash),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
             TrackSubscriptions = new TrackSubscriptionsProcessor(null),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
-            BackgroundSaveStarted = new ExpectBasicStringProcessor(background_saving_started.Hash, startsWith: true),
-            BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(background_aof_rewriting_started.Hash, startsWith: true);
+            BackgroundSaveStarted = new ExpectBasicStringProcessor(Literals.background_saving_started.Hash, startsWith: true),
+            BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(Literals.background_aof_rewriting_started.Hash, startsWith: true);
 
         public static readonly ResultProcessor<byte[]?>
             ByteArray = new ByteArrayProcessor();
@@ -581,12 +581,13 @@ namespace StackExchange.Redis
                 if (reader.IsScalar && reader.ScalarLengthIs(1))
                 {
                     var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[1]);
-                    if (span[0] == (byte)'1')
+                    var value = span[0];
+                    if (value == (byte)'1')
                     {
                         SetResult(message, true);
                         return true;
                     }
-                    else if (span[0] == (byte)'0')
+                    else if (value == (byte)'0')
                     {
                         SetResult(message, false);
                         return true;
@@ -1458,34 +1459,6 @@ namespace StackExchange.Redis
             }
         }
 
-#pragma warning disable SA1300, SA1134
-        // ReSharper disable InconsistentNaming
-        [FastHash]
-        private static partial class OK
-        {
-            public static readonly FastHash Hash = new(U8);
-        }
-
-        [FastHash]
-        private static partial class PONG
-        {
-            public static readonly FastHash Hash = new(U8);
-        }
-
-        [FastHash("Background saving started")]
-        private static partial class background_saving_started
-        {
-            public static readonly FastHash Hash = new(U8);
-        }
-
-        [FastHash("Background append only file rewriting started")]
-        private static partial class background_aof_rewriting_started
-        {
-            public static readonly FastHash Hash = new(U8);
-        }
-        // ReSharper restore InconsistentNaming
-#pragma warning restore SA1300, SA1134
-
         private sealed class InfoProcessor : ResultProcessor<IGrouping<string, KeyValuePair<string, string>>[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -1494,10 +1467,9 @@ namespace StackExchange.Redis
                 {
                     string category = Normalize(null);
                     var list = new List<Tuple<string, KeyValuePair<string, string>>>();
-                    var raw = reader.ReadString();
-                    if (raw is not null)
+                    if (!reader.IsNull)
                     {
-                        using var stringReader = new StringReader(raw);
+                        using var stringReader = new StringReader(reader.ReadString()!);
                         while (stringReader.ReadLine() is string line)
                         {
                             if (string.IsNullOrWhiteSpace(line)) continue;
@@ -2102,39 +2074,76 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.IsAggregate && reader.AggregateLengthIs(4))
+                if (reader.IsAggregate)
                 {
                     // Top-level array: ["matches", matches_array, "len", length_value]
-                    reader.MoveNext(); // Skip "matches" string
-                    reader.MoveNextAggregate(); // Move to matches array
-                    var matchCount = reader.AggregateLength();
-                    var matches = new LCSMatchResult.LCSMatch[matchCount];
+                    // Use nominal access instead of positional
+                    LCSMatchResult.LCSMatch[]? matchesArray = null;
+                    long longestMatchLength = 0;
 
-                    for (int i = 0; i < matchCount; i++)
+                    Span<byte> keyBuffer = stackalloc byte[16]; // Buffer for key names
+                    var iter = reader.AggregateChildren();
+                    while (iter.MoveNext() && iter.Value.IsScalar)
                     {
-                        reader.MoveNextAggregate(); // Move to match (3-element array)
-                        reader.MoveNextAggregate(); // Move to first range (2-element array)
-                        reader.MoveNext(); // Move to first range start index
-                        var firstStringIndex = reader.TryReadInt64(out var first) ? first : 0;
-                        reader.MoveNext(); // Skip first range end index
+                        // Capture the scalar key
+                        var keyBytes = iter.Value.TryGetSpan(out var tmp) ? tmp : iter.Value.Buffer(keyBuffer);
+                        var hash = FastHash.HashCS(keyBytes);
 
-                        reader.MoveNextAggregate(); // Move to second range (2-element array)
-                        reader.MoveNext(); // Move to second range start index
-                        var secondStringIndex = reader.TryReadInt64(out var second) ? second : 0;
-                        reader.MoveNext(); // Skip second range end index
+                        if (!iter.MoveNext()) break; // out of data
 
-                        reader.MoveNext(); // Move to length
-                        var length = reader.TryReadInt64(out var len) ? len : 0;
+                        // Use FastHash pattern to identify "matches" vs "len"
+                        switch (hash)
+                        {
+                            case Literals.matches.HashCS when Literals.matches.IsCS(hash, keyBytes):
+                                // Read the matches array
+                                if (iter.Value.IsAggregate)
+                                {
+                                    var matchCount = iter.Value.AggregateLength();
+                                    matchesArray = new LCSMatchResult.LCSMatch[matchCount];
+                                    var matchIter = iter.Value.AggregateChildren();
+                                    for (int i = 0; i < matchCount; i++)
+                                    {
+                                        if (!matchIter.MoveNext() || !matchIter.Value.IsAggregate) break;
 
-                        matches[i] = new LCSMatchResult.LCSMatch(firstStringIndex, secondStringIndex, length);
+                                        var matchReader = matchIter.Value;
+                                        var matchChildren = matchReader.AggregateChildren();
+
+                                        // First range (2-element array)
+                                        if (!matchChildren.MoveNext() || !matchChildren.Value.IsAggregate) break;
+                                        var firstRangeIter = matchChildren.Value.AggregateChildren();
+                                        if (!firstRangeIter.MoveNext() || !firstRangeIter.Value.IsScalar) break;
+                                        var firstStringIndex = firstRangeIter.Value.TryReadInt64(out var first) ? first : 0;
+
+                                        // Second range (2-element array)
+                                        if (!matchChildren.MoveNext() || !matchChildren.Value.IsAggregate) break;
+                                        var secondRangeIter = matchChildren.Value.AggregateChildren();
+                                        if (!secondRangeIter.MoveNext() || !secondRangeIter.Value.IsScalar) break;
+                                        var secondStringIndex = secondRangeIter.Value.TryReadInt64(out var second) ? second : 0;
+
+                                        // Length
+                                        if (!matchChildren.MoveNext() || !matchChildren.Value.IsScalar) break;
+                                        var length = matchChildren.Value.TryReadInt64(out var matchLen) ? matchLen : 0;
+
+                                        matchesArray[i] = new LCSMatchResult.LCSMatch(firstStringIndex, secondStringIndex, length);
+                                    }
+                                }
+                                break;
+
+                            case Literals.len.HashCS when Literals.len.IsCS(hash, keyBytes):
+                                // Read the length value
+                                if (iter.Value.IsScalar)
+                                {
+                                    longestMatchLength = iter.Value.TryReadInt64(out var totalLen) ? totalLen : 0;
+                                }
+                                break;
+                        }
                     }
 
-                    reader.MoveNext(); // Skip "len" string
-                    reader.MoveNext(); // Move to length value
-                    var longestMatchLength = reader.TryReadInt64(out var totalLen) ? totalLen : 0;
-
-                    SetResult(message, new LCSMatchResult(matches, longestMatchLength));
-                    return true;
+                    if (matchesArray is not null)
+                    {
+                        SetResult(message, new LCSMatchResult(matchesArray, longestMatchLength));
+                        return true;
+                    }
                 }
                 return false;
             }
@@ -3283,6 +3292,47 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
+        /// <summary>
+        /// Filters out null values from an endpoint array efficiently.
+        /// </summary>
+        /// <param name="endpoints">The array to filter, or null.</param>
+        /// <returns>
+        /// - null if input is null.
+        /// - original array if no nulls found.
+        /// - empty array if all nulls.
+        /// - new array with nulls removed otherwise.
+        /// </returns>
+        private static EndPoint[]? FilterNullEndpoints(EndPoint?[]? endpoints)
+        {
+            if (endpoints is null) return null;
+
+            // Count nulls in a single pass
+            int nullCount = 0;
+            for (int i = 0; i < endpoints.Length; i++)
+            {
+                if (endpoints[i] is null) nullCount++;
+            }
+
+            // No nulls - return original array
+            if (nullCount == 0) return endpoints!;
+
+            // All nulls - return empty array
+            if (nullCount == endpoints.Length) return [];
+
+            // Some nulls - allocate new array and copy non-nulls
+            var result = new EndPoint[endpoints.Length - nullCount];
+            int writeIndex = 0;
+            for (int i = 0; i < endpoints.Length; i++)
+            {
+                if (endpoints[i] is not null)
+                {
+                    result[writeIndex++] = endpoints[i]!;
+                }
+            }
+
+            return result;
+        }
+
         private sealed class SentinelGetPrimaryAddressByNameProcessor : ResultProcessor<EndPoint?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -3307,7 +3357,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class SentinelGetSentinelAddressesProcessor : ResultProcessor<EndPoint[]>
+        private sealed partial class SentinelGetSentinelAddressesProcessor : ResultProcessor<EndPoint[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
@@ -3321,37 +3371,44 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 // Parse key-value pairs by name: ["ip", "127.0.0.1", "port", "26379"]
                                 // or ["port", "26379", "ip", "127.0.0.1"] - order doesn't matter
                                 string? host = null;
-                                long port = 0;
+                                long portValue = 0;
 
-                                while (itemReader.TryMoveNext())
+                                Span<byte> keyBuffer = stackalloc byte[16]; // Buffer for key names
+                                while (itemReader.TryMoveNext() && itemReader.IsScalar)
                                 {
-                                    var key = itemReader.ReadString();
-                                    if (itemReader.TryMoveNext())
+                                    // Capture the scalar key
+                                    var keyBytes = itemReader.TryGetSpan(out var tmp) ? tmp : itemReader.Buffer(keyBuffer);
+                                    var hash = FastHash.HashCS(keyBytes);
+
+                                    // Check for second scalar value
+                                    if (!(itemReader.TryMoveNext() && itemReader.IsScalar)) break;
+
+                                    // Use FastHash pattern to identify "ip" vs "port"
+                                    switch (hash)
                                     {
-                                        if (key == "ip")
-                                        {
+                                        case Literals.ip.HashCS when Literals.ip.IsCS(hash, keyBytes):
                                             host = itemReader.ReadString();
-                                        }
-                                        else if (key == "port")
-                                        {
-                                            itemReader.TryReadInt64(out port);
-                                        }
+                                            break;
+
+                                        case Literals.port.HashCS when Literals.port.IsCS(hash, keyBytes):
+                                            itemReader.TryReadInt64(out portValue);
+                                            break;
                                     }
                                 }
 
-                                if (host is not null && port > 0)
+                                if (host is not null && portValue > 0)
                                 {
-                                    return Format.ParseEndPoint(host, checked((int)port));
+                                    return Format.ParseEndPoint(host, checked((int)portValue));
                                 }
                             }
                             return null;
                         },
                         scalar: false);
 
-                    if (endpoints is not null)
+                    var filtered = FilterNullEndpoints(endpoints);
+                    if (filtered is not null)
                     {
-                        var filtered = endpoints.Where(ep => ep is not null).ToArray();
-                        SetResult(message, filtered!);
+                        SetResult(message, filtered);
                         return true;
                     }
                 }
@@ -3360,7 +3417,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class SentinelGetReplicaAddressesProcessor : ResultProcessor<EndPoint[]>
+        private sealed partial class SentinelGetReplicaAddressesProcessor : ResultProcessor<EndPoint[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
@@ -3374,41 +3431,45 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 // Parse key-value pairs by name: ["ip", "127.0.0.1", "port", "6380"]
                                 // or ["port", "6380", "ip", "127.0.0.1"] - order doesn't matter
                                 string? host = null;
-                                long port = 0;
+                                long portValue = 0;
 
-                                while (r.TryMoveNext())
+                                Span<byte> keyBuffer = stackalloc byte[16]; // Buffer for key names
+                                while (r.TryMoveNext() && r.IsScalar)
                                 {
-                                    var key = r.ReadString();
-                                    if (r.TryMoveNext())
+                                    // Capture the scalar key
+                                    var keyBytes = r.TryGetSpan(out var tmp) ? tmp : r.Buffer(keyBuffer);
+                                    var hash = FastHash.HashCS(keyBytes);
+
+                                    // Check for second scalar value
+                                    if (!(r.TryMoveNext() && r.IsScalar)) break;
+
+                                    // Use FastHash pattern to identify "ip" vs "port"
+                                    switch (hash)
                                     {
-                                        if (key == "ip")
-                                        {
+                                        case Literals.ip.HashCS when Literals.ip.IsCS(hash, keyBytes):
                                             host = r.ReadString();
-                                        }
-                                        else if (key == "port")
-                                        {
-                                            r.TryReadInt64(out port);
-                                        }
+                                            break;
+
+                                        case Literals.port.HashCS when Literals.port.IsCS(hash, keyBytes):
+                                            r.TryReadInt64(out portValue);
+                                            break;
                                     }
                                 }
 
-                                if (host is not null && port > 0)
+                                if (host is not null && portValue > 0)
                                 {
-                                    return Format.ParseEndPoint(host, checked((int)port));
+                                    return Format.ParseEndPoint(host, checked((int)portValue));
                                 }
                             }
                             return null;
                         },
                         scalar: false);
 
-                    if (endPoints is not null && endPoints.Length > 0)
+                    var filtered = FilterNullEndpoints(endPoints);
+                    if (filtered is not null && filtered.Length > 0)
                     {
-                        var filtered = endPoints.Where(ep => ep is not null).ToArray();
-                        if (filtered.Length > 0)
-                        {
-                            SetResult(message, filtered!);
-                            return true;
-                        }
+                        SetResult(message, filtered);
+                        return true;
                     }
                 }
                 else if (reader.IsScalar && reader.IsNull)

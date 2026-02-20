@@ -292,7 +292,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.Prefix == RespPrefix.BulkString)
+                if (reader.IsScalar)
                 {
                     var raw = reader.ReadString();
                     if (TryParse(raw, out var clients))
