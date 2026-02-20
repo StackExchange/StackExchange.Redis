@@ -2,6 +2,7 @@
 
 using System;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;
@@ -18,30 +19,39 @@ internal abstract partial class ResultProcessor
 
     private sealed class VectorSetLinksWithScoresProcessor : FlattenedLeaseProcessor<VectorSetLink>
     {
-        protected override long GetArrayLength(in RawResult array) => array.GetItems().Length / 2;
+        protected override long GetArrayLength(in RespReader reader) => reader.AggregateLength() / 2;
 
-        protected override bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out VectorSetLink value)
+        protected override bool TryReadOne(ref RespReader reader, out VectorSetLink value)
         {
-            if (reader.MoveNext())
+            if (!reader.IsScalar)
             {
-                ref readonly RawResult first = ref reader.Current;
-                if (reader.MoveNext() && reader.Current.TryGetDouble(out var score))
-                {
-                    value = new VectorSetLink(first.AsRedisValue(), score);
-                    return true;
-                }
+                value = default;
+                return false;
             }
 
-            value = default;
-            return false;
+            var member = reader.ReadRedisValue();
+            if (!reader.TryMoveNext() || !reader.IsScalar || !reader.TryReadDouble(out var score))
+            {
+                value = default;
+                return false;
+            }
+
+            value = new VectorSetLink(member, score);
+            return true;
         }
     }
 
     private sealed class VectorSetLinksProcessor : FlattenedLeaseProcessor<RedisValue>
     {
-        protected override bool TryReadOne(in RawResult result, out RedisValue value)
+        protected override bool TryReadOne(ref RespReader reader, out RedisValue value)
         {
-            value = result.AsRedisValue();
+            if (!reader.IsScalar)
+            {
+                value = default;
+                return false;
+            }
+
+            value = reader.ReadRedisValue();
             return true;
         }
     }
@@ -87,36 +97,36 @@ internal abstract partial class ResultProcessor
                     continue;
                 }
 
-                var hash = testBytes.Hash64(); // this still contains the key, even though we've advanced
+                var hash = FastHash.HashCS(testBytes); // this still contains the key, even though we've advanced
                 switch (hash)
                 {
-                    case size.Hash when size.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case size.HashCS when size.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
                         resultSize = i64;
                         break;
-                    case vset_uid.Hash when vset_uid.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case vset_uid.HashCS when vset_uid.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
                         vsetUid = i64;
                         break;
-                    case max_level.Hash when max_level.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case max_level.HashCS when max_level.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
                         maxLevel = checked((int)i64);
                         break;
-                    case vector_dim.Hash when vector_dim.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case vector_dim.HashCS when vector_dim.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
                         vectorDim = checked((int)i64);
                         break;
-                    case quant_type.Hash when quant_type.Is(hash, testBytes):
+                    case quant_type.HashCS when quant_type.IsCS(hash, testBytes):
                         len = reader.ScalarLength();
                         testBytes = (len > stackBuffer.Length | reader.IsNull) ? default :
                             reader.TryGetSpan(out tmp) ? tmp : reader.Buffer(stackBuffer);
 
-                        hash = testBytes.Hash64();
+                        hash = FastHash.HashCS(testBytes);
                         switch (hash)
                         {
-                            case bin.Hash when bin.Is(hash, testBytes):
+                            case bin.HashCS when bin.IsCS(hash, testBytes):
                                 quantType = VectorSetQuantization.Binary;
                                 break;
-                            case f32.Hash when f32.Is(hash, testBytes):
+                            case f32.HashCS when f32.IsCS(hash, testBytes):
                                 quantType = VectorSetQuantization.None;
                                 break;
-                            case int8.Hash when int8.Is(hash, testBytes):
+                            case int8.HashCS when int8.IsCS(hash, testBytes):
                                 quantType = VectorSetQuantization.Int8;
                                 break;
                             default:
@@ -125,7 +135,7 @@ internal abstract partial class ResultProcessor
                                 break;
                         }
                         break;
-                    case hnsw_max_node_uid.Hash when hnsw_max_node_uid.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case hnsw_max_node_uid.HashCS when hnsw_max_node_uid.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
                         hnswMaxNodeUid = i64;
                         break;
                 }
