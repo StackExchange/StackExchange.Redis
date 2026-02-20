@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Benchmarks;
 [ShortRunJob, MemoryDiagnoser]
 public class FastHashSwitch
 {
+    // conclusion: it doesn't matter; switch on the hash or length is fine, just: remember to do the Is check
     public enum Field
     {
         key,
