@@ -354,7 +354,7 @@ namespace StackExchange.Redis
             return SetResultCore(connection, message, rawResult);
         }
 
-        private static RawResult AsRaw(ref RespReader reader, bool resp3)
+        internal static RawResult AsRaw(ref RespReader reader, bool resp3)
         {
             var flags = RawResult.ResultFlags.HasValue;
             if (!reader.IsNull) flags |= RawResult.ResultFlags.NonNull;
@@ -585,22 +585,33 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+            public static bool TryGet(ref RespReader reader, out bool value)
             {
                 if (reader.IsScalar && reader.ScalarLengthIs(1))
                 {
                     var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[1]);
-                    var value = span[0];
-                    if (value == (byte)'1')
+                    var byteValue = span[0];
+                    if (byteValue == (byte)'1')
                     {
-                        SetResult(message, true);
+                        value = true;
                         return true;
                     }
-                    else if (value == (byte)'0')
+                    else if (byteValue == (byte)'0')
                     {
-                        SetResult(message, false);
+                        value = false;
                         return true;
                     }
+                }
+                value = false;
+                return false;
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                if (TryGet(ref reader, out bool value))
+                {
+                    SetResult(message, value);
+                    return true;
                 }
                 return false;
             }
