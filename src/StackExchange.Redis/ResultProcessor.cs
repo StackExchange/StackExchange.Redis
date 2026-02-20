@@ -3297,32 +3297,51 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class SentinelGetSentinelAddressesProcessor : ResultProcessor<EndPoint[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                List<EndPoint> endPoints = [];
-
-                switch (result.Resp2TypeArray)
+                if (reader.IsAggregate && !reader.IsNull)
                 {
-                    case ResultType.Array:
-                        foreach (RawResult item in result.GetItems())
+                    var endpoints = reader.ReadPastArray(
+                        static (ref RespReader itemReader) =>
                         {
-                            var pairs = item.GetItems();
-                            string? ip = null;
-                            int port = default;
-                            if (KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.IP, ref ip)
-                                && KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.Port, ref port))
+                            if (itemReader.IsAggregate)
                             {
-                                endPoints.Add(Format.ParseEndPoint(ip, port));
-                            }
-                        }
-                        SetResult(message, endPoints.ToArray());
-                        return true;
+                                // Parse key-value pairs by name: ["ip", "127.0.0.1", "port", "26379"]
+                                // or ["port", "26379", "ip", "127.0.0.1"] - order doesn't matter
+                                string? host = null;
+                                long port = 0;
 
-                    case ResultType.SimpleString:
-                        // We don't want to blow up if the primary is not found
-                        if (result.IsNull)
-                            return true;
-                        break;
+                                while (itemReader.TryMoveNext())
+                                {
+                                    var key = itemReader.ReadString();
+                                    if (itemReader.TryMoveNext())
+                                    {
+                                        if (key == "ip")
+                                        {
+                                            host = itemReader.ReadString();
+                                        }
+                                        else if (key == "port")
+                                        {
+                                            itemReader.TryReadInt64(out port);
+                                        }
+                                    }
+                                }
+
+                                if (host is not null && port > 0)
+                                {
+                                    return Format.ParseEndPoint(host, checked((int)port));
+                                }
+                            }
+                            return null;
+                        },
+                        scalar: false);
+
+                    if (endpoints is not null)
+                    {
+                        var filtered = endpoints.Where(ep => ep is not null).ToArray();
+                        SetResult(message, filtered!);
+                        return true;
+                    }
                 }
 
                 return false;
