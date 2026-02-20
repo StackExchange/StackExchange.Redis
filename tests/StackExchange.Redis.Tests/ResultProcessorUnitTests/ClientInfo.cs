@@ -69,4 +69,25 @@ public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 
         ExecuteUnexpected(resp, StackExchange.Redis.ClientInfo.Processor);
     }
+
+    [Fact]
+    public void VerbatimString_Success()
+    {
+        // Verbatim string with TXT encoding - should behave identically to bulk string
+        // Format: ={len}\r\n{enc}:{payload}\r\n where enc is exactly 3 bytes (e.g., "TXT")
+        var content = "id=86 addr=172.17.0.1:40750 laddr=172.17.0.2:3000 fd=22 name= age=7 idle=0 flags=N db=0 sub=0 psub=0 ssub=0 multi=-1 watch=0 qbuf=26 qbuf-free=20448 argv-mem=10 multi-mem=0 rbs=1024 rbp=0 obl=0 oll=0 omem=0 tot-mem=22810 events=r cmd=client|list user=default redir=-1 resp=2 lib-name= lib-ver= io-thread=0 tot-net-in=48 tot-net-out=36 tot-cmds=0\n";
+        var totalLen = 4 + content.Length; // "TXT:" + content
+        var resp = $"={totalLen}\r\nTXT:{content}\r\n";
+
+        var result = Execute(resp, StackExchange.Redis.ClientInfo.Processor);
+
+        // ReadString() automatically strips the "TXT:" encoding prefix,
+        // so the result should be identical to the bulk string test
+        Assert.NotNull(result);
+        Assert.Single(result);
+        Assert.Equal(86, result[0].Id);
+        Assert.Equal("172.17.0.1:40750", result[0].Address?.ToString());
+        Assert.Equal(7, result[0].AgeSeconds);
+        Assert.Equal(0, result[0].Database);
+    }
 }
