@@ -2,6 +2,7 @@
 
 using System;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;
@@ -87,7 +88,7 @@ internal abstract partial class ResultProcessor
                     continue;
                 }
 
-                var hash = testBytes.Hash64(); // this still contains the key, even though we've advanced
+                var hash = testBytes.HashCS(); // this still contains the key, even though we've advanced
                 switch (hash)
                 {
                     case size.Hash when size.Is(hash, testBytes) && reader.TryReadInt64(out var i64):
@@ -107,7 +108,7 @@ internal abstract partial class ResultProcessor
                         testBytes = (len > stackBuffer.Length | reader.IsNull) ? default :
                             reader.TryGetSpan(out tmp) ? tmp : reader.Buffer(stackBuffer);
 
-                        hash = testBytes.Hash64();
+                        hash = testBytes.HashCS();
                         switch (hash)
                         {
                             case bin.Hash when bin.Is(hash, testBytes):

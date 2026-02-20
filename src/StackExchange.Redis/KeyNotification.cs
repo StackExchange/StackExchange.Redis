@@ -4,6 +4,7 @@ using System.Buffers.Text;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using RESPite;
 using static StackExchange.Redis.KeyNotificationChannels;
 namespace StackExchange.Redis;
 
@@ -37,7 +38,7 @@ public readonly ref struct KeyNotification
         {
             // check that the prefix is valid, i.e. "__keyspace@" or "__keyevent@"
             var prefix = span.Slice(0, KeySpacePrefix.Length);
-            var hash = prefix.Hash64();
+            var hash = prefix.HashCS();
             switch (hash)
             {
                 case KeySpacePrefix.Hash when KeySpacePrefix.Is(hash, prefix):
@@ -442,7 +443,7 @@ public readonly ref struct KeyNotification
         get
         {
             var span = _channel.Span;
-            return span.Length >= KeySpacePrefix.Length + MinSuffixBytes && KeySpacePrefix.Is(span.Hash64(), span.Slice(0, KeySpacePrefix.Length));
+            return span.Length >= KeySpacePrefix.Length + MinSuffixBytes && KeySpacePrefix.Is(span.HashCS(), span.Slice(0, KeySpacePrefix.Length));
         }
     }
 
@@ -454,7 +455,7 @@ public readonly ref struct KeyNotification
         get
         {
             var span = _channel.Span;
-            return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.Is(span.Hash64(), span.Slice(0, KeyEventPrefix.Length));
+            return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.Is(span.HashCS(), span.Slice(0, KeyEventPrefix.Length));
         }
     }
 

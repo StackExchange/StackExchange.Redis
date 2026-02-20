@@ -51,11 +51,11 @@ public class FastHashBenchmarks
         var bytes = _sourceBytes.Span;
         var expected = FastHash.Hash64Fallback(bytes);
 
-        Assert(bytes.Hash64(), nameof(FastHash.Hash64));
+        Assert(bytes.HashCS(), nameof(FastHash.HashCS));
         Assert(FastHash.Hash64Unsafe(bytes), nameof(FastHash.Hash64Unsafe));
 #pragma warning restore CS0618 // Type or member is obsolete
-        Assert(SingleSegmentBytes.Hash64(), nameof(FastHash.Hash64) + " (single segment)");
-        Assert(_sourceMultiSegmentBytes.Hash64(), nameof(FastHash.Hash64) + " (multi segment)");
+        Assert(SingleSegmentBytes.Hash64(), nameof(FastHash.HashCS) + " (single segment)");
+        Assert(_sourceMultiSegmentBytes.Hash64(), nameof(FastHash.HashCS) + " (multi segment)");
 
         void Assert(long actual, string name)
         {
@@ -89,7 +89,7 @@ public class FastHashBenchmarks
         var val = _sourceBytes.Span;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = val.Hash64();
+            _ = val.HashCS();
         }
     }
 

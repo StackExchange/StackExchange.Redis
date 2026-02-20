@@ -83,7 +83,7 @@ public abstract class LoggingTunnel : Tunnel
                     ? tmp
                     : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
 
-                var hash = span.Hash64();
+                var hash = span.HashCS();
                 switch (hash)
                 {
                     case PushMessage.Hash when PushMessage.Is(hash, span) & len >= 3:

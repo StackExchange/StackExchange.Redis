@@ -9,6 +9,7 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite;
 using RESPite.Buffers;
 using RESPite.Internal;
 using RESPite.Messages;
@@ -293,7 +294,7 @@ internal sealed partial class PhysicalConnection
         {
             if (payload.Length >= sizeof(ulong))
             {
-                var hash = payload.Hash64();
+                var hash = payload.HashCS();
                 switch (hash)
                 {
                     case ArrayPong_LC_Bulk.Hash when payload.StartsWith(ArrayPong_LC_Bulk.U8):
@@ -350,7 +351,7 @@ internal sealed partial class PhysicalConnection
             var span = reader.TryGetSpan(out var tmp)
                 ? tmp : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
 
-            var hash = span.Hash64();
+            var hash = span.HashCS();
             RedisChannel.RedisChannelOptions channelOptions = RedisChannel.RedisChannelOptions.None;
             PushKind kind;
             switch (hash)

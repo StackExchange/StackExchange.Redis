@@ -46,7 +46,7 @@ public partial class FastHashTests(ITestOutputHelper log)
         Assert.Equal(expectedHash, actualHash);
         var bytes = Encoding.UTF8.GetBytes(actualValue);
         Assert.Equal(expectedLength, bytes.Length);
-        Assert.Equal(expectedHash, FastHash.Hash64(bytes));
+        Assert.Equal(expectedHash, FastHash.HashCS(bytes));
 #pragma warning disable CS0618 // Type or member is obsolete
         Assert.Equal(expectedHash, FastHash.Hash64Fallback(bytes));
 #pragma warning restore CS0618 // Type or member is obsolete
@@ -60,12 +60,12 @@ public partial class FastHashTests(ITestOutputHelper log)
     public void FastHashIs_Short()
     {
         ReadOnlySpan<byte> value = "abc"u8;
-        var hash = value.Hash64();
+        var hash = value.HashCS();
         Assert.Equal(abc.Hash, hash);
         Assert.True(abc.Is(hash, value));
 
         value = "abz"u8;
-        hash = value.Hash64();
+        hash = value.HashCS();
         Assert.NotEqual(abc.Hash, hash);
         Assert.False(abc.Is(hash, value));
     }
@@ -74,12 +74,12 @@ public partial class FastHashTests(ITestOutputHelper log)
     public void FastHashIs_Long()
     {
         ReadOnlySpan<byte> value = "abcdefghijklmnopqrst"u8;
-        var hash = value.Hash64();
+        var hash = value.HashCS();
         Assert.Equal(abcdefghijklmnopqrst.Hash, hash);
         Assert.True(abcdefghijklmnopqrst.Is(hash, value));
 
         value = "abcdefghijklmnopqrsz"u8;
-        hash = value.Hash64();
+        hash = value.HashCS();
         Assert.Equal(abcdefghijklmnopqrst.Hash, hash); // hash collision, fine
         Assert.False(abcdefghijklmnopqrst.Is(hash, value));
     }

@@ -1,4 +1,5 @@
 ﻿using System;
+using RESPite;
 
 namespace StackExchange.Redis;
 
@@ -12,7 +13,7 @@ internal static partial class KeyNotificationTypeFastHash
 
     public static KeyNotificationType Parse(ReadOnlySpan<byte> value)
     {
-        var hash = value.Hash64();
+        var hash = value.HashCS();
         return hash switch
         {
             append.Hash when append.Is(hash, value) => KeyNotificationType.Append,

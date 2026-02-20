@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis;
+﻿using RESPite;
+
+namespace StackExchange.Redis;
 
 public sealed partial class HotKeysResult
 {

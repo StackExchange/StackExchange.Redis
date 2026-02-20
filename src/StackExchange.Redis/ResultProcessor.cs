@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite;
 using RESPite.Messages;
 
 namespace StackExchange.Redis
@@ -1795,16 +1796,16 @@ namespace StackExchange.Redis
                 static RedisType FastParse(ReadOnlySpan<byte> span)
                 {
                     if (span.IsEmpty) return Redis.RedisType.None; // includes null
-                    var hash = span.Hash64();
+                    var hash = FastHash.HashCS(span);
                     return hash switch
                     {
-                        redistype_string.Hash when redistype_string.Is(hash, span) => Redis.RedisType.String,
-                        redistype_list.Hash when redistype_list.Is(hash, span) => Redis.RedisType.List,
-                        redistype_set.Hash when redistype_set.Is(hash, span) => Redis.RedisType.Set,
-                        redistype_zset.Hash when redistype_zset.Is(hash, span) => Redis.RedisType.SortedSet,
-                        redistype_hash.Hash when redistype_hash.Is(hash, span) => Redis.RedisType.Hash,
-                        redistype_stream.Hash when redistype_stream.Is(hash, span) => Redis.RedisType.Stream,
-                        redistype_vectorset.Hash when redistype_vectorset.Is(hash, span) => Redis.RedisType.VectorSet,
+                        redistype_string.HashCS when redistype_string.IsCS(hash, span) => Redis.RedisType.String,
+                        redistype_list.HashCS when redistype_list.IsCS(hash, span) => Redis.RedisType.List,
+                        redistype_set.HashCS when redistype_set.IsCS(hash, span) => Redis.RedisType.Set,
+                        redistype_zset.HashCS when redistype_zset.IsCS(hash, span) => Redis.RedisType.SortedSet,
+                        redistype_hash.HashCS when redistype_hash.IsCS(hash, span) => Redis.RedisType.Hash,
+                        redistype_stream.HashCS when redistype_stream.IsCS(hash, span) => Redis.RedisType.Stream,
+                        redistype_vectorset.HashCS when redistype_vectorset.IsCS(hash, span) => Redis.RedisType.VectorSet,
                         _ => Redis.RedisType.Unknown,
                     };
                 }
@@ -2124,7 +2125,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     ? span
                     : reader.Buffer(stackalloc byte[16]); // word-aligned, enough for longest role type
 
-                var hash = FastHash.Hash64(roleBytes);
+                var hash = FastHash.HashCS(roleBytes);
                 var role = hash switch
                 {
                     Literals.master.Hash when Literals.master.Is(hash, roleBytes) => ParsePrimary(ref reader),
@@ -2233,7 +2234,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     ? span
                     : reader.Buffer(stackalloc byte[16]); // word-aligned, enough for longest state
 
-                var hash = FastHash.Hash64(stateBytes);
+                var hash = FastHash.HashCS(stateBytes);
                 var replicationState = hash switch
                 {
                     Literals.connect.Hash when Literals.connect.Is(hash, stateBytes) => Literals.connect.Text,
