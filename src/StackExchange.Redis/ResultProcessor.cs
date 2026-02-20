@@ -396,37 +396,6 @@ namespace StackExchange.Redis
                 this.isMilliseconds = isMilliseconds;
             }
 
-            public bool TryParse(in RawResult result, out TimeSpan? expiry)
-            {
-                switch (result.Resp2TypeBulkString)
-                {
-                    case ResultType.Integer:
-                        if (result.TryGetInt64(out long time))
-                        {
-                            if (time < 0)
-                            {
-                                expiry = null;
-                            }
-                            else if (isMilliseconds)
-                            {
-                                expiry = TimeSpan.FromMilliseconds(time);
-                            }
-                            else
-                            {
-                                expiry = TimeSpan.FromSeconds(time);
-                            }
-                            return true;
-                        }
-                        break;
-                    // e.g. OBJECT IDLETIME on a key that doesn't exist
-                    case ResultType.BulkString when result.IsNull:
-                        expiry = null;
-                        return true;
-                }
-                expiry = null;
-                return false;
-            }
-
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 if (reader.IsScalar)
