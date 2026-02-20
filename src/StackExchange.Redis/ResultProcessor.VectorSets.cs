@@ -21,6 +21,27 @@ internal abstract partial class ResultProcessor
     {
         protected override long GetArrayLength(in RawResult array) => array.GetItems().Length / 2;
 
+        protected override long GetArrayLength(in RespReader reader) => reader.AggregateLength() / 2;
+
+        protected override bool TryReadOne(ref RespReader reader, out VectorSetLink value)
+        {
+            if (!reader.IsScalar)
+            {
+                value = default;
+                return false;
+            }
+
+            var member = reader.ReadRedisValue();
+            if (!reader.TryMoveNext() || !reader.IsScalar || !reader.TryReadDouble(out var score))
+            {
+                value = default;
+                return false;
+            }
+
+            value = new VectorSetLink(member, score);
+            return true;
+        }
+
         protected override bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out VectorSetLink value)
         {
             if (reader.MoveNext())
@@ -40,6 +61,18 @@ internal abstract partial class ResultProcessor
 
     private sealed class VectorSetLinksProcessor : FlattenedLeaseProcessor<RedisValue>
     {
+        protected override bool TryReadOne(ref RespReader reader, out RedisValue value)
+        {
+            if (!reader.IsScalar)
+            {
+                value = default;
+                return false;
+            }
+
+            value = reader.ReadRedisValue();
+            return true;
+        }
+
         protected override bool TryReadOne(in RawResult result, out RedisValue value)
         {
             value = result.AsRedisValue();

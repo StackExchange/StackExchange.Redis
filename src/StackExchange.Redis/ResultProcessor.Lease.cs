@@ -65,6 +65,8 @@ internal abstract partial class ResultProcessor
     {
         protected virtual long GetArrayLength(in RawResult array) => array.GetItems().Length;
 
+        protected virtual long GetArrayLength(in RespReader reader) => reader.AggregateLength();
+
         protected virtual bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out T value)
         {
             if (reader.MoveNext())
@@ -79,6 +81,83 @@ internal abstract partial class ResultProcessor
         {
             value = default!;
             return false;
+        }
+
+        protected virtual bool TryReadOne(ref RespReader reader, out T value)
+        {
+            value = default!;
+            return false;
+        }
+
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+        {
+            if (!reader.IsAggregate)
+            {
+                return false; // not an array
+            }
+
+            // deal with null
+            if (reader.IsNull)
+            {
+                SetResult(message, Lease<T>.Empty);
+                return true;
+            }
+
+            // First pass: count total elements across all nested arrays
+            long totalLength = 0;
+            var iter = reader.AggregateChildren();
+            while (iter.MoveNext())
+            {
+                if (iter.Value.IsAggregate && !iter.Value.IsNull)
+                {
+                    totalLength += GetArrayLength(in iter.Value);
+                }
+            }
+
+            if (totalLength == 0)
+            {
+                SetResult(message, Lease<T>.Empty);
+                return true;
+            }
+
+            // Second pass: fill the lease
+            var lease = Lease<T>.Create(checked((int)totalLength), clear: false);
+            int index = 0;
+            var target = lease.Span;
+
+            try
+            {
+                iter = reader.AggregateChildren();
+                while (iter.MoveNext())
+                {
+                    if (iter.Value.IsAggregate && !iter.Value.IsNull)
+                    {
+                        var childReader = iter.Value;
+                        while (childReader.TryMoveNext() && index < target.Length)
+                        {
+                            if (!TryReadOne(ref childReader, out target[index]))
+                            {
+                                lease.Dispose();
+                                return false;
+                            }
+                            index++;
+                        }
+                    }
+                }
+
+                if (index == totalLength)
+                {
+                    SetResult(message, lease);
+                    return true;
+                }
+                lease.Dispose(); // failed to fill?
+                return false;
+            }
+            catch
+            {
+                lease.Dispose();
+                throw;
+            }
         }
 
         protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
