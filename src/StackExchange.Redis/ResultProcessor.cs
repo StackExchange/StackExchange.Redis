@@ -518,32 +518,41 @@ namespace StackExchange.Redis
             private ConnectionMultiplexer.Subscription? Subscription { get; }
             public TrackSubscriptionsProcessor(ConnectionMultiplexer.Subscription? sub) => Subscription = sub;
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray == ResultType.Array)
+                if (reader.IsAggregate)
                 {
-                    var items = result.GetItems();
-                    if (items.Length >= 3 && items[2].TryGetInt64(out long count))
+                    int length = reader.AggregateLength();
+                    if (length >= 3)
                     {
-                        connection.SubscriptionCount = count;
-                        SetResult(message, true);
+                        var iter = reader.AggregateChildren();
+                        // Skip first two elements
+                        iter.DemandNext(); // [0]
+                        iter.DemandNext(); // [1]
+                        iter.DemandNext(); // [2] - the count
 
-                        var ep = connection.BridgeCouldBeNull?.ServerEndPoint;
-                        if (ep is not null)
+                        if (iter.Value.TryReadInt64(out long count))
                         {
-                            switch (message.Command)
+                            connection.SubscriptionCount = count;
+                            SetResult(message, true);
+
+                            var ep = connection.BridgeCouldBeNull?.ServerEndPoint;
+                            if (ep is not null)
                             {
-                                case RedisCommand.SUBSCRIBE:
-                                case RedisCommand.SSUBSCRIBE:
-                                case RedisCommand.PSUBSCRIBE:
-                                    Subscription?.AddEndpoint(ep);
-                                    break;
-                                default:
-                                    Subscription?.TryRemoveEndpoint(ep);
-                                    break;
+                                switch (message.Command)
+                                {
+                                    case RedisCommand.SUBSCRIBE:
+                                    case RedisCommand.SSUBSCRIBE:
+                                    case RedisCommand.PSUBSCRIBE:
+                                        Subscription?.AddEndpoint(ep);
+                                        break;
+                                    default:
+                                        Subscription?.TryRemoveEndpoint(ep);
+                                        break;
+                                }
                             }
+                            return true;
                         }
-                        return true;
                     }
                 }
                 SetResult(message, false);
@@ -1272,12 +1281,13 @@ namespace StackExchange.Redis
                 return config;
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                if (reader.IsScalar)
                 {
-                    case ResultType.BulkString:
-                        string nodes = result.GetString()!;
+                    string? nodes = reader.ReadString();
+                    if (nodes is not null)
+                    {
                         var bridge = connection.BridgeCouldBeNull;
                         var config = Parse(connection, nodes);
 
@@ -1288,6 +1298,7 @@ namespace StackExchange.Redis
                         }
                         SetResult(message, config);
                         return true;
+                    }
                 }
                 return false;
             }
@@ -2380,20 +2391,21 @@ The coordinates as a two items x,y array (longitude,latitude).
             /// <summary>
             /// Handles <see href="https://redis.io/commands/xread"/>.
             /// </summary>
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.IsNull)
+                if (reader.IsNull)
                 {
                     // Server returns 'nil' if no entries are returned for the given stream.
                     SetResult(message, []);
                     return true;
                 }
 
-                if (result.Resp2TypeArray != ResultType.Array)
+                if (!reader.IsAggregate)
                 {
                     return false;
                 }
 
+                var protocol = connection.Protocol.GetValueOrDefault();
                 StreamEntry[] entries;
 
                 if (skipStreamName)
@@ -2437,17 +2449,38 @@ The coordinates as a two items x,y array (longitude,latitude).
                              6) "46"
                         */
 
-                    ref readonly RawResult readResult = ref (result.Resp3Type == ResultType.Map ? ref result[1] : ref result[0][1]);
-                    entries = ParseRedisStreamEntries(readResult);
+                    if (protocol == RedisProtocol.Resp3)
+                    {
+                        // RESP3: map - skip the key, read the value
+                        reader.MoveNext(); // skip key
+                        reader.MoveNext(); // move to value
+                        entries = ParseRedisStreamEntries(ref reader, protocol);
+                    }
+                    else
+                    {
+                        // RESP2: array - first element is array with [name, entries]
+                        var iter = reader.AggregateChildren();
+                        iter.DemandNext(); // first stream
+                        var streamIter = iter.Value.AggregateChildren();
+                        streamIter.DemandNext(); // skip stream name
+                        streamIter.DemandNext(); // entries array
+                        entries = ParseRedisStreamEntries(ref streamIter.Value, protocol);
+                    }
                 }
                 else
                 {
-                    entries = ParseRedisStreamEntries(result);
+                    entries = ParseRedisStreamEntries(ref reader, protocol);
                 }
 
                 SetResult(message, entries);
                 return true;
             }
+        }
+
+        private readonly struct MultiStreamState(MultiStreamProcessor processor, RedisProtocol protocol)
+        {
+            public MultiStreamProcessor Processor { get; } = processor;
+            public RedisProtocol Protocol { get; } = protocol;
         }
 
         /// <summary>
@@ -2511,36 +2544,37 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 else
                 {
-                    int count = reader.AggregateLength();
-                    if (count == 0)
-                    {
-                        SetResult(message, []);
-                        return true;
-                    }
-
-                    streams = new RedisStream[count];
-                    var iter = reader.AggregateChildren();
-                    for (int i = 0; i < count; i++)
-                    {
-                        iter.DemandNext();
-                        var itemReader = iter.Value;
-
-                        if (!itemReader.IsAggregate)
+                    var state = new MultiStreamState(this, protocol);
+                    streams = reader.ReadPastArray(
+                        ref state,
+                        static (ref state, ref itemReader) =>
                         {
-                            return false;
-                        }
+                            if (!itemReader.IsAggregate)
+                            {
+                                throw new InvalidOperationException("Expected aggregate for stream");
+                            }
 
-                        var details = itemReader.AggregateChildren();
+                            // [0] = Name of the Stream
+                            if (!itemReader.TryMoveNext())
+                            {
+                                throw new InvalidOperationException("Expected stream name");
+                            }
+                            var key = itemReader.ReadRedisKey();
 
-                        // details[0] = Name of the Stream
-                        details.DemandNext();
-                        var key = details.Value.ReadRedisKey();
+                            // [1] = Multibulk Array of Stream Entries
+                            if (!itemReader.TryMoveNext())
+                            {
+                                throw new InvalidOperationException("Expected stream entries");
+                            }
+                            var entries = state.Processor.ParseRedisStreamEntries(ref itemReader, state.Protocol);
 
-                        // details[1] = Multibulk Array of Stream Entries
-                        details.DemandNext();
-                        var entries = ParseRedisStreamEntries(ref details.Value, protocol);
+                            return new RedisStream(key: key, entries: entries);
+                        },
+                        scalar: false)!; // null-checked below
 
-                        streams[i] = new RedisStream(key: key, entries: entries);
+                    if (streams == null)
+                    {
+                        return false;
                     }
                 }
 
@@ -2575,21 +2609,42 @@ The coordinates as a two items x,y array (longitude,latitude).
         /// </summary>
         internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 // See https://redis.io/commands/xautoclaim for command documentation.
                 // Note that the result should never be null, so intentionally treating it as a failure to parse here
-                if (result.Resp2TypeArray == ResultType.Array && !result.IsNull)
+                if (reader.IsAggregate && !reader.IsNull)
                 {
-                    var items = result.GetItems();
+                    int length = reader.AggregateLength();
+                    if (!(length == 2 || length == 3))
+                    {
+                        return false;
+                    }
+
+                    var iter = reader.AggregateChildren();
+                    var protocol = connection.Protocol.GetValueOrDefault();
 
                     // [0] The next start ID.
-                    var nextStartId = items[0].AsRedisValue();
+                    iter.DemandNext();
+                    var nextStartId = iter.Value.ReadRedisValue();
+
                     // [1] The array of StreamEntry's.
-                    var entries = ParseRedisStreamEntries(items[1]);
+                    iter.DemandNext();
+                    var entries = ParseRedisStreamEntries(ref iter.Value, protocol);
+
                     // [2] The array of message IDs deleted from the stream that were in the PEL.
                     //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
-                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? [];
+                    RedisValue[] deletedIds = [];
+                    if (length == 3)
+                    {
+                        iter.DemandNext();
+                        if (iter.Value.IsAggregate && !iter.Value.IsNull)
+                        {
+                            deletedIds = iter.Value.ReadPastArray(
+                                static (ref RespReader r) => r.ReadRedisValue(),
+                                scalar: true)!;
+                        }
+                    }
 
                     SetResult(message, new StreamAutoClaimResult(nextStartId, entries, deletedIds));
                     return true;
@@ -2604,21 +2659,47 @@ The coordinates as a two items x,y array (longitude,latitude).
         /// </summary>
         internal sealed class StreamAutoClaimIdsOnlyProcessor : ResultProcessor<StreamAutoClaimIdsOnlyResult>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 // See https://redis.io/commands/xautoclaim for command documentation.
                 // Note that the result should never be null, so intentionally treating it as a failure to parse here
-                if (result.Resp2TypeArray == ResultType.Array && !result.IsNull)
+                if (reader.IsAggregate && !reader.IsNull)
                 {
-                    var items = result.GetItems();
+                    int length = reader.AggregateLength();
+                    if (!(length == 2 || length == 3))
+                    {
+                        return false;
+                    }
+
+                    var iter = reader.AggregateChildren();
 
                     // [0] The next start ID.
-                    var nextStartId = items[0].AsRedisValue();
+                    iter.DemandNext();
+                    var nextStartId = iter.Value.ReadRedisValue();
+
                     // [1] The array of claimed message IDs.
-                    var claimedIds = items[1].GetItemsAsValues() ?? [];
+                    iter.DemandNext();
+                    RedisValue[] claimedIds = [];
+                    if (iter.Value.IsAggregate && !iter.Value.IsNull)
+                    {
+                        claimedIds = iter.Value.ReadPastArray(
+                            static (ref RespReader r) => r.ReadRedisValue(),
+                            scalar: true)!;
+                    }
+
                     // [2] The array of message IDs deleted from the stream that were in the PEL.
                     //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
-                    var deletedIds = (items.Length == 3 ? items[2].GetItemsAsValues() : null) ?? [];
+                    RedisValue[] deletedIds = [];
+                    if (length == 3)
+                    {
+                        iter.DemandNext();
+                        if (iter.Value.IsAggregate && !iter.Value.IsNull)
+                        {
+                            deletedIds = iter.Value.ReadPastArray(
+                                static (ref RespReader r) => r.ReadRedisValue(),
+                                scalar: true)!;
+                        }
+                    }
 
                     SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds));
                     return true;
@@ -2630,7 +2711,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         internal sealed class StreamConsumerInfoProcessor : InterleavedStreamInfoProcessorBase<StreamConsumerInfo>
         {
-            protected override StreamConsumerInfo ParseItem(in RawResult result)
+            protected override StreamConsumerInfo ParseItem(ref RespReader reader)
             {
                 // Note: the base class passes a single consumer from the response into this method.
 
@@ -2648,14 +2729,44 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    4) (integer)1
                 //    5) idle
                 //    6) (integer)83841983
-                var arr = result.GetItems();
+                if (!reader.IsAggregate)
+                {
+                    return default;
+                }
+
                 string? name = default;
                 int pendingMessageCount = default;
                 long idleTimeInMilliseconds = default;
 
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Pending, ref pendingMessageCount);
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Idle, ref idleTimeInMilliseconds);
+                Span<byte> keyBuffer = stackalloc byte[CommandBytes.MaxLength];
+                while (reader.TryMoveNext() && reader.IsScalar)
+                {
+                    var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
+                    if (keyBytes.Length > CommandBytes.MaxLength)
+                    {
+                        if (!reader.TryMoveNext()) break;
+                        continue;
+                    }
+
+                    var hash = FastHash.HashCS(keyBytes);
+                    if (!reader.TryMoveNext()) break;
+
+                    switch (hash)
+                    {
+                        case Literals.name.HashCS when Literals.name.IsCS(hash, keyBytes):
+                            name = reader.ReadString();
+                            break;
+                        case Literals.pending.HashCS when Literals.pending.IsCS(hash, keyBytes):
+                            if (reader.TryReadInt64(out var pending))
+                            {
+                                pendingMessageCount = checked((int)pending);
+                            }
+                            break;
+                        case Literals.idle.HashCS when Literals.idle.IsCS(hash, keyBytes):
+                            reader.TryReadInt64(out idleTimeInMilliseconds);
+                            break;
+                    }
+                }
 
                 return new StreamConsumerInfo(name!, pendingMessageCount, idleTimeInMilliseconds);
             }
@@ -2729,7 +2840,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         internal sealed class StreamGroupInfoProcessor : InterleavedStreamInfoProcessorBase<StreamGroupInfo>
         {
-            protected override StreamGroupInfo ParseItem(in RawResult result)
+            protected override StreamGroupInfo ParseItem(ref RespReader reader)
             {
                 // Note: the base class passes a single item from the response into this method.
 
@@ -2759,18 +2870,60 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //   10) (integer)1
                 //   11) "lag"
                 //   12) (integer)1
-                var arr = result.GetItems();
+                if (!reader.IsAggregate)
+                {
+                    return default;
+                }
+
                 string? name = default, lastDeliveredId = default;
                 int consumerCount = default, pendingMessageCount = default;
                 long entriesRead = default;
                 long? lag = default;
 
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Consumers, ref consumerCount);
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Pending, ref pendingMessageCount);
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.LastDeliveredId, ref lastDeliveredId);
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.EntriesRead, ref entriesRead);
-                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Lag, ref lag);
+                Span<byte> keyBuffer = stackalloc byte[CommandBytes.MaxLength];
+                while (reader.TryMoveNext() && reader.IsScalar)
+                {
+                    var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
+                    if (keyBytes.Length > CommandBytes.MaxLength)
+                    {
+                        if (!reader.TryMoveNext()) break;
+                        continue;
+                    }
+
+                    var hash = FastHash.HashCS(keyBytes);
+                    if (!reader.TryMoveNext()) break;
+
+                    switch (hash)
+                    {
+                        case Literals.name.HashCS when Literals.name.IsCS(hash, keyBytes):
+                            name = reader.ReadString();
+                            break;
+                        case Literals.consumers.HashCS when Literals.consumers.IsCS(hash, keyBytes):
+                            if (reader.TryReadInt64(out var consumers))
+                            {
+                                consumerCount = checked((int)consumers);
+                            }
+                            break;
+                        case Literals.pending.HashCS when Literals.pending.IsCS(hash, keyBytes):
+                            if (reader.TryReadInt64(out var pending))
+                            {
+                                pendingMessageCount = checked((int)pending);
+                            }
+                            break;
+                        case Literals.last_delivered_id.HashCS when Literals.last_delivered_id.IsCS(hash, keyBytes):
+                            lastDeliveredId = reader.ReadString();
+                            break;
+                        case Literals.entries_read.HashCS when Literals.entries_read.IsCS(hash, keyBytes):
+                            reader.TryReadInt64(out entriesRead);
+                            break;
+                        case Literals.lag.HashCS when Literals.lag.IsCS(hash, keyBytes):
+                            if (reader.TryReadInt64(out var lagValue))
+                            {
+                                lag = lagValue;
+                            }
+                            break;
+                    }
+                }
 
                 return new StreamGroupInfo(name!, consumerCount, pendingMessageCount, lastDeliveredId, entriesRead, lag);
             }
@@ -2778,19 +2931,22 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         internal abstract class InterleavedStreamInfoProcessorBase<T> : ResultProcessor<T[]>
         {
-            protected abstract T ParseItem(in RawResult result);
+            protected abstract T ParseItem(ref RespReader reader);
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray != ResultType.Array)
+                if (!reader.IsAggregate)
                 {
                     return false;
                 }
 
-                var arr = result.GetItems();
-                var parsedItems = arr.ToArray((in item, in obj) => obj.ParseItem(item), this);
+                var self = this;
+                var parsedItems = reader.ReadPastArray(
+                    ref self,
+                    static (ref self, ref r) => self.ParseItem(ref r),
+                    scalar: false);
 
-                SetResult(message, parsedItems);
+                SetResult(message, parsedItems!);
                 return true;
             }
         }
@@ -2817,15 +2973,15 @@ The coordinates as a two items x,y array (longitude,latitude).
             // 12) 1) 1526569544280-0
             //     2) 1) "message"
             //        2) "banana"
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray != ResultType.Array)
+                if (!reader.IsAggregate)
                 {
                     return false;
                 }
 
-                var arr = result.GetItems();
-                var max = arr.Length / 2;
+                int count = reader.AggregateLength();
+                if ((count & 1) != 0) return false; // must be even (key-value pairs)
 
                 long length = -1, radixTreeKeys = -1, radixTreeNodes = -1, groups = -1,
                     entriesAdded = -1, idmpDuration = -1, idmpMaxsize = -1,
@@ -2834,65 +2990,76 @@ The coordinates as a two items x,y array (longitude,latitude).
                     maxDeletedEntryId = Redis.RedisValue.Null,
                     recordedFirstEntryId = Redis.RedisValue.Null;
                 StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
-                var iter = arr.GetEnumerator();
-                for (int i = 0; i < max; i++)
+
+                var protocol = connection.Protocol.GetValueOrDefault();
+                Span<byte> keyBuffer = stackalloc byte[CommandBytes.MaxLength];
+
+                while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    ref RawResult key = ref iter.GetNext(), value = ref iter.GetNext();
-                    if (key.Payload.Length > CommandBytes.MaxLength) continue;
-                    var keyBytes = key.GetBlob();
-                    if (keyBytes is null) continue;
+                    var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
+                    if (keyBytes.Length > CommandBytes.MaxLength)
+                    {
+                        // Skip this key-value pair
+                        if (!reader.TryMoveNext()) break;
+                        continue;
+                    }
+
                     var hash = FastHash.HashCS(keyBytes);
+
+                    // Move to value
+                    if (!reader.TryMoveNext()) break;
+
                     switch (hash)
                     {
                         case Literals.length.HashCS when Literals.length.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out length)) return false;
+                            if (!reader.TryReadInt64(out length)) return false;
                             break;
                         case Literals.radix_tree_keys.HashCS when Literals.radix_tree_keys.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out radixTreeKeys)) return false;
+                            if (!reader.TryReadInt64(out radixTreeKeys)) return false;
                             break;
                         case Literals.radix_tree_nodes.HashCS when Literals.radix_tree_nodes.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out radixTreeNodes)) return false;
+                            if (!reader.TryReadInt64(out radixTreeNodes)) return false;
                             break;
                         case Literals.groups.HashCS when Literals.groups.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out groups)) return false;
+                            if (!reader.TryReadInt64(out groups)) return false;
                             break;
                         case Literals.last_generated_id.HashCS when Literals.last_generated_id.IsCS(hash, keyBytes):
-                            lastGeneratedId = value.AsRedisValue();
+                            lastGeneratedId = reader.ReadRedisValue();
                             break;
                         case Literals.first_entry.HashCS when Literals.first_entry.IsCS(hash, keyBytes):
-                            firstEntry = ParseRedisStreamEntry(value);
+                            firstEntry = ParseRedisStreamEntry(ref reader, protocol);
                             break;
                         case Literals.last_entry.HashCS when Literals.last_entry.IsCS(hash, keyBytes):
-                            lastEntry = ParseRedisStreamEntry(value);
+                            lastEntry = ParseRedisStreamEntry(ref reader, protocol);
                             break;
                         // 7.0
                         case Literals.max_deleted_entry_id.HashCS when Literals.max_deleted_entry_id.IsCS(hash, keyBytes):
-                            maxDeletedEntryId = value.AsRedisValue();
+                            maxDeletedEntryId = reader.ReadRedisValue();
                             break;
                         case Literals.recorded_first_entry_id.HashCS when Literals.recorded_first_entry_id.IsCS(hash, keyBytes):
-                            recordedFirstEntryId = value.AsRedisValue();
+                            recordedFirstEntryId = reader.ReadRedisValue();
                             break;
                         case Literals.entries_added.HashCS when Literals.entries_added.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out entriesAdded)) return false;
+                            if (!reader.TryReadInt64(out entriesAdded)) return false;
                             break;
                         // 8.6
                         case Literals.idmp_duration.HashCS when Literals.idmp_duration.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out idmpDuration)) return false;
+                            if (!reader.TryReadInt64(out idmpDuration)) return false;
                             break;
                         case Literals.idmp_maxsize.HashCS when Literals.idmp_maxsize.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out idmpMaxsize)) return false;
+                            if (!reader.TryReadInt64(out idmpMaxsize)) return false;
                             break;
                         case Literals.pids_tracked.HashCS when Literals.pids_tracked.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out pidsTracked)) return false;
+                            if (!reader.TryReadInt64(out pidsTracked)) return false;
                             break;
                         case Literals.iids_tracked.HashCS when Literals.iids_tracked.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out iidsTracked)) return false;
+                            if (!reader.TryReadInt64(out iidsTracked)) return false;
                             break;
                         case Literals.iids_added.HashCS when Literals.iids_added.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out iidsAdded)) return false;
+                            if (!reader.TryReadInt64(out iidsAdded)) return false;
                             break;
                         case Literals.iids_duplicates.HashCS when Literals.iids_duplicates.IsCS(hash, keyBytes):
-                            if (!value.TryGetInt64(out iidsDuplicates)) return false;
+                            if (!reader.TryReadInt64(out iidsDuplicates)) return false;
                             break;
                     }
                 }
@@ -2922,7 +3089,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         internal sealed class StreamPendingInfoProcessor : ResultProcessor<StreamPendingInfo>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 // Example:
                 // > XPENDING mystream mygroup
@@ -2933,38 +3100,66 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //       2) "2"
                 // 5) 1) 1) "Joe"
                 //       2) "8"
-                if (result.Resp2TypeArray != ResultType.Array)
+                if (!(reader.IsAggregate && reader.AggregateLengthIs(4)))
                 {
                     return false;
                 }
 
-                var arr = result.GetItems();
+                var iter = reader.AggregateChildren();
 
-                if (arr.Length != 4)
+                // Element 0: pending message count
+                iter.DemandNext();
+                if (!iter.Value.TryReadInt64(out var pendingMessageCount))
                 {
                     return false;
                 }
 
+                // Element 1: lowest ID
+                iter.DemandNext();
+                var lowestId = iter.Value.ReadRedisValue();
+
+                // Element 2: highest ID
+                iter.DemandNext();
+                var highestId = iter.Value.ReadRedisValue();
+
+                // Element 3: consumers array (may be null)
+                iter.DemandNext();
                 StreamConsumer[]? consumers = null;
 
                 // If there are no consumers as of yet for the given group, the last
                 // item in the response array will be null.
-                ref RawResult third = ref arr[3];
-                if (!third.IsNull)
+                if (iter.Value.IsAggregate && !iter.Value.IsNull)
                 {
-                    consumers = third.ToArray((in item) =>
-                    {
-                        var details = item.GetItems();
-                        return new StreamConsumer(
-                            name: details[0].AsRedisValue(),
-                            pendingMessageCount: (int)details[1].AsRedisValue());
-                    });
+                    consumers = iter.Value.ReadPastArray(
+                        static (ref RespReader consumerReader) =>
+                        {
+                            if (!(consumerReader.IsAggregate && consumerReader.AggregateLengthIs(2)))
+                            {
+                                throw new InvalidOperationException("Expected array of 2 elements for consumer");
+                            }
+
+                            var consumerIter = consumerReader.AggregateChildren();
+
+                            consumerIter.DemandNext();
+                            var name = consumerIter.Value.ReadRedisValue();
+
+                            consumerIter.DemandNext();
+                            if (!consumerIter.Value.TryReadInt64(out var count))
+                            {
+                                throw new InvalidOperationException("Expected integer for pending message count");
+                            }
+
+                            return new StreamConsumer(
+                                name: name,
+                                pendingMessageCount: checked((int)count));
+                        },
+                        scalar: false);
                 }
 
                 var pendingInfo = new StreamPendingInfo(
-                    pendingMessageCount: (int)arr[0].AsRedisValue(),
-                    lowestId: arr[1].AsRedisValue(),
-                    highestId: arr[2].AsRedisValue(),
+                    pendingMessageCount: checked((int)pendingMessageCount),
+                    lowestId: lowestId,
+                    highestId: highestId,
                     consumers: consumers ?? []);
 
                 SetResult(message, pendingInfo);
@@ -2974,25 +3169,52 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         internal sealed class StreamPendingMessagesProcessor : ResultProcessor<StreamPendingMessageInfo[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeArray != ResultType.Array)
+                if (!reader.IsAggregate)
                 {
                     return false;
                 }
 
-                var messageInfoArray = result.GetItems().ToArray((in item) =>
-                {
-                    var details = item.GetItems().GetEnumerator();
+                var messageInfoArray = reader.ReadPastArray(
+                    static (ref RespReader itemReader) =>
+                    {
+                        if (!(itemReader.IsAggregate && itemReader.AggregateLengthIs(4)))
+                        {
+                            throw new InvalidOperationException("Expected array of 4 elements for pending message");
+                        }
 
-                    return new StreamPendingMessageInfo(
-                        messageId: details.GetNext().AsRedisValue(),
-                        consumerName: details.GetNext().AsRedisValue(),
-                        idleTimeInMs: (long)details.GetNext().AsRedisValue(),
-                        deliveryCount: (int)details.GetNext().AsRedisValue());
-                });
+                        if (!itemReader.TryMoveNext())
+                        {
+                            throw new InvalidOperationException("Expected message ID");
+                        }
+                        var messageId = itemReader.ReadRedisValue();
 
-                SetResult(message, messageInfoArray);
+                        if (!itemReader.TryMoveNext())
+                        {
+                            throw new InvalidOperationException("Expected consumer name");
+                        }
+                        var consumerName = itemReader.ReadRedisValue();
+
+                        if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var idleTimeInMs))
+                        {
+                            throw new InvalidOperationException("Expected integer for idle time");
+                        }
+
+                        if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var deliveryCount))
+                        {
+                            throw new InvalidOperationException("Expected integer for delivery count");
+                        }
+
+                        return new StreamPendingMessageInfo(
+                            messageId: messageId,
+                            consumerName: consumerName,
+                            idleTimeInMs: idleTimeInMs,
+                            deliveryCount: checked((int)deliveryCount));
+                    },
+                    scalar: false);
+
+                SetResult(message, messageInfoArray!);
                 return true;
             }
         }
@@ -3100,21 +3322,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return [];
                 }
 
-                int count = reader.AggregateLength();
-                if (count == 0)
-                {
-                    return [];
-                }
-
-                var entries = new StreamEntry[count];
-                var iter = reader.AggregateChildren();
-                for (int i = 0; i < count; i++)
-                {
-                    iter.DemandNext();
-                    entries[i] = ParseRedisStreamEntry(ref iter.Value, protocol);
-                }
-
-                return entries;
+                return reader.ReadPastArray(
+                    ref protocol,
+                    static (ref protocol, ref r) => ParseRedisStreamEntry(ref r, protocol),
+                    scalar: false) ?? [];
             }
 
             protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
@@ -3499,23 +3710,21 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 if (reader.IsAggregate && !reader.IsNull)
                 {
-                    int outerCount = reader.AggregateLength();
-                    var returnArray = new KeyValuePair<string, string>[outerCount][];
-                    var iter = reader.AggregateChildren();
                     var protocol = connection.Protocol.GetValueOrDefault();
-
-                    for (int i = 0; i < outerCount; i++)
-                    {
-                        iter.DemandNext();
-                        var innerReader = iter.Value;
-                        if (!innerReader.IsAggregate)
+                    var state = (innerProcessor, protocol, message);
+                    var returnArray = reader.ReadPastArray(
+                        ref state,
+                        static (ref state, ref innerReader) =>
                         {
-                            throw new ArgumentOutOfRangeException(nameof(innerReader), $"Error processing {message.CommandAndKey}, expected array but got scalar");
-                        }
-                        returnArray[i] = innerProcessor.ParseArray(ref innerReader, protocol, false, out _, null)!;
-                    }
+                            if (!innerReader.IsAggregate)
+                            {
+                                throw new ArgumentOutOfRangeException(nameof(innerReader), $"Error processing {state.message.CommandAndKey}, expected array but got scalar");
+                            }
+                            return state.innerProcessor.ParseArray(ref innerReader, state.protocol, false, out _, null)!;
+                        },
+                        scalar: false);
 
-                    SetResult(message, returnArray);
+                    SetResult(message, returnArray!);
                     return true;
                 }
                 return false;

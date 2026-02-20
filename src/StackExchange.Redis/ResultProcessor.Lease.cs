@@ -59,50 +59,6 @@ internal abstract partial class ResultProcessor
         protected abstract T TryParse(ref RespReader reader);
     }
 
-    private abstract class InterleavedLeaseProcessor<T> : ResultProcessor<Lease<T>?>
-    {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-        {
-            if (result.Resp2TypeArray != ResultType.Array)
-            {
-                return false; // not an array
-            }
-
-            // deal with null
-            if (result.IsNull)
-            {
-                SetResult(message, Lease<T>.Empty);
-                return true;
-            }
-
-            // lease and fill
-            var items = result.GetItems();
-            var length = checked((int)items.Length) / 2;
-            var lease = Lease<T>.Create(length, clear: false); // note this handles zero nicely
-            var target = lease.Span;
-
-            var iter = items.GetEnumerator();
-            for (int i = 0; i < target.Length; i++)
-            {
-                bool ok = iter.MoveNext();
-                if (ok)
-                {
-                    ref readonly RawResult first = ref iter.Current;
-                    ok = iter.MoveNext() && TryParse(in first, in iter.Current, out target[i]);
-                }
-                if (!ok)
-                {
-                    lease.Dispose();
-                    return false;
-                }
-            }
-            SetResult(message, lease);
-            return true;
-        }
-
-        protected abstract bool TryParse(in RawResult first, in RawResult second, out T parsed);
-    }
-
     // takes a nested vector of the form [[A],[B,C],[D]] and exposes it as [A,B,C,D]; this is
     // especially useful for VLINKS
     private abstract class FlattenedLeaseProcessor<T> : ResultProcessor<Lease<T>?>

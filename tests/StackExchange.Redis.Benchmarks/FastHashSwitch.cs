@@ -12,6 +12,9 @@ namespace StackExchange.Redis.Benchmarks;
 public class FastHashSwitch
 {
     // conclusion: it doesn't matter; switch on the hash or length is fine, just: remember to do the Is check
+    // CS vs CI: CI misses are cheap, because of the hash fail; CI hits of values <= 8 characters are cheap if
+    // it turns out to be a CS match, because of the CS hash check which can cheaply test CS equality; CI inequality
+    // and CI equality over 8 characters has a bit more overhead, but still fine
     public enum Field
     {
         key,
@@ -102,6 +105,38 @@ public class FastHashSwitch
             by_net_bytes.HashCS when by_net_bytes.IsCS(hash, span) => Field.by_net_bytes,
             _ => Field.Unknown,
         };
+    }
+
+    [Benchmark]
+    public Field SequenceEqual()
+    {
+        ReadOnlySpan<byte> span = _bytes;
+        if (span.SequenceEqual(key.U8)) return Field.key;
+        if (span.SequenceEqual(abc.U8)) return Field.abc;
+        if (span.SequenceEqual(port.U8)) return Field.port;
+        if (span.SequenceEqual(test.U8)) return Field.test;
+        if (span.SequenceEqual(tracking_active.U8)) return Field.tracking_active;
+        if (span.SequenceEqual(sample_ratio.U8)) return Field.sample_ratio;
+        if (span.SequenceEqual(selected_slots.U8)) return Field.selected_slots;
+        if (span.SequenceEqual(all_commands_all_slots_us.U8)) return Field.all_commands_all_slots_us;
+        if (span.SequenceEqual(all_commands_selected_slots_us.U8)) return Field.all_commands_selected_slots_us;
+        if (span.SequenceEqual(sampled_command_selected_slots_us.U8)) return Field.sampled_command_selected_slots_us;
+        if (span.SequenceEqual(sampled_commands_selected_slots_us.U8)) return Field.sampled_commands_selected_slots_us;
+        if (span.SequenceEqual(net_bytes_all_commands_all_slots.U8)) return Field.net_bytes_all_commands_all_slots;
+        if (span.SequenceEqual(net_bytes_all_commands_selected_slots.U8)) return Field.net_bytes_all_commands_selected_slots;
+        if (span.SequenceEqual(net_bytes_sampled_commands_selected_slots.U8)) return Field.net_bytes_sampled_commands_selected_slots;
+        if (span.SequenceEqual(collection_start_time_unix_ms.U8)) return Field.collection_start_time_unix_ms;
+        if (span.SequenceEqual(collection_duration_ms.U8)) return Field.collection_duration_ms;
+        if (span.SequenceEqual(collection_duration_us.U8)) return Field.collection_duration_us;
+        if (span.SequenceEqual(total_cpu_time_user_ms.U8)) return Field.total_cpu_time_user_ms;
+        if (span.SequenceEqual(total_cpu_time_user_us.U8)) return Field.total_cpu_time_user_us;
+        if (span.SequenceEqual(total_cpu_time_sys_ms.U8)) return Field.total_cpu_time_sys_ms;
+        if (span.SequenceEqual(total_cpu_time_sys_us.U8)) return Field.total_cpu_time_sys_us;
+        if (span.SequenceEqual(total_net_bytes.U8)) return Field.total_net_bytes;
+        if (span.SequenceEqual(by_cpu_time_us.U8)) return Field.by_cpu_time_us;
+        if (span.SequenceEqual(by_net_bytes.U8)) return Field.by_net_bytes;
+
+        return Field.Unknown;
     }
 
     [Benchmark]

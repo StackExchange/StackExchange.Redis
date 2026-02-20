@@ -81,6 +81,15 @@ internal partial class ResultProcessor
         // Sentinel processor literals
         [FastHash] internal static partial class ip { }
         [FastHash] internal static partial class port { }
+
+        // Stream info processor literals
+        [FastHash] internal static partial class name { }
+        [FastHash] internal static partial class pending { }
+        [FastHash] internal static partial class idle { }
+        [FastHash] internal static partial class consumers { }
+        [FastHash("last-delivered-id")] internal static partial class last_delivered_id { }
+        [FastHash("entries-read")] internal static partial class entries_read { }
+        [FastHash] internal static partial class lag { }
         // ReSharper restore InconsistentNaming
 #pragma warning restore CS8981, SA1300, SA1134 // forgive naming etc
     }
