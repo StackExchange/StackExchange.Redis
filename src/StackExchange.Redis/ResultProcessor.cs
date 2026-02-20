@@ -20,15 +20,15 @@ namespace StackExchange.Redis
     {
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
-            DemandOK = new ExpectBasicStringProcessor(OK.Hash, OK.Length),
-            DemandPONG = new ExpectBasicStringProcessor(PONG.Hash, PONG.Length),
+            DemandOK = new ExpectBasicStringProcessor(OK.Hash),
+            DemandPONG = new ExpectBasicStringProcessor(PONG.Hash),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
             TrackSubscriptions = new TrackSubscriptionsProcessor(null),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
-            BackgroundSaveStarted = new ExpectBasicStringProcessor(background_saving_started.Hash, background_saving_started.Length, startsWith: true),
-            BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(background_aof_rewriting_started.Hash, background_aof_rewriting_started.Length, startsWith: true);
+            BackgroundSaveStarted = new ExpectBasicStringProcessor(background_saving_started.Hash, startsWith: true),
+            BackgroundSaveAOFStarted = new ExpectBasicStringProcessor(background_aof_rewriting_started.Hash, startsWith: true);
 
         public static readonly ResultProcessor<byte[]?>
             ByteArray = new ByteArrayProcessor();
@@ -1421,14 +1421,12 @@ namespace StackExchange.Redis
 
         private sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
         {
-            private readonly long _expectedHash;
-            private readonly int _expectedLength;
+            private readonly FastHash _expected;
             private readonly bool _startsWith;
 
-            public ExpectBasicStringProcessor(long expectedHash, int expectedLength, bool startsWith = false)
+            public ExpectBasicStringProcessor(in FastHash expected, bool startsWith = false)
             {
-                _expectedHash = expectedHash;
-                _expectedLength = expectedLength;
+                _expected = expected;
                 _startsWith = startsWith;
             }
 
@@ -1436,31 +1434,23 @@ namespace StackExchange.Redis
             {
                 if (!reader.IsScalar) return false;
 
+                var expectedLength = _expected.Length;
+                // For exact match, length must be exact
                 if (_startsWith)
                 {
-                    // For StartsWith, we need at least _expectedLength bytes
-                    if (reader.ScalarLength() < _expectedLength) return false;
-
-                    var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[_expectedLength]);
-                    var hash = bytes.Slice(0, _expectedLength).Hash64();
-                    if (hash == _expectedHash)
-                    {
-                        SetResult(message, true);
-                        return true;
-                    }
+                    if (reader.ScalarLength() < expectedLength) return false;
                 }
                 else
                 {
-                    // For exact match, length must be exact
-                    if (!reader.ScalarLengthIs(_expectedLength)) return false;
+                    if (!reader.ScalarLengthIs(expectedLength)) return false;
+                }
 
-                    var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[_expectedLength]);
-                    var hash = bytes.Hash64();
-                    if (hash == _expectedHash)
-                    {
-                        SetResult(message, true);
-                        return true;
-                    }
+                var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[expectedLength]);
+                if (_startsWith) bytes = bytes.Slice(0, expectedLength);
+                if (_expected.IsCS(bytes))
+                {
+                    SetResult(message, true);
+                    return true;
                 }
 
                 if (message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect(new RedisException("Unknown AUTH exception"));
@@ -1470,10 +1460,29 @@ namespace StackExchange.Redis
 
 #pragma warning disable SA1300, SA1134
         // ReSharper disable InconsistentNaming
-        [FastHash] private static partial class OK { }
-        [FastHash] private static partial class PONG { }
-        [FastHash("Background saving started")] private static partial class background_saving_started { }
-        [FastHash("Background append only file rewriting started")] private static partial class background_aof_rewriting_started { }
+        [FastHash]
+        private static partial class OK
+        {
+            public static readonly FastHash Hash = new(U8);
+        }
+
+        [FastHash]
+        private static partial class PONG
+        {
+            public static readonly FastHash Hash = new(U8);
+        }
+
+        [FastHash("Background saving started")]
+        private static partial class background_saving_started
+        {
+            public static readonly FastHash Hash = new(U8);
+        }
+
+        [FastHash("Background append only file rewriting started")]
+        private static partial class background_aof_rewriting_started
+        {
+            public static readonly FastHash Hash = new(U8);
+        }
         // ReSharper restore InconsistentNaming
 #pragma warning restore SA1300, SA1134
 

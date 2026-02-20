@@ -28,6 +28,7 @@
 [SER004]RESPite.FastHash.IsCI(System.ReadOnlySpan<byte> value) -> bool
 [SER004]RESPite.FastHash.IsCS(long hash, System.ReadOnlySpan<byte> value) -> bool
 [SER004]RESPite.FastHash.IsCS(System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.FastHash.Length.get -> int
 [SER004]RESPite.FastHashAttribute
 [SER004]RESPite.FastHashAttribute.FastHashAttribute(string! token = "") -> void
 [SER004]RESPite.FastHashAttribute.Token.get -> string!

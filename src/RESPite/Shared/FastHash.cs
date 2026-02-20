@@ -28,6 +28,7 @@ public readonly struct FastHash
     private readonly long _hashCI;
     private readonly long _hashCS;
     private readonly ReadOnlyMemory<byte> _value;
+    public int Length => _value.Length;
 
     public FastHash(ReadOnlySpan<byte> value) : this((ReadOnlyMemory<byte>)value.ToArray()) { }
     public FastHash(ReadOnlyMemory<byte> value)
