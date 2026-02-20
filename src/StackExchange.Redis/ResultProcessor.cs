@@ -2102,39 +2102,18 @@ The coordinates as a two items x,y array (longitude,latitude).
                                     matchesArray = iter.Value.ReadPastArray(ref failed, static (ref failed, ref reader) =>
                                     {
                                         // Don't even bother if we've already failed
-                                        if (failed) return default;
-
-                                        if (!reader.IsAggregate)
+                                        if (!failed && reader.IsAggregate)
                                         {
-                                            failed = true;
-                                            return default;
+                                            var matchChildren = reader.AggregateChildren();
+                                            if (matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var firstPos)
+                                                && matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var secondPos)
+                                                && matchChildren.MoveNext() && matchChildren.Value.IsScalar && matchChildren.Value.TryReadInt64(out var length))
+                                            {
+                                                return new LCSMatchResult.LCSMatch(firstPos, secondPos, length);
+                                            }
                                         }
-
-                                        var matchChildren = reader.AggregateChildren();
-
-                                        // First range (2-element array: [start, end])
-                                        if (!(matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var firstPos)))
-                                        {
-                                            failed = true;
-                                            return default;
-                                        }
-
-                                        // Second range (2-element array: [start, end])
-                                        if (!(matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var secondPos)))
-                                        {
-                                            failed = true;
-                                            return default;
-                                        }
-
-                                        // Length
-                                        if (!(matchChildren.MoveNext() && matchChildren.Value.IsScalar))
-                                        {
-                                            failed = true;
-                                            return default;
-                                        }
-                                        var length = matchChildren.Value.TryReadInt64(out var matchLen) ? matchLen : 0;
-
-                                        return new LCSMatchResult.LCSMatch(firstPos, secondPos, length);
+                                        failed = true;
+                                        return default;
                                     });
 
                                     // Check if anything went wrong

@@ -137,7 +137,7 @@ public readonly struct LCSMatchResult
         /// <param name="first">The position of the matched substring in the first string.</param>
         /// <param name="second">The position of the matched substring in the second string.</param>
         /// <param name="length">The length of the match.</param>
-        internal LCSMatch(LCSPosition first, LCSPosition second, long length)
+        internal LCSMatch(in LCSPosition first, in LCSPosition second, long length)
         {
             _first = first;
             _second = second;
