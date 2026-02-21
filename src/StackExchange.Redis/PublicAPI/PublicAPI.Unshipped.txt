@@ -15,3 +15,21 @@ StackExchange.Redis.LCSMatchResult.LCSPosition.LCSPosition() -> void
 StackExchange.Redis.LCSMatchResult.LCSPosition.LCSPosition(long start, long end) -> void
 StackExchange.Redis.LCSMatchResult.LCSPosition.Start.get -> long
 StackExchange.Redis.RedisType.VectorSet = 8 -> StackExchange.Redis.RedisType
+[SER005]StackExchange.Redis.TestHarness
+[SER005]StackExchange.Redis.TestHarness.BufferValidator
+[SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel
+[SER005]StackExchange.Redis.TestHarness.CommandMap.get -> StackExchange.Redis.CommandMap!
+[SER005]StackExchange.Redis.TestHarness.KeyPrefix.get -> StackExchange.Redis.RedisKey
+[SER005]StackExchange.Redis.TestHarness.Read(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.RedisResult!
+[SER005]StackExchange.Redis.TestHarness.TestHarness(StackExchange.Redis.CommandMap? commandMap = null, StackExchange.Redis.RedisChannel channelPrefix = default(StackExchange.Redis.RedisChannel), StackExchange.Redis.RedisKey keyPrefix = default(StackExchange.Redis.RedisKey)) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateResp(string! expected, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateResp(System.ReadOnlySpan<byte> expected, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateRouting(in StackExchange.Redis.RedisKey expected, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.Write(string! command, params System.Collections.Generic.ICollection<object!>! args) -> byte[]!
+[SER005]StackExchange.Redis.TestHarness.Write(System.Buffers.IBufferWriter<byte>! target, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]static StackExchange.Redis.TestHarness.AssertEqual(string! expected, System.ReadOnlySpan<byte> actual, System.Action<string!, string!>! handler) -> void
+[SER005]static StackExchange.Redis.TestHarness.AssertEqual(System.ReadOnlySpan<byte> expected, System.ReadOnlySpan<byte> actual, System.Action<System.ReadOnlyMemory<byte>, System.ReadOnlyMemory<byte>>! handler) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.BufferValidator.Invoke(scoped System.ReadOnlySpan<byte> buffer) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(in StackExchange.Redis.RedisKey expected, in StackExchange.Redis.RedisKey actual) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(string! expected, string! actual) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(System.ReadOnlyMemory<byte> expected, System.ReadOnlyMemory<byte> actual) -> void

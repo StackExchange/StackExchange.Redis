@@ -12,6 +12,7 @@
         public const string Server_8_4 = "SER002";
         public const string Server_8_6 = "SER003";
         public const string Respite = "SER004";
+        public const string UnitTesting = "SER005";
         // ReSharper restore InconsistentNaming
     }
 }

@@ -13,11 +13,12 @@ internal readonly ref struct MessageWriter
     private readonly CommandMap _map;
     private readonly byte[]? _channelPrefix;
 
-    public MessageWriter(byte[]? channelPrefix = null, CommandMap? map = null)
+    public MessageWriter(byte[]? channelPrefix, CommandMap? map, IBufferWriter<byte>? writer = null)
     {
         // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
         _map = map ?? CommandMap.Default;
         _channelPrefix = channelPrefix;
+        _writer = writer ?? BlockBufferSerializer.Shared;
     }
 
     public MessageWriter(PhysicalConnection connection)
@@ -32,9 +33,10 @@ internal readonly ref struct MessageWriter
             _map = CommandMap.Default;
             _channelPrefix = null;
         }
+        _writer = BlockBufferSerializer.Shared;
     }
 
-    private readonly IBufferWriter<byte> _writer = BlockBufferSerializer.Shared;
+    private readonly IBufferWriter<byte> _writer;
 
     public ReadOnlyMemory<byte> Flush() =>
         BlockBufferSerializer.BlockBuffer.FinalizeMessage(BlockBufferSerializer.Shared);
