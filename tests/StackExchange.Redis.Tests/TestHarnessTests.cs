@@ -7,6 +7,7 @@ namespace StackExchange.Redis.Tests;
 // who watches the watchers?
 public class TestHarnessTests
 {
+    // this bit isn't required, but: by subclassing TestHarness we can expose the idiomatic test-framework faults.
     private sealed class XUnitTestHarness(CommandMap? commandMap = null, RedisChannel channelPrefix = default, RedisKey keyPrefix = default)
         : TestHarness(commandMap,  channelPrefix, keyPrefix)
     {
@@ -19,11 +20,6 @@ public class TestHarnessTests
         protected override void OnValidateFail(in RedisKey expected, in RedisKey actual)
             => Assert.Equal(expected, actual);
     }
-    private static void Validate(ReadOnlySpan<byte> actual, ReadOnlySpan<byte> expected)
-        => TestHarness.AssertEqual(expected, actual, Assert.Equal);
-
-    private static void Validate(ReadOnlySpan<byte> actual, string expected)
-        => TestHarness.AssertEqual(expected, actual, Assert.Equal);
 
     [Fact]
     public void BasicWrite_Bytes()
