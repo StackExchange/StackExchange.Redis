@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Benchmarks
             {
                 AddJob(Configure(Job.Default.WithRuntime(ClrRuntime.Net481)));
             }
-            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core80)));
+            AddJob(Configure(Job.Default.WithRuntime(CoreRuntime.Core10_0)));
         }
     }
 }

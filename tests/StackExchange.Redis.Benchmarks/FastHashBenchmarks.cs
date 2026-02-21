@@ -7,10 +7,11 @@ using RESPite;
 
 namespace StackExchange.Redis.Benchmarks;
 
-[Config(typeof(CustomConfig))]
+// [Config(typeof(CustomConfig))]
+[ShortRunJob, MemoryDiagnoser]
 public class FastHashBenchmarks
 {
-    private const string SharedString = "some-typical-data-for-comparisons";
+    private const string SharedString = "some-typical-data-for-comparisons-that-needs-to-be-at-least-64-characters";
     private static readonly byte[] SharedUtf8;
     private static readonly ReadOnlySequence<byte> SharedMultiSegment;
 
@@ -48,13 +49,12 @@ public class FastHashBenchmarks
         _sourceBytes = SharedUtf8.AsMemory(0, Size);
         _sourceMultiSegmentBytes = SharedMultiSegment.Slice(0, Size);
 
-#pragma warning disable CS0618 // Type or member is obsolete
         var bytes = _sourceBytes.Span;
-        var expected = FastHash.Hash64Fallback(bytes);
+        var expected = FastHash.HashCS(bytes);
 
-        Assert(FastHash.HashCS(bytes), nameof(FastHash.HashCS));
-        Assert(FastHash.Hash64Unsafe(bytes), nameof(FastHash.Hash64Unsafe));
-#pragma warning restore CS0618 // Type or member is obsolete
+        Assert(FastHash.HashCS(bytes), nameof(FastHash.HashCS) + ":byte");
+        Assert(FastHash.HashCS(_sourceString.AsSpan()), nameof(FastHash.HashCS) + ":char");
+
         Assert(FastHash.HashCS(SingleSegmentBytes), nameof(FastHash.HashCS) + " (single segment)");
         Assert(FastHash.HashCS(_sourceMultiSegmentBytes), nameof(FastHash.HashCS) + " (multi segment)");
 
@@ -70,12 +70,12 @@ public class FastHashBenchmarks
     [ParamsSource(nameof(Sizes))]
     public int Size { get; set; } = 7;
 
-    public IEnumerable<int> Sizes => [0, 1, 2, 3, 4, 5, 6, 7, 8, 16];
+    public IEnumerable<int> Sizes => [0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 64];
 
     private const int OperationsPerInvoke = 1024;
 
-    [Benchmark(OperationsPerInvoke = OperationsPerInvoke, Baseline = true)]
-    public void String()
+    // [Benchmark(OperationsPerInvoke = OperationsPerInvoke, Baseline = true)]
+    public void StringGetHashCode()
     {
         var val = _sourceString;
         for (int i = 0; i < OperationsPerInvoke; i++)
@@ -84,8 +84,9 @@ public class FastHashBenchmarks
         }
     }
 
+    [BenchmarkCategory("byte")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public void Hash64()
+    public void HashCS_B()
     {
         var val = _sourceBytes.Span;
         for (int i = 0; i < OperationsPerInvoke; i++)
@@ -94,31 +95,20 @@ public class FastHashBenchmarks
         }
     }
 
+    [BenchmarkCategory("char")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public void Hash64Unsafe()
+    public void HashCS_C()
     {
-        var val = _sourceBytes.Span;
+        var val = _sourceString.AsSpan();
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
 #pragma warning disable CS0618 // Type or member is obsolete
-            _ = FastHash.Hash64Unsafe(val);
+            _ = FastHash.HashCS(val);
 #pragma warning restore CS0618 // Type or member is obsolete
         }
     }
 
-    [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public void Hash64Fallback()
-    {
-        var val = _sourceBytes.Span;
-        for (int i = 0; i < OperationsPerInvoke; i++)
-        {
-#pragma warning disable CS0618 // Type or member is obsolete
-            _ = FastHash.Hash64Fallback(val);
-#pragma warning restore CS0618 // Type or member is obsolete
-        }
-    }
-
-    [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
+    // [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
     public void Hash64_SingleSegment()
     {
         var val = SingleSegmentBytes;
@@ -128,7 +118,7 @@ public class FastHashBenchmarks
         }
     }
 
-    [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
+    // [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
     public void Hash64_MultiSegment()
     {
         var val = _sourceMultiSegmentBytes;

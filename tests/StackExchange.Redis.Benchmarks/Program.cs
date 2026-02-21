@@ -15,7 +15,8 @@ namespace StackExchange.Redis.Benchmarks
                 Console.WriteLine($"Size: {size}");
                 obj.Size = size;
                 obj.Setup();
-                obj.Hash64();
+                obj.HashCS_B();
+                obj.HashCS_C();
             }
 #else
             BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);

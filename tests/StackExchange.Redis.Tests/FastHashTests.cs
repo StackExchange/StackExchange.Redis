@@ -48,9 +48,8 @@ public partial class FastHashTests(ITestOutputHelper log)
         var bytes = Encoding.UTF8.GetBytes(actualValue);
         Assert.Equal(expectedLength, bytes.Length);
         Assert.Equal(expectedHash, FastHash.HashCS(bytes));
-#pragma warning disable CS0618 // Type or member is obsolete
-        Assert.Equal(expectedHash, FastHash.Hash64Fallback(bytes));
-#pragma warning restore CS0618 // Type or member is obsolete
+        Assert.Equal(expectedHash, FastHash.HashCS(actualValue.AsSpan()));
+
         if (expectedValue is not null)
         {
             Assert.Equal(expectedValue, actualValue);

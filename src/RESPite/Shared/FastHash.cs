@@ -1,17 +1,16 @@
-﻿using System;
-using System.Buffers;
+﻿using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace RESPite;
 
 /// <summary>
-/// This type is intended to provide fast hashing functions for small strings, for example well-known
+/// This type is intended to provide fast hashing functions for small ASCII strings, for example well-known
 /// RESP literals that are usually identifiable by their length and initial bytes; it is not intended
-/// for general purpose hashing. All matches must also perform a sequence equality check.
+/// for general purpose hashing, and the behavior is undefined for non-ASCII literals.
+/// All matches must also perform a sequence equality check.
 /// </summary>
 /// <remarks>See HastHashGenerator.md for more information and intended usage.</remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
@@ -31,6 +30,7 @@ public readonly struct FastHash
     public int Length => _value.Length;
 
     public FastHash(ReadOnlySpan<byte> value) : this((ReadOnlyMemory<byte>)value.ToArray()) { }
+
     public FastHash(ReadOnlyMemory<byte> value)
     {
         _value = value;
@@ -51,6 +51,7 @@ public readonly struct FastHash
     }
 
     public bool IsCI(ReadOnlySpan<byte> value) => IsCI(HashCI(value), value);
+
     public bool IsCI(long hash, ReadOnlySpan<byte> value)
     {
         var len = _value.Length;
@@ -59,17 +60,17 @@ public readonly struct FastHash
         return EqualsCI(_value.Span, value);
     }
 
-    public static long HashCS(ReadOnlySequence<byte> value)
+    public static long HashCS(in ReadOnlySequence<byte> value)
     {
 #if NETCOREAPP3_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
         var first = value.FirstSpan;
 #else
         var first = value.First.Span;
 #endif
-        return first.Length >= MaxBytesHashed || value.IsSingleSegment
+        return first.Length >= MaxBytesHashed | value.IsSingleSegment
             ? HashCS(first) : SlowHashCS(value);
 
-        static long SlowHashCS(ReadOnlySequence<byte> value)
+        static long SlowHashCS(in ReadOnlySequence<byte> value)
         {
             Span<byte> buffer = stackalloc byte[MaxBytesHashed];
             var len = value.Length;
@@ -82,6 +83,7 @@ public readonly struct FastHash
             {
                 value.Slice(0, MaxBytesHashed).CopyTo(buffer);
             }
+
             return HashCS(buffer);
         }
     }
@@ -127,6 +129,7 @@ public readonly struct FastHash
                         return false;
                     }
                 }
+
                 return true;
             }
         }
@@ -137,74 +140,38 @@ public readonly struct FastHash
 
     public static long HashCS(scoped ReadOnlySpan<byte> value)
     {
-        if (BitConverter.IsLittleEndian)
+        // at least 8? we can blit
+        if ((value.Length >> 3) != 0)
         {
-            ref byte data = ref MemoryMarshal.GetReference(value);
-            return value.Length switch
-            {
-                0 => 0,
-                1 => data, // 0000000A
-                2 => Unsafe.ReadUnaligned<ushort>(ref data), // 000000BA
-                3 => Unsafe.ReadUnaligned<ushort>(ref data) | // 000000BA
-                     (Unsafe.Add(ref data, 2) << 16), // 00000C00
-                4 => Unsafe.ReadUnaligned<uint>(ref data), // 0000DCBA
-                5 => Unsafe.ReadUnaligned<uint>(ref data) | // 0000DCBA
-                     ((long)Unsafe.Add(ref data, 4) << 32), // 000E0000
-                6 => Unsafe.ReadUnaligned<uint>(ref data) | // 0000DCBA
-                     ((long)Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref data, 4)) << 32), // 00FE0000
-                7 => Unsafe.ReadUnaligned<uint>(ref data) | // 0000DCBA
-                     ((long)Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref data, 4)) << 32) | // 00FE0000
-                     ((long)Unsafe.Add(ref data, 6) << 48), // 0G000000
-                _ => Unsafe.ReadUnaligned<long>(ref data), // HGFEDCBA
-            };
+            if (BitConverter.IsLittleEndian) return MemoryMarshal.Read<long>(value);
+            return BinaryPrimitives.ReadInt64LittleEndian(value);
         }
 
-#pragma warning disable CS0618 // Type or member is obsolete
-        return Hash64Fallback(value);
-#pragma warning restore CS0618 // Type or member is obsolete
+        // small (<7); manual loop
+        // note: profiling with unsafe code to pick out elements: slower
+        ulong tally = 0;
+        for (int i = 0; i < value.Length; i++)
+        {
+            tally |= ((ulong)value[i]) << (i << 3);
+        }
+        return (long)tally;
     }
 
-    [Obsolete("Only exists for benchmarks (to show that we don't need to use it) and unit tests (for correctness)")]
-    internal static unsafe long Hash64Unsafe(scoped ReadOnlySpan<byte> value)
+    public static long HashCS(scoped ReadOnlySpan<char> value)
     {
-        if (BitConverter.IsLittleEndian)
+        // note: BDN profiling with Vector64.Narrow showed no benefit
+        if (value.Length > 8)
         {
-            fixed (byte* ptr = &MemoryMarshal.GetReference(value))
-            {
-                return value.Length switch
-                {
-                    0 => 0,
-                    1 => *ptr, // 0000000A
-                    2 => *(ushort*)ptr, // 000000BA
-                    3 => *(ushort*)ptr | // 000000BA
-                         (ptr[2] << 16), // 00000C00
-                    4 => *(int*)ptr, // 0000DCBA
-                    5 => (long)*(int*)ptr | // 0000DCBA
-                         ((long)ptr[4] << 32), // 000E0000
-                    6 => (long)*(int*)ptr | // 0000DCBA
-                         ((long)*(ushort*)(ptr + 4) << 32), // 00FE0000
-                    7 => (long)*(int*)ptr | // 0000DCBA
-                         ((long)*(ushort*)(ptr + 4) << 32) | // 00FE0000
-                         ((long)ptr[6] << 48), // 0G000000
-                    _ => *(long*)ptr, // HGFEDCBA
-                };
-            }
+            // slice if necessary, so we can use bounds-elided foreach
+            if (value.Length != 8) value = value.Slice(0, 8);
         }
-
-        return Hash64Fallback(value);
+        ulong tally = 0;
+        for (int i = 0; i < value.Length; i++)
+        {
+            tally |= ((ulong)value[i]) << (i << 3);
+        }
+        return (long)tally;
     }
 
-    [Obsolete("Only exists for unit tests and fallback")]
-    internal static long Hash64Fallback(scoped ReadOnlySpan<byte> value)
-    {
-        if (value.Length < sizeof(long))
-        {
-            Span<byte> tmp = stackalloc byte[sizeof(long)];
-            value.CopyTo(tmp); // ABC*****
-            tmp.Slice(value.Length).Clear(); // ABC00000
-            return BinaryPrimitives.ReadInt64LittleEndian(tmp); // 00000CBA
-        }
-
-        return BinaryPrimitives.ReadInt64LittleEndian(value); // HGFEDCBA
-    }
+    public static long HashCI(scoped ReadOnlySpan<char> value) => HashCS(value) & CaseMask;
 }
