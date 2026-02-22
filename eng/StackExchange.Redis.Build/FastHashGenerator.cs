@@ -420,7 +420,7 @@ public class FastHashGenerator : IIncrementalGenerator
                                 .ToFullString();
 
                             line.Append(" && global::RESPite.FastHash.")
-                                .Append(caseSensitive ? nameof(FastHash.EqualsCS) : nameof(FastHash.EqualsCI))
+                                .Append(caseSensitive ? nameof(FastHash.SequenceEqualsCS) : nameof(FastHash.SequenceEqualsCI))
                                 .Append("(").Append(method.From.Name).Append(", ").Append(csValue);
                             if (method.From.IsBytes) line.Append("u8");
                             line.Append(")");

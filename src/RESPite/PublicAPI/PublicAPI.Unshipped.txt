@@ -180,6 +180,10 @@
 [SER004]static RESPite.FastHash.HashCS(in System.Buffers.ReadOnlySequence<byte> value) -> long
 [SER004]static RESPite.FastHash.HashCS(scoped System.ReadOnlySpan<byte> value) -> long
 [SER004]static RESPite.FastHash.HashCS(scoped System.ReadOnlySpan<char> value) -> long
+[SER004]static RESPite.FastHash.SequenceEqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.FastHash.SequenceEqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
+[SER004]static RESPite.FastHash.SequenceEqualsCS(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.FastHash.SequenceEqualsCS(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
 [SER004]static RESPite.Messages.RespFrameScanner.Default.get -> RESPite.Messages.RespFrameScanner!
 [SER004]static RESPite.Messages.RespFrameScanner.Subscription.get -> RESPite.Messages.RespFrameScanner!
 [SER004]virtual RESPite.Messages.RespAttributeReader<T>.Read(ref RESPite.Messages.RespReader reader, ref T value) -> void
