@@ -25,10 +25,13 @@ namespace StackExchange.Redis.Benchmarks
                 Console.WriteLine($"Value: {value}");
                 obj2.Value = value;
                 // obj2.Setup();
-                Console.WriteLine($"  Enum:   {obj2.EnumParse_CS()}");
-                Console.WriteLine($"  Fast:   {obj2.FastHash_CS()}");
-                Console.WriteLine($"  Bytes:  {obj2.Bytes_CS()}");
-                Console.WriteLine($"  Switch: {obj2.Switch()}");
+                Console.WriteLine($" CS Enum:   {obj2.EnumParse_CS()}");
+                Console.WriteLine($" CS Fast:   {obj2.FastHash_CS()}");
+                Console.WriteLine($" CS Bytes:  {obj2.Bytes_CS()}");
+                Console.WriteLine($" CS Switch: {obj2.Switch_CS()}");
+                Console.WriteLine($" CI Enum:   {obj2.EnumParse_CI()}");
+                Console.WriteLine($" CI Fast:   {obj2.FastHash_CI()}");
+                Console.WriteLine($" CI Bytes:  {obj2.Bytes_CI()}");
                 Console.WriteLine();
             }
 

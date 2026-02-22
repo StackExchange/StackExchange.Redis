@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Text;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using RESPite;
 
 namespace StackExchange.Redis.Benchmarks;
 
-[ShortRunJob, MemoryDiagnoser]
+[ShortRunJob, MemoryDiagnoser, GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 public partial class EnumParseBenchmarks
 {
     private const int OperationsPerInvoke = 1000;
@@ -36,19 +37,35 @@ public partial class EnumParseBenchmarks
         }
     }
 
-    [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
+    [BenchmarkCategory("Case sensitive")]
+    [Benchmark(OperationsPerInvoke = OperationsPerInvoke, Baseline = true)]
     public RedisCommand EnumParse_CS()
     {
         var value = Value;
         RedisCommand r = default;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            Enum.TryParse(value, out r);
+            Enum.TryParse(value, false, out r);
         }
 
         return r;
     }
 
+    [BenchmarkCategory("Case insensitive")]
+    [Benchmark(OperationsPerInvoke = OperationsPerInvoke,  Baseline = true)]
+    public RedisCommand EnumParse_CI()
+    {
+        var value = Value;
+        RedisCommand r = default;
+        for (int i = 0; i < OperationsPerInvoke; i++)
+        {
+            Enum.TryParse(value, true, out r);
+        }
+
+        return r;
+    }
+
+    [BenchmarkCategory("Case sensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
     public RedisCommand FastHash_CS()
     {
@@ -62,6 +79,21 @@ public partial class EnumParseBenchmarks
         return r;
     }
 
+    [BenchmarkCategory("Case insensitive")]
+    [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
+    public RedisCommand FastHash_CI()
+    {
+        ReadOnlySpan<char> value = Value;
+        RedisCommand r = default;
+        for (int i = 0; i < OperationsPerInvoke; i++)
+        {
+            TryParse_CI(value, out r);
+        }
+
+        return r;
+    }
+
+    [BenchmarkCategory("Case sensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
     public RedisCommand Bytes_CS()
     {
@@ -75,8 +107,23 @@ public partial class EnumParseBenchmarks
         return r;
     }
 
+    [BenchmarkCategory("Case insensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public RedisCommand Switch()
+    public RedisCommand Bytes_CI()
+    {
+        ReadOnlySpan<byte> value = _bytes;
+        RedisCommand r = default;
+        for (int i = 0; i < OperationsPerInvoke; i++)
+        {
+            TryParse_CI(value, out r);
+        }
+
+        return r;
+    }
+
+    [BenchmarkCategory("Case sensitive")]
+    [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
+    public RedisCommand Switch_CS()
     {
         var value = Value;
         RedisCommand r = default;
@@ -350,6 +397,12 @@ public partial class EnumParseBenchmarks
 
     [FastHash]
     internal static partial bool TryParse_CS(ReadOnlySpan<byte> value, out RedisCommand command);
+
+    [FastHash(CaseSensitive = false)]
+    internal static partial bool TryParse_CI(ReadOnlySpan<char> value, out RedisCommand command);
+
+    [FastHash(CaseSensitive = false)]
+    internal static partial bool TryParse_CI(ReadOnlySpan<byte> value, out RedisCommand command);
 
     public enum RedisCommand
     {
