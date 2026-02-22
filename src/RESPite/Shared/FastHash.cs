@@ -13,12 +13,24 @@ namespace RESPite;
 /// All matches must also perform a sequence equality check.
 /// </summary>
 /// <remarks>See HastHashGenerator.md for more information and intended usage.</remarks>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+[AttributeUsage(
+    AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Field,
+    AllowMultiple = false,
+    Inherited = false)]
 [Conditional("DEBUG")] // evaporate in release
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public sealed class FastHashAttribute(string token = "") : Attribute
 {
+    /// <summary>
+    /// The token expected when parsing data, if different from the implied value. The implied
+    /// value is the name, replacing underscores for hyphens, so: 'a_b' becomes 'a-b'.
+    /// </summary>
     public string Token => token;
+
+    /// <summary>
+    /// Indicates whether a parse operation is case-sensitive. Not used in other contexts.
+    /// </summary>
+    public bool CaseSensitive { get; set; } = true;
 }
 
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
@@ -133,6 +145,23 @@ public readonly struct FastHash
                 return true;
             }
         }
+    }
+
+    public static bool EqualsCS(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
+    {
+        var len = first.Length;
+        if (len != second.Length) return false;
+        // for very short values, the CS hash performs CS equality
+        return len <= MaxBytesHashIsEqualityCS ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
+    }
+
+    public static bool EqualsCI(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
+    {
+        throw new NotImplementedException();
+        // var len = first.Length;
+        // if (len != second.Length) return false;
+        // // for very short values, the CS hash performs CS equality
+        // return len <= MaxBytesHashIsEqualityCS ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
     }
 
     public static long HashCI(scoped ReadOnlySpan<byte> value)
