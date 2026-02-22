@@ -30,6 +30,8 @@
 [SER004]RESPite.FastHash.IsCS(System.ReadOnlySpan<byte> value) -> bool
 [SER004]RESPite.FastHash.Length.get -> int
 [SER004]RESPite.FastHashAttribute
+[SER004]RESPite.FastHashAttribute.CaseSensitive.get -> bool
+[SER004]RESPite.FastHashAttribute.CaseSensitive.set -> void
 [SER004]RESPite.FastHashAttribute.FastHashAttribute(string! token = "") -> void
 [SER004]RESPite.FastHashAttribute.Token.get -> string!
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TResult>! projection) -> void
@@ -170,7 +172,9 @@
 [SER004]RESPite.RespException
 [SER004]RESPite.RespException.RespException(string! message) -> void
 [SER004]static RESPite.FastHash.EqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.FastHash.EqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
 [SER004]static RESPite.FastHash.EqualsCS(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.FastHash.EqualsCS(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
 [SER004]static RESPite.FastHash.HashCI(scoped System.ReadOnlySpan<byte> value) -> long
 [SER004]static RESPite.FastHash.HashCI(scoped System.ReadOnlySpan<char> value) -> long
 [SER004]static RESPite.FastHash.HashCS(in System.Buffers.ReadOnlySequence<byte> value) -> long
