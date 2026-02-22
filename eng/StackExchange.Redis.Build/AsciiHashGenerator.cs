@@ -10,24 +10,24 @@ using RESPite;
 namespace StackExchange.Redis.Build;
 
 [Generator(LanguageNames.CSharp)]
-public class FastHashGenerator : IIncrementalGenerator
+public class AsciiHashGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // looking for [FastHash] partial static class Foo { }
+        // looking for [AsciiHash] partial static class Foo { }
         var types = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, _) => node is ClassDeclarationSyntax decl && IsStaticPartial(decl.Modifiers) &&
-                                    HasFastHash(decl.AttributeLists),
+                                    HasAsciiHash(decl.AttributeLists),
                 TransformTypes)
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
-        // looking for [FastHash] partial static bool TryParse(input, out output) { }
+        // looking for [AsciiHash] partial static bool TryParse(input, out output) { }
         var methods = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, _) => node is MethodDeclarationSyntax decl && IsStaticPartial(decl.Modifiers) &&
-                                    HasFastHash(decl.AttributeLists),
+                                    HasAsciiHash(decl.AttributeLists),
                 TransformMethods)
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
@@ -37,13 +37,13 @@ public class FastHashGenerator : IIncrementalGenerator
         static bool IsStaticPartial(SyntaxTokenList tokens)
             => tokens.Any(SyntaxKind.StaticKeyword) && tokens.Any(SyntaxKind.PartialKeyword);
 
-        static bool HasFastHash(SyntaxList<AttributeListSyntax> attributeLists)
+        static bool HasAsciiHash(SyntaxList<AttributeListSyntax> attributeLists)
         {
             foreach (var attribList in attributeLists)
             {
                 foreach (var attrib in attribList.Attributes)
                 {
-                    if (attrib.Name.ToString() is "FastHashAttribute" or "FastHash") return true;
+                    if (attrib.Name.ToString() is nameof(AsciiHashAttribute) or nameof(AsciiHash)) return true;
                 }
             }
 
@@ -71,13 +71,13 @@ public class FastHashGenerator : IIncrementalGenerator
         return sb.ToString();
     }
 
-    private static AttributeData? TryGetFastHashAttribute(ImmutableArray<AttributeData> attributes)
+    private static AttributeData? TryGetAsciiHashAttribute(ImmutableArray<AttributeData> attributes)
     {
         foreach (var attrib in attributes)
         {
             if (attrib.AttributeClass is
                 {
-                    Name: "FastHashAttribute",
+                    Name: nameof(AsciiHashAttribute),
                     ContainingType: null,
                     ContainingNamespace:
                     {
@@ -99,7 +99,7 @@ public class FastHashGenerator : IIncrementalGenerator
     {
         // extract the name and value (defaults to name, but can be overridden via attribute) and the location
         if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not INamedTypeSymbol named) return default;
-        if (TryGetFastHashAttribute(named.GetAttributes()) is not { } attrib) return default;
+        if (TryGetAsciiHashAttribute(named.GetAttributes()) is not { } attrib) return default;
 
         string ns = "", parentType = "";
         if (named.ContainingType is { } containingType)
@@ -117,11 +117,11 @@ public class FastHashGenerator : IIncrementalGenerator
         return (ns, parentType, name, value);
     }
 
-    private static string GetRawValue(string name, AttributeData? fastHashAttribute)
+    private static string GetRawValue(string name, AttributeData? asciiHashAttribute)
     {
         var value = "";
-        if (fastHashAttribute is { ConstructorArguments.Length: 1 }
-            && fastHashAttribute.ConstructorArguments[0].Value?.ToString() is { Length: > 0 } val)
+        if (asciiHashAttribute is { ConstructorArguments.Length: 1 }
+            && asciiHashAttribute.ConstructorArguments[0].Value?.ToString() is { Length: > 0 } val)
         {
             value = val;
         }
@@ -156,7 +156,7 @@ public class FastHashGenerator : IIncrementalGenerator
                 },
             } method) return default;
 
-        if (TryGetFastHashAttribute(method.GetAttributes()) is not { } attrib) return default;
+        if (TryGetAsciiHashAttribute(method.GetAttributes()) is not { } attrib) return default;
 
         if (method.ContainingType is not { } containingType) return default;
         var parentType = GetName(containingType);
@@ -182,7 +182,7 @@ public class FastHashGenerator : IIncrementalGenerator
         {
             if (member is IFieldSymbol { IsStatic: true, IsConst: true } field)
             {
-                var rawValue = GetRawValue(field.Name, TryGetFastHashAttribute(member.GetAttributes()));
+                var rawValue = GetRawValue(field.Name, TryGetAsciiHashAttribute(member.GetAttributes()));
                 builder.Add((field.Name, rawValue));
                 int value = field.ConstantValue switch
                 {
@@ -247,7 +247,7 @@ public class FastHashGenerator : IIncrementalGenerator
     {
         foreach (var member in attrib.NamedArguments)
         {
-            if (member.Key == nameof(FastHashAttribute.CaseSensitive)
+            if (member.Key == nameof(AsciiHashAttribute.CaseSensitive)
                 && member.Value.Kind is TypedConstantKind.Primitive
                 && member.Value.Value is bool caseSensitive)
             {
@@ -291,7 +291,7 @@ public class FastHashGenerator : IIncrementalGenerator
 
         BuildTypeImplementations(sb, types);
         BuildEnumParsers(sb, enums);
-        ctx.AddSource("FastHash.generated.cs", sb.ToString());
+        ctx.AddSource(nameof(AsciiHash) + ".generated.cs", sb.ToString());
     }
 
     private void BuildEnumParsers(
@@ -399,8 +399,8 @@ public class FastHashGenerator : IIncrementalGenerator
 
                 void Write(bool caseSensitive)
                 {
-                    NewLine().Append("var hash = global::RESPite.FastHash.")
-                        .Append(caseSensitive ? nameof(FastHash.HashCS) : nameof(FastHash.HashCI)).Append("(").Append(method.From.Name)
+                    NewLine().Append("var hash = global::RESPite.AsciiHash.")
+                        .Append(caseSensitive ? nameof(AsciiHash.HashCS) : nameof(AsciiHash.HashCI)).Append("(").Append(method.From.Name)
                         .Append(");");
                     NewLine().Append(valueTarget).Append(" = ").Append(method.From.Name).Append(".Length switch {");
                     indent++;
@@ -408,9 +408,9 @@ public class FastHashGenerator : IIncrementalGenerator
                     {
                         var len = member.ParseText.Length;
                         var line = NewLine().Append(len).Append(" when hash is ")
-                            .Append(caseSensitive ? FastHash.HashCS(member.ParseText) : FastHash.HashCI(member.ParseText));
+                            .Append(caseSensitive ? AsciiHash.HashCS(member.ParseText) : AsciiHash.HashCI(member.ParseText));
 
-                        if (!(len <= FastHash.MaxBytesHashIsEqualityCS & caseSensitive))
+                        if (!(len <= AsciiHash.MaxBytesHashIsEqualityCS & caseSensitive))
                         {
                             // check the value
                             var csValue = SyntaxFactory
@@ -419,8 +419,8 @@ public class FastHashGenerator : IIncrementalGenerator
                                     SyntaxFactory.Literal(member.ParseText))
                                 .ToFullString();
 
-                            line.Append(" && global::RESPite.FastHash.")
-                                .Append(caseSensitive ? nameof(FastHash.SequenceEqualsCS) : nameof(FastHash.SequenceEqualsCI))
+                            line.Append(" && global::RESPite.AsciiHash.")
+                                .Append(caseSensitive ? nameof(AsciiHash.SequenceEqualsCS) : nameof(AsciiHash.SequenceEqualsCI))
                                 .Append("(").Append(method.From.Name).Append(", ").Append(csValue);
                             if (method.From.IsBytes) line.Append("u8");
                             line.Append(")");
@@ -437,42 +437,6 @@ public class FastHashGenerator : IIncrementalGenerator
 
                 indent--;
                 NewLine().Append("}");
-                /*
-
-                // perform string escaping on the generated value (this includes the quotes, note)
-                var csValue = SyntaxFactory
-                    .LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(literal.Value))
-                    .ToFullString();
-
-                var hashCS = FastHash.HashCS(buffer.AsSpan(0, len));
-                var hashCI = FastHash.HashCI(buffer.AsSpan(0, len));
-                NewLine().Append("static partial class ").Append(literal.Name);
-                NewLine().Append("{");
-                indent++;
-                NewLine().Append("public const int Length = ").Append(len).Append(';');
-                NewLine().Append("public const long HashCS = ").Append(hashCS).Append(';');
-                NewLine().Append("public const long HashCI = ").Append(hashCI).Append(';');
-                NewLine().Append("public static ReadOnlySpan<byte> U8 => ").Append(csValue).Append("u8;");
-                NewLine().Append("public const string Text = ").Append(csValue).Append(';');
-                if (len <= FastHash.MaxBytesHashIsEqualityCS)
-                {
-                    // the case-sensitive hash enforces all the values
-                    NewLine().Append(
-                        "public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;");
-                    NewLine().Append(
-                        "public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.FastHash.HashCS(value) == HashCS || global::RESPite.FastHash.EqualsCI(value, U8));");
-                }
-                else
-                {
-                    NewLine().Append(
-                        "public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);");
-                    NewLine().Append(
-                        "public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);");
-                }
-
-                indent--;
-                NewLine().Append("}");
-                */
             }
 
             // handle any closing braces
@@ -553,8 +517,8 @@ public class FastHashGenerator : IIncrementalGenerator
                     .LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(literal.Value))
                     .ToFullString();
 
-                var hashCS = FastHash.HashCS(literal.Value);
-                var hashCI = FastHash.HashCI(literal.Value);
+                var hashCS = AsciiHash.HashCS(literal.Value);
+                var hashCI = AsciiHash.HashCI(literal.Value);
                 NewLine().Append("static partial class ").Append(literal.Name);
                 NewLine().Append("{");
                 indent++;
@@ -563,20 +527,20 @@ public class FastHashGenerator : IIncrementalGenerator
                 NewLine().Append("public const long HashCI = ").Append(hashCI).Append(';');
                 NewLine().Append("public static ReadOnlySpan<byte> U8 => ").Append(csValue).Append("u8;");
                 NewLine().Append("public const string Text = ").Append(csValue).Append(';');
-                if (literal.Value.Length <= FastHash.MaxBytesHashIsEqualityCS)
+                if (literal.Value.Length <= AsciiHash.MaxBytesHashIsEqualityCS)
                 {
                     // the case-sensitive hash enforces all the values
                     NewLine().Append(
                         "public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;");
                     NewLine().Append(
-                        "public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.FastHash.HashCS(value) == HashCS || global::RESPite.FastHash.EqualsCI(value, U8));");
+                        "public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.AsciiHash.HashCS(value) == HashCS || global::RESPite.AsciiHash.EqualsCI(value, U8));");
                 }
                 else
                 {
                     NewLine().Append(
                         "public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);");
                     NewLine().Append(
-                        "public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);");
+                        "public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);");
                 }
 
                 indent--;

@@ -10,7 +10,7 @@ using Xunit.Sdk;
 // ReSharper disable IdentifierTypo
 namespace StackExchange.Redis.Tests;
 
-public partial class FastHashTests(ITestOutputHelper log)
+public partial class AsciiHashTests(ITestOutputHelper log)
 {
     // note: if the hashing algorithm changes, we can update the last parameter freely; it doesn't matter
     // what it *is* - what matters is that we can see that it has entropy between different values
@@ -47,8 +47,8 @@ public partial class FastHashTests(ITestOutputHelper log)
         Assert.Equal(expectedHash, actualHash);
         var bytes = Encoding.UTF8.GetBytes(actualValue);
         Assert.Equal(expectedLength, bytes.Length);
-        Assert.Equal(expectedHash, FastHash.HashCS(bytes));
-        Assert.Equal(expectedHash, FastHash.HashCS(actualValue.AsSpan()));
+        Assert.Equal(expectedHash, AsciiHash.HashCS(bytes));
+        Assert.Equal(expectedHash, AsciiHash.HashCS(actualValue.AsSpan()));
 
         if (expectedValue is not null)
         {
@@ -57,29 +57,29 @@ public partial class FastHashTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public void FastHashIs_Short()
+    public void AsciiHashIs_Short()
     {
         ReadOnlySpan<byte> value = "abc"u8;
-        var hash = FastHash.HashCS(value);
+        var hash = AsciiHash.HashCS(value);
         Assert.Equal(abc.HashCS, hash);
         Assert.True(abc.IsCS(hash, value));
 
         value = "abz"u8;
-        hash = FastHash.HashCS(value);
+        hash = AsciiHash.HashCS(value);
         Assert.NotEqual(abc.HashCS, hash);
         Assert.False(abc.IsCS(hash, value));
     }
 
     [Fact]
-    public void FastHashIs_Long()
+    public void AsciiHashIs_Long()
     {
         ReadOnlySpan<byte> value = "abcdefghijklmnopqrst"u8;
-        var hash = FastHash.HashCS(value);
+        var hash = AsciiHash.HashCS(value);
         Assert.Equal(abcdefghijklmnopqrst.HashCS, hash);
         Assert.True(abcdefghijklmnopqrst.IsCS(hash, value));
 
         value = "abcdefghijklmnopqrsz"u8;
-        hash = FastHash.HashCS(value);
+        hash = AsciiHash.HashCS(value);
         Assert.Equal(abcdefghijklmnopqrst.HashCS, hash); // hash collision, fine
         Assert.False(abcdefghijklmnopqrst.IsCS(hash, value));
     }
@@ -103,16 +103,16 @@ public partial class FastHashTests(ITestOutputHelper log)
         var lower = Encoding.UTF8.GetBytes(text);
         var upper = Encoding.UTF8.GetBytes(text.ToUpperInvariant());
 
-        var hashLowerCS = FastHash.HashCS(lower);
-        var hashUpperCS = FastHash.HashCS(upper);
+        var hashLowerCS = AsciiHash.HashCS(lower);
+        var hashUpperCS = AsciiHash.HashCS(upper);
 
         // Case-sensitive: same case should match
-        Assert.True(FastHash.EqualsCS(lower, lower), "CS: lower == lower");
-        Assert.True(FastHash.EqualsCS(upper, upper), "CS: upper == upper");
+        Assert.True(AsciiHash.EqualsCS(lower, lower), "CS: lower == lower");
+        Assert.True(AsciiHash.EqualsCS(upper, upper), "CS: upper == upper");
 
         // Case-sensitive: different case should NOT match
-        Assert.False(FastHash.EqualsCS(lower, upper), "CS: lower != upper");
-        Assert.False(FastHash.EqualsCS(upper, lower), "CS: upper != lower");
+        Assert.False(AsciiHash.EqualsCS(lower, upper), "CS: lower != upper");
+        Assert.False(AsciiHash.EqualsCS(upper, lower), "CS: upper != lower");
 
         // Hashes should be different for different cases
         Assert.NotEqual(hashLowerCS, hashUpperCS);
@@ -136,16 +136,16 @@ public partial class FastHashTests(ITestOutputHelper log)
         var lower = Encoding.UTF8.GetBytes(text);
         var upper = Encoding.UTF8.GetBytes(text.ToUpperInvariant());
 
-        var hashLowerCI = FastHash.HashCI(lower);
-        var hashUpperCI = FastHash.HashCI(upper);
+        var hashLowerCI = AsciiHash.HashCI(lower);
+        var hashUpperCI = AsciiHash.HashCI(upper);
 
         // Case-insensitive: same case should match
-        Assert.True(FastHash.EqualsCI(lower, lower), "CI: lower == lower");
-        Assert.True(FastHash.EqualsCI(upper, upper), "CI: upper == upper");
+        Assert.True(AsciiHash.EqualsCI(lower, lower), "CI: lower == lower");
+        Assert.True(AsciiHash.EqualsCI(upper, upper), "CI: upper == upper");
 
         // Case-insensitive: different case SHOULD match
-        Assert.True(FastHash.EqualsCI(lower, upper), "CI: lower == upper");
-        Assert.True(FastHash.EqualsCI(upper, lower), "CI: upper == lower");
+        Assert.True(AsciiHash.EqualsCI(lower, upper), "CI: lower == upper");
+        Assert.True(AsciiHash.EqualsCI(upper, lower), "CI: upper == lower");
 
         // CI hashes should be the same for different cases
         Assert.Equal(hashLowerCI, hashUpperCI);
@@ -171,8 +171,8 @@ public partial class FastHashTests(ITestOutputHelper log)
         var lower = Encoding.UTF8.GetBytes(text);
         var upper = Encoding.UTF8.GetBytes(text.ToUpperInvariant());
 
-        var hashLowerCS = FastHash.HashCS(lower);
-        var hashUpperCS = FastHash.HashCS(upper);
+        var hashLowerCS = AsciiHash.HashCS(lower);
+        var hashUpperCS = AsciiHash.HashCS(upper);
 
         // Use the generated types to verify CS behavior
         switch (text)
@@ -244,8 +244,8 @@ public partial class FastHashTests(ITestOutputHelper log)
         var lower = Encoding.UTF8.GetBytes(text);
         var upper = Encoding.UTF8.GetBytes(text.ToUpperInvariant());
 
-        var hashLowerCI = FastHash.HashCI(lower);
-        var hashUpperCI = FastHash.HashCI(upper);
+        var hashLowerCI = AsciiHash.HashCI(lower);
+        var hashUpperCI = AsciiHash.HashCI(upper);
 
         // Use the generated types to verify CI behavior
         switch (text)
@@ -297,17 +297,17 @@ public partial class FastHashTests(ITestOutputHelper log)
         }
     }
 
-    // Test each generated FastHash type individually for case sensitivity
+    // Test each generated AsciiHash type individually for case sensitivity
     [Fact]
     public void GeneratedType_a_CaseSensitivity()
     {
         ReadOnlySpan<byte> lower = "a"u8;
         ReadOnlySpan<byte> upper = "A"u8;
 
-        Assert.True(a.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(a.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(a.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(a.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(a.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(a.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(a.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(a.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -316,10 +316,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "ab"u8;
         ReadOnlySpan<byte> upper = "AB"u8;
 
-        Assert.True(ab.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(ab.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(ab.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(ab.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(ab.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(ab.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(ab.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(ab.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -328,10 +328,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abc"u8;
         ReadOnlySpan<byte> upper = "ABC"u8;
 
-        Assert.True(abc.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(abc.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(abc.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(abc.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(abc.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(abc.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(abc.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(abc.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -340,10 +340,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcd"u8;
         ReadOnlySpan<byte> upper = "ABCD"u8;
 
-        Assert.True(abcd.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(abcd.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(abcd.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(abcd.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(abcd.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(abcd.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(abcd.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(abcd.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -352,10 +352,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcde"u8;
         ReadOnlySpan<byte> upper = "ABCDE"u8;
 
-        Assert.True(abcde.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(abcde.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(abcde.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(abcde.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(abcde.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(abcde.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(abcde.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(abcde.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -364,10 +364,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcdef"u8;
         ReadOnlySpan<byte> upper = "ABCDEF"u8;
 
-        Assert.True(abcdef.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(abcdef.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(abcdef.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(abcdef.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(abcdef.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(abcdef.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(abcdef.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(abcdef.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -376,10 +376,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcdefg"u8;
         ReadOnlySpan<byte> upper = "ABCDEFG"u8;
 
-        Assert.True(abcdefg.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(abcdefg.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(abcdefg.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(abcdefg.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(abcdefg.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(abcdefg.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(abcdefg.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(abcdefg.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -388,10 +388,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcdefgh"u8;
         ReadOnlySpan<byte> upper = "ABCDEFGH"u8;
 
-        Assert.True(abcdefgh.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(abcdefgh.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(abcdefgh.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(abcdefgh.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(abcdefgh.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(abcdefgh.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(abcdefgh.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(abcdefgh.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -400,10 +400,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcdefghijklmnopqrst"u8;
         ReadOnlySpan<byte> upper = "ABCDEFGHIJKLMNOPQRST"u8;
 
-        Assert.True(abcdefghijklmnopqrst.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(abcdefghijklmnopqrst.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(abcdefghijklmnopqrst.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(abcdefghijklmnopqrst.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(abcdefghijklmnopqrst.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(abcdefghijklmnopqrst.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(abcdefghijklmnopqrst.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(abcdefghijklmnopqrst.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -413,10 +413,10 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "foo-bar"u8;
         ReadOnlySpan<byte> upper = "FOO-BAR"u8;
 
-        Assert.True(foo_bar.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(foo_bar.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(foo_bar.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(foo_bar.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(foo_bar.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(foo_bar.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(foo_bar.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(foo_bar.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
@@ -426,25 +426,25 @@ public partial class FastHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "foo-bar"u8;
         ReadOnlySpan<byte> upper = "FOO-BAR"u8;
 
-        Assert.True(foo_bar_hyphen.IsCS(FastHash.HashCS(lower), lower));
-        Assert.False(foo_bar_hyphen.IsCS(FastHash.HashCS(upper), upper));
-        Assert.True(foo_bar_hyphen.IsCI(FastHash.HashCI(lower), lower));
-        Assert.True(foo_bar_hyphen.IsCI(FastHash.HashCI(upper), upper));
+        Assert.True(foo_bar_hyphen.IsCS(AsciiHash.HashCS(lower), lower));
+        Assert.False(foo_bar_hyphen.IsCS(AsciiHash.HashCS(upper), upper));
+        Assert.True(foo_bar_hyphen.IsCI(AsciiHash.HashCI(lower), lower));
+        Assert.True(foo_bar_hyphen.IsCI(AsciiHash.HashCI(upper), upper));
     }
 
     [Fact]
-    public void KeyNotificationTypeFastHash_MinMaxBytes_ReflectsActualLengths()
+    public void KeyNotificationTypeAsciiHash_MinMaxBytes_ReflectsActualLengths()
     {
-        // Use reflection to find all nested types in KeyNotificationTypeFastHash
-        var fastHashType = typeof(KeyNotificationTypeFastHash);
-        var nestedTypes = fastHashType.GetNestedTypes(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        // Use reflection to find all nested types in KeyNotificationTypeAsciiHash
+        var asciiHashType = typeof(KeyNotificationTypeAsciiHash);
+        var nestedTypes = asciiHashType.GetNestedTypes(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
         int? minLength = null;
         int? maxLength = null;
 
         foreach (var nestedType in nestedTypes)
         {
-            // Look for the Length field (generated by FastHash source generator)
+            // Look for the Length field (generated by AsciiHash source generator)
             var lengthField = nestedType.GetField("Length", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
             if (lengthField != null && lengthField.FieldType == typeof(int))
             {
@@ -467,35 +467,35 @@ public partial class FastHashTests(ITestOutputHelper log)
         Assert.NotNull(maxLength);
 
         // Assert that MinBytes and MaxBytes match the actual min/max lengths
-        log.WriteLine($"MinBytes: {KeyNotificationTypeFastHash.MinBytes}, MaxBytes: {KeyNotificationTypeFastHash.MaxBytes}");
-        Assert.Equal(KeyNotificationTypeFastHash.MinBytes, minLength.Value);
-        Assert.Equal(KeyNotificationTypeFastHash.MaxBytes, maxLength.Value);
+        log.WriteLine($"MinBytes: {KeyNotificationTypeAsciiHash.MinBytes}, MaxBytes: {KeyNotificationTypeAsciiHash.MaxBytes}");
+        Assert.Equal(KeyNotificationTypeAsciiHash.MinBytes, minLength.Value);
+        Assert.Equal(KeyNotificationTypeAsciiHash.MaxBytes, maxLength.Value);
     }
 
-    [FastHash] private static partial class a { }
-    [FastHash] private static partial class ab { }
-    [FastHash] private static partial class abc { }
-    [FastHash] private static partial class abcd { }
-    [FastHash] private static partial class abcde { }
-    [FastHash] private static partial class abcdef { }
-    [FastHash] private static partial class abcdefg { }
-    [FastHash] private static partial class abcdefgh { }
+    [AsciiHash] private static partial class a { }
+    [AsciiHash] private static partial class ab { }
+    [AsciiHash] private static partial class abc { }
+    [AsciiHash] private static partial class abcd { }
+    [AsciiHash] private static partial class abcde { }
+    [AsciiHash] private static partial class abcdef { }
+    [AsciiHash] private static partial class abcdefg { }
+    [AsciiHash] private static partial class abcdefgh { }
 
-    [FastHash] private static partial class abcdefghijklmnopqrst { }
+    [AsciiHash] private static partial class abcdefghijklmnopqrst { }
 
     // show that foo_bar and foo-bar are different
-    [FastHash] private static partial class foo_bar { }
-    [FastHash("foo-bar")] private static partial class foo_bar_hyphen { }
-    [FastHash("foo_bar")] private static partial class foo_bar_underscore { }
+    [AsciiHash] private static partial class foo_bar { }
+    [AsciiHash("foo-bar")] private static partial class foo_bar_hyphen { }
+    [AsciiHash("foo_bar")] private static partial class foo_bar_underscore { }
 
-    [FastHash] private static partial class 窓 { }
+    [AsciiHash] private static partial class 窓 { }
 
-    [FastHash] private static partial class x { }
-    [FastHash] private static partial class xx { }
-    [FastHash] private static partial class xxx { }
-    [FastHash] private static partial class xxxx { }
-    [FastHash] private static partial class xxxxx { }
-    [FastHash] private static partial class xxxxxx { }
-    [FastHash] private static partial class xxxxxxx { }
-    [FastHash] private static partial class xxxxxxxx { }
+    [AsciiHash] private static partial class x { }
+    [AsciiHash] private static partial class xx { }
+    [AsciiHash] private static partial class xxx { }
+    [AsciiHash] private static partial class xxxx { }
+    [AsciiHash] private static partial class xxxxx { }
+    [AsciiHash] private static partial class xxxxxx { }
+    [AsciiHash] private static partial class xxxxxxx { }
+    [AsciiHash] private static partial class xxxxxxxx { }
 }

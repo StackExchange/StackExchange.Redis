@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Benchmarks
         private static void Main(string[] args)
         {
 #if DEBUG
-            var obj = new FastHashBenchmarks();
+            var obj = new AsciiHashBenchmarks();
             foreach (var size in obj.Sizes)
             {
                 Console.WriteLine($"Size: {size}");
@@ -26,11 +26,11 @@ namespace StackExchange.Redis.Benchmarks
                 obj2.Value = value;
                 // obj2.Setup();
                 Console.WriteLine($" CS Enum:   {obj2.EnumParse_CS()}");
-                Console.WriteLine($" CS Fast:   {obj2.FastHash_CS()}");
+                Console.WriteLine($" CS Fast:   {obj2.AsciiHash_CS()}");
                 Console.WriteLine($" CS Bytes:  {obj2.Bytes_CS()}");
                 Console.WriteLine($" CS Switch: {obj2.Switch_CS()}");
                 Console.WriteLine($" CI Enum:   {obj2.EnumParse_CI()}");
-                Console.WriteLine($" CI Fast:   {obj2.FastHash_CI()}");
+                Console.WriteLine($" CI Fast:   {obj2.AsciiHash_CI()}");
                 Console.WriteLine($" CI Bytes:  {obj2.Bytes_CI()}");
                 Console.WriteLine();
             }

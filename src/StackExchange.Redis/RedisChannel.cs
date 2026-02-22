@@ -269,7 +269,7 @@ namespace StackExchange.Redis
 #pragma warning disable RS0027
         public static RedisChannel KeyEvent(KeyNotificationType type, int? database = null)
 #pragma warning restore RS0027
-            => KeyEvent(KeyNotificationTypeFastHash.GetRawBytes(type), database);
+            => KeyEvent(KeyNotificationTypeAsciiHash.GetRawBytes(type), database);
 
         /// <summary>
         /// Create an event-notification channel for a given event type, optionally in a specified database.

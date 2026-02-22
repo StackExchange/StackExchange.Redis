@@ -1,6 +1,20 @@
 ﻿#nullable enable
 [SER004]const RESPite.Buffers.CycleBuffer.GetAnything = 0 -> int
 [SER004]const RESPite.Buffers.CycleBuffer.GetFullPagesOnly = -1 -> int
+[SER004]RESPite.AsciiHash
+[SER004]RESPite.AsciiHash.AsciiHash() -> void
+[SER004]RESPite.AsciiHash.AsciiHash(System.ReadOnlyMemory<byte> value) -> void
+[SER004]RESPite.AsciiHash.AsciiHash(System.ReadOnlySpan<byte> value) -> void
+[SER004]RESPite.AsciiHash.IsCI(long hash, System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.AsciiHash.IsCI(System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.AsciiHash.IsCS(long hash, System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.AsciiHash.IsCS(System.ReadOnlySpan<byte> value) -> bool
+[SER004]RESPite.AsciiHash.Length.get -> int
+[SER004]RESPite.AsciiHashAttribute
+[SER004]RESPite.AsciiHashAttribute.AsciiHashAttribute(string! token = "") -> void
+[SER004]RESPite.AsciiHashAttribute.CaseSensitive.get -> bool
+[SER004]RESPite.AsciiHashAttribute.CaseSensitive.set -> void
+[SER004]RESPite.AsciiHashAttribute.Token.get -> string!
 [SER004]RESPite.Buffers.CycleBuffer
 [SER004]RESPite.Buffers.CycleBuffer.Commit(int count) -> void
 [SER004]RESPite.Buffers.CycleBuffer.CommittedIsEmpty.get -> bool
@@ -20,20 +34,6 @@
 [SER004]RESPite.Buffers.CycleBuffer.UncommittedAvailable.get -> int
 [SER004]RESPite.Buffers.CycleBuffer.Write(in System.Buffers.ReadOnlySequence<byte> value) -> void
 [SER004]RESPite.Buffers.CycleBuffer.Write(System.ReadOnlySpan<byte> value) -> void
-[SER004]RESPite.FastHash
-[SER004]RESPite.FastHash.FastHash() -> void
-[SER004]RESPite.FastHash.FastHash(System.ReadOnlyMemory<byte> value) -> void
-[SER004]RESPite.FastHash.FastHash(System.ReadOnlySpan<byte> value) -> void
-[SER004]RESPite.FastHash.IsCI(long hash, System.ReadOnlySpan<byte> value) -> bool
-[SER004]RESPite.FastHash.IsCI(System.ReadOnlySpan<byte> value) -> bool
-[SER004]RESPite.FastHash.IsCS(long hash, System.ReadOnlySpan<byte> value) -> bool
-[SER004]RESPite.FastHash.IsCS(System.ReadOnlySpan<byte> value) -> bool
-[SER004]RESPite.FastHash.Length.get -> int
-[SER004]RESPite.FastHashAttribute
-[SER004]RESPite.FastHashAttribute.CaseSensitive.get -> bool
-[SER004]RESPite.FastHashAttribute.CaseSensitive.set -> void
-[SER004]RESPite.FastHashAttribute.FastHashAttribute(string! token = "") -> void
-[SER004]RESPite.FastHashAttribute.Token.get -> string!
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TResult>(scoped System.Span<TResult> target, RESPite.Messages.RespReader.Projection<TResult>! projection) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TFirst, TSecond, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TFirst>! first, RESPite.Messages.RespReader.Projection<TState, TSecond>! second, System.Func<TState, TFirst, TSecond, TResult>! combine) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
@@ -44,6 +44,19 @@
 [SER004]RESPite.Messages.RespReader.Projection<TState, TResult>
 [SER004]RESPite.Messages.RespReader.ReadArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
 [SER004]RESPite.Messages.RespReader.ReadPastArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?
+[SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
+[SER004]static RESPite.AsciiHash.EqualsCS(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.AsciiHash.EqualsCS(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
+[SER004]static RESPite.AsciiHash.HashCI(scoped System.ReadOnlySpan<byte> value) -> long
+[SER004]static RESPite.AsciiHash.HashCI(scoped System.ReadOnlySpan<char> value) -> long
+[SER004]static RESPite.AsciiHash.HashCS(in System.Buffers.ReadOnlySequence<byte> value) -> long
+[SER004]static RESPite.AsciiHash.HashCS(scoped System.ReadOnlySpan<byte> value) -> long
+[SER004]static RESPite.AsciiHash.HashCS(scoped System.ReadOnlySpan<char> value) -> long
+[SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
+[SER004]static RESPite.AsciiHash.SequenceEqualsCS(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
+[SER004]static RESPite.AsciiHash.SequenceEqualsCS(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
 [SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, int pageSize = 8192) -> RESPite.Buffers.CycleBuffer
 [SER004]const RESPite.Messages.RespScanState.MinBytes = 3 -> int
 [SER004]override RESPite.Messages.RespScanState.Equals(object? obj) -> bool
@@ -171,19 +184,6 @@
 [SER004]RESPite.Messages.RespScanState.TryRead(System.ReadOnlySpan<byte> value, out int bytesRead) -> bool
 [SER004]RESPite.RespException
 [SER004]RESPite.RespException.RespException(string! message) -> void
-[SER004]static RESPite.FastHash.EqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
-[SER004]static RESPite.FastHash.EqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
-[SER004]static RESPite.FastHash.EqualsCS(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
-[SER004]static RESPite.FastHash.EqualsCS(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
-[SER004]static RESPite.FastHash.HashCI(scoped System.ReadOnlySpan<byte> value) -> long
-[SER004]static RESPite.FastHash.HashCI(scoped System.ReadOnlySpan<char> value) -> long
-[SER004]static RESPite.FastHash.HashCS(in System.Buffers.ReadOnlySequence<byte> value) -> long
-[SER004]static RESPite.FastHash.HashCS(scoped System.ReadOnlySpan<byte> value) -> long
-[SER004]static RESPite.FastHash.HashCS(scoped System.ReadOnlySpan<char> value) -> long
-[SER004]static RESPite.FastHash.SequenceEqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
-[SER004]static RESPite.FastHash.SequenceEqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
-[SER004]static RESPite.FastHash.SequenceEqualsCS(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool
-[SER004]static RESPite.FastHash.SequenceEqualsCS(System.ReadOnlySpan<char> first, System.ReadOnlySpan<char> second) -> bool
 [SER004]static RESPite.Messages.RespFrameScanner.Default.get -> RESPite.Messages.RespFrameScanner!
 [SER004]static RESPite.Messages.RespFrameScanner.Subscription.get -> RESPite.Messages.RespFrameScanner!
 [SER004]virtual RESPite.Messages.RespAttributeReader<T>.Read(ref RESPite.Messages.RespReader reader, ref T value) -> void

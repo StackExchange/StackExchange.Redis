@@ -294,7 +294,7 @@ internal sealed partial class PhysicalConnection
         {
             if (payload.Length >= sizeof(ulong))
             {
-                var hash = FastHash.HashCS(payload);
+                var hash = AsciiHash.HashCS(payload);
                 switch (hash)
                 {
                     case ArrayPong_LC_Bulk.HashCS when payload.StartsWith(ArrayPong_LC_Bulk.U8):
@@ -351,7 +351,7 @@ internal sealed partial class PhysicalConnection
             var span = reader.TryGetSpan(out var tmp)
                 ? tmp : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
 
-            var hash = FastHash.HashCS(span);
+            var hash = AsciiHash.HashCS(span);
             RedisChannel.RedisChannelOptions channelOptions = RedisChannel.RedisChannelOptions.None;
             PushKind kind;
             switch (hash)
@@ -635,40 +635,40 @@ internal sealed partial class PhysicalConnection
         return channel;
     }
 
-    [FastHash("message")]
+    [AsciiHash("message")]
     internal static partial class PushMessage { }
 
-    [FastHash("pmessage")]
+    [AsciiHash("pmessage")]
     internal static partial class PushPMessage { }
 
-    [FastHash("smessage")]
+    [AsciiHash("smessage")]
     internal static partial class PushSMessage { }
 
-    [FastHash("subscribe")]
+    [AsciiHash("subscribe")]
     private static partial class PushSubscribe { }
 
-    [FastHash("psubscribe")]
+    [AsciiHash("psubscribe")]
     private static partial class PushPSubscribe { }
 
-    [FastHash("ssubscribe")]
+    [AsciiHash("ssubscribe")]
     private static partial class PushSSubscribe { }
 
-    [FastHash("unsubscribe")]
+    [AsciiHash("unsubscribe")]
     private static partial class PushUnsubscribe { }
 
-    [FastHash("punsubscribe")]
+    [AsciiHash("punsubscribe")]
     private static partial class PushPUnsubscribe { }
 
-    [FastHash("sunsubscribe")]
+    [AsciiHash("sunsubscribe")]
     private static partial class PushSUnsubscribe { }
 
-    [FastHash("*2\r\n$4\r\npong\r\n$")]
+    [AsciiHash("*2\r\n$4\r\npong\r\n$")]
     private static partial class ArrayPong_LC_Bulk { }
-    [FastHash("*2\r\n$4\r\nPONG\r\n$")]
+    [AsciiHash("*2\r\n$4\r\nPONG\r\n$")]
     private static partial class ArrayPong_UC_Bulk { }
-    [FastHash("*2\r\n+pong\r\n$")]
+    [AsciiHash("*2\r\n+pong\r\n$")]
     private static partial class ArrayPong_LC_Simple { }
-    [FastHash("*2\r\n+PONG\r\n$")]
+    [AsciiHash("*2\r\n+PONG\r\n$")]
     private static partial class ArrayPong_UC_Simple { }
 
     // ReSharper disable InconsistentNaming

@@ -67,7 +67,7 @@ public partial class EnumParseBenchmarks
 
     [BenchmarkCategory("Case sensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public RedisCommand FastHash_CS()
+    public RedisCommand AsciiHash_CS()
     {
         ReadOnlySpan<char> value = Value;
         RedisCommand r = default;
@@ -81,7 +81,7 @@ public partial class EnumParseBenchmarks
 
     [BenchmarkCategory("Case insensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public RedisCommand FastHash_CI()
+    public RedisCommand AsciiHash_CI()
     {
         ReadOnlySpan<char> value = Value;
         RedisCommand r = default;
@@ -392,16 +392,16 @@ public partial class EnumParseBenchmarks
         return r != (RedisCommand)(-1);
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial bool TryParse_CS(ReadOnlySpan<char> value, out RedisCommand command);
 
-    [FastHash]
+    [AsciiHash]
     internal static partial bool TryParse_CS(ReadOnlySpan<byte> value, out RedisCommand command);
 
-    [FastHash(CaseSensitive = false)]
+    [AsciiHash(CaseSensitive = false)]
     internal static partial bool TryParse_CI(ReadOnlySpan<char> value, out RedisCommand command);
 
-    [FastHash(CaseSensitive = false)]
+    [AsciiHash(CaseSensitive = false)]
     internal static partial bool TryParse_CI(ReadOnlySpan<byte> value, out RedisCommand command);
 
     public enum RedisCommand
