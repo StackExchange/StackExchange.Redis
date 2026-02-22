@@ -22,19 +22,19 @@ public partial class EnumParseBenchmarks
     ];
 
     private byte[] _bytes = [];
+    private string _value = "";
 
     [ParamsSource(nameof(Values))]
     public string Value
     {
-        get;
+        get => _value;
         set
         {
+            value ??= "";
             _bytes = Encoding.UTF8.GetBytes(value);
-            field = value;
+            _value = value;
         }
-#pragma warning disable SA1500
-    } = "";
-#pragma warning restore SA1500
+    }
 
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
     public RedisCommand EnumParse_CS()
