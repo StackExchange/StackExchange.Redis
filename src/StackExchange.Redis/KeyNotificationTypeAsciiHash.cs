@@ -4,16 +4,16 @@ using RESPite;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Internal helper type for fast parsing of key notification types, using [FastHash].
+/// Internal helper type for fast parsing of key notification types, using [AsciiHash].
 /// </summary>
-internal static partial class KeyNotificationTypeFastHash
+internal static partial class KeyNotificationTypeAsciiHash
 {
-    // these are checked by KeyNotificationTypeFastHash_MinMaxBytes_ReflectsActualLengths
+    // these are checked by KeyNotificationTypeAsciiHash_MinMaxBytes_ReflectsActualLengths
     public const int MinBytes = 3, MaxBytes = 21;
 
     public static KeyNotificationType Parse(ReadOnlySpan<byte> value)
     {
-        var hash = FastHash.HashCS(value);
+        var hash = AsciiHash.HashCS(value);
         return hash switch
         {
             append.HashCS when append.IsCS(hash, value) => KeyNotificationType.Append,
@@ -139,272 +139,272 @@ internal static partial class KeyNotificationTypeFastHash
 
 #pragma warning disable SA1300, CS8981
     // ReSharper disable InconsistentNaming
-    [FastHash]
+    [AsciiHash]
     internal static partial class append
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class copy
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class del
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class expire
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class hdel
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class hexpired
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class hincrbyfloat
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class hincrby
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class hpersist
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class hset
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class incrbyfloat
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class incrby
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class linsert
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class lpop
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class lpush
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class lrem
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class lset
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class ltrim
     {
     }
 
-    [FastHash("move_from")] // by default, the generator interprets underscore as hyphen
+    [AsciiHash("move_from")] // by default, the generator interprets underscore as hyphen
     internal static partial class move_from
     {
     }
 
-    [FastHash("move_to")] // by default, the generator interprets underscore as hyphen
+    [AsciiHash("move_to")] // by default, the generator interprets underscore as hyphen
     internal static partial class move_to
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class persist
     {
     }
 
-    [FastHash("rename_from")] // by default, the generator interprets underscore as hyphen
+    [AsciiHash("rename_from")] // by default, the generator interprets underscore as hyphen
     internal static partial class rename_from
     {
     }
 
-    [FastHash("rename_to")] // by default, the generator interprets underscore as hyphen
+    [AsciiHash("rename_to")] // by default, the generator interprets underscore as hyphen
     internal static partial class rename_to
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class restore
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class rpop
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class rpush
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class sadd
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class set
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class setrange
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class sortstore
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class srem
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class spop
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class xadd
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class xdel
     {
     }
 
-    [FastHash] // note: becomes hyphenated
+    [AsciiHash] // note: becomes hyphenated
     internal static partial class xgroup_createconsumer
     {
     }
 
-    [FastHash] // note: becomes hyphenated
+    [AsciiHash] // note: becomes hyphenated
     internal static partial class xgroup_create
     {
     }
 
-    [FastHash] // note: becomes hyphenated
+    [AsciiHash] // note: becomes hyphenated
     internal static partial class xgroup_delconsumer
     {
     }
 
-    [FastHash] // note: becomes hyphenated
+    [AsciiHash] // note: becomes hyphenated
     internal static partial class xgroup_destroy
     {
     }
 
-    [FastHash] // note: becomes hyphenated
+    [AsciiHash] // note: becomes hyphenated
     internal static partial class xgroup_setid
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class xsetid
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class xtrim
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class zadd
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class zdiffstore
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class zinterstore
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class zunionstore
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class zincr
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class zrembyrank
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class zrembyscore
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class zrem
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class expired
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class evicted
     {
     }
 
-    [FastHash("new")]
+    [AsciiHash("new")]
     internal static partial class _new // it isn't worth making the code-gen keyword aware
     {
     }
 
-    [FastHash]
+    [AsciiHash]
     internal static partial class overwritten
     {
     }
 
-    [FastHash("type_changed")] // by default, the generator interprets underscore as hyphen
+    [AsciiHash("type_changed")] // by default, the generator interprets underscore as hyphen
     internal static partial class type_changed
     {
     }

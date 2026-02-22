@@ -97,7 +97,7 @@ internal abstract partial class ResultProcessor
                     continue;
                 }
 
-                var hash = FastHash.HashCS(testBytes); // this still contains the key, even though we've advanced
+                var hash = AsciiHash.HashCS(testBytes); // this still contains the key, even though we've advanced
                 switch (hash)
                 {
                     case size.HashCS when size.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
@@ -117,7 +117,7 @@ internal abstract partial class ResultProcessor
                         testBytes = (len > stackBuffer.Length | reader.IsNull) ? default :
                             reader.TryGetSpan(out tmp) ? tmp : reader.Buffer(stackBuffer);
 
-                        hash = FastHash.HashCS(testBytes);
+                        hash = AsciiHash.HashCS(testBytes);
                         switch (hash)
                         {
                             case bin.HashCS when bin.IsCS(hash, testBytes):
@@ -150,15 +150,15 @@ internal abstract partial class ResultProcessor
 #pragma warning disable CS8981, SA1134, SA1300, SA1303, SA1502
         // ReSharper disable InconsistentNaming - to better represent expected literals
         // ReSharper disable IdentifierTypo
-        [FastHash] private static partial class bin { }
-        [FastHash] private static partial class f32 { }
-        [FastHash] private static partial class int8 { }
-        [FastHash] private static partial class size { }
-        [FastHash] private static partial class vset_uid { }
-        [FastHash] private static partial class max_level { }
-        [FastHash] private static partial class quant_type { }
-        [FastHash] private static partial class vector_dim { }
-        [FastHash] private static partial class hnsw_max_node_uid { }
+        [AsciiHash] private static partial class bin { }
+        [AsciiHash] private static partial class f32 { }
+        [AsciiHash] private static partial class int8 { }
+        [AsciiHash] private static partial class size { }
+        [AsciiHash] private static partial class vset_uid { }
+        [AsciiHash] private static partial class max_level { }
+        [AsciiHash] private static partial class quant_type { }
+        [AsciiHash] private static partial class vector_dim { }
+        [AsciiHash] private static partial class hnsw_max_node_uid { }
         // ReSharper restore InconsistentNaming
         // ReSharper restore IdentifierTypo
 #pragma warning restore CS8981, SA1134, SA1300, SA1303, SA1502

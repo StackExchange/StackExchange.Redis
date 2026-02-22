@@ -9,7 +9,7 @@ using RESPite;
 namespace StackExchange.Redis.Benchmarks;
 
 [ShortRunJob, MemoryDiagnoser]
-public class FastHashSwitch
+public class AsciiHashSwitch
 {
     // conclusion: it doesn't matter; switch on the hash or length is fine, just: remember to do the Is check
     // CS vs CI: CI misses are cheap, because of the hash fail; CI hits of values <= 8 characters are cheap if
@@ -76,7 +76,7 @@ public class FastHashSwitch
     public Field SwitchOnHash()
     {
         ReadOnlySpan<byte> span = _bytes;
-        var hash = FastHash.HashCS(span);
+        var hash = AsciiHash.HashCS(span);
         return hash switch
         {
             key.HashCS when key.IsCS(hash, span) => Field.key,
@@ -143,7 +143,7 @@ public class FastHashSwitch
     public Field SwitchOnLength()
     {
         ReadOnlySpan<byte> span = _bytes;
-        var hash = FastHash.HashCS(span);
+        var hash = AsciiHash.HashCS(span);
         return span.Length switch
         {
             key.Length when key.IsCS(hash, span) => Field.key,
@@ -178,7 +178,7 @@ public class FastHashSwitch
     public Field SwitchOnHash_CI()
     {
         ReadOnlySpan<byte> span = _bytes;
-        var hash = FastHash.HashCI(span);
+        var hash = AsciiHash.HashCI(span);
         return hash switch
         {
             key.HashCI when key.IsCI(hash, span) => Field.key,
@@ -213,7 +213,7 @@ public class FastHashSwitch
     public Field SwitchOnLength_CI()
     {
         ReadOnlySpan<byte> span = _bytes;
-        var hash = FastHash.HashCI(span);
+        var hash = AsciiHash.HashCI(span);
         return span.Length switch
         {
             key.Length when key.IsCI(hash, span) => Field.key,
@@ -248,30 +248,30 @@ public class FastHashSwitch
      we're using raw output from the code-gen, because BDN kinda hates the tooling, because
      of the complex build pipe; this is left for reference only
 
-    [FastHash] internal static partial class key { }
-    [FastHash] internal static partial class abc { }
-    [FastHash] internal static partial class port { }
-    [FastHash] internal static partial class test { }
-    [FastHash] internal static partial class tracking_active { }
-    [FastHash] internal static partial class sample_ratio { }
-    [FastHash] internal static partial class selected_slots { }
-    [FastHash] internal static partial class all_commands_all_slots_us { }
-    [FastHash] internal static partial class all_commands_selected_slots_us { }
-    [FastHash] internal static partial class sampled_command_selected_slots_us { }
-    [FastHash] internal static partial class sampled_commands_selected_slots_us { }
-    [FastHash] internal static partial class net_bytes_all_commands_all_slots { }
-    [FastHash] internal static partial class net_bytes_all_commands_selected_slots { }
-    [FastHash] internal static partial class net_bytes_sampled_commands_selected_slots { }
-    [FastHash] internal static partial class collection_start_time_unix_ms { }
-    [FastHash] internal static partial class collection_duration_ms { }
-    [FastHash] internal static partial class collection_duration_us { }
-    [FastHash] internal static partial class total_cpu_time_user_ms { }
-    [FastHash] internal static partial class total_cpu_time_user_us { }
-    [FastHash] internal static partial class total_cpu_time_sys_ms { }
-    [FastHash] internal static partial class total_cpu_time_sys_us { }
-    [FastHash] internal static partial class total_net_bytes { }
-    [FastHash] internal static partial class by_cpu_time_us { }
-    [FastHash] internal static partial class by_net_bytes { }
+    [AsciiHash] internal static partial class key { }
+    [AsciiHash] internal static partial class abc { }
+    [AsciiHash] internal static partial class port { }
+    [AsciiHash] internal static partial class test { }
+    [AsciiHash] internal static partial class tracking_active { }
+    [AsciiHash] internal static partial class sample_ratio { }
+    [AsciiHash] internal static partial class selected_slots { }
+    [AsciiHash] internal static partial class all_commands_all_slots_us { }
+    [AsciiHash] internal static partial class all_commands_selected_slots_us { }
+    [AsciiHash] internal static partial class sampled_command_selected_slots_us { }
+    [AsciiHash] internal static partial class sampled_commands_selected_slots_us { }
+    [AsciiHash] internal static partial class net_bytes_all_commands_all_slots { }
+    [AsciiHash] internal static partial class net_bytes_all_commands_selected_slots { }
+    [AsciiHash] internal static partial class net_bytes_sampled_commands_selected_slots { }
+    [AsciiHash] internal static partial class collection_start_time_unix_ms { }
+    [AsciiHash] internal static partial class collection_duration_ms { }
+    [AsciiHash] internal static partial class collection_duration_us { }
+    [AsciiHash] internal static partial class total_cpu_time_user_ms { }
+    [AsciiHash] internal static partial class total_cpu_time_user_us { }
+    [AsciiHash] internal static partial class total_cpu_time_sys_ms { }
+    [AsciiHash] internal static partial class total_cpu_time_sys_us { }
+    [AsciiHash] internal static partial class total_net_bytes { }
+    [AsciiHash] internal static partial class by_cpu_time_us { }
+    [AsciiHash] internal static partial class by_net_bytes { }
     */
 
     static class key
@@ -282,7 +282,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "key"u8;
         public const string Text = "key";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.FastHash.HashCS(value) == HashCS || global::RESPite.FastHash.EqualsCI(value, U8));
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.AsciiHash.HashCS(value) == HashCS || global::RESPite.AsciiHash.EqualsCI(value, U8));
     }
     static class abc
     {
@@ -292,7 +292,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "abc"u8;
         public const string Text = "abc";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.FastHash.HashCS(value) == HashCS || global::RESPite.FastHash.EqualsCI(value, U8));
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.AsciiHash.HashCS(value) == HashCS || global::RESPite.AsciiHash.EqualsCI(value, U8));
     }
     static class port
     {
@@ -302,7 +302,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "port"u8;
         public const string Text = "port";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.FastHash.HashCS(value) == HashCS || global::RESPite.FastHash.EqualsCI(value, U8));
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.AsciiHash.HashCS(value) == HashCS || global::RESPite.AsciiHash.EqualsCI(value, U8));
     }
     static class test
     {
@@ -312,7 +312,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "test"u8;
         public const string Text = "test";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.FastHash.HashCS(value) == HashCS || global::RESPite.FastHash.EqualsCI(value, U8));
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.AsciiHash.HashCS(value) == HashCS || global::RESPite.AsciiHash.EqualsCI(value, U8));
     }
     static class tracking_active
     {
@@ -322,7 +322,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "tracking-active"u8;
         public const string Text = "tracking-active";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class sample_ratio
     {
@@ -332,7 +332,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "sample-ratio"u8;
         public const string Text = "sample-ratio";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class selected_slots
     {
@@ -342,7 +342,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "selected-slots"u8;
         public const string Text = "selected-slots";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class all_commands_all_slots_us
     {
@@ -352,7 +352,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "all-commands-all-slots-us"u8;
         public const string Text = "all-commands-all-slots-us";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class all_commands_selected_slots_us
     {
@@ -362,7 +362,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "all-commands-selected-slots-us"u8;
         public const string Text = "all-commands-selected-slots-us";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class sampled_command_selected_slots_us
     {
@@ -372,7 +372,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "sampled-command-selected-slots-us"u8;
         public const string Text = "sampled-command-selected-slots-us";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class sampled_commands_selected_slots_us
     {
@@ -382,7 +382,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "sampled-commands-selected-slots-us"u8;
         public const string Text = "sampled-commands-selected-slots-us";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class net_bytes_all_commands_all_slots
     {
@@ -392,7 +392,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "net-bytes-all-commands-all-slots"u8;
         public const string Text = "net-bytes-all-commands-all-slots";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class net_bytes_all_commands_selected_slots
     {
@@ -402,7 +402,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "net-bytes-all-commands-selected-slots"u8;
         public const string Text = "net-bytes-all-commands-selected-slots";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class net_bytes_sampled_commands_selected_slots
     {
@@ -412,7 +412,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "net-bytes-sampled-commands-selected-slots"u8;
         public const string Text = "net-bytes-sampled-commands-selected-slots";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class collection_start_time_unix_ms
     {
@@ -422,7 +422,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "collection-start-time-unix-ms"u8;
         public const string Text = "collection-start-time-unix-ms";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class collection_duration_ms
     {
@@ -432,7 +432,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "collection-duration-ms"u8;
         public const string Text = "collection-duration-ms";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class collection_duration_us
     {
@@ -442,7 +442,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "collection-duration-us"u8;
         public const string Text = "collection-duration-us";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class total_cpu_time_user_ms
     {
@@ -452,7 +452,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "total-cpu-time-user-ms"u8;
         public const string Text = "total-cpu-time-user-ms";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class total_cpu_time_user_us
     {
@@ -462,7 +462,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "total-cpu-time-user-us"u8;
         public const string Text = "total-cpu-time-user-us";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class total_cpu_time_sys_ms
     {
@@ -472,7 +472,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "total-cpu-time-sys-ms"u8;
         public const string Text = "total-cpu-time-sys-ms";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class total_cpu_time_sys_us
     {
@@ -482,7 +482,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "total-cpu-time-sys-us"u8;
         public const string Text = "total-cpu-time-sys-us";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class total_net_bytes
     {
@@ -492,7 +492,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "total-net-bytes"u8;
         public const string Text = "total-net-bytes";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class by_cpu_time_us
     {
@@ -502,7 +502,7 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "by-cpu-time-us"u8;
         public const string Text = "by-cpu-time-us";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
     static class by_net_bytes
     {
@@ -512,6 +512,6 @@ public class FastHashSwitch
         public static ReadOnlySpan<byte> U8 => "by-net-bytes"u8;
         public const string Text = "by-net-bytes";
         public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);
-        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.FastHash.EqualsCI(value, U8);
+        public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);
     }
 }

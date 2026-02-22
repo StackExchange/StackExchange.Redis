@@ -9,13 +9,13 @@ namespace StackExchange.Redis.Benchmarks;
 
 // [Config(typeof(CustomConfig))]
 [ShortRunJob, MemoryDiagnoser]
-public class FastHashBenchmarks
+public class AsciiHashBenchmarks
 {
     private const string SharedString = "some-typical-data-for-comparisons-that-needs-to-be-at-least-64-characters";
     private static readonly byte[] SharedUtf8;
     private static readonly ReadOnlySequence<byte> SharedMultiSegment;
 
-    static FastHashBenchmarks()
+    static AsciiHashBenchmarks()
     {
         SharedUtf8 = Encoding.UTF8.GetBytes(SharedString);
 
@@ -50,13 +50,13 @@ public class FastHashBenchmarks
         _sourceMultiSegmentBytes = SharedMultiSegment.Slice(0, Size);
 
         var bytes = _sourceBytes.Span;
-        var expected = FastHash.HashCS(bytes);
+        var expected = AsciiHash.HashCS(bytes);
 
-        Assert(FastHash.HashCS(bytes), nameof(FastHash.HashCS) + ":byte");
-        Assert(FastHash.HashCS(_sourceString.AsSpan()), nameof(FastHash.HashCS) + ":char");
+        Assert(AsciiHash.HashCS(bytes), nameof(AsciiHash.HashCS) + ":byte");
+        Assert(AsciiHash.HashCS(_sourceString.AsSpan()), nameof(AsciiHash.HashCS) + ":char");
 
-        Assert(FastHash.HashCS(SingleSegmentBytes), nameof(FastHash.HashCS) + " (single segment)");
-        Assert(FastHash.HashCS(_sourceMultiSegmentBytes), nameof(FastHash.HashCS) + " (multi segment)");
+        Assert(AsciiHash.HashCS(SingleSegmentBytes), nameof(AsciiHash.HashCS) + " (single segment)");
+        Assert(AsciiHash.HashCS(_sourceMultiSegmentBytes), nameof(AsciiHash.HashCS) + " (multi segment)");
 
         void Assert(long actual, string name)
         {
@@ -91,7 +91,7 @@ public class FastHashBenchmarks
         var val = _sourceBytes.Span;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = FastHash.HashCS(val);
+            _ = AsciiHash.HashCS(val);
         }
     }
 
@@ -103,7 +103,7 @@ public class FastHashBenchmarks
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
 #pragma warning disable CS0618 // Type or member is obsolete
-            _ = FastHash.HashCS(val);
+            _ = AsciiHash.HashCS(val);
 #pragma warning restore CS0618 // Type or member is obsolete
         }
     }
@@ -114,7 +114,7 @@ public class FastHashBenchmarks
         var val = SingleSegmentBytes;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = FastHash.HashCS(val);
+            _ = AsciiHash.HashCS(val);
         }
     }
 
@@ -124,7 +124,7 @@ public class FastHashBenchmarks
         var val = _sourceMultiSegmentBytes;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = FastHash.HashCS(val);
+            _ = AsciiHash.HashCS(val);
         }
     }
 }

@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\RESPite\Shared\FastHash.cs">
-      <Link>Shared/FastHash.cs</Link>
+    <Compile Include="..\..\src\RESPite\Shared\AsciiHash.cs">
+      <Link>Shared/AsciiHash.cs</Link>
     </Compile>
     <Compile Include="..\..\src\RESPite\Shared\Experiments.cs">
       <Link>Shared/Experiments.cs</Link>

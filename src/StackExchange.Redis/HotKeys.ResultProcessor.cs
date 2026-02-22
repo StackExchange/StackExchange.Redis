@@ -53,7 +53,7 @@ public sealed partial class HotKeysResult
                 continue;
             }
 
-            var hash = FastHash.HashCS(keyBytes);
+            var hash = AsciiHash.HashCS(keyBytes);
 
             // Move to value
             if (!reader.TryMoveNext()) break;
@@ -187,26 +187,26 @@ public sealed partial class HotKeysResult
 
 #pragma warning disable SA1134, SA1300
     // ReSharper disable InconsistentNaming
-    [FastHash] internal static partial class tracking_active { }
-    [FastHash] internal static partial class sample_ratio { }
-    [FastHash] internal static partial class selected_slots { }
-    [FastHash] internal static partial class all_commands_all_slots_us { }
-    [FastHash] internal static partial class all_commands_selected_slots_us { }
-    [FastHash] internal static partial class sampled_command_selected_slots_us { }
-    [FastHash] internal static partial class sampled_commands_selected_slots_us { }
-    [FastHash] internal static partial class net_bytes_all_commands_all_slots { }
-    [FastHash] internal static partial class net_bytes_all_commands_selected_slots { }
-    [FastHash] internal static partial class net_bytes_sampled_commands_selected_slots { }
-    [FastHash] internal static partial class collection_start_time_unix_ms { }
-    [FastHash] internal static partial class collection_duration_ms { }
-    [FastHash] internal static partial class collection_duration_us { }
-    [FastHash] internal static partial class total_cpu_time_user_ms { }
-    [FastHash] internal static partial class total_cpu_time_user_us { }
-    [FastHash] internal static partial class total_cpu_time_sys_ms { }
-    [FastHash] internal static partial class total_cpu_time_sys_us { }
-    [FastHash] internal static partial class total_net_bytes { }
-    [FastHash] internal static partial class by_cpu_time_us { }
-    [FastHash] internal static partial class by_net_bytes { }
+    [AsciiHash] internal static partial class tracking_active { }
+    [AsciiHash] internal static partial class sample_ratio { }
+    [AsciiHash] internal static partial class selected_slots { }
+    [AsciiHash] internal static partial class all_commands_all_slots_us { }
+    [AsciiHash] internal static partial class all_commands_selected_slots_us { }
+    [AsciiHash] internal static partial class sampled_command_selected_slots_us { }
+    [AsciiHash] internal static partial class sampled_commands_selected_slots_us { }
+    [AsciiHash] internal static partial class net_bytes_all_commands_all_slots { }
+    [AsciiHash] internal static partial class net_bytes_all_commands_selected_slots { }
+    [AsciiHash] internal static partial class net_bytes_sampled_commands_selected_slots { }
+    [AsciiHash] internal static partial class collection_start_time_unix_ms { }
+    [AsciiHash] internal static partial class collection_duration_ms { }
+    [AsciiHash] internal static partial class collection_duration_us { }
+    [AsciiHash] internal static partial class total_cpu_time_user_ms { }
+    [AsciiHash] internal static partial class total_cpu_time_user_us { }
+    [AsciiHash] internal static partial class total_cpu_time_sys_ms { }
+    [AsciiHash] internal static partial class total_cpu_time_sys_us { }
+    [AsciiHash] internal static partial class total_net_bytes { }
+    [AsciiHash] internal static partial class by_cpu_time_us { }
+    [AsciiHash] internal static partial class by_net_bytes { }
 
     // ReSharper restore InconsistentNaming
 #pragma warning restore SA1134, SA1300

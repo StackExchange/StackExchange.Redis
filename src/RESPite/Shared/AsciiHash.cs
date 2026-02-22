@@ -19,7 +19,7 @@ namespace RESPite;
     Inherited = false)]
 [Conditional("DEBUG")] // evaporate in release
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-public sealed class FastHashAttribute(string token = "") : Attribute
+public sealed class AsciiHashAttribute(string token = "") : Attribute
 {
     /// <summary>
     /// The token expected when parsing data, if different from the implied value. The implied
@@ -34,16 +34,16 @@ public sealed class FastHashAttribute(string token = "") : Attribute
 }
 
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-public readonly struct FastHash
+public readonly struct AsciiHash
 {
     private readonly long _hashCI;
     private readonly long _hashCS;
     private readonly ReadOnlyMemory<byte> _value;
     public int Length => _value.Length;
 
-    public FastHash(ReadOnlySpan<byte> value) : this((ReadOnlyMemory<byte>)value.ToArray()) { }
+    public AsciiHash(ReadOnlySpan<byte> value) : this((ReadOnlyMemory<byte>)value.ToArray()) { }
 
-    public FastHash(ReadOnlyMemory<byte> value)
+    public AsciiHash(ReadOnlyMemory<byte> value)
     {
         _value = value;
         var span = value.Span;

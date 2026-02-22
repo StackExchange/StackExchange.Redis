@@ -38,7 +38,7 @@ public readonly ref struct KeyNotification
         {
             // check that the prefix is valid, i.e. "__keyspace@" or "__keyevent@"
             var prefix = span.Slice(0, KeySpacePrefix.Length);
-            var hash = FastHash.HashCS(prefix);
+            var hash = AsciiHash.HashCS(prefix);
             switch (hash)
             {
                 case KeySpacePrefix.HashCS when KeySpacePrefix.IsCS(hash, prefix):
@@ -412,16 +412,16 @@ public readonly ref struct KeyNotification
             {
                 // then the channel contains the key, and the payload contains the event-type
                 var count = _value.GetByteCount();
-                if (count >= KeyNotificationTypeFastHash.MinBytes & count <= KeyNotificationTypeFastHash.MaxBytes)
+                if (count >= KeyNotificationTypeAsciiHash.MinBytes & count <= KeyNotificationTypeAsciiHash.MaxBytes)
                 {
                     if (_value.TryGetSpan(out var direct))
                     {
-                        return KeyNotificationTypeFastHash.Parse(direct);
+                        return KeyNotificationTypeAsciiHash.Parse(direct);
                     }
                     else
                     {
-                        Span<byte> localCopy = stackalloc byte[KeyNotificationTypeFastHash.MaxBytes];
-                        return KeyNotificationTypeFastHash.Parse(localCopy.Slice(0, _value.CopyTo(localCopy)));
+                        Span<byte> localCopy = stackalloc byte[KeyNotificationTypeAsciiHash.MaxBytes];
+                        return KeyNotificationTypeAsciiHash.Parse(localCopy.Slice(0, _value.CopyTo(localCopy)));
                     }
                 }
             }
@@ -429,7 +429,7 @@ public readonly ref struct KeyNotification
             if (IsKeyEvent)
             {
                 // then the channel contains the event-type, and the payload contains the key
-                return KeyNotificationTypeFastHash.Parse(ChannelSuffix);
+                return KeyNotificationTypeAsciiHash.Parse(ChannelSuffix);
             }
             return KeyNotificationType.Unknown;
         }
@@ -443,7 +443,7 @@ public readonly ref struct KeyNotification
         get
         {
             var span = _channel.Span;
-            return span.Length >= KeySpacePrefix.Length + MinSuffixBytes && KeySpacePrefix.IsCS(FastHash.HashCS(span), span.Slice(0, KeySpacePrefix.Length));
+            return span.Length >= KeySpacePrefix.Length + MinSuffixBytes && KeySpacePrefix.IsCS(AsciiHash.HashCS(span), span.Slice(0, KeySpacePrefix.Length));
         }
     }
 
@@ -455,7 +455,7 @@ public readonly ref struct KeyNotification
         get
         {
             var span = _channel.Span;
-            return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.IsCS(FastHash.HashCS(span), span.Slice(0, KeyEventPrefix.Length));
+            return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.IsCS(AsciiHash.HashCS(span), span.Slice(0, KeyEventPrefix.Length));
         }
     }
 
@@ -486,12 +486,12 @@ public readonly ref struct KeyNotification
 
 internal static partial class KeyNotificationChannels
 {
-    [FastHash("__keyspace@")]
+    [AsciiHash("__keyspace@")]
     internal static partial class KeySpacePrefix
     {
     }
 
-    [FastHash("__keyevent@")]
+    [AsciiHash("__keyevent@")]
     internal static partial class KeyEventPrefix
     {
     }

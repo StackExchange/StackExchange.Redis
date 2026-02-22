@@ -8,106 +8,106 @@ internal partial class ResultProcessor
     {
 #pragma warning disable CS8981, SA1300, SA1134 // forgive naming etc
         // ReSharper disable InconsistentNaming
-        [FastHash] internal static partial class NOAUTH { }
-        [FastHash] internal static partial class WRONGPASS { }
-        [FastHash] internal static partial class NOSCRIPT { }
-        [FastHash] internal static partial class MOVED { }
-        [FastHash] internal static partial class ASK { }
-        [FastHash] internal static partial class READONLY { }
-        [FastHash] internal static partial class LOADING { }
-        [FastHash("ERR operation not permitted")]
+        [AsciiHash] internal static partial class NOAUTH { }
+        [AsciiHash] internal static partial class WRONGPASS { }
+        [AsciiHash] internal static partial class NOSCRIPT { }
+        [AsciiHash] internal static partial class MOVED { }
+        [AsciiHash] internal static partial class ASK { }
+        [AsciiHash] internal static partial class READONLY { }
+        [AsciiHash] internal static partial class LOADING { }
+        [AsciiHash("ERR operation not permitted")]
         internal static partial class ERR_not_permitted { }
 
-        [FastHash] internal static partial class length { }
-        [FastHash] internal static partial class radix_tree_keys { }
-        [FastHash] internal static partial class radix_tree_nodes { }
-        [FastHash] internal static partial class last_generated_id { }
-        [FastHash] internal static partial class max_deleted_entry_id { }
-        [FastHash] internal static partial class entries_added { }
-        [FastHash] internal static partial class recorded_first_entry_id { }
-        [FastHash] internal static partial class idmp_duration { }
-        [FastHash] internal static partial class idmp_maxsize { }
-        [FastHash] internal static partial class pids_tracked { }
-        [FastHash] internal static partial class first_entry { }
-        [FastHash] internal static partial class last_entry { }
-        [FastHash] internal static partial class groups { }
-        [FastHash] internal static partial class iids_tracked { }
-        [FastHash] internal static partial class iids_added { }
-        [FastHash] internal static partial class iids_duplicates { }
+        [AsciiHash] internal static partial class length { }
+        [AsciiHash] internal static partial class radix_tree_keys { }
+        [AsciiHash] internal static partial class radix_tree_nodes { }
+        [AsciiHash] internal static partial class last_generated_id { }
+        [AsciiHash] internal static partial class max_deleted_entry_id { }
+        [AsciiHash] internal static partial class entries_added { }
+        [AsciiHash] internal static partial class recorded_first_entry_id { }
+        [AsciiHash] internal static partial class idmp_duration { }
+        [AsciiHash] internal static partial class idmp_maxsize { }
+        [AsciiHash] internal static partial class pids_tracked { }
+        [AsciiHash] internal static partial class first_entry { }
+        [AsciiHash] internal static partial class last_entry { }
+        [AsciiHash] internal static partial class groups { }
+        [AsciiHash] internal static partial class iids_tracked { }
+        [AsciiHash] internal static partial class iids_added { }
+        [AsciiHash] internal static partial class iids_duplicates { }
 
         // Role types
-        [FastHash] internal static partial class master { }
-        [FastHash] internal static partial class slave { }
-        [FastHash] internal static partial class replica { }
-        [FastHash] internal static partial class sentinel { }
-        [FastHash] internal static partial class primary { }
-        [FastHash] internal static partial class standalone { }
-        [FastHash] internal static partial class cluster { }
+        [AsciiHash] internal static partial class master { }
+        [AsciiHash] internal static partial class slave { }
+        [AsciiHash] internal static partial class replica { }
+        [AsciiHash] internal static partial class sentinel { }
+        [AsciiHash] internal static partial class primary { }
+        [AsciiHash] internal static partial class standalone { }
+        [AsciiHash] internal static partial class cluster { }
 
         // Config keys
-        [FastHash] internal static partial class timeout { }
-        [FastHash] internal static partial class databases { }
-        [FastHash("slave-read-only")] internal static partial class slave_read_only { }
-        [FastHash("replica-read-only")] internal static partial class replica_read_only { }
-        [FastHash] internal static partial class yes { }
-        [FastHash] internal static partial class no { }
+        [AsciiHash] internal static partial class timeout { }
+        [AsciiHash] internal static partial class databases { }
+        [AsciiHash("slave-read-only")] internal static partial class slave_read_only { }
+        [AsciiHash("replica-read-only")] internal static partial class replica_read_only { }
+        [AsciiHash] internal static partial class yes { }
+        [AsciiHash] internal static partial class no { }
 
         // HELLO keys
-        [FastHash] internal static partial class version { }
-        [FastHash] internal static partial class proto { }
-        [FastHash] internal static partial class id { }
-        [FastHash] internal static partial class mode { }
-        [FastHash] internal static partial class role { }
+        [AsciiHash] internal static partial class version { }
+        [AsciiHash] internal static partial class proto { }
+        [AsciiHash] internal static partial class id { }
+        [AsciiHash] internal static partial class mode { }
+        [AsciiHash] internal static partial class role { }
 
         // Replication states
-        [FastHash] internal static partial class connect { }
-        [FastHash] internal static partial class connecting { }
-        [FastHash] internal static partial class sync { }
-        [FastHash] internal static partial class connected { }
-        [FastHash] internal static partial class none { }
-        [FastHash] internal static partial class handshake { }
+        [AsciiHash] internal static partial class connect { }
+        [AsciiHash] internal static partial class connecting { }
+        [AsciiHash] internal static partial class sync { }
+        [AsciiHash] internal static partial class connected { }
+        [AsciiHash] internal static partial class none { }
+        [AsciiHash] internal static partial class handshake { }
 
         // Result processor literals
-        [FastHash]
+        [AsciiHash]
         internal static partial class OK
         {
-            public static readonly FastHash Hash = new(U8);
+            public static readonly AsciiHash Hash = new(U8);
         }
 
-        [FastHash]
+        [AsciiHash]
         internal static partial class PONG
         {
-            public static readonly FastHash Hash = new(U8);
+            public static readonly AsciiHash Hash = new(U8);
         }
 
-        [FastHash("Background saving started")]
+        [AsciiHash("Background saving started")]
         internal static partial class background_saving_started
         {
-            public static readonly FastHash Hash = new(U8);
+            public static readonly AsciiHash Hash = new(U8);
         }
 
-        [FastHash("Background append only file rewriting started")]
+        [AsciiHash("Background append only file rewriting started")]
         internal static partial class background_aof_rewriting_started
         {
-            public static readonly FastHash Hash = new(U8);
+            public static readonly AsciiHash Hash = new(U8);
         }
 
         // LCS processor literals
-        [FastHash] internal static partial class matches { }
-        [FastHash] internal static partial class len { }
+        [AsciiHash] internal static partial class matches { }
+        [AsciiHash] internal static partial class len { }
 
         // Sentinel processor literals
-        [FastHash] internal static partial class ip { }
-        [FastHash] internal static partial class port { }
+        [AsciiHash] internal static partial class ip { }
+        [AsciiHash] internal static partial class port { }
 
         // Stream info processor literals
-        [FastHash] internal static partial class name { }
-        [FastHash] internal static partial class pending { }
-        [FastHash] internal static partial class idle { }
-        [FastHash] internal static partial class consumers { }
-        [FastHash("last-delivered-id")] internal static partial class last_delivered_id { }
-        [FastHash("entries-read")] internal static partial class entries_read { }
-        [FastHash] internal static partial class lag { }
+        [AsciiHash] internal static partial class name { }
+        [AsciiHash] internal static partial class pending { }
+        [AsciiHash] internal static partial class idle { }
+        [AsciiHash] internal static partial class consumers { }
+        [AsciiHash("last-delivered-id")] internal static partial class last_delivered_id { }
+        [AsciiHash("entries-read")] internal static partial class entries_read { }
+        [AsciiHash] internal static partial class lag { }
         // ReSharper restore InconsistentNaming
 #pragma warning restore CS8981, SA1300, SA1134 // forgive naming etc
     }

@@ -1075,7 +1075,7 @@ namespace StackExchange.Redis
 
                         if (key.TryGetSpan(out var keySpan))
                         {
-                            var keyHash = FastHash.HashCS(keySpan);
+                            var keyHash = AsciiHash.HashCS(keySpan);
                             if (Literals.timeout.IsCS(keyHash, keySpan) && val.TryReadInt64(out long i64))
                             {
                                 // note the configuration is in seconds
@@ -1108,7 +1108,7 @@ namespace StackExchange.Redis
                             {
                                 if (val.TryGetSpan(out var valSpan))
                                 {
-                                    var valHash = FastHash.HashCS(valSpan);
+                                    var valHash = AsciiHash.HashCS(valSpan);
                                     if (Literals.yes.IsCS(valHash, valSpan))
                                     {
                                         server.ReplicaReadOnly = true;
@@ -1139,7 +1139,7 @@ namespace StackExchange.Redis
 
                         if (key.TryGetSpan(out var keySpan))
                         {
-                            var keyHash = FastHash.HashCS(keySpan);
+                            var keyHash = AsciiHash.HashCS(keySpan);
                             if (Literals.version.IsCS(keyHash, keySpan) && Format.TryParseVersion(val.ReadString(), out var version))
                             {
                                 server.Version = version;
@@ -1427,10 +1427,10 @@ namespace StackExchange.Redis
 
         private sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
         {
-            private readonly FastHash _expected;
+            private readonly AsciiHash _expected;
             private readonly bool _startsWith;
 
-            public ExpectBasicStringProcessor(in FastHash expected, bool startsWith = false)
+            public ExpectBasicStringProcessor(in AsciiHash expected, bool startsWith = false)
             {
                 _expected = expected;
                 _startsWith = startsWith;
@@ -1810,13 +1810,13 @@ namespace StackExchange.Redis
 
 #pragma warning disable SA1300, SA1134
         // ReSharper disable InconsistentNaming
-        [FastHash("string")] private static partial class redistype_string { }
-        [FastHash("list")] private static partial class redistype_list { }
-        [FastHash("set")] private static partial class redistype_set { }
-        [FastHash("zset")] private static partial class redistype_zset { }
-        [FastHash("hash")] private static partial class redistype_hash { }
-        [FastHash("stream")] private static partial class redistype_stream { }
-        [FastHash("vectorset")] private static partial class redistype_vectorset { }
+        [AsciiHash("string")] private static partial class redistype_string { }
+        [AsciiHash("list")] private static partial class redistype_list { }
+        [AsciiHash("set")] private static partial class redistype_set { }
+        [AsciiHash("zset")] private static partial class redistype_zset { }
+        [AsciiHash("hash")] private static partial class redistype_hash { }
+        [AsciiHash("stream")] private static partial class redistype_stream { }
+        [AsciiHash("vectorset")] private static partial class redistype_vectorset { }
         // ReSharper restore InconsistentNaming
 #pragma warning restore SA1300, SA1134
 
@@ -1827,7 +1827,7 @@ namespace StackExchange.Redis
                 static RedisType FastParse(ReadOnlySpan<byte> span)
                 {
                     if (span.IsEmpty) return Redis.RedisType.None; // includes null
-                    var hash = FastHash.HashCS(span);
+                    var hash = AsciiHash.HashCS(span);
                     return hash switch
                     {
                         redistype_string.HashCS when redistype_string.IsCS(hash, span) => Redis.RedisType.String,
@@ -2092,11 +2092,11 @@ The coordinates as a two items x,y array (longitude,latitude).
                     {
                         // Capture the scalar key
                         var keyBytes = iter.Value.TryGetSpan(out var tmp) ? tmp : iter.Value.Buffer(keyBuffer);
-                        var hash = FastHash.HashCS(keyBytes);
+                        var hash = AsciiHash.HashCS(keyBytes);
 
                         if (!iter.MoveNext()) break; // out of data
 
-                        // Use FastHash pattern to identify "matches" vs "len"
+                        // Use AsciiHash pattern to identify "matches" vs "len"
                         switch (hash)
                         {
                             case Literals.matches.HashCS when Literals.matches.IsCS(hash, keyBytes):
@@ -2202,7 +2202,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     ? span
                     : reader.Buffer(stackalloc byte[16]); // word-aligned, enough for longest role type
 
-                var hash = FastHash.HashCS(roleBytes);
+                var hash = AsciiHash.HashCS(roleBytes);
                 var role = hash switch
                 {
                     Literals.master.HashCS when Literals.master.IsCS(hash, roleBytes) => ParsePrimary(ref reader),
@@ -2311,7 +2311,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     ? span
                     : reader.Buffer(stackalloc byte[16]); // word-aligned, enough for longest state
 
-                var hash = FastHash.HashCS(stateBytes);
+                var hash = AsciiHash.HashCS(stateBytes);
                 var replicationState = hash switch
                 {
                     Literals.connect.HashCS when Literals.connect.IsCS(hash, stateBytes) => Literals.connect.Text,
@@ -2742,7 +2742,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         continue;
                     }
 
-                    var hash = FastHash.HashCS(keyBytes);
+                    var hash = AsciiHash.HashCS(keyBytes);
                     if (!reader.TryMoveNext()) break;
 
                     switch (hash)
@@ -2884,7 +2884,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         continue;
                     }
 
-                    var hash = FastHash.HashCS(keyBytes);
+                    var hash = AsciiHash.HashCS(keyBytes);
                     if (!reader.TryMoveNext()) break;
 
                     switch (hash)
@@ -2998,7 +2998,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         continue;
                     }
 
-                    var hash = FastHash.HashCS(keyBytes);
+                    var hash = AsciiHash.HashCS(keyBytes);
 
                     // Move to value
                     if (!reader.TryMoveNext()) break;
@@ -3589,7 +3589,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 {
                                     // Capture the scalar key
                                     var keyBytes = itemReader.TryGetSpan(out var tmp) ? tmp : itemReader.Buffer(keyBuffer);
-                                    var hash = FastHash.HashCS(keyBytes);
+                                    var hash = AsciiHash.HashCS(keyBytes);
 
                                     // Check for second scalar value
                                     if (!(itemReader.TryMoveNext() && itemReader.IsScalar)) break;
@@ -3649,7 +3649,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 {
                                     // Capture the scalar key
                                     var keyBytes = r.TryGetSpan(out var tmp) ? tmp : r.Buffer(keyBuffer);
-                                    var hash = FastHash.HashCS(keyBytes);
+                                    var hash = AsciiHash.HashCS(keyBytes);
 
                                     // Check for second scalar value
                                     if (!(r.TryMoveNext() && r.IsScalar)) break;
