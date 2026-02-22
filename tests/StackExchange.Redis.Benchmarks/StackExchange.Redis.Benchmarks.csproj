@@ -12,6 +12,6 @@
     <PackageReference Include="BenchmarkDotNet" />
     <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" />
     <!--<ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />-->
-    <!--<ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />-->
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
