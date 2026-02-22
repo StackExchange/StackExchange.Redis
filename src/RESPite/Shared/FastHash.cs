@@ -155,13 +155,41 @@ public readonly struct FastHash
         return len <= MaxBytesHashIsEqualityCS ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
     }
 
-    public static bool EqualsCI(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
+    public static unsafe bool EqualsCI(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
     {
-        throw new NotImplementedException();
-        // var len = first.Length;
-        // if (len != second.Length) return false;
-        // // for very short values, the CS hash performs CS equality
-        // return len <= MaxBytesHashIsEqualityCS ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
+        var len = first.Length;
+        if (len != second.Length) return false;
+        // for very short values, the CS hash performs CS equality; check that first
+        if (len <= MaxBytesHashIsEqualityCS && HashCS(first) == HashCS(second)) return true;
+
+        // OK, don't be clever (SIMD, etc); the purpose of FashHash is to compare RESP key tokens, which are
+        // typically relatively short, think 3-20 bytes. That wouldn't even touch a SIMD vector, so:
+        // just loop (the exact thing we'd need to do *anyway* in a SIMD implementation, to mop up the non-SIMD
+        // trailing bytes).
+        fixed (char* firstPtr = &MemoryMarshal.GetReference(first))
+        {
+            fixed (char* secondPtr = &MemoryMarshal.GetReference(second))
+            {
+                const int CS_MASK = ~0x20;
+                for (int i = 0; i < len; i++)
+                {
+                    byte x = (byte)firstPtr[i];
+                    var xCI = x & CS_MASK;
+                    if (xCI >= 'A' & xCI <= 'Z')
+                    {
+                        // alpha mismatch
+                        if (xCI != ((byte)secondPtr[i] & CS_MASK)) return false;
+                    }
+                    else if (x != (byte)secondPtr[i])
+                    {
+                        // non-alpha mismatch
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+        }
     }
 
     public static long HashCI(scoped ReadOnlySpan<byte> value)
