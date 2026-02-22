@@ -25,10 +25,20 @@ namespace StackExchange.Redis.Benchmarks
                 Console.WriteLine($"Value: {value}");
                 obj2.Value = value;
                 // obj2.Setup();
-                Console.WriteLine($"  Enum: {obj2.EnumParse_CS()}");
-                Console.WriteLine($"  Fast: {obj2.FastHash_CS()}");
+                Console.WriteLine($"  Enum:   {obj2.EnumParse_CS()}");
+                Console.WriteLine($"  Fast:   {obj2.FastHash_CS()}");
+                Console.WriteLine($"  Bytes:  {obj2.Bytes_CS()}");
+                Console.WriteLine($"  Switch: {obj2.Switch()}");
                 Console.WriteLine();
             }
+
+            /*
+            Console.WriteLine();
+            foreach (var val in Enum.GetValues<EnumParseBenchmarks.RedisCommand>())
+            {
+                Console.WriteLine($"\"{val}\" => RedisCommand.{val},");
+            }
+            */
 #else
             BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
 #endif
