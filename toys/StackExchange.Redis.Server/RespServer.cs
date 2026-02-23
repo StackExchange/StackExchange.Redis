@@ -62,9 +62,9 @@ namespace StackExchange.Redis.Server
                     parent = grp.Single();
                 }
 
-                if (RedisCommandParser.TryParse(grp.Key, out var command))
+                if (grp.Key != RedisCommand.UNKNOWN)
                 {
-                    result.Add(command, parent);
+                    result.Add(grp.Key, parent);
                 }
             }
             return result;
@@ -86,9 +86,9 @@ namespace StackExchange.Redis.Server
         [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
         protected sealed class RedisCommandAttribute : Attribute
         {
-            public RedisCommandAttribute(
+            internal RedisCommandAttribute(
                 int arity,
-                string command = null,
+                RedisCommand command = RedisCommand.UNKNOWN,
                 string subcommand = null)
             {
                 Command = command;
@@ -97,7 +97,7 @@ namespace StackExchange.Redis.Server
                 MaxArgs = Arity > 0 ? Arity : int.MaxValue;
             }
             public int MaxArgs { get; set; }
-            public string Command { get; }
+            internal RedisCommand Command { get; }
             public string SubCommand { get; }
             public int Arity { get; }
             public bool LockFree { get; set; }
@@ -109,16 +109,14 @@ namespace StackExchange.Redis.Server
             public RespCommand(RedisCommandAttribute attrib, MethodInfo method, RespServer server)
             {
                 _operation = (RespOperation)Delegate.CreateDelegate(typeof(RespOperation), server, method);
-                Command = (string.IsNullOrWhiteSpace(attrib.Command) ? method.Name : attrib.Command).Trim().ToLowerInvariant();
-                CommandBytes = new CommandBytes(Command);
+                Command = attrib.Command;
                 SubCommand = attrib.SubCommand?.Trim()?.ToLowerInvariant();
                 Arity = attrib.Arity;
                 MaxArgs = attrib.MaxArgs;
                 LockFree = attrib.LockFree;
                 _subcommands = null;
             }
-            private CommandBytes CommandBytes { get; }
-            public string Command { get; }
+            public RedisCommand Command { get; }
             public string SubCommand { get; }
             public bool IsSubCommand => !string.IsNullOrEmpty(SubCommand);
             public int Arity { get; }
@@ -137,7 +135,6 @@ namespace StackExchange.Redis.Server
                 if (subs == null || subs.Length == 0) throw new InvalidOperationException("Cannot add empty sub-commands");
 
                 Command = parent.Command;
-                CommandBytes = parent.CommandBytes;
                 SubCommand = parent.SubCommand;
                 Arity = parent.Arity;
                 MaxArgs = parent.MaxArgs;
@@ -464,7 +461,7 @@ namespace StackExchange.Redis.Server
             return results;
         }
 
-        [RedisCommand(-2, "command", "info", LockFree = true)]
+        [RedisCommand(-2, RedisCommand.COMMAND, "info", LockFree = true)]
         protected virtual TypedRedisValue CommandInfo(RedisClient client, RedisRequest request)
         {
             var results = TypedRedisValue.Rent(request.Count - 2, out var span);
@@ -480,7 +477,7 @@ namespace StackExchange.Redis.Server
         private TypedRedisValue CommandInfo(RespCommand command)
         {
             var arr = TypedRedisValue.Rent(6, out var span);
-            span[0] = TypedRedisValue.BulkString(command.Command);
+            span[0] = TypedRedisValue.BulkString(command.Command.ToString());
             span[1] = TypedRedisValue.Integer(command.NetArity());
             span[2] = TypedRedisValue.EmptyArray;
             span[3] = TypedRedisValue.Zero;

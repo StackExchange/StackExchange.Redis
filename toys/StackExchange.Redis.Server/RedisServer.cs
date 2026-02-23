@@ -88,18 +88,18 @@ namespace StackExchange.Redis.Server
 
         protected virtual bool Sismember(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
-        [RedisCommand(3, "client", "setname", LockFree = true)]
+        [RedisCommand(3, RedisCommand.CLIENT, "setname", LockFree = true)]
         protected virtual TypedRedisValue ClientSetname(RedisClient client, RedisRequest request)
         {
             client.Name = request.GetString(2);
             return TypedRedisValue.OK;
         }
 
-        [RedisCommand(2, "client", "getname", LockFree = true)]
+        [RedisCommand(2, RedisCommand.CLIENT, "getname", LockFree = true)]
         protected virtual TypedRedisValue ClientGetname(RedisClient client, RedisRequest request)
             => TypedRedisValue.BulkString(client.Name);
 
-        [RedisCommand(3, "client", "reply", LockFree = true)]
+        [RedisCommand(3, RedisCommand.CLIENT, "reply", LockFree = true)]
         protected virtual TypedRedisValue ClientReply(RedisClient client, RedisRequest request)
         {
             if (request.IsString(2, "on"u8)) client.SkipReplies = -1; // reply to nothing
@@ -212,7 +212,7 @@ namespace StackExchange.Redis.Server
                 return count;
             }
         }
-        [RedisCommand(3, "config", "get", LockFree = true)]
+        [RedisCommand(3, RedisCommand.CONFIG, "get", LockFree = true)]
         protected virtual TypedRedisValue Config(RedisClient client, RedisRequest request)
         {
             var pattern = request.GetString(2);
@@ -405,7 +405,7 @@ namespace StackExchange.Redis.Server
                     break;
             }
         }
-        [RedisCommand(2, "memory", "purge")]
+        [RedisCommand(2, RedisCommand.MEMORY, "purge")]
         protected virtual TypedRedisValue MemoryPurge(RedisClient client, RedisRequest request)
         {
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
