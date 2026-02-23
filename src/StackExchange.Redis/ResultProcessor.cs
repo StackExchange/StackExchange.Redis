@@ -1006,51 +1006,51 @@ namespace StackExchange.Redis
                     using (var stringReader = new StringReader(info))
                     {
                         while (stringReader.ReadLine() is string line)
-                                {
-                                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# "))
-                                    {
-                                        continue;
-                                    }
+                        {
+                            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# "))
+                            {
+                                continue;
+                            }
 
-                                    string? val;
-                                    if ((val = Extract(line, "role:")) != null)
-                                    {
-                                        roleSeen = true;
-                                        if (TryParseRole(val, out bool isReplica))
-                                        {
-                                            server.IsReplica = isReplica;
-                                            Log?.LogInformationAutoConfiguredInfoRole(new(server), isReplica ? "replica" : "primary");
-                                        }
-                                    }
-                                    else if ((val = Extract(line, "master_host:")) != null)
-                                    {
-                                        primaryHost = val;
-                                    }
-                                    else if ((val = Extract(line, "master_port:")) != null)
-                                    {
-                                        primaryPort = val;
-                                    }
-                                    else if ((val = Extract(line, "redis_version:")) != null)
-                                    {
-                                        if (Format.TryParseVersion(val, out Version? version))
-                                        {
-                                            server.Version = version;
-                                            Log?.LogInformationAutoConfiguredInfoVersion(new(server), version);
-                                        }
-                                    }
-                                    else if ((val = Extract(line, "redis_mode:")) != null)
-                                    {
-                                        if (TryParseServerType(val, out var serverType))
-                                        {
-                                            server.ServerType = serverType;
-                                            Log?.LogInformationAutoConfiguredInfoServerType(new(server), serverType);
-                                        }
-                                    }
-                                    else if ((val = Extract(line, "run_id:")) != null)
-                                    {
-                                        server.RunId = val;
-                                    }
+                            string? val;
+                            if ((val = Extract(line, "role:")) != null)
+                            {
+                                roleSeen = true;
+                                if (TryParseRole(val, out bool isReplica))
+                                {
+                                    server.IsReplica = isReplica;
+                                    Log?.LogInformationAutoConfiguredInfoRole(new(server), isReplica ? "replica" : "primary");
                                 }
+                            }
+                            else if ((val = Extract(line, "master_host:")) != null)
+                            {
+                                primaryHost = val;
+                            }
+                            else if ((val = Extract(line, "master_port:")) != null)
+                            {
+                                primaryPort = val;
+                            }
+                            else if ((val = Extract(line, "redis_version:")) != null)
+                            {
+                                if (Format.TryParseVersion(val, out Version? version))
+                                {
+                                    server.Version = version;
+                                    Log?.LogInformationAutoConfiguredInfoVersion(new(server), version);
+                                }
+                            }
+                            else if ((val = Extract(line, "redis_mode:")) != null)
+                            {
+                                if (TryParseServerType(val, out var serverType))
+                                {
+                                    server.ServerType = serverType;
+                                    Log?.LogInformationAutoConfiguredInfoServerType(new(server), serverType);
+                                }
+                            }
+                            else if ((val = Extract(line, "run_id:")) != null)
+                            {
+                                server.RunId = val;
+                            }
+                        }
                         if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))
                         {
                             // These are in the same section, if present
@@ -1073,18 +1073,27 @@ namespace StackExchange.Redis
                 // Handle CONFIG command (returns array of key-value pairs)
                 if (message?.Command == RedisCommand.CONFIG && reader.IsAggregate)
                 {
+                    // ReSharper disable once HeuristicUnreachableCode - this is a compile-time Max(...)
+                    const int BUFFER_BYTES = ConfigFieldMetadata.BufferBytes > YesNoMetadata.BufferBytes ? ConfigFieldMetadata.BufferBytes : YesNoMetadata.BufferBytes;
+
+                    Span<byte> buffer = stackalloc byte[BUFFER_BYTES];
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext())
                     {
                         var key = iter.Value;
+                        var keyBytes = key.TryGetSpan(out var tmp) ? tmp : key.Buffer(buffer);
+
+                        if (!ConfigFieldMetadata.TryParse(keyBytes, out var field))
+                        {
+                            field = ConfigField.Unknown;
+                        }
+
                         if (!iter.MoveNext()) break;
                         var val = iter.Value;
 
-                        if (key.TryGetSpan(out var keySpan))
+                        switch (field)
                         {
-                            var keyHash = AsciiHash.HashCS(keySpan);
-                            if (Literals.timeout.IsCS(keyHash, keySpan) && val.TryReadInt64(out long i64))
-                            {
+                            case ConfigField.Timeout when val.TryReadInt64(out long i64):
                                 // note the configuration is in seconds
                                 int timeoutSeconds = checked((int)i64), targetSeconds;
                                 if (timeoutSeconds > 0)
@@ -1100,34 +1109,34 @@ namespace StackExchange.Redis
                                     Log?.LogInformationAutoConfiguredConfigTimeout(new(server), targetSeconds);
                                     server.WriteEverySeconds = targetSeconds;
                                 }
-                            }
-                            else if (Literals.databases.IsCS(keyHash, keySpan) && val.TryReadInt64(out i64))
-                            {
-                                int dbCount = checked((int)i64);
+                                break;
+                            case ConfigField.Databases when val.TryReadInt64(out long dbI64):
+                                int dbCount = checked((int)dbI64);
                                 Log?.LogInformationAutoConfiguredConfigDatabases(new(server), dbCount);
                                 server.Databases = dbCount;
                                 if (dbCount > 1)
                                 {
                                     connection.MultiDatabasesOverride = true;
                                 }
-                            }
-                            else if (Literals.slave_read_only.IsCS(keyHash, keySpan) || Literals.replica_read_only.IsCS(keyHash, keySpan))
-                            {
-                                if (val.TryGetSpan(out var valSpan))
+                                break;
+                            case ConfigField.SlaveReadOnly:
+                            case ConfigField.ReplicaReadOnly:
+                                var valBytes = val.TryGetSpan(out tmp) ? tmp : val.Buffer(buffer);
+                                if (YesNoMetadata.TryParse(valBytes, out var yesNo))
                                 {
-                                    var valHash = AsciiHash.HashCS(valSpan);
-                                    if (Literals.yes.IsCS(valHash, valSpan))
+                                    switch (yesNo)
                                     {
-                                        server.ReplicaReadOnly = true;
-                                        Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), true);
-                                    }
-                                    else if (Literals.no.IsCS(valHash, valSpan))
-                                    {
-                                        server.ReplicaReadOnly = false;
-                                        Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), false);
+                                        case YesNo.Yes:
+                                            server.ReplicaReadOnly = true;
+                                            Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), true);
+                                            break;
+                                        case YesNo.No:
+                                            server.ReplicaReadOnly = false;
+                                            Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), false);
+                                            break;
                                     }
                                 }
-                            }
+                                break;
                         }
                     }
                     SetResult(message, true);
@@ -1137,41 +1146,43 @@ namespace StackExchange.Redis
                 // Handle HELLO command (returns array/map of key-value pairs)
                 if (message?.Command == RedisCommand.HELLO && reader.IsAggregate)
                 {
+                    Span<byte> keyBuffer = stackalloc byte[HelloFieldMetadata.BufferBytes];
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext())
                     {
                         var key = iter.Value;
+                        var keyBytes = key.TryGetSpan(out var tmp) ? tmp : key.Buffer(keyBuffer);
+
+                        if (!HelloFieldMetadata.TryParse(keyBytes, out var field))
+                        {
+                            field = HelloField.Unknown;
+                        }
+
                         if (!iter.MoveNext()) break;
                         var val = iter.Value;
 
-                        if (key.TryGetSpan(out var keySpan))
+                        switch (field)
                         {
-                            var keyHash = AsciiHash.HashCS(keySpan);
-                            if (Literals.version.IsCS(keyHash, keySpan) && Format.TryParseVersion(val.ReadString(), out var version))
-                            {
+                            case HelloField.Version when Format.TryParseVersion(val.ReadString(), out var version):
                                 server.Version = version;
                                 Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
-                            }
-                            else if (Literals.proto.IsCS(keyHash, keySpan) && val.TryReadInt64(out var i64))
-                            {
+                                break;
+                            case HelloField.Proto when val.TryReadInt64(out var i64):
                                 connection.SetProtocol(i64 >= 3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
                                 Log?.LogInformationAutoConfiguredHelloProtocol(new(server), connection.Protocol ?? RedisProtocol.Resp2);
-                            }
-                            else if (Literals.id.IsCS(keyHash, keySpan) && val.TryReadInt64(out i64))
-                            {
+                                break;
+                            case HelloField.Id when val.TryReadInt64(out var i64):
                                 connection.ConnectionId = i64;
                                 Log?.LogInformationAutoConfiguredHelloConnectionId(new(server), i64);
-                            }
-                            else if (Literals.mode.IsCS(keyHash, keySpan) && TryParseServerType(val.ReadString(), out var serverType))
-                            {
+                                break;
+                            case HelloField.Mode when TryParseServerType(val.ReadString(), out var serverType):
                                 server.ServerType = serverType;
                                 Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
-                            }
-                            else if (Literals.role.IsCS(keyHash, keySpan) && TryParseRole(val.ReadString(), out bool isReplica))
-                            {
+                                break;
+                            case HelloField.Role when TryParseRole(val.ReadString(), out bool isReplica):
                                 server.IsReplica = isReplica;
                                 Log?.LogInformationAutoConfiguredHelloRole(new(server), isReplica ? "replica" : "primary");
-                            }
+                                break;
                         }
                     }
                     SetResult(message, true);
@@ -2093,20 +2104,23 @@ The coordinates as a two items x,y array (longitude,latitude).
                     LCSMatchResult.LCSMatch[]? matchesArray = null;
                     long longestMatchLength = 0;
 
-                    Span<byte> keyBuffer = stackalloc byte[16]; // Buffer for key names
+                    Span<byte> keyBuffer = stackalloc byte[LCSFieldMetadata.BufferBytes];
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext() && iter.Value.IsScalar)
                     {
                         // Capture the scalar key
                         var keyBytes = iter.Value.TryGetSpan(out var tmp) ? tmp : iter.Value.Buffer(keyBuffer);
-                        var hash = AsciiHash.HashCS(keyBytes);
+
+                        if (!LCSFieldMetadata.TryParse(keyBytes, out var field))
+                        {
+                            field = LCSField.Unknown;
+                        }
 
                         if (!iter.MoveNext()) break; // out of data
 
-                        // Use AsciiHash pattern to identify "matches" vs "len"
-                        switch (hash)
+                        switch (field)
                         {
-                            case Literals.matches.HashCS when Literals.matches.IsCS(hash, keyBytes):
+                            case LCSField.Matches:
                                 // Read the matches array
                                 if (iter.Value.IsAggregate)
                                 {
@@ -2133,7 +2147,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 }
                                 break;
 
-                            case Literals.len.HashCS when Literals.len.IsCS(hash, keyBytes):
+                            case LCSField.Len:
                                 // Read the length value
                                 if (iter.Value.IsScalar)
                                 {
@@ -2207,15 +2221,19 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 ReadOnlySpan<byte> roleBytes = reader.TryGetSpan(out var span)
                     ? span
-                    : reader.Buffer(stackalloc byte[16]); // word-aligned, enough for longest role type
+                    : reader.Buffer(stackalloc byte[RoleTypeMetadata.BufferBytes]);
 
-                var hash = AsciiHash.HashCS(roleBytes);
-                var role = hash switch
+                if (!RoleTypeMetadata.TryParse(roleBytes, out var roleType))
                 {
-                    Literals.master.HashCS when Literals.master.IsCS(hash, roleBytes) => ParsePrimary(ref reader),
-                    Literals.slave.HashCS when Literals.slave.IsCS(hash, roleBytes) => ParseReplica(ref reader, Literals.slave.Text),
-                    Literals.replica.HashCS when Literals.replica.IsCS(hash, roleBytes) => ParseReplica(ref reader, Literals.replica.Text),
-                    Literals.sentinel.HashCS when Literals.sentinel.IsCS(hash, roleBytes) => ParseSentinel(ref reader),
+                    roleType = RoleType.Unknown;
+                }
+
+                var role = roleType switch
+                {
+                    RoleType.Master => ParsePrimary(ref reader),
+                    RoleType.Slave => ParseReplica(ref reader, "slave"),
+                    RoleType.Replica => ParseReplica(ref reader, "replica"),
+                    RoleType.Sentinel => ParseSentinel(ref reader),
                     _ => new Role.Unknown(reader.ReadString()!),
                 };
 
@@ -2316,17 +2334,21 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 ReadOnlySpan<byte> stateBytes = reader.TryGetSpan(out var span)
                     ? span
-                    : reader.Buffer(stackalloc byte[16]); // word-aligned, enough for longest state
+                    : reader.Buffer(stackalloc byte[ReplicationStateMetadata.BufferBytes]);
 
-                var hash = AsciiHash.HashCS(stateBytes);
-                var replicationState = hash switch
+                // this is just a long-winded way of avoiding some string allocs!
+                if (!ReplicationStateMetadata.TryParse(stateBytes, out var state))
                 {
-                    Literals.connect.HashCS when Literals.connect.IsCS(hash, stateBytes) => Literals.connect.Text,
-                    Literals.connecting.HashCS when Literals.connecting.IsCS(hash, stateBytes) => Literals.connecting.Text,
-                    Literals.sync.HashCS when Literals.sync.IsCS(hash, stateBytes) => Literals.sync.Text,
-                    Literals.connected.HashCS when Literals.connected.IsCS(hash, stateBytes) => Literals.connected.Text,
-                    Literals.none.HashCS when Literals.none.IsCS(hash, stateBytes) => Literals.none.Text,
-                    Literals.handshake.HashCS when Literals.handshake.IsCS(hash, stateBytes) => Literals.handshake.Text,
+                    state = ReplicationState.Unknown;
+                }
+                var replicationState = state switch
+                {
+                    ReplicationState.Connect => "connect",
+                    ReplicationState.Connecting => "connecting",
+                    ReplicationState.Sync => "sync",
+                    ReplicationState.Connected => "connected",
+                    ReplicationState.None => "none",
+                    ReplicationState.Handshake => "handshake",
                     _ => reader.ReadString()!,
                 };
 
@@ -2739,31 +2761,27 @@ The coordinates as a two items x,y array (longitude,latitude).
                 int pendingMessageCount = default;
                 long idleTimeInMilliseconds = default;
 
-                Span<byte> keyBuffer = stackalloc byte[CommandBytes.MaxLength];
+                Span<byte> keyBuffer = stackalloc byte[StreamConsumerInfoFieldMetadata.BufferBytes];
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
                     var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
-                    if (keyBytes.Length > CommandBytes.MaxLength)
+
+                    if (!StreamConsumerInfoFieldMetadata.TryParse(keyBytes, out var field))
                     {
-                        if (!reader.TryMoveNext()) break;
-                        continue;
+                        field = StreamConsumerInfoField.Unknown;
                     }
 
-                    var hash = AsciiHash.HashCS(keyBytes);
                     if (!reader.TryMoveNext()) break;
 
-                    switch (hash)
+                    switch (field)
                     {
-                        case Literals.name.HashCS when Literals.name.IsCS(hash, keyBytes):
+                        case StreamConsumerInfoField.Name:
                             name = reader.ReadString();
                             break;
-                        case Literals.pending.HashCS when Literals.pending.IsCS(hash, keyBytes):
-                            if (reader.TryReadInt64(out var pending))
-                            {
-                                pendingMessageCount = checked((int)pending);
-                            }
+                        case StreamConsumerInfoField.Pending when reader.TryReadInt64(out var pending):
+                            pendingMessageCount = checked((int)pending);
                             break;
-                        case Literals.idle.HashCS when Literals.idle.IsCS(hash, keyBytes):
+                        case StreamConsumerInfoField.Idle:
                             reader.TryReadInt64(out idleTimeInMilliseconds);
                             break;
                     }
@@ -2881,47 +2899,37 @@ The coordinates as a two items x,y array (longitude,latitude).
                 long entriesRead = default;
                 long? lag = default;
 
-                Span<byte> keyBuffer = stackalloc byte[CommandBytes.MaxLength];
+                Span<byte> keyBuffer = stackalloc byte[StreamGroupInfoFieldMetadata.BufferBytes];
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
                     var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
-                    if (keyBytes.Length > CommandBytes.MaxLength)
+
+                    if (!StreamGroupInfoFieldMetadata.TryParse(keyBytes, out var field))
                     {
-                        if (!reader.TryMoveNext()) break;
-                        continue;
+                        field = StreamGroupInfoField.Unknown;
                     }
 
-                    var hash = AsciiHash.HashCS(keyBytes);
                     if (!reader.TryMoveNext()) break;
 
-                    switch (hash)
+                    switch (field)
                     {
-                        case Literals.name.HashCS when Literals.name.IsCS(hash, keyBytes):
+                        case StreamGroupInfoField.Name:
                             name = reader.ReadString();
                             break;
-                        case Literals.consumers.HashCS when Literals.consumers.IsCS(hash, keyBytes):
-                            if (reader.TryReadInt64(out var consumers))
-                            {
-                                consumerCount = checked((int)consumers);
-                            }
+                        case StreamGroupInfoField.Consumers when reader.TryReadInt64(out var consumers):
+                            consumerCount = checked((int)consumers);
                             break;
-                        case Literals.pending.HashCS when Literals.pending.IsCS(hash, keyBytes):
-                            if (reader.TryReadInt64(out var pending))
-                            {
-                                pendingMessageCount = checked((int)pending);
-                            }
+                        case StreamGroupInfoField.Pending when reader.TryReadInt64(out var pending):
+                            pendingMessageCount = checked((int)pending);
                             break;
-                        case Literals.last_delivered_id.HashCS when Literals.last_delivered_id.IsCS(hash, keyBytes):
+                        case StreamGroupInfoField.LastDeliveredId:
                             lastDeliveredId = reader.ReadString();
                             break;
-                        case Literals.entries_read.HashCS when Literals.entries_read.IsCS(hash, keyBytes):
+                        case StreamGroupInfoField.EntriesRead:
                             reader.TryReadInt64(out entriesRead);
                             break;
-                        case Literals.lag.HashCS when Literals.lag.IsCS(hash, keyBytes):
-                            if (reader.TryReadInt64(out var lagValue))
-                            {
-                                lag = lagValue;
-                            }
+                        case StreamGroupInfoField.Lag when reader.TryReadInt64(out var lagValue):
+                            lag = lagValue;
                             break;
                     }
                 }
@@ -2993,73 +3001,68 @@ The coordinates as a two items x,y array (longitude,latitude).
                 StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
 
                 var protocol = connection.Protocol.GetValueOrDefault();
-                Span<byte> keyBuffer = stackalloc byte[CommandBytes.MaxLength];
+                Span<byte> keyBuffer = stackalloc byte[StreamInfoFieldMetadata.BufferBytes];
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
                     var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
-                    if (keyBytes.Length > CommandBytes.MaxLength)
-                    {
-                        // Skip this key-value pair
-                        if (!reader.TryMoveNext()) break;
-                        continue;
-                    }
 
-                    var hash = AsciiHash.HashCS(keyBytes);
+                    if (!StreamInfoFieldMetadata.TryParse(keyBytes, out var field))
+                    {
+                        field = StreamInfoField.Unknown;
+                    }
 
                     // Move to value
                     if (!reader.TryMoveNext()) break;
 
-                    switch (hash)
+                    switch (field)
                     {
-                        case Literals.length.HashCS when Literals.length.IsCS(hash, keyBytes):
+                        case StreamInfoField.Length:
                             if (!reader.TryReadInt64(out length)) return false;
                             break;
-                        case Literals.radix_tree_keys.HashCS when Literals.radix_tree_keys.IsCS(hash, keyBytes):
+                        case StreamInfoField.RadixTreeKeys:
                             if (!reader.TryReadInt64(out radixTreeKeys)) return false;
                             break;
-                        case Literals.radix_tree_nodes.HashCS when Literals.radix_tree_nodes.IsCS(hash, keyBytes):
+                        case StreamInfoField.RadixTreeNodes:
                             if (!reader.TryReadInt64(out radixTreeNodes)) return false;
                             break;
-                        case Literals.groups.HashCS when Literals.groups.IsCS(hash, keyBytes):
+                        case StreamInfoField.Groups:
                             if (!reader.TryReadInt64(out groups)) return false;
                             break;
-                        case Literals.last_generated_id.HashCS when Literals.last_generated_id.IsCS(hash, keyBytes):
+                        case StreamInfoField.LastGeneratedId:
                             lastGeneratedId = reader.ReadRedisValue();
                             break;
-                        case Literals.first_entry.HashCS when Literals.first_entry.IsCS(hash, keyBytes):
+                        case StreamInfoField.FirstEntry:
                             firstEntry = ParseRedisStreamEntry(ref reader, protocol);
                             break;
-                        case Literals.last_entry.HashCS when Literals.last_entry.IsCS(hash, keyBytes):
+                        case StreamInfoField.LastEntry:
                             lastEntry = ParseRedisStreamEntry(ref reader, protocol);
                             break;
-                        // 7.0
-                        case Literals.max_deleted_entry_id.HashCS when Literals.max_deleted_entry_id.IsCS(hash, keyBytes):
+                        case StreamInfoField.MaxDeletedEntryId:
                             maxDeletedEntryId = reader.ReadRedisValue();
                             break;
-                        case Literals.recorded_first_entry_id.HashCS when Literals.recorded_first_entry_id.IsCS(hash, keyBytes):
+                        case StreamInfoField.RecordedFirstEntryId:
                             recordedFirstEntryId = reader.ReadRedisValue();
                             break;
-                        case Literals.entries_added.HashCS when Literals.entries_added.IsCS(hash, keyBytes):
+                        case StreamInfoField.EntriesAdded:
                             if (!reader.TryReadInt64(out entriesAdded)) return false;
                             break;
-                        // 8.6
-                        case Literals.idmp_duration.HashCS when Literals.idmp_duration.IsCS(hash, keyBytes):
+                        case StreamInfoField.IdmpDuration:
                             if (!reader.TryReadInt64(out idmpDuration)) return false;
                             break;
-                        case Literals.idmp_maxsize.HashCS when Literals.idmp_maxsize.IsCS(hash, keyBytes):
+                        case StreamInfoField.IdmpMaxsize:
                             if (!reader.TryReadInt64(out idmpMaxsize)) return false;
                             break;
-                        case Literals.pids_tracked.HashCS when Literals.pids_tracked.IsCS(hash, keyBytes):
+                        case StreamInfoField.PidsTracked:
                             if (!reader.TryReadInt64(out pidsTracked)) return false;
                             break;
-                        case Literals.iids_tracked.HashCS when Literals.iids_tracked.IsCS(hash, keyBytes):
+                        case StreamInfoField.IidsTracked:
                             if (!reader.TryReadInt64(out iidsTracked)) return false;
                             break;
-                        case Literals.iids_added.HashCS when Literals.iids_added.IsCS(hash, keyBytes):
+                        case StreamInfoField.IidsAdded:
                             if (!reader.TryReadInt64(out iidsAdded)) return false;
                             break;
-                        case Literals.iids_duplicates.HashCS when Literals.iids_duplicates.IsCS(hash, keyBytes):
+                        case StreamInfoField.IidsDuplicates:
                             if (!reader.TryReadInt64(out iidsDuplicates)) return false;
                             break;
                     }
@@ -3591,24 +3594,27 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 string? host = null;
                                 long portValue = 0;
 
-                                Span<byte> keyBuffer = stackalloc byte[16]; // Buffer for key names
+                                Span<byte> buffer = stackalloc byte[SentinelAddressFieldMetadata.BufferBytes];
                                 while (itemReader.TryMoveNext() && itemReader.IsScalar)
                                 {
                                     // Capture the scalar key
-                                    var keyBytes = itemReader.TryGetSpan(out var tmp) ? tmp : itemReader.Buffer(keyBuffer);
-                                    var hash = AsciiHash.HashCS(keyBytes);
+                                    var keyBytes = itemReader.TryGetSpan(out var tmp) ? tmp : itemReader.Buffer(buffer);
+
+                                    if (!SentinelAddressFieldMetadata.TryParse(keyBytes, out var field))
+                                    {
+                                        field = SentinelAddressField.Unknown;
+                                    }
 
                                     // Check for second scalar value
                                     if (!(itemReader.TryMoveNext() && itemReader.IsScalar)) break;
 
-                                    // Use FastHash pattern to identify "ip" vs "port"
-                                    switch (hash)
+                                    switch (field)
                                     {
-                                        case Literals.ip.HashCS when Literals.ip.IsCS(hash, keyBytes):
+                                        case SentinelAddressField.Ip:
                                             host = itemReader.ReadString();
                                             break;
 
-                                        case Literals.port.HashCS when Literals.port.IsCS(hash, keyBytes):
+                                        case SentinelAddressField.Port:
                                             itemReader.TryReadInt64(out portValue);
                                             break;
                                     }
@@ -3651,24 +3657,27 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 string? host = null;
                                 long portValue = 0;
 
-                                Span<byte> keyBuffer = stackalloc byte[16]; // Buffer for key names
+                                Span<byte> buffer = stackalloc byte[SentinelAddressFieldMetadata.BufferBytes];
                                 while (r.TryMoveNext() && r.IsScalar)
                                 {
                                     // Capture the scalar key
-                                    var keyBytes = r.TryGetSpan(out var tmp) ? tmp : r.Buffer(keyBuffer);
-                                    var hash = AsciiHash.HashCS(keyBytes);
+                                    var keyBytes = r.TryGetSpan(out var tmp) ? tmp : r.Buffer(buffer);
+
+                                    if (!SentinelAddressFieldMetadata.TryParse(keyBytes, out var field))
+                                    {
+                                        field = SentinelAddressField.Unknown;
+                                    }
 
                                     // Check for second scalar value
                                     if (!(r.TryMoveNext() && r.IsScalar)) break;
 
-                                    // Use FastHash pattern to identify "ip" vs "port"
-                                    switch (hash)
+                                    switch (field)
                                     {
-                                        case Literals.ip.HashCS when Literals.ip.IsCS(hash, keyBytes):
+                                        case SentinelAddressField.Ip:
                                             host = r.ReadString();
                                             break;
 
-                                        case Literals.port.HashCS when Literals.port.IsCS(hash, keyBytes):
+                                        case SentinelAddressField.Port:
                                             r.TryReadInt64(out portValue);
                                             break;
                                     }

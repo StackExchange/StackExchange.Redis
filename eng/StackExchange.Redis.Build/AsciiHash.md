@@ -4,9 +4,10 @@ Efficient matching of well-known short string tokens is a high-volume scenario, 
 
 The purpose of this generator is to efficiently interpret input tokens like `bin`, `f32`, etc - whether as byte or character data.
 
-There are three ways of using this tool:
+There are multiple ways of using this tool, with the main distinction being whether you are confirming a single
+token, or choosing between multiple tokens (in which case an `enum` is more appropriate):
 
-## Isolated literals
+## Isolated literals (part 1)
 
 When using individual tokens, a `static partial class` can be used to generate helpers:
 
@@ -62,6 +63,24 @@ Note that `switch` requires `const` values, hence why we use generated *types* r
 that emit an instance with the known values. Also, the `"..."u8` syntax emits a span which is awkward to store, but
 easy to return via a property.
 
+## Isolated literals (part 2)
+
+In some cases, you want to be able to say "match this value, only known at runtime". For this, note that `AsciiHash`
+is also a `struct` that you can create an instance of and supply to code; the best way to do this is *inside* your
+`partial class`:
+
+``` c#
+[AsciiHash]
+static partial class bin
+{
+    public static readonly AsciiHash Hash = new(U8);
+}
+```
+
+Now, `bin.Hash` can be supplied to a caller that takes an `AsciiHash` instance (commonly with `in` semantics),
+which then has *instance* methods for case-sensitive and case-insensitive matching; the instance already knows
+the target hash and payload values.
+
 ## Enum parsing (part 1)
 
 When identifying multiple values, an `enum` may be more convenient. Consider:
@@ -87,7 +106,22 @@ or
 public static partial bool TryParse(ReadOnlySpan<byte> value, out SomeEnum value, bool caseSensitive = true);
 ```
 
-Individual enum members can also be marked with `[AsciiHash("token value")]` to override the token payload.
+Individual enum members can also be marked with `[AsciiHash("token value")]` to override the token payload. If
+an enum member declares an empty explicit value (i.e. `[AsciiHash("")]`), then that member is ignored by the
+tool; this is useful for marking "unknown" or "invalid" enum values (commonly the first enum, which by
+convention has the value `0`):
+
+``` c#
+public enum SomeEnum
+{
+    [AsciiHash("")]
+    Unknown,
+    SomeRealValue,
+    [AsciiHash("another-real-value")]
+    AnotherRealValue,
+    // ...
+}
+```
 
 ## Enum parsing (part 2)
 

@@ -160,7 +160,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
         }
 
         string name = named.Name, value = GetRawValue(name, attrib);
-
+        if (string.IsNullOrWhiteSpace(value)) return default;
         return (ns, parentType, name, value);
     }
 
@@ -230,6 +230,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
             if (member is IFieldSymbol { IsStatic: true, IsConst: true } field)
             {
                 var rawValue = GetRawValue(field.Name, TryGetAsciiHashAttribute(member.GetAttributes()));
+                if (string.IsNullOrWhiteSpace(rawValue)) continue;
                 builder.Add((field.Name, rawValue));
                 int value = field.ConstantValue switch
                 {
