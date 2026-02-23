@@ -27,7 +27,7 @@ internal sealed partial class PhysicalConnection
     {
         var tail = _ioStream ?? Stream.Null;
         _readStatus = ReadStatus.Init;
-        RespScanState state = default;
+        _readState = default;
         _readBuffer = CycleBuffer.Create();
         try
         {
@@ -49,7 +49,7 @@ internal sealed partial class PhysicalConnection
                 _readStatus = ReadStatus.TryParseResult;
             }
             // another formatter glitch
-            while (CommitAndParseFrames(ref state, read));
+            while (CommitAndParseFrames(read));
 
             _readStatus = ReadStatus.ProcessBufferComplete;
 
@@ -77,6 +77,8 @@ internal sealed partial class PhysicalConnection
     private static byte[]? SharedNoLease;
 
     private CycleBuffer _readBuffer;
+    private RespScanState _readState = default;
+
     private long GetReadCommittedLength()
     {
         try
@@ -90,12 +92,13 @@ internal sealed partial class PhysicalConnection
         }
     }
 
-    private bool CommitAndParseFrames(ref RespScanState state, int bytesRead)
+    private bool CommitAndParseFrames(int bytesRead)
     {
         if (bytesRead <= 0)
         {
             return false;
         }
+        ref RespScanState state = ref _readState; // avoid a ton of ldarg0
 
         totalBytesReceived += bytesRead;
 #if PARSE_DETAIL

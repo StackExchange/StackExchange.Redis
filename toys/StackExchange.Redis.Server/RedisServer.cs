@@ -102,9 +102,9 @@ namespace StackExchange.Redis.Server
         [RedisCommand(3, "client", "reply", LockFree = true)]
         protected virtual TypedRedisValue ClientReply(RedisClient client, RedisRequest request)
         {
-            if (request.IsString(2, "on")) client.SkipReplies = -1; // reply to nothing
-            else if (request.IsString(2, "off")) client.SkipReplies = 0; // reply to everything
-            else if (request.IsString(2, "skip")) client.SkipReplies = 2; // this one, and the next one
+            if (request.IsString(2, "on"u8)) client.SkipReplies = -1; // reply to nothing
+            else if (request.IsString(2, "off"u8)) client.SkipReplies = 0; // reply to everything
+            else if (request.IsString(2, "skip"u8)) client.SkipReplies = 2; // this one, and the next one
             else return TypedRedisValue.Error("ERR syntax error");
             return TypedRedisValue.OK;
         }
@@ -477,7 +477,7 @@ namespace StackExchange.Redis.Server
         {
             var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span);
             int index = 0;
-            request.TryGetCommandBytes(0, out var cmd);
+            request.TryGetCommand(0, out var cmd);
             var cmdString = TypedRedisValue.BulkString(cmd.ToArray());
             var mode = cmd[0] == (byte)'p' ? RedisChannel.RedisChannelOptions.Pattern : RedisChannel.RedisChannelOptions.None;
             for (int i = 1; i < request.Count; i++)

@@ -36,7 +36,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns whether this value represents a null array.
         /// </summary>
-        public bool IsNullArray => Type == ResultType.Array && _value.DirectObject == null;
+        public bool IsNullArray => Type == ResultType.Array && _value.IsNull;
 
         private readonly RedisValue _value;
 

@@ -1,14 +1,13 @@
 ﻿using System;
+using System.Buffers;
+using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
 {
     public readonly ref struct RedisRequest
     {
-        // why ref? don't *really* need it, but: these things are "in flight"
-        // based on an open RawResult (which is just the detokenized ReadOnlySequence<byte>)
-        // so: using "ref" makes it clear that you can't expect to store these and have
-        // them keep working
-        private readonly RawResult _inner;
+        private readonly RespReader _rootReader;
 
         public int Count { get; }
 
@@ -22,43 +21,74 @@ namespace StackExchange.Redis.Server
 
         public TypedRedisValue UnknownSubcommandOrArgumentCount() => TypedRedisValue.Error($"ERR Unknown subcommand or wrong number of arguments for '{ToString()}'.");
 
-        public string GetString(int index)
-            => _inner[index].GetString();
+        public string GetString(int index) => GetReader(index).ReadString();
 
-        public bool IsString(int index, string value) // TODO: optimize
-            => string.Equals(value, _inner[index].GetString(), StringComparison.OrdinalIgnoreCase);
+        [Obsolete("Use IsString(int, ReadOnlySpan{byte}) instead.")]
+        public bool IsString(int index, string value)
+            => GetReader(index).Is(value);
+
+        public bool IsString(int index, ReadOnlySpan<byte> value)
+            => GetReader(index).Is(value);
 
         public override int GetHashCode() => throw new NotSupportedException();
-        internal RedisRequest(scoped in RawResult result)
+
+        /// <summary>
+        /// Get a reader initialized at the start of the payload.
+        /// </summary>
+        public RespReader GetReader() => _rootReader;
+
+        /// <summary>
+        /// Get a reader initialized at the start of the payload.
+        /// </summary>
+        private RespReader GetReader(int childIndex)
         {
-            _inner = result;
-            Count = result.ItemsCount;
+            if (childIndex < 0 || childIndex >= Count) Throw();
+            var reader = GetReader();
+            reader.MoveNextAggregate();
+            for (int i = 0; i < childIndex; i++)
+            {
+                reader.MoveNextScalar();
+            }
+            reader.MoveNextScalar();
+            return reader;
+
+            static void Throw() => throw new ArgumentOutOfRangeException(nameof(childIndex));
         }
 
-        public RedisValue GetValue(int index)
-            => _inner[index].AsRedisValue();
+        internal RedisRequest(scoped in RespReader reader)
+        {
+            _rootReader = reader;
+            var local = reader;
+            if (local.TryMoveNext(checkError: false) & local.IsAggregate)
+            {
+                Count = local.AggregateLength();
+            }
+        }
 
-        public int GetInt32(int index)
-            => (int)_inner[index].AsRedisValue();
+        internal RedisRequest(ReadOnlySpan<byte> payload) : this(new RespReader(payload)) { }
+        internal RedisRequest(in ReadOnlySequence<byte> payload) : this(new RespReader(payload)) { }
 
-        public long GetInt64(int index) => (long)_inner[index].AsRedisValue();
+        public RedisValue GetValue(int index) => GetReader(index).ReadRedisValue();
 
-        public RedisKey GetKey(int index) => _inner[index].AsRedisKey();
+        public int GetInt32(int index) => GetReader(index).ReadInt32();
+
+        public long GetInt64(int index) => GetReader(index).ReadInt64();
+
+        public RedisKey GetKey(int index) => GetReader(index).ReadRedisKey();
 
         internal RedisChannel GetChannel(int index, RedisChannel.RedisChannelOptions options)
-            => _inner[index].AsRedisChannel(null, options);
+            => throw new NotImplementedException();
 
-        internal bool TryGetCommandBytes(int i, out CommandBytes command)
-        {
-            var payload = _inner[i].Payload;
-            if (payload.Length > CommandBytes.MaxLength)
-            {
-                command = default;
-                return false;
-            }
+        internal bool TryGetCommand(int i, out RedisCommand command)
+            => GetReader(i).TryRead(RedisCommandParser.TryParse, out command);
+    }
 
-            command = payload.IsEmpty ? default : new CommandBytes(payload);
-            return true;
-        }
+    internal static partial class RedisCommandParser
+    {
+        [AsciiHash(CaseSensitive = false)]
+        public static partial bool TryParse(ReadOnlySpan<byte> value, out RedisCommand command);
+
+        [AsciiHash(CaseSensitive = false)]
+        public static partial bool TryParse(ReadOnlySpan<char> value, out RedisCommand command);
     }
 }
