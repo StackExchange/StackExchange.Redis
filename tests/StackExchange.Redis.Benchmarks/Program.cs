@@ -5,8 +5,16 @@ using RESPite;
 
 namespace StackExchange.Redis.Benchmarks
 {
-    internal static class Program
+    internal static partial class Program
     {
+        [AsciiHash("FooMagic")]
+        public enum Foo
+        {
+            A,
+            B,
+            C,
+        }
+
         private static void Main(string[] args)
         {
 #if DEBUG
