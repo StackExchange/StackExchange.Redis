@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial.Arenas;
 using RESPite.Messages;
 
 namespace StackExchange.Redis
