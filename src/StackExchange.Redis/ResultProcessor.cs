@@ -3451,25 +3451,35 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
 
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "Allocations (string.Concat vs. string.Format)")]
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 bool happy;
                 switch (message.Command)
                 {
                     case RedisCommand.ECHO:
-                        happy = result.Resp2TypeBulkString == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.BridgeCouldBeNull?.Multiplexer?.UniqueId));
+                        happy = reader.Prefix == RespPrefix.BulkString && (!establishConnection || reader.Is(connection.BridgeCouldBeNull?.Multiplexer?.UniqueId));
                         break;
                     case RedisCommand.PING:
                         // there are two different PINGs; "interactive" is a +PONG or +{your message},
                         // but subscriber returns a bulk-array of [ "pong", {your message} ]
-                        switch (result.Resp2TypeArray)
+                        Span<byte> buffer = stackalloc byte[8];
+                        switch (reader.Prefix)
                         {
-                            case ResultType.SimpleString:
-                                happy = result.IsEqual(CommonReplies.PONG);
+                            case RespPrefix.SimpleString:
+                                var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(buffer);
+                                happy = Literals.PONG.Hash.IsCI(span);
                                 break;
-                            case ResultType.Array when result.ItemsCount == 2:
-                                var items = result.GetItems();
-                                happy = items[0].IsEqual(CommonReplies.PONG) && items[1].Payload.IsEmpty;
+                            case RespPrefix.Array when reader.AggregateLengthIs(2):
+                                var iter = reader.AggregateChildren();
+                                if (iter.MoveNext() && iter.Value.IsScalar)
+                                {
+                                    var pongSpan = iter.Value.TryGetSpan(out var pongTmp) ? pongTmp : iter.Value.Buffer(buffer);
+                                    happy = Literals.PONG.Hash.IsCI(pongSpan) && iter.MoveNext() && iter.Value.IsScalar && iter.Value.ScalarIsEmpty();
+                                }
+                                else
+                                {
+                                    happy = false;
+                                }
                                 break;
                             default:
                                 happy = false;
@@ -3477,10 +3487,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                         }
                         break;
                     case RedisCommand.TIME:
-                        happy = result.Resp2TypeArray == ResultType.Array && result.ItemsCount == 2;
+                        happy = reader.Prefix == RespPrefix.Array && reader.AggregateLengthIs(2);
                         break;
                     case RedisCommand.EXISTS:
-                        happy = result.Resp2TypeBulkString == ResultType.Integer;
+                        happy = reader.Prefix == RespPrefix.Integer;
                         break;
                     default:
                         happy = false;
@@ -3500,7 +3510,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     connection.RecordConnectionFailed(
                         ConnectionFailureType.ProtocolFailure,
-                        new InvalidOperationException($"unexpected tracer reply to {message.Command}: {result.ToString()}"));
+                        new InvalidOperationException($"unexpected tracer reply to {message.Command}: {reader.GetOverview()}"));
                     return false;
                 }
             }
