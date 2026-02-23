@@ -15,7 +15,7 @@ namespace RESPite;
 /// </summary>
 /// <remarks>See HastHashGenerator.md for more information and intended usage.</remarks>
 [AttributeUsage(
-    AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Field,
+    AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Field | AttributeTargets.Enum,
     AllowMultiple = false,
     Inherited = false)]
 [Conditional("DEBUG")] // evaporate in release

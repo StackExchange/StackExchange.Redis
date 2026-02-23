@@ -4,7 +4,7 @@ Efficient matching of well-known short string tokens is a high-volume scenario, 
 
 The purpose of this generator is to efficiently interpret input tokens like `bin`, `f32`, etc - whether as byte or character data.
 
-There are two ways of using this tool:
+There are three ways of using this tool:
 
 ## Isolated literals
 
@@ -62,7 +62,7 @@ Note that `switch` requires `const` values, hence why we use generated *types* r
 that emit an instance with the known values. Also, the `"..."u8` syntax emits a span which is awkward to store, but
 easy to return via a property.
 
-## Enum parsing
+## Enum parsing (part 1)
 
 When identifying multiple values, an `enum` may be more convenient. Consider:
 
@@ -88,3 +88,44 @@ public static partial bool TryParse(ReadOnlySpan<byte> value, out SomeEnum value
 ```
 
 Individual enum members can also be marked with `[AsciiHash("token value")]` to override the token payload.
+
+## Enum parsing (part 2)
+
+The tool has an *additional* facility when it comes to enums; you generally don't want to have to hard-code
+things like buffer-lengths into your code, but when parsing an enum, you need to know how many bytes to read.
+
+The tool can generate a `static partial class` that contains the maximum length of any token in the enum, as well
+as the maximum length of any token in bytes (when encoded as UTF-8). For example:
+
+``` c#
+[AsciiHash("SomeTypeName")]
+public enum SomeEnum
+{
+    // ...
+}
+```
+
+This generates a class like the following:
+
+``` c#
+static partial class SomeTypeName
+{
+    public const int EnumCount = 48;
+    public const int MaxChars = 11;
+    public const int MaxBytes = 11; // as UTF8
+    public const int BufferBytes = 16;
+}
+```
+
+The last of these is probably the most useful - it allows an additional byte (to rule out false-positives),
+and rounds up to word-sizes, allowing for convenient stack-allocation - for example:
+
+``` c#
+var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[SomeTypeName.BufferBytes]);
+if (TryParse(span, out var value))
+{
+    // got a value
+}
+```
+
+which allows for very efficient parsing of well-known tokens.
