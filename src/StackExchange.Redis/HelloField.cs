@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Fields that can appear in a HELLO command response.
 /// </summary>
-[AsciiHash(nameof(HelloFieldMetadata))]
 internal enum HelloField
 {
     /// <summary>

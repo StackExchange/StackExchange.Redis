@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Fields that can appear in an XINFO CONSUMERS command response.
 /// </summary>
-[AsciiHash(nameof(StreamConsumerInfoFieldMetadata))]
 internal enum StreamConsumerInfoField
 {
     /// <summary>

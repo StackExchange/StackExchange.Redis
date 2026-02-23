@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Fields that can appear in a XINFO STREAM response.
 /// </summary>
-[AsciiHash(nameof(StreamInfoFieldMetadata))]
 internal enum StreamInfoField
 {
     /// <summary>
