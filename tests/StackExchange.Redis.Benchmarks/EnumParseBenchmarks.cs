@@ -19,7 +19,7 @@ public partial class EnumParseBenchmarks
         "~~~~",
         "get",
         "expireat",
-        "zremrangebyscore"
+        "zremrangebyscore",
     ];
 
     private byte[] _bytes = [];
@@ -67,7 +67,7 @@ public partial class EnumParseBenchmarks
 
     [BenchmarkCategory("Case sensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public RedisCommand AsciiHash_CS()
+    public RedisCommand Ascii_C_CS()
     {
         ReadOnlySpan<char> value = Value;
         RedisCommand r = default;
@@ -81,7 +81,7 @@ public partial class EnumParseBenchmarks
 
     [BenchmarkCategory("Case insensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public RedisCommand AsciiHash_CI()
+    public RedisCommand Ascii_C_CI()
     {
         ReadOnlySpan<char> value = Value;
         RedisCommand r = default;
@@ -95,7 +95,7 @@ public partial class EnumParseBenchmarks
 
     [BenchmarkCategory("Case sensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public RedisCommand Bytes_CS()
+    public RedisCommand Ascii_B_CS()
     {
         ReadOnlySpan<byte> value = _bytes;
         RedisCommand r = default;
@@ -109,7 +109,7 @@ public partial class EnumParseBenchmarks
 
     [BenchmarkCategory("Case insensitive")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public RedisCommand Bytes_CI()
+    public RedisCommand Ascii_B_CI()
     {
         ReadOnlySpan<byte> value = _bytes;
         RedisCommand r = default;
@@ -389,7 +389,13 @@ public partial class EnumParseBenchmarks
             "UNKNOWN" => RedisCommand.UNKNOWN,
             _ => (RedisCommand)(-1),
         };
-        return r != (RedisCommand)(-1);
+        if (r == (RedisCommand)(-1))
+        {
+            r = default;
+            return false;
+        }
+
+        return true;
     }
 
     [AsciiHash]
