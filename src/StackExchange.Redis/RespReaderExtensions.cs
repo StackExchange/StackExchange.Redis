@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial.Arenas;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;

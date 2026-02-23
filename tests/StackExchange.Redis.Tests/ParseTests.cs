@@ -5,7 +5,6 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial.Arenas;
 using StackExchange.Redis.Configuration;
 using Xunit;
 

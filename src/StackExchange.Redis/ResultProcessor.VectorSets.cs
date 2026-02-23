@@ -1,7 +1,6 @@
 ﻿// ReSharper disable once CheckNamespace
 
 using System;
-using Pipelines.Sockets.Unofficial.Arenas;
 using RESPite;
 using RESPite.Messages;
 

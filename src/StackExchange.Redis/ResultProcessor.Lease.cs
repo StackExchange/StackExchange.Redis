@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using Pipelines.Sockets.Unofficial.Arenas;
 using RESPite.Messages;
 
 // ReSharper disable once CheckNamespace
