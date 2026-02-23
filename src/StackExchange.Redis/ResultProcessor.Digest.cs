@@ -1,6 +1,4 @@
-﻿using System;
-using System.Buffers;
-using RESPite.Messages;
+﻿using RESPite.Messages;
 
 namespace StackExchange.Redis;
 
