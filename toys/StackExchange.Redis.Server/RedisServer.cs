@@ -478,26 +478,39 @@ namespace StackExchange.Redis.Server
             var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span);
             int index = 0;
             request.TryGetCommand(0, out var cmd);
-            var cmdString = TypedRedisValue.BulkString(cmd.ToArray());
-            var mode = cmd[0] == (byte)'p' ? RedisChannel.RedisChannelOptions.Pattern : RedisChannel.RedisChannelOptions.None;
+            var mode = cmd switch
+            {
+                RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE => RedisChannel.RedisChannelOptions.Pattern,
+                RedisCommand.SSUBSCRIBE or RedisCommand.SSUBSCRIBE => RedisChannel.RedisChannelOptions.Sharded,
+                _ => RedisChannel.RedisChannelOptions.None,
+            };
+            bool add = cmd is RedisCommand.SUBSCRIBE or RedisCommand.SSUBSCRIBE or RedisCommand.PSUBSCRIBE;
+
+            var msgKind = cmd switch
+            {
+                RedisCommand.SUBSCRIBE => "subscribe",
+                RedisCommand.PSUBSCRIBE => "psubscribe",
+                RedisCommand.SSUBSCRIBE => "ssubscribe",
+                RedisCommand.UNSUBSCRIBE => "unsubscribe",
+                RedisCommand.PUNSUBSCRIBE => "punsubscribe",
+                RedisCommand.SUNSUBSCRIBE => "sunsubscribe",
+                _ => "???",
+            };
+
             for (int i = 1; i < request.Count; i++)
             {
                 var channel = request.GetChannel(i, mode);
                 int count;
-                if (s_Subscribe.Equals(cmd))
+                if (add)
                 {
                     count = client.Subscribe(channel);
                 }
-                else if (s_Unsubscribe.Equals(cmd))
+                else
                 {
                     count = client.Unsubscribe(channel);
                 }
-                else
-                {
-                    reply.Recycle(index);
-                    return TypedRedisValue.Nil;
-                }
-                span[index++] = cmdString;
+
+                span[index++] = TypedRedisValue.BulkString(msgKind);
                 span[index++] = TypedRedisValue.BulkString((byte[])channel);
                 span[index++] = TypedRedisValue.Integer(count);
             }

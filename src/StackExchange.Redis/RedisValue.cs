@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Buffers.Text;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -424,6 +425,7 @@ namespace StackExchange.Redis
             MemoryManager,
             ByteArray,
             String,
+            Unknown,
         }
 
         internal StorageType Type
@@ -438,8 +440,41 @@ namespace StackExchange.Redis
                 if (obj is byte[]) return StorageType.ByteArray;
                 if (obj == Sentinel_UnsignedInteger) return StorageType.UInt64;
                 if (obj is MemoryManager<byte>) return StorageType.MemoryManager;
-                throw new InvalidOperationException("Unknown type");
+                return StorageType.Unknown;
             }
+        }
+
+        // used in the toy server only!
+        internal static RedisValue CreateForeign<T>(T value, int index, int length) where T : class
+        {
+            if (typeof(T) == typeof(string) || typeof(T) == typeof(byte[])) Throw();
+            return new RedisValue(value, index, length);
+            static void Throw() => throw new InvalidOperationException();
+        }
+
+        private RedisValue(object obj, int index, int length)
+        {
+            Unsafe.SkipInit(out this);
+            _index = index;
+            _length = length;
+            _obj = obj;
+        }
+
+        // used in the toy server only!
+        internal bool TryGetForeign<T>([NotNullWhen(true)] out T? value, out int index, out int length)
+            where T : class
+        {
+            if (typeof(T) != typeof(string) && typeof(T) != typeof(byte[]) && _obj is T found)
+            {
+                index = _index;
+                length = _length;
+                value = found;
+                return true;
+            }
+            value = null;
+            index = 0;
+            length = 0;
+            return false;
         }
 
         /// <summary>
