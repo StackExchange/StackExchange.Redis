@@ -5935,27 +5935,23 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                switch (result.Resp2TypeBulkString)
+                if (reader.IsScalar)
                 {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        RedisValue value = result.AsRedisValue();
-                        if (message is StringGetWithExpiryMessage sgwem && sgwem.UnwrapValue(out var expiry, out var ex))
+                    RedisValue value = reader.ReadRedisValue();
+                    if (message is StringGetWithExpiryMessage sgwem && sgwem.UnwrapValue(out var expiry, out var ex))
+                    {
+                        if (ex == null)
                         {
-                            if (ex == null)
-                            {
-                                SetResult(message, new RedisValueWithExpiry(value, expiry));
-                            }
-                            else
-                            {
-                                SetException(message, ex);
-                            }
-                            return true;
+                            SetResult(message, new RedisValueWithExpiry(value, expiry));
                         }
-                        break;
+                        else
+                        {
+                            SetException(message, ex);
+                        }
+                        return true;
+                    }
                 }
                 return false;
             }

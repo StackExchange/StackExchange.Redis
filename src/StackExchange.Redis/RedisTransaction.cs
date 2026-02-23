@@ -203,16 +203,21 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeBulkString == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
+                if (reader.Prefix == RespPrefix.SimpleString && reader.IsScalar)
                 {
-                    if (message is QueuedMessage q)
+                    Span<byte> buffer = stackalloc byte[8];
+                    var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(buffer);
+                    if (span.SequenceEqual("QUEUED"u8))
                     {
-                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
-                        q.WasQueued = true;
+                        if (message is QueuedMessage q)
+                        {
+                            connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
+                            q.WasQueued = true;
+                        }
+                        return true;
                     }
-                    return true;
                 }
                 return false;
             }

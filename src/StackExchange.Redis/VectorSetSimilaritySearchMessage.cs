@@ -1,4 +1,5 @@
 using System;
+using RESPite.Messages;
 
 namespace StackExchange.Redis;
 
@@ -87,11 +88,11 @@ internal abstract class VectorSetSimilaritySearchMessage(
         public static readonly VectorSetSimilaritySearchProcessor Instance = new();
         private VectorSetSimilaritySearchProcessor() { }
 
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (result.Resp2TypeArray == ResultType.Array && message is VectorSetSimilaritySearchMessage vssm)
+            if (reader.IsAggregate && message is VectorSetSimilaritySearchMessage vssm)
             {
-                if (result.IsNull)
+                if (reader.IsNull)
                 {
                     SetResult(message, null);
                     return true;
@@ -107,39 +108,40 @@ internal abstract class VectorSetSimilaritySearchMessage(
                     ? 2
                     : 1 + ((withScores ? 1 : 0) + (withAttribs ? 1 : 0)); // each value is separate root element
 
-                var items = result.GetItems();
-                var length = checked((int)items.Length) / rowsPerItem;
+                int totalItems = reader.AggregateLength();
+                var length = totalItems / rowsPerItem;
                 var lease = Lease<VectorSetSimilaritySearchResult>.Create(length, clear: false);
                 var target = lease.Span;
                 int count = 0;
-                var iter = items.GetEnumerator();
+                var iter = reader.AggregateChildren();
                 for (int i = 0; i < target.Length && iter.MoveNext(); i++)
                 {
-                    var member = iter.Current.AsRedisValue();
+                    var member = iter.Value.ReadRedisValue();
                     double score = double.NaN;
                     string? attributesJson = null;
 
                     if (internalNesting)
                     {
-                        if (!iter.MoveNext() || iter.Current.Resp2TypeArray != ResultType.Array) break;
-                        if (!iter.Current.IsNull)
+                        if (!iter.MoveNext() || !iter.Value.IsAggregate) break;
+                        if (!iter.Value.IsNull)
                         {
-                            var subArray = iter.Current.GetItems();
-                            if (subArray.Length >= 1 && !subArray[0].TryGetDouble(out score)) break;
-                            if (subArray.Length >= 2) attributesJson = subArray[1].GetString();
+                            int subLength = iter.Value.AggregateLength();
+                            var subIter = iter.Value.AggregateChildren();
+                            if (subLength >= 1 && subIter.MoveNext() && !subIter.Value.TryReadDouble(out score)) break;
+                            if (subLength >= 2 && subIter.MoveNext()) attributesJson = subIter.Value.ReadString();
                         }
                     }
                     else
                     {
                         if (withScores)
                         {
-                            if (!iter.MoveNext() || !iter.Current.TryGetDouble(out score)) break;
+                            if (!iter.MoveNext() || !iter.Value.TryReadDouble(out score)) break;
                         }
 
                         if (withAttribs)
                         {
                             if (!iter.MoveNext()) break;
-                            attributesJson = iter.Current.GetString();
+                            attributesJson = iter.Value.ReadString();
                         }
                     }
 
