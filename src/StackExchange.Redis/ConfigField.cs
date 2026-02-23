@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Fields that can appear in a CONFIG GET command response.
 /// </summary>
-[AsciiHash(nameof(ConfigFieldMetadata))]
 internal enum ConfigField
 {
     /// <summary>

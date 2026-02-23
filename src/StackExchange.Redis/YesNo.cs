@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Yes/No values in Redis responses.
 /// </summary>
-[AsciiHash(nameof(YesNoMetadata))]
 internal enum YesNo
 {
     /// <summary>

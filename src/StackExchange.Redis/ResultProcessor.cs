@@ -1067,16 +1067,11 @@ namespace StackExchange.Redis
                 if (message?.Command == RedisCommand.CONFIG && reader.IsAggregate)
                 {
                     // ReSharper disable once HeuristicUnreachableCode - this is a compile-time Max(...)
-                    const int BUFFER_BYTES = ConfigFieldMetadata.BufferBytes > YesNoMetadata.BufferBytes ? ConfigFieldMetadata.BufferBytes : YesNoMetadata.BufferBytes;
-
-                    Span<byte> buffer = stackalloc byte[BUFFER_BYTES];
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext())
                     {
                         var key = iter.Value;
-                        var keyBytes = key.TryGetSpan(out var tmp) ? tmp : key.Buffer(buffer);
-
-                        if (!ConfigFieldMetadata.TryParse(keyBytes, out var field))
+                        if (!key.TryRead(ConfigFieldMetadata.TryParse, out ConfigField field))
                         {
                             field = ConfigField.Unknown;
                         }
@@ -1114,8 +1109,7 @@ namespace StackExchange.Redis
                                 break;
                             case ConfigField.SlaveReadOnly:
                             case ConfigField.ReplicaReadOnly:
-                                var valBytes = val.TryGetSpan(out tmp) ? tmp : val.Buffer(buffer);
-                                if (YesNoMetadata.TryParse(valBytes, out var yesNo))
+                                if (val.TryRead(YesNoMetadata.TryParse, out YesNo yesNo))
                                 {
                                     switch (yesNo)
                                     {
@@ -1139,14 +1133,11 @@ namespace StackExchange.Redis
                 // Handle HELLO command (returns array/map of key-value pairs)
                 if (message?.Command == RedisCommand.HELLO && reader.IsAggregate)
                 {
-                    Span<byte> keyBuffer = stackalloc byte[HelloFieldMetadata.BufferBytes];
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext())
                     {
                         var key = iter.Value;
-                        var keyBytes = key.TryGetSpan(out var tmp) ? tmp : key.Buffer(keyBuffer);
-
-                        if (!HelloFieldMetadata.TryParse(keyBytes, out var field))
+                        if (!key.TryRead(HelloFieldMetadata.TryParse, out HelloField field))
                         {
                             field = HelloField.Unknown;
                         }
@@ -1462,7 +1453,7 @@ namespace StackExchange.Redis
                     if (!reader.ScalarLengthIs(expectedLength)) return false;
                 }
 
-                var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[expectedLength]);
+                var bytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[_expected.BufferLength]);
                 if (_startsWith) bytes = bytes.Slice(0, expectedLength);
                 if (_expected.IsCS(bytes))
                 {
@@ -2097,14 +2088,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                     LCSMatchResult.LCSMatch[]? matchesArray = null;
                     long longestMatchLength = 0;
 
-                    Span<byte> keyBuffer = stackalloc byte[LCSFieldMetadata.BufferBytes];
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext() && iter.Value.IsScalar)
                     {
-                        // Capture the scalar key
-                        var keyBytes = iter.Value.TryGetSpan(out var tmp) ? tmp : iter.Value.Buffer(keyBuffer);
-
-                        if (!LCSFieldMetadata.TryParse(keyBytes, out var field))
+                        if (!iter.Value.TryRead(LCSFieldMetadata.TryParse, out LCSField field))
                         {
                             field = LCSField.Unknown;
                         }
@@ -2212,11 +2199,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return true;
                 }
 
-                ReadOnlySpan<byte> roleBytes = reader.TryGetSpan(out var span)
-                    ? span
-                    : reader.Buffer(stackalloc byte[RoleTypeMetadata.BufferBytes]);
-
-                if (!RoleTypeMetadata.TryParse(roleBytes, out var roleType))
+                if (!reader.TryRead(RoleTypeMetadata.TryParse, out RoleType roleType))
                 {
                     roleType = RoleType.Unknown;
                 }
@@ -2325,12 +2308,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return null;
                 }
 
-                ReadOnlySpan<byte> stateBytes = reader.TryGetSpan(out var span)
-                    ? span
-                    : reader.Buffer(stackalloc byte[ReplicationStateMetadata.BufferBytes]);
-
                 // this is just a long-winded way of avoiding some string allocs!
-                if (!ReplicationStateMetadata.TryParse(stateBytes, out var state))
+                if (!reader.TryRead(ReplicationStateMetadata.TryParse, out ReplicationState state))
                 {
                     state = ReplicationState.Unknown;
                 }
@@ -2754,12 +2733,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                 int pendingMessageCount = default;
                 long idleTimeInMilliseconds = default;
 
-                Span<byte> keyBuffer = stackalloc byte[StreamConsumerInfoFieldMetadata.BufferBytes];
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
-
-                    if (!StreamConsumerInfoFieldMetadata.TryParse(keyBytes, out var field))
+                    if (!reader.TryRead(StreamConsumerInfoFieldMetadata.TryParse, out StreamConsumerInfoField field))
                     {
                         field = StreamConsumerInfoField.Unknown;
                     }
@@ -2892,12 +2868,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                 long entriesRead = default;
                 long? lag = default;
 
-                Span<byte> keyBuffer = stackalloc byte[StreamGroupInfoFieldMetadata.BufferBytes];
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
-
-                    if (!StreamGroupInfoFieldMetadata.TryParse(keyBytes, out var field))
+                    if (!reader.TryRead(StreamGroupInfoFieldMetadata.TryParse, out StreamGroupInfoField field))
                     {
                         field = StreamGroupInfoField.Unknown;
                     }
@@ -2994,13 +2967,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
 
                 var protocol = connection.Protocol.GetValueOrDefault();
-                Span<byte> keyBuffer = stackalloc byte[StreamInfoFieldMetadata.BufferBytes];
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    var keyBytes = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(keyBuffer);
-
-                    if (!StreamInfoFieldMetadata.TryParse(keyBytes, out var field))
+                    if (!reader.TryRead(StreamInfoFieldMetadata.TryParse, out StreamInfoField field))
                     {
                         field = StreamInfoField.Unknown;
                     }
@@ -3597,13 +3567,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 string? host = null;
                                 long portValue = 0;
 
-                                Span<byte> buffer = stackalloc byte[SentinelAddressFieldMetadata.BufferBytes];
                                 while (itemReader.TryMoveNext() && itemReader.IsScalar)
                                 {
-                                    // Capture the scalar key
-                                    var keyBytes = itemReader.TryGetSpan(out var tmp) ? tmp : itemReader.Buffer(buffer);
-
-                                    if (!SentinelAddressFieldMetadata.TryParse(keyBytes, out var field))
+                                    if (!itemReader.TryRead(SentinelAddressFieldMetadata.TryParse, out SentinelAddressField field))
                                     {
                                         field = SentinelAddressField.Unknown;
                                     }
@@ -3660,13 +3626,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 string? host = null;
                                 long portValue = 0;
 
-                                Span<byte> buffer = stackalloc byte[SentinelAddressFieldMetadata.BufferBytes];
                                 while (r.TryMoveNext() && r.IsScalar)
                                 {
-                                    // Capture the scalar key
-                                    var keyBytes = r.TryGetSpan(out var tmp) ? tmp : r.Buffer(buffer);
-
-                                    if (!SentinelAddressFieldMetadata.TryParse(keyBytes, out var field))
+                                    if (!r.TryRead(SentinelAddressFieldMetadata.TryParse, out SentinelAddressField field))
                                     {
                                         field = SentinelAddressField.Unknown;
                                     }

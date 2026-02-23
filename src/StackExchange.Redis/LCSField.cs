@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Fields that can appear in an LCS (Longest Common Subsequence) command response.
 /// </summary>
-[AsciiHash(nameof(LCSFieldMetadata))]
 internal enum LCSField
 {
     /// <summary>

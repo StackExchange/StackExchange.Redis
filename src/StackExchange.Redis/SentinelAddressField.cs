@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Sentinel address field names.
 /// </summary>
-[AsciiHash(nameof(SentinelAddressFieldMetadata))]
 internal enum SentinelAddressField
 {
     /// <summary>

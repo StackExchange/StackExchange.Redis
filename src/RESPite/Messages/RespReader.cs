@@ -672,7 +672,7 @@ public ref partial struct RespReader
     /// Reads the current element using a general purpose text parser.
     /// </summary>
     /// <typeparam name="T">The type of data being parsed.</typeparam>
-    public readonly T ParseBytes<T>(Parser<byte, T> parser)
+    internal readonly T ParseBytes<T>(Parser<byte, T> parser)
     {
         byte[] pooled = [];
         var span = Buffer(ref pooled, stackalloc byte[256]);
@@ -691,13 +691,51 @@ public ref partial struct RespReader
     /// </summary>
     /// <typeparam name="T">The type of data being parsed.</typeparam>
     /// <typeparam name="TState">State required by the parser.</typeparam>
-    public readonly T ParseBytes<T, TState>(Parser<byte, TState, T> parser, TState? state)
+    internal readonly T ParseBytes<T, TState>(Parser<byte, TState, T> parser, TState? state)
     {
         byte[] pooled = [];
         var span = Buffer(ref pooled, stackalloc byte[256]);
         try
         {
             return parser(span, default);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(pooled);
+        }
+    }
+
+    /// <summary>
+    /// Tries to read the current scalar element using a parser callback.
+    /// </summary>
+    /// <typeparam name="T">The type of data being parsed.</typeparam>
+    /// <param name="parser">The parser callback.</param>
+    /// <param name="value">The parsed value if successful.</param>
+    /// <returns><c>true</c> if parsing succeeded; otherwise, <c>false</c>.</returns>
+#pragma warning disable RS0016, RS0027 // public API
+    [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly bool TryRead<T>(ScalarParser<byte, T> parser, out T value)
+#pragma warning restore RS0016, RS0027 // public API
+    {
+        // Fast path: try to get the span directly
+        if (TryGetSpan(out var span))
+        {
+            return parser(span, out value);
+        }
+
+        // Slow path: need to buffer the data
+        return TryReadSlow(parser, out value);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private readonly bool TryReadSlow<T>(ScalarParser<byte, T> parser, out T value)
+    {
+        byte[] pooled = [];
+        try
+        {
+            var span = Buffer(ref pooled, stackalloc byte[256]);
+            return parser(span, out value);
         }
         finally
         {
@@ -799,7 +837,7 @@ public ref partial struct RespReader
     /// Reads the current element using a general purpose byte parser.
     /// </summary>
     /// <typeparam name="T">The type of data being parsed.</typeparam>
-    public readonly T ParseChars<T>(Parser<char, T> parser)
+    internal readonly T ParseChars<T>(Parser<char, T> parser)
     {
         byte[] bArr = [];
         char[] cArr = [];
@@ -823,7 +861,7 @@ public ref partial struct RespReader
     /// </summary>
     /// <typeparam name="T">The type of data being parsed.</typeparam>
     /// <typeparam name="TState">State required by the parser.</typeparam>
-    public readonly T ParseChars<T, TState>(Parser<char, TState, T> parser, TState? state)
+    internal readonly T ParseChars<T, TState>(Parser<char, TState, T> parser, TState? state)
     {
         byte[] bArr = [];
         char[] cArr = [];
@@ -897,14 +935,23 @@ public ref partial struct RespReader
     /// <typeparam name="TSource">The type of source data being parsed.</typeparam>
     /// <typeparam name="TState">State required by the parser.</typeparam>
     /// <typeparam name="TValue">The output type of data being parsed.</typeparam>
-    public delegate TValue Parser<TSource, TState, TValue>(ReadOnlySpan<TSource> value, TState? state);
+    // is this needed?
+    internal delegate TValue Parser<TSource, TState, TValue>(scoped ReadOnlySpan<TSource> value, TState? state);
 
     /// <summary>
     /// General purpose parsing callback.
     /// </summary>
     /// <typeparam name="TSource">The type of source data being parsed.</typeparam>
     /// <typeparam name="TValue">The output type of data being parsed.</typeparam>
-    public delegate TValue Parser<TSource, TValue>(ReadOnlySpan<TSource> value);
+    // is this needed?
+    internal delegate TValue Parser<TSource, TValue>(scoped ReadOnlySpan<TSource> value);
+
+    /// <summary>
+    /// Scalar parsing callback that returns a boolean indicating success.
+    /// </summary>
+    /// <typeparam name="TSource">The type of source data being parsed.</typeparam>
+    /// <typeparam name="TValue">The output type of data being parsed.</typeparam>
+    public delegate bool ScalarParser<TSource, TValue>(scoped ReadOnlySpan<TSource> value, out TValue result);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RespReader"/> struct.

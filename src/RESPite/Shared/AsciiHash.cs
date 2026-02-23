@@ -42,6 +42,11 @@ public readonly struct AsciiHash
     private readonly ReadOnlyMemory<byte> _value;
     public int Length => _value.Length;
 
+    /// <summary>
+    /// The optimal buffer length (with padding) to use for this value.
+    /// </summary>
+    public int BufferLength => (Length + 1 + 7) & ~7; // an extra byte, then round up to word-size
+
     public AsciiHash(ReadOnlySpan<byte> value) : this((ReadOnlyMemory<byte>)value.ToArray()) { }
 
     public AsciiHash(ReadOnlyMemory<byte> value)
