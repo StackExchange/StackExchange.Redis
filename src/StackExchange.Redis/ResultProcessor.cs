@@ -354,40 +354,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        protected virtual bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
-        {
-            // spoof the old API from the new API; this is a transitional step only, and is inefficient
-            var rawResult = AsRaw(ref reader, connection.Protocol is RedisProtocol.Resp3);
-            return SetResultCore(connection, message, rawResult);
-        }
-
-        internal static RawResult AsRaw(ref RespReader reader, bool resp3)
-        {
-            var flags = RawResult.ResultFlags.HasValue;
-            if (!reader.IsNull) flags |= RawResult.ResultFlags.NonNull;
-            if (resp3) flags |= RawResult.ResultFlags.Resp3;
-            var type = reader.Prefix.ToResultType();
-            if (reader.IsAggregate)
-            {
-                var arr = reader.ReadPastArray(
-                    ref resp3,
-                    static (ref resp3, ref reader) => AsRaw(ref reader, resp3),
-                    scalar: false) ?? [];
-                return new RawResult(type, new Sequence<RawResult>(arr), flags);
-            }
-
-            if (reader.IsScalar)
-            {
-                ReadOnlySequence<byte> blob = new(reader.ReadByteArray() ?? []);
-                return new RawResult(type, blob, flags);
-            }
-
-            return default;
-        }
-
-        // temp hack so we can compile; this should be removed
-        protected virtual bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            => throw new NotImplementedException(GetType().Name + "." + nameof(SetResultCore));
+        protected abstract bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader);
 
         private void UnexpectedResponse(Message message, in RespReader reader)
         {
@@ -538,29 +505,6 @@ namespace StackExchange.Redis
 
         internal sealed class DemandZeroOrOneProcessor : ResultProcessor<bool>
         {
-            public static bool TryGet(in RawResult result, out bool value)
-            {
-                switch (result.Resp2TypeBulkString)
-                {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if (result.IsEqual(CommonReplies.one))
-                        {
-                            value = true;
-                            return true;
-                        }
-                        else if (result.IsEqual(CommonReplies.zero))
-                        {
-                            value = false;
-                            return true;
-                        }
-                        break;
-                }
-                value = false;
-                return false;
-            }
-
             public static bool TryGet(ref RespReader reader, out bool value)
             {
                 if (reader.IsScalar && reader.ScalarLengthIs(1))
@@ -697,9 +641,6 @@ namespace StackExchange.Redis
         {
             protected override SortedSetEntry Parse(ref RespReader first, ref RespReader second, object? state) =>
                 new SortedSetEntry(first.ReadRedisValue(), second.TryReadDouble(out double val) ? val : double.NaN);
-
-            protected override SortedSetEntry Parse(in RawResult first, in RawResult second, object? state) =>
-                new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out double val) ? val : double.NaN);
         }
 
         internal sealed class SortedSetPopResultProcessor : ResultProcessor<SortedSetPopResult>
@@ -786,9 +727,6 @@ namespace StackExchange.Redis
         {
             protected override HashEntry Parse(ref RespReader first, ref RespReader second, object? state) =>
                 new HashEntry(first.ReadRedisValue(), second.ReadRedisValue());
-
-            protected override HashEntry Parse(in RawResult first, in RawResult second, object? state) =>
-                new HashEntry(first.AsRedisValue(), second.AsRedisValue());
         }
 
         internal abstract class ValuePairInterleavedProcessorBase<T> : ResultProcessor<T[]>
@@ -878,65 +816,6 @@ namespace StackExchange.Redis
             }
 
             protected abstract T Parse(ref RespReader first, ref RespReader second, object? state);
-
-            // Old RawResult API - kept for backwards compatibility with code not yet migrated
-            protected abstract T Parse(in RawResult first, in RawResult second, object? state);
-
-            public T[]? ParseArray(in RawResult result, bool allowOversized, out int count, object? state)
-            {
-                if (result.IsNull)
-                {
-                    count = 0;
-                    return null;
-                }
-
-                var items = result.GetItems();
-                count = checked((int)items.Length);
-                if (count == 0)
-                {
-                    return [];
-                }
-
-                // Check if we have jagged pairs (RESP3 style) or interleaved (RESP2 style)
-                bool isJagged = result.Resp3Type == ResultType.Array && AllowJaggedPairs && IsAllJaggedPairs(result);
-
-                if (isJagged)
-                {
-                    // Jagged format: [[k1, v1], [k2, v2], ...]
-                    var pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
-                    for (int i = 0; i < count; i++)
-                    {
-                        ref readonly RawResult pair = ref items[i];
-                        var pairItems = pair.GetItems();
-                        pairs[i] = Parse(pairItems[0], pairItems[1], state);
-                    }
-                    return pairs;
-                }
-                else
-                {
-                    // Interleaved format: [k1, v1, k2, v2, ...]
-                    count >>= 1; // divide by 2
-                    var pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
-                    for (int i = 0; i < count; i++)
-                    {
-                        pairs[i] = Parse(items[(i * 2) + 0], items[(i * 2) + 1], state);
-                    }
-                    return pairs;
-                }
-            }
-
-            private static bool IsAllJaggedPairs(in RawResult result)
-            {
-                var items = result.GetItems();
-                foreach (ref readonly var item in items)
-                {
-                    if (item.Resp2TypeArray != ResultType.Array || item.GetItems().Length != 2)
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
@@ -2596,14 +2475,6 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             protected override RedisStream Parse(ref RespReader first, ref RespReader second, object? state)
                 => throw new NotImplementedException("RedisStreamInterleavedProcessor.Parse(ref RespReader) should not be called - MultiStreamProcessor handles this directly");
-
-            protected override RedisStream Parse(in RawResult first, in RawResult second, object? state)
-            {
-                var processor = (MultiStreamProcessor)state!;
-                var key = first.AsRedisKey();
-                var entries = processor.ParseRedisStreamEntries(second);
-                return new RedisStream(key, entries);
-            }
         }
 
         /// <summary>
@@ -2779,58 +2650,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 Lag = "lag",
                 IP = "ip",
                 Port = "port";
-
-            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref long value)
-            {
-                var len = pairs.Length / 2;
-                for (int i = 0; i < len; i++)
-                {
-                    if (pairs[i * 2].IsEqual(key) && pairs[(i * 2) + 1].TryGetInt64(out var tmp))
-                    {
-                        value = tmp;
-                        return true;
-                    }
-                }
-                return false;
-            }
-            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref long? value)
-            {
-                var len = pairs.Length / 2;
-                for (int i = 0; i < len; i++)
-                {
-                    if (pairs[i * 2].IsEqual(key) && pairs[(i * 2) + 1].TryGetInt64(out var tmp))
-                    {
-                        value = tmp;
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
-            {
-                long tmp = default;
-                if (TryRead(pairs, key, ref tmp))
-                {
-                    value = checked((int)tmp);
-                    return true;
-                }
-                return false;
-            }
-
-            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, [NotNullWhen(true)] ref string? value)
-            {
-                var len = pairs.Length / 2;
-                for (int i = 0; i < len; i++)
-                {
-                    if (pairs[i * 2].IsEqual(key))
-                    {
-                        value = pairs[(i * 2) + 1].GetString()!;
-                        return true;
-                    }
-                }
-                return false;
-            }
         }
 
         internal sealed class StreamGroupInfoProcessor : InterleavedStreamInfoProcessorBase<StreamGroupInfo>
@@ -3202,9 +3021,6 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             protected override NameValueEntry Parse(ref RespReader first, ref RespReader second, object? state)
                 => new NameValueEntry(first.ReadRedisValue(), second.ReadRedisValue());
-
-            protected override NameValueEntry Parse(in RawResult first, in RawResult second, object? state)
-                => new NameValueEntry(first.AsRedisValue(), second.AsRedisValue());
         }
 
         /// <summary>
@@ -3213,36 +3029,6 @@ The coordinates as a two items x,y array (longitude,latitude).
         /// <typeparam name="T">The type of the stream result.</typeparam>
         internal abstract class StreamProcessorBase<T> : ResultProcessor<T>
         {
-            protected static StreamEntry ParseRedisStreamEntry(in RawResult item)
-            {
-                if (item.IsNull || item.Resp2TypeArray != ResultType.Array)
-                {
-                    return StreamEntry.Null;
-                }
-                // Process the Multibulk array for each entry. The entry contains the following elements:
-                //  [0] = SimpleString (the ID of the stream entry)
-                //  [1] = Multibulk array of the name/value pairs of the stream entry's data
-                // optional (XREADGROUP with CLAIM):
-                //  [2] = idle time (in milliseconds)
-                //  [3] = delivery count
-                var entryDetails = item.GetItems();
-
-                var id = entryDetails[0].AsRedisValue();
-                var values = ParseStreamEntryValues(entryDetails[1]);
-                // check for optional fields (XREADGROUP with CLAIM)
-                if (entryDetails.Length >= 4 && entryDetails[2].TryGetInt64(out var idleTimeInMs) && entryDetails[3].TryGetInt64(out var deliveryCount))
-                {
-                    return new StreamEntry(
-                        id: id,
-                        values: values,
-                        idleTime: TimeSpan.FromMilliseconds(idleTimeInMs),
-                        deliveryCount: checked((int)deliveryCount));
-                }
-                return new StreamEntry(
-                    id: id,
-                    values: values);
-            }
-
             protected static StreamEntry ParseRedisStreamEntry(ref RespReader reader, RedisProtocol protocol)
             {
                 if (!reader.IsAggregate || reader.IsNull)
@@ -3286,9 +3072,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                     id: id,
                     values: values);
             }
-            protected internal StreamEntry[] ParseRedisStreamEntries(in RawResult result) =>
-                result.GetItems().ToArray((in item, in _) => ParseRedisStreamEntry(item), this);
-
             protected internal StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
             {
                 if (!reader.IsAggregate || reader.IsNull)
@@ -3300,29 +3083,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                     ref protocol,
                     static (ref protocol, ref r) => ParseRedisStreamEntry(ref r, protocol),
                     scalar: false) ?? [];
-            }
-
-            protected static NameValueEntry[] ParseStreamEntryValues(in RawResult result)
-            {
-                // The XRANGE, XREVRANGE, XREAD commands return stream entries
-                // in the following format.  The name/value pairs are interleaved
-                // in the same fashion as the HGETALL response.
-                //
-                // 1) 1) 1518951480106-0
-                //    2) 1) "sensor-id"
-                //       2) "1234"
-                //       3) "temperature"
-                //       4) "19.8"
-                // 2) 1) 1518951482479-0
-                //    2) 1) "sensor-id"
-                //       2) "9999"
-                //       3) "temperature"
-                //       4) "18.2"
-                if (result.Resp2TypeArray != ResultType.Array || result.IsNull)
-                {
-                    return [];
-                }
-                return StreamNameValueEntryProcessor.Instance.ParseArray(result, false, out _, null)!; // ! because we checked null above
             }
 
             protected static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, RedisProtocol protocol)
@@ -3339,9 +3099,6 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override KeyValuePair<string, string> Parse(ref RespReader first, ref RespReader second, object? state) =>
                 new KeyValuePair<string, string>(first.ReadString()!, second.ReadString()!);
-
-            protected override KeyValuePair<string, string> Parse(in RawResult first, in RawResult second, object? state) =>
-                new KeyValuePair<string, string>(first.GetString()!, second.GetString()!);
         }
 
         private sealed class StringProcessor : ResultProcessor<string?>
