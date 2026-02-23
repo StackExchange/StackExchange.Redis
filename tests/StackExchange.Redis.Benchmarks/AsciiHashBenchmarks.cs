@@ -75,56 +75,71 @@ public class AsciiHashBenchmarks
     private const int OperationsPerInvoke = 1024;
 
     // [Benchmark(OperationsPerInvoke = OperationsPerInvoke, Baseline = true)]
-    public void StringGetHashCode()
+    public int StringGetHashCode()
     {
+        int hash = 0;
         var val = _sourceString;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = val.GetHashCode();
+            hash = val.GetHashCode();
         }
+
+        return hash;
     }
 
     [BenchmarkCategory("byte")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public void HashCS_B()
+    public long HashCS_B()
     {
+        long hash = 0;
         var val = _sourceBytes.Span;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = AsciiHash.HashCS(val);
+            hash = AsciiHash.HashCS(val);
         }
+
+        return hash;
     }
 
     [BenchmarkCategory("char")]
     [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public void HashCS_C()
+    public long HashCS_C()
     {
+        long hash = 0;
         var val = _sourceString.AsSpan();
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
 #pragma warning disable CS0618 // Type or member is obsolete
-            _ = AsciiHash.HashCS(val);
+            hash = AsciiHash.HashCS(val);
 #pragma warning restore CS0618 // Type or member is obsolete
         }
+
+        return hash;
     }
 
     // [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public void Hash64_SingleSegment()
+    public long Hash64_SingleSegment()
     {
+        long hash = 0;
         var val = SingleSegmentBytes;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = AsciiHash.HashCS(val);
+            hash = AsciiHash.HashCS(val);
         }
+
+        return hash;
     }
 
     // [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-    public void Hash64_MultiSegment()
+    public long Hash64_MultiSegment()
     {
+        long hash = 0;
         var val = _sourceMultiSegmentBytes;
         for (int i = 0; i < OperationsPerInvoke; i++)
         {
-            _ = AsciiHash.HashCS(val);
+            hash = AsciiHash.HashCS(val);
         }
+
+        return hash;
     }
 }

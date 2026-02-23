@@ -363,6 +363,23 @@ public class AsciiHashGenerator : IIncrementalGenerator
                     valueTarget = "__tmp";
                     NewLine().Append(method.To.Type).Append(" ").Append(valueTarget).Append(";");
                 }
+
+                bool alwaysCaseSensitive =
+                    string.IsNullOrEmpty(method.CaseSensitive.Name) && method.CaseSensitive.Value;
+                if (!alwaysCaseSensitive && !HasCaseSensitiveCharacters(method.Members))
+                {
+                    alwaysCaseSensitive = true;
+                }
+
+                if (alwaysCaseSensitive)
+                {
+                    NewLine().Append("var hashCS = global::RESPite.AsciiHash.HashCS(").Append(method.From.Name).Append(");");
+                }
+                else
+                {
+                    NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name).Append(", out var hashCS, out var hashCI);");
+                }
+
                 if (string.IsNullOrEmpty(method.CaseSensitive.Name))
                 {
                     Write(method.CaseSensitive.Value);
@@ -385,8 +402,16 @@ public class AsciiHashGenerator : IIncrementalGenerator
 
                 if (method.To.RefKind == RefKind.Out)
                 {
-                    NewLine().Append("return ").Append(method.To.Name).Append(" != (")
-                        .Append(method.To.Type).Append(")").Append(method.DefaultValue).Append(";");
+                    NewLine().Append("if (").Append(valueTarget).Append(" == (")
+                        .Append(method.To.Type).Append(")").Append(method.DefaultValue).Append(")");
+                    NewLine().Append("{");
+                    indent++;
+                    NewLine().Append("// by convention, init to zero on miss");
+                    NewLine().Append(valueTarget).Append(" = default;");
+                    NewLine().Append("return false;");
+                    indent--;
+                    NewLine().Append("}");
+                    NewLine().Append("return true;");
                 }
                 else
                 {
@@ -399,34 +424,75 @@ public class AsciiHashGenerator : IIncrementalGenerator
 
                 void Write(bool caseSensitive)
                 {
-                    NewLine().Append("var hash = global::RESPite.AsciiHash.")
-                        .Append(caseSensitive ? nameof(AsciiHash.HashCS) : nameof(AsciiHash.HashCI)).Append("(").Append(method.From.Name)
-                        .Append(");");
                     NewLine().Append(valueTarget).Append(" = ").Append(method.From.Name).Append(".Length switch {");
                     indent++;
-                    foreach (var member in method.Members.OrderBy(x => x.ParseText.Length))
+                    foreach (var member in method.Members
+                                 .OrderBy(x => x.ParseText.Length)
+                                 .ThenBy(x => x.ParseText))
                     {
                         var len = member.ParseText.Length;
-                        var line = NewLine().Append(len).Append(" when hash is ")
-                            .Append(caseSensitive ? AsciiHash.HashCS(member.ParseText) : AsciiHash.HashCI(member.ParseText));
+                        AsciiHash.Hash(member.ParseText, out var hashCS, out var hashCI);
 
-                        if (!(len <= AsciiHash.MaxBytesHashIsEqualityCS & caseSensitive))
+                        bool valueCaseSensitive = caseSensitive || !HasCaseSensitiveCharacters(member.ParseText);
+
+                        line = NewLine().Append(len);
+                        if (valueCaseSensitive)
                         {
-                            // check the value
+                            line.Append(" when hashCS is ").Append(hashCS);
+                            if (len > AsciiHash.MaxBytesHashIsEqualityCS)
+                            {
+                                line.Append(" && ");
+                                WriteValueTest(member.ParseText, true);
+                            }
+                        }
+                        else
+                        {
+                            // optimize for "all_lower" or "ALL_UPPER" matches; "Mixed_Match" comes last
+                            var ucText = member.ParseText.ToUpperInvariant();
+                            var lcText = member.ParseText.ToLowerInvariant();
+                            long hashUC = AsciiHash.HashCS(ucText), hashLC = AsciiHash.HashCS(lcText);
+
+                            if (len <= AsciiHash.MaxBytesHashIsEqualityCS)
+                            {
+                                // note we know the lc and uc hash must be different
+                                line.Append(" when (hashCS is ").Append(hashUC).Append(" or ").Append(hashLC)
+                                    .Append(") || (hashCI is ").Append(hashCI).Append(" && ");
+                                WriteValueTest(member.ParseText, false);
+                                line.Append(")");
+                            }
+                            else if (hashLC == hashCS && hashUC == hashCS)
+                            {
+                                // there are alphas, but not in the hashed portion
+                                line.Append(" when hashCS is ").Append(hashLC).Append(" && ");
+                                WriteValueTest(member.ParseText, false);
+                            }
+                            else
+                            {
+                                line.Append(" when (hashCS is ").Append(hashLC).Append(" && ");
+                                WriteValueTest(lcText, true);
+                                line.Append(") || (hashCS is ").Append(hashUC).Append(" && ");
+                                WriteValueTest(ucText, true);
+                                line.Append(") || (hashCI is ").Append(hashCI).Append(" && ");
+                                WriteValueTest(member.ParseText, false);
+                                line.Append(")");
+                            }
+                        }
+                        line.Append(" => ").Append(method.To.Type).Append(".").Append(member.EnumMember).Append(",");
+
+                        void WriteValueTest(string value, bool testCS)
+                        {
                             var csValue = SyntaxFactory
                                 .LiteralExpression(
                                     SyntaxKind.StringLiteralExpression,
-                                    SyntaxFactory.Literal(member.ParseText))
+                                    SyntaxFactory.Literal(value))
                                 .ToFullString();
 
-                            line.Append(" && global::RESPite.AsciiHash.")
-                                .Append(caseSensitive ? nameof(AsciiHash.SequenceEqualsCS) : nameof(AsciiHash.SequenceEqualsCI))
+                            line.Append("global::RESPite.AsciiHash.")
+                                .Append(testCS ? nameof(AsciiHash.SequenceEqualsCS) : nameof(AsciiHash.SequenceEqualsCI))
                                 .Append("(").Append(method.From.Name).Append(", ").Append(csValue);
                             if (method.From.IsBytes) line.Append("u8");
                             line.Append(")");
                         }
-
-                        line.Append(" => ").Append(method.To.Type).Append(".").Append(member.EnumMember).Append(",");
                     }
 
                     NewLine().Append("_ => (").Append(method.To.Type).Append(")").Append(method.DefaultValue)
@@ -446,6 +512,27 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 NewLine().Append("}");
             }
         }
+    }
+
+    private static bool HasCaseSensitiveCharacters(string value)
+    {
+        foreach (char c in value ?? "")
+        {
+            if (char.IsLetter(c)) return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasCaseSensitiveCharacters(BasicArray<(string EnumMember, string ParseText)> members)
+    {
+        // do we have alphabet characters? case sensitivity doesn't apply if not
+        foreach (var member in members)
+        {
+            if (HasCaseSensitiveCharacters(member.ParseText)) return true;
+        }
+
+        return false;
     }
 
     private static string Format(RefKind refKind) => refKind switch
@@ -517,8 +604,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
                     .LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(literal.Value))
                     .ToFullString();
 
-                var hashCS = AsciiHash.HashCS(literal.Value);
-                var hashCI = AsciiHash.HashCI(literal.Value);
+                AsciiHash.Hash(literal.Value, out var hashCS, out var hashCI);
                 NewLine().Append("static partial class ").Append(literal.Name);
                 NewLine().Append("{");
                 indent++;

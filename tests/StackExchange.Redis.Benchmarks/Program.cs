@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Reflection;
 using BenchmarkDotNet.Running;
+using RESPite;
 
 namespace StackExchange.Redis.Benchmarks
 {
@@ -9,14 +10,22 @@ namespace StackExchange.Redis.Benchmarks
         private static void Main(string[] args)
         {
 #if DEBUG
+            // 8 when (hashCS is 6071209992391776325 or 8386095523210229861) || (hashCI is 6071209992391776325 && global::RESPite.AsciiHash.SequenceEqualsCI(value, "EXPIREAT"u8)) => StackExchange.Redis.Benchmarks.EnumParseBenchmarks.RedisCommand.EXPIREAT,
+            AsciiHash.Hash("EXPIREAT", out var hashCS, out var hashCI);
+            Console.WriteLine($"CS: {hashCS}, CI: {hashCI}");
+            if (EnumParseBenchmarks.TryParse_CI("EXPIREAT", out var cmd))
+            {
+                Console.WriteLine(cmd);
+            }
+            _ = Console.ReadLine();
             var obj = new AsciiHashBenchmarks();
             foreach (var size in obj.Sizes)
             {
                 Console.WriteLine($"Size: {size}");
                 obj.Size = size;
                 obj.Setup();
-                obj.HashCS_B();
-                obj.HashCS_C();
+                Console.WriteLine($"    CS_B:  {obj.HashCS_B()}");
+                Console.WriteLine($"    CS_C:  {obj.HashCS_C()}");
             }
 
             var obj2 = new EnumParseBenchmarks();
@@ -26,12 +35,12 @@ namespace StackExchange.Redis.Benchmarks
                 obj2.Value = value;
                 // obj2.Setup();
                 Console.WriteLine($" CS Enum:   {obj2.EnumParse_CS()}");
-                Console.WriteLine($" CS Fast:   {obj2.AsciiHash_CS()}");
-                Console.WriteLine($" CS Bytes:  {obj2.Bytes_CS()}");
+                Console.WriteLine($" CS Fast:   {obj2.Ascii_C_CS()}");
+                Console.WriteLine($" CS Bytes:  {obj2.Ascii_B_CS()}");
                 Console.WriteLine($" CS Switch: {obj2.Switch_CS()}");
                 Console.WriteLine($" CI Enum:   {obj2.EnumParse_CI()}");
-                Console.WriteLine($" CI Fast:   {obj2.AsciiHash_CI()}");
-                Console.WriteLine($" CI Bytes:  {obj2.Bytes_CI()}");
+                Console.WriteLine($" CI Fast:   {obj2.Ascii_C_CI()}");
+                Console.WriteLine($" CI Bytes:  {obj2.Ascii_B_CI()}");
                 Console.WriteLine();
             }
 

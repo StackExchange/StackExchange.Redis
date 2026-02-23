@@ -2,6 +2,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace RESPite;
@@ -268,20 +269,29 @@ public readonly struct AsciiHash
         }
     }
 
+    public static void Hash(scoped ReadOnlySpan<char> value, out long cs, out long ci)
+    {
+        cs = HashCS(value);
+        ci = cs & CaseMask;
+    }
+
+    public static void Hash(scoped ReadOnlySpan<byte> value, out long cs, out long ci)
+    {
+        cs = HashCS(value);
+        ci = cs & CaseMask;
+    }
+
     public static long HashCI(scoped ReadOnlySpan<byte> value)
         => HashCS(value) & CaseMask;
 
     public static long HashCS(scoped ReadOnlySpan<byte> value)
     {
         // at least 8? we can blit
-        if ((value.Length >> 3) != 0)
-        {
-            if (BitConverter.IsLittleEndian) return MemoryMarshal.Read<long>(value);
-            return BinaryPrimitives.ReadInt64LittleEndian(value);
-        }
+        if ((value.Length >> 3) != 0) return BinaryPrimitives.ReadInt64LittleEndian(value);
 
         // small (<7); manual loop
-        // note: profiling with unsafe code to pick out elements: slower
+        // note: profiling with unsafe code to pick out elements: much slower
+        // note: profiling with overstamping a local: 3x slower
         ulong tally = 0;
         for (int i = 0; i < value.Length; i++)
         {
@@ -293,7 +303,7 @@ public readonly struct AsciiHash
     public static long HashCS(scoped ReadOnlySpan<char> value)
     {
         // note: BDN profiling with Vector64.Narrow showed no benefit
-        if (value.Length > 8)
+        if ((value.Length >> 3) != 0)
         {
             // slice if necessary, so we can use bounds-elided foreach
             if (value.Length != 8) value = value.Slice(0, 8);
