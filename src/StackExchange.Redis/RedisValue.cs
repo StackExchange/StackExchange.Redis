@@ -149,8 +149,6 @@ namespace StackExchange.Redis
 
 #pragma warning disable RCS1085 // use auto-prop
         // ReSharper disable ConvertToAutoProperty
-        internal object? DirectObject => _obj;
-        internal long DirectOverlappedBits64 => _valueInt64;
         internal double OverlappedValueDouble => _valueDouble;
 
         internal long OverlappedValueInt64 => _valueInt64;

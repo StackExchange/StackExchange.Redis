@@ -67,10 +67,10 @@ public readonly struct ValueCondition
             case ConditionKind.ValueNotEquals:
                 return $"IFNE {_value}";
             case ConditionKind.DigestEquals:
-                var written = WriteHex(_value.DirectOverlappedBits64, stackalloc char[2 * DigestBytes]);
+                var written = WriteHex(_value.OverlappedValueInt64, stackalloc char[2 * DigestBytes]);
                 return $"IFDEQ {written.ToString()}";
             case ConditionKind.DigestNotEquals:
-                written = WriteHex(_value.DirectOverlappedBits64, stackalloc char[2 * DigestBytes]);
+                written = WriteHex(_value.OverlappedValueInt64, stackalloc char[2 * DigestBytes]);
                 return $"IFDNE {written.ToString()}";
             case ConditionKind.Always:
                 return "";
@@ -269,12 +269,12 @@ public readonly struct ValueCondition
                 break;
             case ConditionKind.DigestEquals:
                 writer.WriteBulkString("IFDEQ"u8);
-                var written = WriteHex(_value.DirectOverlappedBits64, stackalloc byte[2 * DigestBytes]);
+                var written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
                 writer.WriteBulkString(written);
                 break;
             case ConditionKind.DigestNotEquals:
                 writer.WriteBulkString("IFDNE"u8);
-                written = WriteHex(_value.DirectOverlappedBits64, stackalloc byte[2 * DigestBytes]);
+                written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
                 writer.WriteBulkString(written);
                 break;
         }
