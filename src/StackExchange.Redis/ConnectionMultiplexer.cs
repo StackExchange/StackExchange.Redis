@@ -145,7 +145,6 @@ namespace StackExchange.Redis
                 map.AssertAvailable(RedisCommand.EXISTS);
             }
 
-            OnCreateReaderWriter(configuration);
             ServerSelectionStrategy = new ServerSelectionStrategy(this);
 
             var configChannel = configuration.ConfigurationChannel;
@@ -2301,7 +2300,6 @@ namespace StackExchange.Redis
                 WaitAllIgnoreErrors(quits);
             }
             DisposeAndClearServers();
-            OnCloseReaderWriter();
             OnClosing(true);
             Interlocked.Increment(ref _connectionCloseCount);
         }

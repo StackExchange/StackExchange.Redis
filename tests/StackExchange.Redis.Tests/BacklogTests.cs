@@ -115,7 +115,6 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
-                SocketManager = SocketManager.ThreadPool,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
@@ -206,7 +205,6 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
-                SocketManager = SocketManager.ThreadPool,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
@@ -308,7 +306,6 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             options.KeepAlive = 10000;
             options.AsyncTimeout = 5000;
             options.AllowAdmin = true;
-            options.SocketManager = SocketManager.ThreadPool;
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
@@ -414,7 +411,6 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
-                SocketManager = SocketManager.ThreadPool,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 

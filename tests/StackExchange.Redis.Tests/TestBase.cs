@@ -197,8 +197,6 @@ public abstract class TestBase : IDisposable
             }
             Assert.Skip($"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
         }
-        var pool = SocketManager.Shared?.SchedulerPool;
-        Log($"Service Counts: (Scheduler) Queue: {pool?.TotalServicedByQueue.ToString()}, Pool: {pool?.TotalServicedByPool.ToString()}, Workers: {pool?.WorkerCount.ToString()}, Available: {pool?.AvailableCount.ToString()}");
     }
 
     protected static IServer GetServer(IConnectionMultiplexer muxer)
