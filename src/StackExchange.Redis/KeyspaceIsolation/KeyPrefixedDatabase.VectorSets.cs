@@ -1,6 +1,4 @@
-﻿using System;
-
-// ReSharper disable once CheckNamespace
+﻿// ReSharper disable once CheckNamespace
 namespace StackExchange.Redis.KeyspaceIsolation;
 
 internal sealed partial class KeyPrefixedDatabase

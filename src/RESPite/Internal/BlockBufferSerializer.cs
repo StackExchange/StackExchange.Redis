@@ -1,6 +1,5 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
-using RESPite.Messages;
 
 namespace RESPite.Internal;
 

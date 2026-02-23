@@ -1,5 +1,4 @@
 ﻿using System.Buffers;
-using RESPite.Messages;
 
 namespace RESPite.Internal;
 

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using RESPite.Messages;
+﻿using RESPite.Messages;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;

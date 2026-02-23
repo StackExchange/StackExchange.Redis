@@ -1,16 +1,12 @@
 ﻿using System;
-using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using Microsoft.Extensions.Logging;
-using RESPite.Buffers;
-using RESPite.Internal;
 using RESPite.Messages;
 using StackExchange.Redis.Profiling;
 
