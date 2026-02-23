@@ -92,10 +92,10 @@ internal readonly ref struct MessageWriter
                 WriteUnifiedDouble(writer, value.OverlappedValueDouble);
                 break;
             case RedisValue.StorageType.String:
-                WriteUnifiedPrefixedString(writer, null, (string?)value);
+                WriteUnifiedPrefixedString(writer, null, value.RawString());
                 break;
-            case RedisValue.StorageType.Raw:
-                WriteUnifiedSpan(writer, ((ReadOnlyMemory<byte>)value).Span);
+            case RedisValue.StorageType.MemoryManager or RedisValue.StorageType.ByteArray:
+                WriteUnifiedSpan(writer, value.RawSpan());
                 break;
             default:
                 throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");

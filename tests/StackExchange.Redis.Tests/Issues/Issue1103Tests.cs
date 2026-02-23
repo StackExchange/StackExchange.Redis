@@ -28,7 +28,7 @@ public class Issue1103Tests(ITestOutputHelper output) : TestBase(output)
         var fromRedis = db.StringGet(key);
 
         Log($"{fromRedis.Type}: {fromRedis}");
-        Assert.Equal(StorageType.Raw, fromRedis.Type);
+        Assert.Equal(StorageType.ByteArray, fromRedis.Type);
         Assert.Equal(value, (ulong)fromRedis);
         Assert.Equal(value.ToString(CultureInfo.InvariantCulture), fromRedis.ToString());
 
