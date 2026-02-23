@@ -541,33 +541,6 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.False(iter.MoveNext());
     }
 
-    [Fact]
-    public async Task ThreadPoolManagerIsDetected()
-    {
-        var config = new ConfigurationOptions
-        {
-            EndPoints = { { IPAddress.Loopback, 6379 } },
-            SocketManager = SocketManager.ThreadPool,
-        };
-
-        await using var conn = ConnectionMultiplexer.Connect(config);
-
-        Assert.Same(PipeScheduler.ThreadPool, conn.SocketManager?.Scheduler);
-    }
-
-    [Fact]
-    public async Task DefaultThreadPoolManagerIsDetected()
-    {
-        var config = new ConfigurationOptions
-        {
-            EndPoints = { { IPAddress.Loopback, 6379 } },
-        };
-
-        await using var conn = ConnectionMultiplexer.Connect(config);
-
-        Assert.Same(SocketManager.Shared.Scheduler, conn.SocketManager?.Scheduler);
-    }
-
     [Theory]
     [InlineData("myDNS:myPort,password=myPassword,connectRetry=3,connectTimeout=15000,syncTimeout=15000,defaultDatabase=0,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
     [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]

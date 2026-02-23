@@ -361,7 +361,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "Abort-On-Connect", "aoc", multiplexer.RawConfig.AbortOnConnectFail ? "1" : "0");
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
-            Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
 
             Add(data, sb, "Client-Name", "clientName", multiplexer.ClientName);
             if (message != null)

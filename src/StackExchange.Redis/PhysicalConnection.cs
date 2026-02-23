@@ -130,7 +130,20 @@ namespace StackExchange.Redis
             }
             if (connectTo is not null)
             {
-                _socket = SocketManager.CreateSocket(connectTo);
+                _socket = CreateSocket(connectTo);
+
+                static Socket CreateSocket(EndPoint endpoint)
+                {
+                    var addressFamily = endpoint.AddressFamily;
+                    var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
+
+                    var socket = addressFamily == AddressFamily.Unspecified
+                        ? new Socket(SocketType.Stream, protocolType)
+                        : new Socket(addressFamily, SocketType.Stream, protocolType);
+                    SocketConnection.SetRecommendedClientOptions(socket);
+                    // socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
+                    return socket;
+                }
             }
 
             if (_socket is not null)
@@ -190,7 +203,7 @@ namespace StackExchange.Redis
                         {
                             ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
                         }
-                        else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager!).ForAwait())
+                        else if (await ConnectedAsync(x, log).ForAwait())
                         {
                             log?.LogInformationStartingRead(new(endpoint));
                             try
@@ -495,7 +508,6 @@ namespace StackExchange.Redis
                             if (unansweredWriteTime != 0) AddData("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredWriteTime) / 1000) + "s ago");
                             AddData("Keep-Alive", "keep-alive", bridge.ServerEndPoint?.WriteEverySeconds + "s");
                             AddData("Previous-Physical-State", "state", oldState.ToString());
-                            AddData("Manager", "mgr", bridge.Multiplexer.SocketManager?.GetState());
                             if (connStatus.BytesAvailableOnSocket >= 0) AddData("Inbound-Bytes", "in", connStatus.BytesAvailableOnSocket.ToString());
                             if (connStatus.BytesInReadPipe >= 0) AddData("Inbound-Pipe-Bytes", "in-pipe", connStatus.BytesInReadPipe.ToString());
                             if (connStatus.BytesInWritePipe >= 0) AddData("Outbound-Pipe-Bytes", "out-pipe", connStatus.BytesInWritePipe.ToString());
@@ -1064,7 +1076,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<bool> ConnectedAsync(Socket? socket, ILogger? log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket? socket, ILogger? log)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
@@ -1142,7 +1154,7 @@ namespace StackExchange.Redis
                 }
 
                 stream ??= DemandSocketStream(socket);
-                OnWrapForLogging(ref stream, _physicalName, manager);
+                OnWrapForLogging(ref stream, _physicalName);
 
                 _ioStream = stream;
 
@@ -1197,7 +1209,7 @@ namespace StackExchange.Redis
             }
         }
 
-        partial void OnWrapForLogging(ref Stream stream, string name, SocketManager mgr);
+        partial void OnWrapForLogging(ref Stream stream, string name);
 
         internal void UpdateLastReadTime() => Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
 

@@ -697,6 +697,7 @@ namespace StackExchange.Redis
         /// This is only used when a <see cref="ConnectionMultiplexer"/> is created.
         /// Modifying it afterwards will have no effect on already-created multiplexers.
         /// </remarks>
+        [Obsolete("SocketManager is no longer used by StackExchange.Redis")]
         public SocketManager? SocketManager { get; set; }
 
 #if NETCOREAPP3_1_OR_GREATER
@@ -826,7 +827,9 @@ namespace StackExchange.Redis
             CertificateValidationCallback = CertificateValidationCallback,
             CertificateSelectionCallback = CertificateSelectionCallback,
             ChannelPrefix = ChannelPrefix.Clone(),
+#pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = SocketManager,
+#pragma warning restore CS0618 // Type or member is obsolete
             connectRetry = connectRetry,
             configCheckSeconds = configCheckSeconds,
             responseTimeout = responseTimeout,
@@ -983,7 +986,9 @@ namespace StackExchange.Redis
             CertificateSelection = null;
             CertificateValidation = null;
             ChannelPrefix = default;
+#pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = null;
+#pragma warning restore CS0618 // Type or member is obsolete
             Tunnel = null;
         }
 
