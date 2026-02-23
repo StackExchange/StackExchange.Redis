@@ -103,8 +103,7 @@ namespace StackExchange.Redis
         public abstract string? ToString(out string? type);
 
         /// <summary>
-        /// Internally, this is very similar to RawResult, except it is designed to be usable,
-        /// outside of the IO-processing pipeline: the buffers are standalone, etc.
+        /// Designed to be usable outside of the IO-processing pipeline: the buffers are standalone, etc.
         /// </summary>
         internal static bool TryCreate(PhysicalConnection? connection, ref RespReader reader, [NotNullWhen(true)] out RedisResult? redisResult)
         {
