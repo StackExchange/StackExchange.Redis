@@ -17,6 +17,10 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
+        // Note that this allocates a byte[]; fine when used for a static field from a u8 literal, but
+        // not a good option to call every time.
+        internal static RedisValue FromRaw(ReadOnlySpan<byte> bytes) => bytes.ToArray();
+
         internal static readonly RedisValue[] EmptyArray = Array.Empty<RedisValue>();
 
         private readonly object? _objectOrSentinel;
