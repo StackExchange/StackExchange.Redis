@@ -5605,7 +5605,7 @@ namespace StackExchange.Redis
         internal sealed class ExecuteMessage : Message
         {
             private readonly ICollection<object> _args;
-            public new CommandBytes Command { get; }
+            private string? _commandUnknown;
 
             public ExecuteMessage(CommandMap? map, int db, CommandFlags flags, string command, ICollection<object>? args) : base(db, flags, RedisCommand.UNKNOWN)
             {
@@ -5613,14 +5613,30 @@ namespace StackExchange.Redis
                 {
                     throw ExceptionFactory.TooManyArgs(command, args.Count);
                 }
-                Command = map?.GetBytes(command) ?? default;
-                if (Command.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+                if (map.TryGetBytes(command, out var commandBytes))
+                {
+                    if (commandBytes.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+                    _commandKnown = commandBytes;
+                }
+                else
+                {
+                    _commandUnknown = command;
+                }
+
                 _args = args ?? Array.Empty<object>();
             }
 
             protected override void WriteImpl(in MessageWriter writer)
             {
-                writer.WriteHeader(RedisCommand.UNKNOWN, _args.Count, Command);
+                if (_commandUnknown is null)
+                {
+                    Debug.Assert(!_commandKnown.IsEmpty);
+                    writer.WriteHeader(RedisCommand.UNKNOWN, _args.Count, _commandKnown);
+                }
+                else
+                {
+                    writer.WriteHeader(RedisCommand.UNKNOWN, _args.Count, _commandUnknown);
+                }
                 foreach (object arg in _args)
                 {
                     if (arg is RedisKey key)
@@ -5640,8 +5656,8 @@ namespace StackExchange.Redis
                 }
             }
 
-            public override string CommandString => Command.ToString();
-            public override string CommandAndKey => Command.ToString();
+            public override string CommandString => CommandRaw.ToString();
+            public override string CommandAndKey => CommandRaw.ToString();
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {

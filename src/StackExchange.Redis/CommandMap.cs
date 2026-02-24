@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using RESPite;
 
 namespace StackExchange.Redis
 {
@@ -9,9 +10,9 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class CommandMap
     {
-        private readonly CommandBytes[] map;
+        private readonly AsciiHash[] map;
 
-        internal CommandMap(CommandBytes[] map) => this.map = map;
+        internal CommandMap(AsciiHash[] map) => this.map = map;
 
         /// <summary>
         /// The default commands specified by redis.
@@ -180,7 +181,7 @@ namespace StackExchange.Redis
             for (int i = 0; i < map.Length; i++)
             {
                 var keyString = ((RedisCommand)i).ToString();
-                var keyBytes = new CommandBytes(keyString);
+                var keyBytes = new AsciiHash(keyString);
                 var value = map[i];
                 if (!keyBytes.Equals(value))
                 {
@@ -195,17 +196,19 @@ namespace StackExchange.Redis
             if (map[(int)command].IsEmpty) throw ExceptionFactory.CommandDisabled(command);
         }
 
-        internal CommandBytes GetBytes(RedisCommand command) => map[(int)command];
+        internal AsciiHash GetBytes(RedisCommand command) => map[(int)command];
 
-        internal CommandBytes GetBytes(string command)
+        internal bool TryGetBytes(string command, out AsciiHash bytes)
         {
-            if (command == null) return default;
-            if (Enum.TryParse(command, true, out RedisCommand cmd))
+            if (command is { Length: > 0 } && Enum.TryParse(command, true, out RedisCommand cmd))
             {
                 // we know that one!
-                return map[(int)cmd];
+                bytes = map[(int)cmd];
+                return false;
             }
-            return new CommandBytes(command);
+
+            bytes = default;
+            return false;
         }
 
         internal bool IsAvailable(RedisCommand command) => !map[(int)command].IsEmpty;
@@ -214,7 +217,7 @@ namespace StackExchange.Redis
         {
             var commands = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
 
-            var map = new CommandBytes[commands.Length];
+            var map = new AsciiHash[commands.Length];
             for (int i = 0; i < commands.Length; i++)
             {
                 int idx = (int)commands[i];
@@ -230,7 +233,7 @@ namespace StackExchange.Redis
                     {
                         value = tmp;
                     }
-                    map[idx] = new CommandBytes(value);
+                    map[idx] = new AsciiHash(value);
                 }
             }
             return new CommandMap(map);

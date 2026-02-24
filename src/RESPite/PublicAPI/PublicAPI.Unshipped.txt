@@ -8,7 +8,6 @@
 [SER004]RESPite.AsciiHash.AsciiHash() -> void
 [SER004]RESPite.AsciiHash.AsciiHash(byte[]! arr) -> void
 [SER004]RESPite.AsciiHash.AsciiHash(byte[]! arr, int index, int length) -> void
-[SER004]RESPite.AsciiHash.AsciiHash(string! value) -> void
 [SER004]RESPite.AsciiHash.AsciiHash(System.ReadOnlySpan<byte> value) -> void
 [SER004]RESPite.AsciiHash.BufferLength.get -> int
 [SER004]RESPite.AsciiHash.Equals(in RESPite.AsciiHash other) -> bool
@@ -21,6 +20,8 @@
 [SER004]RESPite.AsciiHashAttribute.CaseSensitive.get -> bool
 [SER004]RESPite.AsciiHashAttribute.CaseSensitive.set -> void
 [SER004]RESPite.AsciiHashAttribute.Token.get -> string!
+[SER004]RESPite.AsciiHash.AsciiHash(string? value) -> void
+[SER004]RESPite.AsciiHash.IsEmpty.get -> bool
 [SER004]RESPite.Buffers.CycleBuffer
 [SER004]RESPite.Buffers.CycleBuffer.Commit(int count) -> void
 [SER004]RESPite.Buffers.CycleBuffer.CommittedIsEmpty.get -> bool
