@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Benchmarks
             {
                 Console.WriteLine(cmd);
             }
-            _ = Console.ReadLine();
+
             var obj = new AsciiHashBenchmarks();
             foreach (var size in obj.Sizes)
             {

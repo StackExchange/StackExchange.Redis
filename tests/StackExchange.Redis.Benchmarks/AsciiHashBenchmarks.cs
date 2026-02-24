@@ -55,8 +55,10 @@ public class AsciiHashBenchmarks
         Assert(AsciiHash.HashCS(bytes), nameof(AsciiHash.HashCS) + ":byte");
         Assert(AsciiHash.HashCS(_sourceString.AsSpan()), nameof(AsciiHash.HashCS) + ":char");
 
+        /*
         Assert(AsciiHash.HashCS(SingleSegmentBytes), nameof(AsciiHash.HashCS) + " (single segment)");
         Assert(AsciiHash.HashCS(_sourceMultiSegmentBytes), nameof(AsciiHash.HashCS) + " (multi segment)");
+        */
 
         void Assert(long actual, string name)
         {
@@ -117,6 +119,7 @@ public class AsciiHashBenchmarks
         return hash;
     }
 
+    /*
     // [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
     public long Hash64_SingleSegment()
     {
@@ -142,4 +145,5 @@ public class AsciiHashBenchmarks
 
         return hash;
     }
+    */
 }

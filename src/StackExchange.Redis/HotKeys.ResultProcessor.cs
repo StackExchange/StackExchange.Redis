@@ -53,21 +53,21 @@ public sealed partial class HotKeysResult
                 continue;
             }
 
-            var hash = AsciiHash.HashCS(keyBytes);
+            var hashCS = AsciiHash.HashCS(keyBytes);
 
             // Move to value
             if (!reader.TryMoveNext()) break;
 
             long i64;
-            switch (hash)
+            switch (hashCS)
             {
-                case tracking_active.HashCS when tracking_active.IsCS(hash, keyBytes):
+                case tracking_active.HashCS when tracking_active.IsCS(keyBytes, hashCS):
                     TrackingActive = reader.ReadBoolean();
                     break;
-                case sample_ratio.HashCS when sample_ratio.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case sample_ratio.HashCS when sample_ratio.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     SampleRatio = i64;
                     break;
-                case selected_slots.HashCS when selected_slots.IsCS(hash, keyBytes) && reader.IsAggregate:
+                case selected_slots.HashCS when selected_slots.IsCS(keyBytes, hashCS) && reader.IsAggregate:
                     var slotRanges = reader.ReadPastArray(
                         static (ref RespReader slotReader) =>
                         {
@@ -100,55 +100,55 @@ public sealed partial class HotKeysResult
                         _selectedSlots = slotRanges ?? [];
                     }
                     break;
-                case all_commands_all_slots_us.HashCS when all_commands_all_slots_us.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case all_commands_all_slots_us.HashCS when all_commands_all_slots_us.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     AllCommandsAllSlotsMicroseconds = i64;
                     break;
-                case all_commands_selected_slots_us.HashCS when all_commands_selected_slots_us.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case all_commands_selected_slots_us.HashCS when all_commands_selected_slots_us.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     AllCommandSelectedSlotsMicroseconds = i64;
                     break;
-                case sampled_command_selected_slots_us.HashCS when sampled_command_selected_slots_us.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
-                case sampled_commands_selected_slots_us.HashCS when sampled_commands_selected_slots_us.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case sampled_command_selected_slots_us.HashCS when sampled_command_selected_slots_us.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
+                case sampled_commands_selected_slots_us.HashCS when sampled_commands_selected_slots_us.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     SampledCommandsSelectedSlotsMicroseconds = i64;
                     break;
-                case net_bytes_all_commands_all_slots.HashCS when net_bytes_all_commands_all_slots.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case net_bytes_all_commands_all_slots.HashCS when net_bytes_all_commands_all_slots.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     AllCommandsAllSlotsNetworkBytes = i64;
                     break;
-                case net_bytes_all_commands_selected_slots.HashCS when net_bytes_all_commands_selected_slots.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case net_bytes_all_commands_selected_slots.HashCS when net_bytes_all_commands_selected_slots.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     NetworkBytesAllCommandsSelectedSlotsRaw = i64;
                     break;
-                case net_bytes_sampled_commands_selected_slots.HashCS when net_bytes_sampled_commands_selected_slots.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case net_bytes_sampled_commands_selected_slots.HashCS when net_bytes_sampled_commands_selected_slots.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     NetworkBytesSampledCommandsSelectedSlotsRaw = i64;
                     break;
-                case collection_start_time_unix_ms.HashCS when collection_start_time_unix_ms.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case collection_start_time_unix_ms.HashCS when collection_start_time_unix_ms.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     CollectionStartTimeUnixMilliseconds = i64;
                     break;
-                case collection_duration_ms.HashCS when collection_duration_ms.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case collection_duration_ms.HashCS when collection_duration_ms.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     CollectionDurationMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case collection_duration_us.HashCS when collection_duration_us.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case collection_duration_us.HashCS when collection_duration_us.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     CollectionDurationMicroseconds = i64;
                     break;
-                case total_cpu_time_sys_ms.HashCS when total_cpu_time_sys_ms.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case total_cpu_time_sys_ms.HashCS when total_cpu_time_sys_ms.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeSystemMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case total_cpu_time_sys_us.HashCS when total_cpu_time_sys_us.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case total_cpu_time_sys_us.HashCS when total_cpu_time_sys_us.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeSystemMicroseconds = i64;
                     break;
-                case total_cpu_time_user_ms.HashCS when total_cpu_time_user_ms.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case total_cpu_time_user_ms.HashCS when total_cpu_time_user_ms.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeUserMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case total_cpu_time_user_us.HashCS when total_cpu_time_user_us.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case total_cpu_time_user_us.HashCS when total_cpu_time_user_us.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeUserMicroseconds = i64;
                     break;
-                case total_net_bytes.HashCS when total_net_bytes.IsCS(hash, keyBytes) && reader.TryReadInt64(out i64):
+                case total_net_bytes.HashCS when total_net_bytes.IsCS(keyBytes, hashCS) && reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Network;
                     TotalNetworkBytesRaw = i64;
                     break;
-                case by_cpu_time_us.HashCS when by_cpu_time_us.IsCS(hash, keyBytes) && reader.IsAggregate:
+                case by_cpu_time_us.HashCS when by_cpu_time_us.IsCS(keyBytes, hashCS) && reader.IsAggregate:
                     metrics |= HotKeysMetrics.Cpu;
                     int cpuLen = reader.AggregateLength() / 2;
                     var cpuTime = new MetricKeyCpu[cpuLen];
@@ -164,7 +164,7 @@ public sealed partial class HotKeysResult
                     }
                     _cpuByKey = cpuTime;
                     break;
-                case by_net_bytes.HashCS when by_net_bytes.IsCS(hash, keyBytes) && reader.IsAggregate:
+                case by_net_bytes.HashCS when by_net_bytes.IsCS(keyBytes, hashCS) && reader.IsAggregate:
                     metrics |= HotKeysMetrics.Network;
                     int netLen = reader.AggregateLength() / 2;
                     var netBytes = new MetricKeyBytes[netLen];

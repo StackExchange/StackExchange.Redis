@@ -1,11 +1,35 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
+using RESPite.Buffers;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
 {
     public sealed class RedisClient : IDisposable
     {
+        private RespScanState _readState;
+
+        public bool TryReadRequest(ReadOnlySequence<byte> data, out long consumed)
+        {
+            // skip past data we've already read
+            data = data.Slice(_readState.TotalBytes);
+            var status = RespFrameScanner.Default.TryRead(ref _readState, data);
+            consumed = _readState.TotalBytes;
+            switch (status)
+            {
+                case OperationStatus.Done:
+                    _readState = default; // reset ready for the next frame
+                    return true;
+                case OperationStatus.NeedMoreData:
+                    consumed = 0;
+                    return false;
+                default:
+                    throw new InvalidOperationException($"Unexpected status: {status}");
+            }
+        }
+
         internal int SkipReplies { get; set; }
         internal bool ShouldSkipResponse()
         {
@@ -49,6 +73,8 @@ namespace StackExchange.Redis.Server
                 try { pipe.Output.Complete(); } catch { }
                 if (pipe is IDisposable d) try { d.Dispose(); } catch { }
             }
+
+            _readState = default;
         }
     }
 }

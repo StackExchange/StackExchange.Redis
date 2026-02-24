@@ -18,6 +18,7 @@ namespace StackExchange.Redis
                 span = default;
                 return EmptyArray;
             }
+
             var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
             span = new Span<TypedRedisValue>(arr, 0, count);
             return new TypedRedisValue(arr, count);
@@ -36,7 +37,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns whether this value represents a null array.
         /// </summary>
-        public bool IsNullArray => Type == ResultType.Array && _value.DirectObject == null;
+        public bool IsNullArray => Type == ResultType.Array && _value.IsNull;
 
         private readonly RedisValue _value;
 
@@ -74,6 +75,7 @@ namespace StackExchange.Redis
         /// The simple string OK.
         /// </summary>
         public static TypedRedisValue OK { get; } = SimpleString("OK");
+
         internal static TypedRedisValue Zero { get; } = Integer(0);
         internal static TypedRedisValue One { get; } = Integer(1);
         internal static TypedRedisValue NullArray { get; } = new TypedRedisValue((TypedRedisValue[])null, 0);
@@ -86,22 +88,25 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (Type != ResultType.Array) return default;
-                var arr = (TypedRedisValue[])_value.DirectObject;
-                if (arr == null) return default;
-                var length = (int)_value.DirectOverlappedBits64;
-                return new ReadOnlySpan<TypedRedisValue>(arr, 0, length);
+                if (_value.TryGetForeign<TypedRedisValue[]>(out var arr, out int index, out var length))
+                {
+                    return arr.AsSpan(index, length);
+                }
+
+                return default;
             }
         }
+
         public ArraySegment<TypedRedisValue> Segment
         {
             get
             {
-                if (Type != ResultType.Array) return default;
-                var arr = (TypedRedisValue[])_value.DirectObject;
-                if (arr == null) return default;
-                var length = (int)_value.DirectOverlappedBits64;
-                return new ArraySegment<TypedRedisValue>(arr, 0, length);
+                if (_value.TryGetForeign<TypedRedisValue[]>(out var arr, out int index, out var length))
+                {
+                    return new(arr, index, length);
+                }
+
+                return default;
             }
         }
 
@@ -150,24 +155,27 @@ namespace StackExchange.Redis
             if (oversizedItems == null)
             {
                 if (count != 0) throw new ArgumentOutOfRangeException(nameof(count));
+                oversizedItems = [];
             }
             else
             {
                 if (count < 0 || count > oversizedItems.Length) throw new ArgumentOutOfRangeException(nameof(count));
-                if (count == 0) oversizedItems = Array.Empty<TypedRedisValue>();
+                if (count == 0) oversizedItems = [];
             }
-            _value = new RedisValue(oversizedItems, count);
+
+            _value = RedisValue.CreateForeign(oversizedItems, 0, count);
             Type = ResultType.Array;
         }
 
         internal void Recycle(int limit = -1)
         {
-            if (_value.DirectObject is TypedRedisValue[] arr)
+            if (_value.TryGetForeign<TypedRedisValue[]>(out var arr, out var index, out var length))
             {
-                if (limit < 0) limit = (int)_value.DirectOverlappedBits64;
-                for (int i = 0; i < limit; i++)
+                if (limit < 0) limit = length;
+                var span = arr.AsSpan(index, limit);
+                foreach (var el in span)
                 {
-                    arr[i].Recycle();
+                    el.Recycle();
                 }
                 ArrayPool<TypedRedisValue>.Shared.Return(arr, clearArray: false);
             }
