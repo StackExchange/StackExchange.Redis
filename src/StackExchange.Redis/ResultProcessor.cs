@@ -507,14 +507,14 @@ namespace StackExchange.Redis
             {
                 if (reader.IsScalar && reader.ScalarLengthIs(1))
                 {
-                    var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[1]);
+                    var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[8]);
                     var byteValue = span[0];
                     if (byteValue == (byte)'1')
                     {
                         value = true;
                         return true;
                     }
-                    else if (byteValue == (byte)'0')
+                    if (byteValue == (byte)'0')
                     {
                         value = false;
                         return true;
