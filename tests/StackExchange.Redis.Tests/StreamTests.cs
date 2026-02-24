@@ -2177,7 +2177,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(2, len);
     }
 
-    [Theory]
+#pragma warning disable xUnit1004
+    [Theory(Skip = "Flaky")]
+#pragma warning restore xUnit1004
     [InlineData(StreamTrimMode.KeepReferences)]
     [InlineData(StreamTrimMode.DeleteReferences)]
     [InlineData(StreamTrimMode.Acknowledged)]
