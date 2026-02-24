@@ -1,6 +1,9 @@
 ﻿#nullable enable
 [SER004]const RESPite.Buffers.CycleBuffer.GetAnything = 0 -> int
 [SER004]const RESPite.Buffers.CycleBuffer.GetFullPagesOnly = -1 -> int
+[SER004]override RESPite.AsciiHash.Equals(object? other) -> bool
+[SER004]override RESPite.AsciiHash.GetHashCode() -> int
+[SER004]override RESPite.AsciiHash.ToString() -> string!
 [SER004]RESPite.AsciiHash
 [SER004]RESPite.AsciiHash.AsciiHash() -> void
 [SER004]RESPite.AsciiHash.AsciiHash(byte[]! arr) -> void
@@ -8,6 +11,7 @@
 [SER004]RESPite.AsciiHash.AsciiHash(string! value) -> void
 [SER004]RESPite.AsciiHash.AsciiHash(System.ReadOnlySpan<byte> value) -> void
 [SER004]RESPite.AsciiHash.BufferLength.get -> int
+[SER004]RESPite.AsciiHash.Equals(in RESPite.AsciiHash other) -> bool
 [SER004]RESPite.AsciiHash.IsCI(long hash, System.ReadOnlySpan<byte> value) -> bool
 [SER004]RESPite.AsciiHash.IsCI(System.ReadOnlySpan<byte> value) -> bool
 [SER004]RESPite.AsciiHash.IsCS(long hash, System.ReadOnlySpan<byte> value) -> bool

@@ -35,7 +35,7 @@ public sealed class AsciiHashAttribute(string token = "") : Attribute
 }
 
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-public readonly partial struct AsciiHash
+public readonly partial struct AsciiHash : IEquatable<AsciiHash>
 {
     // ReSharper disable InconsistentNaming
     private readonly long _hashCI, _hashCS, _hashLC;
@@ -54,6 +54,24 @@ public readonly partial struct AsciiHash
 
     public AsciiHash(ReadOnlySpan<byte> value) : this(value.ToArray(), 0, value.Length) { }
     public AsciiHash(string value) : this(Encoding.ASCII.GetBytes(value)) { }
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => _hashCS.GetHashCode();
+
+    /// <inheritdoc/>
+    public override string ToString() => _length == 0 ? "" : Encoding.ASCII.GetString(_arr, _index, _length);
+
+    /// <inheritdoc/>
+    public override bool Equals(object? other) => other is AsciiHash hash && Equals(hash);
+
+    /// <inheritdoc cref="Equals(object)" />
+    public bool Equals(in AsciiHash other)
+    {
+        return (_length == other.Length & _hashCS == other._hashCS)
+               && (_length <= MaxBytesHashIsEqualityCS || Span.SequenceEqual(other.Span));
+    }
+
+    bool IEquatable<AsciiHash>.Equals(AsciiHash other) => Equals(other);
 
     public AsciiHash(byte[] arr) : this(arr, 0, -1) { }
 
