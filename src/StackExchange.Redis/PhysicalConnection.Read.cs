@@ -314,7 +314,7 @@ internal sealed partial class PhysicalConnection
         }
     }
 
-    private enum PushKind
+    internal enum PushKind
     {
         [AsciiHash("")]
         None,
@@ -338,7 +338,7 @@ internal sealed partial class PhysicalConnection
         SUnsubscribe,
     }
 
-    private static partial class PushKindMetadata
+    internal static partial class PushKindMetadata
     {
         [AsciiHash]
         internal static partial bool TryParse(ReadOnlySpan<byte> value, out PushKind result);
@@ -359,15 +359,11 @@ internal sealed partial class PhysicalConnection
         var reader = new RespReader(payload);
 
         // read the message kind from the first element
-        int len;
         if (reader.SafeTryMoveNext() & reader.IsAggregate & !reader.IsStreaming
-            && (len = reader.AggregateLength()) >= 2
+            && reader.AggregateLength() >= 2
             && (reader.SafeTryMoveNext() & reader.IsInlineScalar & !reader.IsError))
         {
-            var span = reader.TryGetSpan(out var tmp)
-                ? tmp : StackCopyLengthChecked(in reader, stackalloc byte[16]);
-
-            var kind = PushKindMetadata.TryParse(span, out var parsedKind) ? parsedKind : PushKind.None;
+            if (!reader.TryRead(PushKindMetadata.TryParse, out PushKind kind)) kind = PushKind.None;
             RedisChannel.RedisChannelOptions channelOptions = kind switch
             {
                 PushKind.PMessage or PushKind.PSubscribe or PushKind.PUnsubscribe => RedisChannel.RedisChannelOptions.Pattern,
@@ -442,7 +438,7 @@ internal sealed partial class PhysicalConnection
                         // counter-intuitively, the only server we *know* already knows the new route is:
                         // the outgoing server, since it had to change to MIGRATING etc; the new INCOMING server
                         // knows, but *we don't know who that is*, and other nodes: aren't guaranteed to know (yet)
-                        muxer.DefaultSubscriber.ResubscribeToServer(subscription, subscriptionChannel, server, cause: PushSUnsubscribe.Text);
+                        muxer.DefaultSubscriber.ResubscribeToServer(subscription, subscriptionChannel, server, cause: "sunsubscribe");
                     }
                     return true;
             }
@@ -615,33 +611,6 @@ internal sealed partial class PhysicalConnection
         if (lease.Length != 0) ArrayPool<byte>.Shared.Return(lease);
         return channel;
     }
-
-    [AsciiHash("message")]
-    internal static partial class PushMessage { }
-
-    [AsciiHash("pmessage")]
-    internal static partial class PushPMessage { }
-
-    [AsciiHash("smessage")]
-    internal static partial class PushSMessage { }
-
-    [AsciiHash("subscribe")]
-    private static partial class PushSubscribe { }
-
-    [AsciiHash("psubscribe")]
-    private static partial class PushPSubscribe { }
-
-    [AsciiHash("ssubscribe")]
-    private static partial class PushSSubscribe { }
-
-    [AsciiHash("unsubscribe")]
-    private static partial class PushUnsubscribe { }
-
-    [AsciiHash("punsubscribe")]
-    private static partial class PushPUnsubscribe { }
-
-    [AsciiHash("sunsubscribe")]
-    private static partial class PushSUnsubscribe { }
 
     [AsciiHash("*2\r\n$4\r\npong\r\n$")]
     private static partial class ArrayPong_LC_Bulk { }
