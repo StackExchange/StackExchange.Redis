@@ -2,8 +2,8 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace RESPite;
 
@@ -34,63 +34,12 @@ public sealed class AsciiHashAttribute(string token = "") : Attribute
     public bool CaseSensitive { get; set; } = true;
 }
 
+/// <remarks>
+/// Instance members are in AsciiHash.Instance.cs.
+/// </remarks>
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-public readonly partial struct AsciiHash : IEquatable<AsciiHash>
+public readonly partial struct AsciiHash
 {
-    // ReSharper disable InconsistentNaming
-    private readonly long _hashCI, _hashCS, _hashLC;
-    // ReSharper restore InconsistentNaming
-    private readonly int _index, _length;
-    private readonly byte[] _arr;
-
-    public int Length => _length;
-
-    /// <summary>
-    /// The optimal buffer length (with padding) to use for this value.
-    /// </summary>
-    public int BufferLength => (Length + 1 + 7) & ~7; // an extra byte, then round up to word-size
-
-    public ReadOnlySpan<byte> Span => new(_arr ?? [], _index, _length);
-
-    public AsciiHash(ReadOnlySpan<byte> value) : this(value.ToArray(), 0, value.Length) { }
-    public AsciiHash(string value) : this(Encoding.ASCII.GetBytes(value)) { }
-
-    /// <inheritdoc/>
-    public override int GetHashCode() => _hashCS.GetHashCode();
-
-    /// <inheritdoc/>
-    public override string ToString() => _length == 0 ? "" : Encoding.ASCII.GetString(_arr, _index, _length);
-
-    /// <inheritdoc/>
-    public override bool Equals(object? other) => other is AsciiHash hash && Equals(hash);
-
-    /// <inheritdoc cref="Equals(object)" />
-    public bool Equals(in AsciiHash other)
-    {
-        return (_length == other.Length & _hashCS == other._hashCS)
-               && (_length <= MaxBytesHashIsEqualityCS || Span.SequenceEqual(other.Span));
-    }
-
-    bool IEquatable<AsciiHash>.Equals(AsciiHash other) => Equals(other);
-
-    public AsciiHash(byte[] arr) : this(arr, 0, -1) { }
-
-    public AsciiHash(byte[] arr, int index, int length)
-    {
-        _arr = arr ?? [];
-        _index = index;
-        _length = length < 0 ? (_arr.Length - index) : length;
-
-        var span = new ReadOnlySpan<byte>(_arr, _index, _length);
-        Hash(span, out _hashCS, out _hashCI);
-
-        // pre-compute the lower-case hash
-        Span<byte> buffer = stackalloc byte[8];
-        BinaryPrimitives.WriteInt64LittleEndian(buffer, _hashCS);
-        ToLower(buffer);
-        _hashLC = BinaryPrimitives.ReadInt64LittleEndian(buffer);
-    }
-
     /// <summary>
     /// In-place ASCII upper-case conversion.
     /// </summary>
@@ -115,103 +64,25 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>
         }
     }
 
-    private const long CaseMask = ~0x2020202020202020;
-
-    public bool IsCS(ReadOnlySpan<byte> value) => IsCS(HashCS(value), value);
-
-    public bool IsCS(long hash, ReadOnlySpan<byte> value)
-    {
-        var len = _length;
-        if (hash != _hashCS | value.Length != len) return false;
-        return len <= MaxBytesHashIsEqualityCS || EqualsCS(Span, value);
-    }
-
-    public bool IsCI(ReadOnlySpan<byte> value) => IsCI(HashCI(value), value);
-
-    public bool IsCI(long hash, ReadOnlySpan<byte> value)
-    {
-        var len = _length;
-        if (hash != _hashCI | value.Length != len) return false;
-        if (len <= MaxBytesHashIsEqualityCS && HashCS(value) == _hashCS) return true;
-        return EqualsCI(Span, value);
-    }
-
-    public static long HashCS(in ReadOnlySequence<byte> value)
-    {
-#if NETCOREAPP3_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        var first = value.FirstSpan;
-#else
-        var first = value.First.Span;
-#endif
-        return first.Length >= MaxBytesHashed | value.IsSingleSegment
-            ? HashCS(first) : SlowHashCS(value);
-
-        static long SlowHashCS(in ReadOnlySequence<byte> value)
-        {
-            Span<byte> buffer = stackalloc byte[MaxBytesHashed];
-            var len = value.Length;
-            if (len <= MaxBytesHashed)
-            {
-                value.CopyTo(buffer);
-                buffer = buffer.Slice(0, (int)len);
-            }
-            else
-            {
-                value.Slice(0, MaxBytesHashed).CopyTo(buffer);
-            }
-
-            return HashCS(buffer);
-        }
-    }
-
-    internal const int MaxBytesHashIsEqualityCS = sizeof(long), MaxBytesHashed = sizeof(long);
+    internal const int MaxBytesHashed = sizeof(long);
 
     public static bool EqualsCS(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
     {
         var len = first.Length;
         if (len != second.Length) return false;
         // for very short values, the CS hash performs CS equality
-        return len <= MaxBytesHashIsEqualityCS ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
+        return len <= MaxBytesHashed ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
     }
 
     public static bool SequenceEqualsCS(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
         => first.SequenceEqual(second);
 
-    public static unsafe bool EqualsCI(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
+    public static bool EqualsCI(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
     {
         var len = first.Length;
         if (len != second.Length) return false;
-        // for very short values, the CS hash performs CS equality; check that first
-        if (len <= MaxBytesHashIsEqualityCS && HashCS(first) == HashCS(second)) return true;
-
-        // OK, don't be clever (SIMD, etc); the purpose of FashHash is to compare RESP key tokens, which are
-        // typically relatively short, think 3-20 bytes. That wouldn't even touch a SIMD vector, so:
-        // just loop (the exact thing we'd need to do *anyway* in a SIMD implementation, to mop up the non-SIMD
-        // trailing bytes).
-        fixed (byte* firstPtr = &MemoryMarshal.GetReference(first))
-        {
-            fixed (byte* secondPtr = &MemoryMarshal.GetReference(second))
-            {
-                const int CS_MASK = 0b0101_1111;
-                for (int i = 0; i < len; i++)
-                {
-                    byte x = firstPtr[i];
-                    var xCI = x & CS_MASK;
-                    if (xCI >= 'A' & xCI <= 'Z')
-                    {
-                        // alpha mismatch
-                        if (xCI != (secondPtr[i] & CS_MASK)) return false;
-                    }
-                    else if (x != secondPtr[i])
-                    {
-                        // non-alpha mismatch
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-        }
+        // for very short values, the UC hash performs CI equality
+        return len <= MaxBytesHashed ? HashUC(first) == HashUC(second) : SequenceEqualsCI(first, second);
     }
 
     public static unsafe bool SequenceEqualsCI(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
@@ -254,47 +125,18 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>
         var len = first.Length;
         if (len != second.Length) return false;
         // for very short values, the CS hash performs CS equality
-        return len <= MaxBytesHashIsEqualityCS ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
+        return len <= MaxBytesHashed ? HashCS(first) == HashCS(second) : first.SequenceEqual(second);
     }
 
     public static bool SequenceEqualsCS(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
         => first.SequenceEqual(second);
 
-    public static unsafe bool EqualsCI(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
+    public static bool EqualsCI(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
     {
         var len = first.Length;
         if (len != second.Length) return false;
         // for very short values, the CS hash performs CS equality; check that first
-        if (len <= MaxBytesHashIsEqualityCS && HashCS(first) == HashCS(second)) return true;
-
-        // OK, don't be clever (SIMD, etc); the purpose of FashHash is to compare RESP key tokens, which are
-        // typically relatively short, think 3-20 bytes. That wouldn't even touch a SIMD vector, so:
-        // just loop (the exact thing we'd need to do *anyway* in a SIMD implementation, to mop up the non-SIMD
-        // trailing bytes).
-        fixed (char* firstPtr = &MemoryMarshal.GetReference(first))
-        {
-            fixed (char* secondPtr = &MemoryMarshal.GetReference(second))
-            {
-                const int CS_MASK = 0b0101_1111;
-                for (int i = 0; i < len; i++)
-                {
-                    int x = (byte)firstPtr[i];
-                    var xCI = x & CS_MASK;
-                    if (xCI >= 'A' & xCI <= 'Z')
-                    {
-                        // alpha mismatch
-                        if (xCI != (secondPtr[i] & CS_MASK)) return false;
-                    }
-                    else if (x != (byte)secondPtr[i])
-                    {
-                        // non-alpha mismatch
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-        }
+        return len <= MaxBytesHashed ? HashUC(first) == HashUC(second) : SequenceEqualsCI(first, second);
     }
 
     public static unsafe bool SequenceEqualsCI(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
@@ -332,20 +174,41 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>
         }
     }
 
-    public static void Hash(scoped ReadOnlySpan<char> value, out long cs, out long ci)
+    public static void Hash(scoped ReadOnlySpan<byte> value, out long cs, out long uc)
     {
         cs = HashCS(value);
-        ci = cs & CaseMask;
+        uc = ToUC(cs);
     }
 
-    public static void Hash(scoped ReadOnlySpan<byte> value, out long cs, out long ci)
+    public static void Hash(scoped ReadOnlySpan<char> value, out long cs, out long uc)
     {
         cs = HashCS(value);
-        ci = cs & CaseMask;
+        uc = ToUC(cs);
     }
 
-    public static long HashCI(scoped ReadOnlySpan<byte> value)
-        => HashCS(value) & CaseMask;
+    public static long HashUC(scoped ReadOnlySpan<byte> value) => ToUC(HashCS(value));
+
+    public static long HashUC(scoped ReadOnlySpan<char> value) => ToUC(HashCS(value));
+
+    internal static long ToUC(long hashCS)
+    {
+        const long LC_MASK = 0x2020_2020_2020_2020;
+        // check whether there are any possible lower-case letters;
+        // this would be anything with the 0x20 bit set
+        if ((hashCS & LC_MASK) == 0) return hashCS;
+
+        // Something looks possibly lower-case; we can't just mask it off,
+        // because there are other non-alpha characters in that range.
+#if NET || NETSTANDARD2_1_OR_GREATER
+        ToUpper(MemoryMarshal.CreateSpan(ref Unsafe.As<long, byte>(ref hashCS), sizeof(long)));
+        return hashCS;
+#else
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteInt64LittleEndian(buffer, hashCS);
+        ToUpper(buffer);
+        return BinaryPrimitives.ReadInt64LittleEndian(buffer);
+#endif
+    }
 
     public static long HashCS(scoped ReadOnlySpan<byte> value)
     {
@@ -378,6 +241,4 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>
         }
         return (long)tally;
     }
-
-    public static long HashCI(scoped ReadOnlySpan<char> value) => HashCS(value) & CaseMask;
 }

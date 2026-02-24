@@ -14,7 +14,7 @@ public readonly partial struct AsciiHash
         {
             var len = x.Length;
             return (len == y.Length & x._hashCS == y._hashCS)
-                   && (len <= MaxBytesHashIsEqualityCS || x.Span.SequenceEqual(y.Span));
+                   && (len <= MaxBytesHashed || x.Span.SequenceEqual(y.Span));
         }
 
         public int GetHashCode(AsciiHash obj) => obj._hashCS.GetHashCode();
@@ -28,10 +28,10 @@ public readonly partial struct AsciiHash
         public bool Equals(AsciiHash x, AsciiHash y)
         {
             var len = x.Length;
-            return (len == y.Length & x._hashLC == y._hashLC)
-                   && (len <= MaxBytesHashIsEqualityCS || SequenceEqualsCI(x.Span, y.Span));
+            return (len == y.Length & x._hashUC == y._hashUC)
+                   && (len <= MaxBytesHashed || SequenceEqualsCI(x.Span, y.Span));
         }
 
-        public int GetHashCode(AsciiHash obj) => obj._hashLC.GetHashCode();
+        public int GetHashCode(AsciiHash obj) => obj._hashUC.GetHashCode();
     }
 }

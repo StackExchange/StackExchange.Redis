@@ -96,36 +96,36 @@ internal abstract partial class ResultProcessor
                     continue;
                 }
 
-                var hash = AsciiHash.HashCS(testBytes); // this still contains the key, even though we've advanced
-                switch (hash)
+                var hashCS = AsciiHash.HashCS(testBytes); // this still contains the key, even though we've advanced
+                switch (hashCS)
                 {
-                    case size.HashCS when size.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case size.HashCS when size.IsCS(testBytes, hashCS) && reader.TryReadInt64(out var i64):
                         resultSize = i64;
                         break;
-                    case vset_uid.HashCS when vset_uid.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case vset_uid.HashCS when vset_uid.IsCS(testBytes, hashCS) && reader.TryReadInt64(out var i64):
                         vsetUid = i64;
                         break;
-                    case max_level.HashCS when max_level.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case max_level.HashCS when max_level.IsCS(testBytes, hashCS) && reader.TryReadInt64(out var i64):
                         maxLevel = checked((int)i64);
                         break;
-                    case vector_dim.HashCS when vector_dim.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case vector_dim.HashCS when vector_dim.IsCS(testBytes, hashCS) && reader.TryReadInt64(out var i64):
                         vectorDim = checked((int)i64);
                         break;
-                    case quant_type.HashCS when quant_type.IsCS(hash, testBytes):
+                    case quant_type.HashCS when quant_type.IsCS(testBytes, hashCS):
                         len = reader.ScalarLength();
                         testBytes = (len > stackBuffer.Length | reader.IsNull) ? default :
                             reader.TryGetSpan(out tmp) ? tmp : reader.Buffer(stackBuffer);
 
-                        hash = AsciiHash.HashCS(testBytes);
-                        switch (hash)
+                        hashCS = AsciiHash.HashCS(testBytes);
+                        switch (hashCS)
                         {
-                            case bin.HashCS when bin.IsCS(hash, testBytes):
+                            case bin.HashCS when bin.IsCS(testBytes, hashCS):
                                 quantType = VectorSetQuantization.Binary;
                                 break;
-                            case f32.HashCS when f32.IsCS(hash, testBytes):
+                            case f32.HashCS when f32.IsCS(testBytes, hashCS):
                                 quantType = VectorSetQuantization.None;
                                 break;
-                            case int8.HashCS when int8.IsCS(hash, testBytes):
+                            case int8.HashCS when int8.IsCS(testBytes, hashCS):
                                 quantType = VectorSetQuantization.Int8;
                                 break;
                             default:
@@ -134,7 +134,7 @@ internal abstract partial class ResultProcessor
                                 break;
                         }
                         break;
-                    case hnsw_max_node_uid.HashCS when hnsw_max_node_uid.IsCS(hash, testBytes) && reader.TryReadInt64(out var i64):
+                    case hnsw_max_node_uid.HashCS when hnsw_max_node_uid.IsCS(testBytes, hashCS) && reader.TryReadInt64(out var i64):
                         hnswMaxNodeUid = i64;
                         break;
                 }

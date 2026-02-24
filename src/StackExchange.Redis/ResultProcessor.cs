@@ -1706,16 +1706,16 @@ namespace StackExchange.Redis
                 static RedisType FastParse(ReadOnlySpan<byte> span)
                 {
                     if (span.IsEmpty) return Redis.RedisType.None; // includes null
-                    var hash = AsciiHash.HashCS(span);
-                    return hash switch
+                    var hashCS = AsciiHash.HashCS(span);
+                    return hashCS switch
                     {
-                        redistype_string.HashCS when redistype_string.IsCS(hash, span) => Redis.RedisType.String,
-                        redistype_list.HashCS when redistype_list.IsCS(hash, span) => Redis.RedisType.List,
-                        redistype_set.HashCS when redistype_set.IsCS(hash, span) => Redis.RedisType.Set,
-                        redistype_zset.HashCS when redistype_zset.IsCS(hash, span) => Redis.RedisType.SortedSet,
-                        redistype_hash.HashCS when redistype_hash.IsCS(hash, span) => Redis.RedisType.Hash,
-                        redistype_stream.HashCS when redistype_stream.IsCS(hash, span) => Redis.RedisType.Stream,
-                        redistype_vectorset.HashCS when redistype_vectorset.IsCS(hash, span) => Redis.RedisType.VectorSet,
+                        redistype_string.HashCS when redistype_string.IsCS(span, hashCS) => Redis.RedisType.String,
+                        redistype_list.HashCS when redistype_list.IsCS(span, hashCS) => Redis.RedisType.List,
+                        redistype_set.HashCS when redistype_set.IsCS(span, hashCS) => Redis.RedisType.Set,
+                        redistype_zset.HashCS when redistype_zset.IsCS(span, hashCS) => Redis.RedisType.SortedSet,
+                        redistype_hash.HashCS when redistype_hash.IsCS(span, hashCS) => Redis.RedisType.Hash,
+                        redistype_stream.HashCS when redistype_stream.IsCS(span, hashCS) => Redis.RedisType.Stream,
+                        redistype_vectorset.HashCS when redistype_vectorset.IsCS(span, hashCS) => Redis.RedisType.VectorSet,
                         _ => Redis.RedisType.Unknown,
                     };
                 }

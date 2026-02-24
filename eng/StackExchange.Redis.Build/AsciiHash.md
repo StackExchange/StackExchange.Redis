@@ -28,14 +28,15 @@ static partial class bin
 {
     public const int Length = 3;
     public const long HashCS = ...
-    public const long HashCI = ...
+    public const long HashUC = ...
     public static ReadOnlySpan<byte> U8 => @"bin"u8;
     public static string Text => @"bin";
-    public static bool IsCI(long hash, in RawResult value) => ...
-    public static bool IsCS(long hash, in ReadOnlySpan<byte> value) => ...
+    public static bool IsCS(in ReadOnlySpan<byte> value, long cs) => ...
+    public static bool IsCI(in RawResult value, long uc) => ...
+    
 }
 ```
-The `CS` and `CI` are case-sensitive and case-insensitive tools, respectively.
+The `CS` and `UC` are case-sensitive and case-insensitive (using upper-case) tools, respectively.
 
 (this API is strictly an internal implementation detail, and can change at any time)
 
@@ -46,10 +47,10 @@ var key = ...
 var hash = key.HashCS();
 switch (key.Length)
 {
-    case bin.Length when bin.Is(hash, key):
+    case bin.Length when bin.Is(key, hash):
         // handle bin
         break;
-    case f32.Length when f32.Is(hash, key):
+    case f32.Length when f32.Is(key, hash):
         // handle f32
         break;
 }
@@ -57,7 +58,7 @@ switch (key.Length)
 
 The switch on the `Length` is optional, but recommended - these low values can often be implemented (by the compiler)
 as a simple jump-table, which is very fast. However, switching on the hash itself is also valid. All hash matches
-must also perform a sequence equality check - the `Is(hash, value)` convenience method validates both hash and equality.
+must also perform a sequence equality check - the `Is(value, hash)` convenience method validates both hash and equality.
 
 Note that `switch` requires `const` values, hence why we use generated *types* rather than partial-properties
 that emit an instance with the known values. Also, the `"..."u8` syntax emits a span which is awkward to store, but
@@ -80,6 +81,13 @@ static partial class bin
 Now, `bin.Hash` can be supplied to a caller that takes an `AsciiHash` instance (commonly with `in` semantics),
 which then has *instance* methods for case-sensitive and case-insensitive matching; the instance already knows
 the target hash and payload values.
+
+The `AsciiHash` returned implements `IEquatable<AsciiHash>` implementing case-sensitive equality; there are
+also independent case-sensitive and case-insensitive comparers available via the static
+`CaseSensitiveEqualityComparer` and `CaseInsensitiveEqualityComparer` properties respectively.
+
+Comparison values can be constructed on the fly on top of transient buffers using the constructors **that take
+arrays**. Note that the other constructors may allocate on a per-usage basis.
 
 ## Enum parsing (part 1)
 

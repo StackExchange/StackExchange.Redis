@@ -178,7 +178,7 @@ public class AsciiHashSwitch
     public Field SwitchOnHash_CI()
     {
         ReadOnlySpan<byte> span = _bytes;
-        var hash = AsciiHash.HashCI(span);
+        var hash = AsciiHash.HashUC(span);
         return hash switch
         {
             key.HashCI when key.IsCI(hash, span) => Field.key,
@@ -213,7 +213,7 @@ public class AsciiHashSwitch
     public Field SwitchOnLength_CI()
     {
         ReadOnlySpan<byte> span = _bytes;
-        var hash = AsciiHash.HashCI(span);
+        var hash = AsciiHash.HashUC(span);
         return span.Length switch
         {
             key.Length when key.IsCI(hash, span) => Field.key,

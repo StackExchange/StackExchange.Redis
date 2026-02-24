@@ -80,7 +80,7 @@ namespace StackExchange.Redis.Server
                 }
                 var readBytes = local.CopyTo(commandLease);
                 Debug.Assert(readBytes == len);
-                AsciiHash.ToLower(commandLease.AsSpan(0, readBytes));
+                AsciiHash.ToUpper(commandLease.AsSpan(0, readBytes));
                 // note we retain the lease array in the Command, this is intentional
                 Command = new(commandLease, 0, readBytes);
             }

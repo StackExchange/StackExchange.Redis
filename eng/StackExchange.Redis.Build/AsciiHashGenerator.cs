@@ -490,7 +490,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 }
                 else
                 {
-                    NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name).Append(", out var hashCS, out var hashCI);");
+                    NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name).Append(", out var hashCS, out var hashUC);");
                 }
 
                 if (string.IsNullOrEmpty(method.CaseSensitive.Name))
@@ -544,7 +544,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
                                  .ThenBy(x => x.ParseText))
                     {
                         var len = member.ParseText.Length;
-                        AsciiHash.Hash(member.ParseText, out var hashCS, out var hashCI);
+                        AsciiHash.Hash(member.ParseText, out var hashCS, out var hashUC);
 
                         bool valueCaseSensitive = caseSensitive || !HasCaseSensitiveCharacters(member.ParseText);
 
@@ -552,60 +552,28 @@ public class AsciiHashGenerator : IIncrementalGenerator
                         if (valueCaseSensitive)
                         {
                             line.Append(" when hashCS is ").Append(hashCS);
-                            if (len > AsciiHash.MaxBytesHashIsEqualityCS)
-                            {
-                                line.Append(" && ");
-                                WriteValueTest(member.ParseText, true);
-                            }
                         }
                         else
                         {
-                            // optimize for "all_lower" or "ALL_UPPER" matches; "Mixed_Match" comes last
-                            var ucText = member.ParseText.ToUpperInvariant();
-                            var lcText = member.ParseText.ToLowerInvariant();
-                            long hashUC = AsciiHash.HashCS(ucText), hashLC = AsciiHash.HashCS(lcText);
-
-                            if (len <= AsciiHash.MaxBytesHashIsEqualityCS)
-                            {
-                                // note we know the lc and uc hash must be different
-                                line.Append(" when (hashCS is ").Append(hashUC).Append(" or ").Append(hashLC)
-                                    .Append(") || (hashCI is ").Append(hashCI).Append(" && ");
-                                WriteValueTest(member.ParseText, false);
-                                line.Append(")");
-                            }
-                            else if (hashLC == hashCS && hashUC == hashCS)
-                            {
-                                // there are alphas, but not in the hashed portion
-                                line.Append(" when hashCS is ").Append(hashLC).Append(" && ");
-                                WriteValueTest(member.ParseText, false);
-                            }
-                            else
-                            {
-                                line.Append(" when (hashCS is ").Append(hashLC).Append(" && ");
-                                WriteValueTest(lcText, true);
-                                line.Append(") || (hashCS is ").Append(hashUC).Append(" && ");
-                                WriteValueTest(ucText, true);
-                                line.Append(") || (hashCI is ").Append(hashCI).Append(" && ");
-                                WriteValueTest(member.ParseText, false);
-                                line.Append(")");
-                            }
+                            line.Append(" when hashUC is ").Append(hashUC);
                         }
-                        line.Append(" => ").Append(method.To.Type).Append(".").Append(member.EnumMember).Append(",");
-
-                        void WriteValueTest(string value, bool testCS)
+                        if (len > AsciiHash.MaxBytesHashed)
                         {
+                            line.Append(" && ");
                             var csValue = SyntaxFactory
                                 .LiteralExpression(
                                     SyntaxKind.StringLiteralExpression,
-                                    SyntaxFactory.Literal(value))
+                                    SyntaxFactory.Literal(member.ParseText))
                                 .ToFullString();
 
                             line.Append("global::RESPite.AsciiHash.")
-                                .Append(testCS ? nameof(AsciiHash.SequenceEqualsCS) : nameof(AsciiHash.SequenceEqualsCI))
+                                .Append(valueCaseSensitive ? nameof(AsciiHash.SequenceEqualsCS) : nameof(AsciiHash.SequenceEqualsCI))
                                 .Append("(").Append(method.From.Name).Append(", ").Append(csValue);
                             if (method.From.IsBytes) line.Append("u8");
                             line.Append(")");
                         }
+
+                        line.Append(" => ").Append(method.To.Type).Append(".").Append(member.EnumMember).Append(",");
                     }
 
                     NewLine().Append("_ => (").Append(method.To.Type).Append(")").Append(method.DefaultValue)
@@ -717,29 +685,29 @@ public class AsciiHashGenerator : IIncrementalGenerator
                     .LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(literal.Value))
                     .ToFullString();
 
-                AsciiHash.Hash(literal.Value, out var hashCS, out var hashCI);
+                AsciiHash.Hash(literal.Value, out var hashCS, out var hashUC);
                 NewLine().Append("static partial class ").Append(literal.Name);
                 NewLine().Append("{");
                 indent++;
                 NewLine().Append("public const int Length = ").Append(literal.Value.Length).Append(';');
                 NewLine().Append("public const long HashCS = ").Append(hashCS).Append(';');
-                NewLine().Append("public const long HashCI = ").Append(hashCI).Append(';');
+                NewLine().Append("public const long HashUC = ").Append(hashUC).Append(';');
                 NewLine().Append("public static ReadOnlySpan<byte> U8 => ").Append(csValue).Append("u8;");
                 NewLine().Append("public const string Text = ").Append(csValue).Append(';');
-                if (literal.Value.Length <= AsciiHash.MaxBytesHashIsEqualityCS)
+                if (literal.Value.Length <= AsciiHash.MaxBytesHashed)
                 {
                     // the case-sensitive hash enforces all the values
                     NewLine().Append(
-                        "public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS & value.Length == Length;");
+                        "public static bool IsCS(ReadOnlySpan<byte> value, long cs) => cs == HashCS & value.Length == Length;");
                     NewLine().Append(
-                        "public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && (global::RESPite.AsciiHash.HashCS(value) == HashCS || global::RESPite.AsciiHash.EqualsCI(value, U8));");
+                        "public static bool IsCI(ReadOnlySpan<byte> value, long uc) => uc == HashUC & value.Length == Length;");
                 }
                 else
                 {
                     NewLine().Append(
-                        "public static bool IsCS(long hash, ReadOnlySpan<byte> value) => hash == HashCS && value.SequenceEqual(U8);");
+                        "public static bool IsCS(ReadOnlySpan<byte> value, long cs) => cs == HashCS && value.SequenceEqual(U8);");
                     NewLine().Append(
-                        "public static bool IsCI(long hash, ReadOnlySpan<byte> value) => (hash == HashCI & value.Length == Length) && global::RESPite.AsciiHash.EqualsCI(value, U8);");
+                        "public static bool IsCI(ReadOnlySpan<byte> value, long uc) => uc == HashUC && global::RESPite.AsciiHash.SequenceEqualsCI(value, U8);");
                 }
 
                 indent--;

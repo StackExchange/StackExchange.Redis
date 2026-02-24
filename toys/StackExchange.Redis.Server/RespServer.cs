@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Server
                     let attrib = CheckSignatureAndGetAttribute(method)
                     where attrib != null
                     select new RespCommand(attrib, method, server))
-                .GroupBy(x => new AsciiHash(x.Command.ToLowerInvariant()), AsciiHash.CaseSensitiveEqualityComparer);
+                .GroupBy(x => new AsciiHash(x.Command.ToUpperInvariant()), AsciiHash.CaseSensitiveEqualityComparer);
 
             var result = new Dictionary<AsciiHash, RespCommand>(AsciiHash.CaseSensitiveEqualityComparer);
             foreach (var grp in grouped)

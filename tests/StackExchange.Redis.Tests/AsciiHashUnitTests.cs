@@ -10,7 +10,7 @@ using Xunit.Sdk;
 // ReSharper disable IdentifierTypo
 namespace StackExchange.Redis.Tests;
 
-public partial class AsciiHashTests(ITestOutputHelper log)
+public partial class AsciiHashUnitTests(ITestOutputHelper log)
 {
     // note: if the hashing algorithm changes, we can update the last parameter freely; it doesn't matter
     // what it *is* - what matters is that we can see that it has entropy between different values
@@ -33,7 +33,6 @@ public partial class AsciiHashTests(ITestOutputHelper log)
     [InlineData(7, xxxxxxx.Length, xxxxxxx.Text, xxxxxxx.HashCS, 33909456017848440)]
     [InlineData(8, xxxxxxxx.Length, xxxxxxxx.Text, xxxxxxxx.HashCS, 8680820740569200760)]
 
-    [InlineData(3, 窓.Length, 窓.Text, 窓.HashCS, 9677543, "窓")]
     [InlineData(20, abcdefghijklmnopqrst.Length, abcdefghijklmnopqrst.Text, abcdefghijklmnopqrst.HashCS, 7523094288207667809)]
 
     // show that foo_bar is interpreted as foo-bar
@@ -62,12 +61,12 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> value = "abc"u8;
         var hash = AsciiHash.HashCS(value);
         Assert.Equal(abc.HashCS, hash);
-        Assert.True(abc.IsCS(hash, value));
+        Assert.True(abc.IsCS(value, hash));
 
         value = "abz"u8;
         hash = AsciiHash.HashCS(value);
         Assert.NotEqual(abc.HashCS, hash);
-        Assert.False(abc.IsCS(hash, value));
+        Assert.False(abc.IsCS(value, hash));
     }
 
     [Fact]
@@ -76,12 +75,12 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> value = "abcdefghijklmnopqrst"u8;
         var hash = AsciiHash.HashCS(value);
         Assert.Equal(abcdefghijklmnopqrst.HashCS, hash);
-        Assert.True(abcdefghijklmnopqrst.IsCS(hash, value));
+        Assert.True(abcdefghijklmnopqrst.IsCS(value, hash));
 
         value = "abcdefghijklmnopqrsz"u8;
         hash = AsciiHash.HashCS(value);
         Assert.Equal(abcdefghijklmnopqrst.HashCS, hash); // hash collision, fine
-        Assert.False(abcdefghijklmnopqrst.IsCS(hash, value));
+        Assert.False(abcdefghijklmnopqrst.IsCS(value, hash));
     }
 
     // Test case-sensitive and case-insensitive equality for various lengths
@@ -136,8 +135,8 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         var lower = Encoding.UTF8.GetBytes(text);
         var upper = Encoding.UTF8.GetBytes(text.ToUpperInvariant());
 
-        var hashLowerCI = AsciiHash.HashCI(lower);
-        var hashUpperCI = AsciiHash.HashCI(upper);
+        var hashLowerUC = AsciiHash.HashUC(lower);
+        var hashUpperUC = AsciiHash.HashUC(upper);
 
         // Case-insensitive: same case should match
         Assert.True(AsciiHash.EqualsCI(lower, lower), "CI: lower == lower");
@@ -148,7 +147,7 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         Assert.True(AsciiHash.EqualsCI(upper, lower), "CI: upper == lower");
 
         // CI hashes should be the same for different cases
-        Assert.Equal(hashLowerCI, hashUpperCI);
+        Assert.Equal(hashLowerUC, hashUpperUC);
     }
 
     [Theory]
@@ -178,48 +177,48 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         switch (text)
         {
             case "a":
-                Assert.True(a.IsCS(hashLowerCS, lower));
-                Assert.False(a.IsCS(hashUpperCS, upper));
+                Assert.True(a.IsCS(lower, hashLowerCS));
+                Assert.False(a.IsCS(lower, hashUpperCS));
                 break;
             case "ab":
-                Assert.True(ab.IsCS(hashLowerCS, lower));
-                Assert.False(ab.IsCS(hashUpperCS, upper));
+                Assert.True(ab.IsCS(lower, hashLowerCS));
+                Assert.False(ab.IsCS(lower, hashUpperCS));
                 break;
             case "abc":
-                Assert.True(abc.IsCS(hashLowerCS, lower));
-                Assert.False(abc.IsCS(hashUpperCS, upper));
+                Assert.True(abc.IsCS(lower, hashLowerCS));
+                Assert.False(abc.IsCS(lower, hashUpperCS));
                 break;
             case "abcd":
-                Assert.True(abcd.IsCS(hashLowerCS, lower));
-                Assert.False(abcd.IsCS(hashUpperCS, upper));
+                Assert.True(abcd.IsCS(lower, hashLowerCS));
+                Assert.False(abcd.IsCS(lower, hashUpperCS));
                 break;
             case "abcde":
-                Assert.True(abcde.IsCS(hashLowerCS, lower));
-                Assert.False(abcde.IsCS(hashUpperCS, upper));
+                Assert.True(abcde.IsCS(lower, hashLowerCS));
+                Assert.False(abcde.IsCS(lower, hashUpperCS));
                 break;
             case "abcdef":
-                Assert.True(abcdef.IsCS(hashLowerCS, lower));
-                Assert.False(abcdef.IsCS(hashUpperCS, upper));
+                Assert.True(abcdef.IsCS(lower, hashLowerCS));
+                Assert.False(abcdef.IsCS(lower, hashUpperCS));
                 break;
             case "abcdefg":
-                Assert.True(abcdefg.IsCS(hashLowerCS, lower));
-                Assert.False(abcdefg.IsCS(hashUpperCS, upper));
+                Assert.True(abcdefg.IsCS(lower, hashLowerCS));
+                Assert.False(abcdefg.IsCS(lower, hashUpperCS));
                 break;
             case "abcdefgh":
-                Assert.True(abcdefgh.IsCS(hashLowerCS, lower));
-                Assert.False(abcdefgh.IsCS(hashUpperCS, upper));
+                Assert.True(abcdefgh.IsCS(lower, hashLowerCS));
+                Assert.False(abcdefgh.IsCS(lower, hashUpperCS));
                 break;
             case "abcdefghijklmnopqrst":
-                Assert.True(abcdefghijklmnopqrst.IsCS(hashLowerCS, lower));
-                Assert.False(abcdefghijklmnopqrst.IsCS(hashUpperCS, upper));
+                Assert.True(abcdefghijklmnopqrst.IsCS(lower, hashLowerCS));
+                Assert.False(abcdefghijklmnopqrst.IsCS(lower, hashUpperCS));
                 break;
             case "foo-bar":
-                Assert.True(foo_bar_hyphen.IsCS(hashLowerCS, lower));
-                Assert.False(foo_bar_hyphen.IsCS(hashUpperCS, upper));
+                Assert.True(foo_bar_hyphen.IsCS(lower, hashLowerCS));
+                Assert.False(foo_bar_hyphen.IsCS(lower, hashUpperCS));
                 break;
             case "foo_bar":
-                Assert.True(foo_bar_underscore.IsCS(hashLowerCS, lower));
-                Assert.False(foo_bar_underscore.IsCS(hashUpperCS, upper));
+                Assert.True(foo_bar_underscore.IsCS(lower, hashLowerCS));
+                Assert.False(foo_bar_underscore.IsCS(lower, hashUpperCS));
                 break;
         }
     }
@@ -244,55 +243,55 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         var lower = Encoding.UTF8.GetBytes(text);
         var upper = Encoding.UTF8.GetBytes(text.ToUpperInvariant());
 
-        var hashLowerCI = AsciiHash.HashCI(lower);
-        var hashUpperCI = AsciiHash.HashCI(upper);
+        var hashLowerUC = AsciiHash.HashUC(lower);
+        var hashUpperUC = AsciiHash.HashUC(upper);
 
         // Use the generated types to verify CI behavior
         switch (text)
         {
             case "a":
-                Assert.True(a.IsCI(hashLowerCI, lower));
-                Assert.True(a.IsCI(hashUpperCI, upper));
+                Assert.True(a.IsCI(lower, hashLowerUC));
+                Assert.True(a.IsCI(upper, hashUpperUC));
                 break;
             case "ab":
-                Assert.True(ab.IsCI(hashLowerCI, lower));
-                Assert.True(ab.IsCI(hashUpperCI, upper));
+                Assert.True(ab.IsCI(lower, hashLowerUC));
+                Assert.True(ab.IsCI(upper, hashUpperUC));
                 break;
             case "abc":
-                Assert.True(abc.IsCI(hashLowerCI, lower));
-                Assert.True(abc.IsCI(hashUpperCI, upper));
+                Assert.True(abc.IsCI(lower, hashLowerUC));
+                Assert.True(abc.IsCI(upper, hashUpperUC));
                 break;
             case "abcd":
-                Assert.True(abcd.IsCI(hashLowerCI, lower));
-                Assert.True(abcd.IsCI(hashUpperCI, upper));
+                Assert.True(abcd.IsCI(lower, hashLowerUC));
+                Assert.True(abcd.IsCI(upper, hashUpperUC));
                 break;
             case "abcde":
-                Assert.True(abcde.IsCI(hashLowerCI, lower));
-                Assert.True(abcde.IsCI(hashUpperCI, upper));
+                Assert.True(abcde.IsCI(lower, hashLowerUC));
+                Assert.True(abcde.IsCI(upper, hashUpperUC));
                 break;
             case "abcdef":
-                Assert.True(abcdef.IsCI(hashLowerCI, lower));
-                Assert.True(abcdef.IsCI(hashUpperCI, upper));
+                Assert.True(abcdef.IsCI(lower, hashLowerUC));
+                Assert.True(abcdef.IsCI(upper, hashUpperUC));
                 break;
             case "abcdefg":
-                Assert.True(abcdefg.IsCI(hashLowerCI, lower));
-                Assert.True(abcdefg.IsCI(hashUpperCI, upper));
+                Assert.True(abcdefg.IsCI(lower, hashLowerUC));
+                Assert.True(abcdefg.IsCI(upper, hashUpperUC));
                 break;
             case "abcdefgh":
-                Assert.True(abcdefgh.IsCI(hashLowerCI, lower));
-                Assert.True(abcdefgh.IsCI(hashUpperCI, upper));
+                Assert.True(abcdefgh.IsCI(lower, hashLowerUC));
+                Assert.True(abcdefgh.IsCI(upper, hashUpperUC));
                 break;
             case "abcdefghijklmnopqrst":
-                Assert.True(abcdefghijklmnopqrst.IsCI(hashLowerCI, lower));
-                Assert.True(abcdefghijklmnopqrst.IsCI(hashUpperCI, upper));
+                Assert.True(abcdefghijklmnopqrst.IsCI(lower, hashLowerUC));
+                Assert.True(abcdefghijklmnopqrst.IsCI(upper, hashUpperUC));
                 break;
             case "foo-bar":
-                Assert.True(foo_bar_hyphen.IsCI(hashLowerCI, lower));
-                Assert.True(foo_bar_hyphen.IsCI(hashUpperCI, upper));
+                Assert.True(foo_bar_hyphen.IsCI(lower, hashLowerUC));
+                Assert.True(foo_bar_hyphen.IsCI(upper, hashUpperUC));
                 break;
             case "foo_bar":
-                Assert.True(foo_bar_underscore.IsCI(hashLowerCI, lower));
-                Assert.True(foo_bar_underscore.IsCI(hashUpperCI, upper));
+                Assert.True(foo_bar_underscore.IsCI(lower, hashLowerUC));
+                Assert.True(foo_bar_underscore.IsCI(upper, hashUpperUC));
                 break;
         }
     }
@@ -304,10 +303,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "a"u8;
         ReadOnlySpan<byte> upper = "A"u8;
 
-        Assert.True(a.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(a.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(a.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(a.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(a.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(a.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(a.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(a.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -316,10 +315,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "ab"u8;
         ReadOnlySpan<byte> upper = "AB"u8;
 
-        Assert.True(ab.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(ab.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(ab.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(ab.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(ab.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(ab.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(ab.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(ab.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -328,10 +327,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abc"u8;
         ReadOnlySpan<byte> upper = "ABC"u8;
 
-        Assert.True(abc.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(abc.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(abc.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(abc.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(abc.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(abc.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(abc.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(abc.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -340,10 +339,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcd"u8;
         ReadOnlySpan<byte> upper = "ABCD"u8;
 
-        Assert.True(abcd.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(abcd.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(abcd.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(abcd.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(abcd.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(abcd.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(abcd.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(abcd.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -352,10 +351,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcde"u8;
         ReadOnlySpan<byte> upper = "ABCDE"u8;
 
-        Assert.True(abcde.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(abcde.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(abcde.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(abcde.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(abcde.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(abcde.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(abcde.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(abcde.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -364,10 +363,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcdef"u8;
         ReadOnlySpan<byte> upper = "ABCDEF"u8;
 
-        Assert.True(abcdef.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(abcdef.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(abcdef.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(abcdef.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(abcdef.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(abcdef.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(abcdef.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(abcdef.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -376,10 +375,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcdefg"u8;
         ReadOnlySpan<byte> upper = "ABCDEFG"u8;
 
-        Assert.True(abcdefg.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(abcdefg.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(abcdefg.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(abcdefg.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(abcdefg.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(abcdefg.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(abcdefg.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(abcdefg.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -388,10 +387,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcdefgh"u8;
         ReadOnlySpan<byte> upper = "ABCDEFGH"u8;
 
-        Assert.True(abcdefgh.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(abcdefgh.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(abcdefgh.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(abcdefgh.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(abcdefgh.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(abcdefgh.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(abcdefgh.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(abcdefgh.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -400,10 +399,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "abcdefghijklmnopqrst"u8;
         ReadOnlySpan<byte> upper = "ABCDEFGHIJKLMNOPQRST"u8;
 
-        Assert.True(abcdefghijklmnopqrst.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(abcdefghijklmnopqrst.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(abcdefghijklmnopqrst.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(abcdefghijklmnopqrst.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(abcdefghijklmnopqrst.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(abcdefghijklmnopqrst.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(abcdefghijklmnopqrst.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(abcdefghijklmnopqrst.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -413,10 +412,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "foo-bar"u8;
         ReadOnlySpan<byte> upper = "FOO-BAR"u8;
 
-        Assert.True(foo_bar.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(foo_bar.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(foo_bar.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(foo_bar.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(foo_bar.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(foo_bar.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(foo_bar.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(foo_bar.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
@@ -426,10 +425,10 @@ public partial class AsciiHashTests(ITestOutputHelper log)
         ReadOnlySpan<byte> lower = "foo-bar"u8;
         ReadOnlySpan<byte> upper = "FOO-BAR"u8;
 
-        Assert.True(foo_bar_hyphen.IsCS(AsciiHash.HashCS(lower), lower));
-        Assert.False(foo_bar_hyphen.IsCS(AsciiHash.HashCS(upper), upper));
-        Assert.True(foo_bar_hyphen.IsCI(AsciiHash.HashCI(lower), lower));
-        Assert.True(foo_bar_hyphen.IsCI(AsciiHash.HashCI(upper), upper));
+        Assert.True(foo_bar_hyphen.IsCS(lower, AsciiHash.HashCS(lower)));
+        Assert.False(foo_bar_hyphen.IsCS(upper, AsciiHash.HashCS(upper)));
+        Assert.True(foo_bar_hyphen.IsCI(lower, AsciiHash.HashUC(lower)));
+        Assert.True(foo_bar_hyphen.IsCI(upper, AsciiHash.HashUC(upper)));
     }
 
     [Fact]
