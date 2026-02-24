@@ -20,6 +20,7 @@ public partial class EnumParseBenchmarks
         "get",
         "expireat",
         "zremrangebyscore",
+        "GeoRadiusByMember",
     ];
 
     private byte[] _bytes = [];

@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -240,5 +239,55 @@ public readonly partial struct AsciiHash
             tally |= ((ulong)value[i]) << (i << 3);
         }
         return (long)tally;
+    }
+
+    public static void HashCS(scoped ReadOnlySpan<byte> value, out long cs0, out long cs1)
+    {
+        cs0 = HashCS(value);
+        cs1 = value.Length > MaxBytesHashed ? HashCS(value.Slice(start: MaxBytesHashed)) : 0;
+    }
+
+    public static void HashCS(scoped ReadOnlySpan<char> value, out long cs0, out long cs1)
+    {
+        cs0 = HashCS(value);
+        cs1 = value.Length > MaxBytesHashed ? HashCS(value.Slice(start: MaxBytesHashed)) : 0;
+    }
+
+    public static void HashUC(scoped ReadOnlySpan<byte> value, out long cs0, out long cs1)
+    {
+        cs0 = HashUC(value);
+        cs1 = value.Length > MaxBytesHashed ? HashUC(value.Slice(start: MaxBytesHashed)) : 0;
+    }
+
+    public static void HashUC(scoped ReadOnlySpan<char> value, out long cs0, out long cs1)
+    {
+        cs0 = HashUC(value);
+        cs1 = value.Length > MaxBytesHashed ? HashUC(value.Slice(start: MaxBytesHashed)) : 0;
+    }
+
+    public static void Hash(scoped ReadOnlySpan<byte> value, out long cs0, out long uc0, out long cs1, out long uc1)
+    {
+        Hash(value, out cs0, out uc0);
+        if (value.Length > MaxBytesHashed)
+        {
+            Hash(value.Slice(start: MaxBytesHashed), out cs1, out uc1);
+        }
+        else
+        {
+            cs1 = uc1 = 0;
+        }
+    }
+
+    public static void Hash(scoped ReadOnlySpan<char> value, out long cs0, out long uc0, out long cs1, out long uc1)
+    {
+        Hash(value, out cs0, out uc0);
+        if (value.Length > MaxBytesHashed)
+        {
+            Hash(value.Slice(start: MaxBytesHashed), out cs1, out uc1);
+        }
+        else
+        {
+            cs1 = uc1 = 0;
+        }
     }
 }
