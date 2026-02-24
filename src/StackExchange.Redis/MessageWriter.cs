@@ -109,7 +109,21 @@ internal readonly ref struct MessageWriter
         REDIS_MAX_ARGS =
             1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
-    internal void WriteHeader(in AsciiHash command, int arguments) => WriteHeader(RedisCommand.UNKNOWN, arguments, command.Span);
+    internal void WriteHeader(string command, int arguments)
+    {
+        byte[]? lease = null;
+        try
+        {
+            int bytes = Encoding.ASCII.GetMaxByteCount(command.Length);
+            Span<byte> buffer = command.Length <= 32 ? stackalloc byte[32] : (lease = ArrayPool<byte>.Shared.Rent(bytes));
+            bytes = Encoding.ASCII.GetBytes(command, buffer);
+            WriteHeader(RedisCommand.UNKNOWN, arguments, buffer.Slice(0, bytes));
+        }
+        finally
+        {
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+        }
+    }
 
     internal void WriteHeader(RedisCommand command, int arguments) => WriteHeader(command, arguments, _map.GetBytes(command).Span);
 
@@ -129,7 +143,7 @@ internal readonly ref struct MessageWriter
         span[0] = (byte)'*';
 
         int offset = WriteRaw(span, arguments + 1, offset: 1);
-
+        span[offset++] = (byte)'$';
         offset = AppendToSpan(span, commandBytes, offset: offset);
 
         _writer.Advance(offset);

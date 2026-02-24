@@ -5605,37 +5605,38 @@ namespace StackExchange.Redis
         internal sealed class ExecuteMessage : Message
         {
             private readonly ICollection<object> _args;
-            private string? _commandUnknown;
+            private string _unknownCommand;
 
-            public ExecuteMessage(CommandMap? map, int db, CommandFlags flags, string command, ICollection<object>? args) : base(db, flags, RedisCommand.UNKNOWN)
+            public ExecuteMessage(CommandMap? map, int db, CommandFlags flags, string command, ICollection<object>? args)
+                : base(db, flags, RedisCommandMetadata.TryParseCI(command, out var value) ? value : RedisCommand.UNKNOWN)
             {
                 if (args != null && args.Count >= MessageWriter.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
                 {
                     throw ExceptionFactory.TooManyArgs(command, args.Count);
                 }
-                if (map.TryGetBytes(command, out var commandBytes))
-                {
-                    if (commandBytes.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
-                    _commandKnown = commandBytes;
-                }
-                else
-                {
-                    _commandUnknown = command;
-                }
 
+                map ??= CommandMap.Default;
+                _unknownCommand = "";
+                if (Command is RedisCommand.UNKNOWN)
+                {
+                    _unknownCommand = command;
+                }
+                else if (!map.IsAvailable(Command))
+                {
+                    throw ExceptionFactory.CommandDisabled(command);
+                }
                 _args = args ?? Array.Empty<object>();
             }
 
             protected override void WriteImpl(in MessageWriter writer)
             {
-                if (_commandUnknown is null)
+                if (Command is RedisCommand.UNKNOWN)
                 {
-                    Debug.Assert(!_commandKnown.IsEmpty);
-                    writer.WriteHeader(RedisCommand.UNKNOWN, _args.Count, _commandKnown);
+                    writer.WriteHeader(_unknownCommand, _args.Count);
                 }
                 else
                 {
-                    writer.WriteHeader(RedisCommand.UNKNOWN, _args.Count, _commandUnknown);
+                    writer.WriteHeader(Command, _args.Count);
                 }
                 foreach (object arg in _args)
                 {
@@ -5656,8 +5657,8 @@ namespace StackExchange.Redis
                 }
             }
 
-            public override string CommandString => CommandRaw.ToString();
-            public override string CommandAndKey => CommandRaw.ToString();
+            public override string CommandString => Command is RedisCommand.UNKNOWN ? _unknownCommand : Command.ToString();
+            public override string CommandAndKey => CommandString;
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {

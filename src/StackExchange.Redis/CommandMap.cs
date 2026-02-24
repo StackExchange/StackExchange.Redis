@@ -133,7 +133,7 @@ namespace StackExchange.Redis
             {
                 var dictionary = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                 // nix everything
-                foreach (RedisCommand command in (RedisCommand[])Enum.GetValues(typeof(RedisCommand)))
+                foreach (RedisCommand command in AllCommands)
                 {
                     dictionary[command.ToString()] = null;
                 }
@@ -155,7 +155,7 @@ namespace StackExchange.Redis
                     // nix the things that are specified
                     foreach (var command in commands)
                     {
-                        if (Enum.TryParse(command, true, out RedisCommand parsed))
+                        if (RedisCommandMetadata.TryParseCI(command, out RedisCommand parsed))
                         {
                             (exclusions ??= new HashSet<RedisCommand>()).Add(parsed);
                         }
@@ -198,24 +198,15 @@ namespace StackExchange.Redis
 
         internal AsciiHash GetBytes(RedisCommand command) => map[(int)command];
 
-        internal bool TryGetBytes(string command, out AsciiHash bytes)
-        {
-            if (command is { Length: > 0 } && Enum.TryParse(command, true, out RedisCommand cmd))
-            {
-                // we know that one!
-                bytes = map[(int)cmd];
-                return false;
-            }
-
-            bytes = default;
-            return false;
-        }
-
         internal bool IsAvailable(RedisCommand command) => !map[(int)command].IsEmpty;
+
+        private static RedisCommand[]? s_AllCommands;
+
+        private static ReadOnlySpan<RedisCommand> AllCommands => s_AllCommands ??= (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
 
         private static CommandMap CreateImpl(Dictionary<string, string?>? caseInsensitiveOverrides, HashSet<RedisCommand>? exclusions)
         {
-            var commands = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
+            var commands = AllCommands;
 
             var map = new AsciiHash[commands.Length];
             for (int i = 0; i < commands.Length; i++)
@@ -223,7 +214,7 @@ namespace StackExchange.Redis
                 int idx = (int)commands[i];
                 string? name = commands[i].ToString(), value = name;
 
-                if (exclusions?.Contains(commands[i]) == true)
+                if (commands[i] is RedisCommand.UNKNOWN || exclusions?.Contains(commands[i]) == true)
                 {
                     map[idx] = default;
                 }
