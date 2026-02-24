@@ -110,7 +110,11 @@ namespace StackExchange.Redis.Server
             public RespCommand(RedisCommandAttribute attrib, MethodInfo method, RespServer server)
             {
                 _operation = (RespOperation)Delegate.CreateDelegate(typeof(RespOperation), server, method);
-                Command = attrib.Command;
+
+                var command = attrib.Command;
+                if (string.IsNullOrEmpty(command)) command = method.Name;
+
+                Command = command;
                 SubCommand = attrib.SubCommand?.Trim()?.ToLowerInvariant();
                 Arity = attrib.Arity;
                 MaxArgs = attrib.MaxArgs;
