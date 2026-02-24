@@ -6,7 +6,7 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Redis replication states.
 /// </summary>
-[AsciiHash(nameof(ReplicationStateMetadata))]
+// [AsciiHash(nameof(ReplicationStateMetadata))]
 internal enum ReplicationState
 {
     /// <summary>

@@ -13,6 +13,7 @@ public enum VectorSetQuantization
     /// <summary>
     /// Unknown or unrecognized quantization type.
     /// </summary>
+    [AsciiHash("")]
     Unknown = 0,
 
     /// <summary>

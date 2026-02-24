@@ -6,7 +6,7 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Redis server role types.
 /// </summary>
-[AsciiHash(nameof(RoleTypeMetadata))]
+// [AsciiHash(nameof(RoleTypeMetadata))]
 internal enum RoleType
 {
     /// <summary>
