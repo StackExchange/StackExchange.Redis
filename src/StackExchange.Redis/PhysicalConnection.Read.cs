@@ -316,16 +316,32 @@ internal sealed partial class PhysicalConnection
 
     private enum PushKind
     {
+        [AsciiHash("")]
         None,
+        [AsciiHash("message")]
         Message,
+        [AsciiHash("pmessage")]
         PMessage,
+        [AsciiHash("smessage")]
         SMessage,
+        [AsciiHash("subscribe")]
         Subscribe,
+        [AsciiHash("psubscribe")]
         PSubscribe,
+        [AsciiHash("ssubscribe")]
         SSubscribe,
+        [AsciiHash("unsubscribe")]
         Unsubscribe,
+        [AsciiHash("punsubscribe")]
         PUnsubscribe,
+        [AsciiHash("sunsubscribe")]
         SUnsubscribe,
+    }
+
+    private static partial class PushKindMetadata
+    {
+        [AsciiHash]
+        internal static partial bool TryParse(ReadOnlySpan<byte> value, out PushKind result);
     }
 
     internal static ReadOnlySpan<byte> StackCopyLengthChecked(scoped in RespReader reader, Span<byte> buffer)
@@ -348,52 +364,16 @@ internal sealed partial class PhysicalConnection
             && (len = reader.AggregateLength()) >= 2
             && (reader.SafeTryMoveNext() & reader.IsInlineScalar & !reader.IsError))
         {
-            const int MAX_TYPE_LEN = 16;
             var span = reader.TryGetSpan(out var tmp)
-                ? tmp : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
+                ? tmp : StackCopyLengthChecked(in reader, stackalloc byte[16]);
 
-            var hashCS = AsciiHash.HashCS(span);
-            RedisChannel.RedisChannelOptions channelOptions = RedisChannel.RedisChannelOptions.None;
-            PushKind kind;
-            switch (hashCS)
+            var kind = PushKindMetadata.TryParse(span, out var parsedKind) ? parsedKind : PushKind.None;
+            RedisChannel.RedisChannelOptions channelOptions = kind switch
             {
-                case PushMessage.HashCS when PushMessage.IsCS(span, hashCS) & len >= 3:
-                    kind = PushKind.Message;
-                    break;
-                case PushPMessage.HashCS when PushPMessage.IsCS(span, hashCS) & len >= 4:
-                    channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                    kind = PushKind.PMessage;
-                    break;
-                case PushSMessage.HashCS when PushSMessage.IsCS(span, hashCS) & len >= 3:
-                    channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                    kind = PushKind.SMessage;
-                    break;
-                case PushSubscribe.HashCS when PushSubscribe.IsCS(span, hashCS):
-                    kind = PushKind.Subscribe;
-                    break;
-                case PushPSubscribe.HashCS when PushPSubscribe.IsCS(span, hashCS):
-                    channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                    kind = PushKind.PSubscribe;
-                    break;
-                case PushSSubscribe.HashCS when PushSSubscribe.IsCS(span, hashCS):
-                    channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                    kind = PushKind.SSubscribe;
-                    break;
-                case PushUnsubscribe.HashCS when PushUnsubscribe.IsCS(span, hashCS):
-                    kind = PushKind.Unsubscribe;
-                    break;
-                case PushPUnsubscribe.HashCS when PushPUnsubscribe.IsCS(span, hashCS):
-                    channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                    kind = PushKind.PUnsubscribe;
-                    break;
-                case PushSUnsubscribe.HashCS when PushSUnsubscribe.IsCS(span, hashCS):
-                    channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                    kind = PushKind.SUnsubscribe;
-                    break;
-                default:
-                    kind = PushKind.None;
-                    break;
-            }
+                PushKind.PMessage or PushKind.PSubscribe or PushKind.PUnsubscribe => RedisChannel.RedisChannelOptions.Pattern,
+                PushKind.SMessage or PushKind.SSubscribe or PushKind.SUnsubscribe => RedisChannel.RedisChannelOptions.Sharded,
+                _ => RedisChannel.RedisChannelOptions.None,
+            };
 
             static bool TryMoveNextString(ref RespReader reader)
                 => reader.SafeTryMoveNext() & reader.IsInlineScalar &
