@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace RESPite;
 
@@ -34,26 +35,66 @@ public sealed class AsciiHashAttribute(string token = "") : Attribute
 }
 
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-public readonly struct AsciiHash
+public readonly partial struct AsciiHash
 {
-    private readonly long _hashCI;
-    private readonly long _hashCS;
-    private readonly ReadOnlyMemory<byte> _value;
-    public int Length => _value.Length;
+    // ReSharper disable InconsistentNaming
+    private readonly long _hashCI, _hashCS, _hashLC;
+    // ReSharper restore InconsistentNaming
+    private readonly int _index, _length;
+    private readonly byte[] _arr;
+
+    public int Length => _length;
 
     /// <summary>
     /// The optimal buffer length (with padding) to use for this value.
     /// </summary>
     public int BufferLength => (Length + 1 + 7) & ~7; // an extra byte, then round up to word-size
 
-    public AsciiHash(ReadOnlySpan<byte> value) : this((ReadOnlyMemory<byte>)value.ToArray()) { }
+    public ReadOnlySpan<byte> Span => new(_arr ?? [], _index, _length);
 
-    public AsciiHash(ReadOnlyMemory<byte> value)
+    public AsciiHash(ReadOnlySpan<byte> value) : this(value.ToArray(), 0, value.Length) { }
+    public AsciiHash(string value) : this(Encoding.ASCII.GetBytes(value)) { }
+
+    public AsciiHash(byte[] arr) : this(arr, 0, -1) { }
+
+    public AsciiHash(byte[] arr, int index, int length)
     {
-        _value = value;
-        var span = value.Span;
-        _hashCI = HashCI(span);
-        _hashCS = HashCS(span);
+        _arr = arr ?? [];
+        _index = index;
+        _length = length < 0 ? (_arr.Length - index) : length;
+
+        var span = new ReadOnlySpan<byte>(_arr, _index, _length);
+        Hash(span, out _hashCS, out _hashCI);
+
+        // pre-compute the lower-case hash
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteInt64LittleEndian(buffer, _hashCS);
+        ToLower(buffer);
+        _hashLC = BinaryPrimitives.ReadInt64LittleEndian(buffer);
+    }
+
+    /// <summary>
+    /// In-place ASCII upper-case conversion.
+    /// </summary>
+    public static void ToUpper(Span<byte> span)
+    {
+        foreach (ref var b in span)
+        {
+            if (b >= 'a' && b <= 'z')
+                b = (byte)(b & ~0x20);
+        }
+    }
+
+    /// <summary>
+    /// In-place ASCII lower-case conversion.
+    /// </summary>
+    public static void ToLower(Span<byte> span)
+    {
+        foreach (ref var b in span)
+        {
+            if (b >= 'a' && b <= 'z')
+                b |= (byte)(b & ~0x20);
+        }
     }
 
     private const long CaseMask = ~0x2020202020202020;
@@ -62,19 +103,19 @@ public readonly struct AsciiHash
 
     public bool IsCS(long hash, ReadOnlySpan<byte> value)
     {
-        var len = _value.Length;
-        if (hash != _hashCS | (value.Length != len)) return false;
-        return len <= MaxBytesHashIsEqualityCS || EqualsCS(_value.Span, value);
+        var len = _length;
+        if (hash != _hashCS | value.Length != len) return false;
+        return len <= MaxBytesHashIsEqualityCS || EqualsCS(Span, value);
     }
 
     public bool IsCI(ReadOnlySpan<byte> value) => IsCI(HashCI(value), value);
 
     public bool IsCI(long hash, ReadOnlySpan<byte> value)
     {
-        var len = _value.Length;
-        if (hash != _hashCI | (value.Length != len)) return false;
+        var len = _length;
+        if (hash != _hashCI | value.Length != len) return false;
         if (len <= MaxBytesHashIsEqualityCS && HashCS(value) == _hashCS) return true;
-        return EqualsCI(_value.Span, value);
+        return EqualsCI(Span, value);
     }
 
     public static long HashCS(in ReadOnlySequence<byte> value)

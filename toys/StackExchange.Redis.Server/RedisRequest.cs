@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
 using RESPite;
 using RESPite.Messages;
 
@@ -55,7 +56,7 @@ namespace StackExchange.Redis.Server
             static void Throw() => throw new ArgumentOutOfRangeException(nameof(childIndex));
         }
 
-        internal RedisRequest(scoped in RespReader reader)
+        internal RedisRequest(scoped in RespReader reader, ref byte[] commandLease)
         {
             _rootReader = reader;
             var local = reader;
@@ -63,10 +64,40 @@ namespace StackExchange.Redis.Server
             {
                 Count = local.AggregateLength();
             }
+
+            if (Count == 0)
+            {
+                Command = s_EmptyCommand;
+            }
+            else
+            {
+                local.MoveNextScalar();
+                var len = local.ScalarLength();
+                if (len > commandLease.Length)
+                {
+                    ArrayPool<byte>.Shared.Return(commandLease);
+                    commandLease = ArrayPool<byte>.Shared.Rent(len);
+                }
+                var readBytes = local.CopyTo(commandLease);
+                Debug.Assert(readBytes == len);
+                AsciiHash.ToLower(commandLease.AsSpan(0, readBytes));
+                // note we retain the lease array in the Command, this is intentional
+                Command = new(commandLease, 0, readBytes);
+            }
         }
 
-        internal RedisRequest(ReadOnlySpan<byte> payload) : this(new RespReader(payload)) { }
-        internal RedisRequest(in ReadOnlySequence<byte> payload) : this(new RespReader(payload)) { }
+        internal static byte[] GetLease() => ArrayPool<byte>.Shared.Rent(16);
+        internal static void ReleaseLease(ref byte[] commandLease)
+        {
+            ArrayPool<byte>.Shared.Return(commandLease);
+            commandLease = [];
+        }
+
+        private static readonly AsciiHash s_EmptyCommand = new(Array.Empty<byte>());
+        public readonly AsciiHash Command;
+
+        internal RedisRequest(ReadOnlySpan<byte> payload, ref byte[] commandLease) : this(new RespReader(payload), ref commandLease) { }
+        internal RedisRequest(in ReadOnlySequence<byte> payload, ref byte[] commandLease) : this(new RespReader(payload), ref commandLease) { }
 
         public RedisValue GetValue(int index) => GetReader(index).ReadRedisValue();
 
@@ -78,17 +109,5 @@ namespace StackExchange.Redis.Server
 
         internal RedisChannel GetChannel(int index, RedisChannel.RedisChannelOptions options)
             => throw new NotImplementedException();
-
-        internal bool TryGetCommand(int i, out RedisCommand command)
-            => GetReader(i).TryRead(RedisCommandParser.TryParse, out command);
-    }
-
-    internal static partial class RedisCommandParser
-    {
-        [AsciiHash(CaseSensitive = false)]
-        public static partial bool TryParse(ReadOnlySpan<byte> value, out RedisCommand command);
-
-        [AsciiHash(CaseSensitive = false)]
-        public static partial bool TryParse(ReadOnlySpan<char> value, out RedisCommand command);
     }
 }
