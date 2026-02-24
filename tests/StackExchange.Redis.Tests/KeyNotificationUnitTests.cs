@@ -6,7 +6,7 @@ using Xunit.Sdk;
 
 namespace StackExchange.Redis.Tests;
 
-public class KeyNotificationTests(ITestOutputHelper log)
+public class KeyNotificationUnitTests(ITestOutputHelper log)
 {
     [Theory]
     [InlineData("foo", "foo")]
@@ -410,60 +410,60 @@ public class KeyNotificationTests(ITestOutputHelper log)
     }
 
     [Theory]
-    [InlineData(KeyNotificationTypeAsciiHash.append.Text, KeyNotificationType.Append)]
-    [InlineData(KeyNotificationTypeAsciiHash.copy.Text, KeyNotificationType.Copy)]
-    [InlineData(KeyNotificationTypeAsciiHash.del.Text, KeyNotificationType.Del)]
-    [InlineData(KeyNotificationTypeAsciiHash.expire.Text, KeyNotificationType.Expire)]
-    [InlineData(KeyNotificationTypeAsciiHash.hdel.Text, KeyNotificationType.HDel)]
-    [InlineData(KeyNotificationTypeAsciiHash.hexpired.Text, KeyNotificationType.HExpired)]
-    [InlineData(KeyNotificationTypeAsciiHash.hincrbyfloat.Text, KeyNotificationType.HIncrByFloat)]
-    [InlineData(KeyNotificationTypeAsciiHash.hincrby.Text, KeyNotificationType.HIncrBy)]
-    [InlineData(KeyNotificationTypeAsciiHash.hpersist.Text, KeyNotificationType.HPersist)]
-    [InlineData(KeyNotificationTypeAsciiHash.hset.Text, KeyNotificationType.HSet)]
-    [InlineData(KeyNotificationTypeAsciiHash.incrbyfloat.Text, KeyNotificationType.IncrByFloat)]
-    [InlineData(KeyNotificationTypeAsciiHash.incrby.Text, KeyNotificationType.IncrBy)]
-    [InlineData(KeyNotificationTypeAsciiHash.linsert.Text, KeyNotificationType.LInsert)]
-    [InlineData(KeyNotificationTypeAsciiHash.lpop.Text, KeyNotificationType.LPop)]
-    [InlineData(KeyNotificationTypeAsciiHash.lpush.Text, KeyNotificationType.LPush)]
-    [InlineData(KeyNotificationTypeAsciiHash.lrem.Text, KeyNotificationType.LRem)]
-    [InlineData(KeyNotificationTypeAsciiHash.lset.Text, KeyNotificationType.LSet)]
-    [InlineData(KeyNotificationTypeAsciiHash.ltrim.Text, KeyNotificationType.LTrim)]
-    [InlineData(KeyNotificationTypeAsciiHash.move_from.Text, KeyNotificationType.MoveFrom)]
-    [InlineData(KeyNotificationTypeAsciiHash.move_to.Text, KeyNotificationType.MoveTo)]
-    [InlineData(KeyNotificationTypeAsciiHash.persist.Text, KeyNotificationType.Persist)]
-    [InlineData(KeyNotificationTypeAsciiHash.rename_from.Text, KeyNotificationType.RenameFrom)]
-    [InlineData(KeyNotificationTypeAsciiHash.rename_to.Text, KeyNotificationType.RenameTo)]
-    [InlineData(KeyNotificationTypeAsciiHash.restore.Text, KeyNotificationType.Restore)]
-    [InlineData(KeyNotificationTypeAsciiHash.rpop.Text, KeyNotificationType.RPop)]
-    [InlineData(KeyNotificationTypeAsciiHash.rpush.Text, KeyNotificationType.RPush)]
-    [InlineData(KeyNotificationTypeAsciiHash.sadd.Text, KeyNotificationType.SAdd)]
-    [InlineData(KeyNotificationTypeAsciiHash.set.Text, KeyNotificationType.Set)]
-    [InlineData(KeyNotificationTypeAsciiHash.setrange.Text, KeyNotificationType.SetRange)]
-    [InlineData(KeyNotificationTypeAsciiHash.sortstore.Text, KeyNotificationType.SortStore)]
-    [InlineData(KeyNotificationTypeAsciiHash.srem.Text, KeyNotificationType.SRem)]
-    [InlineData(KeyNotificationTypeAsciiHash.spop.Text, KeyNotificationType.SPop)]
-    [InlineData(KeyNotificationTypeAsciiHash.xadd.Text, KeyNotificationType.XAdd)]
-    [InlineData(KeyNotificationTypeAsciiHash.xdel.Text, KeyNotificationType.XDel)]
-    [InlineData(KeyNotificationTypeAsciiHash.xgroup_createconsumer.Text, KeyNotificationType.XGroupCreateConsumer)]
-    [InlineData(KeyNotificationTypeAsciiHash.xgroup_create.Text, KeyNotificationType.XGroupCreate)]
-    [InlineData(KeyNotificationTypeAsciiHash.xgroup_delconsumer.Text, KeyNotificationType.XGroupDelConsumer)]
-    [InlineData(KeyNotificationTypeAsciiHash.xgroup_destroy.Text, KeyNotificationType.XGroupDestroy)]
-    [InlineData(KeyNotificationTypeAsciiHash.xgroup_setid.Text, KeyNotificationType.XGroupSetId)]
-    [InlineData(KeyNotificationTypeAsciiHash.xsetid.Text, KeyNotificationType.XSetId)]
-    [InlineData(KeyNotificationTypeAsciiHash.xtrim.Text, KeyNotificationType.XTrim)]
-    [InlineData(KeyNotificationTypeAsciiHash.zadd.Text, KeyNotificationType.ZAdd)]
-    [InlineData(KeyNotificationTypeAsciiHash.zdiffstore.Text, KeyNotificationType.ZDiffStore)]
-    [InlineData(KeyNotificationTypeAsciiHash.zinterstore.Text, KeyNotificationType.ZInterStore)]
-    [InlineData(KeyNotificationTypeAsciiHash.zunionstore.Text, KeyNotificationType.ZUnionStore)]
-    [InlineData(KeyNotificationTypeAsciiHash.zincr.Text, KeyNotificationType.ZIncr)]
-    [InlineData(KeyNotificationTypeAsciiHash.zrembyrank.Text, KeyNotificationType.ZRemByRank)]
-    [InlineData(KeyNotificationTypeAsciiHash.zrembyscore.Text, KeyNotificationType.ZRemByScore)]
-    [InlineData(KeyNotificationTypeAsciiHash.zrem.Text, KeyNotificationType.ZRem)]
-    [InlineData(KeyNotificationTypeAsciiHash.expired.Text, KeyNotificationType.Expired)]
-    [InlineData(KeyNotificationTypeAsciiHash.evicted.Text, KeyNotificationType.Evicted)]
-    [InlineData(KeyNotificationTypeAsciiHash._new.Text, KeyNotificationType.New)]
-    [InlineData(KeyNotificationTypeAsciiHash.overwritten.Text, KeyNotificationType.Overwritten)]
-    [InlineData(KeyNotificationTypeAsciiHash.type_changed.Text, KeyNotificationType.TypeChanged)]
+    [InlineData("append", KeyNotificationType.Append)]
+    [InlineData("copy", KeyNotificationType.Copy)]
+    [InlineData("del", KeyNotificationType.Del)]
+    [InlineData("expire", KeyNotificationType.Expire)]
+    [InlineData("hdel", KeyNotificationType.HDel)]
+    [InlineData("hexpired", KeyNotificationType.HExpired)]
+    [InlineData("hincrbyfloat", KeyNotificationType.HIncrByFloat)]
+    [InlineData("hincrby", KeyNotificationType.HIncrBy)]
+    [InlineData("hpersist", KeyNotificationType.HPersist)]
+    [InlineData("hset", KeyNotificationType.HSet)]
+    [InlineData("incrbyfloat", KeyNotificationType.IncrByFloat)]
+    [InlineData("incrby", KeyNotificationType.IncrBy)]
+    [InlineData("linsert", KeyNotificationType.LInsert)]
+    [InlineData("lpop", KeyNotificationType.LPop)]
+    [InlineData("lpush", KeyNotificationType.LPush)]
+    [InlineData("lrem", KeyNotificationType.LRem)]
+    [InlineData("lset", KeyNotificationType.LSet)]
+    [InlineData("ltrim", KeyNotificationType.LTrim)]
+    [InlineData("move_from", KeyNotificationType.MoveFrom)]
+    [InlineData("move_to", KeyNotificationType.MoveTo)]
+    [InlineData("persist", KeyNotificationType.Persist)]
+    [InlineData("rename_from", KeyNotificationType.RenameFrom)]
+    [InlineData("rename_to", KeyNotificationType.RenameTo)]
+    [InlineData("restore", KeyNotificationType.Restore)]
+    [InlineData("rpop", KeyNotificationType.RPop)]
+    [InlineData("rpush", KeyNotificationType.RPush)]
+    [InlineData("sadd", KeyNotificationType.SAdd)]
+    [InlineData("set", KeyNotificationType.Set)]
+    [InlineData("setrange", KeyNotificationType.SetRange)]
+    [InlineData("sortstore", KeyNotificationType.SortStore)]
+    [InlineData("srem", KeyNotificationType.SRem)]
+    [InlineData("spop", KeyNotificationType.SPop)]
+    [InlineData("xadd", KeyNotificationType.XAdd)]
+    [InlineData("xdel", KeyNotificationType.XDel)]
+    [InlineData("xgroup-createconsumer", KeyNotificationType.XGroupCreateConsumer)]
+    [InlineData("xgroup-create", KeyNotificationType.XGroupCreate)]
+    [InlineData("xgroup-delconsumer", KeyNotificationType.XGroupDelConsumer)]
+    [InlineData("xgroup-destroy", KeyNotificationType.XGroupDestroy)]
+    [InlineData("xgroup-setid", KeyNotificationType.XGroupSetId)]
+    [InlineData("xsetid", KeyNotificationType.XSetId)]
+    [InlineData("xtrim", KeyNotificationType.XTrim)]
+    [InlineData("zadd", KeyNotificationType.ZAdd)]
+    [InlineData("zdiffstore", KeyNotificationType.ZDiffStore)]
+    [InlineData("zinterstore", KeyNotificationType.ZInterStore)]
+    [InlineData("zunionstore", KeyNotificationType.ZUnionStore)]
+    [InlineData("zincr", KeyNotificationType.ZIncr)]
+    [InlineData("zrembyrank", KeyNotificationType.ZRemByRank)]
+    [InlineData("zrembyscore", KeyNotificationType.ZRemByScore)]
+    [InlineData("zrem", KeyNotificationType.ZRem)]
+    [InlineData("expired", KeyNotificationType.Expired)]
+    [InlineData("evicted", KeyNotificationType.Evicted)]
+    [InlineData("new", KeyNotificationType.New)]
+    [InlineData("overwritten", KeyNotificationType.Overwritten)]
+    [InlineData("type_changed", KeyNotificationType.TypeChanged)]
     public unsafe void AsciiHashParse_AllKnownValues_ParseCorrectly(string raw, KeyNotificationType parsed)
     {
         var arr = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(raw.Length));
@@ -476,12 +476,12 @@ public class KeyNotificationTests(ITestOutputHelper log)
             }
         }
 
-        var result = KeyNotificationTypeAsciiHash.Parse(arr.AsSpan(0, bytes));
+        var result = KeyNotificationTypeMetadata.Parse(arr.AsSpan(0, bytes));
         log.WriteLine($"Parsed '{raw}' as {result}");
         Assert.Equal(parsed, result);
 
         // and the other direction:
-        var fetchedBytes = KeyNotificationTypeAsciiHash.GetRawBytes(parsed);
+        var fetchedBytes = KeyNotificationTypeMetadata.GetRawBytes(parsed);
         string fetched;
         fixed (byte* bPtr = fetchedBytes)
         {

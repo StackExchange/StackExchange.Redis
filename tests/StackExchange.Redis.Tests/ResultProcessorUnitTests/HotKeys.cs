@@ -74,13 +74,15 @@ public class HotKeys(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         Assert.Equal(2038, result.TotalNetworkBytes);
 
         // Validate TimeSpan properties
-        // Note: The NonNegativeMicroseconds method divides by TICKS_PER_MICROSECOND, so we expect the same
-        const long TICKS_PER_MICROSECOND = TimeSpan.TicksPerMillisecond / 1000; // 10
-        Assert.Equal(103 / TICKS_PER_MICROSECOND, result.AllCommandsAllSlotsTime.Ticks);
+        // 103 microseconds = 0.103 milliseconds
+        Assert.Equal(0.103, result.AllCommandsAllSlotsTime.TotalMilliseconds, precision: 10);
         Assert.Equal(TimeSpan.Zero, result.CollectionDuration);
-        Assert.Equal(23000 / TICKS_PER_MICROSECOND, result.TotalCpuTimeUser?.Ticks);
-        Assert.Equal(7000 / TICKS_PER_MICROSECOND, result.TotalCpuTimeSystem?.Ticks);
-        Assert.Equal(30000 / TICKS_PER_MICROSECOND, result.TotalCpuTime?.Ticks);
+        // 23000 microseconds = 23 milliseconds
+        Assert.Equal(23.0, result.TotalCpuTimeUser!.Value.TotalMilliseconds, precision: 10);
+        // 7000 microseconds = 7 milliseconds
+        Assert.Equal(7.0, result.TotalCpuTimeSystem!.Value.TotalMilliseconds, precision: 10);
+        // 30000 microseconds = 30 milliseconds
+        Assert.Equal(30.0, result.TotalCpuTime!.Value.TotalMilliseconds, precision: 10);
 
         // Validate by-cpu-time-us array
         Assert.Equal(5, result.CpuByKey.Length);

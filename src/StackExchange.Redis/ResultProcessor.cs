@@ -1694,46 +1694,19 @@ namespace StackExchange.Redis
             }
         }
 
-#pragma warning disable SA1300, SA1134
-        // ReSharper disable InconsistentNaming
-        [AsciiHash("string")] private static partial class redistype_string { }
-        [AsciiHash("list")] private static partial class redistype_list { }
-        [AsciiHash("set")] private static partial class redistype_set { }
-        [AsciiHash("zset")] private static partial class redistype_zset { }
-        [AsciiHash("hash")] private static partial class redistype_hash { }
-        [AsciiHash("stream")] private static partial class redistype_stream { }
-        [AsciiHash("vectorset")] private static partial class redistype_vectorset { }
-        // ReSharper restore InconsistentNaming
-#pragma warning restore SA1300, SA1134
-
         private sealed class RedisTypeProcessor : ResultProcessor<RedisType>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                static RedisType FastParse(ReadOnlySpan<byte> span)
-                {
-                    if (span.IsEmpty) return Redis.RedisType.None; // includes null
-                    var hashCS = AsciiHash.HashCS(span);
-                    return hashCS switch
-                    {
-                        redistype_string.HashCS when redistype_string.IsCS(span, hashCS) => Redis.RedisType.String,
-                        redistype_list.HashCS when redistype_list.IsCS(span, hashCS) => Redis.RedisType.List,
-                        redistype_set.HashCS when redistype_set.IsCS(span, hashCS) => Redis.RedisType.Set,
-                        redistype_zset.HashCS when redistype_zset.IsCS(span, hashCS) => Redis.RedisType.SortedSet,
-                        redistype_hash.HashCS when redistype_hash.IsCS(span, hashCS) => Redis.RedisType.Hash,
-                        redistype_stream.HashCS when redistype_stream.IsCS(span, hashCS) => Redis.RedisType.Stream,
-                        redistype_vectorset.HashCS when redistype_vectorset.IsCS(span, hashCS) => Redis.RedisType.VectorSet,
-                        _ => Redis.RedisType.Unknown,
-                    };
-                }
                 if (reader.IsScalar)
                 {
-                    const int MAX_STACK = 16;
-                    Debug.Assert(reader.ScalarLength() <= MAX_STACK); // we don't expect anything huge here
-                    var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[MAX_STACK]);
-                    var value = FastParse(span);
+                    if (!reader.TryRead<RedisType>(RedisTypeMetadata.TryParse, out var redisType))
+                    {
+                        // RESP null values and empty strings should map to None rather than Unknown
+                        redisType = (reader.IsNull || reader.ScalarLengthIs(0)) ? Redis.RedisType.None : Redis.RedisType.Unknown;
+                    }
 
-                    SetResult(message, value);
+                    SetResult(message, redisType);
                     return true;
                 }
                 return false;

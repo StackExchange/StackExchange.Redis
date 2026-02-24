@@ -410,25 +410,22 @@ public readonly ref struct KeyNotification
             if (IsKeySpace)
             {
                 // then the channel contains the key, and the payload contains the event-type
-                var count = _value.GetByteCount();
-                if (count >= KeyNotificationTypeAsciiHash.MinBytes & count <= KeyNotificationTypeAsciiHash.MaxBytes)
+                if (_value.TryGetSpan(out var direct))
                 {
-                    if (_value.TryGetSpan(out var direct))
-                    {
-                        return KeyNotificationTypeAsciiHash.Parse(direct);
-                    }
-                    else
-                    {
-                        Span<byte> localCopy = stackalloc byte[KeyNotificationTypeAsciiHash.MaxBytes];
-                        return KeyNotificationTypeAsciiHash.Parse(localCopy.Slice(0, _value.CopyTo(localCopy)));
-                    }
+                    return KeyNotificationTypeMetadata.Parse(direct);
+                }
+
+                if (_value.GetByteCount() <= KeyNotificationTypeMetadata.BufferBytes)
+                {
+                    Span<byte> localCopy = stackalloc byte[KeyNotificationTypeMetadata.BufferBytes];
+                    var len = _value.CopyTo(localCopy);
+                    return KeyNotificationTypeMetadata.Parse(localCopy.Slice(0, len));
                 }
             }
-
-            if (IsKeyEvent)
+            else if (IsKeyEvent)
             {
                 // then the channel contains the event-type, and the payload contains the key
-                return KeyNotificationTypeAsciiHash.Parse(ChannelSuffix);
+                return KeyNotificationTypeMetadata.Parse(ChannelSuffix);
             }
             return KeyNotificationType.Unknown;
         }
