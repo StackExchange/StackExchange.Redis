@@ -7,6 +7,8 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
+using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
 {
@@ -158,21 +160,13 @@ namespace StackExchange.Redis.Server
             var pw = Password;
             if (pw.Length != 0 & !client.IsAuthenticated)
             {
-                if (!Literals.IsAuthCommand(in request)) return TypedRedisValue.Error("NOAUTH Authentication required.");
+                if (!IsAuthCommand(in request)) return TypedRedisValue.Error("NOAUTH Authentication required.");
             }
             return base.Execute(client, request);
-        }
 
-        internal class Literals
-        {
-            public static readonly CommandBytes
-                AUTH = new("AUTH"u8),
-                HELLO = new("HELLO"u8),
-                SETNAME = new("SETNAME"u8);
-
-            public static bool IsAuthCommand(in RedisRequest request) =>
-                request.Count != 0 && request.TryGetCommandBytes(0, out var command)
-                                   && (command.Equals(AUTH) || command.Equals(HELLO));
+            static bool IsAuthCommand(in RedisRequest request) =>
+                request.Count != 0 && request.GetReader(0).TryRead(RedisCommandParser.TryParse, out RedisCommand cmd)
+                                   && cmd is RedisCommand.AUTH or RedisCommand.HELLO;
         }
 
         [RedisCommand(2)]
@@ -206,28 +200,33 @@ namespace StackExchange.Redis.Server
                     default:
                         return TypedRedisValue.Error("NOPROTO unsupported protocol version");
                 }
+                static TypedRedisValue ArgFail(in RespReader reader) => TypedRedisValue.Error($"ERR Syntax error in HELLO option '{reader.ReadString()}'\"");
 
-                for (int i = 2; i < request.Count && request.TryGetCommandBytes(i, out var key); i++)
+                for (int i = 2; i < request.Count; i++)
                 {
                     int remaining = request.Count - (i + 1);
-                    TypedRedisValue ArgFail() => TypedRedisValue.Error($"ERR Syntax error in HELLO option '{key.ToString().ToLower()}'\"");
-                    if (key.Equals(Literals.AUTH))
+                    var fieldReader = request.GetReader(i);
+                    if (!fieldReader.TryRead(RedisCommandParser.TryParse, out HelloSubFields field))
                     {
-                        if (remaining < 2) return ArgFail();
-                        // ignore username for now
-                        var pw = request.GetString(i + 2);
-                        if (pw != Password) return TypedRedisValue.Error("WRONGPASS invalid username-password pair or user is disabled.");
-                        isAuthed = true;
-                        i += 2;
+                        return ArgFail(fieldReader);
                     }
-                    else if (key.Equals(Literals.SETNAME))
+
+                    switch (field)
                     {
-                        if (remaining < 1) return ArgFail();
-                        name = request.GetString(++i);
-                    }
-                    else
-                    {
-                        return ArgFail();
+                        case HelloSubFields.Auth:
+                            if (remaining < 2) return ArgFail(fieldReader);
+                            // ignore username for now
+                            var pw = request.GetString(i + 2);
+                            if (pw != Password) return TypedRedisValue.Error("WRONGPASS invalid username-password pair or user is disabled.");
+                            isAuthed = true;
+                            i += 2;
+                            break;
+                        case HelloSubFields.SetName:
+                            if (remaining < 1) return ArgFail(fieldReader);
+                            name = request.GetString(++i);
+                            break;
+                        default:
+                            return ArgFail(fieldReader);
                     }
                 }
             }
@@ -237,7 +236,7 @@ namespace StackExchange.Redis.Server
             client.IsAuthenticated = isAuthed;
             client.Name = name;
 
-            var reply = TypedRedisValue.Rent(14, out var span, ResultType.Map);
+            var reply = TypedRedisValue.Rent(14, out var span, RespPrefix.Map);
             span[0] = TypedRedisValue.BulkString("server");
             span[1] = TypedRedisValue.BulkString("redis");
             span[2] = TypedRedisValue.BulkString("version");
@@ -251,7 +250,7 @@ namespace StackExchange.Redis.Server
             span[10] = TypedRedisValue.BulkString("role");
             span[11] = TypedRedisValue.BulkString("master");
             span[12] = TypedRedisValue.BulkString("modules");
-            span[13] = TypedRedisValue.EmptyArray(ResultType.Array);
+            span[13] = TypedRedisValue.EmptyArray(RespPrefix.Array);
             return reply;
         }
 
@@ -379,13 +378,13 @@ namespace StackExchange.Redis.Server
                 case RedisClient.ExecResult.NotInTransaction:
                     return TypedRedisValue.Error("EXEC without MULTI");
                 case RedisClient.ExecResult.WatchConflict:
-                    return TypedRedisValue.NullArray(ResultType.Array);
+                    return TypedRedisValue.NullArray(RespPrefix.Array);
                 case RedisClient.ExecResult.AbortedByError:
                     return TypedRedisValue.Error("EXECABORT Transaction discarded because of previous errors.");
             }
             Debug.Assert(exec is RedisClient.ExecResult.CommandsReturned);
 
-            var results = TypedRedisValue.Rent(commands.Length, out var span, ResultType.Array);
+            var results = TypedRedisValue.Rent(commands.Length, out var span, RespPrefix.Array);
             int index = 0;
             foreach (var cmd in commands)
             {
@@ -404,28 +403,28 @@ namespace StackExchange.Redis.Server
             Expire(database, key, timeout);
         }
 
-        [RedisCommand(3, "client", "setname", LockFree = true)]
+        [RedisCommand(3, nameof(RedisCommand.CLIENT), "setname", LockFree = true)]
         protected virtual TypedRedisValue ClientSetname(RedisClient client, in RedisRequest request)
         {
             client.Name = request.GetString(2);
             return TypedRedisValue.OK;
         }
 
-        [RedisCommand(2, "client", "getname", LockFree = true)]
+        [RedisCommand(2, nameof(RedisCommand.CLIENT), "getname", LockFree = true)]
         protected virtual TypedRedisValue ClientGetname(RedisClient client, in RedisRequest request)
             => TypedRedisValue.BulkString(client.Name);
 
-        [RedisCommand(3, "client", "reply", LockFree = true)]
+        [RedisCommand(3, nameof(RedisCommand.CLIENT), "reply", LockFree = true)]
         protected virtual TypedRedisValue ClientReply(RedisClient client, in RedisRequest request)
         {
-            if (request.IsString(2, "on")) client.SkipReplies = -1; // reply to nothing
-            else if (request.IsString(2, "off")) client.SkipReplies = 0; // reply to everything
-            else if (request.IsString(2, "skip")) client.SkipReplies = 2; // this one, and the next one
+            if (request.IsString(2, "on"u8)) client.SkipReplies = -1; // reply to nothing
+            else if (request.IsString(2, "off"u8)) client.SkipReplies = 0; // reply to everything
+            else if (request.IsString(2, "skip"u8)) client.SkipReplies = 2; // this one, and the next one
             else return TypedRedisValue.Error("ERR syntax error");
             return TypedRedisValue.OK;
         }
 
-        [RedisCommand(2, "client", "id", LockFree = true)]
+        [RedisCommand(2, nameof(RedisCommand.CLIENT), "id", LockFree = true)]
         protected virtual TypedRedisValue ClientId(RedisClient client, in RedisRequest request)
             => TypedRedisValue.Integer(client.Id);
 
@@ -474,21 +473,21 @@ namespace StackExchange.Redis.Server
             {
                 count += pair.Value.Slots.Length;
             }
-            var slots = TypedRedisValue.Rent(count, out var slotsSpan, ResultType.Array);
+            var slots = TypedRedisValue.Rent(count, out var slotsSpan, RespPrefix.Array);
             foreach (var pair in _nodes.OrderBy(x => x.Key, EndPointComparer.Instance))
             {
                 string host = GetHost(pair.Key, out int port);
                 foreach (var range in pair.Value.Slots)
                 {
                     if (index >= count) break; // someone changed things while we were working
-                    slotsSpan[index++] = TypedRedisValue.Rent(3, out var slotSpan, ResultType.Array);
+                    slotsSpan[index++] = TypedRedisValue.Rent(3, out var slotSpan, RespPrefix.Array);
                     slotSpan[0] = TypedRedisValue.Integer(range.From);
                     slotSpan[1] = TypedRedisValue.Integer(range.To);
-                    slotSpan[2] = TypedRedisValue.Rent(4, out var nodeSpan, ResultType.Array);
+                    slotSpan[2] = TypedRedisValue.Rent(4, out var nodeSpan, RespPrefix.Array);
                     nodeSpan[0] = TypedRedisValue.BulkString(host);
                     nodeSpan[1] = TypedRedisValue.Integer(port);
                     nodeSpan[2] = TypedRedisValue.BulkString(pair.Value.Id);
-                    nodeSpan[3] = TypedRedisValue.EmptyArray(ResultType.Array);
+                    nodeSpan[3] = TypedRedisValue.EmptyArray(RespPrefix.Array);
                 }
             }
             return slots;
@@ -808,12 +807,12 @@ namespace StackExchange.Redis.Server
             long start = request.GetInt64(2), stop = request.GetInt64(3);
 
             var len = Llen(client.Database, key);
-            if (len == 0) return TypedRedisValue.EmptyArray(ResultType.Array);
+            if (len == 0) return TypedRedisValue.EmptyArray(RespPrefix.Array);
 
             if (start < 0) start = len + start;
             if (stop < 0) stop = len + stop;
 
-            if (stop < 0 || start >= len || stop < start) return TypedRedisValue.EmptyArray(ResultType.Array);
+            if (stop < 0 || start >= len || stop < start) return TypedRedisValue.EmptyArray(RespPrefix.Array);
 
             if (start < 0) start = 0;
             else if (start >= len) start = len - 1;
@@ -821,7 +820,7 @@ namespace StackExchange.Redis.Server
             if (stop < 0) stop = 0;
             else if (stop >= len) stop = len - 1;
 
-            var arr = TypedRedisValue.Rent(checked((int)((stop - start) + 1)), out var span, ResultType.Array);
+            var arr = TypedRedisValue.Rent(checked((int)((stop - start) + 1)), out var span, RespPrefix.Array);
             LRange(client.Database, key, start, span);
             return arr;
         }
@@ -858,7 +857,7 @@ namespace StackExchange.Redis.Server
                 return count;
             }
         }
-        [RedisCommand(3, "config", "get", LockFree = true)]
+        [RedisCommand(3, nameof(RedisCommand.CONFIG), "get", LockFree = true)]
         protected virtual TypedRedisValue Config(RedisClient client, in RedisRequest request)
         {
             var pattern = request.GetString(2);
@@ -866,9 +865,9 @@ namespace StackExchange.Redis.Server
             OnUpdateServerConfiguration();
             var config = ServerConfiguration;
             var matches = config.CountMatch(pattern);
-            if (matches == 0) return TypedRedisValue.EmptyArray(ResultType.Map);
+            if (matches == 0) return TypedRedisValue.EmptyArray(RespPrefix.Map);
 
-            var arr = TypedRedisValue.Rent(2 * matches, out var span, ResultType.Map);
+            var arr = TypedRedisValue.Rent(2 * matches, out var span, RespPrefix.Map);
             int index = 0;
             foreach (var pair in config.Wrapped)
             {
@@ -1058,8 +1057,8 @@ namespace StackExchange.Redis.Server
                 if (found == null) found = new List<TypedRedisValue>();
                 found.Add(TypedRedisValue.BulkString(key.AsRedisValue()));
             }
-            if (found == null) return TypedRedisValue.EmptyArray(ResultType.Array);
-            return TypedRedisValue.MultiBulk(found, ResultType.Array);
+            if (found == null) return TypedRedisValue.EmptyArray(RespPrefix.Array);
+            return TypedRedisValue.MultiBulk(found, RespPrefix.Array);
         }
         protected virtual IEnumerable<RedisKey> Keys(int database, in RedisKey pattern) => throw new NotSupportedException();
 
@@ -1144,7 +1143,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        [RedisCommand(2, "memory", "purge")]
+        [RedisCommand(2, nameof(RedisCommand.MEMORY), "purge")]
         protected virtual TypedRedisValue MemoryPurge(RedisClient client, in RedisRequest request)
         {
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
@@ -1154,7 +1153,7 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue Mget(RedisClient client, in RedisRequest request)
         {
             int argCount = request.Count;
-            var arr = TypedRedisValue.Rent(argCount - 1, out var span, ResultType.Map);
+            var arr = TypedRedisValue.Rent(argCount - 1, out var span, RespPrefix.Map);
             var db = client.Database;
             for (int i = 1; i < argCount; i++)
             {
@@ -1187,10 +1186,10 @@ namespace StackExchange.Redis.Server
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Role(RedisClient client, in RedisRequest request)
         {
-            var arr = TypedRedisValue.Rent(3, out var span, ResultType.Array);
+            var arr = TypedRedisValue.Rent(3, out var span, RespPrefix.Array);
             span[0] = TypedRedisValue.BulkString("master");
             span[1] = TypedRedisValue.Integer(0);
-            span[2] = TypedRedisValue.EmptyArray(ResultType.Array);
+            span[2] = TypedRedisValue.EmptyArray(RespPrefix.Array);
             return arr;
         }
 
@@ -1214,29 +1213,43 @@ namespace StackExchange.Redis.Server
 
         private TypedRedisValue SubscribeImpl(RedisClient client, in RedisRequest request)
         {
-            var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span, ResultType.Array);
+            var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span, RespPrefix.Push);
+
+            _ = RedisCommandParser.TryParse(request.Command.Span, out RedisCommand cmd);
+            var mode = cmd switch
+            {
+                RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE => RedisChannel.RedisChannelOptions.Pattern,
+                RedisCommand.SSUBSCRIBE or RedisCommand.SSUBSCRIBE => RedisChannel.RedisChannelOptions.Sharded,
+                _ => RedisChannel.RedisChannelOptions.None,
+            };
+            bool add = cmd is RedisCommand.SUBSCRIBE or RedisCommand.SSUBSCRIBE or RedisCommand.PSUBSCRIBE;
+
+            var msgKind = cmd switch
+            {
+                RedisCommand.SUBSCRIBE => "subscribe",
+                RedisCommand.PSUBSCRIBE => "psubscribe",
+                RedisCommand.SSUBSCRIBE => "ssubscribe",
+                RedisCommand.UNSUBSCRIBE => "unsubscribe",
+                RedisCommand.PUNSUBSCRIBE => "punsubscribe",
+                RedisCommand.SUNSUBSCRIBE => "sunsubscribe",
+                _ => "???",
+            };
+
             int index = 0;
-            request.TryGetCommandBytes(0, out var cmd);
-            var cmdString = TypedRedisValue.BulkString(cmd.ToArray());
-            var mode = cmd[0] == (byte)'p' ? RedisChannel.RedisChannelOptions.Pattern : RedisChannel.RedisChannelOptions.None;
             for (int i = 1; i < request.Count; i++)
             {
                 var channel = request.GetChannel(i, mode);
                 int count;
-                if (s_Subscribe.Equals(cmd))
+                if (add)
                 {
                     count = client.Subscribe(channel);
                 }
-                else if (s_Unsubscribe.Equals(cmd))
+                else
                 {
                     count = client.Unsubscribe(channel);
                 }
-                else
-                {
-                    reply.Recycle(index);
-                    return TypedRedisValue.Nil;
-                }
-                span[index++] = cmdString;
+
+                span[index++] = TypedRedisValue.BulkString(msgKind);
                 span[index++] = TypedRedisValue.BulkString((byte[])channel);
                 span[index++] = TypedRedisValue.Integer(count);
             }
@@ -1254,7 +1267,7 @@ namespace StackExchange.Redis.Server
             var ticks = delta.Ticks;
             var seconds = ticks / TimeSpan.TicksPerSecond;
             var micros = (ticks % TimeSpan.TicksPerSecond) / (TimeSpan.TicksPerMillisecond / 1000);
-            var reply = TypedRedisValue.Rent(2, out var span, ResultType.Array);
+            var reply = TypedRedisValue.Rent(2, out var span, RespPrefix.Array);
             span[0] = TypedRedisValue.BulkString(seconds);
             span[1] = TypedRedisValue.BulkString(micros);
             return reply;
@@ -1286,5 +1299,24 @@ namespace StackExchange.Redis.Server
             Set(database, key, value);
             return value;
         }
+    }
+
+    internal static partial class RedisCommandParser
+    {
+        [AsciiHash(CaseSensitive = false)]
+        public static partial bool TryParse(ReadOnlySpan<byte> command, out RedisCommand value);
+
+        [AsciiHash(CaseSensitive = false)]
+        public static partial bool TryParse(ReadOnlySpan<byte> command, out HelloSubFields value);
+    }
+
+    internal enum HelloSubFields
+    {
+        [AsciiHash("")]
+        None = 0,
+        [AsciiHash("AUTH")]
+        Auth,
+        [AsciiHash("SETNAME")]
+        SetName,
     }
 }
