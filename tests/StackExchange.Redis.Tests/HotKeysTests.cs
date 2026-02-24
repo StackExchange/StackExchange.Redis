@@ -323,4 +323,43 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.True(result.TotalNetworkBytes.HasValue);
         Assert.True(result.TotalCpuTime.HasValue);
     }
+
+    [Fact]
+    public void NonNegativeMicroseconds_ConvertsCorrectly()
+    {
+        // Test case: 103 microseconds should convert to 103 microseconds in TimeSpan
+        // 103 microseconds = 103 * 10 ticks = 1030 ticks = 0.103 milliseconds
+        long inputMicroseconds = 103;
+        TimeSpan result = HotKeysResult.NonNegativeMicroseconds(inputMicroseconds);
+
+        // Expected: 1030 ticks (103 microseconds = 0.103 milliseconds)
+        Assert.Equal(1030, result.Ticks);
+        Assert.Equal(0.103, result.TotalMilliseconds, precision: 10);
+    }
+
+    [Fact]
+    public void NonNegativeMicroseconds_HandlesZero()
+    {
+        TimeSpan result = HotKeysResult.NonNegativeMicroseconds(0);
+        Assert.Equal(TimeSpan.Zero, result);
+    }
+
+    [Fact]
+    public void NonNegativeMicroseconds_HandlesNegativeAsZero()
+    {
+        TimeSpan result = HotKeysResult.NonNegativeMicroseconds(-100);
+        Assert.Equal(TimeSpan.Zero, result);
+    }
+
+    [Fact]
+    public void NonNegativeMicroseconds_HandlesLargeValues()
+    {
+        // 1 second = 1,000,000 microseconds = 10,000,000 ticks = 1000 milliseconds
+        long inputMicroseconds = 1_000_000;
+        TimeSpan result = HotKeysResult.NonNegativeMicroseconds(inputMicroseconds);
+
+        Assert.Equal(10_000_000, result.Ticks);
+        Assert.Equal(1000.0, result.TotalMilliseconds, precision: 10);
+        Assert.Equal(1.0, result.TotalSeconds, precision: 10);
+    }
 }

@@ -178,10 +178,10 @@ public sealed partial class HotKeysResult
         ? null
         : NonNegativeMicroseconds(SampledCommandsSelectedSlotsMicroseconds);
 
-    private static TimeSpan NonNegativeMicroseconds(long us)
+    internal static TimeSpan NonNegativeMicroseconds(long us)
     {
         const long TICKS_PER_MICROSECOND = TimeSpan.TicksPerMillisecond / 1000; // 10, but: clearer
-        return TimeSpan.FromTicks(Math.Max(us, 0) / TICKS_PER_MICROSECOND);
+        return TimeSpan.FromTicks(Math.Max(us, 0) * TICKS_PER_MICROSECOND);
     }
 
     /// <summary>
