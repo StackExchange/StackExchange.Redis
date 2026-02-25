@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
 
-namespace StackExchange.Redis.Tests.RountTripUnitTests;
+namespace StackExchange.Redis.Tests.RoundTripUnitTests;
 
 public class EchoRoundTrip
 {

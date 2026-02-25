@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using RESPite.Tests;
 using Xunit;
 
-namespace StackExchange.Redis.Tests.RountTripUnitTests;
+namespace StackExchange.Redis.Tests.RoundTripUnitTests;
 
 public static class CancellationTokenExtensions
 {
@@ -35,13 +35,13 @@ public class TestConnection : IDisposable
         RedisProtocol protocol = RedisProtocol.Resp2,
         CommandMap? commandMap = null,
         byte[]? channelPrefix = null,
+        ITestOutputHelper? log = null,
         [CallerMemberName] string caller = "")
     {
         // Validate RESP samples are not null/empty to avoid test setup mistakes
-        Assert.False(string.IsNullOrEmpty(requestResp), "requestResp must not be null or empty");
         Assert.False(string.IsNullOrEmpty(responseResp), "responseResp must not be null or empty");
 
-        using var conn = new TestConnection(false, connectionType, protocol, caller);
+        using var conn = new TestConnection(false, connectionType, protocol, log, caller);
 
         var box = TaskResultBox<T>.Create(out var tcs, null);
         using var timeout = tcs.CancelWithTest();
@@ -63,13 +63,16 @@ public class TestConnection : IDisposable
         bool startReading = true,
         ConnectionType connectionType = ConnectionType.Interactive,
         RedisProtocol protocol = RedisProtocol.Resp2,
+        ITestOutputHelper? log = null,
         [CallerMemberName] string caller = "")
     {
         _physical = new PhysicalConnection(connectionType, protocol, _stream, caller);
+        _log = log;
         if (startReading) StartReading();
     }
     private readonly TestDuplexStream _stream = new();
     private readonly PhysicalConnection _physical;
+    private readonly ITestOutputHelper? _log;
 
     public void StartReading() => _physical.StartReading(TestContext.Current.CancellationToken);
 
@@ -118,6 +121,8 @@ public class TestConnection : IDisposable
 
             // Only if comparison fails: allocate string for useful error message
             var actualString = actualChars.ToString();
+            _log?.WriteLine("Expected: {0}", expected);
+            _log?.WriteLine("Actual:   {0}", actualString);
             Assert.Equal(expected, actualString);
         }
         finally
