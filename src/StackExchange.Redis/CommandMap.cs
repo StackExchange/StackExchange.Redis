@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using RESPite;
 
 namespace StackExchange.Redis
 {
@@ -9,9 +10,9 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class CommandMap
     {
-        private readonly CommandBytes[] map;
+        private readonly AsciiHash[] map;
 
-        internal CommandMap(CommandBytes[] map) => this.map = map;
+        internal CommandMap(AsciiHash[] map) => this.map = map;
 
         /// <summary>
         /// The default commands specified by redis.
@@ -132,7 +133,7 @@ namespace StackExchange.Redis
             {
                 var dictionary = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
                 // nix everything
-                foreach (RedisCommand command in (RedisCommand[])Enum.GetValues(typeof(RedisCommand)))
+                foreach (RedisCommand command in AllCommands)
                 {
                     dictionary[command.ToString()] = null;
                 }
@@ -154,7 +155,7 @@ namespace StackExchange.Redis
                     // nix the things that are specified
                     foreach (var command in commands)
                     {
-                        if (Enum.TryParse(command, true, out RedisCommand parsed))
+                        if (RedisCommandMetadata.TryParseCI(command, out RedisCommand parsed))
                         {
                             (exclusions ??= new HashSet<RedisCommand>()).Add(parsed);
                         }
@@ -180,7 +181,7 @@ namespace StackExchange.Redis
             for (int i = 0; i < map.Length; i++)
             {
                 var keyString = ((RedisCommand)i).ToString();
-                var keyBytes = new CommandBytes(keyString);
+                var keyBytes = new AsciiHash(keyString);
                 var value = map[i];
                 if (!keyBytes.Equals(value))
                 {
@@ -195,32 +196,25 @@ namespace StackExchange.Redis
             if (map[(int)command].IsEmpty) throw ExceptionFactory.CommandDisabled(command);
         }
 
-        internal CommandBytes GetBytes(RedisCommand command) => map[(int)command];
-
-        internal CommandBytes GetBytes(string command)
-        {
-            if (command == null) return default;
-            if (Enum.TryParse(command, true, out RedisCommand cmd))
-            {
-                // we know that one!
-                return map[(int)cmd];
-            }
-            return new CommandBytes(command);
-        }
+        internal AsciiHash GetBytes(RedisCommand command) => map[(int)command];
 
         internal bool IsAvailable(RedisCommand command) => !map[(int)command].IsEmpty;
 
+        private static RedisCommand[]? s_AllCommands;
+
+        private static ReadOnlySpan<RedisCommand> AllCommands => s_AllCommands ??= (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
+
         private static CommandMap CreateImpl(Dictionary<string, string?>? caseInsensitiveOverrides, HashSet<RedisCommand>? exclusions)
         {
-            var commands = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
+            var commands = AllCommands;
 
-            var map = new CommandBytes[commands.Length];
+            var map = new AsciiHash[commands.Length];
             for (int i = 0; i < commands.Length; i++)
             {
                 int idx = (int)commands[i];
                 string? name = commands[i].ToString(), value = name;
 
-                if (exclusions?.Contains(commands[i]) == true)
+                if (commands[i] is RedisCommand.UNKNOWN || exclusions?.Contains(commands[i]) == true)
                 {
                     map[idx] = default;
                 }
@@ -230,7 +224,7 @@ namespace StackExchange.Redis
                     {
                         value = tmp;
                     }
-                    map[idx] = new CommandBytes(value);
+                    map[idx] = new AsciiHash(value);
                 }
             }
             return new CommandMap(map);

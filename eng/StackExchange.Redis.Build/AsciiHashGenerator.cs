@@ -484,13 +484,30 @@ public class AsciiHashGenerator : IIncrementalGenerator
                     alwaysCaseSensitive = true;
                 }
 
+                bool twoPart = method.Members.Max(x => x.ParseText.Length) > AsciiHash.MaxBytesHashed;
                 if (alwaysCaseSensitive)
                 {
-                    NewLine().Append("var hashCS = global::RESPite.AsciiHash.HashCS(").Append(method.From.Name).Append(");");
+                    if (twoPart)
+                    {
+                        NewLine().Append("global::RESPite.AsciiHash.HashCS(").Append(method.From.Name).Append(", out var cs0, out var cs1);");
+                    }
+                    else
+                    {
+                        NewLine().Append("var cs0 = global::RESPite.AsciiHash.HashCS(").Append(method.From.Name).Append(");");
+                    }
                 }
                 else
                 {
-                    NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name).Append(", out var hashCS, out var hashUC);");
+                    if (twoPart)
+                    {
+                        NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name)
+                            .Append(", out var cs0, out var uc0, out var cs1, out var uc1);");
+                    }
+                    else
+                    {
+                        NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name)
+                            .Append(", out var cs0, out var uc0);");
+                    }
                 }
 
                 if (string.IsNullOrEmpty(method.CaseSensitive.Name))
@@ -544,31 +561,45 @@ public class AsciiHashGenerator : IIncrementalGenerator
                                  .ThenBy(x => x.ParseText))
                     {
                         var len = member.ParseText.Length;
-                        AsciiHash.Hash(member.ParseText, out var hashCS, out var hashUC);
+                        AsciiHash.Hash(member.ParseText, out var cs0, out var uc0, out var cs1, out var uc1);
 
                         bool valueCaseSensitive = caseSensitive || !HasCaseSensitiveCharacters(member.ParseText);
 
-                        line = NewLine().Append(len);
+                        line = NewLine().Append(len).Append(" when ");
+                        if (twoPart) line.Append("(");
                         if (valueCaseSensitive)
                         {
-                            line.Append(" when hashCS is ").Append(hashCS);
+                            line.Append("cs0 is ").Append(cs0);
                         }
                         else
                         {
-                            line.Append(" when hashUC is ").Append(hashUC);
+                            line.Append("uc0 is ").Append(uc0);
                         }
+
                         if (len > AsciiHash.MaxBytesHashed)
+                        {
+                            if (valueCaseSensitive)
+                            {
+                                line.Append(" & cs1 is ").Append(cs1);
+                            }
+                            else
+                            {
+                                line.Append(" & uc1 is ").Append(uc1);
+                            }
+                        }
+                        if (twoPart) line.Append(")");
+                        if (len > 2 * AsciiHash.MaxBytesHashed)
                         {
                             line.Append(" && ");
                             var csValue = SyntaxFactory
                                 .LiteralExpression(
                                     SyntaxKind.StringLiteralExpression,
-                                    SyntaxFactory.Literal(member.ParseText))
+                                    SyntaxFactory.Literal(member.ParseText.Substring(2 * AsciiHash.MaxBytesHashed)))
                                 .ToFullString();
 
                             line.Append("global::RESPite.AsciiHash.")
                                 .Append(valueCaseSensitive ? nameof(AsciiHash.SequenceEqualsCS) : nameof(AsciiHash.SequenceEqualsCI))
-                                .Append("(").Append(method.From.Name).Append(", ").Append(csValue);
+                                .Append("(").Append(method.From.Name).Append(".Slice(").Append(2 * AsciiHash.MaxBytesHashed).Append("), ").Append(csValue);
                             if (method.From.IsBytes) line.Append("u8");
                             line.Append(")");
                         }

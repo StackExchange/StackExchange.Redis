@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using RESPite;
 using RESPite.Internal;
 using RESPite.Messages;
 
@@ -109,21 +110,28 @@ internal readonly ref struct MessageWriter
         REDIS_MAX_ARGS =
             1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
-    internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
+    internal void WriteHeader(string command, int arguments)
     {
-        if (command == RedisCommand.UNKNOWN)
+        byte[]? lease = null;
+        try
         {
-            // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
-            if (arguments >= REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(commandBytes.ToString(), arguments);
+            int bytes = Encoding.ASCII.GetMaxByteCount(command.Length);
+            Span<byte> buffer = command.Length <= 32 ? stackalloc byte[32] : (lease = ArrayPool<byte>.Shared.Rent(bytes));
+            bytes = Encoding.ASCII.GetBytes(command, buffer);
+            WriteHeader(RedisCommand.UNKNOWN, arguments, buffer.Slice(0, bytes));
         }
-        else
+        finally
         {
-            // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
-            if (arguments >= REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(command.ToString(), arguments);
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+        }
+    }
 
-            // for everything that isn't custom commands: ask the muxer for the actual bytes
-            commandBytes = _map.GetBytes(command);
-        }
+    internal void WriteHeader(RedisCommand command, int arguments) => WriteHeader(command, arguments, _map.GetBytes(command).Span);
+
+    internal void WriteHeader(RedisCommand command, int arguments, ReadOnlySpan<byte> commandBytes)
+    {
+        // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+        if (arguments >= REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(command.ToString(), arguments);
 
         // in theory we should never see this; CheckMessage dealt with "regular" messages, and
         // ExecuteMessage should have dealt with everything else
@@ -136,8 +144,8 @@ internal readonly ref struct MessageWriter
         span[0] = (byte)'*';
 
         int offset = WriteRaw(span, arguments + 1, offset: 1);
-
-        offset = AppendToSpanCommand(span, commandBytes, offset: offset);
+        span[offset++] = (byte)'$';
+        offset = AppendToSpan(span, commandBytes, offset: offset);
 
         _writer.Advance(offset);
     }
@@ -535,16 +543,6 @@ internal readonly ref struct MessageWriter
 
             WriteCrlf(writer);
         }
-    }
-
-    private static int AppendToSpanCommand(Span<byte> span, in CommandBytes value, int offset = 0)
-    {
-        span[offset++] = (byte)'$';
-        int len = value.Length;
-        offset = WriteRaw(span, len, offset: offset);
-        value.CopyTo(span.Slice(offset, len));
-        offset += value.Length;
-        return WriteCrlf(span, offset);
     }
 
     private static int AppendToSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)

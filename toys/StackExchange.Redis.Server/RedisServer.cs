@@ -165,7 +165,7 @@ namespace StackExchange.Redis.Server
             return base.Execute(client, request);
 
             static bool IsAuthCommand(in RedisRequest request) =>
-                request.Count != 0 && request.GetReader(0).TryRead(RedisCommandParser.TryParse, out RedisCommand cmd)
+                request.Count != 0 && request.GetReader(0).TryRead(RedisCommandMetadata.TryParseCI, out RedisCommand cmd)
                                    && cmd is RedisCommand.AUTH or RedisCommand.HELLO;
         }
 
@@ -206,7 +206,7 @@ namespace StackExchange.Redis.Server
                 {
                     int remaining = request.Count - (i + 1);
                     var fieldReader = request.GetReader(i);
-                    if (!fieldReader.TryRead(RedisCommandParser.TryParse, out HelloSubFields field))
+                    if (!fieldReader.TryRead(HelloSubFieldsMetadata.TryParseCI, out HelloSubFields field))
                     {
                         return ArgFail(fieldReader);
                     }
@@ -1215,7 +1215,7 @@ namespace StackExchange.Redis.Server
         {
             var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span, RespPrefix.Push);
 
-            _ = RedisCommandParser.TryParse(request.Command.Span, out RedisCommand cmd);
+            _ = RedisCommandMetadata.TryParseCI(request.Command.Span, out var cmd);
             var mode = cmd switch
             {
                 RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE => RedisChannel.RedisChannelOptions.Pattern,
@@ -1255,9 +1255,7 @@ namespace StackExchange.Redis.Server
             }
             return reply;
         }
-        private static readonly CommandBytes
-            s_Subscribe = new CommandBytes("subscribe"),
-            s_Unsubscribe = new CommandBytes("unsubscribe");
+
         private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         [RedisCommand(1, LockFree = true)]
@@ -1301,13 +1299,10 @@ namespace StackExchange.Redis.Server
         }
     }
 
-    internal static partial class RedisCommandParser
+    internal static partial class HelloSubFieldsMetadata
     {
         [AsciiHash(CaseSensitive = false)]
-        public static partial bool TryParse(ReadOnlySpan<byte> command, out RedisCommand value);
-
-        [AsciiHash(CaseSensitive = false)]
-        public static partial bool TryParse(ReadOnlySpan<byte> command, out HelloSubFields value);
+        public static partial bool TryParseCI(ReadOnlySpan<byte> command, out HelloSubFields value);
     }
 
     internal enum HelloSubFields

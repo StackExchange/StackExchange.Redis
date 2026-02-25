@@ -2609,20 +2609,6 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private static class KeyValuePairParser
-        {
-            internal static readonly CommandBytes
-                Name = "name",
-                Consumers = "consumers",
-                Pending = "pending",
-                Idle = "idle",
-                LastDeliveredId = "last-delivered-id",
-                EntriesRead = "entries-read",
-                Lag = "lag",
-                IP = "ip",
-                Port = "port";
-        }
-
         internal sealed class StreamGroupInfoProcessor : InterleavedStreamInfoProcessorBase<StreamGroupInfo>
         {
             protected override StreamGroupInfo ParseItem(ref RespReader reader)
