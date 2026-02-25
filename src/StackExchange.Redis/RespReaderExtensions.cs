@@ -22,6 +22,20 @@ internal static class RespReaderExtensions
             };
         }
 
+        public string DebugReadTruncatedString(int maxChars)
+        {
+            if (!reader.IsScalar) return "";
+            try
+            {
+                var s = reader.ReadString() ?? "";
+                return s.Length <= maxChars ? s : s.Substring(0, maxChars) + "...";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
         public RedisKey ReadRedisKey()
         {
             reader.DemandScalar();
@@ -30,12 +44,18 @@ internal static class RespReaderExtensions
 
         public string GetOverview()
         {
+            if (reader.Prefix is RespPrefix.None)
+            {
+                var copy = reader;
+                copy.MovePastBof();
+                return copy.Prefix is RespPrefix.None ? "(empty)" : copy.GetOverview();
+            }
             if (reader.IsNull) return "(null)";
 
             return reader.Prefix switch
             {
                 RespPrefix.SimpleString or RespPrefix.Integer or RespPrefix.SimpleError or RespPrefix.Double => $"{reader.Prefix}: {reader.ReadString()}",
-                _ when reader.IsScalar => $"{reader.Prefix}: {reader.ScalarLength()} bytes",
+                _ when reader.IsScalar => $"{reader.Prefix}: {reader.ScalarLength()} bytes, '{reader.DebugReadTruncatedString(16)}'",
                 _ when reader.IsAggregate => $"{reader.Prefix}: {reader.AggregateLength()} items",
                 _ => $"(unknown: {reader.Prefix})",
             };

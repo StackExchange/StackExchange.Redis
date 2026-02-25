@@ -309,6 +309,7 @@ internal sealed partial class PhysicalConnection
                 // out-of-band; pub/sub etc
                 if (OnOutOfBand(frame, ref lease))
                 {
+                    OnDetailLog($"out-of-band message, not dequeuing: {prefix}");
                     return;
                 }
                 break;

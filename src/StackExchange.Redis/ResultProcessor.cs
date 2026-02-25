@@ -224,8 +224,8 @@ namespace StackExchange.Redis
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            connection.OnDetailLog($"(core result for {message.Command}, {reader.GetFirstPrefix()})");
             reader.MovePastBof();
+            connection.OnDetailLog($"(core result for {message.Command}, '{reader.GetOverview()}')");
             var bridge = connection.BridgeCouldBeNull;
             if (message is LoggingMessage logging)
             {
