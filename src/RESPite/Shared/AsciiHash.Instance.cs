@@ -20,7 +20,7 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>
     public int BufferLength => (Length + 1 + 7) & ~7; // an extra byte, then round up to word-size
 
     public ReadOnlySpan<byte> Span => new(_arr ?? [], _index, _length);
-    public bool IsEmpty => Length != 0;
+    public bool IsEmpty => Length == 0;
 
     public AsciiHash(ReadOnlySpan<byte> value) : this(value.ToArray(), 0, value.Length) { }
     public AsciiHash(string? value) : this(value is null ? [] : Encoding.ASCII.GetBytes(value)) { }

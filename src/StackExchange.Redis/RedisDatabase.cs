@@ -5657,7 +5657,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            public override string CommandString => Command is RedisCommand.UNKNOWN ? _unknownCommand : Command.ToString();
+            public override string CommandString => Command is RedisCommand.UNKNOWN ? _unknownCommand : base.CommandString;
             public override string CommandAndKey => CommandString;
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)

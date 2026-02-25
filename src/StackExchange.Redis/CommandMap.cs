@@ -208,6 +208,7 @@ namespace StackExchange.Redis
         {
             var commands = AllCommands;
 
+            // todo: optimize and support ad-hoc overrides/disables, and shared buffer rather than multiple arrays
             var map = new AsciiHash[commands.Length];
             for (int i = 0; i < commands.Length; i++)
             {
@@ -222,7 +223,7 @@ namespace StackExchange.Redis
                 {
                     if (caseInsensitiveOverrides != null && caseInsensitiveOverrides.TryGetValue(name, out string? tmp))
                     {
-                        value = tmp;
+                        value = tmp?.ToUpperInvariant();
                     }
                     map[idx] = new AsciiHash(value);
                 }

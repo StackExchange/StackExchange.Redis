@@ -118,7 +118,9 @@ internal readonly ref struct MessageWriter
             int bytes = Encoding.ASCII.GetMaxByteCount(command.Length);
             Span<byte> buffer = command.Length <= 32 ? stackalloc byte[32] : (lease = ArrayPool<byte>.Shared.Rent(bytes));
             bytes = Encoding.ASCII.GetBytes(command, buffer);
-            WriteHeader(RedisCommand.UNKNOWN, arguments, buffer.Slice(0, bytes));
+            var span = buffer.Slice(0, bytes);
+            AsciiHash.ToUpper(span);
+            WriteHeader(RedisCommand.UNKNOWN, arguments, span);
         }
         finally
         {
