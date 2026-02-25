@@ -6,8 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
-using System.Threading;
 using RESPite;
+using System.Threading;
 using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
@@ -347,8 +347,6 @@ namespace StackExchange.Redis.Server
                 if (!client.Watch(key))
                     return TypedRedisValue.Error("WATCH inside MULTI is not allowed");
             }
-
-            return TypedRedisValue.OK;
         }
 
         [RedisCommand(1)]
