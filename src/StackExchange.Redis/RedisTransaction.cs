@@ -168,7 +168,11 @@ namespace StackExchange.Redis
                 return Message.Create(-1, flags, RedisCommand.PING);
             }
             processor = TransactionProcessor.Default;
+
+            throw new NotImplementedException("Transactions need attention");
+#pragma warning disable CS0162 // Unreachable code detected
             return new TransactionMessage(Database, flags, cond, work);
+#pragma warning restore CS0162 // Unreachable code detected
         }
 
         private sealed class QueuedMessage : Message
