@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
@@ -21,7 +22,6 @@ namespace StackExchange.Redis.Server
             ClientInitiated,
         }
 
-        private readonly List<RedisClient> _clients = new List<RedisClient>();
         private readonly TextWriter _output;
 
         protected RespServer(TextWriter output = null)
@@ -193,32 +193,28 @@ namespace StackExchange.Redis.Server
         // to be used via ListenForConnections
         public virtual RedisClient CreateClient() => new RedisClient();
 
-        public int ClientCount
-        {
-            get { lock (_clients) { return _clients.Count; } }
-        }
-        public int TotalClientCount { get; private set; }
-        private int _nextId;
+        public int ClientCount => _clientLookup.Count;
+        public int TotalClientCount => _totalClientCount;
+        private int _nextId, _totalClientCount;
         public RedisClient AddClient()
         {
             var client = CreateClient();
-            lock (_clients)
-            {
-                ThrowIfShutdown();
-                client.Id = ++_nextId;
-                _clients.Add(client);
-                TotalClientCount++;
-            }
+            client.Id = Interlocked.Increment(ref _nextId);
+            Interlocked.Increment(ref _totalClientCount);
+            ThrowIfShutdown();
+            _clientLookup[client.Id] = client;
             return client;
         }
+
+        public bool TryGetClient(int id, out RedisClient client) => _clientLookup.TryGetValue(id, out client);
+
+        private readonly ConcurrentDictionary<int, RedisClient> _clientLookup = new();
+
         public bool RemoveClient(RedisClient client)
         {
             if (client == null) return false;
-            lock (_clients)
-            {
-                client.Closed = true;
-                return _clients.Remove(client);
-            }
+            client.Closed = true;
+            return _clientLookup.TryRemove(client.Id, out _);
         }
 
         private readonly TaskCompletionSource<ShutdownReason> _shutdown = TaskSource.Create<ShutdownReason>(null, TaskCreationOptions.RunContinuationsAsynchronously);
@@ -232,11 +228,8 @@ namespace StackExchange.Redis.Server
             if (_isShutdown) return;
             Log("Server shutting down...");
             _isShutdown = true;
-            lock (_clients)
-            {
-                foreach (var client in _clients) client.Dispose();
-                _clients.Clear();
-            }
+            foreach (var client in _clientLookup.Values) client.Dispose();
+            _clientLookup.Clear();
             _shutdown.TrySetResult(reason);
         }
         public Task<ShutdownReason> Shutdown => _shutdown.Task;
@@ -412,6 +405,11 @@ namespace StackExchange.Redis.Server
         private long _totalCommandsProcesed, _totalErrorCount;
         public long TotalCommandsProcesed => _totalCommandsProcesed;
         public long TotalErrorCount => _totalErrorCount;
+
+        public virtual void ResetCounters()
+        {
+            _totalCommandsProcesed = _totalErrorCount = _totalClientCount = 0;
+        }
 
         public TypedRedisValue Execute(RedisClient client, RedisRequest request)
         {

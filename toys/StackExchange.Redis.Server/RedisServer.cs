@@ -109,6 +109,10 @@ namespace StackExchange.Redis.Server
             return TypedRedisValue.OK;
         }
 
+        [RedisCommand(2, "client", "id", LockFree = true)]
+        protected virtual TypedRedisValue ClientId(RedisClient client, RedisRequest request)
+            => TypedRedisValue.Integer(client.Id);
+
         [RedisCommand(-1)]
         protected virtual TypedRedisValue Cluster(RedisClient client, RedisRequest request)
             => request.CommandNotFound();
@@ -346,6 +350,7 @@ namespace StackExchange.Redis.Server
             if (IsMatch("Persistence")) Info(sb, "Persistence");
             if (IsMatch("Stats")) Info(sb, "Stats");
             if (IsMatch("Replication")) Info(sb, "Replication");
+            if (IsMatch("Cluster")) Info(sb, "Cluster");
             if (IsMatch("Keyspace")) Info(sb, "Keyspace");
             return sb.ToString();
         }
@@ -364,6 +369,12 @@ namespace StackExchange.Redis.Server
         }
         protected virtual IEnumerable<RedisKey> Keys(int database, RedisKey pattern) => throw new NotSupportedException();
 
+        private static readonly Version s_DefaultServerVersion = new(1, 0, 0);
+
+        public Version RedisVersion { get; set; } = s_DefaultServerVersion;
+
+        public DateTime StartTime { get; set; } = DateTime.UtcNow;
+        public ServerType ServerType { get; set; } = ServerType.Standalone;
         protected virtual void Info(StringBuilder sb, string section)
         {
             StringBuilder AddHeader()
@@ -375,14 +386,25 @@ namespace StackExchange.Redis.Server
             switch (section)
             {
                 case "Server":
-                    AddHeader().AppendLine("redis_version:1.0")
-                        .AppendLine("redis_mode:standalone")
+                    var v = RedisVersion;
+                    AddHeader().Append("redis_version:").Append(v.Major).Append('.').Append(v.Minor);
+                    if (v.Revision >= 0) sb.Append('.').Append(v.Revision);
+                    if (v.Build >= 0) sb.Append('.').Append(v.Build);
+                    sb.AppendLine();
+                    sb.Append("redis_mode:").Append(ServerType switch {
+                        ServerType.Cluster => "cluster",
+                        ServerType.Sentinel => "sentinel",
+                        _ => "standalone",
+                    }).AppendLine()
                         .Append("os:").Append(Environment.OSVersion).AppendLine()
                         .Append("arch_bits:x").Append(IntPtr.Size * 8).AppendLine();
                     using (var process = Process.GetCurrentProcess())
                     {
-                        sb.Append("process:").Append(process.Id).AppendLine();
+                        sb.Append("process_id:").Append(process.Id).AppendLine();
                     }
+                    var time = DateTime.UtcNow - StartTime;
+                    sb.Append("uptime_in_seconds:").Append((int)time.TotalSeconds).AppendLine();
+                    sb.Append("uptime_in_days:").Append((int)time.TotalDays).AppendLine();
                     // var port = TcpPort();
                     // if (port >= 0) sb.Append("tcp_port:").Append(port).AppendLine();
                     break;
@@ -401,10 +423,14 @@ namespace StackExchange.Redis.Server
                 case "Replication":
                     AddHeader().AppendLine("role:master");
                     break;
+                case "Cluster":
+                    AddHeader().Append("cluster_enabled:").Append(ServerType is ServerType.Cluster ? 1 : 0).AppendLine();
+                    break;
                 case "Keyspace":
                     break;
             }
         }
+
         [RedisCommand(2, "memory", "purge")]
         protected virtual TypedRedisValue MemoryPurge(RedisClient client, RedisRequest request)
         {

@@ -4,7 +4,7 @@ using System.IO.Pipelines;
 
 namespace StackExchange.Redis.Server
 {
-    public sealed class RedisClient : IDisposable
+    public class RedisClient : IDisposable
     {
         internal int SkipReplies { get; set; }
         internal bool ShouldSkipResponse()

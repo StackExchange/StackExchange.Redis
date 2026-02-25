@@ -1,10 +1,6 @@
-using System;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading.Tasks;
-using StackExchange.Redis.Server;
 using Xunit;
-using Xunit.Sdk;
 
 namespace StackExchange.Redis.Tests;
 
@@ -15,18 +11,6 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class MovedToSameEndpointTests(ITestOutputHelper log)
 {
-    /// <summary>
-    /// Gets a free port by temporarily binding to port 0 and retrieving the OS-assigned port.
-    /// </summary>
-    private static int GetFreePort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
     /// <summary>
     /// Integration test: Verifies that when a MOVED error points to the same endpoint,
     /// the client reconnects and successfully retries the operation.
@@ -49,73 +33,62 @@ public class MovedToSameEndpointTests(ITestOutputHelper log)
     public async Task MovedToSameEndpoint_TriggersReconnectAndRetry_CommandSucceeds()
     {
         var keyName = "MovedToSameEndpoint_TriggersReconnectAndRetry_CommandSucceeds";
-        // Arrange: Get a free port to avoid conflicts when tests run in parallel
-        var port = GetFreePort();
-        var listenEndpoint = new IPEndPoint(IPAddress.Loopback, port);
 
-        var testServer = new MovedTestServer(
+        var listenEndpoint = new IPEndPoint(IPAddress.Loopback, 6382);
+        using var testServer = new MovedTestServer(
             getEndpoint: () => Format.ToString(listenEndpoint),
-            triggerKey: keyName);
+            triggerKey: keyName,
+            log: log);
 
-        var socketServer = new RespSocketServer(testServer);
+        testServer.SetActualEndpoint(listenEndpoint);
 
-        try
+        // Wait a moment for the server to fully start
+        await Task.Delay(100);
+
+        // Act: Connect to the test server
+        var config = new ConfigurationOptions
         {
-            // Start listening on the free port
-            socketServer.Listen(listenEndpoint);
-            testServer.SetActualEndpoint(listenEndpoint);
+            EndPoints = { listenEndpoint },
+            ConnectTimeout = 10000,
+            SyncTimeout = 5000,
+            AsyncTimeout = 5000,
+            AllowAdmin = true,
+            Tunnel = testServer.Tunnel,
+        };
 
-            // Wait a moment for the server to fully start
-            await Task.Delay(100);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        // Ping the server to ensure it's responsive
+        var server = conn.GetServer(listenEndpoint);
+        log?.WriteLine((await server.InfoRawAsync()) ?? "");
+        await server.PingAsync();
+        // Verify server is detected as cluster mode
+        Assert.Equal(ServerType.Cluster, server.ServerType);
+        var db = conn.GetDatabase();
 
-            // Act: Connect to the test server
-            var config = new ConfigurationOptions
-            {
-                EndPoints = { listenEndpoint },
-                ConnectTimeout = 10000,
-                SyncTimeout = 5000,
-                AsyncTimeout = 5000,
-                AllowAdmin = true,
-            };
+        // Record baseline counters after initial connection
+        var initialSetCmdCount = testServer.SetCmdCount;
+        var initialMovedResponseCount = testServer.MovedResponseCount;
+        var initialConnectionCount = testServer.TotalClientCount;
+        // Execute SET command: This should receive MOVED → reconnect → retry → succeed
+        var setResult = await db.StringSetAsync(keyName, "testvalue");
 
-            await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
-            // Ping the server to ensure it's responsive
-            var server = conn.GetServer(listenEndpoint);
-            log?.WriteLine($"info: {await server.InfoRawAsync()}");
-            await server.PingAsync();
-            // Verify server is detected as cluster mode
-            Assert.Equal(ServerType.Cluster, server.ServerType);
-            var db = conn.GetDatabase();
+        // Assert: Verify SET command succeeded
+        Assert.True(setResult, "SET command should return true (OK)");
 
-            // Record baseline counters after initial connection
-            var initialSetCmdCount = testServer.SetCmdCount;
-            var initialMovedResponseCount = testServer.MovedResponseCount;
-            var initialConnectionCount = testServer.ConnectionCount;
-            // Execute SET command: This should receive MOVED → reconnect → retry → succeed
-            var setResult = await db.StringSetAsync(keyName, "testvalue");
+        // Verify the value was actually stored (proving retry succeeded)
+        var retrievedValue = await db.StringGetAsync(keyName);
+        Assert.Equal("testvalue", (string?)retrievedValue);
 
-            // Assert: Verify SET command succeeded
-            Assert.True(setResult, "SET command should return true (OK)");
+        // Verify SET command was executed twice: once with MOVED response, once successfully
+        var expectedSetCmdCount = initialSetCmdCount + 2;
+        Assert.Equal(expectedSetCmdCount, testServer.SetCmdCount);
 
-            // Verify the value was actually stored (proving retry succeeded)
-            var retrievedValue = await db.StringGetAsync(keyName);
-            Assert.Equal("testvalue", (string?)retrievedValue);
+        // Verify MOVED response was returned exactly once
+        var expectedMovedResponseCount = initialMovedResponseCount + 1;
+        Assert.Equal(expectedMovedResponseCount, testServer.MovedResponseCount);
 
-            // Verify SET command was executed twice: once with MOVED response, once successfully
-            var expectedSetCmdCount = initialSetCmdCount + 2;
-            Assert.Equal(expectedSetCmdCount, testServer.SetCmdCount);
-
-            // Verify MOVED response was returned exactly once
-            var expectedMovedResponseCount = initialMovedResponseCount + 1;
-            Assert.Equal(expectedMovedResponseCount, testServer.MovedResponseCount);
-
-            // Verify reconnection occurred: connection count should have increased by 1
-            var expectedConnectionCount = initialConnectionCount + 1;
-            Assert.Equal(expectedConnectionCount, testServer.ConnectionCount);
-        }
-        finally
-        {
-            socketServer?.Dispose();
-        }
+        // Verify reconnection occurred: connection count should have increased by 1
+        var expectedConnectionCount = initialConnectionCount + 1;
+        Assert.Equal(expectedConnectionCount, testServer.TotalClientCount);
     }
 }

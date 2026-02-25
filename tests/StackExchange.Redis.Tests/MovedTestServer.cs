@@ -2,9 +2,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Server;
+using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
@@ -14,7 +17,7 @@ namespace StackExchange.Redis.Tests;
 /// When a MOVED error points to the same endpoint, it signals the client to reconnect before retrying the command,
 /// allowing the DNS record/proxy/load balancer to route the connection to a different underlying server host.
 /// </summary>
-public class MovedTestServer : MemoryCacheRedisServer
+public class MovedTestServer : InProcessTestServer
 {
     /// <summary>
     /// Represents the simulated server host state behind a proxy/load balancer.
@@ -34,19 +37,26 @@ public class MovedTestServer : MemoryCacheRedisServer
 
     private int _setCmdCount = 0;
     private int _movedResponseCount = 0;
-    private int _connectionCount = 0;
+
     private SimulatedHost _currentServerHost = SimulatedHost.OldServer;
-    private readonly ConcurrentDictionary<RedisClient, SimulatedHost> _clientHostAssignments = new();
+
     private readonly Func<string> _getEndpoint;
     private readonly string _triggerKey;
     private readonly int _hashSlot;
     private EndPoint? _actualEndpoint;
 
-    public MovedTestServer(Func<string> getEndpoint, string triggerKey = "testkey", int hashSlot = 12345)
+    public MovedTestServer(Func<string> getEndpoint, string triggerKey = "testkey", int hashSlot = 12345, ITestOutputHelper? log = null) : base(log)
     {
         _getEndpoint = getEndpoint;
         _triggerKey = triggerKey;
         _hashSlot = hashSlot;
+        ServerType = ServerType.Cluster;
+        RedisVersion = RedisFeatures.v7_2_0_rc1;
+    }
+
+    private sealed class MovedTestClient(SimulatedHost assignedHost) : RedisClient
+    {
+        public SimulatedHost AssignedHost => assignedHost;
     }
 
     /// <summary>
@@ -55,30 +65,9 @@ public class MovedTestServer : MemoryCacheRedisServer
     /// </summary>
     public override RedisClient CreateClient()
     {
-        var client = base.CreateClient();
-        var assignedHost = _currentServerHost;
-        _clientHostAssignments[client] = assignedHost;
-        Interlocked.Increment(ref _connectionCount);
-        Log($"New client connection established (assigned to {assignedHost}, total connections: {_connectionCount}), endpoint: {_actualEndpoint}");
+        var client = new MovedTestClient(_currentServerHost);
+        Log($"New client connection established (assigned to {client.AssignedHost}, total connections: {TotalClientCount}), endpoint: {_actualEndpoint}");
         return client;
-    }
-
-    /// <summary>
-    /// Handles the INFO command, reporting cluster mode as enabled.
-    /// </summary>
-    protected override TypedRedisValue Info(RedisClient client, RedisRequest request)
-    {
-        // Override INFO to report cluster mode enabled
-        var section = request.Count >= 2 ? request.GetString(1) : null;
-
-        // Return cluster-enabled info
-        var infoResponse = section?.Equals("CLUSTER", StringComparison.OrdinalIgnoreCase) == true
-            ? "# Cluster\r\ncluster_enabled:1\r\n"
-            : "# Server\r\nredis_version:7.0.0\r\nredis_mode:cluster\r\n# Cluster\r\ncluster_enabled:1\r\n";
-
-        Log($"Returning INFO response (cluster_enabled:1), endpoint: {_actualEndpoint}");
-
-        return TypedRedisValue.BulkString(infoResponse);
     }
 
     /// <summary>
@@ -122,10 +111,11 @@ public class MovedTestServer : MemoryCacheRedisServer
         Interlocked.Increment(ref _setCmdCount);
 
         // Get the client's assigned server host
-        if (!_clientHostAssignments.TryGetValue(client, out var clientHost))
+        if (client is not MovedTestClient movedClient)
         {
-            throw new InvalidOperationException("Client host assignment not found - this indicates a test infrastructure error");
+            throw new InvalidOperationException($"Client is not a {nameof(MovedTestClient)}");
         }
+        var clientHost = movedClient.AssignedHost;
 
         // Check if this is the trigger key from an old server client
         if (key == _triggerKey && clientHost == SimulatedHost.OldServer)
@@ -214,11 +204,6 @@ public class MovedTestServer : MemoryCacheRedisServer
     public int MovedResponseCount => _movedResponseCount;
 
     /// <summary>
-    /// Gets the number of client connections established.
-    /// </summary>
-    public int ConnectionCount => _connectionCount;
-
-    /// <summary>
     /// Gets the actual endpoint the server is listening on.
     /// </summary>
     public EndPoint? ActualEndpoint => _actualEndpoint;
@@ -236,10 +221,10 @@ public class MovedTestServer : MemoryCacheRedisServer
     /// <summary>
     /// Resets all counters for test reusability.
     /// </summary>
-    public void ResetCounters()
+    public override void ResetCounters()
     {
         Interlocked.Exchange(ref _setCmdCount, 0);
         Interlocked.Exchange(ref _movedResponseCount, 0);
-        Interlocked.Exchange(ref _connectionCount, 0);
+        base.ResetCounters();
     }
 }
