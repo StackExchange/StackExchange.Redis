@@ -60,6 +60,9 @@ public class MovedToSameEndpointTests(ITestOutputHelper log)
         // Ping the server to ensure it's responsive
         var server = conn.GetServer(listenEndpoint);
         log?.WriteLine((await server.InfoRawAsync()) ?? "");
+        var id = await server.ExecuteAsync("client", "id");
+        log?.WriteLine($"client id: {id}");
+
         await server.PingAsync();
         // Verify server is detected as cluster mode
         Assert.Equal(ServerType.Cluster, server.ServerType);
@@ -90,5 +93,7 @@ public class MovedToSameEndpointTests(ITestOutputHelper log)
         // Verify reconnection occurred: connection count should have increased by 1
         var expectedConnectionCount = initialConnectionCount + 1;
         Assert.Equal(expectedConnectionCount, testServer.TotalClientCount);
+        id = await server.ExecuteAsync("client", "id");
+        log?.WriteLine($"client id: {id}");
     }
 }
