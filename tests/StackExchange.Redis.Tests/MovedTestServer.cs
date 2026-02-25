@@ -74,7 +74,7 @@ public class MovedTestServer : MemoryCacheRedisServer
         // Return cluster-enabled info
         var infoResponse = section?.Equals("CLUSTER", StringComparison.OrdinalIgnoreCase) == true
             ? "# Cluster\r\ncluster_enabled:1\r\n"
-            : "# Server\r\nredis_version:7.0.0\r\n# Cluster\r\ncluster_enabled:1\r\n";
+            : "# Server\r\nredis_version:7.0.0\r\nredis_mode:cluster\r\n# Cluster\r\ncluster_enabled:1\r\n";
 
         Log($"Returning INFO response (cluster_enabled:1), endpoint: {_actualEndpoint}");
 

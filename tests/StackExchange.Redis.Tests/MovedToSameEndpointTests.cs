@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using StackExchange.Redis.Server;
 using Xunit;
+using Xunit.Sdk;
 
 namespace StackExchange.Redis.Tests;
 
@@ -12,7 +13,7 @@ namespace StackExchange.Redis.Tests;
 /// When a MOVED error points to the same endpoint, the client should reconnect before retrying,
 /// allowing the DNS record/proxy/load balancer to route to a different underlying server host.
 /// </summary>
-public class MovedToSameEndpointTests
+public class MovedToSameEndpointTests(ITestOutputHelper log)
 {
     /// <summary>
     /// Gets a free port by temporarily binding to port 0 and retrieving the OS-assigned port.
@@ -44,7 +45,7 @@ public class MovedToSameEndpointTests
     /// - Connection count should increase by 1 (reconnection after MOVED)
     /// - Final SET operation should succeed with value stored.
     /// </summary>
-    [Fact(Skip = "dummy server is not a cluster!")]
+    [Fact]
     public async Task MovedToSameEndpoint_TriggersReconnectAndRetry_CommandSucceeds()
     {
         var keyName = "MovedToSameEndpoint_TriggersReconnectAndRetry_CommandSucceeds";
@@ -74,11 +75,13 @@ public class MovedToSameEndpointTests
                 ConnectTimeout = 10000,
                 SyncTimeout = 5000,
                 AsyncTimeout = 5000,
+                AllowAdmin = true,
             };
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
             // Ping the server to ensure it's responsive
             var server = conn.GetServer(listenEndpoint);
+            log?.WriteLine($"info: {await server.InfoRawAsync()}");
             await server.PingAsync();
             // Verify server is detected as cluster mode
             Assert.Equal(ServerType.Cluster, server.ServerType);
