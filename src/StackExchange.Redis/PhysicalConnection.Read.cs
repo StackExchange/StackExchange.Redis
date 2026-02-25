@@ -108,14 +108,14 @@ internal sealed partial class PhysicalConnection
         {
             Debug.Assert(_readBuffer.GetCommittedLength() >= 0, "multi-segment running-indices are corrupt");
 #if PARSE_DETAIL
-            src += $" ({readBuffer.GetCommittedLength()}+{bytesRead}-{state.TotalBytes})";
+            src += $" ({_readBuffer.GetCommittedLength()}+{bytesRead}-{state.TotalBytes})";
 #endif
             Debug.Assert(
                 bytesRead <= _readBuffer.UncommittedAvailable,
                 $"Insufficient bytes in {nameof(CommitAndParseFrames)}; got {bytesRead}, Available={_readBuffer.UncommittedAvailable}");
             _readBuffer.Commit(bytesRead);
 #if PARSE_DETAIL
-            src += $",total {readBuffer.GetCommittedLength()}";
+            src += $",total {_readBuffer.GetCommittedLength()}";
 #endif
             var scanner = RespFrameScanner.Default;
 
@@ -124,6 +124,7 @@ internal sealed partial class PhysicalConnection
             {
                 int fullyConsumed = 0;
                 var toParse = fullSpan.Slice((int)state.TotalBytes); // skip what we've already parsed
+                OnDetailLog($"parsing {toParse.Length} bytes, single buffer");
 
                 Debug.Assert(!toParse.IsEmpty);
                 while (true)
@@ -151,6 +152,7 @@ internal sealed partial class PhysicalConnection
                     src += $",frame {bytes}";
 #endif
                     // send the frame somewhere (note this is the *full* frame, not just the bit we just parsed)
+                    OnDetailLog($"found {state.Prefix} frame, {bytes} bytes");
                     OnResponseFrame(state.Prefix, fullSpan.Slice(fullyConsumed, bytes), ref SharedNoLease);
                     UpdateBufferStats(bytes, toParse.Length);
 
@@ -160,7 +162,7 @@ internal sealed partial class PhysicalConnection
                     state = default;
                     status = OperationStatus.NeedMoreData;
                 }
-
+                OnDetailLog($"discarding {fullyConsumed} bytes");
                 _readBuffer.DiscardCommitted(fullyConsumed);
             }
             else // the same thing again, but this time with multi-segment sequence
@@ -172,6 +174,8 @@ internal sealed partial class PhysicalConnection
 
                 long fullyConsumed = 0;
                 var toParse = fullSequence.Slice((int)state.TotalBytes); // skip what we've already parsed
+                OnDetailLog($"parsing {toParse.Length} bytes, multi-buffer");
+
                 while (true)
                 {
 #if PARSE_DETAIL
@@ -197,6 +201,7 @@ internal sealed partial class PhysicalConnection
                     src += $",frame {bytes}";
 #endif
                     // send the frame somewhere (note this is the *full* frame, not just the bit we just parsed)
+                    OnDetailLog($"found {state.Prefix} frame, {bytes} bytes");
                     OnResponseFrame(state.Prefix, fullSequence.Slice(fullyConsumed, bytes));
                     UpdateBufferStats(bytes, toParse.Length);
 
@@ -207,6 +212,7 @@ internal sealed partial class PhysicalConnection
                     status = OperationStatus.NeedMoreData;
                 }
 
+                OnDetailLog($"discarding {fullyConsumed} bytes");
                 _readBuffer.DiscardCommitted(fullyConsumed);
             }
 
@@ -223,13 +229,33 @@ internal sealed partial class PhysicalConnection
 #if PARSE_DETAIL
         catch (Exception ex)
         {
-            Debug.WriteLine($"{nameof(CommitAndParseFrames)}: {ex.Message}");
-            Debug.WriteLine(src);
-            ActivationHelper.DebugBreak();
+            OnDetailLog($"{nameof(CommitAndParseFrames)}: {ex.Message}");
+            OnDetailLog(src);
+            if (Debugger.IsAttached) Debugger.Break();
             throw new InvalidOperationException($"{src} lead to {ex.Message}", ex);
         }
 #endif
     }
+
+    [Conditional("PARSE_DETAIL")]
+    internal void OnDetailLog(string message)
+    {
+#if PARSE_DETAIL
+        message = $"[{id}] {message}";
+        lock (LogLock)
+        {
+            Console.WriteLine(message);
+            Debug.WriteLine(message);
+            File.AppendAllText("verbose.log", message + Environment.NewLine);
+        }
+#endif
+    }
+
+#if PARSE_DETAIL
+    private static int s_id;
+    private readonly int id = Interlocked.Increment(ref s_id);
+    private static readonly object LogLock = new();
+#endif
 
     private void OnResponseFrame(RespPrefix prefix, ReadOnlySequence<byte> payload)
     {
@@ -512,14 +538,21 @@ internal sealed partial class PhysicalConnection
         Trace("Response to: " + msg);
         _readStatus = ReadStatus.ComputeResult;
         var reader = new RespReader(frame);
+
+        OnDetailLog($"computing result for {msg.CommandAndKey} ({RespReaderExtensions.GetRespPrefix(frame)})");
         if (msg.ComputeResult(this, ref reader))
         {
+            OnDetailLog($"> complete: {msg.CommandAndKey}");
             _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
             if (!msg.IsHighIntegrity)
             {
                 // can't complete yet if needs checksum
                 msg.Complete();
             }
+        }
+        else
+        {
+            OnDetailLog($"> incomplete: {msg.CommandAndKey}");
         }
         if (msg.IsHighIntegrity)
         {
@@ -631,13 +664,15 @@ internal sealed partial class PhysicalConnection
     private static void DebugValidateSingleFrame(ReadOnlySpan<byte> payload)
     {
         var reader = new RespReader(payload);
-        if (!reader.SafeTryMoveNext())
+        if (!reader.TryMoveNext(checkError: false))
         {
             throw new InvalidOperationException("No root RESP element");
         }
         reader.SkipChildren();
 
-        if (reader.SafeTryMoveNext())
+#pragma warning disable CS0618 // we don't expect *any* additional data, even attributes
+        if (reader.TryReadNext())
+#pragma warning restore CS0618
         {
             throw new InvalidOperationException($"Unexpected trailing {reader.Prefix}");
         }

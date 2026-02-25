@@ -12,6 +12,9 @@
     <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461' and '$(TargetFramework)' != 'net472' and '$(TargetFramework)' != 'netstandard2.0'">$(DefineConstants);UNIX_SOCKET</DefineConstants>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- for debugging low-level parsing problems; absolutely do not us in production -->
+    <!--<DefineConstants Condition="'$(Configuration)' == 'Debug'">$(DefineConstants);PARSE_DETAIL</DefineConstants>-->
   </PropertyGroup>
 
   <ItemGroup>

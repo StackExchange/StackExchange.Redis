@@ -224,6 +224,7 @@ namespace StackExchange.Redis
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
+            connection.OnDetailLog($"(core result for {message.Command}, {reader.GetFirstPrefix()})");
             reader.MovePastBof();
             var bridge = connection.BridgeCouldBeNull;
             if (message is LoggingMessage logging)
@@ -239,7 +240,7 @@ namespace StackExchange.Redis
             }
             if (reader.IsError)
             {
-                return HandleCommonError(message, reader, bridge);
+                return HandleCommonError(message, reader, connection);
             }
 
             var copy = reader;
@@ -254,8 +255,10 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private bool HandleCommonError(Message message, RespReader reader, PhysicalBridge? bridge)
+        private bool HandleCommonError(Message message, RespReader reader, PhysicalConnection connection)
         {
+            connection.OnDetailLog($"applying common error-handling: {reader.GetOverview()}");
+            var bridge = connection.BridgeCouldBeNull;
             if (reader.StartsWith(Literals.NOAUTH.U8))
             {
                 bridge?.Multiplexer.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
@@ -273,6 +276,7 @@ namespace StackExchange.Redis
             bool unableToConnectError = false;
             if (isMoved || reader.StartsWith(Literals.ASK.U8))
             {
+                connection.OnDetailLog($"redirect via {(isMoved ? "MOVED" : "ASK")} to '{reader.ReadString()}'");
                 message.SetResponseReceived();
 
                 log = false;
@@ -294,14 +298,17 @@ namespace StackExchange.Redis
                     if (bridge is null)
                     {
                         // already toast
+                        connection.OnDetailLog($"no bridge for {message.Command}");
                     }
                     else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved, isSameEndpoint))
                     {
+                        connection.OnDetailLog($"re-issued to {Format.ToString(endpoint)}");
                         bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
                         return false;
                     }
                     else
                     {
+                        connection.OnDetailLog($"unable to re-issue {message.Command} to {Format.ToString(endpoint)}; treating as error");
                         if (isMoved && wasNoRedirect)
                         {
                             if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
@@ -327,6 +334,10 @@ namespace StackExchange.Redis
                             }
                         }
                     }
+                }
+                else
+                {
+                    connection.OnDetailLog($"unable to parse redirect response");
                 }
             }
 

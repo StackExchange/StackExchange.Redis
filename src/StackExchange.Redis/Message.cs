@@ -601,23 +601,35 @@ namespace StackExchange.Redis
         // true if ready to be completed (i.e. false if re-issued to another server)
         internal bool ComputeResult(PhysicalConnection connection, ref RespReader reader)
         {
-            // we don't want to mutate reader, so that processors can consume attributes; however,
-            // we also don't want to force the entire reader to copy each time, so: snapshot
-            // just the prefix
-            var prefix = reader.GetFirstPrefix();
+            var prefix = RespPrefix.None;
 
             // intentionally "frame" is an isolated copy
             var box = resultBox;
             try
             {
-                if (box != null && box.IsFaulted) return false; // already failed (timeout, etc)
-                if (resultProcessor == null) return true;
+                // we don't want to mutate reader, so that processors can consume attributes; however,
+                // we also don't want to force the entire reader to copy each time, so: snapshot
+                // just the prefix
+                prefix = reader.GetFirstPrefix();
+
+                if (box != null && box.IsFaulted)
+                {
+                    connection.OnDetailLog($"already faulted for {Command}");
+                    return false; // already failed (timeout, etc)
+                }
+                if (resultProcessor == null)
+                {
+                    connection.OnDetailLog($"no result processor for {Command}");
+                    return true;
+                }
 
                 // false here would be things like resends (MOVED) - the message is not yet complete
+                connection.OnDetailLog($"computing result for {Command} with {resultProcessor.GetType().Name}");
                 return resultProcessor.SetResult(connection, this, ref reader);
             }
             catch (Exception ex)
             {
+                connection.OnDetailLog($"{ex.GetType().Name}: {ex.Message}");
                 ex.Data.Add("got", prefix.ToString());
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 box?.SetException(ex);
