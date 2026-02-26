@@ -391,10 +391,10 @@ namespace StackExchange.Redis.Server
 
         public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {
-            static async ValueTask<bool> Awaited(ValueTask wwrite, TypedRedisValue rresponse)
+            static async ValueTask<bool> Awaited(ValueTask write, TypedRedisValue response)
             {
-                await wwrite;
-                rresponse.Recycle();
+                await write;
+                response.Recycle();
                 return true;
             }
             if (!buffer.IsEmpty && TryParseRequest(_arena, ref buffer, out var request))
@@ -402,7 +402,11 @@ namespace StackExchange.Redis.Server
                 request = request.WithClient(client);
                 TypedRedisValue response;
                 try { response = Execute(client, request); }
-                finally { _arena.Reset(); }
+                finally
+                {
+                    _arena.Reset();
+                    client.ResetAfterRequest();
+                }
 
                 var write = WriteResponseAsync(client, output, response);
                 if (!write.IsCompletedSuccessfully) return Awaited(write, response);
@@ -476,7 +480,12 @@ namespace StackExchange.Redis.Server
             }
             catch (KeyMovedException moved) when (GetNode(moved.HashSlot) is { } node)
             {
+                OnMoved(client, moved.HashSlot, node);
                 return TypedRedisValue.Error($"MOVED {moved.HashSlot} {node.Host}:{node.Port}");
+            }
+            catch (CrossSlotException)
+            {
+                return TypedRedisValue.Error("CROSSSLOT Keys in request don't hash to the same slot");
             }
             catch (NotSupportedException)
             {
@@ -499,6 +508,10 @@ namespace StackExchange.Redis.Server
             }
         }
 
+        protected virtual void OnMoved(RedisClient client, int hashSlot, RedisServer.Node node)
+        {
+        }
+
         protected virtual RedisServer.Node GetNode(int hashSlot) => null;
 
         public sealed class KeyMovedException : Exception
@@ -509,7 +522,7 @@ namespace StackExchange.Redis.Server
             public static void Throw(in RedisKey key) => throw new KeyMovedException(GetHashSlot(key));
         }
 
-        protected static int GetHashSlot(in RedisKey key) => s_ClusterSelectionStrategy.HashSlot(key);
+        protected internal static int GetHashSlot(in RedisKey key) => s_ClusterSelectionStrategy.HashSlot(key);
         private static readonly ServerSelectionStrategy s_ClusterSelectionStrategy = new(null) { ServerType = ServerType.Cluster };
 
         internal static string ToLower(in RawResult value)

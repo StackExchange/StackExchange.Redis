@@ -9,10 +9,13 @@ var server = new MemoryCacheRedisServer
     RedisVersion = new(3, 0),
     // Password = "letmein",
 };
+
+/*
 // demonstrate cluster spoofing
 server.ServerType = ServerType.Cluster;
 var ep = server.AddEmptyNode();
 server.Migrate("key", ep);
+*/
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<RedisServer>(server);

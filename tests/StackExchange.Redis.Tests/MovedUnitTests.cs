@@ -32,6 +32,37 @@ public class MovedUnitTests(ITestOutputHelper log)
     private RedisKey Me([CallerMemberName] string callerName = "") => callerName;
 
     [Theory]
+    [InlineData(ServerType.Cluster)]
+    [InlineData(ServerType.Standalone)]
+    public async Task CrossSlotDisallowed(ServerType serverType)
+    {
+        // intentionally sending as strings (not keys) via execute to prevent the
+        // client library from getting in our way
+        string keyA = "abc", keyB = "def"; // known to be on different slots
+
+        using var server = new InProcessTestServer(log) { ServerType = serverType };
+        using var muxer = await ConnectionMultiplexer.ConnectAsync(GetMinimalConfig(server));
+        var db = muxer.GetDatabase();
+        db.StringSet(keyA, "value");
+
+        var pending = db.ExecuteAsync("rename", keyA, keyB);
+        if (serverType == ServerType.Cluster)
+        {
+            var ex = await Assert.ThrowsAsync<RedisServerException>(() => pending);
+            Assert.Contains("CROSSSLOT", ex.Message);
+
+            Assert.Equal("value", await db.StringGetAsync(keyA));
+            Assert.False(await db.KeyExistsAsync(keyB));
+        }
+        else
+        {
+            await pending;
+            Assert.False(await db.KeyExistsAsync(keyA));
+            Assert.Equal("value", await db.StringGetAsync(keyB));
+        }
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task KeyMigrationFollowed(bool allowFollowRedirects)

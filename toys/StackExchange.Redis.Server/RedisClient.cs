@@ -55,6 +55,31 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        public virtual void AssertKey(in RedisKey key) => Node?.AssertKey(key);
+        private int _activeSlot = ServerSelectionStrategy.NoSlot;
+        internal void ResetAfterRequest() => _activeSlot = ServerSelectionStrategy.NoSlot;
+        public virtual void AssertKey(in RedisKey key)
+        {
+            if (Node is { } node)
+            {
+                if (node.CheckCrossSlot)
+                {
+                    var slot = RespServer.GetHashSlot(key);
+                    if (_activeSlot is ServerSelectionStrategy.NoSlot)
+                    {
+                        _activeSlot = slot;
+                    }
+                    else if (_activeSlot != slot)
+                    {
+                        CrossSlotException.Throw();
+                    }
+                }
+                node.AssertKey(key);
+            }
+        }
+    }
+
+    internal sealed class CrossSlotException : Exception
+    {
+        public static void Throw() => throw new CrossSlotException();
     }
 }

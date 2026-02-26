@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Server
                         break;
                 }
 
-                node = new(endpoint);
+                node = new(this, endpoint);
                 node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
             }
             // defensive loop for concurrency
@@ -121,7 +121,7 @@ namespace StackExchange.Redis.Server
         protected RedisServer(EndPoint endpoint = null, int databases = 16, TextWriter output = null) : base(output)
         {
             endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
-            _nodes.TryAdd(endpoint, new Node(endpoint));
+            _nodes.TryAdd(endpoint, new Node(this, endpoint));
             RedisVersion = s_DefaultServerVersion;
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
             Databases = databases;
@@ -298,6 +298,25 @@ namespace StackExchange.Redis.Server
 
         protected virtual bool Sismember(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
+        [RedisCommand(3)]
+        protected virtual TypedRedisValue Rename(RedisClient client, RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            var newKey = request.GetKey(2);
+            return Rename(client.Database, key, newKey) ? TypedRedisValue.OK : TypedRedisValue.Error("ERR no such key");
+        }
+
+        protected virtual bool Rename(int database, RedisKey oldKey, RedisKey newKey)
+        {
+            // can implement with Exists/Del/Set
+            if (!Exists(database, oldKey)) return false;
+            if (oldKey == newKey) return true; // no-op
+            Del(database, newKey);
+            Set(database, newKey, Get(database, oldKey));
+            Del(database, oldKey);
+            return true;
+        }
+
         [RedisCommand(3, "client", "setname", LockFree = true)]
         protected virtual TypedRedisValue ClientSetname(RedisClient client, RedisRequest request)
         {
@@ -460,16 +479,19 @@ namespace StackExchange.Redis.Server
             public int Port { get; }
             public string Id { get; } = NewId();
 
-            private SlotRange[] _slots = null;
+            private SlotRange[] _slots;
 
-            public Node(EndPoint endpoint)
+            private readonly RedisServer _server;
+            public Node(RedisServer server, EndPoint endpoint)
             {
                 Host = GetHost(endpoint, out var port);
                 Port = port;
+                _server = server;
             }
 
             public void UpdateSlots(SlotRange[] slots) => _slots = slots;
             public ReadOnlySpan<SlotRange> Slots => _slots ?? SlotRange.SharedAllSlots;
+            public bool CheckCrossSlot => _server.CheckCrossSlot;
 
             public bool HasSlot(int hashSlot)
             {
@@ -632,6 +654,8 @@ namespace StackExchange.Redis.Server
                 }
             }
         }
+
+        public virtual bool CheckCrossSlot => ServerType == ServerType.Cluster;
 
         protected override Node GetNode(int hashSlot)
         {

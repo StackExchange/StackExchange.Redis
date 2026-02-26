@@ -32,6 +32,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
         base.Log(message);
     }
 
+    protected override void OnMoved(RedisClient client, int hashSlot, Node node)
+    {
+        _log?.WriteLine($"Client {client.Id} being redirected: {hashSlot} to {node}");
+        base.OnMoved(client, hashSlot, node);
+    }
+
     public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
     {
         _log?.WriteLine($"[{client.Id}] unknown command: {Encoding.ASCII.GetString(command)}");
