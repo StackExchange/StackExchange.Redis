@@ -497,6 +497,10 @@ namespace StackExchange.Redis.Server
                 Log($"missing command: '{request.GetString(0)}'");
                 return request.CommandNotFound();
             }
+            catch (WrongTypeException)
+            {
+                return TypedRedisValue.Error("WRONGTYPE Operation against a key holding the wrong kind of value");
+            }
             catch (InvalidCastException)
             {
                 return TypedRedisValue.Error("WRONGTYPE Operation against a key holding the wrong kind of value");
@@ -520,6 +524,10 @@ namespace StackExchange.Redis.Server
             public int HashSlot { get; }
             public static void Throw(int hashSlot) => throw new KeyMovedException(hashSlot);
             public static void Throw(in RedisKey key) => throw new KeyMovedException(GetHashSlot(key));
+        }
+
+        public sealed class WrongTypeException : Exception
+        {
         }
 
         protected internal static int GetHashSlot(in RedisKey key) => s_ClusterSelectionStrategy.HashSlot(key);

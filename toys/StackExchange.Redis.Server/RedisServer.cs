@@ -859,11 +859,60 @@ namespace StackExchange.Redis.Server
         }
         protected virtual bool Del(int database, in RedisKey key) => throw new NotSupportedException();
 
+        [RedisCommand(2)]
+        protected virtual TypedRedisValue GetDel(RedisClient client, in RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            var value = Get(client.Database, key);
+            if (!value.IsNull) Del(client.Database, key);
+            return TypedRedisValue.BulkString(value);
+        }
+
         [RedisCommand(1)]
         protected virtual TypedRedisValue Dbsize(RedisClient client, in RedisRequest request)
             => TypedRedisValue.Integer(Dbsize(client.Database));
 
         protected virtual long Dbsize(int database) => throw new NotSupportedException();
+
+        [RedisCommand(3)]
+        protected virtual TypedRedisValue Expire(RedisClient client, in RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            var seconds = request.GetInt32(2);
+            return TypedRedisValue.Integer(Expire(client.Database, key, TimeSpan.FromSeconds(seconds)) ? 1 : 0);
+        }
+
+        [RedisCommand(3)]
+        protected virtual TypedRedisValue PExpire(RedisClient client, in RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            var millis = request.GetInt64(2);
+            return TypedRedisValue.Integer(Expire(client.Database, key, TimeSpan.FromMilliseconds(millis)) ? 1 : 0);
+        }
+
+        [RedisCommand(2)]
+        protected virtual TypedRedisValue Ttl(RedisClient client, in RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            var ttl = Ttl(client.Database, key);
+            if (ttl == null || ttl <= TimeSpan.Zero) return TypedRedisValue.Integer(-2);
+            if (ttl == TimeSpan.MaxValue) return TypedRedisValue.Integer(-1);
+            return TypedRedisValue.Integer((int)ttl.Value.TotalSeconds);
+        }
+
+        protected virtual TimeSpan? Ttl(int database, in RedisKey key) => throw new NotSupportedException();
+
+        [RedisCommand(2)]
+        protected virtual TypedRedisValue Pttl(RedisClient client, in RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            var ttl = Ttl(client.Database, key);
+            if (ttl == null || ttl <= TimeSpan.Zero) return TypedRedisValue.Integer(-2);
+            if (ttl == TimeSpan.MaxValue) return TypedRedisValue.Integer(-1);
+            return TypedRedisValue.Integer((long)ttl.Value.TotalMilliseconds);
+        }
+
+        protected virtual bool Expire(int database, in RedisKey key, TimeSpan timeout) => throw new NotSupportedException();
 
         [RedisCommand(1)]
         protected virtual TypedRedisValue Flushall(RedisClient client, in RedisRequest request)

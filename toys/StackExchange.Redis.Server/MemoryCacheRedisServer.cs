@@ -13,39 +13,127 @@ namespace StackExchange.Redis.Server
         public MemoryCacheRedisServer(EndPoint endpoint = null, TextWriter output = null) : base(endpoint, 1, output)
             => CreateNewCache();
 
-        private MemoryCache _cache;
+        private MemoryCache _cache2;
 
         private void CreateNewCache()
         {
-            var old = _cache;
-            _cache = new MemoryCache(GetType().Name);
+            var old = _cache2;
+            _cache2 = new MemoryCache(GetType().Name);
             old?.Dispose();
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) _cache.Dispose();
+            if (disposing) _cache2.Dispose();
             base.Dispose(disposing);
         }
 
-        protected override long Dbsize(int database) => _cache.GetCount();
+        protected override long Dbsize(int database) => _cache2.GetCount();
+
+        private readonly struct ExpiringValue(object value, DateTime absoluteExpiration)
+        {
+            public readonly object Value = value;
+            public readonly DateTime AbsoluteExpiration = absoluteExpiration;
+        }
+
+        private enum ExpectedType
+        {
+            Any = 0,
+            Stack,
+            Set,
+            List,
+        }
+        private object Get(in RedisKey key, ExpectedType expectedType)
+        {
+            var val = _cache2[key];
+            switch (val)
+            {
+                case null:
+                    return null;
+                case ExpiringValue ev:
+                    if (ev.AbsoluteExpiration <= Now)
+                    {
+                        _cache2.Remove(key);
+                        return null;
+                    }
+                    return Validate(ev.Value, expectedType);
+                default:
+                    return Validate(val, expectedType);
+            }
+            static object Validate(object value, ExpectedType expectedType)
+            {
+                return value switch
+                {
+                    null => value,
+                    HashSet<RedisValue> set when expectedType is ExpectedType.Set or ExpectedType.Any => value,
+                    HashSet<RedisValue> => Throw(),
+                    Stack<RedisValue> stack when expectedType is ExpectedType.List or ExpectedType.Any => value,
+                    Stack<RedisValue> => Throw(),
+                    _ when expectedType is ExpectedType.Stack or ExpectedType.Any => value,
+                    _ => Throw(),
+                };
+
+                static object Throw() => throw new WrongTypeException();
+            }
+        }
+        protected override TimeSpan? Ttl(int database, in RedisKey key)
+        {
+            var val = _cache2[key];
+            switch (val)
+            {
+                case null:
+                    return null;
+                case ExpiringValue ev:
+                    var delta = ev.AbsoluteExpiration - Now;
+                    if (delta <= TimeSpan.Zero)
+                    {
+                        _cache2.Remove(key);
+                        return null;
+                    }
+                    return delta;
+                default:
+                    return TimeSpan.MaxValue;
+            }
+        }
+
+        protected override bool Expire(int database, in RedisKey key, TimeSpan timeout)
+        {
+            var val = Get(key, ExpectedType.Any);
+            if (val is not null)
+            {
+                _cache2[key] = new ExpiringValue(val, Now + timeout);
+                return true;
+            }
+
+            return false;
+        }
+
         protected override RedisValue Get(int database, in RedisKey key)
-            => RedisValue.Unbox(_cache[key]);
+        {
+            var val = Get(key, ExpectedType.Stack);
+            return RedisValue.Unbox(val);
+        }
+
         protected override void Set(int database, in RedisKey key, in RedisValue value)
-            => _cache[key] = value.Box();
+            => _cache2[key] = value.Box();
         protected override bool Del(int database, in RedisKey key)
-            => _cache.Remove(key) != null;
+            => _cache2.Remove(key) != null;
         protected override void Flushdb(int database)
             => CreateNewCache();
 
+        private DateTime Now => DateTime.UtcNow;
         protected override bool Exists(int database, in RedisKey key)
-            => _cache.Contains(key);
+        {
+            var val = Get(key, ExpectedType.Any);
+            return val != null && !(val is ExpiringValue ev && ev.AbsoluteExpiration <= Now);
+        }
 
         protected override IEnumerable<RedisKey> Keys(int database, in RedisKey pattern) => GetKeysCore(pattern);
         private IEnumerable<RedisKey> GetKeysCore(RedisKey pattern)
         {
-            foreach (var pair in _cache)
+            foreach (var pair in _cache2)
             {
+                if (pair.Value is ExpiringValue ev && ev.AbsoluteExpiration <= Now) continue;
                 if (IsMatch(pattern, pair.Key)) yield return pair.Key;
             }
         }
@@ -60,7 +148,7 @@ namespace StackExchange.Redis.Server
             var set = GetSet(key, false);
             if (set != null && set.Remove(value))
             {
-                if (set.Count == 0) _cache.Remove(key);
+                if (set.Count == 0) _cache2.Remove(key);
                 return true;
             }
             return false;
@@ -70,11 +158,11 @@ namespace StackExchange.Redis.Server
 
         private HashSet<RedisValue> GetSet(RedisKey key, bool create)
         {
-            var set = (HashSet<RedisValue>)_cache[key];
+            var set = (HashSet<RedisValue>)Get(key, ExpectedType.Set);
             if (set == null && create)
             {
                 set = new HashSet<RedisValue>();
-                _cache[key] = set;
+                _cache2[key] = set;
             }
             return set;
         }
@@ -86,7 +174,7 @@ namespace StackExchange.Redis.Server
 
             var result = set.First();
             set.Remove(result);
-            if (set.Count == 0) _cache.Remove(key);
+            if (set.Count == 0) _cache2.Remove(key);
             return result;
         }
 
@@ -102,7 +190,7 @@ namespace StackExchange.Redis.Server
             if (stack == null) return RedisValue.Null;
 
             var val = stack.Pop();
-            if (stack.Count == 0) _cache.Remove(key);
+            if (stack.Count == 0) _cache2.Remove(key);
             return val;
         }
 
@@ -130,13 +218,13 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        private Stack<RedisValue> GetStack(RedisKey key, bool create)
+        private Stack<RedisValue> GetStack(in RedisKey key, bool create)
         {
-            var stack = (Stack<RedisValue>)_cache[key];
+            var stack = (Stack<RedisValue>)Get(key, ExpectedType.Stack);
             if (stack == null && create)
             {
                 stack = new Stack<RedisValue>();
-                _cache[key] = stack;
+                _cache2[key] = stack;
             }
             return stack;
         }
