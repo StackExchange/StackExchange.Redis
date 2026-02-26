@@ -411,6 +411,11 @@ namespace StackExchange.Redis.Server
             _totalCommandsProcesed = _totalErrorCount = _totalClientCount = 0;
         }
 
+        public virtual TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
+        {
+            return TypedRedisValue.Nil;
+        }
+
         public virtual TypedRedisValue Execute(RedisClient client, RedisRequest request)
         {
             if (request.Count == 0) return default; // not a request
@@ -442,7 +447,9 @@ namespace StackExchange.Redis.Server
                 }
                 else
                 {
-                    result = TypedRedisValue.Nil;
+                    Span<byte> span = stackalloc byte[CommandBytes.MaxLength];
+                    cmdBytes.CopyTo(span);
+                    result = OnUnknownCommand(client, request, span.Slice(0, cmdBytes.Length));
                 }
 
                 if (result.IsNil)

@@ -215,8 +215,31 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue ClientId(RedisClient client, RedisRequest request)
             => TypedRedisValue.Integer(client.Id);
 
+        private bool IsClusterEnabled(out TypedRedisValue fault)
+        {
+            if (ServerType == ServerType.Cluster)
+            {
+                fault = default;
+                return true;
+            }
+            fault = TypedRedisValue.Error("ERR This instance has cluster support disabled");
+            return false;
+        }
+
         [RedisCommand(-1)]
         protected virtual TypedRedisValue Cluster(RedisClient client, RedisRequest request)
+        {
+            if (!IsClusterEnabled(out TypedRedisValue fault)) return fault;
+            return request.UnknownSubcommandOrArgumentCount();
+        }
+
+        public sealed class Node
+        {
+
+        }
+
+        [RedisCommand(-1)]
+        protected virtual TypedRedisValue Sentinel(RedisClient client, RedisRequest request)
             => request.CommandNotFound();
 
         [RedisCommand(-3)]

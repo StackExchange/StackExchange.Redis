@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
@@ -23,6 +24,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
         // ReSharper disable once VirtualMemberCallInConstructor
         _log?.WriteLine($"Creating in-process server: {ToString()}");
         Tunnel = new InProcTunnel(this);
+    }
+
+    public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
+    {
+        _log?.WriteLine($"[{client.Id}] unknown command: {Encoding.ASCII.GetString(command)}");
+        return base.OnUnknownCommand(in client, in request, command);
     }
 
     private sealed class InProcTunnel(
