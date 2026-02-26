@@ -1133,6 +1133,10 @@ namespace StackExchange.Redis.Server
             => TypedRedisValue.Integer(IncrBy(client.Database, request.GetKey(1), -1));
 
         [RedisCommand(3)]
+        protected virtual TypedRedisValue DecrBy(RedisClient client, in RedisRequest request)
+            => TypedRedisValue.Integer(IncrBy(client.Database, request.GetKey(1), -request.GetInt64(2)));
+
+        [RedisCommand(3)]
         protected virtual TypedRedisValue IncrBy(RedisClient client, in RedisRequest request)
             => TypedRedisValue.Integer(IncrBy(client.Database, request.GetKey(1), request.GetInt64(2)));
 
