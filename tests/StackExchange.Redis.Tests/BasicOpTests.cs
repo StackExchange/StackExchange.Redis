@@ -254,11 +254,11 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task GetWithExpiryWrongTypeSync()
     {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
         RedisKey key = Me();
         var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
         {
-            await using var conn = Create();
-            var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);
             db.SetAdd(key, "abc", CommandFlags.FireAndForget);
             db.StringGetWithExpiry(key);
