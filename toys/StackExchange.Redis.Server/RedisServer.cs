@@ -1,8 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Text;
+using System.Threading;
 
 namespace StackExchange.Redis.Server
 {
@@ -12,8 +16,112 @@ namespace StackExchange.Redis.Server
         public static bool IsMatch(string pattern, string key) =>
             pattern == "*" || string.Equals(pattern, key, StringComparison.OrdinalIgnoreCase);
 
-        protected RedisServer(int databases = 16, TextWriter output = null) : base(output)
+        private ConcurrentDictionary<EndPoint, Node> _nodes = new();
+
+        public bool TryGetNode(EndPoint endpoint, out Node node) => _nodes.TryGetValue(endpoint, out node);
+
+        public EndPoint DefaultEndPoint
         {
+            get
+            {
+                foreach (var pair in _nodes)
+                {
+                    return pair.Key;
+                }
+                throw new InvalidOperationException("No endpoints");
+            }
+        }
+
+        public override Node DefaultNode
+        {
+            get
+            {
+                foreach (var pair in _nodes)
+                {
+                    return pair.Value;
+                }
+                return null;
+            }
+        }
+
+        public IEnumerable<EndPoint> GetEndPoints()
+        {
+            foreach (var pair in _nodes)
+            {
+                yield return pair.Key;
+            }
+        }
+
+        public bool Migrate(int hashSlot, EndPoint to)
+        {
+            if (ServerType != ServerType.Cluster) throw new InvalidOperationException($"Server mode is {ServerType}");
+            if (!TryGetNode(to, out var target)) throw new KeyNotFoundException($"Target node not found: {Format.ToString(to)}");
+            foreach (var pair in _nodes)
+            {
+                if (pair.Value.HasSlot(hashSlot))
+                {
+                    if (pair.Value == target) return false; // nothing to do
+
+                    if (!pair.Value.RemoveSlot(hashSlot))
+                    {
+                        throw new KeyNotFoundException($"Unable to remove slot {hashSlot} from old owner");
+                    }
+                    target.AddSlot(hashSlot);
+                    return true;
+                }
+            }
+            throw new KeyNotFoundException($"Source node not found for slot {hashSlot}");
+        }
+        public bool Migrate(Span<byte> key, EndPoint to) => Migrate(ServerSelectionStrategy.GetClusterSlot(key), to);
+        public bool Migrate(in RedisKey key, EndPoint to) => Migrate(GetHashSlot(key), to);
+
+        public EndPoint AddEmptyNode()
+        {
+            EndPoint endpoint;
+            Node node;
+            do
+            {
+                endpoint = null;
+                int maxPort = 0;
+                foreach (var pair in _nodes)
+                {
+                    endpoint ??= pair.Key;
+                    switch (pair.Key)
+                    {
+                        case IPEndPoint ip:
+                            if (ip.Port > maxPort) maxPort = ip.Port;
+                            break;
+                        case DnsEndPoint dns:
+                            if (dns.Port > maxPort) maxPort = dns.Port;
+                            break;
+                    }
+                }
+
+                switch (endpoint)
+                {
+                    case null:
+                        endpoint = new IPEndPoint(IPAddress.Loopback, 6379);
+                        break;
+                    case IPEndPoint ip:
+                        endpoint = new IPEndPoint(ip.Address, maxPort + 1);
+                        break;
+                    case DnsEndPoint dns:
+                        endpoint = new DnsEndPoint(dns.Host, maxPort + 1);
+                        break;
+                }
+
+                node = new(endpoint);
+                node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
+            }
+            // defensive loop for concurrency
+            while (!_nodes.TryAdd(endpoint, node));
+            return endpoint;
+        }
+
+        protected RedisServer(EndPoint endpoint = null, int databases = 16, TextWriter output = null) : base(output)
+        {
+            endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
+            _nodes.TryAdd(endpoint, new Node(endpoint));
             RedisVersion = s_DefaultServerVersion;
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
             Databases = databases;
@@ -226,16 +334,312 @@ namespace StackExchange.Redis.Server
             return false;
         }
 
-        [RedisCommand(-1)]
-        protected virtual TypedRedisValue Cluster(RedisClient client, RedisRequest request)
+        [RedisCommand(2, nameof(RedisCommand.CLUSTER), subcommand: "nodes", LockFree = true)]
+        protected virtual TypedRedisValue ClusterNodes(RedisClient client, RedisRequest request)
         {
             if (!IsClusterEnabled(out TypedRedisValue fault)) return fault;
-            return request.UnknownSubcommandOrArgumentCount();
+
+            var sb = new StringBuilder();
+            foreach (var pair in _nodes.OrderBy(x => x.Key, EndPointComparer.Instance))
+            {
+                var node = pair.Value;
+                sb.Append(node.Id).Append(" ").Append(node.Host).Append(":").Append(node.Port).Append("@1").Append(node.Port).Append(" ");
+                if (node == client.Node)
+                {
+                    sb.Append("myself,");
+                }
+                sb.Append("master - 0 0 1 connected");
+                foreach (var range in node.Slots)
+                {
+                    sb.Append(" ").Append(range.ToString());
+                }
+                sb.AppendLine();
+            }
+            return TypedRedisValue.BulkString(sb.ToString());
+        }
+
+        [RedisCommand(2, nameof(RedisCommand.CLUSTER), subcommand: "slots", LockFree = true)]
+        protected virtual TypedRedisValue ClusterSlots(RedisClient client, RedisRequest request)
+        {
+            if (!IsClusterEnabled(out TypedRedisValue fault)) return fault;
+
+            int count = 0, index = 0;
+            foreach (var pair in _nodes)
+            {
+                count += pair.Value.Slots.Length;
+            }
+            var slots = TypedRedisValue.Rent(count, out var slotsSpan);
+            foreach (var pair in _nodes.OrderBy(x => x.Key, EndPointComparer.Instance))
+            {
+                string host = GetHost(pair.Key, out int port);
+                foreach (var range in pair.Value.Slots)
+                {
+                    if (index >= count) break; // someone changed things while we were working
+                    slotsSpan[index++] = TypedRedisValue.Rent(3, out var slotSpan);
+                    slotSpan[0] = TypedRedisValue.Integer(range.From);
+                    slotSpan[1] = TypedRedisValue.Integer(range.To);
+                    slotSpan[2] = TypedRedisValue.Rent(4, out var nodeSpan);
+                    nodeSpan[0] = TypedRedisValue.BulkString(host);
+                    nodeSpan[1] = TypedRedisValue.Integer(port);
+                    nodeSpan[2] = TypedRedisValue.BulkString(pair.Value.Id);
+                    nodeSpan[3] = TypedRedisValue.EmptyArray;
+                }
+            }
+            return slots;
+        }
+
+        private sealed class EndPointComparer : IComparer<EndPoint>
+        {
+            private EndPointComparer() { }
+            public static readonly EndPointComparer Instance = new();
+
+            public int Compare(EndPoint x, EndPoint y)
+            {
+                if (x is null) return y is null ? 0 : -1;
+                if (y is null) return 1;
+                if (x is IPEndPoint ipX && y is IPEndPoint ipY)
+                {
+                    // ignore the address, go by port alone
+                    return ipX.Port.CompareTo(ipY.Port);
+                }
+                if (x is DnsEndPoint dnsX && y is DnsEndPoint dnsY)
+                {
+                    var delta = dnsX.Host.CompareTo(dnsY.Host, StringComparison.Ordinal);
+                    if (delta != 0) return delta;
+                    return dnsX.Port.CompareTo(dnsY.Port);
+                }
+
+                return 0; // whatever
+            }
+        }
+
+        public static string GetHost(EndPoint endpoint, out int port)
+        {
+            if (endpoint is IPEndPoint ip)
+            {
+                port = ip.Port;
+                return ip.Address.ToString();
+            }
+            if (endpoint is DnsEndPoint dns)
+            {
+                port = dns.Port;
+                return dns.Host;
+            }
+            throw new NotSupportedException("Unknown endpoint type: " + endpoint.GetType().Name);
         }
 
         public sealed class Node
         {
+            public override string ToString()
+            {
+                var sb = new StringBuilder();
+                sb.Append(Host).Append(":").Append(Port).Append(" (");
+                var slots = _slots;
+                if (slots is null)
+                {
+                    sb.Append("all keys");
+                }
+                else
+                {
+                    bool first = true;
+                    foreach (var slot in Slots)
+                    {
+                        if (!first) sb.Append(",");
+                        sb.Append(slot);
+                        first = false;
+                    }
 
+                    if (first) sb.Append("empty");
+                }
+                sb.Append(")");
+                return sb.ToString();
+            }
+
+            public string Host { get; }
+
+            public int Port { get; }
+            public string Id { get; } = NewId();
+
+            private SlotRange[] _slots = null;
+
+            public Node(EndPoint endpoint)
+            {
+                Host = GetHost(endpoint, out var port);
+                Port = port;
+            }
+
+            public void UpdateSlots(SlotRange[] slots) => _slots = slots;
+            public ReadOnlySpan<SlotRange> Slots => _slots ?? SlotRange.SharedAllSlots;
+
+            public bool HasSlot(int hashSlot)
+            {
+                var slots = _slots;
+                if (slots is null) return true; // all nodes
+                foreach (var slot in slots)
+                {
+                    if (slot.Includes(hashSlot)) return true;
+                }
+                return false;
+            }
+
+            public bool HasSlot(in RedisKey key)
+            {
+                var slots = _slots;
+                if (slots is null) return true; // all nodes
+                var hashSlot = GetHashSlot(key);
+                foreach (var slot in slots)
+                {
+                    if (slot.Includes(hashSlot)) return true;
+                }
+                return false;
+            }
+
+            public bool HasSlot(ReadOnlySpan<byte> key)
+            {
+                var slots = _slots;
+                if (slots is null) return true; // all nodes
+                var hashSlot = ServerSelectionStrategy.GetClusterSlot(key);
+                foreach (var slot in slots)
+                {
+                    if (slot.Includes(hashSlot)) return true;
+                }
+                return false;
+            }
+
+            private static string NewId()
+            {
+                Span<char> data = stackalloc char[40];
+#if NET
+                var rand = Random.Shared;
+#else
+                var rand = new Random();
+#endif
+                ReadOnlySpan<char> alphabet = "0123456789abcdef";
+                for (int i = 0; i < data.Length; i++)
+                {
+                    data[i] = alphabet[rand.Next(alphabet.Length)];
+                }
+                return data.ToString();
+            }
+
+            public void AddSlot(int hashSlot)
+            {
+                SlotRange[] oldSlots, newSlots;
+                do
+                {
+                    oldSlots = _slots;
+                    newSlots = oldSlots;
+                    if (oldSlots is null)
+                    {
+                        newSlots = [new SlotRange(hashSlot, hashSlot)];
+                    }
+                    else
+                    {
+                        bool found = false;
+                        int index = 0;
+                        foreach (var slot in oldSlots)
+                        {
+                            if (slot.Includes(hashSlot)) return; // already covered
+                            if (slot.To == hashSlot - 1)
+                            {
+                                // extend the range
+                                newSlots = new SlotRange[oldSlots.Length];
+                                oldSlots.AsSpan().CopyTo(newSlots);
+                                newSlots[index] = new SlotRange(slot.From, hashSlot);
+                                found = true;
+                                break;
+                            }
+
+                            index++;
+                        }
+
+                        if (!found)
+                        {
+                            newSlots = [..oldSlots, new SlotRange(hashSlot, hashSlot)];
+                            Array.Sort(newSlots);
+                        }
+                    }
+                }
+                while (Interlocked.CompareExchange(ref _slots, newSlots, oldSlots) != oldSlots);
+            }
+
+            public bool RemoveSlot(int hashSlot)
+            {
+                SlotRange[] oldSlotsRaw, newSlots;
+                do
+                {
+                    oldSlotsRaw = _slots;
+                    newSlots = oldSlotsRaw;
+                    // avoid the implicit null "all slots" usage
+                    var oldSlots = oldSlotsRaw ?? SlotRange.SharedAllSlots;
+                    bool found = false;
+                    int index = 0;
+                    foreach (var s in oldSlots)
+                    {
+                        if (s.Includes(hashSlot))
+                        {
+                            found = true;
+                            var oldSpan = oldSlots.AsSpan();
+                            if (s.IsSingleSlot)
+                            {
+                                // remove it
+                                newSlots = new SlotRange[oldSlots.Length - 1];
+                                if (index > 0) oldSpan.Slice(0, index).CopyTo(newSlots);
+                                if (index < oldSlots.Length - 1) oldSpan.Slice(index + 1).CopyTo(newSlots.AsSpan(index));
+                            }
+                            else if (s.From == hashSlot)
+                            {
+                                // truncate the start
+                                newSlots = new SlotRange[oldSlots.Length];
+                                oldSpan.CopyTo(newSlots);
+                                newSlots[index] = new SlotRange(s.From + 1, s.To);
+                            }
+                            else if (s.To == hashSlot)
+                            {
+                                // truncate the end
+                                newSlots = new SlotRange[oldSlots.Length];
+                                oldSpan.CopyTo(newSlots);
+                                newSlots[index] = new SlotRange(s.From, s.To - 1);
+                            }
+                            else
+                            {
+                                // split it
+                                newSlots = new SlotRange[oldSlots.Length + 1];
+                                if (index > 0) oldSpan.Slice(0, index).CopyTo(newSlots);
+                                newSlots[index] = new SlotRange(s.From, hashSlot - 1);
+                                newSlots[index + 1] = new SlotRange(hashSlot + 1, s.To);
+                                if (index < oldSlots.Length - 1) oldSpan.Slice(index + 1).CopyTo(newSlots.AsSpan(index + 2));
+                            }
+                            break;
+                        }
+                        index++;
+                    }
+
+                    if (!found) return false;
+                }
+                while (Interlocked.CompareExchange(ref _slots, newSlots, oldSlotsRaw) != oldSlotsRaw);
+
+                return true;
+            }
+
+            public void AssertKey(in RedisKey key)
+            {
+                var slots = _slots;
+                if (slots is not null)
+                {
+                    var hashSlot = GetHashSlot(key);
+                    if (!HasSlot(hashSlot)) KeyMovedException.Throw(hashSlot);
+                }
+            }
+        }
+
+        protected override Node GetNode(int hashSlot)
+        {
+            foreach (var pair in _nodes)
+            {
+                if (pair.Value.HasSlot(hashSlot)) return pair.Value;
+            }
+            return base.GetNode(hashSlot);
         }
 
         [RedisCommand(-1)]
@@ -484,8 +888,11 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue Keys(RedisClient client, RedisRequest request)
         {
             List<TypedRedisValue> found = null;
-            foreach (var key in Keys(client.Database, request.GetKey(1)))
+            bool checkSlot = ServerType is ServerType.Cluster;
+            var node = client.Node ?? DefaultNode;
+            foreach (var key in Keys(client.Database, request.GetKey(1, checkSlot: false)))
             {
+                if (checkSlot && !node.HasSlot(key)) continue;
                 if (found == null) found = new List<TypedRedisValue>();
                 found.Add(TypedRedisValue.BulkString(key.AsRedisValue()));
             }

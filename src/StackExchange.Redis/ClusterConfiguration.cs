@@ -45,6 +45,8 @@ namespace StackExchange.Redis
         /// </summary>
         public int To => to;
 
+        internal bool IsSingleSlot => From == To;
+
         internal const int MinSlot = 0, MaxSlot = 16383;
 
         private static SlotRange[]? s_SharedAllSlots;

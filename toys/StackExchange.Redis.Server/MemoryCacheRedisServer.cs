@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Runtime.Caching;
 using System.Runtime.CompilerServices;
 
@@ -9,7 +10,7 @@ namespace StackExchange.Redis.Server
 {
     public class MemoryCacheRedisServer : RedisServer
     {
-        public MemoryCacheRedisServer(TextWriter output = null) : base(1, output)
+        public MemoryCacheRedisServer(EndPoint endpoint = null, TextWriter output = null) : base(endpoint, 1, output)
             => CreateNewCache();
 
         private MemoryCache _cache;

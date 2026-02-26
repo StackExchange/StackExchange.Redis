@@ -40,63 +40,40 @@ public class MovedTestServer : InProcessTestServer
 
     private SimulatedHost _currentServerHost = SimulatedHost.OldServer;
 
-    private readonly Func<string> _getEndpoint;
-    private readonly string _triggerKey;
-    private readonly int _hashSlot;
-    private EndPoint? _actualEndpoint;
+    private readonly RedisKey _triggerKey;
 
-    public MovedTestServer(Func<string> getEndpoint, string triggerKey = "testkey", int hashSlot = 12345, ITestOutputHelper? log = null) : base(log)
+    public MovedTestServer(in RedisKey triggerKey, ITestOutputHelper? log = null) : base(log)
     {
-        _getEndpoint = getEndpoint;
         _triggerKey = triggerKey;
-        _hashSlot = hashSlot;
-        ServerType = ServerType.Cluster;
-        RedisVersion = RedisFeatures.v7_2_0_rc1;
     }
 
-    private sealed class MovedTestClient(SimulatedHost assignedHost) : RedisClient
+    private sealed class MovedTestClient(MovedTestServer server, Node node, SimulatedHost assignedHost) : RedisClient(node)
     {
         public SimulatedHost AssignedHost => assignedHost;
+
+        public override void AssertKey(in RedisKey key)
+        {
+            if (AssignedHost == SimulatedHost.OldServer && key == server._triggerKey)
+            {
+                server.OnTrigger(Id, key, assignedHost);
+            }
+            base.AssertKey(in key);
+        }
     }
 
     /// <summary>
     /// Called when a new client connection is established.
     /// Assigns the client to the current server host state (simulating proxy/load balancer routing).
     /// </summary>
-    public override RedisClient CreateClient()
+    public override RedisClient CreateClient(Node node) => new MovedTestClient(this, node, _currentServerHost);
+
+    public override void OnClientConnected(RedisClient client, object state)
     {
-        var client = new MovedTestClient(_currentServerHost);
-        Log($"New client connection established (assigned to {client.AssignedHost}, total connections: {TotalClientCount}), endpoint: {_actualEndpoint}");
-        return client;
-    }
-
-    /// <summary>
-    /// Handles CLUSTER commands, supporting SLOTS and NODES subcommands for cluster mode simulation.
-    /// </summary>
-    protected override TypedRedisValue Cluster(RedisClient client, RedisRequest request)
-    {
-        if (request.Count < 2)
+        if (client is MovedTestClient movedClient)
         {
-            return TypedRedisValue.Error("ERR wrong number of arguments for 'cluster' command");
+            Log($"Client {client.Id} connected (assigned to {movedClient.AssignedHost}), total connections: {TotalClientCount}");
         }
-
-        var subcommand = request.GetString(1);
-
-        // Handle CLUSTER SLOTS command to support cluster mode
-        if (subcommand.Equals("SLOTS", StringComparison.OrdinalIgnoreCase))
-        {
-            Log($"Returning CLUSTER SLOTS response, endpoint: {_actualEndpoint}");
-            return GetClusterSlotsResponse();
-        }
-
-        // Handle CLUSTER NODES command
-        if (subcommand.Equals("NODES", StringComparison.OrdinalIgnoreCase))
-        {
-            Log($"Returning CLUSTER NODES response, endpoint: {_actualEndpoint}");
-            return GetClusterNodesResponse();
-        }
-
-        return TypedRedisValue.Error($"ERR Unknown CLUSTER subcommand '{subcommand}'");
+        base.OnClientConnected(client, state);
     }
 
     /// <summary>
@@ -105,92 +82,19 @@ public class MovedTestServer : InProcessTestServer
     /// </summary>
     protected override TypedRedisValue Set(RedisClient client, RedisRequest request)
     {
-        var key = request.GetKey(1);
-
-        // Increment SET command counter for every SET call
         Interlocked.Increment(ref _setCmdCount);
-
-        // Get the client's assigned server host
-        if (client is not MovedTestClient movedClient)
-        {
-            throw new InvalidOperationException($"Client is not a {nameof(MovedTestClient)}");
-        }
-        var clientHost = movedClient.AssignedHost;
-
-        // Check if this is the trigger key from an old server client
-        if (key == _triggerKey && clientHost == SimulatedHost.OldServer)
-        {
-            // Transition server to new host (so future connections route to new server)
-            _currentServerHost = SimulatedHost.NewServer;
-
-            Interlocked.Increment(ref _movedResponseCount);
-            var endpoint = _getEndpoint();
-            Log($"Returning MOVED {_hashSlot} {endpoint} for key '{key}' from {clientHost} client, server transitioned to {SimulatedHost.NewServer}, actual endpoint: {_actualEndpoint}");
-
-            // Return MOVED error pointing to same endpoint
-            return TypedRedisValue.Error($"MOVED {_hashSlot} {endpoint}");
-        }
-
-        // Normal processing for new server clients or other keys
-        Log($"Processing SET normally for key '{key}' from {clientHost} client, endpoint: {_actualEndpoint}");
         return base.Set(client, request);
     }
 
-    /// <summary>
-    /// Returns a CLUSTER SLOTS response indicating this endpoint serves all slots (0-16383).
-    /// </summary>
-    private TypedRedisValue GetClusterSlotsResponse()
+    private void OnTrigger(int clientId, in RedisKey key, SimulatedHost assignedHost)
     {
-        // Return a minimal CLUSTER SLOTS response indicating this endpoint serves all slots (0-16383)
-        // Format: Array of slot ranges, each containing:
-        // [start_slot, end_slot, [host, port, node_id]]
-        if (_actualEndpoint == null)
-        {
-            return TypedRedisValue.Error("ERR endpoint not set");
-        }
+        // Transition server to new host (so future connections know they're on the new server)
+        _currentServerHost = SimulatedHost.NewServer;
 
-        var endpoint = _getEndpoint();
-        var parts = endpoint.Split(':');
-        var host = parts.Length > 0 ? parts[0] : "127.0.0.1";
-        var port = parts.Length > 1 ? parts[1] : "6379";
+        Interlocked.Increment(ref _movedResponseCount);
 
-        // Build response: [[0, 16383, [host, port, node-id]]]
-        // Inner array: [host, port, node-id]
-        var hostPortArray = TypedRedisValue.MultiBulk((ICollection<TypedRedisValue>)new[]
-        {
-            TypedRedisValue.BulkString(host),
-            TypedRedisValue.Integer(int.Parse(port)),
-            TypedRedisValue.BulkString("test-node-id"),
-        });
-        // Slot range: [start_slot, end_slot, [host, port, node-id]]
-        var slotRange = TypedRedisValue.MultiBulk((ICollection<TypedRedisValue>)new[]
-        {
-            TypedRedisValue.Integer(0),      // start slot
-            TypedRedisValue.Integer(16383),  // end slot
-            hostPortArray,
-        });
-
-        // Outer array containing the single slot range
-        return TypedRedisValue.MultiBulk((ICollection<TypedRedisValue>)new[] { slotRange });
-    }
-
-    /// <summary>
-    /// Returns a CLUSTER NODES response.
-    /// </summary>
-    private TypedRedisValue GetClusterNodesResponse()
-    {
-        // Return CLUSTER NODES response
-        // Format: node-id host:port@cport flags master - ping-sent pong-recv config-epoch link-state slot-range
-        // Example: test-node-id 127.0.0.1:6379@16379 myself,master - 0 0 1 connected 0-16383
-        if (_actualEndpoint == null)
-        {
-            return TypedRedisValue.Error("ERR endpoint not set");
-        }
-
-        var endpoint = _getEndpoint();
-        var nodesInfo = $"test-node-id {endpoint}@1{endpoint.Split(':')[1]} myself,master - 0 0 1 connected 0-16383\r\n";
-
-        return TypedRedisValue.BulkString(nodesInfo);
+        Log($"Triggering MOVED on Client {clientId} ({assignedHost}) with key: {key}");
+        KeyMovedException.Throw(key);
     }
 
     /// <summary>
@@ -202,21 +106,6 @@ public class MovedTestServer : InProcessTestServer
     /// Gets the number of times MOVED response was returned.
     /// </summary>
     public int MovedResponseCount => _movedResponseCount;
-
-    /// <summary>
-    /// Gets the actual endpoint the server is listening on.
-    /// </summary>
-    public EndPoint? ActualEndpoint => _actualEndpoint;
-
-    /// <summary>
-    /// Sets the actual endpoint the server is listening on.
-    /// This should be called externally after the server starts.
-    /// </summary>
-    public void SetActualEndpoint(EndPoint endPoint)
-    {
-        _actualEndpoint = endPoint;
-        Log($"MovedTestServer endpoint set to {endPoint}");
-    }
 
     /// <summary>
     /// Resets all counters for test reusability.

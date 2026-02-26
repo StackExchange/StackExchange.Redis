@@ -4,8 +4,9 @@ using System.IO.Pipelines;
 
 namespace StackExchange.Redis.Server
 {
-    public class RedisClient : IDisposable
+    public class RedisClient(RedisServer.Node node) : IDisposable
     {
+        public RedisServer.Node Node => node;
         internal int SkipReplies { get; set; }
         internal bool ShouldSkipResponse()
         {
@@ -53,5 +54,7 @@ namespace StackExchange.Redis.Server
                 if (pipe is IDisposable d) try { d.Dispose(); } catch { }
             }
         }
+
+        public virtual void AssertKey(in RedisKey key) => Node?.AssertKey(key);
     }
 }

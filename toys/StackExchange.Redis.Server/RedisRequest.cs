@@ -9,7 +9,15 @@ namespace StackExchange.Redis.Server
         // so: using "ref" makes it clear that you can't expect to store these and have
         // them keep working
         private readonly RawResult _inner;
+        private readonly RedisClient _client;
 
+        public RedisRequest WithClient(RedisClient client) => new(in this, client);
+
+        private RedisRequest(scoped in RedisRequest original, RedisClient client)
+        {
+            this = original;
+            _client = client;
+        }
         public int Count { get; }
 
         public override string ToString() => Count == 0 ? "(n/a)" : GetString(0);
@@ -57,7 +65,19 @@ namespace StackExchange.Redis.Server
 
         public long GetInt64(int index) => (long)_inner[index].AsRedisValue();
 
-        public RedisKey GetKey(int index) => _inner[index].AsRedisKey();
+        public RedisKey GetKey(int index)
+        {
+            var key = _inner[index].AsRedisKey();
+            _client?.AssertKey(key);
+            return key;
+        }
+
+        public RedisKey GetKey(int index, bool checkSlot)
+        {
+            var key = _inner[index].AsRedisKey();
+            if (checkSlot) _client?.AssertKey(key);
+            return key;
+        }
 
         internal RedisChannel GetChannel(int index, RedisChannel.RedisChannelOptions options)
             => _inner[index].AsRedisChannel(null, options);

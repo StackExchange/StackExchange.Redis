@@ -356,7 +356,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
+        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved, bool isSelf)
         {
             // If we're being told to re-send something because the hash slot moved, that means our topology is out of date
             // ...and we should re-evaluate what's what.
@@ -367,7 +367,7 @@ namespace StackExchange.Redis
                 ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
             }
 
-            return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
+            return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved, isSelf);
         }
 
         /// <summary>

@@ -274,7 +274,7 @@ namespace StackExchange.Redis
                         {
                             // already toast
                         }
-                        else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
+                        else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved, isSameEndpoint))
                         {
                             bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
                             return false;

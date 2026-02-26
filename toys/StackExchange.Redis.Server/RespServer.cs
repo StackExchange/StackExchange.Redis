@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
@@ -59,7 +60,10 @@ namespace StackExchange.Redis.Server
                 {
                     parent = grp.Single();
                 }
-                result.Add(new CommandBytes(grp.Key), parent);
+
+                var cmd = new CommandBytes(grp.Key);
+                Debug.WriteLine($"Registering: {cmd}");
+                result.Add(cmd, parent);
             }
             return result;
         }
@@ -191,18 +195,22 @@ namespace StackExchange.Redis.Server
 
         // for extensibility, so that a subclass can get their own client type
         // to be used via ListenForConnections
-        public virtual RedisClient CreateClient() => new RedisClient();
+        public virtual RedisClient CreateClient(RedisServer.Node node) => new(node);
+
+        public virtual void OnClientConnected(RedisClient client, object state) { }
 
         public int ClientCount => _clientLookup.Count;
         public int TotalClientCount => _totalClientCount;
         private int _nextId, _totalClientCount;
-        public RedisClient AddClient()
+
+        public RedisClient AddClient(RedisServer.Node node, object state)
         {
-            var client = CreateClient();
+            var client = CreateClient(node);
             client.Id = Interlocked.Increment(ref _nextId);
             Interlocked.Increment(ref _totalClientCount);
             ThrowIfShutdown();
             _clientLookup[client.Id] = client;
+            OnClientConnected(client, state);
             return client;
         }
 
@@ -240,13 +248,16 @@ namespace StackExchange.Redis.Server
             DoShutdown(ShutdownReason.ServerDisposed);
         }
 
-        public async Task RunClientAsync(IDuplexPipe pipe)
+        public virtual RedisServer.Node DefaultNode => null;
+
+        public async Task RunClientAsync(IDuplexPipe pipe, RedisServer.Node node = null, object state = null)
         {
             Exception fault = null;
             RedisClient client = null;
             try
             {
-                client = AddClient();
+                node ??= DefaultNode;
+                client = AddClient(node, state);
                 while (!client.Closed)
                 {
                     var readResult = await pipe.Input.ReadAsync().ConfigureAwait(false);
@@ -288,7 +299,7 @@ namespace StackExchange.Redis.Server
                 }
             }
         }
-        public void Log(string message)
+        public virtual void Log(string message)
         {
             var output = _output;
             if (output != null)
@@ -388,6 +399,7 @@ namespace StackExchange.Redis.Server
             }
             if (!buffer.IsEmpty && TryParseRequest(_arena, ref buffer, out var request))
             {
+                request = request.WithClient(client);
                 TypedRedisValue response;
                 try { response = Execute(client, request); }
                 finally { _arena.Reset(); }
@@ -433,6 +445,7 @@ namespace StackExchange.Redis.Server
                         cmd = cmd.Resolve(request);
                         if (cmd.IsUnknown) return request.UnknownSubcommandOrArgumentCount();
                     }
+
                     if (cmd.LockFree)
                     {
                         result = cmd.Execute(client, request);
@@ -457,8 +470,13 @@ namespace StackExchange.Redis.Server
                     Log($"missing command: '{request.GetString(0)}'");
                     return request.CommandNotFound();
                 }
+
                 if (result.Type == ResultType.Error) Interlocked.Increment(ref _totalErrorCount);
                 return result;
+            }
+            catch (KeyMovedException moved) when (GetNode(moved.HashSlot) is { } node)
+            {
+                return TypedRedisValue.Error($"MOVED {moved.HashSlot} {node.Host}:{node.Port}");
             }
             catch (NotSupportedException)
             {
@@ -480,6 +498,19 @@ namespace StackExchange.Redis.Server
                 return TypedRedisValue.Error("ERR " + ex.Message);
             }
         }
+
+        protected virtual RedisServer.Node GetNode(int hashSlot) => null;
+
+        public sealed class KeyMovedException : Exception
+        {
+            private KeyMovedException(int hashSlot) => HashSlot = hashSlot;
+            public int HashSlot { get; }
+            public static void Throw(int hashSlot) => throw new KeyMovedException(hashSlot);
+            public static void Throw(in RedisKey key) => throw new KeyMovedException(GetHashSlot(key));
+        }
+
+        protected static int GetHashSlot(in RedisKey key) => s_ClusterSelectionStrategy.HashSlot(key);
+        private static readonly ServerSelectionStrategy s_ClusterSelectionStrategy = new(null) { ServerType = ServerType.Cluster };
 
         internal static string ToLower(in RawResult value)
         {

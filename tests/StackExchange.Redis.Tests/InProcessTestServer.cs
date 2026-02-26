@@ -26,6 +26,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
+    public override void Log(string message)
+    {
+        _log?.WriteLine(message);
+        base.Log(message);
+    }
+
     public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
     {
         _log?.WriteLine($"[{client.Id}] unknown command: {Encoding.ASCII.GetString(command)}");
@@ -40,8 +46,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
             EndPoint endpoint,
             CancellationToken cancellationToken)
         {
-            // server._log?.WriteLine($"Disabling client creation, requested endpoint: {Format.ToString(endpoint)}");
-            return default;
+            if (server.TryGetNode(endpoint, out _))
+            {
+                // server._log?.WriteLine($"Disabling client creation, requested endpoint: {Format.ToString(endpoint)}");
+                return default;
+            }
+            return base.GetSocketConnectEndpointAsync(endpoint, cancellationToken);
         }
 
         public override ValueTask<Stream?> BeforeAuthenticateAsync(
@@ -50,13 +60,18 @@ public class InProcessTestServer : MemoryCacheRedisServer
             Socket? socket,
             CancellationToken cancellationToken)
         {
-            server._log?.WriteLine($"Client intercepted, requested endpoint: {Format.ToString(endpoint)} for {connectionType} usage");
-            var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
-            var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
-            var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
-            _ = Task.Run(async () => await server.RunClientAsync(serverSide), cancellationToken);
-            var clientSide = StreamConnection.GetDuplex(serverToClient.Reader, clientToServer.Writer);
-            return new(clientSide);
+            if (server.TryGetNode(endpoint, out var node))
+            {
+                server._log?.WriteLine(
+                    $"Client intercepted, endpoint {Format.ToString(endpoint)} ({connectionType}) mapped to {server.ServerType} node {node}");
+                var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
+                var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
+                var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
+                _ = Task.Run(async () => await server.RunClientAsync(serverSide, node: node), cancellationToken);
+                var clientSide = StreamConnection.GetDuplex(serverToClient.Reader, clientToServer.Writer);
+                return new(clientSide);
+            }
+            return base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
         }
 
         private sealed class Duplex(PipeReader input, PipeWriter output) : IDuplexPipe
@@ -72,6 +87,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             }
         }
     }
+
     /*
 
     private readonly RespServer _server;
