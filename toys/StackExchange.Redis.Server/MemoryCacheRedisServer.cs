@@ -29,32 +29,33 @@ namespace StackExchange.Redis.Server
         }
 
         protected override long Dbsize(int database) => _cache.GetCount();
-        protected override RedisValue Get(int database, RedisKey key)
+        protected override RedisValue Get(int database, in RedisKey key)
             => RedisValue.Unbox(_cache[key]);
-        protected override void Set(int database, RedisKey key, RedisValue value)
+        protected override void Set(int database, in RedisKey key, in RedisValue value)
             => _cache[key] = value.Box();
-        protected override bool Del(int database, RedisKey key)
+        protected override bool Del(int database, in RedisKey key)
             => _cache.Remove(key) != null;
         protected override void Flushdb(int database)
             => CreateNewCache();
 
-        protected override bool Exists(int database, RedisKey key)
+        protected override bool Exists(int database, in RedisKey key)
             => _cache.Contains(key);
 
-        protected override IEnumerable<RedisKey> Keys(int database, RedisKey pattern)
+        protected override IEnumerable<RedisKey> Keys(int database, in RedisKey pattern) => GetKeysCore(pattern);
+        private IEnumerable<RedisKey> GetKeysCore(RedisKey pattern)
         {
             foreach (var pair in _cache)
             {
                 if (IsMatch(pattern, pair.Key)) yield return pair.Key;
             }
         }
-        protected override bool Sadd(int database, RedisKey key, RedisValue value)
+        protected override bool Sadd(int database, in RedisKey key, in RedisValue value)
             => GetSet(key, true).Add(value);
 
-        protected override bool Sismember(int database, RedisKey key, RedisValue value)
+        protected override bool Sismember(int database, in RedisKey key, in RedisValue value)
             => GetSet(key, false)?.Contains(value) ?? false;
 
-        protected override bool Srem(int database, RedisKey key, RedisValue value)
+        protected override bool Srem(int database, in RedisKey key, in RedisValue value)
         {
             var set = GetSet(key, false);
             if (set != null && set.Remove(value))
@@ -64,7 +65,7 @@ namespace StackExchange.Redis.Server
             }
             return false;
         }
-        protected override long Scard(int database, RedisKey key)
+        protected override long Scard(int database, in RedisKey key)
             => GetSet(key, false)?.Count ?? 0;
 
         private HashSet<RedisValue> GetSet(RedisKey key, bool create)
@@ -78,7 +79,7 @@ namespace StackExchange.Redis.Server
             return set;
         }
 
-        protected override RedisValue Spop(int database, RedisKey key)
+        protected override RedisValue Spop(int database, in RedisKey key)
         {
             var set = GetSet(key, false);
             if (set == null) return RedisValue.Null;
@@ -89,13 +90,13 @@ namespace StackExchange.Redis.Server
             return result;
         }
 
-        protected override long Lpush(int database, RedisKey key, RedisValue value)
+        protected override long Lpush(int database, in RedisKey key, in RedisValue value)
         {
             var stack = GetStack(key, true);
             stack.Push(value);
             return stack.Count;
         }
-        protected override RedisValue Lpop(int database, RedisKey key)
+        protected override RedisValue Lpop(int database, in RedisKey key)
         {
             var stack = GetStack(key, false);
             if (stack == null) return RedisValue.Null;
@@ -105,13 +106,13 @@ namespace StackExchange.Redis.Server
             return val;
         }
 
-        protected override long Llen(int database, RedisKey key)
+        protected override long Llen(int database, in RedisKey key)
             => GetStack(key, false)?.Count ?? 0;
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ThrowArgumentOutOfRangeException() => throw new ArgumentOutOfRangeException();
 
-        protected override void LRange(int database, RedisKey key, long start, Span<TypedRedisValue> arr)
+        protected override void LRange(int database, in RedisKey key, long start, Span<TypedRedisValue> arr)
         {
             var stack = GetStack(key, false);
 

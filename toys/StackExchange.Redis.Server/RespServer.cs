@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Server
             {
                 if (method.ReturnType != typeof(TypedRedisValue)) return null;
                 var p = method.GetParameters();
-                if (p.Length != 2 || p[0].ParameterType != typeof(RedisClient) || p[1].ParameterType != typeof(RedisRequest))
+                if (p.Length != 2 || p[0].ParameterType != typeof(RedisClient) || p[1].ParameterType != typeof(RedisRequest).MakeByRefType())
                     return null;
                 return (RedisCommandAttribute)Attribute.GetCustomAttribute(method, typeof(RedisCommandAttribute));
             }
@@ -191,7 +191,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        private delegate TypedRedisValue RespOperation(RedisClient client, RedisRequest request);
+        private delegate TypedRedisValue RespOperation(RedisClient client, in RedisRequest request);
 
         // for extensibility, so that a subclass can get their own client type
         // to be used via ListenForConnections
@@ -432,7 +432,7 @@ namespace StackExchange.Redis.Server
             return TypedRedisValue.Nil;
         }
 
-        public virtual TypedRedisValue Execute(RedisClient client, RedisRequest request)
+        public virtual TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
             if (request.Count == 0) return default; // not a request
 
@@ -533,7 +533,7 @@ namespace StackExchange.Redis.Server
         }
 
         [RedisCommand(1, LockFree = true)]
-        protected virtual TypedRedisValue Command(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Command(RedisClient client, in RedisRequest request)
         {
             var results = TypedRedisValue.Rent(_commands.Count, out var span);
             int index = 0;
@@ -543,7 +543,7 @@ namespace StackExchange.Redis.Server
         }
 
         [RedisCommand(-2, "command", "info", LockFree = true)]
-        protected virtual TypedRedisValue CommandInfo(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue CommandInfo(RedisClient client, in RedisRequest request)
         {
             var results = TypedRedisValue.Rent(request.Count - 2, out var span);
             for (int i = 2; i < request.Count; i++)

@@ -80,7 +80,7 @@ public class MovedTestServer : InProcessTestServer
     /// Handles SET commands. Returns MOVED error for the trigger key when requested by clients
     /// connected to the old server, simulating a server migration behind a proxy/load balancer.
     /// </summary>
-    protected override TypedRedisValue Set(RedisClient client, RedisRequest request)
+    protected override TypedRedisValue Set(RedisClient client, in RedisRequest request)
     {
         Interlocked.Increment(ref _setCmdCount);
         return base.Set(client, request);

@@ -43,7 +43,7 @@ public class MovedUnitTests(ITestOutputHelper log)
         using var server = new InProcessTestServer(log) { ServerType = serverType };
         using var muxer = await ConnectionMultiplexer.ConnectAsync(GetMinimalConfig(server));
         var db = muxer.GetDatabase();
-        db.StringSet(keyA, "value");
+        await db.StringSetAsync(keyA, "value", flags: CommandFlags.FireAndForget);
 
         var pending = db.ExecuteAsync("rename", keyA, keyB);
         if (serverType == ServerType.Cluster)
