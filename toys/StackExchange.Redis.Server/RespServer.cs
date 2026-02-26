@@ -311,7 +311,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value)
+        public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value, RedisProtocol protocol)
         {
             static void WritePrefix(PipeWriter ooutput, char pprefix)
             {
@@ -323,52 +323,77 @@ namespace StackExchange.Redis.Server
             if (value.IsNil) return; // not actually a request (i.e. empty/whitespace request)
             if (client != null && client.ShouldSkipResponse()) return; // intentionally skipping the result
             char prefix;
-            switch (value.Type.ToResp2())
+            var type = value.Type;
+            if (protocol is RedisProtocol.Resp2 & type is not ResultType.Null) type = type.ToResp2();
+RetryResp2:
+            if (protocol is RedisProtocol.Resp3 && value.IsNullValueOrArray)
             {
-                case ResultType.Integer:
-                    PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
-                    break;
-                case ResultType.Error:
-                    prefix = '-';
-                    goto BasicMessage;
-                case ResultType.SimpleString:
-                    prefix = '+';
-                    BasicMessage:
-                    WritePrefix(output, prefix);
-                    var val = (string)value.AsRedisValue();
-                    var expectedLength = Encoding.UTF8.GetByteCount(val);
-                    PhysicalConnection.WriteRaw(output, val, expectedLength);
-                    PhysicalConnection.WriteCrlf(output);
-                    break;
-                case ResultType.BulkString:
-                    PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
-                    break;
-                case ResultType.Array:
-                    if (value.IsNullArray)
-                    {
-                        PhysicalConnection.WriteMultiBulkHeader(output, -1);
-                    }
-                    else
-                    {
-                        var segment = value.Segment;
-                        PhysicalConnection.WriteMultiBulkHeader(output, segment.Count);
-                        var arr = segment.Array;
-                        int offset = segment.Offset;
-                        for (int i = 0; i < segment.Count; i++)
-                        {
-                            var item = arr[offset++];
-                            if (item.IsNil)
-                                throw new InvalidOperationException("Array element cannot be nil, index " + i);
-
-                            // note: don't pass client down; this would impact SkipReplies
-                            await WriteResponseAsync(null, output, item);
-                        }
-                    }
-                    break;
-                default:
-                    throw new InvalidOperationException(
-                        "Unexpected result type: " + value.Type);
+                output.Write("_\r\n"u8);
             }
+            else
+            {
+                switch (type)
+                {
+                    case ResultType.Null:
+                        output.Write("_\r\n"u8);
+                        break;
+                    case ResultType.Integer:
+                        PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
+                        break;
+                    case ResultType.Error:
+                        prefix = '-';
+                        goto BasicMessage;
+                    case ResultType.SimpleString:
+                        prefix = '+';
+                        BasicMessage:
+                        WritePrefix(output, prefix);
+                        var val = (string)value.AsRedisValue();
+                        var expectedLength = Encoding.UTF8.GetByteCount(val);
+                        PhysicalConnection.WriteRaw(output, val, expectedLength);
+                        PhysicalConnection.WriteCrlf(output);
+                        break;
+                    case ResultType.BulkString:
+                        PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
+                        break;
+                    case ResultType.Push:
+                    case ResultType.Map:
+                    case ResultType.Array:
+                        if (value.IsNullArray)
+                        {
+                            PhysicalConnection.WriteMultiBulkHeader(output, -1, type);
+                        }
+                        else
+                        {
+                            var segment = value.Segment;
+                            PhysicalConnection.WriteMultiBulkHeader(output, segment.Count, type);
+                            var arr = segment.Array;
+                            int offset = segment.Offset;
+                            for (int i = 0; i < segment.Count; i++)
+                            {
+                                var item = arr[offset++];
+                                if (item.IsNil)
+                                    throw new InvalidOperationException("Array element cannot be nil, index " + i);
+
+                                // note: don't pass client down; this would impact SkipReplies
+                                await WriteResponseAsync(null, output, item, protocol);
+                            }
+                        }
+
+                        break;
+                    default:
+                        // retry with RESP2
+                        var r2 = type.ToResp2();
+                        if (r2 != type)
+                        {
+                            Debug.WriteLine($"{type} not handled in RESP3; using {r2} instead");
+                            goto RetryResp2;
+                        }
+
+                        throw new InvalidOperationException(
+                            "Unexpected result type: " + value.Type);
+                }
+            }
+
             await output.FlushAsync().ConfigureAwait(false);
         }
 
@@ -408,7 +433,7 @@ namespace StackExchange.Redis.Server
                     client.ResetAfterRequest();
                 }
 
-                var write = WriteResponseAsync(client, output, response);
+                var write = WriteResponseAsync(client, output, response, client.Protocol);
                 if (!write.IsCompletedSuccessfully) return Awaited(write, response);
                 response.Recycle();
                 return new ValueTask<bool>(true);
@@ -543,7 +568,7 @@ namespace StackExchange.Redis.Server
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Command(RedisClient client, in RedisRequest request)
         {
-            var results = TypedRedisValue.Rent(_commands.Count, out var span);
+            var results = TypedRedisValue.Rent(_commands.Count, out var span, ResultType.Array);
             int index = 0;
             foreach (var pair in _commands)
                 span[index++] = CommandInfo(pair.Value);
@@ -553,22 +578,22 @@ namespace StackExchange.Redis.Server
         [RedisCommand(-2, "command", "info", LockFree = true)]
         protected virtual TypedRedisValue CommandInfo(RedisClient client, in RedisRequest request)
         {
-            var results = TypedRedisValue.Rent(request.Count - 2, out var span);
+            var results = TypedRedisValue.Rent(request.Count - 2, out var span, ResultType.Array);
             for (int i = 2; i < request.Count; i++)
             {
                 span[i - 2] = request.TryGetCommandBytes(i, out var cmdBytes)
                     && _commands.TryGetValue(cmdBytes, out var cmdInfo)
-                    ? CommandInfo(cmdInfo) : TypedRedisValue.NullArray;
+                    ? CommandInfo(cmdInfo) : TypedRedisValue.NullArray(ResultType.Array);
             }
             return results;
         }
 
         private TypedRedisValue CommandInfo(RespCommand command)
         {
-            var arr = TypedRedisValue.Rent(6, out var span);
+            var arr = TypedRedisValue.Rent(6, out var span, ResultType.Array);
             span[0] = TypedRedisValue.BulkString(command.Command);
             span[1] = TypedRedisValue.Integer(command.NetArity());
-            span[2] = TypedRedisValue.EmptyArray;
+            span[2] = TypedRedisValue.EmptyArray(ResultType.Array);
             span[3] = TypedRedisValue.Zero;
             span[4] = TypedRedisValue.Zero;
             span[5] = TypedRedisValue.Zero;

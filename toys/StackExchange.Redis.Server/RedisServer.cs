@@ -198,12 +198,11 @@ namespace StackExchange.Redis.Server
                 switch (protover)
                 {
                     case 2:
-                    case 3:
                         protocol = RedisProtocol.Resp2;
                         break;
-                    /* case 3: // this client does not currently support RESP3
+                    case 3: // this client does not currently support RESP3
                         protocol = RedisProtocol.Resp3;
-                        break; */
+                        break;
                     default:
                         return TypedRedisValue.Error("NOPROTO unsupported protocol version");
                 }
@@ -234,7 +233,7 @@ namespace StackExchange.Redis.Server
             client.IsAuthenticated = isAuthed;
             client.Name = name;
 
-            var reply = TypedRedisValue.Rent(14, out var span);
+            var reply = TypedRedisValue.Rent(14, out var span, ResultType.Map);
             span[0] = TypedRedisValue.BulkString("server");
             span[1] = TypedRedisValue.BulkString("redis");
             span[2] = TypedRedisValue.BulkString("version");
@@ -248,7 +247,7 @@ namespace StackExchange.Redis.Server
             span[10] = TypedRedisValue.BulkString("role");
             span[11] = TypedRedisValue.BulkString("master");
             span[12] = TypedRedisValue.BulkString("modules");
-            span[13] = TypedRedisValue.EmptyArray;
+            span[13] = TypedRedisValue.EmptyArray(ResultType.Array);
             return reply;
         }
 
@@ -385,21 +384,21 @@ namespace StackExchange.Redis.Server
             {
                 count += pair.Value.Slots.Length;
             }
-            var slots = TypedRedisValue.Rent(count, out var slotsSpan);
+            var slots = TypedRedisValue.Rent(count, out var slotsSpan, ResultType.Array);
             foreach (var pair in _nodes.OrderBy(x => x.Key, EndPointComparer.Instance))
             {
                 string host = GetHost(pair.Key, out int port);
                 foreach (var range in pair.Value.Slots)
                 {
                     if (index >= count) break; // someone changed things while we were working
-                    slotsSpan[index++] = TypedRedisValue.Rent(3, out var slotSpan);
+                    slotsSpan[index++] = TypedRedisValue.Rent(3, out var slotSpan, ResultType.Array);
                     slotSpan[0] = TypedRedisValue.Integer(range.From);
                     slotSpan[1] = TypedRedisValue.Integer(range.To);
-                    slotSpan[2] = TypedRedisValue.Rent(4, out var nodeSpan);
+                    slotSpan[2] = TypedRedisValue.Rent(4, out var nodeSpan, ResultType.Array);
                     nodeSpan[0] = TypedRedisValue.BulkString(host);
                     nodeSpan[1] = TypedRedisValue.Integer(port);
                     nodeSpan[2] = TypedRedisValue.BulkString(pair.Value.Id);
-                    nodeSpan[3] = TypedRedisValue.EmptyArray;
+                    nodeSpan[3] = TypedRedisValue.EmptyArray(ResultType.Array);
                 }
             }
             return slots;
@@ -717,12 +716,12 @@ namespace StackExchange.Redis.Server
             long start = request.GetInt64(2), stop = request.GetInt64(3);
 
             var len = Llen(client.Database, key);
-            if (len == 0) return TypedRedisValue.EmptyArray;
+            if (len == 0) return TypedRedisValue.EmptyArray(ResultType.Array);
 
             if (start < 0) start = len + start;
             if (stop < 0) stop = len + stop;
 
-            if (stop < 0 || start >= len || stop < start) return TypedRedisValue.EmptyArray;
+            if (stop < 0 || start >= len || stop < start) return TypedRedisValue.EmptyArray(ResultType.Array);
 
             if (start < 0) start = 0;
             else if (start >= len) start = len - 1;
@@ -730,7 +729,7 @@ namespace StackExchange.Redis.Server
             if (stop < 0) stop = 0;
             else if (stop >= len) stop = len - 1;
 
-            var arr = TypedRedisValue.Rent(checked((int)((stop - start) + 1)), out var span);
+            var arr = TypedRedisValue.Rent(checked((int)((stop - start) + 1)), out var span, ResultType.Array);
             LRange(client.Database, key, start, span);
             return arr;
         }
@@ -775,9 +774,9 @@ namespace StackExchange.Redis.Server
             OnUpdateServerConfiguration();
             var config = ServerConfiguration;
             var matches = config.CountMatch(pattern);
-            if (matches == 0) return TypedRedisValue.EmptyArray;
+            if (matches == 0) return TypedRedisValue.EmptyArray(ResultType.Map);
 
-            var arr = TypedRedisValue.Rent(2 * matches, out var span);
+            var arr = TypedRedisValue.Rent(2 * matches, out var span, ResultType.Map);
             int index = 0;
             foreach (var pair in config.Wrapped)
             {
@@ -967,8 +966,8 @@ namespace StackExchange.Redis.Server
                 if (found == null) found = new List<TypedRedisValue>();
                 found.Add(TypedRedisValue.BulkString(key.AsRedisValue()));
             }
-            if (found == null) return TypedRedisValue.EmptyArray;
-            return TypedRedisValue.MultiBulk(found);
+            if (found == null) return TypedRedisValue.EmptyArray(ResultType.Array);
+            return TypedRedisValue.MultiBulk(found, ResultType.Array);
         }
         protected virtual IEnumerable<RedisKey> Keys(int database, in RedisKey pattern) => throw new NotSupportedException();
 
@@ -1063,7 +1062,7 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue Mget(RedisClient client, in RedisRequest request)
         {
             int argCount = request.Count;
-            var arr = TypedRedisValue.Rent(argCount - 1, out var span);
+            var arr = TypedRedisValue.Rent(argCount - 1, out var span, ResultType.Map);
             var db = client.Database;
             for (int i = 1; i < argCount; i++)
             {
@@ -1096,10 +1095,10 @@ namespace StackExchange.Redis.Server
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Role(RedisClient client, in RedisRequest request)
         {
-            var arr = TypedRedisValue.Rent(3, out var span);
+            var arr = TypedRedisValue.Rent(3, out var span, ResultType.Array);
             span[0] = TypedRedisValue.BulkString("master");
             span[1] = TypedRedisValue.Integer(0);
-            span[2] = TypedRedisValue.EmptyArray;
+            span[2] = TypedRedisValue.EmptyArray(ResultType.Array);
             return arr;
         }
 
@@ -1123,7 +1122,7 @@ namespace StackExchange.Redis.Server
 
         private TypedRedisValue SubscribeImpl(RedisClient client, in RedisRequest request)
         {
-            var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span);
+            var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span, ResultType.Array);
             int index = 0;
             request.TryGetCommandBytes(0, out var cmd);
             var cmdString = TypedRedisValue.BulkString(cmd.ToArray());
@@ -1163,7 +1162,7 @@ namespace StackExchange.Redis.Server
             var ticks = delta.Ticks;
             var seconds = ticks / TimeSpan.TicksPerSecond;
             var micros = (ticks % TimeSpan.TicksPerSecond) / (TimeSpan.TicksPerMillisecond / 1000);
-            var reply = TypedRedisValue.Rent(2, out var span);
+            var reply = TypedRedisValue.Rent(2, out var span, ResultType.Array);
             span[0] = TypedRedisValue.BulkString(seconds);
             span[1] = TypedRedisValue.BulkString(micros);
             return reply;
