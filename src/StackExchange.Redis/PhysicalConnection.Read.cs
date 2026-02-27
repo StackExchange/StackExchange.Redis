@@ -49,7 +49,7 @@ internal sealed partial class PhysicalConnection
                 _readStatus = ReadStatus.TryParseResult;
             }
             // another formatter glitch
-            while (CommitAndParseFrames(read));
+            while (CommitAndParseFrames(read) && !ForceReconnect);
 
             _readStatus = ReadStatus.ProcessBufferComplete;
 
@@ -73,6 +73,8 @@ internal sealed partial class PhysicalConnection
             _readBuffer = default; // wipe, however we exited
         }
     }
+
+    private bool ForceReconnect => BridgeCouldBeNull?.NeedsReconnect == true;
 
     private static byte[]? SharedNoLease;
 

@@ -294,7 +294,10 @@ namespace StackExchange.Redis.Server
                     {
                         // process a completed request
                         RedisRequest request = new(buffer.Slice(0, consumed), ref commandLease);
+                        request = request.WithClient(client);
                         var response = Execute(client, request);
+                        client.ResetAfterRequest();
+
                         await WriteResponseAsync(client, pipe.Output, response, client.Protocol);
 
                         // advance the buffer to account for the message we just read
@@ -529,10 +532,14 @@ namespace StackExchange.Redis.Server
                 if (result.IsError) Interlocked.Increment(ref _totalErrorCount);
                 return result;
             }
-            catch (KeyMovedException moved) when (GetNode(moved.HashSlot) is { } node)
+            catch (KeyMovedException moved)
             {
-                OnMoved(client, moved.HashSlot, node);
-                return TypedRedisValue.Error($"MOVED {moved.HashSlot} {node.Host}:{node.Port}");
+                if (GetNode(moved.HashSlot) is { } node)
+                {
+                    OnMoved(client, moved.HashSlot, node);
+                    return TypedRedisValue.Error($"MOVED {moved.HashSlot} {node.Host}:{node.Port}");
+                }
+                return TypedRedisValue.Error($"ERR key has been migrated from slot {moved.HashSlot}, but the new owner is unknown");
             }
             catch (CrossSlotException)
             {

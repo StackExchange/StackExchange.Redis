@@ -42,12 +42,6 @@ public class InProcessTestServer : MemoryCacheRedisServer
             commands.Remove(nameof(RedisCommand.PUBLISH));
             commands.Remove(nameof(RedisCommand.SPUBLISH));
         }
-        // transactions don't work yet
-        commands.Remove(nameof(RedisCommand.MULTI));
-        commands.Remove(nameof(RedisCommand.EXEC));
-        commands.Remove(nameof(RedisCommand.DISCARD));
-        commands.Remove(nameof(RedisCommand.WATCH));
-        commands.Remove(nameof(RedisCommand.UNWATCH));
 
         var config = new ConfigurationOptions
         {
