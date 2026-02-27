@@ -1,5 +1,7 @@
 ﻿using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using static RESPite.Internal.RespConstants;
 namespace RESPite.Messages;
 
@@ -52,7 +54,11 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
             case 2:
                 return OperationStatus.NeedMoreData;
             case 3:
-                hi = (((uint)UnsafeCpuUInt16(data)) << 16) | (((uint)UnsafeCpuByte(data, 2)) << 8);
+                hi = 0; // needed to wipe that final byte
+                Unsafe.CopyBlock(
+                    ref Unsafe.As<uint, byte>(ref hi),
+                    ref MemoryMarshal.GetReference(data),
+                    3);
                 break;
             default:
                 hi = UnsafeCpuUInt32(data);
