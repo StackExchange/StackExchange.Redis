@@ -127,6 +127,8 @@ namespace StackExchange.Redis.Server
 
         internal RedisRequest(ReadOnlySpan<byte> payload, ref byte[] commandLease) : this(new RespReader(payload), ref commandLease) { }
         internal RedisRequest(in ReadOnlySequence<byte> payload, ref byte[] commandLease) : this(new RespReader(payload), ref commandLease) { }
+
+        public byte[] Serialize() => _rootReader.Serialize();
     }
 
     [Flags]

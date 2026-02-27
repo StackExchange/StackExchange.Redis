@@ -314,4 +314,25 @@ public ref partial struct RespReader
                 return -1;
         }
     }
+
+    /// <summary>
+    /// Get the raw RESP payload.
+    /// </summary>
+    public readonly byte[] Serialize()
+    {
+        var reader = Clone();
+        int remaining = checked((int)reader.TotalAvailable);
+        var arr = new byte[remaining];
+        Span<byte> target = arr;
+        while (remaining > 0)
+        {
+            var span = reader.CurrentSpan();
+            span.CopyTo(arr);
+            remaining -= span.Length;
+            target = target.Slice(span.Length);
+            if (!reader.TryMoveToNextSegment()) break;
+        }
+        if (remaining != 0 | !target.IsEmpty) ThrowEof();
+        return arr;
+    }
 }

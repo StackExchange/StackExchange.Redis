@@ -205,3 +205,4 @@
 [SER004]virtual RESPite.Messages.RespReader.Projection<T>.Invoke(ref RESPite.Messages.RespReader value) -> T
 [SER004]virtual RESPite.Messages.RespReader.Projection<TState, TResult>.Invoke(ref TState state, ref RESPite.Messages.RespReader value) -> TResult
 [SER004]virtual RESPite.Messages.RespReader.ScalarParser<TSource, TValue>.Invoke(scoped System.ReadOnlySpan<TSource> value, out TValue result) -> bool
+[SER004]RESPite.Messages.RespReader.Serialize() -> byte[]!

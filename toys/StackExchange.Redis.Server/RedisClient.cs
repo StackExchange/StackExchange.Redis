@@ -264,8 +264,7 @@ namespace StackExchange.Redis.Server
             switch (_transactionState)
             {
                 case TransactionState.MultiHopeful when !AllowInTransaction(command):
-                    // TODO we also can't do this bit! just store the command name for now
-                    (_transaction ??= []).Add(Encoding.ASCII.GetBytes(request.GetString(0)));
+                    (_transaction ??= []).Add(request.Serialize());
                     return true;
                 case TransactionState.MultiAbortByError when !AllowInTransaction(command):
                 case TransactionState.MultiDoomedByTouch when !AllowInTransaction(command):

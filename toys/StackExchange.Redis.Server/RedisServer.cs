@@ -6,8 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
-using RESPite;
 using System.Threading;
+using RESPite;
 using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
@@ -347,6 +347,7 @@ namespace StackExchange.Redis.Server
                 if (!client.Watch(key))
                     return TypedRedisValue.Error("WATCH inside MULTI is not allowed");
             }
+            return TypedRedisValue.OK;
         }
 
         [RedisCommand(1)]
@@ -384,13 +385,19 @@ namespace StackExchange.Redis.Server
 
             var results = TypedRedisValue.Rent(commands.Length, out var span, RespPrefix.Array);
             int index = 0;
-            foreach (var cmd in commands)
+            var lease = RedisRequest.GetLease();
+            try
             {
-                // TODO:this is the bit we can't do just yet, until we can freely parse results
-                // RedisRequest inner = // ...
-                // inner = inner.WithClient(client);
-                // results[index++] = Execute(client, cmd);
-                span[index++] = TypedRedisValue.Error($"ERR transactions not yet implemented, sorry; ignoring {Encoding.ASCII.GetString(cmd)}");
+                foreach (var cmd in commands)
+                {
+                    RedisRequest inner = new(cmd, ref lease);
+                    inner = inner.WithClient(client);
+                    span[index++] = Execute(client, inner);
+                }
+            }
+            finally
+            {
+                RedisRequest.ReleaseLease(ref lease);
             }
             return results;
         }
