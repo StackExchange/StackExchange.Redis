@@ -6,3 +6,8 @@ public class HighIntegrityBasicOpsTests(ITestOutputHelper output, SharedConnecti
 {
     internal override bool HighIntegrity => true;
 }
+
+public class InProcHighIntegrityBasicOpsTests(ITestOutputHelper output, InProcServerFixture fixture) : InProcBasicOpsTests(output, fixture)
+{
+    internal override bool HighIntegrity => true;
+}

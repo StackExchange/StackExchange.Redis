@@ -318,6 +318,22 @@ namespace StackExchange.Redis.Server
             return true;
         }
 
+        [RedisCommand(4)]
+        protected virtual TypedRedisValue SetEx(RedisClient client, in RedisRequest request)
+        {
+            RedisKey key = request.GetKey(1);
+            int seconds = request.GetInt32(2);
+            var value = request.GetValue(3);
+            SetEx(client.Database, key, seconds, value);
+            return TypedRedisValue.OK;
+        }
+
+        protected virtual void SetEx(int database, in RedisKey key, int seconds, in RedisValue value)
+        {
+            Set(database, key, value);
+            Expire(database, key, TimeSpan.FromSeconds(seconds));
+        }
+
         [RedisCommand(3, "client", "setname", LockFree = true)]
         protected virtual TypedRedisValue ClientSetname(RedisClient client, in RedisRequest request)
         {

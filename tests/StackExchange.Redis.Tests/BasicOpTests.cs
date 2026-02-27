@@ -7,7 +7,20 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
+public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : BasicOpsTestsBase(output, fixture, null)
+{
+}
+
+[RunPerProtocol]
+public class InProcBasicOpsTests(ITestOutputHelper output, InProcServerFixture fixture)
+    : BasicOpsTestsBase(output, null, fixture)
+{
+}
+
+[RunPerProtocol]
+public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnectionFixture? connection, InProcServerFixture? server)
+    : TestBase(output, connection, server)
 {
     [Fact]
     public async Task PingOnce()
@@ -472,6 +485,7 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     public async Task TransactionSync()
     {
         await using var conn = Create();
+        Assert.SkipUnless(conn.RawConfig.CommandMap.IsAvailable(RedisCommand.MULTI), "MULTI is not available");
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
@@ -491,6 +505,8 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
     public async Task TransactionAsync()
     {
         await using var conn = Create();
+        Assert.SkipUnless(conn.RawConfig.CommandMap.IsAvailable(RedisCommand.MULTI), "MULTI is not available");
+
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
