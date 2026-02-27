@@ -6,6 +6,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+[RunPerProtocol]
 public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
