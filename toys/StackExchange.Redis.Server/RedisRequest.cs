@@ -65,17 +65,10 @@ namespace StackExchange.Redis.Server
 
         public long GetInt64(int index) => (long)_inner[index].AsRedisValue();
 
-        public RedisKey GetKey(int index)
+        public RedisKey GetKey(int index, KeyFlags flags = KeyFlags.None)
         {
             var key = _inner[index].AsRedisKey();
-            _client?.AssertKey(key);
-            return key;
-        }
-
-        public RedisKey GetKey(int index, bool checkSlot)
-        {
-            var key = _inner[index].AsRedisKey();
-            if (checkSlot) _client?.AssertKey(key);
+            _client?.OnKey(key, flags);
             return key;
         }
 
@@ -94,5 +87,13 @@ namespace StackExchange.Redis.Server
             command = payload.IsEmpty ? default : new CommandBytes(payload);
             return true;
         }
+    }
+
+    [Flags]
+    public enum KeyFlags
+    {
+        None = 0,
+        ReadOnly = 1 << 0,
+        NoSlotCheck = 1 << 1,
     }
 }

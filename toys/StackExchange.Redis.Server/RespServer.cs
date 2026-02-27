@@ -154,6 +154,7 @@ namespace StackExchange.Redis.Server
                 _subcommands = subs;
             }
             public bool IsUnknown => _operation == null;
+
             public RespCommand Resolve(in RedisRequest request)
             {
                 if (request.Count >= 2)
@@ -233,6 +234,14 @@ namespace StackExchange.Redis.Server
             if (client == null) return false;
             client.Closed = true;
             return _clientLookup.TryRemove(client.Id, out _);
+        }
+
+        protected virtual void Touch(int database, in RedisKey key)
+        {
+            foreach (var client in _clientLookup.Values)
+            {
+                client.Touch(database, key);
+            }
         }
 
         private readonly TaskCompletionSource<ShutdownReason> _shutdown = TaskSource.Create<ShutdownReason>(null, TaskCreationOptions.RunContinuationsAsynchronously);
@@ -482,7 +491,12 @@ RetryResp2:
         {
             if (request.Count == 0) return default; // not a request
 
-            if (!request.TryGetCommandBytes(0, out var cmdBytes)) return request.CommandNotFound();
+            if (!request.TryGetCommandBytes(0, out var cmdBytes))
+            {
+                client.ExecAbort();
+                return request.CommandNotFound();
+            }
+
             if (cmdBytes.Length == 0) return default; // not a request
             Interlocked.Increment(ref _totalCommandsProcesed);
             try
@@ -493,8 +507,14 @@ RetryResp2:
                     if (cmd.HasSubCommands)
                     {
                         cmd = cmd.Resolve(request);
-                        if (cmd.IsUnknown) return request.UnknownSubcommandOrArgumentCount();
+                        if (cmd.IsUnknown)
+                        {
+                            client.ExecAbort();
+                            return request.UnknownSubcommandOrArgumentCount();
+                        }
                     }
+
+                    if (client.BufferMulti(request, cmdBytes)) return TypedRedisValue.SimpleString("QUEUED");
 
                     if (cmd.LockFree)
                     {
@@ -510,6 +530,7 @@ RetryResp2:
                 }
                 else
                 {
+                    client.ExecAbort();
                     Span<byte> span = stackalloc byte[CommandBytes.MaxLength];
                     cmdBytes.CopyTo(span);
                     result = OnUnknownCommand(client, request, span.Slice(0, cmdBytes.Length));

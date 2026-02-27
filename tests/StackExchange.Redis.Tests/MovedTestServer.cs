@@ -51,13 +51,13 @@ public class MovedTestServer : InProcessTestServer
     {
         public SimulatedHost AssignedHost => assignedHost;
 
-        public override void AssertKey(in RedisKey key)
+        public override void OnKey(in RedisKey key, KeyFlags flags)
         {
             if (AssignedHost == SimulatedHost.OldServer && key == server._triggerKey)
             {
                 server.OnTrigger(Id, key, assignedHost);
             }
-            base.AssertKey(in key);
+            base.OnKey(in key, flags);
         }
     }
 

@@ -51,7 +51,7 @@ namespace StackExchange.Redis.Server
                 case null:
                     return null;
                 case ExpiringValue ev:
-                    if (ev.AbsoluteExpiration <= Now)
+                    if (ev.AbsoluteExpiration <= Time())
                     {
                         _cache2.Remove(key);
                         return null;
@@ -84,7 +84,7 @@ namespace StackExchange.Redis.Server
                 case null:
                     return null;
                 case ExpiringValue ev:
-                    var delta = ev.AbsoluteExpiration - Now;
+                    var delta = ev.AbsoluteExpiration - Time();
                     if (delta <= TimeSpan.Zero)
                     {
                         _cache2.Remove(key);
@@ -98,10 +98,11 @@ namespace StackExchange.Redis.Server
 
         protected override bool Expire(int database, in RedisKey key, TimeSpan timeout)
         {
+            if (timeout <= TimeSpan.Zero) return Del(database, key);
             var val = Get(key, ExpectedType.Any);
             if (val is not null)
             {
-                _cache2[key] = new ExpiringValue(val, Now + timeout);
+                _cache2[key] = new ExpiringValue(val, Time() + timeout);
                 return true;
             }
 
@@ -116,16 +117,24 @@ namespace StackExchange.Redis.Server
 
         protected override void Set(int database, in RedisKey key, in RedisValue value)
             => _cache2[key] = value.Box();
+
+        protected override void SetEx(int database, in RedisKey key, TimeSpan expiration, in RedisValue value)
+        {
+            var now = Time();
+            var absolute = now + expiration;
+            if (absolute <= now) _cache2.Remove(key);
+            else _cache2[key] = new ExpiringValue(value.Box(), absolute);
+        }
+
         protected override bool Del(int database, in RedisKey key)
             => _cache2.Remove(key) != null;
         protected override void Flushdb(int database)
             => CreateNewCache();
 
-        private DateTime Now => DateTime.UtcNow;
         protected override bool Exists(int database, in RedisKey key)
         {
             var val = Get(key, ExpectedType.Any);
-            return val != null && !(val is ExpiringValue ev && ev.AbsoluteExpiration <= Now);
+            return val != null && !(val is ExpiringValue ev && ev.AbsoluteExpiration <= Time());
         }
 
         protected override IEnumerable<RedisKey> Keys(int database, in RedisKey pattern) => GetKeysCore(pattern);
@@ -133,7 +142,7 @@ namespace StackExchange.Redis.Server
         {
             foreach (var pair in _cache2)
             {
-                if (pair.Value is ExpiringValue ev && ev.AbsoluteExpiration <= Now) continue;
+                if (pair.Value is ExpiringValue ev && ev.AbsoluteExpiration <= Time()) continue;
                 if (IsMatch(pattern, pair.Key)) yield return pair.Key;
             }
         }

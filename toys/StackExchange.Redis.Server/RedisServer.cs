@@ -291,13 +291,13 @@ namespace StackExchange.Redis.Server
 
         [RedisCommand(2)]
         protected virtual TypedRedisValue Scard(RedisClient client, in RedisRequest request)
-            => TypedRedisValue.Integer(Scard(client.Database, request.GetKey(1)));
+            => TypedRedisValue.Integer(Scard(client.Database, request.GetKey(1, KeyFlags.ReadOnly)));
 
         protected virtual long Scard(int database, in RedisKey key) => throw new NotSupportedException();
 
         [RedisCommand(3)]
         protected virtual TypedRedisValue Sismember(RedisClient client, in RedisRequest request)
-            => Sismember(client.Database, request.GetKey(1), request.GetValue(2)) ? TypedRedisValue.One : TypedRedisValue.Zero;
+            => Sismember(client.Database, request.GetKey(1, KeyFlags.ReadOnly), request.GetValue(2)) ? TypedRedisValue.One : TypedRedisValue.Zero;
 
         protected virtual bool Sismember(int database, in RedisKey key, in RedisValue value) => throw new NotSupportedException();
 
@@ -324,14 +324,84 @@ namespace StackExchange.Redis.Server
             RedisKey key = request.GetKey(1);
             int seconds = request.GetInt32(2);
             var value = request.GetValue(3);
-            SetEx(client.Database, key, seconds, value);
+            SetEx(client.Database, key, TimeSpan.FromSeconds(seconds), value);
             return TypedRedisValue.OK;
         }
 
-        protected virtual void SetEx(int database, in RedisKey key, int seconds, in RedisValue value)
+        [RedisCommand(-2)]
+        protected virtual TypedRedisValue Touch(RedisClient client, in RedisRequest request)
+        {
+            for (int i = 1; i < request.Count; i++)
+            {
+                Touch(client.Database, request.GetKey(i));
+            }
+
+            return TypedRedisValue.OK;
+        }
+
+        [RedisCommand(-2)]
+        protected virtual TypedRedisValue Watch(RedisClient client, in RedisRequest request)
+        {
+            for (int i = 1; i < request.Count; i++)
+            {
+                var key = request.GetKey(i, KeyFlags.ReadOnly);
+                if (!client.Watch(key))
+                    return TypedRedisValue.Error("WATCH inside MULTI is not allowed");
+            }
+
+            return TypedRedisValue.OK;
+        }
+
+        [RedisCommand(1)]
+        protected virtual TypedRedisValue Unwatch(RedisClient client, in RedisRequest request)
+        {
+            return client.Unwatch() ? TypedRedisValue.OK : TypedRedisValue.Error("UNWATCH inside MULTI is not allowed");
+        }
+
+        [RedisCommand(1)]
+        protected virtual TypedRedisValue Multi(RedisClient client, in RedisRequest request)
+        {
+            return client.Multi() ? TypedRedisValue.OK : TypedRedisValue.Error("MULTI calls can not be nested");
+        }
+
+        [RedisCommand(1)]
+        protected virtual TypedRedisValue Discard(RedisClient client, in RedisRequest request)
+        {
+            return client.Discard() ? TypedRedisValue.OK : TypedRedisValue.Error("DISCARD without MULTI");
+        }
+
+        [RedisCommand(1)]
+        protected virtual TypedRedisValue Exec(RedisClient client, in RedisRequest request)
+        {
+            var exec = client.FlushMulti(out var commands);
+            switch (exec)
+            {
+                case RedisClient.ExecResult.NotInTransaction:
+                    return TypedRedisValue.Error("EXEC without MULTI");
+                case RedisClient.ExecResult.WatchConflict:
+                    return TypedRedisValue.NullArray(ResultType.Array);
+                case RedisClient.ExecResult.AbortedByError:
+                    return TypedRedisValue.Error("EXECABORT Transaction discarded because of previous errors.");
+            }
+            Debug.Assert(exec is RedisClient.ExecResult.CommandsReturned);
+
+            var results = TypedRedisValue.Rent(commands.Length, out var span, ResultType.Array);
+            int index = 0;
+            foreach (var cmd in commands)
+            {
+                // TODO:this is the bit we can't do just yet, until we can freely parse results
+                // RedisRequest inner = // ...
+                // inner = inner.WithClient(client);
+                // results[index++] = Execute(client, cmd);
+                span[index++] = TypedRedisValue.Error($"ERR transactions not yet implemented, sorry; ignoring {Encoding.ASCII.GetString(cmd)}");
+            }
+            return results;
+        }
+
+        protected virtual void SetEx(int database, in RedisKey key, TimeSpan timeout, in RedisValue value)
         {
             Set(database, key, value);
-            Expire(database, key, TimeSpan.FromSeconds(seconds));
+            Expire(database, key, timeout);
         }
 
         [RedisCommand(3, "client", "setname", LockFree = true)]
@@ -670,6 +740,8 @@ namespace StackExchange.Redis.Server
                     if (!HasSlot(hashSlot)) KeyMovedException.Throw(hashSlot);
                 }
             }
+
+            public void Touch(int db, in RedisKey key) => _server.Touch(db, key);
         }
 
         public virtual bool CheckCrossSlot => ServerType == ServerType.Cluster;
@@ -721,7 +793,7 @@ namespace StackExchange.Redis.Server
 
         [RedisCommand(2)]
         protected virtual TypedRedisValue Llen(RedisClient client, in RedisRequest request)
-            => TypedRedisValue.Integer(Llen(client.Database, request.GetKey(1)));
+            => TypedRedisValue.Integer(Llen(client.Database, request.GetKey(1, KeyFlags.ReadOnly)));
 
         protected virtual long Lpush(int database, in RedisKey key, in RedisValue value) => throw new NotSupportedException();
         protected virtual long Rpush(int database, in RedisKey key, in RedisValue value) => throw new NotSupportedException();
@@ -732,7 +804,7 @@ namespace StackExchange.Redis.Server
         [RedisCommand(4)]
         protected virtual TypedRedisValue LRange(RedisClient client, in RedisRequest request)
         {
-            var key = request.GetKey(1);
+            var key = request.GetKey(1, KeyFlags.ReadOnly);
             long start = request.GetInt64(2), stop = request.GetInt64(3);
 
             var len = Llen(client.Database, key);
@@ -825,7 +897,7 @@ namespace StackExchange.Redis.Server
             var db = client.Database;
             for (int i = 1; i < request.Count; i++)
             {
-                if (Exists(db, request.GetKey(i)))
+                if (Exists(db, request.GetKey(i, KeyFlags.ReadOnly)))
                     count++;
             }
             return TypedRedisValue.Integer(count);
@@ -842,7 +914,7 @@ namespace StackExchange.Redis.Server
 
         [RedisCommand(2)]
         protected virtual TypedRedisValue Get(RedisClient client, in RedisRequest request)
-            => TypedRedisValue.BulkString(Get(client.Database, request.GetKey(1)));
+            => TypedRedisValue.BulkString(Get(client.Database, request.GetKey(1, KeyFlags.ReadOnly)));
 
         protected virtual RedisValue Get(int database, in RedisKey key) => throw new NotSupportedException();
 
@@ -861,7 +933,7 @@ namespace StackExchange.Redis.Server
         }
         [RedisCommand(2)]
         protected virtual TypedRedisValue Strlen(RedisClient client, in RedisRequest request)
-            => TypedRedisValue.Integer(Strlen(client.Database, request.GetKey(1)));
+            => TypedRedisValue.Integer(Strlen(client.Database, request.GetKey(1, KeyFlags.ReadOnly)));
 
         protected virtual long Strlen(int database, in RedisKey key) => Get(database, key).Length();
 
@@ -912,7 +984,7 @@ namespace StackExchange.Redis.Server
         [RedisCommand(2)]
         protected virtual TypedRedisValue Ttl(RedisClient client, in RedisRequest request)
         {
-            var key = request.GetKey(1);
+            var key = request.GetKey(1, KeyFlags.ReadOnly);
             var ttl = Ttl(client.Database, key);
             if (ttl == null || ttl <= TimeSpan.Zero) return TypedRedisValue.Integer(-2);
             if (ttl == TimeSpan.MaxValue) return TypedRedisValue.Integer(-1);
@@ -924,7 +996,7 @@ namespace StackExchange.Redis.Server
         [RedisCommand(2)]
         protected virtual TypedRedisValue Pttl(RedisClient client, in RedisRequest request)
         {
-            var key = request.GetKey(1);
+            var key = request.GetKey(1, KeyFlags.ReadOnly);
             var ttl = Ttl(client.Database, key);
             if (ttl == null || ttl <= TimeSpan.Zero) return TypedRedisValue.Integer(-2);
             if (ttl == TimeSpan.MaxValue) return TypedRedisValue.Integer(-1);
@@ -980,7 +1052,7 @@ namespace StackExchange.Redis.Server
             List<TypedRedisValue> found = null;
             bool checkSlot = ServerType is ServerType.Cluster;
             var node = client.Node ?? DefaultNode;
-            foreach (var key in Keys(client.Database, request.GetKey(1, checkSlot: false)))
+            foreach (var key in Keys(client.Database, request.GetKey(1, flags: KeyFlags.NoSlotCheck | KeyFlags.ReadOnly)))
             {
                 if (checkSlot && !node.HasSlot(key)) continue;
                 if (found == null) found = new List<TypedRedisValue>();
@@ -1086,7 +1158,7 @@ namespace StackExchange.Redis.Server
             var db = client.Database;
             for (int i = 1; i < argCount; i++)
             {
-                span[i - 1] = TypedRedisValue.BulkString(Get(db, request.GetKey(i)));
+                span[i - 1] = TypedRedisValue.BulkString(Get(db, request.GetKey(i, KeyFlags.ReadOnly)));
             }
             return arr;
         }
