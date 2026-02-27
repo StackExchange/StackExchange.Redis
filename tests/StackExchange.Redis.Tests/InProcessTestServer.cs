@@ -18,6 +18,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
     private readonly ITestOutputHelper? _log;
     public InProcessTestServer(ITestOutputHelper? log = null)
     {
+        RedisVersion = RedisFeatures.v6_0_0; // for client to expect RESP3
         _log = log;
         // ReSharper disable once VirtualMemberCallInConstructor
         _log?.WriteLine($"Creating in-process server: {ToString()}");

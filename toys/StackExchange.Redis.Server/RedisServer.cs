@@ -209,7 +209,7 @@ namespace StackExchange.Redis.Server
 
                 for (int i = 2; i < request.Count && request.TryGetCommandBytes(i, out var key); i++)
                 {
-                    int remaining = request.Count - (i + 2);
+                    int remaining = request.Count - (i + 1);
                     TypedRedisValue ArgFail() => TypedRedisValue.Error($"ERR Syntax error in HELLO option '{key.ToString().ToLower()}'\"");
                     if (key.Equals(Literals.AUTH))
                     {
@@ -224,6 +224,10 @@ namespace StackExchange.Redis.Server
                     {
                         if (remaining < 1) return ArgFail();
                         name = request.GetString(++i);
+                    }
+                    else
+                    {
+                        return ArgFail();
                     }
                 }
             }

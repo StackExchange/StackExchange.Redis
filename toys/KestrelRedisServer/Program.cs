@@ -6,7 +6,9 @@ using StackExchange.Redis.Server;
 
 var server = new MemoryCacheRedisServer
 {
-    RedisVersion = new(3, 0),
+    // note: we don't support many v6 features, but some clients
+    // want this before they'll try RESP3
+    RedisVersion = new(6, 0),
     // Password = "letmein",
 };
 
