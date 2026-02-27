@@ -250,10 +250,13 @@ namespace StackExchange.Redis.Server
             }
 
             static bool AllowInTransaction(in CommandBytes cmd)
-                => cmd.Equals(EXEC) || cmd.Equals(DISCARD);
+                => cmd.Equals(EXEC) || cmd.Equals(DISCARD) || cmd.Equals(MULTI)
+                   || cmd.Equals(WATCH) || cmd.Equals(UNWATCH);
         }
 
-        private static readonly CommandBytes EXEC = new("EXEC"u8), DISCARD = new("DISCARD"u8);
+        private static readonly CommandBytes
+            EXEC = new("EXEC"u8), DISCARD = new("DISCARD"u8), MULTI = new("MULTI"u8),
+            WATCH = new("WATCH"u8), UNWATCH = new("UNWATCH"u8);
     }
 
     internal sealed class CrossSlotException : Exception
