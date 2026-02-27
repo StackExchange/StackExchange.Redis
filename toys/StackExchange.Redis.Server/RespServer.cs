@@ -285,6 +285,7 @@ namespace StackExchange.Redis.Server
             {
                 node ??= DefaultNode;
                 client = AddClient(node, state);
+
                 while (!client.Closed)
                 {
                     var readResult = await pipe.Input.ReadAsync().ConfigureAwait(false);
@@ -298,7 +299,8 @@ namespace StackExchange.Redis.Server
                         var response = Execute(client, request);
                         client.ResetAfterRequest();
 
-                        await WriteResponseAsync(client, pipe.Output, response, client.Protocol);
+                        WriteResponse(client, pipe.Output, response, client.Protocol);
+                        await pipe.Output.FlushAsync().ConfigureAwait(false);
 
                         // advance the buffer to account for the message we just read
                         buffer = buffer.Slice(consumed);
@@ -344,7 +346,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value, RedisProtocol protocol)
+        public static void WriteResponse(RedisClient client, IBufferWriter<byte> output, TypedRedisValue value, RedisProtocol protocol)
         {
             static void WritePrefix(IBufferWriter<byte> output, char prefix)
             {
@@ -421,7 +423,7 @@ namespace StackExchange.Redis.Server
                                 throw new InvalidOperationException("Array element cannot be nil, index " + i);
 
                             // note: don't pass client down; this would impact SkipReplies
-                            await WriteResponseAsync(null, output, item, protocol);
+                            WriteResponse(null, output, item, protocol);
                         }
                         break;
                     default:
@@ -437,8 +439,6 @@ namespace StackExchange.Redis.Server
                             "Unexpected result type: " + value.Type);
                 }
             }
-
-            await output.FlushAsync().ConfigureAwait(false);
 
             static RespPrefix ToResp2(RespPrefix type)
             {

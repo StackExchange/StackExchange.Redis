@@ -433,6 +433,10 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue ClientId(RedisClient client, in RedisRequest request)
             => TypedRedisValue.Integer(client.Id);
 
+        [RedisCommand(4, nameof(RedisCommand.CLIENT), "setinfo", LockFree = true)]
+        protected virtual TypedRedisValue ClientSetInfo(RedisClient client, in RedisRequest request)
+            => TypedRedisValue.OK; // only exists to keep logs clean
+
         private bool IsClusterEnabled(out TypedRedisValue fault)
         {
             if (ServerType == ServerType.Cluster)
