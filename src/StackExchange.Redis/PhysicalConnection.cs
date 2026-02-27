@@ -937,13 +937,13 @@ namespace StackExchange.Redis
                 ResultType.Set => (byte)'~',
                  _ => (byte)'*',
             };
-            if (type is ResultType.Map & count > 0)
+            if ((type is ResultType.Map or ResultType.Attribute) & count > 0)
             {
-                if ((count & 1) != 0) Throw(count);
+                if ((count & 1) != 0) Throw(type, count);
                 count >>= 1;
-                static void Throw(long count) => throw new ArgumentOutOfRangeException(
+                static void Throw(ResultType type, long count) => throw new ArgumentOutOfRangeException(
                     paramName: nameof(count),
-                    message: $"Map data must be in pairs; got {count}");
+                    message: $"{type} data must be in pairs; got {count}");
             }
             int offset = WriteRaw(span, count, offset: 1);
             output.Advance(offset);
