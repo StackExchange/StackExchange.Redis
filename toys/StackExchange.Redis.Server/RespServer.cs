@@ -31,6 +31,16 @@ namespace StackExchange.Redis.Server
             _commands = BuildCommands(this);
         }
 
+        public HashSet<string> GetCommands()
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kvp in _commands)
+            {
+                set.Add(kvp.Key.ToString());
+            }
+            return set;
+        }
+
         private static Dictionary<CommandBytes, RespCommand> BuildCommands(RespServer server)
         {
             static RedisCommandAttribute CheckSignatureAndGetAttribute(MethodInfo method)
@@ -313,18 +323,27 @@ namespace StackExchange.Redis.Server
 
         public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value, RedisProtocol protocol)
         {
-            static void WritePrefix(PipeWriter ooutput, char pprefix)
+            static void WritePrefix(PipeWriter output, char prefix)
             {
-                var span = ooutput.GetSpan(1);
-                span[0] = (byte)pprefix;
-                ooutput.Advance(1);
+                var span = output.GetSpan(1);
+                span[0] = (byte)prefix;
+                output.Advance(1);
             }
 
             if (value.IsNil) return; // not actually a request (i.e. empty/whitespace request)
             if (client != null && client.ShouldSkipResponse()) return; // intentionally skipping the result
-            char prefix;
+
             var type = value.Type;
-            if (protocol is RedisProtocol.Resp2 & type is not ResultType.Null) type = type.ToResp2();
+            if (protocol is RedisProtocol.Resp2 & type is not ResultType.Null)
+            {
+                if (type is ResultType.VerbatimString)
+                {
+                    var s = (string)value.AsRedisValue();
+                    if (s is { Length: >= 4 } && s[3] == ':')
+                        value = TypedRedisValue.BulkString(s.Substring(4));
+                }
+                type = type.ToResp2();
+            }
 RetryResp2:
             if (protocol is RedisProtocol.Resp3 && value.IsNullValueOrArray)
             {
@@ -332,11 +351,9 @@ RetryResp2:
             }
             else
             {
+                char prefix;
                 switch (type)
                 {
-                    case ResultType.Null:
-                        output.Write("_\r\n"u8);
-                        break;
                     case ResultType.Integer:
                         PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
                         break;
@@ -355,30 +372,34 @@ RetryResp2:
                     case ResultType.BulkString:
                         PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
                         break;
+                    case ResultType.Null:
+                    case ResultType.Push when value.IsNullArray:
+                    case ResultType.Map when value.IsNullArray:
+                    case ResultType.Set when value.IsNullArray:
+                    case ResultType.Attribute when value.IsNullArray:
+                        output.Write("_\r\n"u8);
+                        break;
+                    case ResultType.Array when value.IsNullArray:
+                        PhysicalConnection.WriteMultiBulkHeader(output, -1, type);
+                        break;
                     case ResultType.Push:
                     case ResultType.Map:
                     case ResultType.Array:
-                        if (value.IsNullArray)
+                    case ResultType.Set:
+                    case ResultType.Attribute:
+                        var segment = value.Segment;
+                        PhysicalConnection.WriteMultiBulkHeader(output, segment.Count, type);
+                        var arr = segment.Array;
+                        int offset = segment.Offset;
+                        for (int i = 0; i < segment.Count; i++)
                         {
-                            PhysicalConnection.WriteMultiBulkHeader(output, -1, type);
-                        }
-                        else
-                        {
-                            var segment = value.Segment;
-                            PhysicalConnection.WriteMultiBulkHeader(output, segment.Count, type);
-                            var arr = segment.Array;
-                            int offset = segment.Offset;
-                            for (int i = 0; i < segment.Count; i++)
-                            {
-                                var item = arr[offset++];
-                                if (item.IsNil)
-                                    throw new InvalidOperationException("Array element cannot be nil, index " + i);
+                            var item = arr[offset++];
+                            if (item.IsNil)
+                                throw new InvalidOperationException("Array element cannot be nil, index " + i);
 
-                                // note: don't pass client down; this would impact SkipReplies
-                                await WriteResponseAsync(null, output, item, protocol);
-                            }
+                            // note: don't pass client down; this would impact SkipReplies
+                            await WriteResponseAsync(null, output, item, protocol);
                         }
-
                         break;
                     default:
                         // retry with RESP2

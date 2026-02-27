@@ -931,11 +931,20 @@ namespace StackExchange.Redis
             var span = output.GetSpan(3 + Format.MaxInt32TextLen);
             span[0] = type switch
             {
+                ResultType.Push => (byte)'>',
+                ResultType.Attribute => (byte)'|',
                 ResultType.Map => (byte)'%',
                 ResultType.Set => (byte)'~',
                  _ => (byte)'*',
             };
-            if (type is ResultType.Map & count > 1) count >>= 1;
+            if (type is ResultType.Map & count > 0)
+            {
+                if ((count & 1) != 0) Throw(count);
+                count >>= 1;
+                static void Throw(long count) => throw new ArgumentOutOfRangeException(
+                    paramName: nameof(count),
+                    message: $"Map data must be in pairs; got {count}");
+            }
             int offset = WriteRaw(span, count, offset: 1);
             output.Advance(offset);
         }

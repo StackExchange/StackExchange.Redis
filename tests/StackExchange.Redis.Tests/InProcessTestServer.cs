@@ -15,8 +15,6 @@ namespace StackExchange.Redis.Tests;
 
 public class InProcessTestServer : MemoryCacheRedisServer
 {
-    public Tunnel Tunnel { get; }
-
     private readonly ITestOutputHelper? _log;
     public InProcessTestServer(ITestOutputHelper? log = null)
     {
@@ -25,6 +23,44 @@ public class InProcessTestServer : MemoryCacheRedisServer
         _log?.WriteLine($"Creating in-process server: {ToString()}");
         Tunnel = new InProcTunnel(this);
     }
+
+    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = false, TextWriter? log = null)
+        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub), log);
+
+    public ConfigurationOptions GetClientConfig(bool withPubSub = false)
+    {
+        var commands = GetCommands();
+        if (!withPubSub)
+        {
+            commands.Remove(nameof(RedisCommand.SUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.PSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.SSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.UNSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.PUNSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.SUNSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.PUBLISH));
+            commands.Remove(nameof(RedisCommand.SPUBLISH));
+        }
+        var config = new ConfigurationOptions
+        {
+            CommandMap = CommandMap.Create(commands),
+            ConfigurationChannel = "",
+            TieBreaker = "",
+            DefaultVersion = RedisVersion,
+            ConnectTimeout = 10000,
+            SyncTimeout = 5000,
+            AsyncTimeout = 5000,
+            AllowAdmin = true,
+            Tunnel = Tunnel,
+        };
+        foreach (var endpoint in GetEndPoints())
+        {
+            config.EndPoints.Add(endpoint);
+        }
+        return config;
+    }
+
+    public Tunnel Tunnel { get; }
 
     public override void Log(string message)
     {

@@ -13,22 +13,6 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 public class MovedUnitTests(ITestOutputHelper log)
 {
-    private static ConfigurationOptions GetMinimalConfig(InProcessTestServer server)
-    {
-        return new ConfigurationOptions
-        {
-            CommandMap = CommandMap.Create(new HashSet<string> { "SUBSCRIBE" }, false),
-            ConfigurationChannel = "",
-            TieBreaker = "",
-            EndPoints = { server.DefaultEndPoint },
-            ConnectTimeout = 10000,
-            SyncTimeout = 5000,
-            AsyncTimeout = 5000,
-            AllowAdmin = true,
-            Tunnel = server.Tunnel,
-        };
-    }
-
     private RedisKey Me([CallerMemberName] string callerName = "") => callerName;
 
     [Theory]
@@ -41,7 +25,8 @@ public class MovedUnitTests(ITestOutputHelper log)
         string keyA = "abc", keyB = "def"; // known to be on different slots
 
         using var server = new InProcessTestServer(log) { ServerType = serverType };
-        using var muxer = await ConnectionMultiplexer.ConnectAsync(GetMinimalConfig(server));
+        await using var muxer = await server.ConnectAsync();
+
         var db = muxer.GetDatabase();
         await db.StringSetAsync(keyA, "value", flags: CommandFlags.FireAndForget);
 
@@ -71,7 +56,7 @@ public class MovedUnitTests(ITestOutputHelper log)
         using var server = new InProcessTestServer(log) { ServerType = ServerType.Cluster };
         var secondNode = server.AddEmptyNode();
 
-        using var muxer = await ConnectionMultiplexer.ConnectAsync(GetMinimalConfig(server));
+        await using var muxer = await server.ConnectAsync();
         var db = muxer.GetDatabase();
 
         await db.StringSetAsync(key, "value");
@@ -122,9 +107,7 @@ public class MovedUnitTests(ITestOutputHelper log)
             log: log) { ServerType = serverType, };
 
         // Act: Connect to the test server
-        var config = GetMinimalConfig(testServer);
-
-        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        await using var conn = await testServer.ConnectAsync();
         // Ping the server to ensure it's responsive
         var server = conn.GetServer(testServer.DefaultEndPoint);
 
