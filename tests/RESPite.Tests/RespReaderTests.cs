@@ -466,7 +466,7 @@ public class RespReaderTests(ITestOutputHelper logger)
         foreach (var sub in reader.AggregateChildren())
 #pragma warning restore SERDBG
         {
-            sub.MoveNext(RespPrefix.Integer);
+            sub.Demand(RespPrefix.Integer);
             arr[i++] = sub.ReadInt32();
             sub.DemandEnd();
         }
