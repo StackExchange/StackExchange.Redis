@@ -135,19 +135,11 @@ public ref partial struct RespReader
             _reader.MovePastCurrent();
             var snapshot = _reader.Clone();
 
-            if (_remaining < 0)
+            if (!(attributeReader is null
+                    ? _reader.TryReadNextSkipAttributes(skipStreamTerminator: false)
+                    : _reader.TryReadNextProcessAttributes(attributeReader, ref attributes, false)))
             {
-                // streaming; we don't expect attributes in the middle
-                if (!_reader.TryReadNextSkipAttributes(skipStreamTerminator: false))
-                {
-                    ThrowEof(); // we expected something, if only the terminator
-                }
-                // otherwise: handled below like normal
-            }
-            else if (!(attributeReader is null ? _reader.TryMoveNext() : _reader.TryMoveNext(attributeReader, ref attributes)))
-            {
-                // end of data
-                if (_remaining > 0) ThrowEof(); // well that's weird...
+                if (_remaining != 0) ThrowEof(); // incomplete aggregate, simple or streaming
                 _remaining = 0;
                 Value = default;
                 return false;
