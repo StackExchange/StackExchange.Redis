@@ -33,7 +33,7 @@ public struct RespScanState
     private int _elementCount;
 
     /// <inheritdoc/>
-    public override string ToString() => $"{_prefix}, consumed: {_totalBytes} bytes, {_elementCount} nodes, complete: {IsComplete}";
+    public override string ToString() => $"{_prefix}, consumed: {_totalBytes} bytes, {_elementCount} nodes, complete: {IsComplete} ({_delta + 1} outstanding)";
 #else
     /// <inheritdoc/>
     public override string ToString() => _prefix.ToString();
@@ -132,7 +132,7 @@ public struct RespScanState
                 _prefix = reader.Prefix;
             }
 
-            if (reader.IsAggregate) ApplyAggregateRules(ref reader);
+            if (reader.IsNonNullAggregate) ApplyAggregateRules(ref reader);
 
             if (_streamingAggregateDepth == 0) _delta += reader.Delta();
         }

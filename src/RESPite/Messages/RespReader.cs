@@ -261,6 +261,9 @@ public ref partial struct RespReader
     /// </summary>
     public readonly bool IsAggregate => (_flags & RespFlags.IsAggregate) != 0;
 
+    internal readonly bool IsNonNullAggregate
+        => (_flags & (RespFlags.IsAggregate | RespFlags.IsNull)) == RespFlags.IsAggregate;
+
     /// <summary>
     /// Indicates whether this is a null value; this could be an explicit <see cref="RespPrefix.Null"/>,
     /// or a scalar or aggregate a negative reported length.
@@ -299,6 +302,7 @@ public ref partial struct RespReader
     internal int Delta() =>
         (_flags & (RespFlags.IsScalar | RespFlags.IsAggregate | RespFlags.IsStreaming | RespFlags.IsAttribute)) switch
         {
+            RespFlags.IsScalar | RespFlags.IsAggregate=> -1, // null has this
             RespFlags.IsScalar => -1,
             RespFlags.IsAggregate => _length - 1,
             RespFlags.IsAggregate | RespFlags.IsAttribute => _length,
