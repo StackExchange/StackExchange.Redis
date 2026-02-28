@@ -1745,8 +1745,7 @@ public ref partial struct RespReader
     {
         var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesNumber + 1]);
 
-        if (span.Length <= RespConstants.MaxRawBytesNumber
-            && Utf8Parser.TryParse(span, out value, out int bytes)
+        if (Utf8Parser.TryParse(span, out value, out int bytes)
             && bytes == span.Length)
         {
             return true;
