@@ -705,7 +705,6 @@ public ref partial struct RespReader
         }
     }
 
-    // scoped ReadOnlySpan<TSource> value, out TValue result)
     public readonly unsafe bool TryParseScalar<T>(
         delegate* managed<ReadOnlySpan<byte>, out T, bool> parser, out T value)
     {
