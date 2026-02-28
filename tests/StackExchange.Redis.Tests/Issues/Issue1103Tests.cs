@@ -21,6 +21,7 @@ public class Issue1103Tests(ITestOutputHelper output) : TestBase(output)
         RedisKey key = Me();
         var db = conn.GetDatabase();
         RedisValue typed = value;
+        Assert.Equal(value.ToString(), typed.ToString());
 
         // only need UInt64 for 64-bits
         Assert.Equal((StorageType)storageType, typed.Type);

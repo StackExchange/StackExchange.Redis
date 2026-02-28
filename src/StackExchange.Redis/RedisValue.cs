@@ -92,7 +92,7 @@ namespace StackExchange.Redis
         private RedisValue(ulong value)
         {
             Unsafe.SkipInit(out this);
-            if (value < long.MaxValue)
+            if (value <= long.MaxValue)
             {
                 _valueInt64 = (long)value;
                 _obj = Sentinel_SignedInteger;
