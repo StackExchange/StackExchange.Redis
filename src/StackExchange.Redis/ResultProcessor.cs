@@ -966,9 +966,13 @@ namespace StackExchange.Redis
                     while (iter.MoveNext())
                     {
                         var key = iter.Value;
-                        if (!key.TryParseScalar(ConfigFieldMetadata.TryParse, out ConfigField field))
+                        ConfigField field;
+                        unsafe
                         {
-                            field = ConfigField.Unknown;
+                            if (!key.TryParseScalar(&ConfigFieldMetadata.TryParse, out field))
+                            {
+                                field = ConfigField.Unknown;
+                            }
                         }
 
                         if (!iter.MoveNext()) break;
@@ -1004,20 +1008,29 @@ namespace StackExchange.Redis
                                 break;
                             case ConfigField.SlaveReadOnly:
                             case ConfigField.ReplicaReadOnly:
-                                if (val.TryParseScalar(YesNoMetadata.TryParse, out YesNo yesNo))
+                                YesNo yesNo;
+                                unsafe
                                 {
-                                    switch (yesNo)
+                                    if (val.TryParseScalar(&YesNoMetadata.TryParse, out yesNo))
                                     {
-                                        case YesNo.Yes:
-                                            server.ReplicaReadOnly = true;
-                                            Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), true);
-                                            break;
-                                        case YesNo.No:
-                                            server.ReplicaReadOnly = false;
-                                            Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), false);
-                                            break;
+                                        switch (yesNo)
+                                        {
+                                            case YesNo.Yes:
+                                                server.ReplicaReadOnly = true;
+                                                Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(
+                                                    new(server),
+                                                    true);
+                                                break;
+                                            case YesNo.No:
+                                                server.ReplicaReadOnly = false;
+                                                Log?.LogInformationAutoConfiguredConfigReadOnlyReplica(
+                                                    new(server),
+                                                    false);
+                                                break;
+                                        }
                                     }
                                 }
+
                                 break;
                         }
                     }
@@ -1032,9 +1045,13 @@ namespace StackExchange.Redis
                     while (iter.MoveNext())
                     {
                         var key = iter.Value;
-                        if (!key.TryParseScalar(HelloFieldMetadata.TryParse, out HelloField field))
+                        HelloField field;
+                        unsafe
                         {
-                            field = HelloField.Unknown;
+                            if (!key.TryParseScalar(&HelloFieldMetadata.TryParse, out field))
+                            {
+                                field = HelloField.Unknown;
+                            }
                         }
 
                         if (!iter.MoveNext()) break;
@@ -1711,10 +1728,16 @@ namespace StackExchange.Redis
             {
                 if (reader.IsScalar)
                 {
-                    if (!reader.TryParseScalar<RedisType>(RedisTypeMetadata.TryParse, out var redisType))
+                    RedisType redisType;
+                    unsafe
                     {
-                        // RESP null values and empty strings should map to None rather than Unknown
-                        redisType = (reader.IsNull || reader.ScalarLengthIs(0)) ? Redis.RedisType.None : Redis.RedisType.Unknown;
+                        if (!reader.TryParseScalar(&RedisTypeMetadata.TryParse, out redisType))
+                        {
+                            // RESP null values and empty strings should map to None rather than Unknown
+                            redisType = (reader.IsNull || reader.ScalarLengthIs(0))
+                                ? Redis.RedisType.None
+                                : Redis.RedisType.Unknown;
+                        }
                     }
 
                     SetResult(message, redisType);
@@ -1959,9 +1982,13 @@ The coordinates as a two items x,y array (longitude,latitude).
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext() && iter.Value.IsScalar)
                     {
-                        if (!iter.Value.TryParseScalar(LCSFieldMetadata.TryParse, out LCSField field))
+                        LCSField field;
+                        unsafe
                         {
-                            field = LCSField.Unknown;
+                            if (!iter.Value.TryParseScalar(&LCSFieldMetadata.TryParse, out field))
+                            {
+                                field = LCSField.Unknown;
+                            }
                         }
 
                         if (!iter.MoveNext()) break; // out of data
@@ -2067,9 +2094,13 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return true;
                 }
 
-                if (!reader.TryParseScalar(RoleTypeMetadata.TryParse, out RoleType roleType))
+                RoleType roleType;
+                unsafe
                 {
-                    roleType = RoleType.Unknown;
+                    if (!reader.TryParseScalar(&RoleTypeMetadata.TryParse, out roleType))
+                    {
+                        roleType = RoleType.Unknown;
+                    }
                 }
 
                 var role = roleType switch
@@ -2177,10 +2208,15 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 // this is just a long-winded way of avoiding some string allocs!
-                if (!reader.TryParseScalar(ReplicationStateMetadata.TryParse, out ReplicationState state))
+                ReplicationState state;
+                unsafe
                 {
-                    state = ReplicationState.Unknown;
+                    if (!reader.TryParseScalar(&ReplicationStateMetadata.TryParse, out state))
+                    {
+                        state = ReplicationState.Unknown;
+                    }
                 }
+
                 var replicationState = state switch
                 {
                     ReplicationState.Connect => "connect",
@@ -2595,9 +2631,13 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    if (!reader.TryParseScalar(StreamConsumerInfoFieldMetadata.TryParse, out StreamConsumerInfoField field))
+                    StreamConsumerInfoField field;
+                    unsafe
                     {
-                        field = StreamConsumerInfoField.Unknown;
+                        if (!reader.TryParseScalar(&StreamConsumerInfoFieldMetadata.TryParse, out field))
+                        {
+                            field = StreamConsumerInfoField.Unknown;
+                        }
                     }
 
                     if (!reader.TryMoveNext()) break;
@@ -2664,9 +2704,13 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    if (!reader.TryParseScalar(StreamGroupInfoFieldMetadata.TryParse, out StreamGroupInfoField field))
+                    StreamGroupInfoField field;
+                    unsafe
                     {
-                        field = StreamGroupInfoField.Unknown;
+                        if (!reader.TryParseScalar(&StreamGroupInfoFieldMetadata.TryParse, out field))
+                        {
+                            field = StreamGroupInfoField.Unknown;
+                        }
                     }
 
                     if (!reader.TryMoveNext()) break;
@@ -2764,9 +2808,13 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    if (!reader.TryParseScalar(StreamInfoFieldMetadata.TryParse, out StreamInfoField field))
+                    StreamInfoField field;
+                    unsafe
                     {
-                        field = StreamInfoField.Unknown;
+                        if (!reader.TryParseScalar(&StreamInfoFieldMetadata.TryParse, out field))
+                        {
+                            field = StreamInfoField.Unknown;
+                        }
                     }
 
                     // Move to value
@@ -3301,9 +3349,15 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                                 while (itemReader.TryMoveNext() && itemReader.IsScalar)
                                 {
-                                    if (!itemReader.TryParseScalar(SentinelAddressFieldMetadata.TryParse, out SentinelAddressField field))
+                                    SentinelAddressField field;
+                                    unsafe
                                     {
-                                        field = SentinelAddressField.Unknown;
+                                        if (!itemReader.TryParseScalar(
+                                                &SentinelAddressFieldMetadata.TryParse,
+                                                out field))
+                                        {
+                                            field = SentinelAddressField.Unknown;
+                                        }
                                     }
 
                                     // Check for second scalar value
@@ -3360,9 +3414,15 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                                 while (r.TryMoveNext() && r.IsScalar)
                                 {
-                                    if (!r.TryParseScalar(SentinelAddressFieldMetadata.TryParse, out SentinelAddressField field))
+                                    SentinelAddressField field;
+                                    unsafe
                                     {
-                                        field = SentinelAddressField.Unknown;
+                                        if (!r.TryParseScalar(
+                                                &SentinelAddressFieldMetadata.TryParse,
+                                                out field))
+                                        {
+                                            field = SentinelAddressField.Unknown;
+                                        }
                                     }
 
                                     // Check for second scalar value

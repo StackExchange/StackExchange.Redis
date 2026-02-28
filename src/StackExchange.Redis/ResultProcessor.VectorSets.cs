@@ -104,31 +104,37 @@ internal abstract partial class ResultProcessor
                     continue;
                 }
 
-                switch (field)
+                unsafe
                 {
-                    case VectorSetInfoField.Size when reader.TryReadInt64(out var i64):
-                        resultSize = i64;
-                        break;
-                    case VectorSetInfoField.VsetUid when reader.TryReadInt64(out var i64):
-                        vsetUid = i64;
-                        break;
-                    case VectorSetInfoField.MaxLevel when reader.TryReadInt64(out var i64):
-                        maxLevel = checked((int)i64);
-                        break;
-                    case VectorSetInfoField.VectorDim when reader.TryReadInt64(out var i64):
-                        vectorDim = checked((int)i64);
-                        break;
-                    case VectorSetInfoField.QuantType when reader.TryParseScalar<VectorSetQuantization>(VectorSetQuantizationMetadata.TryParse, out var quantTypeValue)
-                                                           && quantTypeValue is not VectorSetQuantization.Unknown:
-                        quantType = quantTypeValue;
-                        break;
-                    case VectorSetInfoField.QuantType:
-                        quantTypeRaw = reader.ReadString();
-                        quantType = VectorSetQuantization.Unknown;
-                        break;
-                    case VectorSetInfoField.HnswMaxNodeUid when reader.TryReadInt64(out var i64):
-                        hnswMaxNodeUid = i64;
-                        break;
+                    switch (field)
+                    {
+                        case VectorSetInfoField.Size when reader.TryReadInt64(out var i64):
+                            resultSize = i64;
+                            break;
+                        case VectorSetInfoField.VsetUid when reader.TryReadInt64(out var i64):
+                            vsetUid = i64;
+                            break;
+                        case VectorSetInfoField.MaxLevel when reader.TryReadInt64(out var i64):
+                            maxLevel = checked((int)i64);
+                            break;
+                        case VectorSetInfoField.VectorDim when reader.TryReadInt64(out var i64):
+                            vectorDim = checked((int)i64);
+                            break;
+                        case VectorSetInfoField.QuantType
+                            when reader.TryParseScalar(
+                                     &VectorSetQuantizationMetadata.TryParse,
+                                     out VectorSetQuantization quantTypeValue)
+                                 && quantTypeValue is not VectorSetQuantization.Unknown:
+                            quantType = quantTypeValue;
+                            break;
+                        case VectorSetInfoField.QuantType:
+                            quantTypeRaw = reader.ReadString();
+                            quantType = VectorSetQuantization.Unknown;
+                            break;
+                        case VectorSetInfoField.HnswMaxNodeUid when reader.TryReadInt64(out var i64):
+                            hnswMaxNodeUid = i64;
+                            break;
+                    }
                 }
             }
 

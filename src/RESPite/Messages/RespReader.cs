@@ -739,6 +739,9 @@ public ref partial struct RespReader
 #pragma warning disable RS0016, RS0027 // public API
     [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if DEBUG
+    [Obsolete("Please prefer the function-pointer API for library-internal use.")]
+#endif
     public readonly bool TryParseScalar<T>(ScalarParser<byte, T> parser, out T value)
 #pragma warning restore RS0016, RS0027 // public API
     {

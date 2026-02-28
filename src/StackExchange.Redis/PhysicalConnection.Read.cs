@@ -392,7 +392,12 @@ internal sealed partial class PhysicalConnection
             && reader.AggregateLength() >= 2
             && (reader.SafeTryMoveNext() & reader.IsInlineScalar & !reader.IsError))
         {
-            if (!reader.TryParseScalar(PushKindMetadata.TryParse, out PushKind kind)) kind = PushKind.None;
+            PushKind kind;
+            unsafe
+            {
+                if (!reader.TryParseScalar(&PushKindMetadata.TryParse, out kind)) kind = PushKind.None;
+            }
+
             RedisChannel.RedisChannelOptions channelOptions = kind switch
             {
                 PushKind.PMessage or PushKind.PSubscribe or PushKind.PUnsubscribe => RedisChannel.RedisChannelOptions.Pattern,
