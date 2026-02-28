@@ -85,9 +85,13 @@ internal abstract partial class ResultProcessor
                 // Read key
                 if (!reader.IsScalar) break;
 
-                if (!reader.TryRead(VectorSetInfoFieldMetadata.TryParse, out VectorSetInfoField field))
+                VectorSetInfoField field;
+                unsafe
                 {
-                    field = VectorSetInfoField.Unknown;
+                    if (!reader.TryParseScalar(&VectorSetInfoFieldMetadata.TryParse, out field))
+                    {
+                        field = VectorSetInfoField.Unknown;
+                    }
                 }
 
                 // Move to value
@@ -114,7 +118,7 @@ internal abstract partial class ResultProcessor
                     case VectorSetInfoField.VectorDim when reader.TryReadInt64(out var i64):
                         vectorDim = checked((int)i64);
                         break;
-                    case VectorSetInfoField.QuantType when reader.TryRead<VectorSetQuantization>(VectorSetQuantizationMetadata.TryParse, out var quantTypeValue)
+                    case VectorSetInfoField.QuantType when reader.TryParseScalar<VectorSetQuantization>(VectorSetQuantizationMetadata.TryParse, out var quantTypeValue)
                                                            && quantTypeValue is not VectorSetQuantization.Unknown:
                         quantType = quantTypeValue;
                         break;

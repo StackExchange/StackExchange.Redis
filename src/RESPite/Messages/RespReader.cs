@@ -705,6 +705,31 @@ public ref partial struct RespReader
         }
     }
 
+    // scoped ReadOnlySpan<TSource> value, out TValue result)
+    public readonly unsafe bool TryParseScalar<T>(
+        delegate* managed<ReadOnlySpan<byte>, out T, bool> parser, out T value)
+    {
+        // Fast path: try to get the span directly
+        return TryGetSpan(out var span) ? parser(span, out value) : TryParseSlow(parser, out value);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private readonly unsafe bool TryParseSlow<T>(
+        delegate* managed<ReadOnlySpan<byte>, out T, bool> parser,
+        out T value)
+    {
+        byte[] pooled = [];
+        try
+        {
+            var span = Buffer(ref pooled, stackalloc byte[256]);
+            return parser(span, out value);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(pooled);
+        }
+    }
+
     /// <summary>
     /// Tries to read the current scalar element using a parser callback.
     /// </summary>
@@ -715,21 +740,15 @@ public ref partial struct RespReader
 #pragma warning disable RS0016, RS0027 // public API
     [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool TryRead<T>(ScalarParser<byte, T> parser, out T value)
+    public readonly bool TryParseScalar<T>(ScalarParser<byte, T> parser, out T value)
 #pragma warning restore RS0016, RS0027 // public API
     {
         // Fast path: try to get the span directly
-        if (TryGetSpan(out var span))
-        {
-            return parser(span, out value);
-        }
-
-        // Slow path: need to buffer the data
-        return TryReadSlow(parser, out value);
+        return TryGetSpan(out var span) ? parser(span, out value) : TryParseSlow(parser, out value);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private readonly bool TryReadSlow<T>(ScalarParser<byte, T> parser, out T value)
+    private readonly bool TryParseSlow<T>(ScalarParser<byte, T> parser, out T value)
     {
         byte[] pooled = [];
         try

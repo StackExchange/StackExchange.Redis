@@ -966,7 +966,7 @@ namespace StackExchange.Redis
                     while (iter.MoveNext())
                     {
                         var key = iter.Value;
-                        if (!key.TryRead(ConfigFieldMetadata.TryParse, out ConfigField field))
+                        if (!key.TryParseScalar(ConfigFieldMetadata.TryParse, out ConfigField field))
                         {
                             field = ConfigField.Unknown;
                         }
@@ -1004,7 +1004,7 @@ namespace StackExchange.Redis
                                 break;
                             case ConfigField.SlaveReadOnly:
                             case ConfigField.ReplicaReadOnly:
-                                if (val.TryRead(YesNoMetadata.TryParse, out YesNo yesNo))
+                                if (val.TryParseScalar(YesNoMetadata.TryParse, out YesNo yesNo))
                                 {
                                     switch (yesNo)
                                     {
@@ -1032,7 +1032,7 @@ namespace StackExchange.Redis
                     while (iter.MoveNext())
                     {
                         var key = iter.Value;
-                        if (!key.TryRead(HelloFieldMetadata.TryParse, out HelloField field))
+                        if (!key.TryParseScalar(HelloFieldMetadata.TryParse, out HelloField field))
                         {
                             field = HelloField.Unknown;
                         }
@@ -1711,7 +1711,7 @@ namespace StackExchange.Redis
             {
                 if (reader.IsScalar)
                 {
-                    if (!reader.TryRead<RedisType>(RedisTypeMetadata.TryParse, out var redisType))
+                    if (!reader.TryParseScalar<RedisType>(RedisTypeMetadata.TryParse, out var redisType))
                     {
                         // RESP null values and empty strings should map to None rather than Unknown
                         redisType = (reader.IsNull || reader.ScalarLengthIs(0)) ? Redis.RedisType.None : Redis.RedisType.Unknown;
@@ -1959,7 +1959,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext() && iter.Value.IsScalar)
                     {
-                        if (!iter.Value.TryRead(LCSFieldMetadata.TryParse, out LCSField field))
+                        if (!iter.Value.TryParseScalar(LCSFieldMetadata.TryParse, out LCSField field))
                         {
                             field = LCSField.Unknown;
                         }
@@ -2067,7 +2067,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return true;
                 }
 
-                if (!reader.TryRead(RoleTypeMetadata.TryParse, out RoleType roleType))
+                if (!reader.TryParseScalar(RoleTypeMetadata.TryParse, out RoleType roleType))
                 {
                     roleType = RoleType.Unknown;
                 }
@@ -2177,7 +2177,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 // this is just a long-winded way of avoiding some string allocs!
-                if (!reader.TryRead(ReplicationStateMetadata.TryParse, out ReplicationState state))
+                if (!reader.TryParseScalar(ReplicationStateMetadata.TryParse, out ReplicationState state))
                 {
                     state = ReplicationState.Unknown;
                 }
@@ -2595,7 +2595,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    if (!reader.TryRead(StreamConsumerInfoFieldMetadata.TryParse, out StreamConsumerInfoField field))
+                    if (!reader.TryParseScalar(StreamConsumerInfoFieldMetadata.TryParse, out StreamConsumerInfoField field))
                     {
                         field = StreamConsumerInfoField.Unknown;
                     }
@@ -2664,7 +2664,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    if (!reader.TryRead(StreamGroupInfoFieldMetadata.TryParse, out StreamGroupInfoField field))
+                    if (!reader.TryParseScalar(StreamGroupInfoFieldMetadata.TryParse, out StreamGroupInfoField field))
                     {
                         field = StreamGroupInfoField.Unknown;
                     }
@@ -2764,7 +2764,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
-                    if (!reader.TryRead(StreamInfoFieldMetadata.TryParse, out StreamInfoField field))
+                    if (!reader.TryParseScalar(StreamInfoFieldMetadata.TryParse, out StreamInfoField field))
                     {
                         field = StreamInfoField.Unknown;
                     }
@@ -3301,7 +3301,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                                 while (itemReader.TryMoveNext() && itemReader.IsScalar)
                                 {
-                                    if (!itemReader.TryRead(SentinelAddressFieldMetadata.TryParse, out SentinelAddressField field))
+                                    if (!itemReader.TryParseScalar(SentinelAddressFieldMetadata.TryParse, out SentinelAddressField field))
                                     {
                                         field = SentinelAddressField.Unknown;
                                     }
@@ -3360,7 +3360,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                                 while (r.TryMoveNext() && r.IsScalar)
                                 {
-                                    if (!r.TryRead(SentinelAddressFieldMetadata.TryParse, out SentinelAddressField field))
+                                    if (!r.TryParseScalar(SentinelAddressFieldMetadata.TryParse, out SentinelAddressField field))
                                     {
                                         field = SentinelAddressField.Unknown;
                                     }

@@ -165,7 +165,7 @@ namespace StackExchange.Redis.Server
             return base.Execute(client, request);
 
             static bool IsAuthCommand(in RedisRequest request) =>
-                request.Count != 0 && request.GetReader(0).TryRead(RedisCommandMetadata.TryParseCI, out RedisCommand cmd)
+                request.Count != 0 && request.GetReader(0).TryParseScalar(RedisCommandMetadata.TryParseCI, out RedisCommand cmd)
                                    && cmd is RedisCommand.AUTH or RedisCommand.HELLO;
         }
 
@@ -206,7 +206,7 @@ namespace StackExchange.Redis.Server
                 {
                     int remaining = request.Count - (i + 1);
                     var fieldReader = request.GetReader(i);
-                    if (!fieldReader.TryRead(HelloSubFieldsMetadata.TryParseCI, out HelloSubFields field))
+                    if (!fieldReader.TryParseScalar(HelloSubFieldsMetadata.TryParseCI, out HelloSubFields field))
                     {
                         return ArgFail(fieldReader);
                     }

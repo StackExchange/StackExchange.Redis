@@ -43,7 +43,7 @@ public sealed partial class HotKeysResult
 
         while (reader.TryMoveNext() && reader.IsScalar)
         {
-            if (!reader.TryRead(HotKeysFieldMetadata.TryParse, out HotKeysField field))
+            if (!reader.TryParseScalar(HotKeysFieldMetadata.TryParse, out HotKeysField field))
             {
                 field = HotKeysField.Unknown;
             }
