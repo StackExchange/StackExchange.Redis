@@ -202,7 +202,28 @@ namespace StackExchange.Redis
 
         private static RedisCommand[]? s_AllCommands;
 
-        private static ReadOnlySpan<RedisCommand> AllCommands => s_AllCommands ??= (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
+        private static ReadOnlySpan<RedisCommand> AllCommands => s_AllCommands ??= GetAllValues();
+
+        private static RedisCommand[] GetAllValues()
+        {
+            // everything *except* unknown
+            var original = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
+            if (original[0] == RedisCommand.UNKNOWN)
+            {
+                // fast-path, just cut the first element
+                return original.AsSpan(1).ToArray();
+            }
+            // slow path; find it where-ever it is
+            var reduced = new RedisCommand[original.Length - 1];
+            var writeIndex = 0;
+            foreach (var item in original)
+            {
+                if (item != RedisCommand.UNKNOWN)
+                    reduced[writeIndex++] = item;
+            }
+
+            return reduced;
+        }
 
         private static CommandMap CreateImpl(Dictionary<string, string?>? caseInsensitiveOverrides, HashSet<RedisCommand>? exclusions)
         {
