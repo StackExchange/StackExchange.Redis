@@ -11,7 +11,11 @@ namespace RESPite.Messages;
 public ref partial struct RespReader
 {
     /// <summary>
-     /// Reads the sub-elements associated with an aggregate value.
+     /// Reads the sub-elements associated with an aggregate value. For convenience, when
+     /// using <c>foreach</c> (<see cref="MoveNext()"/>) the reader
+     /// is advanced into the child element ready for reading, which bypasses attributes. If attributes
+     /// are required from child elements, the iterator can be advanced manually (not via
+     /// <c>foreach</c> using an optional attribute-reader in the <see cref="MoveNext()"/> call.
      /// </summary>
     public readonly AggregateEnumerator AggregateChildren() => new(in this);
 
