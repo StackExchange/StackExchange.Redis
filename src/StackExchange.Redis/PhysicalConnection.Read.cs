@@ -284,15 +284,6 @@ internal sealed partial class PhysicalConnection
         }
     }
 
-    public RespMode Mode { get; set; } = RespMode.Resp2;
-
-    public enum RespMode
-    {
-        Resp2,
-        Resp2PubSub,
-        Resp3,
-    }
-
     private void UpdateBufferStats(int lastResult, long inBuffer)
     {
         // Track the last result size *after* processing for the *next* error message
@@ -304,10 +295,12 @@ internal sealed partial class PhysicalConnection
     {
         DebugValidateSingleFrame(frame);
         _readStatus = ReadStatus.MatchResult;
+
         switch (prefix)
         {
-            case RespPrefix.Push: // explicit push message
-            case RespPrefix.Array when Mode is RespMode.Resp2PubSub && !IsArrayPong(frame): // likely pub/sub payload
+            case RespPrefix.Push: // explicit RESP3 push message
+            case RespPrefix.Array when (_protocol is RedisProtocol.Resp2 & connectionType is ConnectionType.Subscription)
+                                       && !IsArrayPong(frame): // could be a RESP2 pub/sub payload
                 // out-of-band; pub/sub etc
                 if (OnOutOfBand(frame, ref lease))
                 {
@@ -531,13 +524,13 @@ internal sealed partial class PhysicalConnection
 
             if (!_writtenAwaitingResponse.TryDequeue(out msg))
             {
-                Throw(frame);
+                Throw(frame, connectionType, _protocol);
 
                 [DoesNotReturn]
-                static void Throw(ReadOnlySpan<byte> frame)
+                static void Throw(ReadOnlySpan<byte> frame, ConnectionType connection, RedisProtocol protocol)
                 {
                     var prefix = RespReaderExtensions.GetRespPrefix(frame);
-                    throw new InvalidOperationException("Received response with no message waiting: " + prefix.ToString());
+                    throw new InvalidOperationException($"Received {connection}/{protocol} response with no message waiting: " + prefix.ToString());
                 }
             }
         }
