@@ -1753,7 +1753,7 @@ namespace StackExchange.Redis
             {
                 if (reader.IsAggregate)
                 {
-                    var arr = reader.ReadPastRedisValues()!;
+                    var arr = reader.ReadPastRedisValues() ?? [];
                     SetResult(message, arr);
                     return true;
                 }

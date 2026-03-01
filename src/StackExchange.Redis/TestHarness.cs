@@ -150,7 +150,7 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     /// </summary>
     public void ValidateResp(string expected, string command, params ICollection<object> args)
     {
-        var msg = new RedisDatabase.ExecuteMessage(CommandMap, -1, CommandFlags.None, command, Fixup(args));
+        var msg = new RedisDatabase.ExecuteMessage(CommandMap, 0, CommandFlags.None, command, Fixup(args));
         var writer = new MessageWriter(ChannelPrefix, CommandMap);
         ReadOnlyMemory<byte> payload = default;
         char[]? lease = null;
