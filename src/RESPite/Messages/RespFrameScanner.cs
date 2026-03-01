@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -54,11 +55,13 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
             case 2:
                 return OperationStatus.NeedMoreData;
             case 3:
-                hi = 0; // needed to wipe that final byte
-                Unsafe.CopyBlockUnaligned(
-                    ref Unsafe.As<uint, byte>(ref hi),
-                    ref MemoryMarshal.GetReference(data),
-                    3);
+                // assume we're reading as little-endian, so: first byte is low
+                hi = data[0] | ((uint)data[1] << 8) | ((uint)data[2] << 16);
+                if (!BitConverter.IsLittleEndian)
+                {
+                    // compensate if necessary (which: it won't be)
+                    hi = BinaryPrimitives.ReverseEndianness(hi);
+                }
                 break;
             default:
                 hi = UnsafeCpuUInt32(data);
