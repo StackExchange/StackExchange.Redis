@@ -55,7 +55,7 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
                 return OperationStatus.NeedMoreData;
             case 3:
                 hi = 0; // needed to wipe that final byte
-                Unsafe.CopyBlock(
+                Unsafe.CopyBlockUnaligned(
                     ref Unsafe.As<uint, byte>(ref hi),
                     ref MemoryMarshal.GetReference(data),
                     3);
