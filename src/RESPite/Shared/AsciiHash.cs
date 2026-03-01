@@ -33,9 +33,7 @@ public sealed class AsciiHashAttribute(string token = "") : Attribute
     public bool CaseSensitive { get; set; } = true;
 }
 
-/// <remarks>
-/// Instance members are in AsciiHash.Instance.cs.
-/// </remarks>
+// note: instance members are in AsciiHash.Instance.cs.
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public readonly partial struct AsciiHash
 {

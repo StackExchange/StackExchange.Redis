@@ -334,7 +334,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
 
         sb.AppendLine("using System;");
         sb.AppendLine("using StackExchange.Redis;");
-        sb.AppendLine("#pragma warning disable CS8981");
+        sb.AppendLine("#pragma warning disable CS8981, SER004");
 
         BuildTypeImplementations(sb, types);
         BuildEnumParsers(sb, parseMethods);
