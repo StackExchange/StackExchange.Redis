@@ -5607,8 +5607,25 @@ namespace StackExchange.Redis
             private readonly ICollection<object> _args;
             private string _unknownCommand;
 
+            private static int RemoveDbIfNotRequired(int suggestedDb, string adhocCommand, out RedisCommand knownCommand)
+            {
+                // attempt to parse the ad-hoc command to a known command, so we can apply correct aliasing, etc
+                if (!RedisCommandMetadata.TryParseCI(adhocCommand, out knownCommand))
+                {
+                    knownCommand = RedisCommand.UNKNOWN;
+                }
+                if ((knownCommand is not RedisCommand.UNKNOWN & suggestedDb >= 0) && !Message.RequiresDatabase(knownCommand))
+                {
+                    // strip the DB; historically we didn't enforce this when IDatabase was
+                    // used to issue known commands as strings, so: don't complain now
+                    // (this is only an issue *because* we now recognise the known commands)
+                    suggestedDb = -1;
+                }
+                return suggestedDb;
+            }
+
             public ExecuteMessage(CommandMap? map, int db, CommandFlags flags, string command, ICollection<object>? args)
-                : base(db, flags, RedisCommandMetadata.TryParseCI(command, out var value) ? value : RedisCommand.UNKNOWN)
+                : base(RemoveDbIfNotRequired(db, command, out var knownCommand), flags, knownCommand)
             {
                 if (args != null && args.Count >= MessageWriter.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
                 {
