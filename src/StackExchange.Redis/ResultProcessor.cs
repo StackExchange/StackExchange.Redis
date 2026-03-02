@@ -2376,12 +2376,6 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private readonly struct MultiStreamState(MultiStreamProcessor processor, RedisProtocol protocol)
-        {
-            public MultiStreamProcessor Processor { get; } = processor;
-            public RedisProtocol Protocol { get; } = protocol;
-        }
-
         /// <summary>
         /// Handles <see href="https://redis.io/commands/xread"/>.
         /// </summary>
@@ -2439,14 +2433,15 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if (reader.Prefix == RespPrefix.Map) // see SetResultCore for the shape delta between RESP2 and RESP3
                 {
                     // root is a map of named inner-arrays
-                    streams = RedisStreamInterleavedProcessor.Instance.ParseArray(ref reader, protocol, false, out _, this)!; // null-checked
+                    // RedisStreamInterleavedProcessor handles maps via the interleaved processor base
+                    var processor = protocol == RedisProtocol.Resp2 ? RedisStreamInterleavedProcessor.Resp2 : RedisStreamInterleavedProcessor.Resp3;
+                    streams = processor.ParseArray(ref reader, protocol, false, out _, null)!; // null-checked below
                 }
                 else
                 {
-                    var state = new MultiStreamState(this, protocol);
                     streams = reader.ReadPastArray(
-                        ref state,
-                        static (ref state, ref itemReader) =>
+                        ref protocol,
+                        static (ref protocol, ref itemReader) =>
                         {
                             if (!itemReader.IsAggregate)
                             {
@@ -2465,7 +2460,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                             {
                                 throw new InvalidOperationException("Expected stream entries");
                             }
-                            var entries = state.Processor.ParseRedisStreamEntries(ref itemReader, state.Protocol);
+                            var entries = StreamProcessorBase<RedisStream[]>.ParseRedisStreamEntries(ref itemReader, protocol);
 
                             return new RedisStream(key: key, entries: entries);
                         },
@@ -2486,13 +2481,19 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool AllowJaggedPairs => false; // we only use this on a flattened map
 
-            public static readonly RedisStreamInterleavedProcessor Instance = new();
-            private RedisStreamInterleavedProcessor()
+            public static readonly RedisStreamInterleavedProcessor Resp2 = new(RedisProtocol.Resp2);
+            public static readonly RedisStreamInterleavedProcessor Resp3 = new(RedisProtocol.Resp3);
+
+            private readonly RedisProtocol _protocol;
+            private RedisStreamInterleavedProcessor(RedisProtocol protocol)
             {
+                _protocol = protocol;
             }
 
             protected override RedisStream Parse(ref RespReader first, ref RespReader second, object? state)
-                => throw new NotImplementedException("RedisStreamInterleavedProcessor.Parse(ref RespReader) should not be called - MultiStreamProcessor handles this directly");
+            {
+                return new(key: first.ReadRedisKey(), entries: StreamProcessorBase<RedisStream[]>.ParseRedisStreamEntries(ref second, _protocol));
+            }
         }
 
         /// <summary>
@@ -3088,7 +3089,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     id: id,
                     values: values);
             }
-            protected internal StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
+            protected internal static StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
             {
                 if (!reader.IsAggregate || reader.IsNull)
                 {

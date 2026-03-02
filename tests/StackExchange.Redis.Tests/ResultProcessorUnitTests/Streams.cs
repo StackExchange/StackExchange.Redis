@@ -132,4 +132,64 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         Assert.Equal("surname", (string?)result[1].Entries[1].Values[1].Name);
         Assert.Equal("Austen", (string?)result[1].Entries[1].Values[1].Value);
     }
+
+    // XREADGROUP tests - same format as XREAD (uses MultiStream processor)
+    // RESP2: Array reply with [stream_name, array of entries]
+    // RESP3: Map reply with key-value pairs
+    [Theory]
+    [InlineData(RedisProtocol.Resp2, "*1\r\n*2\r\n$8\r\nmystream\r\n*1\r\n*2\r\n$3\r\n1-0\r\n*2\r\n$7\r\nmyfield\r\n$6\r\nmydata\r\n")]
+    [InlineData(RedisProtocol.Resp3, "%1\r\n$8\r\nmystream\r\n*1\r\n*2\r\n$3\r\n1-0\r\n*2\r\n$7\r\nmyfield\r\n$6\r\nmydata\r\n")]
+    public void MultiStreamProcessor_XReadGroup_SingleStreamSingleEntry(RedisProtocol protocol, string resp)
+    {
+        // XREADGROUP GROUP mygroup myconsumer STREAMS mystream >
+        // 1) 1) "mystream"
+        //    2) 1) 1) "1-0"
+        //          2) 1) "myfield"
+        //             2) "mydata"
+        var processor = ResultProcessor.MultiStream;
+        var result = Execute(resp, processor, protocol: protocol);
+
+        Assert.NotNull(result);
+        Assert.Single(result);
+        Assert.Equal("mystream", (string?)result[0].Key);
+        Assert.Single(result[0].Entries);
+        Assert.Equal("1-0", (string?)result[0].Entries[0].Id);
+        Assert.Single(result[0].Entries[0].Values);
+        Assert.Equal("myfield", (string?)result[0].Entries[0].Values[0].Name);
+        Assert.Equal("mydata", (string?)result[0].Entries[0].Values[0].Value);
+    }
+
+    [Theory]
+    [InlineData(RedisProtocol.Resp2, "*1\r\n*2\r\n$8\r\nmystream\r\n*1\r\n*2\r\n$3\r\n1-0\r\n*-1\r\n")]
+    [InlineData(RedisProtocol.Resp3, "%1\r\n$8\r\nmystream\r\n*1\r\n*2\r\n$3\r\n1-0\r\n_\r\n")]
+    public void MultiStreamProcessor_XReadGroup_PendingMessageWithNilValues(RedisProtocol protocol, string resp)
+    {
+        // XREADGROUP GROUP mygroup myconsumer STREAMS mystream 0
+        // Reading pending messages returns nil for values if already acknowledged
+        // 1) 1) "mystream"
+        //    2) 1) 1) "1-0"
+        //          2) (nil)
+        var processor = ResultProcessor.MultiStream;
+        var result = Execute(resp, processor, protocol: protocol);
+
+        Assert.NotNull(result);
+        Assert.Single(result);
+        Assert.Equal("mystream", (string?)result[0].Key);
+        Assert.Single(result[0].Entries);
+        Assert.Equal("1-0", (string?)result[0].Entries[0].Id);
+        Assert.Empty(result[0].Entries[0].Values); // nil becomes empty array
+    }
+
+    [Theory]
+    [InlineData(RedisProtocol.Resp2, "*-1\r\n")]
+    [InlineData(RedisProtocol.Resp3, "_\r\n")]
+    public void MultiStreamProcessor_XReadGroup_Timeout(RedisProtocol protocol, string resp)
+    {
+        // XREADGROUP with BLOCK that times out returns nil/null
+        var processor = ResultProcessor.MultiStream;
+        var result = Execute(resp, processor, protocol: protocol);
+
+        Assert.NotNull(result);
+        Assert.Empty(result);
+    }
 }
