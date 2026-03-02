@@ -25,7 +25,7 @@ jobs:
       working-directory: ./tests/RedisConfigs
       run: docker compose -f docker-compose.yml up -d --wait
     - name: Install .NET SDK
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: |
           6.0.x
