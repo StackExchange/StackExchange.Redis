@@ -3468,6 +3468,13 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class SentinelArrayOfArraysProcessor : ResultProcessor<KeyValuePair<string, string>[][]>
         {
+            private readonly struct ParseArrayState(StringPairInterleavedProcessor innerProcessor, RedisProtocol protocol, Message message)
+            {
+                public readonly StringPairInterleavedProcessor innerProcessor = innerProcessor;
+                public readonly RedisProtocol protocol = protocol;
+                public readonly Message message = message;
+            }
+
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 if (StringPairInterleaved is not StringPairInterleavedProcessor innerProcessor)
@@ -3478,7 +3485,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if (reader.IsAggregate && !reader.IsNull)
                 {
                     var protocol = connection.Protocol.GetValueOrDefault();
-                    var state = (innerProcessor, protocol, message);
+                    var state = new ParseArrayState(innerProcessor, protocol, message);
                     var returnArray = reader.ReadPastArray(
                         ref state,
                         static (ref state, ref innerReader) =>

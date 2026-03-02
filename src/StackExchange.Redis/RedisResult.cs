@@ -107,6 +107,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal static bool TryCreate(PhysicalConnection? connection, ref RespReader reader, [NotNullWhen(true)] out RedisResult? redisResult)
         {
+            reader.MovePastBof();
             try
             {
                 var type = reader.Prefix.ToResultType();
