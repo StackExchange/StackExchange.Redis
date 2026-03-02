@@ -219,8 +219,8 @@ public class SharedConnectionFixture : IDisposable
 
     public void Dispose()
     {
-        resp2?.UnderlyingConnection?.Dispose();
-        resp3?.UnderlyingConnection?.Dispose();
+        try { resp2?.UnderlyingConnection?.Dispose(); } catch { }
+        try { resp3?.UnderlyingConnection?.Dispose(); } catch { }
         GC.SuppressFinalize(this);
     }
 
