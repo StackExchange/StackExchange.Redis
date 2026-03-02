@@ -414,7 +414,7 @@ internal sealed partial class PhysicalConnection
 
                     // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
                     var configChanged = muxer.ConfigurationChangedChannel;
-                    if (configChanged != null && reader.Prefix is RespPrefix.BulkString or RespPrefix.SimpleString && reader.Is(configChanged))
+                    if (configChanged != null && reader.Prefix is RespPrefix.BulkString or RespPrefix.SimpleString && subscriptionChannel.Span.SequenceEqual(configChanged))
                     {
                         EndPoint? blame = null;
                         try
