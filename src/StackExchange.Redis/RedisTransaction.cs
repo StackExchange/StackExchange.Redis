@@ -535,7 +535,9 @@ namespace StackExchange.Redis
 
                             var iter = reader.AggregateChildren();
                             int i = 0;
-                            while (iter.MoveNext())
+                            // using "raw" to leave reader ahead of content
+                            // (so errors and attributes can be consumed appropriately)
+                            while (iter.MoveNextRaw())
                             {
                                 var inner = wrapped[i++].Wrapped;
                                 muxer?.OnTransactionLog($"> got {iter.Value.GetOverview()} for {inner.CommandAndKey}");
