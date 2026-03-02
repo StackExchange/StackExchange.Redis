@@ -111,7 +111,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
-                _ = Task.Run(async () => await server.RunClientAsync(serverSide, node: node), cancellationToken);
+                Task.Run(async () => await server.RunClientAsync(serverSide, node: node), cancellationToken).RedisFireAndForget();
                 var clientSide = StreamConnection.GetDuplex(serverToClient.Reader, clientToServer.Writer);
                 return new(clientSide);
             }
