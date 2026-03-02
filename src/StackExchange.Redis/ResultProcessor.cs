@@ -593,14 +593,14 @@ namespace StackExchange.Redis
                 // We expect a scalar with exactly 40 ASCII hex characters (20 bytes when parsed)
                 if (reader.IsScalar && reader.ScalarLengthIs(Sha1HashLength * 2))
                 {
-                    var asciiHash = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[Sha1HashLength * 2]);
+                    var asciiHash = reader.ReadByteArray()!;
 
                     // External caller wants the hex bytes, not the ASCII bytes
                     // For nullability/consistency reasons, we always do the parse here.
                     byte[] hash;
                     try
                     {
-                        hash = ParseSHA1(asciiHash.ToArray());
+                        hash = ParseSHA1(asciiHash);
                     }
                     catch (ArgumentException)
                     {
@@ -609,7 +609,7 @@ namespace StackExchange.Redis
 
                     if (message is RedisDatabase.ScriptLoadMessage sl)
                     {
-                        connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, hash);
+                        connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, asciiHash);
                     }
                     SetResult(message, hash);
                     return true;
