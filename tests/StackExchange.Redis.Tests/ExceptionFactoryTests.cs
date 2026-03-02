@@ -64,7 +64,9 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
             conn.GetDatabase();
             conn.AllowConnect = false;
 
-            conn.GetServer(conn.GetEndPoints()[0]).SimulateConnectionFailure(SimulatedFailureType.All);
+            var server = conn.GetServer(conn.GetEndPoints()[0]);
+            Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
+            server.SimulateConnectionFailure(SimulatedFailureType.All);
 
             var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, conn.GetServerSnapshot()[0]);
             Assert.IsType<RedisConnectionException>(ex);

@@ -1710,6 +1710,8 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool CanSimulateConnectionFailure => Multiplexer.RawConfig.AllowAdmin && physical?.CanSimulateConnectionFailure == true;
+
         /// <summary>
         /// For testing only.
         /// </summary>

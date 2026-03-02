@@ -53,12 +53,14 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
             // Fail the connection
             Log("Test: Simulating failure");
             conn.AllowConnect = false;
+
             server.SimulateConnectionFailure(SimulatedFailureType.All);
             Assert.False(conn.IsConnected);
 
@@ -129,6 +131,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
@@ -219,6 +222,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
@@ -324,6 +328,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await UntilConditionAsync(TimeSpan.FromSeconds(10), () => (server = conn.SelectServer(getMsg)) != null);
 
             Assert.NotNull(server);
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
@@ -420,6 +425,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
 
             // Verify TotalOutstanding is 0 when connected and idle
             Log("Test: asserting connected counters");

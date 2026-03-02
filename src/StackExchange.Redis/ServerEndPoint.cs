@@ -1108,6 +1108,8 @@ namespace StackExchange.Redis
             supportsPrimaryWrites = null;
         }
 
+        internal bool CanSimulateConnectionFailure => interactive?.CanSimulateConnectionFailure == true;
+
         /// <summary>
         /// For testing only.
         /// </summary>

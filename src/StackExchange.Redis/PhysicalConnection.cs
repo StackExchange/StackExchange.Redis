@@ -364,6 +364,8 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
+        internal bool CanSimulateConnectionFailure => false;
+
         internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {
             throw new NotImplementedException(nameof(SimulateConnectionFailure));

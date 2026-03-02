@@ -16,6 +16,7 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
 
         await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var server = conn.GetServer(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -27,6 +28,7 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
         Assert.True(conn.Wait(b));
 
         conn.AllowConnect = false;
+
         server.SimulateConnectionFailure(SimulatedFailureType.All);
         var c = db.SetAddAsync(key, "c");
 

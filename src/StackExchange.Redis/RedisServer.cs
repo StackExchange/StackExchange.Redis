@@ -1065,6 +1065,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// For testing only: Check if the server can simulate connection failure.
+        /// </summary>
+        internal bool CanSimulateConnectionFailure => server.CanSimulateConnectionFailure;
+
+        /// <summary>
         /// For testing only.
         /// </summary>
         internal void SimulateConnectionFailure(SimulatedFailureType failureType) => server.SimulateConnectionFailure(failureType);
