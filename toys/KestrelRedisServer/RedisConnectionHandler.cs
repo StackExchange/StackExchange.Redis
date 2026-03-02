@@ -15,7 +15,8 @@ namespace KestrelRedisServer
             }
 
             return server.RunClientAsync(connection.Transport, node: node)
-            .ContinueWith(t =>
+            .ContinueWith(
+                t =>
             {
                 // ensure any exceptions are observed
                 var ex = t.Exception;
@@ -24,8 +25,7 @@ namespace KestrelRedisServer
                     Debug.WriteLine(ex.Message);
                     GC.KeepAlive(ex);
                 }
-            },
-            TaskContinuationOptions.OnlyOnFaulted);
+            }, TaskContinuationOptions.OnlyOnFaulted);
         }
     }
 }
