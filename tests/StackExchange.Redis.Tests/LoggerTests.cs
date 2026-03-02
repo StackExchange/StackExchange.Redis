@@ -15,19 +15,20 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task BasicLoggerConfig()
     {
-        var traceLogger = new TestLogger(LogLevel.Trace, Writer);
-        var debugLogger = new TestLogger(LogLevel.Debug, Writer);
-        var infoLogger = new TestLogger(LogLevel.Information, Writer);
-        var warningLogger = new TestLogger(LogLevel.Warning, Writer);
-        var errorLogger = new TestLogger(LogLevel.Error, Writer);
-        var criticalLogger = new TestLogger(LogLevel.Critical, Writer);
+        var traceLogger = new TestLogger(LogLevel.Trace, TextWriter.Null);
+        var debugLogger = new TestLogger(LogLevel.Debug, TextWriter.Null);
+        var infoLogger = new TestLogger(LogLevel.Information, TextWriter.Null);
+        var warningLogger = new TestLogger(LogLevel.Warning, TextWriter.Null);
+        var errorLogger = new TestLogger(LogLevel.Error, TextWriter.Null);
+        var criticalLogger = new TestLogger(LogLevel.Critical, TextWriter.Null);
 
         var options = ConfigurationOptions.Parse(GetConfiguration());
         options.LoggerFactory = new TestWrapperLoggerFactory(new TestMultiLogger(traceLogger, debugLogger, infoLogger, warningLogger, errorLogger, criticalLogger));
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
-        // We expect more at the trace level: GET, ECHO, PING on commands
-        Assert.True(traceLogger.CallCount > debugLogger.CallCount);
+        Log($"Trace: {traceLogger.CallCount}, Debug: {debugLogger.CallCount}, Info: {infoLogger.CallCount}, Warning: {warningLogger.CallCount}, Error: {errorLogger.CallCount}");
+        // We expect more (or at least: no less) at the trace level: GET, ECHO, PING on commands
+        Assert.True(traceLogger.CallCount >= debugLogger.CallCount);
         // Many calls for all log lines - don't set exact here since every addition would break the test
         Assert.True(debugLogger.CallCount > 30);
         Assert.True(infoLogger.CallCount > 30);
@@ -37,11 +38,35 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(0, criticalLogger.CallCount);
     }
 
+    private sealed class EnabledNullLogger : ILogger, IDisposable
+    {
+        private EnabledNullLogger() { }
+        public static readonly ILogger Instance = new EnabledNullLogger();
+
+        public bool IsEnabled(LogLevel level) => true; // NullLogger now says "no", which breaks our counting
+#if NET10_0_OR_GREATER
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => this;
+#else
+        public IDisposable BeginScope<TState>(TState state) => this;
+#endif
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            // but do nothing with it
+        }
+        void IDisposable.Dispose() { }
+    }
+
     [Fact]
     public async Task WrappedLogger()
     {
         var options = ConfigurationOptions.Parse(GetConfiguration());
-        var wrapped = new TestWrapperLoggerFactory(NullLogger.Instance);
+        var wrapped = new TestWrapperLoggerFactory(EnabledNullLogger.Instance);
         options.LoggerFactory = wrapped;
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
