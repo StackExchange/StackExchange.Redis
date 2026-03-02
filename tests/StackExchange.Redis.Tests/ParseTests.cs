@@ -30,7 +30,7 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
         yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPONG\r\n$", 3 };
     }
 
-    [Theory]
+    [Theory(Timeout = 1000)]
     [MemberData(nameof(GetTestData))]
     public Task ParseAsSingleChunk(string ascii, int expected)
     {
@@ -38,7 +38,7 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
         return ProcessMessagesAsync(buffer, expected);
     }
 
-    [Theory]
+    [Theory(Timeout = 1000)]
     [MemberData(nameof(GetTestData))]
     public Task ParseAsLotsOfChunks(string ascii, int expected)
     {
@@ -64,6 +64,7 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
 
     private async Task ProcessMessagesAsync(ReadOnlySequence<byte> buffer, int expected, bool isInbound = false)
     {
+        var cancel = TestContext.Current.CancellationToken;
         Log($"chain: {buffer.Length}");
         MemoryStream ms;
         if (buffer.IsSingleSegment && MemoryMarshal.TryGetArray(buffer.First, out var segment))
@@ -90,13 +91,15 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
         var reader = new LoggingTunnel.StreamRespReader(ms, isInbound: isInbound);
 #pragma warning restore CS0618 // Type or member is obsolete
         int found = 0;
-        while (true)
+        while (!cancel.IsCancellationRequested)
         {
-            var result = await reader.ReadOneAsync().ForAwait();
+            var oldPos = reader.Position;
+            var result = await reader.ReadOneAsync(cancel).ForAwait();
             if (result.Result is null) break;
-            Log($"{result} - {result.Result}");
+            Log($"[{oldPos},{reader.Position}): {result} - {result.Result}");
             found++;
         }
+        cancel.ThrowIfCancellationRequested();
         Assert.Equal(expected, found);
     }
 

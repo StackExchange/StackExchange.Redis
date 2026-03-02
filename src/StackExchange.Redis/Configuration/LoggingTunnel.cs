@@ -33,6 +33,7 @@ public abstract class LoggingTunnel : Tunnel
         private RespScanState _state;
         private bool _reading, _disposed; // we need to track the state of the reader to avoid releasing the buffer while it's in use
 
+        public long Position { get; private set; }
         internal bool TryTakeOne(out ContextualRedisResult result, bool withData = true)
         {
             var fullBuffer = _readBuffer.GetAllCommitted();
@@ -61,6 +62,9 @@ public abstract class LoggingTunnel : Tunnel
                         parsed = null;
                     }
                     result = new(parsed, isOutOfBand);
+                    Position += _state.TotalBytes;
+                    _readBuffer.DiscardCommitted((int)_state.TotalBytes);
+                    _state = default;
                     return true;
                 case OperationStatus.NeedMoreData:
                     result = default;
