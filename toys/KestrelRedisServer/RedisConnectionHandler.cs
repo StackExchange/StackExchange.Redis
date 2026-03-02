@@ -17,15 +17,16 @@ namespace KestrelRedisServer
             return server.RunClientAsync(connection.Transport, node: node)
             .ContinueWith(
                 t =>
-            {
-                // ensure any exceptions are observed
-                var ex = t.Exception;
-                if (ex != null)
                 {
-                    Debug.WriteLine(ex.Message);
-                    GC.KeepAlive(ex);
-                }
-            }, TaskContinuationOptions.OnlyOnFaulted);
+                    // ensure any exceptions are observed
+                    var ex = t.Exception;
+                    if (ex != null)
+                    {
+                        Debug.WriteLine(ex.Message);
+                        GC.KeepAlive(ex);
+                    }
+                },
+                TaskContinuationOptions.OnlyOnFaulted);
         }
     }
 }
