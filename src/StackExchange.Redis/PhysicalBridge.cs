@@ -752,16 +752,22 @@ namespace StackExchange.Redis
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
 #pragma warning disable CS0618 // Type or member is obsolete
-                WriteMessageTakingWriteLockSync(physical, message);
+                WriteMessageTakingWriteLockSync(physical, message, flush: messages.Count == 1);
 #pragma warning restore CS0618
                 LogNonPreferred(message.Flags, isReplica);
             }
+
+            if (messages.Count > 1)
+            {
+                TakeLockAndFlushSync(physical);
+            }
+
             return true;
         }
 
         private Message? _activeMessage;
 
-        private WriteResult WriteMessageInsideLock(PhysicalConnection physical, Message message)
+        private WriteResult BufferMessageInsideLock(PhysicalConnection physical, Message message)
         {
             WriteResult result;
             var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
@@ -775,10 +781,10 @@ namespace StackExchange.Redis
             if (message is IMultiMessage multiMessage)
             {
                 var messageIsSent = false;
-                SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
+                BufferSelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
                 foreach (var subCommand in multiMessage.GetMessages(physical))
                 {
-                    result = WriteMessageToServerInsideWriteLock(physical, subCommand);
+                    result = BufferMessageToServerInsideWriteLock(physical, subCommand);
                     if (result != WriteResult.Success)
                     {
                         // we screwed up; abort; note that WriteMessageToServer already
@@ -801,12 +807,12 @@ namespace StackExchange.Redis
             }
             else
             {
-                return WriteMessageToServerInsideWriteLock(physical, message);
+                return BufferMessageToServerInsideWriteLock(physical, message);
             }
         }
 
         [Obsolete("prefer async")]
-        internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message)
+        internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message, bool flush = true)
         {
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
@@ -852,11 +858,11 @@ namespace StackExchange.Redis
 #endif
                 }
 
-                var result = WriteMessageInsideLock(physical, message);
+                var result = BufferMessageInsideLock(physical, message);
 
-                if (result == WriteResult.Success)
+                if (result == WriteResult.Success & flush)
                 {
-                    result = physical.FlushSync(false, TimeoutMilliseconds);
+                    result = physical.FlushSync(PhysicalConnection.FlushFlags.None, TimeoutMilliseconds);
                 }
 
                 physical.SetIdle();
@@ -866,6 +872,44 @@ namespace StackExchange.Redis
             finally
             {
                 UnmarkActiveMessage(message);
+#if NETCOREAPP
+                if (gotLock)
+                {
+                    _singleWriterMutex.Release();
+                }
+#else
+                token.Dispose();
+#endif
+            }
+        }
+
+        internal WriteResult TakeLockAndFlushSync(PhysicalConnection physical)
+        {
+#if NETCOREAPP
+            bool gotLock = false;
+#else
+            LockToken token = default;
+#endif
+            try
+            {
+#if NETCOREAPP
+                gotLock = _singleWriterMutex.Wait(0);
+                if (!gotLock)
+#else
+                token = _singleWriterMutex.TryWait(WaitOptions.NoDelay);
+                if (!token.Success)
+#endif
+                {
+                    return WriteResult.TimeoutBeforeWrite;
+                }
+
+#pragma warning disable CS0618 // Type or member is obsolete
+                return physical.FlushSync(PhysicalConnection.FlushFlags.None, TimeoutMilliseconds);
+#pragma warning restore CS0618 // Type or member is obsolete
+            }
+            catch { return WriteResult.WriteFailure; }
+            finally
+            {
 #if NETCOREAPP
                 if (gotLock)
                 {
@@ -1197,13 +1241,13 @@ namespace StackExchange.Redis
                     try
                     {
                         _backlogStatus = BacklogStatus.WritingMessage;
-                        var result = WriteMessageInsideLock(physical, message);
+                        var result = BufferMessageInsideLock(physical, message);
 
                         if (result == WriteResult.Success)
                         {
                             _backlogStatus = BacklogStatus.Flushing;
 #pragma warning disable CS0618 // Type or member is obsolete
-                            result = physical.FlushSync(false, TimeoutMilliseconds);
+                            result = physical.FlushSync(PhysicalConnection.FlushFlags.None, TimeoutMilliseconds);
 #pragma warning restore CS0618 // Type or member is obsolete
                         }
 
@@ -1322,10 +1366,10 @@ namespace StackExchange.Redis
                     if (!token.Success) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
 #endif
                 }
-                var result = WriteMessageInsideLock(physical, message);
+                var result = BufferMessageInsideLock(physical, message);
                 if (result == WriteResult.Success)
                 {
-                    var flush = physical.FlushAsync(false);
+                    var flush = physical.FlushAsync(PhysicalConnection.FlushFlags.None);
                     if (!flush.IsCompletedSuccessfully)
                     {
                         releaseLock = false; // so we don't release prematurely
@@ -1390,11 +1434,11 @@ namespace StackExchange.Redis
 #else
                 using var token = await pending.ForAwait();
 #endif
-                var result = WriteMessageInsideLock(physical, message);
+                var result = BufferMessageInsideLock(physical, message);
 
                 if (result == WriteResult.Success)
                 {
-                    result = await physical.FlushAsync(false).ForAwait();
+                    result = await physical.FlushAsync(PhysicalConnection.FlushFlags.None).ForAwait();
                 }
 
                 physical.SetIdle();
@@ -1536,7 +1580,7 @@ namespace StackExchange.Redis
             Multiplexer.OnInternalError(exception, ServerEndPoint.EndPoint, ConnectionType, origin);
         }
 
-        private void SelectDatabaseInsideWriteLock(PhysicalConnection connection, Message message)
+        private void BufferSelectDatabaseInsideWriteLock(PhysicalConnection connection, Message message)
         {
             int db = message.Db;
             if (db >= 0)
@@ -1545,14 +1589,14 @@ namespace StackExchange.Redis
                 if (sel != null)
                 {
                     connection.EnqueueInsideWriteLock(sel);
-                    sel.WriteTo(connection);
+                    sel.BufferTo(connection);
                     sel.SetRequestSent();
                     IncrementOpCount();
                 }
             }
         }
 
-        private WriteResult WriteMessageToServerInsideWriteLock(PhysicalConnection connection, Message message)
+        private WriteResult BufferMessageToServerInsideWriteLock(PhysicalConnection connection, Message message)
         {
             if (message == null)
             {
@@ -1580,7 +1624,7 @@ namespace StackExchange.Redis
                         break;
                 }
 
-                SelectDatabaseInsideWriteLock(connection, message);
+                BufferSelectDatabaseInsideWriteLock(connection, message);
 
                 if (!connection.TransactionActive)
                 {
@@ -1593,7 +1637,7 @@ namespace StackExchange.Redis
                         if (readmode != null)
                         {
                             connection.EnqueueInsideWriteLock(readmode);
-                            readmode.WriteTo(connection);
+                            readmode.BufferTo(connection);
                             readmode.SetRequestSent();
                             IncrementOpCount();
                         }
@@ -1602,7 +1646,7 @@ namespace StackExchange.Redis
                     {
                         var asking = ReusableAskingCommand;
                         connection.EnqueueInsideWriteLock(asking);
-                        asking.WriteTo(connection);
+                        asking.BufferTo(connection);
                         asking.SetRequestSent();
                         IncrementOpCount();
                     }
@@ -1635,11 +1679,11 @@ namespace StackExchange.Redis
                 }
                 connection.EnqueueInsideWriteLock(message);
                 isQueued = true;
-                message.WriteTo(connection);
+                message.BufferTo(connection);
 
                 if (message.IsHighIntegrity)
                 {
-                    message.WriteHighIntegrityChecksumRequest(connection);
+                    message.BufferHighIntegrityChecksumRequest(connection);
                     IncrementOpCount();
                 }
 

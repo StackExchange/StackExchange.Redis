@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using RESPite.Internal;
 using RESPite.Messages;
 using StackExchange.Redis.Profiling;
 
@@ -796,66 +797,52 @@ namespace StackExchange.Redis
 
         internal string GetRespString(PhysicalConnection connection)
         {
-            MessageWriter writer = new MessageWriter(connection);
+            MessageWriter writer = new MessageWriter(connection, BlockBufferSerializer.Shared);
             try
             {
                 WriteImpl(in writer);
-                var bytes = writer.Flush();
+                var bytes = writer.FlushBlockBuffer();
                 string s = Encoding.UTF8.GetString(bytes.Span);
-                MessageWriter.Release(bytes);
+                MessageWriter.ReleaseBlockBuffer(bytes);
                 return s;
             }
             finally
             {
-                writer.Revert();
+                writer.RevertBlockBuffer();
             }
         }
 
-        internal void WriteTo(PhysicalConnection physical)
+        internal void BufferTo(PhysicalConnection physical)
         {
             MessageWriter writer = new MessageWriter(physical);
             try
             {
                 WriteImpl(in writer);
-                var bytes = writer.Flush();
-                physical.WriteDirect(bytes);
-                MessageWriter.Release(bytes);
             }
             catch (Exception ex) when (ex is not RedisCommandException) // these have specific meaning; don't wrap
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
-            }
-            finally
-            {
-                writer.Revert();
             }
         }
 
-        internal void WriteTo(PhysicalConnection physical, CommandMap commandMap, byte[]? channelPrefix)
+        internal void BufferTo(PhysicalConnection physical, CommandMap commandMap, byte[]? channelPrefix)
         {
-            MessageWriter writer = new MessageWriter(channelPrefix, commandMap);
+            MessageWriter writer = new MessageWriter(channelPrefix, commandMap, physical.Output);
             try
             {
                 WriteImpl(in writer);
-                var bytes = writer.Flush();
-                physical.WriteDirect(bytes);
-                MessageWriter.Release(bytes);
             }
             catch (Exception ex) when (ex is not RedisCommandException) // these have specific meaning; don't wrap
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
-            }
-            finally
-            {
-                writer.Revert();
             }
         }
 
         private static ReadOnlySpan<byte> ChecksumTemplate => "$4\r\nXXXX\r\n"u8;
 
-        internal void WriteHighIntegrityChecksumRequest(PhysicalConnection physical)
+        internal void BufferHighIntegrityChecksumRequest(PhysicalConnection physical)
         {
             Debug.Assert(IsHighIntegrity, "should only be used for high-integrity");
             var writer = new MessageWriter(physical);
@@ -868,19 +855,11 @@ namespace StackExchange.Redis
                 ChecksumTemplate.CopyTo(chk);
                 BinaryPrimitives.WriteUInt32LittleEndian(chk.Slice(4, 4), _highIntegrityToken);
                 writer.WriteRaw(chk);
-
-                var memory = writer.Flush();
-                physical.WriteDirect(memory);
-                MessageWriter.Release(memory);
             }
             catch (Exception ex)
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
-            }
-            finally
-            {
-                writer.Revert();
             }
         }
 

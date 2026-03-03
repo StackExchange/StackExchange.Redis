@@ -42,17 +42,17 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
         try
         {
             msg.WriteTo(writer);
-            payload = writer.Flush();
+            payload = writer.FlushBlockBuffer();
             return payload.Span.ToArray();
         }
         catch
         {
-            writer.Revert();
+            writer.RevertBlockBuffer();
             throw;
         }
         finally
         {
-            MessageWriter.Release(payload);
+            MessageWriter.ReleaseBlockBuffer(payload);
         }
     }
 
@@ -100,7 +100,7 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
         try
         {
             msg.WriteTo(writer);
-            actual = writer.Flush();
+            actual = writer.FlushBlockBuffer();
             if (!expected.SequenceEqual(actual.Span))
             {
                 lease = ArrayPool<byte>.Shared.Rent(expected.Length);
@@ -110,13 +110,13 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
         }
         catch
         {
-            writer.Revert();
+            writer.RevertBlockBuffer();
             throw;
         }
         finally
         {
             if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
-            MessageWriter.Release(actual);
+            MessageWriter.ReleaseBlockBuffer(actual);
         }
     }
 
@@ -157,7 +157,7 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
         try
         {
             msg.WriteTo(writer);
-            payload = writer.Flush();
+            payload = writer.FlushBlockBuffer();
             lease = ArrayPool<char>.Shared.Rent(Encoding.UTF8.GetMaxCharCount(payload.Length));
             var chars = Encoding.UTF8.GetChars(payload.Span, lease.AsSpan());
             var actual = lease.AsSpan(0, chars);
@@ -168,13 +168,13 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
         }
         catch
         {
-            writer.Revert();
+            writer.RevertBlockBuffer();
             throw;
         }
         finally
         {
             if (lease is not null) ArrayPool<char>.Shared.Return(lease);
-            MessageWriter.Release(payload);
+            MessageWriter.ReleaseBlockBuffer(payload);
         }
     }
 

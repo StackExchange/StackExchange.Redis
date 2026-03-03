@@ -23,7 +23,7 @@ internal readonly ref struct MessageWriter
         _writer = writer ?? BlockBufferSerializer.Shared;
     }
 
-    public MessageWriter(PhysicalConnection connection)
+    public MessageWriter(PhysicalConnection connection, IBufferWriter<byte>? writer = null)
     {
         if (connection.BridgeCouldBeNull is { } bridge)
         {
@@ -35,17 +35,16 @@ internal readonly ref struct MessageWriter
             _map = CommandMap.Default;
             _channelPrefix = null;
         }
-        _writer = BlockBufferSerializer.Shared;
+        _writer = writer ?? connection.Output;
     }
 
     private readonly IBufferWriter<byte> _writer;
 
-    public ReadOnlyMemory<byte> Flush() =>
+    public ReadOnlyMemory<byte> FlushBlockBuffer() =>
         BlockBufferSerializer.BlockBuffer.FinalizeMessage(BlockBufferSerializer.Shared);
 
-    public void Revert() => BlockBufferSerializer.Shared.Revert();
-
-    public static void Release(ReadOnlyMemory<byte> memory)
+    public void RevertBlockBuffer() => BlockBufferSerializer.Shared.Revert();
+    public static void ReleaseBlockBuffer(ReadOnlyMemory<byte> memory)
     {
         if (MemoryMarshal.TryGetMemoryManager<byte, BlockBufferSerializer.BlockBuffer>(
                 memory, out var block))
@@ -54,7 +53,7 @@ internal readonly ref struct MessageWriter
         }
     }
 
-    public static void Release(in ReadOnlySequence<byte> request) =>
+    public static void ReleaseBlockBuffer(in ReadOnlySequence<byte> request) =>
         BlockBufferSerializer.BlockBuffer.Release(in request);
 
     public void Write(in RedisKey key)

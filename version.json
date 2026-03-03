@@ -1,7 +1,7 @@
 {
-  "version": "2.11",
-  "versionHeightOffset": -10,
-  "assemblyVersion": "2.0",
+  "version": "3.0",
+  "versionHeightOffset": 0,
+  "assemblyVersion": "3.0",
   "publicReleaseRefSpec": [
     "^refs/heads/main$",
     "^refs/tags/v\\d+\\.\\d+"

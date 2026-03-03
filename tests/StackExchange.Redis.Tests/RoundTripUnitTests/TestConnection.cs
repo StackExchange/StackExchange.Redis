@@ -94,7 +94,10 @@ public class TestConnection : IDisposable
     internal void WriteOutbound(Message message, CommandMap? commandMap = null, byte[]? channelPrefix = null)
     {
         _physical.EnqueueInsideWriteLock(message, enforceMuxer: false);
-        message.WriteTo(_physical, commandMap ?? CommandMap.Default, channelPrefix);
+        message.BufferTo(_physical, commandMap ?? CommandMap.Default, channelPrefix);
+#pragma warning disable CS0618 // Type or member is obsolete
+        _physical.FlushSync(PhysicalConnection.FlushFlags.None, millisecondsTimeout: 1000);
+#pragma warning restore CS0618 // Type or member is obsolete
     }
 
     public void AssertOutbound(string expected)

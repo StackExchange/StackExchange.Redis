@@ -329,7 +329,7 @@ namespace StackExchange.Redis
                                 // need to get those sent ASAP; if they are stuck in the buffers, we die
                                 multiplexer.Trace("Flushing and waiting for precondition responses");
 #pragma warning disable CS0618 // Type or member is obsolete
-                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
+                                connection.FlushSync(PhysicalConnection.FlushFlags.ThrowOnFailure, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
 #pragma warning restore CS0618
 
                                 if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
@@ -389,7 +389,7 @@ namespace StackExchange.Redis
 
                                 multiplexer.Trace("Flushing and waiting for precondition+queued responses");
 #pragma warning disable CS0618 // Type or member is obsolete
-                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
+                                connection.FlushSync(PhysicalConnection.FlushFlags.ThrowOnFailure, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
 #pragma warning restore CS0618
                                 if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                                 {
