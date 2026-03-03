@@ -37,22 +37,22 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     public byte[] Write(string command, params ICollection<object> args)
     {
         var msg = new RedisDatabase.ExecuteMessage(CommandMap, -1, CommandFlags.None, command, Fixup(args));
-        var writer = new MessageWriter(ChannelPrefix, CommandMap);
+        var writer = new MessageWriter(ChannelPrefix, CommandMap, MessageWriter.BlockBuffer);
         ReadOnlyMemory<byte> payload = default;
         try
         {
             msg.WriteTo(writer);
-            payload = writer.Flush();
+            payload = MessageWriter.FlushBlockBuffer();
             return payload.Span.ToArray();
         }
         catch
         {
-            writer.Revert();
+            MessageWriter.RevertBlockBuffer();
             throw;
         }
         finally
         {
-            MessageWriter.Release(payload);
+            MessageWriter.ReleaseBlockBuffer(payload);
         }
     }
 
@@ -94,13 +94,13 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     public void ValidateResp(ReadOnlySpan<byte> expected, string command, params ICollection<object> args)
     {
         var msg = new RedisDatabase.ExecuteMessage(CommandMap, -1, CommandFlags.None, command, Fixup(args));
-        var writer = new MessageWriter(ChannelPrefix, CommandMap);
+        var writer = new MessageWriter(ChannelPrefix, CommandMap, MessageWriter.BlockBuffer);
         ReadOnlyMemory<byte> actual = default;
         byte[]? lease = null;
         try
         {
             msg.WriteTo(writer);
-            actual = writer.Flush();
+            actual = MessageWriter.FlushBlockBuffer();
             if (!expected.SequenceEqual(actual.Span))
             {
                 lease = ArrayPool<byte>.Shared.Rent(expected.Length);
@@ -110,13 +110,13 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
         }
         catch
         {
-            writer.Revert();
+            MessageWriter.RevertBlockBuffer();
             throw;
         }
         finally
         {
             if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
-            MessageWriter.Release(actual);
+            MessageWriter.ReleaseBlockBuffer(actual);
         }
     }
 
@@ -151,13 +151,13 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     public void ValidateResp(string expected, string command, params ICollection<object> args)
     {
         var msg = new RedisDatabase.ExecuteMessage(CommandMap, 0, CommandFlags.None, command, Fixup(args));
-        var writer = new MessageWriter(ChannelPrefix, CommandMap);
+        var writer = new MessageWriter(ChannelPrefix, CommandMap, MessageWriter.BlockBuffer);
         ReadOnlyMemory<byte> payload = default;
         char[]? lease = null;
         try
         {
             msg.WriteTo(writer);
-            payload = writer.Flush();
+            payload = MessageWriter.FlushBlockBuffer();
             lease = ArrayPool<char>.Shared.Rent(Encoding.UTF8.GetMaxCharCount(payload.Length));
             var chars = Encoding.UTF8.GetChars(payload.Span, lease.AsSpan());
             var actual = lease.AsSpan(0, chars);
@@ -168,13 +168,13 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
         }
         catch
         {
-            writer.Revert();
+            MessageWriter.RevertBlockBuffer();
             throw;
         }
         finally
         {
             if (lease is not null) ArrayPool<char>.Shared.Return(lease);
-            MessageWriter.Release(payload);
+            MessageWriter.ReleaseBlockBuffer(payload);
         }
     }
 

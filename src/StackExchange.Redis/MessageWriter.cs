@@ -15,15 +15,17 @@ internal readonly ref struct MessageWriter
     private readonly CommandMap _map;
     private readonly byte[]? _channelPrefix;
 
-    public MessageWriter(byte[]? channelPrefix, CommandMap? map, IBufferWriter<byte>? writer = null)
+    public MessageWriter(byte[]? channelPrefix, CommandMap? map, IBufferWriter<byte> writer)
     {
         // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
         _map = map ?? CommandMap.Default;
         _channelPrefix = channelPrefix;
-        _writer = writer ?? BlockBufferSerializer.Shared;
+        _writer = writer;
     }
 
-    public MessageWriter(PhysicalConnection connection)
+    public static IBufferWriter<byte> BlockBuffer => BlockBufferSerializer.Shared;
+
+    public MessageWriter(PhysicalConnection connection, IBufferWriter<byte> writer)
     {
         if (connection.BridgeCouldBeNull is { } bridge)
         {
@@ -35,17 +37,18 @@ internal readonly ref struct MessageWriter
             _map = CommandMap.Default;
             _channelPrefix = null;
         }
-        _writer = BlockBufferSerializer.Shared;
+
+        _writer = writer ?? connection.Output;
     }
 
     private readonly IBufferWriter<byte> _writer;
 
-    public ReadOnlyMemory<byte> Flush() =>
+    public static ReadOnlyMemory<byte> FlushBlockBuffer() =>
         BlockBufferSerializer.BlockBuffer.FinalizeMessage(BlockBufferSerializer.Shared);
 
-    public void Revert() => BlockBufferSerializer.Shared.Revert();
+    public static void RevertBlockBuffer() => BlockBufferSerializer.Shared.Revert();
 
-    public static void Release(ReadOnlyMemory<byte> memory)
+    public static void ReleaseBlockBuffer(ReadOnlyMemory<byte> memory)
     {
         if (MemoryMarshal.TryGetMemoryManager<byte, BlockBufferSerializer.BlockBuffer>(
                 memory, out var block))
@@ -54,7 +57,7 @@ internal readonly ref struct MessageWriter
         }
     }
 
-    public static void Release(in ReadOnlySequence<byte> request) =>
+    public static void ReleaseBlockBuffer(in ReadOnlySequence<byte> request) =>
         BlockBufferSerializer.BlockBuffer.Release(in request);
 
     public void Write(in RedisKey key)

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -40,6 +41,7 @@ namespace StackExchange.Redis
         }
         private partial bool CanCancel() => true;
 #else
+        private partial bool CanCancel() => false;
         internal CancellationToken InputCancel => CancellationToken.None;
         internal CancellationToken OutputCancel => CancellationToken.None;
 #endif
@@ -47,7 +49,6 @@ namespace StackExchange.Redis
         internal readonly byte[]? ChannelPrefix;
 
         private const int DefaultRedisDatabaseCount = 16;
-        private long totalBytesSent, totalBytesReceived;
 
         private static readonly Message[] ReusableChangeDatabaseCommands = Enumerable.Range(0, DefaultRedisDatabaseCount).Select(
             i => Message.Create(i, CommandFlags.FireAndForget, RedisCommand.SELECT)).ToArray();
@@ -92,7 +93,6 @@ namespace StackExchange.Redis
         /// ...but in those cases, we'll accept any null ref in a race - it's fine.
         /// </summary>
         private Stream? _ioStream;
-        internal bool HasOutputPipe => _ioStream is not null;
 
         private Socket? _socket;
         internal Socket? VolatileSocket => Volatile.Read(ref _socket);
@@ -111,7 +111,6 @@ namespace StackExchange.Redis
             _bridge = new WeakReference(null);
             _physicalName = name;
             _ioStream = ioStream;
-
             OnCreateEcho();
         }
         public PhysicalConnection(PhysicalBridge bridge)
@@ -326,15 +325,15 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "Trust me yo")]
         internal void Shutdown()
         {
-            var ioStream = Interlocked.Exchange(ref _ioStream, null); // compare to the critical read
+            var output = Interlocked.Exchange(ref _output, null); // compare to the critical read
             var socket = Interlocked.Exchange(ref _socket, null);
 
-            if (ioStream != null)
+            if (output != null)
             {
                 Trace("Disconnecting...");
                 try { BridgeCouldBeNull?.OnDisconnected(ConnectionFailureType.ConnectionDisposed, this, out _, out _); } catch { }
-                try { ioStream.Close(); } catch { }
-                try { ioStream.Dispose(); } catch { }
+                try { output.CancelPendingFlush(); } catch { }
+                try { output.Complete(); } catch { }
             }
 
             if (socket != null)
@@ -360,7 +359,7 @@ namespace StackExchange.Redis
             GC.SuppressFinalize(this);
         }
 
-        private async Task AwaitedFlush(Task flush)
+        private async Task AwaitedFlush(ValueTask<FlushResult> flush)
         {
             await flush.ForAwait();
             _writeStatus = WriteStatus.Flushed;
@@ -369,7 +368,7 @@ namespace StackExchange.Redis
         internal void UpdateLastWriteTime() => Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
         public Task FlushAsync()
         {
-            var tmp = _ioStream;
+            var tmp = _output;
             if (tmp != null)
             {
                 _writeStatus = WriteStatus.Flushing;
@@ -838,28 +837,6 @@ namespace StackExchange.Redis
             currentDatabase = -1;
         }
 
-        internal void WriteDirect(ReadOnlyMemory<byte> bytes)
-        {
-            if (_ioStream is not { } output) return;
-            totalBytesSent += bytes.Length;
-
-#if NET || NETSTANDARD2_1_OR_GREATER
-            output.Write(bytes.Span);
-#else
-            if (MemoryMarshal.TryGetArray(bytes, out var segment))
-            {
-                output.Write(segment.Array!, segment.Offset, segment.Count);
-            }
-            else
-            {
-                var oversized = ArrayPool<byte>.Shared.Rent(bytes.Length);
-                bytes.CopyTo(oversized);
-                output.Write(oversized, 0, bytes.Length);
-                ArrayPool<byte>.Shared.Return(oversized);
-            }
-#endif
-        }
-
         internal void RecordQuit()
         {
             // don't blame redis if we fired the first shot
@@ -868,7 +845,7 @@ namespace StackExchange.Redis
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "DEBUG uses instance data")]
-        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, Task flush, bool throwOnFailure)
+        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure)
         {
             try
             {
@@ -925,7 +902,7 @@ namespace StackExchange.Redis
         }
         internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure, CancellationToken soleCancel)
         {
-            var tmp = _ioStream;
+            var tmp = _output;
             if (tmp == null) return new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
             try
             {
@@ -1168,6 +1145,7 @@ namespace StackExchange.Redis
                 OnWrapForLogging(ref stream, _physicalName);
 
                 _ioStream = stream;
+                CreateOutputPipe();
 
                 log?.LogInformationConnected(bridge.Name);
 

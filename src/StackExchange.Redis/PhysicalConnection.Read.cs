@@ -16,6 +16,8 @@ namespace StackExchange.Redis;
 
 internal sealed partial class PhysicalConnection
 {
+    private long totalBytesReceived;
+
     internal static PhysicalConnection Dummy() => new(null!);
 
     private volatile ReadStatus _readStatus = ReadStatus.NotStarted;
