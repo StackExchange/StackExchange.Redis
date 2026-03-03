@@ -222,6 +222,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         Assert.Equal(1, counter1);
 
         var server = GetServer(conn);
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
         var socketCount = server.GetCounters().Subscription.SocketCount;
         Log($"Expecting 1 socket, got {socketCount}");
         Assert.Equal(1, socketCount);
