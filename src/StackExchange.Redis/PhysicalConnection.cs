@@ -24,6 +24,26 @@ namespace StackExchange.Redis
 {
     internal sealed partial class PhysicalConnection : IDisposable
     {
+        // infrastructure to simulate connection death, debug only
+        private partial bool CanCancel();
+        [Conditional("DEBUG")]
+        partial void OnCancel(bool input, bool output);
+#if DEBUG
+        private readonly CancellationTokenSource _inputCancel = new(), _outputCancel = new();
+        internal CancellationToken InputCancel => _inputCancel.Token;
+        internal CancellationToken OutputCancel => _outputCancel.Token;
+
+        partial void OnCancel(bool input, bool output)
+        {
+            if (input) _inputCancel.Cancel();
+            if (output) _outputCancel.Cancel();
+        }
+        private partial bool CanCancel() => true;
+#else
+        internal CancellationToken InputCancel => CancellationToken.None;
+        internal CancellationToken OutputCancel => CancellationToken.None;
+#endif
+
         internal readonly byte[]? ChannelPrefix;
 
         private const int DefaultRedisDatabaseCount = 16;
@@ -208,7 +228,7 @@ namespace StackExchange.Redis
                             log?.LogInformationStartingRead(new(endpoint));
                             try
                             {
-                                StartReading(CancellationToken.None);
+                                StartReading();
                                 // Normal return
                             }
                             catch (Exception ex)
@@ -353,7 +373,7 @@ namespace StackExchange.Redis
             if (tmp != null)
             {
                 _writeStatus = WriteStatus.Flushing;
-                var flush = tmp.FlushAsync();
+                var flush = tmp.FlushAsync(OutputCancel);
                 if (!flush.IsCompletedSuccessfully)
                 {
                     return AwaitedFlush(flush);
@@ -368,40 +388,23 @@ namespace StackExchange.Redis
 
         internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {
-            throw new NotImplementedException(nameof(SimulateConnectionFailure));
-            /*
-            var raiseFailed = false;
-            if (connectionType == ConnectionType.Interactive)
+            bool killInput = false, killOutput = false;
+            switch (connectionType)
             {
-                if (failureType.HasFlag(SimulatedFailureType.InteractiveInbound))
-                {
-                    _ioPipe?.Input.Complete(new Exception("Simulating interactive input failure"));
-                    raiseFailed = true;
-                }
-                if (failureType.HasFlag(SimulatedFailureType.InteractiveOutbound))
-                {
-                    _ioPipe?.Output.Complete(new Exception("Simulating interactive output failure"));
-                    raiseFailed = true;
-                }
+                case ConnectionType.Interactive:
+                    killInput = failureType.HasFlag(SimulatedFailureType.InteractiveInbound);
+                    killOutput = failureType.HasFlag(SimulatedFailureType.InteractiveOutbound);
+                    break;
+                case ConnectionType.Subscription:
+                    killInput = failureType.HasFlag(SimulatedFailureType.SubscriptionInbound);
+                    killOutput = failureType.HasFlag(SimulatedFailureType.SubscriptionOutbound);
+                    break;
             }
-            else if (connectionType == ConnectionType.Subscription)
+            if (killInput | killOutput)
             {
-                if (failureType.HasFlag(SimulatedFailureType.SubscriptionInbound))
-                {
-                    _ioPipe?.Input.Complete(new Exception("Simulating subscription input failure"));
-                    raiseFailed = true;
-                }
-                if (failureType.HasFlag(SimulatedFailureType.SubscriptionOutbound))
-                {
-                    _ioPipe?.Output.Complete(new Exception("Simulating subscription output failure"));
-                    raiseFailed = true;
-                }
-            }
-            if (raiseFailed)
-            {
+                OnCancel(killInput, killOutput);
                 RecordConnectionFailed(ConnectionFailureType.SocketFailure);
             }
-            */
         }
 
         public void RecordConnectionFailed(
@@ -886,7 +889,13 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0062:Make local function 'static'", Justification = "DEBUG uses instance data")]
         internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
         {
-            var cts = _reusableFlushSyncTokenSource ??= new CancellationTokenSource();
+            var cts = _reusableFlushSyncTokenSource;
+            if (cts is null)
+            {
+                cts = new CancellationTokenSource();
+                OutputCancel.Register(static s => { ((CancellationTokenSource)s!).Cancel(); }, cts);
+                _reusableFlushSyncTokenSource = cts;
+            }
             var flush = FlushAsync(throwOnFailure, cts.Token);
             if (!flush.IsCompletedSuccessfully)
             {
@@ -914,15 +923,14 @@ namespace StackExchange.Redis
                 throw new TimeoutException("timeout while synchronously flushing");
             }
         }
-        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure, CancellationToken cancellationToken = default)
+        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure, CancellationToken soleCancel)
         {
             var tmp = _ioStream;
             if (tmp == null) return new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
             try
             {
                 _writeStatus = WriteStatus.Flushing;
-                tmp.FlushAsync(cancellationToken);
-                var flush = tmp.FlushAsync(cancellationToken);
+                var flush = tmp.FlushAsync(soleCancel);
                 if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure);
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();

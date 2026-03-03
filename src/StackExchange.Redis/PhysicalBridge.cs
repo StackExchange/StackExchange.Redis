@@ -1325,7 +1325,7 @@ namespace StackExchange.Redis
                 var result = WriteMessageInsideLock(physical, message);
                 if (result == WriteResult.Success)
                 {
-                    var flush = physical.FlushAsync(false);
+                    var flush = physical.FlushAsync(false, physical.OutputCancel);
                     if (!flush.IsCompletedSuccessfully)
                     {
                         releaseLock = false; // so we don't release prematurely
@@ -1394,7 +1394,7 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
-                    result = await physical.FlushAsync(false).ForAwait();
+                    result = await physical.FlushAsync(false, physical.OutputCancel).ForAwait();
                 }
 
                 physical.SetIdle();

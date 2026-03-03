@@ -21,7 +21,22 @@ internal sealed partial class PhysicalConnection
     private volatile ReadStatus _readStatus = ReadStatus.NotStarted;
     internal ReadStatus GetReadStatus() => _readStatus;
 
-    internal void StartReading(CancellationToken cancellationToken = default) => ReadAllAsync(cancellationToken).RedisFireAndForget();
+    internal void StartReading(CancellationToken cancellation = default)
+    {
+        if (cancellation.CanBeCanceled)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            if (InputCancel.CanBeCanceled)
+            {
+                cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation, InputCancel).Token;
+            }
+        }
+        else
+        {
+            cancellation = InputCancel;
+        }
+        ReadAllAsync(cancellation).RedisFireAndForget();
+    }
 
     private async Task ReadAllAsync(CancellationToken cancellationToken)
     {
