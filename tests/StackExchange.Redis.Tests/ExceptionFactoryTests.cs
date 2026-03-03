@@ -37,7 +37,9 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
 
             foreach (var endpoint in conn.GetEndPoints())
             {
-                conn.GetServer(endpoint).SimulateConnectionFailure(SimulatedFailureType.All);
+                var server = conn.GetServer(endpoint);
+                Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
             }
 
             var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, null);

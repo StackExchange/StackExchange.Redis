@@ -931,6 +931,7 @@ namespace StackExchange.Redis
             {
                 _writeStatus = WriteStatus.Flushing;
                 var flush = tmp.FlushAsync(soleCancel);
+
                 if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure);
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
