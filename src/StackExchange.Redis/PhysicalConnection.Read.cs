@@ -63,6 +63,11 @@ internal sealed partial class PhysicalConnection
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
         }
+        catch (OperationCanceledException) when (_readStatus is ReadStatus.ReadAsync)
+        {
+            _readStatus = ReadStatus.RanToCompletion;
+            RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+        }
         catch (Exception ex)
         {
             _readStatus = ReadStatus.Faulted;
