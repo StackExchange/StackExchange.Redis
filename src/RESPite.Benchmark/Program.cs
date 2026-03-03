@@ -20,12 +20,14 @@ internal static class Program
                     case "--old":
                         benchmarks.Add(new OldCoreBenchmark(args));
                         break;
+#if NEWCORE
                     case "--bridge":
                         benchmarks.Add(new BridgeBenchmark(args));
                         break;
                     case "--new":
                         benchmarks.Add(new NewCoreBenchmark(args));
                         break;
+#endif
                     case "--basic":
                         basic = true;
                         break;
@@ -34,7 +36,11 @@ internal static class Program
 
             if (benchmarks.Count == 0)
             {
+#if NEWCORE
                 benchmarks.Add(new NewCoreBenchmark(args));
+#else
+                benchmarks.Add(new OldCoreBenchmark(args));
+#endif
             }
 
             bool isFirst = true;

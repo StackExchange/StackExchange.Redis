@@ -15,13 +15,26 @@
     <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>
     <SignAssembly>false</SignAssembly>
     <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+    <TargetVer Condition="'$(TargetVer)'==''">2</TargetVer>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\RESPite.StackExchange.Redis\RESPite.StackExchange.Redis.csproj" />
+  <!-- v2 builds -->
+  <PropertyGroup Condition="'$(TargetVer)'=='2'">
+    <DefineConstants>$(DefineConstants);NEWCORE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetVer)'=='2'">
+    <ProjectReference Include="..\RESPite.StackExchange.Redis\RESPite.StackExchange.Redis.csproj"/>
     <ProjectReference Include="..\RESPite\RESPite.csproj"/>
-    <!--<PackageReference Include="StackExchange.Redis"/>-->
+    <PackageReference Include="StackExchange.Redis"/>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+  
+  <!-- v3 builds, for example: dotnet build /p:TargetVer=3 -->
+  <ItemGroup Condition="'$(TargetVer)'=='3'">
+    <ProjectReference Include="..\..\..\beta\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="readme.md" Pack="true" PackagePath="/"/>
   </ItemGroup>
 </Project>

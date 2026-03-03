@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if NEWCORE
+using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
@@ -431,3 +432,4 @@ internal static partial class RedisCommands
         }
     }
 }
+#endif

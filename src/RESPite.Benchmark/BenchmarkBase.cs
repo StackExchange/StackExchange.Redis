@@ -498,7 +498,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
             var pending = new Task<T>[ClientCount];
             int index = 0;
-#if DEBUG
+#if DEBUG && NEWCORE
             Internal.DebugCounters.Flush();
 #endif
             // optionally support cancellation, applied per-test
@@ -553,7 +553,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         finally
         {
             _ = didNotRun;
-#if DEBUG
+#if DEBUG && NEWCORE
             var counters = Internal.DebugCounters.Flush(); // flush even if not showing
             if (!Quiet & !didNotRun)
             {

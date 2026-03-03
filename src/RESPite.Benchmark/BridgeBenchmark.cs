@@ -1,4 +1,5 @@
-﻿using RESPite.StackExchange.Redis;
+﻿#if NEWCORE
+using RESPite.StackExchange.Redis;
 using StackExchange.Redis;
 
 namespace RESPite.Benchmark;
@@ -13,3 +14,4 @@ public sealed class BridgeBenchmark(string[] args) : OldCoreBenchmarkBase(args)
         return obj;
     }
 }
+#endif
