@@ -921,7 +921,6 @@ namespace StackExchange.Redis
             try
             {
                 _writeStatus = WriteStatus.Flushing;
-                tmp.FlushAsync(cancellationToken);
                 var flush = tmp.FlushAsync(cancellationToken);
                 if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure);
                 _writeStatus = WriteStatus.Flushed;
