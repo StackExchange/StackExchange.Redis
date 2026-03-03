@@ -37,13 +37,15 @@ internal static class Program
                 benchmarks.Add(new NewCoreBenchmark(args));
             }
 
+            bool isFirst = true;
             do
             {
                 foreach (var bench in benchmarks)
                 {
-                    if (benchmarks.Count > 1)
+                    if (benchmarks.Count > 1 || isFirst)
                     {
                         Console.WriteLine($"### {bench} ###");
+                        isFirst = false;
                     }
 
                     if (basic)

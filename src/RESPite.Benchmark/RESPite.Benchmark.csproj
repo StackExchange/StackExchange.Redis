@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
 
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <ToolCommandName>resp-benchmark</ToolCommandName>
     <PackAsTool>true</PackAsTool>
     <Title>command-line "RESP" benchmark client, comparable to redis-benchmark</Title>
