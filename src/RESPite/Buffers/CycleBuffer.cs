@@ -58,7 +58,7 @@ public partial struct CycleBuffer
     private Segment? startSegment, endSegment;
 
     private int endSegmentCommitted, endSegmentLength;
-    private int writingCopyOffset;
+    private int writeStartOffset;
 
     public bool TryGetCommitted(out ReadOnlySpan<byte> span)
     {
@@ -89,7 +89,8 @@ public partial struct CycleBuffer
         var available = endSegmentLength - endSegmentCommitted;
         if (count > available) Throw();
 
-        if (writingCopyOffset > 0) CopyDueToDiscardDuringWrite(count);
+        var writeEndOffset = endSegment!.StartTrimCount;
+        if (writeStartOffset != writeEndOffset) CopyDueToDiscardDuringWrite(count);
         endSegmentCommitted += count;
         DebugAssertValid();
 
@@ -98,13 +99,14 @@ public partial struct CycleBuffer
 
     private void CopyDueToDiscardDuringWrite(int count)
     {
-        // the page was re-expanded by flushing everything; need to move the data back down
-        var segmentSpan = MemoryMarshal.AsMemory(startSegment!.Memory).Span;
+        var segmentSpan = MemoryMarshal.AsMemory(endSegment!.Memory).Span;
+        var delta = writeStartOffset - endSegment.StartTrimCount;
 
-        // using the *new* origin, the target is relative to endSegmentCommitted
+        // note that segmentSpan is already relative to the "new" start, so:
         var target = segmentSpan.Slice(start: endSegmentCommitted, length: count);
+
         // using the *old* origin, we need to apply the offset
-        var src = segmentSpan.Slice(start: endSegmentCommitted + writingCopyOffset, length: count);
+        var src = segmentSpan.Slice(start: endSegmentCommitted + delta, length: count);
         src.CopyTo(target);
     }
     public bool CommittedIsEmpty => ReferenceEquals(startSegment, endSegment) & endSegmentCommitted == 0;
@@ -128,7 +130,6 @@ public partial struct CycleBuffer
             note that we also know that there must *be* a segment
             for the count check to pass
             */
-            writingCopyOffset += endSegmentCommitted;
             endSegmentCommitted = 0;
             endSegmentLength = endSegment!.Untrim(expandBackwards: true);
             DebugAssertValid(0);
@@ -151,7 +152,6 @@ public partial struct CycleBuffer
             & count > 0) // checks sign *and* non-trimmed
         {
             // see <see cref="DiscardCommitted(int)"/> for logic
-            writingCopyOffset += endSegmentCommitted;
             endSegmentCommitted = 0;
             endSegmentLength = endSegment!.Untrim(expandBackwards: true);
             DebugAssertValid(0);
@@ -183,7 +183,6 @@ public partial struct CycleBuffer
                 // first==final==only segment
                 if (count == endSegmentCommitted)
                 {
-                    writingCopyOffset += endSegmentCommitted;
                     endSegmentLength = startSegment!.Untrim();
                     endSegmentCommitted = 0; // = untrimmed and unused
 #if DEBUG
@@ -192,7 +191,7 @@ public partial struct CycleBuffer
                 }
                 else
                 {
-                    // discard from the start (note: don't need to compensate with writingCopyOffset)
+                    // discard from the start (note: don't need to compensate with writingCopyOffset until we untrim)
                     int count32 = checked((int)count);
                     segment.TrimStart(count32);
                     endSegmentLength -= count32;
@@ -429,10 +428,10 @@ public partial struct CycleBuffer
     public Memory<byte> GetUncommittedMemory(int hint = 0)
     {
         DebugAssertValid();
-        writingCopyOffset = 0;
         var segment = endSegment;
         if (segment is not null)
         {
+            writeStartOffset = segment.StartTrimCount;
             var memory = segment.Memory;
             if (endSegmentCommitted != 0) memory = memory.Slice(start: endSegmentCommitted);
             if (hint <= 0) // allow anything non-empty
@@ -446,7 +445,9 @@ public partial struct CycleBuffer
         }
 
         // new segment, will always be entire
-        return MemoryMarshal.AsMemory(GetNextSegment().Memory);
+        segment = GetNextSegment();
+        writeStartOffset = segment.StartTrimCount;
+        return MemoryMarshal.AsMemory(segment.Memory);
     }
 
     /// <summary>
@@ -540,6 +541,7 @@ public partial struct CycleBuffer
                 Memory = Memory.Slice(start: remove);
                 RunningIndex += remove; // so that ROS length keeps working; note we *don't* need to adjust the chain
                 DebugAssertValidChain();
+                StartTrimCount += remove;
             }
         }
 
@@ -582,6 +584,8 @@ public partial struct CycleBuffer
             public Memory<byte> Memory => default;
         }
 
+        public int StartTrimCount { get; private set; }
+
         /// <summary>
         /// Undo any trimming, returning the new full capacity.
         /// </summary>
@@ -609,6 +613,8 @@ public partial struct CycleBuffer
 
                 DebugAssertValidChain();
             }
+
+            StartTrimCount = 0;
             return fullLength;
         }
 

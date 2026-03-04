@@ -64,6 +64,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             AllowAdmin = true,
             Tunnel = Tunnel,
         };
+
 #if DEBUG
         if (_log is not null)
         {
@@ -76,6 +77,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             };
         }
 #endif
+
         foreach (var endpoint in GetEndPoints())
         {
             config.EndPoints.Add(endpoint);
