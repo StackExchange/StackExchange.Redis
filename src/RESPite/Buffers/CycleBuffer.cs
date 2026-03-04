@@ -31,25 +31,29 @@ namespace RESPite.Buffers;
 public partial struct CycleBuffer
 {
     // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud
-    public static CycleBuffer Create(MemoryPool<byte>? pool = null, int pageSize = DefaultPageSize)
+    public static CycleBuffer Create(
+        MemoryPool<byte>? pool = null,
+        int pageSize = DefaultPageSize,
+        ICycleBufferCallback? callback = null)
     {
         pool ??= MemoryPool<byte>.Shared;
         if (pageSize <= 0) pageSize = DefaultPageSize;
         if (pageSize > pool.MaxBufferSize) pageSize = pool.MaxBufferSize;
-
-        return new CycleBuffer(pool, pageSize);
+        return new CycleBuffer(pool, pageSize, callback);
     }
 
-    private CycleBuffer(MemoryPool<byte> pool, int pageSize)
+    private CycleBuffer(MemoryPool<byte> pool, int pageSize, ICycleBufferCallback? callback)
     {
         Pool = pool;
         PageSize = pageSize;
+        _callback = callback;
     }
 
     private const int DefaultPageSize = 8 * 1024;
 
     public int PageSize { get; }
     public MemoryPool<byte> Pool { get; }
+    private readonly ICycleBufferCallback? _callback;
 
     private Segment? startSegment, endSegment;
 
@@ -365,6 +369,9 @@ public partial struct CycleBuffer
             Debug.Assert(endSegment.Length == endSegmentCommitted, "trim failure");
             endSegmentLength = endSegmentCommitted;
             DebugAssertValid();
+
+            // advertise the old page as available
+            _callback?.PageComplete();
 
             var spare = endSegment.Next;
             if (spare is not null)
