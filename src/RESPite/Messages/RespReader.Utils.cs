@@ -16,11 +16,11 @@ public ref partial struct RespReader
     private void UnsafeAssertClLf(int offset) => UnsafeAssertClLf(ref UnsafeCurrent, offset);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void UnsafeAssertClLf(scoped ref byte source, int offset)
+    private readonly void UnsafeAssertClLf(scoped ref byte source, int offset)
     {
         if (Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref source, offset)) != RespConstants.CrLfUInt16)
         {
-            ThrowProtocolFailure("Expected CR/LF");
+            ThrowProtocolFailure($"Expected CR/LF ({offset}={(char)Unsafe.Add(ref source, offset)})");
         }
     }
 
@@ -50,7 +50,7 @@ public ref partial struct RespReader
         static void Throw(RespPrefix prefix) => throw new InvalidOperationException($"This operation requires an aggregate element, got {prefix}");
     }
 
-    private static LengthPrefixResult TryReadLengthPrefix(ReadOnlySpan<byte> bytes, out int value, out int byteCount)
+    private readonly LengthPrefixResult TryReadLengthPrefix(ReadOnlySpan<byte> bytes, out int value, out int byteCount)
     {
         var end = bytes.IndexOf(RespConstants.CrlfBytes);
         if (end < 0)
@@ -93,8 +93,8 @@ public ref partial struct RespReader
     private readonly RespReader Clone() => this; // useful for performing streaming operations without moving the primary
 
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
-    private static void ThrowProtocolFailure(string message)
-        => throw new InvalidOperationException("RESP protocol failure: " + message); // protocol exception?
+    private readonly void ThrowProtocolFailure(string message)
+        => throw new InvalidOperationException($"RESP protocol failure around offset {_positionBase}-{BytesConsumed}: {message}"); // protocol exception?
 
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
     internal static void ThrowEof() => throw new EndOfStreamException();

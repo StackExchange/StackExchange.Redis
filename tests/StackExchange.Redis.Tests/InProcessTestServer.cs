@@ -28,6 +28,15 @@ public class InProcessTestServer : MemoryCacheRedisServer
     public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = false, TextWriter? log = null)
         => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub), log);
 
+    /*
+    public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
+    {
+        var result = base.Execute(client, in request);
+        Log($"[{client.Id}] {request.Command} => {result.Type}");
+        return result;
+    }
+    */
+
     public ConfigurationOptions GetClientConfig(bool withPubSub = false)
     {
         var commands = GetCommands();
@@ -55,6 +64,18 @@ public class InProcessTestServer : MemoryCacheRedisServer
             AllowAdmin = true,
             Tunnel = Tunnel,
         };
+#if DEBUG
+        if (_log is not null)
+        {
+            config.OutputLog = msg =>
+            {
+                lock (_log)
+                {
+                    _log.WriteLine(msg);
+                }
+            };
+        }
+#endif
         foreach (var endpoint in GetEndPoints())
         {
             config.EndPoints.Add(endpoint);

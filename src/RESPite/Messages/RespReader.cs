@@ -1322,7 +1322,7 @@ public ref partial struct RespReader
                     case LengthPrefixResult.NeedMoreData:
                         return false;
                     default:
-                        ThrowProtocolFailure("Unexpected length prefix");
+                        live.ThrowProtocolFailure("Unexpected length prefix");
                         return false;
                 }
 
@@ -1349,7 +1349,7 @@ public ref partial struct RespReader
                     case LengthPrefixResult.NeedMoreData:
                         return false;
                     default:
-                        ThrowProtocolFailure("Unexpected length prefix");
+                        isolated.ThrowProtocolFailure("Unexpected length prefix");
                         return false;
                 }
 
@@ -1380,7 +1380,7 @@ public ref partial struct RespReader
                         break;
                     case LengthPrefixResult.Null:
                     case LengthPrefixResult.Streaming:
-                        ThrowProtocolFailure("Invalid streaming scalar length prefix");
+                        isolated.ThrowProtocolFailure("Invalid streaming scalar length prefix");
                         break;
                     case LengthPrefixResult.NeedMoreData:
                     default:
@@ -1389,7 +1389,7 @@ public ref partial struct RespReader
 
                 break;
             default:
-                ThrowProtocolFailure("Unexpected protocol prefix: " + isolated._prefix);
+                isolated.ThrowProtocolFailure("Unexpected protocol prefix: " + isolated._prefix);
                 return false;
         }
 

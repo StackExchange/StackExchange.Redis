@@ -23,6 +23,12 @@ internal partial class PhysicalConnection
         if (stream is null) return;
         _ioStream = stream;
         _output = new(stream, OutputCancel);
+#if DEBUG
+        if (BridgeCouldBeNull?.Multiplexer.RawConfig.OutputLog is { } log)
+        {
+            _output.DebugSetLog(log);
+        }
+#endif
     }
 
     internal bool HasOutputPipe => _output is not null;

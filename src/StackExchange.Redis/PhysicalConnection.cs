@@ -84,7 +84,7 @@ namespace StackExchange.Redis
 
         internal void GetBytes(out long sent, out long received)
         {
-            sent = totalBytesSent;
+            sent = TotalBytesSent;
             received = totalBytesReceived;
         }
 
@@ -332,7 +332,6 @@ namespace StackExchange.Redis
             {
                 Trace("Disconnecting...");
                 try { BridgeCouldBeNull?.OnDisconnected(ConnectionFailureType.ConnectionDisposed, this, out _, out _); } catch { }
-                try { output.CancelPendingFlush(); } catch { }
                 try { output.Complete(); } catch { }
             }
 
@@ -354,34 +353,11 @@ namespace StackExchange.Redis
                 RecordConnectionFailed(ConnectionFailureType.ConnectionDisposed);
             }
             OnCloseEcho();
-            _reusableFlushSyncTokenSource?.Dispose();
             // ReSharper disable once GCSuppressFinalizeForTypeWithoutDestructor
             GC.SuppressFinalize(this);
         }
 
-        private async Task AwaitedFlush(ValueTask<FlushResult> flush)
-        {
-            await flush.ForAwait();
-            _writeStatus = WriteStatus.Flushed;
-            UpdateLastWriteTime();
-        }
         internal void UpdateLastWriteTime() => Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
-        public Task FlushAsync()
-        {
-            var tmp = _output;
-            if (tmp != null)
-            {
-                _writeStatus = WriteStatus.Flushing;
-                var flush = tmp.FlushAsync(OutputCancel);
-                if (!flush.IsCompletedSuccessfully)
-                {
-                    return AwaitedFlush(flush);
-                }
-                _writeStatus = WriteStatus.Flushed;
-                UpdateLastWriteTime();
-            }
-            return Task.CompletedTask;
-        }
 
         internal bool CanSimulateConnectionFailure => false;
 
@@ -482,7 +458,7 @@ namespace StackExchange.Redis
                     }
                     */
 
-                    long sent = totalBytesSent, recd = totalBytesReceived;
+                    long sent = TotalBytesSent, recd = totalBytesReceived;
                     if (sent == 0) { exMessage.Append(recd == 0 ? " (0-read, 0-sent)" : " (0-sent)"); }
                     else if (recd == 0) { exMessage.Append(" (0-read)"); }
 
@@ -844,81 +820,16 @@ namespace StackExchange.Redis
             // (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "DEBUG uses instance data")]
-        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure)
-        {
-            try
-            {
-                await flush.ForAwait();
-                connection._writeStatus = WriteStatus.Flushed;
-                connection.UpdateLastWriteTime();
-                return WriteResult.Success;
-            }
-            catch (ConnectionResetException ex) when (!throwOnFailure)
-            {
-                connection.RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
-                return WriteResult.WriteFailure;
-            }
-        }
-
-        private CancellationTokenSource? _reusableFlushSyncTokenSource;
-        [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0062:Make local function 'static'", Justification = "DEBUG uses instance data")]
-        internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
-        {
-            var cts = _reusableFlushSyncTokenSource;
-            if (cts is null)
-            {
-                cts = new CancellationTokenSource();
-                OutputCancel.Register(static s => { ((CancellationTokenSource)s!).Cancel(); }, cts);
-                _reusableFlushSyncTokenSource = cts;
-            }
-            var flush = FlushAsync(throwOnFailure, cts.Token);
-            if (!flush.IsCompletedSuccessfully)
-            {
-                // only schedule cancellation if it doesn't complete synchronously; at this point, it is doomed
-                _reusableFlushSyncTokenSource = null;
-                cts.CancelAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
-                try
-                {
-                    // here lies the evil
-                    flush.AsTask().Wait();
-                }
-                catch (AggregateException ex) when (ex.InnerExceptions.Any(e => e is TaskCanceledException))
-                {
-                    ThrowTimeout();
-                }
-                finally
-                {
-                    cts.Dispose();
-                }
-            }
-            return flush.Result;
-
-            void ThrowTimeout()
-            {
-                throw new TimeoutException("timeout while synchronously flushing");
-            }
-        }
-        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure, CancellationToken soleCancel)
+        internal void Flush()
         {
             var tmp = _output;
-            if (tmp == null) return new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
-            try
-            {
-                _writeStatus = WriteStatus.Flushing;
-                var flush = tmp.FlushAsync(soleCancel);
-
-                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure);
-                _writeStatus = WriteStatus.Flushed;
-                UpdateLastWriteTime();
-                return new ValueTask<WriteResult>(WriteResult.Success);
-            }
-            catch (ConnectionResetException ex) when (!throwOnFailure)
-            {
-                RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
-                return new ValueTask<WriteResult>(WriteResult.WriteFailure);
-            }
+            if (tmp is null) Throw();
+            _writeStatus = WriteStatus.Flushing;
+            tmp.Flush();
+            _writeStatus = WriteStatus.Flushed;
+            UpdateLastWriteTime();
+            [DoesNotReturn]
+            static void Throw() => throw new InvalidOperationException("Output pipe not initialized");
         }
 
         internal readonly struct ConnectionStatus

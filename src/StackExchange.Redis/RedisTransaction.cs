@@ -328,9 +328,7 @@ namespace StackExchange.Redis
                                 sb.AppendLine("checking conditions in the *early* path");
                                 // need to get those sent ASAP; if they are stuck in the buffers, we die
                                 multiplexer.Trace("Flushing and waiting for precondition responses");
-#pragma warning disable CS0618 // Type or member is obsolete
-                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
-#pragma warning restore CS0618
+                                connection.Flush(); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
 
                                 if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                                 {
@@ -388,9 +386,7 @@ namespace StackExchange.Redis
                                 sb.AppendLine("checking conditions in the *late* path");
 
                                 multiplexer.Trace("Flushing and waiting for precondition+queued responses");
-#pragma warning disable CS0618 // Type or member is obsolete
-                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
-#pragma warning restore CS0618
+                                connection.Flush(); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
                                 if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                                 {
                                     if (!AreAllConditionsSatisfied(multiplexer))

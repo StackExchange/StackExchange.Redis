@@ -58,6 +58,7 @@ public partial struct CycleBuffer
     private Segment? startSegment, endSegment;
 
     private int endSegmentCommitted, endSegmentLength;
+    private int writingCopyOffset;
 
     public bool TryGetCommitted(out ReadOnlySpan<byte> span)
     {
@@ -87,12 +88,25 @@ public partial struct CycleBuffer
 
         var available = endSegmentLength - endSegmentCommitted;
         if (count > available) Throw();
+
+        if (writingCopyOffset > 0) CopyDueToDiscardDuringWrite(count);
         endSegmentCommitted += count;
         DebugAssertValid();
 
         static void Throw() => throw new ArgumentOutOfRangeException(nameof(count));
     }
 
+    private void CopyDueToDiscardDuringWrite(int count)
+    {
+        // the page was re-expanded by flushing everything; need to move the data back down
+        var segmentSpan = MemoryMarshal.AsMemory(startSegment!.Memory).Span;
+
+        // using the *new* origin, the target is relative to endSegmentCommitted
+        var target = segmentSpan.Slice(start: endSegmentCommitted, length: count);
+        // using the *old* origin, we need to apply the offset
+        var src = segmentSpan.Slice(start: endSegmentCommitted + writingCopyOffset, length: count);
+        src.CopyTo(target);
+    }
     public bool CommittedIsEmpty => ReferenceEquals(startSegment, endSegment) & endSegmentCommitted == 0;
 
     /// <summary>
@@ -101,6 +115,8 @@ public partial struct CycleBuffer
     public void DiscardCommitted(int count)
     {
         DebugAssertValid();
+        if (count == 0) return;
+
         // optimize for most common case, where we consume everything
         if (ReferenceEquals(startSegment, endSegment)
             & count == endSegmentCommitted
@@ -112,14 +128,11 @@ public partial struct CycleBuffer
             note that we also know that there must *be* a segment
             for the count check to pass
             */
+            writingCopyOffset += endSegmentCommitted;
             endSegmentCommitted = 0;
             endSegmentLength = endSegment!.Untrim(expandBackwards: true);
             DebugAssertValid(0);
             DebugCounters.OnDiscardFull(count);
-        }
-        else if (count == 0)
-        {
-            // nothing to do
         }
         else
         {
@@ -130,20 +143,19 @@ public partial struct CycleBuffer
     public void DiscardCommitted(long count)
     {
         DebugAssertValid();
+        if (count == 0) return;
+
         // optimize for most common case, where we consume everything
         if (ReferenceEquals(startSegment, endSegment)
             & count == endSegmentCommitted
             & count > 0) // checks sign *and* non-trimmed
         {
             // see <see cref="DiscardCommitted(int)"/> for logic
+            writingCopyOffset += endSegmentCommitted;
             endSegmentCommitted = 0;
             endSegmentLength = endSegment!.Untrim(expandBackwards: true);
             DebugAssertValid(0);
             DebugCounters.OnDiscardFull(count);
-        }
-        else if (count == 0)
-        {
-            // nothing to do
         }
         else
         {
@@ -171,6 +183,7 @@ public partial struct CycleBuffer
                 // first==final==only segment
                 if (count == endSegmentCommitted)
                 {
+                    writingCopyOffset += endSegmentCommitted;
                     endSegmentLength = startSegment!.Untrim();
                     endSegmentCommitted = 0; // = untrimmed and unused
 #if DEBUG
@@ -179,7 +192,7 @@ public partial struct CycleBuffer
                 }
                 else
                 {
-                    // discard from the start
+                    // discard from the start (note: don't need to compensate with writingCopyOffset)
                     int count32 = checked((int)count);
                     segment.TrimStart(count32);
                     endSegmentLength -= count32;
@@ -416,6 +429,7 @@ public partial struct CycleBuffer
     public Memory<byte> GetUncommittedMemory(int hint = 0)
     {
         DebugAssertValid();
+        writingCopyOffset = 0;
         var segment = endSegment;
         if (segment is not null)
         {

@@ -851,6 +851,9 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
+#if DEBUG
+            OutputLog = OutputLog,
+#endif
         };
 
         /// <summary>
@@ -1176,6 +1179,10 @@ namespace StackExchange.Redis
         /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol { get; set; }
+
+#if DEBUG
+        internal Action<string>? OutputLog;
+#endif
 
         internal bool TryResp3()
         {

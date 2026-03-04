@@ -856,7 +856,7 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
-                    result = physical.FlushSync(false, TimeoutMilliseconds);
+                    physical.Flush();
                 }
 
                 physical.SetIdle();
@@ -1202,9 +1202,7 @@ namespace StackExchange.Redis
                         if (result == WriteResult.Success)
                         {
                             _backlogStatus = BacklogStatus.Flushing;
-#pragma warning disable CS0618 // Type or member is obsolete
-                            result = physical.FlushSync(false, TimeoutMilliseconds);
-#pragma warning restore CS0618 // Type or member is obsolete
+                            physical.Flush();
                         }
 
                         _backlogStatus = BacklogStatus.MarkingInactive;
@@ -1325,18 +1323,7 @@ namespace StackExchange.Redis
                 var result = WriteMessageInsideLock(physical, message);
                 if (result == WriteResult.Success)
                 {
-                    var flush = physical.FlushAsync(false, physical.OutputCancel);
-                    if (!flush.IsCompletedSuccessfully)
-                    {
-                        releaseLock = false; // so we don't release prematurely
-#if NETCOREAPP
-                        return CompleteWriteAndReleaseLockAsync(flush, message);
-#else
-                        return CompleteWriteAndReleaseLockAsync(token, flush, message);
-#endif
-                    }
-
-                    result = flush.Result; // .Result: we know it was completed, so this is fine
+                    physical.Flush();
                 }
 
                 physical.SetIdle();
@@ -1394,7 +1381,7 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
-                    result = await physical.FlushAsync(false, physical.OutputCancel).ForAwait();
+                    physical.Flush();
                 }
 
                 physical.SetIdle();

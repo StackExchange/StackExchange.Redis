@@ -1085,7 +1085,7 @@ namespace StackExchange.Redis
                 }
             }
             log?.LogInformationFlushingOutboundBuffer(new(this));
-            await connection.FlushAsync().ForAwait();
+            connection.Flush();
         }
 
         private void SetConfig<T>(ref T field, T value, [CallerMemberName] string? caller = null)

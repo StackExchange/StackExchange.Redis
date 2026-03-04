@@ -281,6 +281,8 @@ namespace StackExchange.Redis.Server
             Exception fault = null;
             RedisClient client = null;
             byte[] commandLease = RedisRequest.GetLease();
+            ReadOnlySequence<byte> buffer = default;
+            bool wasReading = false;
             try
             {
                 node ??= DefaultNode;
@@ -289,10 +291,12 @@ namespace StackExchange.Redis.Server
                 while (!client.Closed)
                 {
                     var readResult = await pipe.Input.ReadAsync().ConfigureAwait(false);
-                    var buffer = readResult.Buffer;
+                    buffer = readResult.Buffer;
 
+                    wasReading = true;
                     while (!client.Closed && client.TryReadRequest(buffer, out long consumed))
                     {
+                        wasReading = false;
                         // process a completed request
                         RedisRequest request = new(buffer.Slice(0, consumed), ref commandLease);
                         request = request.WithClient(client);
@@ -304,7 +308,9 @@ namespace StackExchange.Redis.Server
 
                         // advance the buffer to account for the message we just read
                         buffer = buffer.Slice(consumed);
+                        wasReading = true;
                     }
+                    wasReading = false;
 
                     pipe.Input.AdvanceTo(buffer.Start, buffer.End);
                     if (readResult.IsCompleted) break; // EOF
@@ -331,9 +337,39 @@ namespace StackExchange.Redis.Server
                 if (fault != null && !_isShutdown)
                 {
                     Log("Connection faulted (" + fault.GetType().Name + "): " + fault.Message);
+                    if (wasReading)
+                    {
+                        Log("Read fault, buffer: " + GetUtf8String(buffer));
+                    }
                 }
             }
         }
+
+        internal static string GetUtf8String(in ReadOnlySequence<byte> buffer)
+        {
+            if (buffer.IsEmpty) return "(empty)";
+            char[] lease = null;
+            var maxLen = Encoding.UTF8.GetMaxCharCount(checked((int)buffer.Length));
+            Span<char> target = maxLen <= 128 ? stackalloc char[128] : (lease = ArrayPool<char>.Shared.Rent(maxLen));
+            int charCount = 0;
+            if (buffer.IsSingleSegment)
+            {
+                charCount = Encoding.UTF8.GetChars(buffer.First.Span, target);
+            }
+            else
+            {
+                foreach (var segment in buffer)
+                {
+                    charCount += Encoding.UTF8.GetChars(segment.Span, target.Slice(charCount));
+                }
+            }
+            const string CR = "\u240D", LF = "\u240A", CRLF = CR + LF;
+            string s = target.Slice(0, charCount).ToString()
+                .Replace("\r\n", CRLF).Replace("\r", CR).Replace("\n", LF);
+            if (lease is not null) ArrayPool<char>.Shared.Return(lease);
+            return s;
+        }
+
         public virtual void Log(string message)
         {
             var output = _output;
