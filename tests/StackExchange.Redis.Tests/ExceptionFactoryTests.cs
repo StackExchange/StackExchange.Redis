@@ -21,7 +21,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
     public void CanGetVersion()
     {
         var libVer = Utils.GetLibVersion();
-        Assert.Matches(@"2\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
+        Assert.Matches(@"[2-3]\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
     }
 
 #if DEBUG
