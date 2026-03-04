@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
@@ -20,28 +21,37 @@ internal partial class PhysicalConnection
         }
     }
 
-    private void CreateOutputPipe()
+    private Task _writeComplete = Task.CompletedTask;
+
+    private void InitOutput(Stream? stream)
     {
-        if (_ioStream is not { } stream) return;
+        if (stream is null) return;
+        _ioStream = stream;
         var pipe = new Pipe();
         _output = pipe.Writer;
-        _ = Task.Run(() => CopyOutputAsync(this, pipe.Reader, stream));
+        _writeComplete = Task.Run(() => CopyOutputAsync(this, pipe.Reader), OutputCancel);
     }
 
     internal bool HasOutputPipe => _output is not null;
 
-    private static async Task CopyOutputAsync(PhysicalConnection connection, PipeReader from, Stream to)
+    internal Task CompleteOutputAsync(Exception? exception = null)
+    {
+        _output?.Complete(exception);
+        return _writeComplete;
+    }
+
+    private static async Task CopyOutputAsync(PhysicalConnection connection, PipeReader from)
     {
         try
         {
             bool pendingFlush = false;
-            while (true)
+            while (connection._ioStream is { } stream)
             {
                 if (!from.TryRead(out var read))
                 {
                     if (pendingFlush)
                     {
-                        await to.FlushAsync(connection.OutputCancel).ConfigureAwait(false);
+                        await stream.FlushAsync(connection.OutputCancel).ConfigureAwait(false);
                         pendingFlush = false;
                     }
                     read = await from.ReadAsync(connection.OutputCancel).ConfigureAwait(false);
@@ -55,7 +65,7 @@ internal partial class PhysicalConnection
                     {
                         pendingFlush = true;
                         connection.totalBytesSent += segment.Length;
-                        await to.WriteAsync(buffer.First, connection.OutputCancel).ConfigureAwait(false);
+                        await stream.WriteAsync(buffer.First, connection.OutputCancel).ConfigureAwait(false);
                     }
                 }
                 else
@@ -66,7 +76,7 @@ internal partial class PhysicalConnection
                         {
                             pendingFlush = true;
                             connection.totalBytesSent += segment.Length;
-                            await to.WriteAsync(segment, connection.OutputCancel).ConfigureAwait(false);
+                            await stream.WriteAsync(segment, connection.OutputCancel).ConfigureAwait(false);
                         }
                     }
                 }

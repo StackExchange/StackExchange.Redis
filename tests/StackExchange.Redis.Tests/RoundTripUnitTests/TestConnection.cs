@@ -49,6 +49,7 @@ public class TestConnection : IDisposable
         message.SetSource(box, processor);
         conn.WriteOutbound(message, commandMap, channelPrefix);
         Assert.Equal(TaskStatus.WaitingForActivation, tcs.Task.Status); // should be pending, since we haven't responded yet
+        await conn.CompleteOutputAsync();
 
         // check the request
         conn.AssertOutbound(requestResp);
@@ -58,6 +59,8 @@ public class TestConnection : IDisposable
         await conn.AddInboundAsync(responseResp);
         return await tcs.Task;
     }
+
+    private Task CompleteOutputAsync(Exception? exception = null) => _physical.CompleteOutputAsync(exception);
 
     public TestConnection(
         bool startReading = true,

@@ -110,7 +110,7 @@ namespace StackExchange.Redis
             _protocol = protocol;
             _bridge = new WeakReference(null);
             _physicalName = name;
-            _ioStream = ioStream;
+            InitOutput(ioStream);
             OnCreateEcho();
         }
         public PhysicalConnection(PhysicalBridge bridge)
@@ -1144,8 +1144,7 @@ namespace StackExchange.Redis
                 stream ??= DemandSocketStream(socket);
                 OnWrapForLogging(ref stream, _physicalName);
 
-                _ioStream = stream;
-                CreateOutputPipe();
+                InitOutput(stream);
 
                 log?.LogInformationConnected(bridge.Name);
 
