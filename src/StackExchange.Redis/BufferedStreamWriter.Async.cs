@@ -25,7 +25,7 @@ internal sealed class BufferedAsyncStreamWriter : BufferedStreamWriter, IValueTa
         {
             while (true)
             {
-                ValueTask pending = new(this, _readerTask.Version);
+                ValueTask pending = AwaitWake();
                 if (!pending.IsCompleted)
                 {
                     lock (this)
@@ -45,7 +45,7 @@ internal sealed class BufferedAsyncStreamWriter : BufferedStreamWriter, IValueTa
                     {
                         stateFlags = State;
                         var minBytes = (stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
-                        if (!TryGetFirstCommittedMemory(minBytes, out memory))
+                        if (!GetFirstChunkInsideLock(minBytes, out memory))
                         {
                             // out of data; remove flush flag and wait for more work
                             stateFlags &= ~StateFlags.Flush;
@@ -85,16 +85,48 @@ internal sealed class BufferedAsyncStreamWriter : BufferedStreamWriter, IValueTa
         // note we do *not* close the stream here - we have to settle for flushing; Close is explicit
     }
 
-    void IValueTaskSource.GetResult(short token)
+    private ValueTask AwaitWake()
     {
-        _readerTask.GetResult(token); // may throw, note
-        _readerTask.Reset();
+        lock (this) // guard all transitions
+        {
+            return new(this, _readerTask.Version);
+        }
     }
 
-    ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _readerTask.GetStatus(token);
+    void IValueTaskSource.GetResult(short token)
+    {
+        lock (this) // guard all transitions
+        {
+            _readerTask.GetResult(token); // may throw, note
+            _readerTask.Reset();
+        }
+    }
 
-    void IValueTaskSource.OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
-        => _readerTask.OnCompleted(continuation, state, token, flags);
+    ValueTaskSourceStatus IValueTaskSource.GetStatus(short token)
+    {
+        lock (this) // guard all transitions
+        {
+            return _readerTask.GetStatus(token);
+        }
+    }
 
-    protected override void OnWakeReader() => _readerTask.SetResult(true);
+    void IValueTaskSource.OnCompleted(
+        Action<object?> continuation,
+        object? state,
+        short token,
+        ValueTaskSourceOnCompletedFlags flags)
+    {
+        lock (this) // guard all transitions
+        {
+            _readerTask.OnCompleted(continuation, state, token, flags);
+        }
+    }
+
+    protected override void OnWakeReader()
+    {
+        lock (this) // guard all transitions
+        {
+            _readerTask.SetResult(true);
+        }
+    }
 }

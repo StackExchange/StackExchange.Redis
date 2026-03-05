@@ -51,7 +51,7 @@ internal sealed class BuffereSyncStreamWriter : BufferedStreamWriter
                     {
                         stateFlags = State;
                         var minBytes = (stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
-                        if (!TryGetFirstCommittedMemory(minBytes, out memory))
+                        if (!GetFirstChunkInsideLock(minBytes, out memory))
                         {
                             // out of data; remove flush flag and wait for more work
                             stateFlags &= ~StateFlags.Flush;

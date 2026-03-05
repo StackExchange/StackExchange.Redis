@@ -45,7 +45,7 @@ internal abstract class BufferedStreamWriter
         Closed = 1 << 2,
     }
 
-    protected bool TryGetFirstCommittedMemory(int minBytes, out ReadOnlyMemory<byte> memory)
+    protected bool GetFirstChunkInsideLock(int minBytes, out ReadOnlyMemory<byte> memory)
         => _buffer.TryGetFirstCommittedMemory(minBytes, out memory);
 
     protected void ReleaseBuffer() => _buffer.Release();
