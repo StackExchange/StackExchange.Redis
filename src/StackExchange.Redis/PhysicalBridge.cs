@@ -854,7 +854,7 @@ namespace StackExchange.Redis
 
                 var result = WriteMessageInsideLock(physical, message);
 
-                if (result == WriteResult.Success & message.IsFlushRequired)
+                if (result == WriteResult.Success & message.IsFlushRequiredSync)
                 {
                     physical.Flush();
                 }
@@ -1179,7 +1179,8 @@ namespace StackExchange.Redis
                 // Only execute if we're connected.
                 // Timeouts are handled above, so we're exclusively into backlog items eligible to write at this point.
                 // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
-                while (IsConnected && physical?.HasOutputPipe == true)
+                bool flush = false;
+                while (IsConnected && physical is { HasOutputPipe: true })
                 {
                     Message? message;
                     _backlogStatus = BacklogStatus.CheckingForWork;
@@ -1199,11 +1200,8 @@ namespace StackExchange.Redis
                         _backlogStatus = BacklogStatus.WritingMessage;
                         var result = WriteMessageInsideLock(physical, message);
 
-                        if (result == WriteResult.Success & message.IsFlushRequired)
-                        {
-                            _backlogStatus = BacklogStatus.Flushing;
-                            physical.Flush();
-                        }
+                        // use flush logic that assumes a sync caller
+                        if (!flush) flush = message.IsFlushRequiredSync;
 
                         _backlogStatus = BacklogStatus.MarkingInactive;
                         if (result != WriteResult.Success)
@@ -1223,6 +1221,14 @@ namespace StackExchange.Redis
                         UnmarkActiveMessage(message);
                     }
                 }
+
+                if (flush && IsConnected && physical is { HasOutputPipe: true })
+                {
+                    // at least one message wants flushing
+                    _backlogStatus = BacklogStatus.Flushing;
+                    physical?.Flush();
+                }
+
                 _backlogStatus = BacklogStatus.SettingIdle;
                 physical?.SetIdle();
                 _backlogStatus = BacklogStatus.Inactive;
@@ -1321,7 +1327,7 @@ namespace StackExchange.Redis
 #endif
                 }
                 var result = WriteMessageInsideLock(physical, message);
-                if (result == WriteResult.Success & message.IsFlushRequired)
+                if (result == WriteResult.Success & message.IsFlushRequiredAsync)
                 {
                     physical.Flush();
                 }
