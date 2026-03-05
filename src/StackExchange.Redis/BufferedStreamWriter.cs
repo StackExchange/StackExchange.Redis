@@ -7,28 +7,24 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using RESPite.Buffers;
 
 namespace StackExchange.Redis;
 
-internal sealed class BufferedStreamWriter
+internal abstract class BufferedStreamWriter
     : IBufferWriter<byte>,
     IDisposable,
     ICycleBufferCallback,
-    IValueTaskSource,
     IAsyncDisposable
 {
-    public BufferedStreamWriter(Stream target, CancellationToken cancellationToken = default)
+    protected BufferedStreamWriter(Stream target, CancellationToken cancellationToken)
     {
         _target = target;
         _buffer = CycleBuffer.Create(callback: this);
         _cancellationToken = cancellationToken;
-        WriteComplete = Task.Run(CopyOutAsync, cancellationToken);
-        _readerTask.RunContinuationsAsynchronously = true; // we never want the flusher to take over the copying
     }
 
-    public Task WriteComplete { get; }
+    public abstract Task WriteComplete { get; }
 
     private CycleBuffer _buffer;
     private readonly Stream _target;
@@ -36,8 +32,12 @@ internal sealed class BufferedStreamWriter
     private StateFlags _stateFlags;
     private Exception? _exception;
 
+    protected bool IsFaulted => _exception is not null;
+    protected ref readonly CancellationToken CancellationToken => ref _cancellationToken;
+    protected Stream Target => _target;
+
     [Flags]
-    private enum StateFlags
+    protected enum StateFlags
     {
         None = 0,
         Flush = 1 << 0, // allow reading incomplete pages
@@ -45,7 +45,12 @@ internal sealed class BufferedStreamWriter
         Closed = 1 << 2,
     }
 
-    private ManualResetValueTaskSourceCore<bool> _readerTask;
+    protected bool TryGetFirstCommittedMemory(int minBytes, out ReadOnlyMemory<byte> memory)
+        => _buffer.TryGetFirstCommittedMemory(minBytes, out memory);
+
+    protected void ReleaseBuffer() => _buffer.Release();
+
+    protected void DiscardCommitted(int count) => _buffer.DiscardCommitted(count);
 
     /// <summary>
     /// Activate the writer if necessary, but only consume complete pages.
@@ -78,7 +83,25 @@ internal sealed class BufferedStreamWriter
             }
             _stateFlags = state;
         }
-        if (activate) _readerTask.SetResult(true);
+
+        if (activate) OnWakeReader();
+    }
+
+    protected abstract void OnWakeReader();
+
+    [Conditional("DEBUG")]
+    protected void OnDebugBufferLog(ReadOnlyMemory<byte> memory)
+    {
+#if DEBUG
+        if (_log is not null)
+        {
+            const string CR = "\u240D", LF = "\u240A", CRLF = CR + LF;
+            string raw = Encoding.UTF8.GetString(memory.Span)
+                .Replace("\r\n", CRLF).Replace("\r", CR).Replace("\n", LF);
+            string s = $"{id}.{fragment++}: {raw}";
+            OnDebugLog(s);
+        }
+#endif
     }
 
     public void Advance(int count)
@@ -109,107 +132,31 @@ internal sealed class BufferedStreamWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ThrowIfComplete()
+    protected void ThrowIfComplete()
     {
         // prevents a writer continuing to write to a dead pipe
         if ((_stateFlags & StateFlags.Closed) != 0) ThrowCompleteOrFaulted();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
-    private void ThrowCompleteOrFaulted()
+    protected void ThrowCompleteOrFaulted()
     {
         var ex = _exception;
         if (ex is null) throw new InvalidOperationException("Output has been completed successfully.");
         throw new InvalidOperationException($"Output has been completed with fault: " + ex.Message, ex);
     }
 
+    protected StateFlags State => _stateFlags;
+    protected void OnWriterInactive() => _stateFlags &= ~StateFlags.ActiveWriter;
+
 #if DEBUG
     private readonly int id = Interlocked.Increment(ref s_id);
+    private int fragment;
     private static int s_id;
 #endif
 
-    private async Task CopyOutAsync()
-    {
-        try
-        {
-#if DEBUG
-            int fragment = 0;
-#endif
-            while (true)
-            {
-                ValueTask pending = new(this, _readerTask.Version);
-                if (!pending.IsCompleted)
-                {
-                    lock (this)
-                    {
-                        // double-checked marking inactive
-                        if (!pending.IsCompleted)
-                        {
-                            _stateFlags &= ~StateFlags.ActiveWriter;
-                        }
-                    }
-                }
-                // await activation and check status;
-                await pending.ConfigureAwait(false);
-
-                StateFlags stateFlags;
-                while (true)
-                {
-                    ReadOnlyMemory<byte> memory;
-                    lock (this)
-                    {
-                        stateFlags = _stateFlags;
-                        var minBytes = (stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
-                        if (!_buffer.TryGetFirstCommittedMemory(minBytes, out memory))
-                        {
-                            // out of data; remove flush flag and wait for more work
-                            stateFlags &= ~StateFlags.Flush;
-                            break;
-                        }
-                    }
-
-                    if (_exception is not null) ThrowCompleteOrFaulted(); // this is cheap to check ongoing
-                    if (!memory.IsEmpty)
-                    {
-                        _totalBytesWritten += memory.Length;
-#if DEBUG
-                        if (_log is not null)
-                        {
-                            const string CR = "\u240D", LF = "\u240A", CRLF = CR + LF;
-                            string raw = Encoding.UTF8.GetString(memory.Span)
-                                .Replace("\r\n", CRLF).Replace("\r", CR).Replace("\n", LF);
-                            string s = $"{id}.{fragment++}: {raw}";
-                            OnDebugLog(s);
-                        }
-#endif
-                        await _target.WriteAsync(memory, _cancellationToken).ConfigureAwait(false);
-                    }
-
-                    lock (this)
-                    {
-                        _buffer.DiscardCommitted(memory.Length);
-                    }
-                }
-                await _target.FlushAsync(_cancellationToken).ConfigureAwait(false);
-
-                if ((stateFlags & StateFlags.Closed) != 0) break;
-            }
-
-            // recycle on clean exit (only), since we know the buffers aren't being used
-            lock (this)
-            {
-                _buffer.Release();
-            }
-        }
-        catch (Exception ex)
-        {
-            Complete(ex);
-        }
-        // note we do *not* close the stream here - we have to settle for flushing; Close is explicit
-    }
-
     [Conditional("DEBUG")]
-    private void OnDebugLog(string message)
+    protected void OnDebugLog(string message)
     {
 #if DEBUG
         // deliberately get away from the working thread
@@ -227,6 +174,7 @@ internal sealed class BufferedStreamWriter
     private Action<string>? _log;
 #endif
 
+    protected void OnWritten(int count) => _totalBytesWritten += count;
     private long _totalBytesWritten;
     public long TotalBytesWritten => _totalBytesWritten;
 
@@ -241,15 +189,4 @@ internal sealed class BufferedStreamWriter
         _target.Dispose();
         return default;
     }
-
-    void IValueTaskSource.GetResult(short token)
-    {
-        _readerTask.GetResult(token); // may throw, note
-        _readerTask.Reset();
-    }
-
-    ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _readerTask.GetStatus(token);
-
-    void IValueTaskSource.OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
-        => _readerTask.OnCompleted(continuation, state, token, flags);
 }

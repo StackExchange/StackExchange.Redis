@@ -854,7 +854,7 @@ namespace StackExchange.Redis
 
                 var result = WriteMessageInsideLock(physical, message);
 
-                if (result == WriteResult.Success)
+                if (result == WriteResult.Success & message.IsFlushRequired)
                 {
                     physical.Flush();
                 }
@@ -1199,7 +1199,7 @@ namespace StackExchange.Redis
                         _backlogStatus = BacklogStatus.WritingMessage;
                         var result = WriteMessageInsideLock(physical, message);
 
-                        if (result == WriteResult.Success)
+                        if (result == WriteResult.Success & message.IsFlushRequired)
                         {
                             _backlogStatus = BacklogStatus.Flushing;
                             physical.Flush();
@@ -1321,7 +1321,7 @@ namespace StackExchange.Redis
 #endif
                 }
                 var result = WriteMessageInsideLock(physical, message);
-                if (result == WriteResult.Success)
+                if (result == WriteResult.Success & message.IsFlushRequired)
                 {
                     physical.Flush();
                 }

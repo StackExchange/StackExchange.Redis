@@ -54,7 +54,9 @@ namespace StackExchange.Redis
 
         private uint _highIntegrityToken;
 
-        internal const CommandFlags InternalCallFlag = (CommandFlags)128;
+        internal const CommandFlags
+            InternalCallFlag = (CommandFlags)128,
+            NoFlushFlag = (CommandFlags)1024;
 
         protected RedisCommand command;
 
@@ -77,7 +79,8 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
-                                                       | CommandFlags.NoScriptCache;
+                                                       | CommandFlags.NoScriptCache
+                                                       | NoFlushFlag; // we'll allow this one even though not advertised
         private IResultBox? resultBox;
 
         private ResultProcessor? resultProcessor;
@@ -736,6 +739,8 @@ namespace StackExchange.Redis
         internal bool IsForSubscriptionBridge => (Flags & DemandSubscriptionConnection) != 0;
 
         public virtual string CommandString => Command.ToString();
+
+        internal bool IsFlushRequired => (Flags & NoFlushFlag) == 0;
 
         /// <summary>
         /// Sends this command to the subscription connection rather than the interactive.
