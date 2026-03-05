@@ -380,7 +380,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task AutoConfigureAsync(PhysicalConnection? connection, ILogger? log = null)
+        internal async Task AutoConfigureAsync(PhysicalConnection? connection, ILogger? log = null, CommandFlags extraFlags = CommandFlags.None)
         {
             if (!serverType.SupportsAutoConfigure())
             {
@@ -392,7 +392,7 @@ namespace StackExchange.Redis
             log?.LogInformationAutoConfiguring(new(this));
 
             var commandMap = Multiplexer.CommandMap;
-            const CommandFlags flags = CommandFlags.FireAndForget | CommandFlags.NoRedirect;
+            var flags = CommandFlags.FireAndForget | CommandFlags.NoRedirect | extraFlags;
             var features = GetFeatures();
             Message msg;
 
@@ -402,11 +402,11 @@ namespace StackExchange.Redis
             {
                 if (Multiplexer.RawConfig.KeepAlive <= 0)
                 {
-                    msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout);
+                    msg = Message.Create(-1, flags | Message.NoFlushFlag, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
-                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
+                msg = Message.Create(-1, flags | Message.NoFlushFlag, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.databases);
@@ -1064,7 +1064,7 @@ namespace StackExchange.Redis
             var connType = bridge.ConnectionType;
             if (connType == ConnectionType.Interactive)
             {
-                await AutoConfigureAsync(connection, log).ForAwait();
+                await AutoConfigureAsync(connection, log, extraFlags: Message.NoFlushFlag).ForAwait();
             }
 
             // note that the final messages *are* flushed (no Message.NoFlushFlag)
