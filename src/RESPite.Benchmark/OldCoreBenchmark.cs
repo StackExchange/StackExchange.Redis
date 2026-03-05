@@ -8,7 +8,16 @@ public sealed class OldCoreBenchmark(string[] args) : OldCoreBenchmarkBase(args)
 {
     private static readonly string withVersion = $"legacy SE.Redis {GetLibVersion()}";
     public override string ToString() => withVersion;
-    protected override IConnectionMultiplexer Create(int port) => ConnectionMultiplexer.Connect($"127.0.0.1:{Port}");
+
+    protected override IConnectionMultiplexer Create(int port)
+    {
+        var options = ConfigurationOptions.Parse($"127.0.0.1:{Port}");
+        var prop = options.GetType().GetProperty(
+            "UseSyncInputOutput",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        prop?.SetValue(options, UseSyncIO);
+        return ConnectionMultiplexer.Connect(options);
+    }
 
     private static string? _libVersion;
     internal static string GetLibVersion()

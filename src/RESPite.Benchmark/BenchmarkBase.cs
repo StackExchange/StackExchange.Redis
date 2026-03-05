@@ -45,6 +45,7 @@ public abstract class BenchmarkBase : IDisposable
     public int PipelineDepth { get; } = 1;
     public bool Multiplexed { get; }
     public bool SupportCancel { get; }
+    public bool UseSyncIO { get; }
     public bool Loop { get; }
     public bool Quiet { get; }
     public int ClientCount { get; } = 50;
@@ -85,8 +86,14 @@ public abstract class BenchmarkBase : IDisposable
                 case "+x":
                     SupportCancel = true;
                     break;
-                case "-c":
+                case "-x":
                     SupportCancel = false;
+                    break;
+                case "+sync":
+                    UseSyncIO = true;
+                    break;
+                case "-sync":
+                    UseSyncIO = false;
                     break;
                 case "-l":
                     Loop = true;
