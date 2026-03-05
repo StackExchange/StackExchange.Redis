@@ -1,11 +1,26 @@
-﻿using KestrelRedisServer;
+﻿using System.Net;
+using KestrelRedisServer;
 using Microsoft.AspNetCore.Connections;
+using StackExchange.Redis;
 using StackExchange.Redis.Server;
 
-var server = new MemoryCacheRedisServer();
+var server = new MemoryCacheRedisServer
+{
+    // note: we don't support many v6 features, but some clients
+    // want this before they'll try RESP3
+    RedisVersion = new(6, 0),
+    // Password = "letmein",
+};
+
+/*
+// demonstrate cluster spoofing
+server.ServerType = ServerType.Cluster;
+var ep = server.AddEmptyNode();
+server.Migrate("key", ep);
+*/
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddSingleton<RespServer>(server);
+builder.Services.AddSingleton<RedisServer>(server);
 builder.WebHost.ConfigureKestrel(options =>
 {
     // HTTP 5000 (test/debug API only)
@@ -13,7 +28,18 @@ builder.WebHost.ConfigureKestrel(options =>
 
     // this is the core of using Kestrel to create a TCP server
     // TCP 6379
-    options.ListenLocalhost(6379, builder => builder.UseConnectionHandler<RedisConnectionHandler>());
+    Action<Microsoft.AspNetCore.Server.Kestrel.Core.ListenOptions> builder = builder => builder.UseConnectionHandler<RedisConnectionHandler>();
+    foreach (var ep in server.GetEndPoints())
+    {
+        if (ep is IPEndPoint ip && ip.Address.Equals(IPAddress.Loopback))
+        {
+            options.ListenLocalhost(ip.Port, builder);
+        }
+        else
+        {
+            options.Listen(ep, builder);
+        }
+    }
 });
 
 var app = builder.Build();

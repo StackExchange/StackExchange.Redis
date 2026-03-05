@@ -72,7 +72,8 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
     public async Task TestShardedPubsubSubscriberAgainsHashSlotMigration()
     {
         Skip.UnlessLongRunning();
-        var channel = RedisChannel.Sharded(Me());
+        var channel = RedisChannel.Sharded(Me()); // invent a channel that will use SSUBSCRIBE
+        var key = (RedisKey)(byte[])channel!; // use the same value as a key, to test keyspace notifications via a single-key API
         await using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
         Assert.True(conn.IsConnected);
         var db = conn.GetDatabase();
@@ -80,46 +81,75 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
         await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
 
         var pubsub = conn.GetSubscriber();
-        List<(RedisChannel, RedisValue)> received = [];
-        var queue = await pubsub.SubscribeAsync(channel);
-        _ = Task.Run(async () =>
+        var keynotify = RedisChannel.KeySpaceSingleKey(key, db.Database);
+        Assert.False(keynotify.IsSharded); // keyspace notifications do not use SSUBSCRIBE; this matters, because it means we don't get nuked when the slot migrates
+        Assert.False(keynotify.IsMultiNode); // we specificially want this *not* to be multi-node; we want to test that it follows the key correctly
+
+        int keynotificationCount = 0;
+        await pubsub.SubscribeAsync(keynotify, (_, _) => Interlocked.Increment(ref keynotificationCount));
+        try
         {
-            // use queue API to have control over order
-            await foreach (var item in queue)
+            List<(RedisChannel, RedisValue)> received = [];
+            var queue = await pubsub.SubscribeAsync(channel);
+            _ = Task.Run(async () =>
             {
-                lock (received)
+                // use queue API to have control over order
+                await foreach (var item in queue)
                 {
-                    if (item.Channel.IsSharded && item.Channel == channel) received.Add((item.Channel, item.Message));
+                    lock (received)
+                    {
+                        if (item.Channel.IsSharded && item.Channel == channel)
+                            received.Add((item.Channel, item.Message));
+                    }
                 }
+            });
+            Assert.Equal(2, conn.GetSubscriptionsCount());
+
+            await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+            await db.PingAsync();
+
+            for (int i = 0; i < 5; i++)
+            {
+                // check we get a hit
+                Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+                await db.StringIncrementAsync(key);
             }
-        });
-        Assert.Equal(1, conn.GetSubscriptionsCount());
 
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-        await db.PingAsync();
+            await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
 
-        for (int i = 0; i < 5; i++)
-        {
-            // check we get a hit
-            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+            // lets migrate the slot for "testShardChannel" to another node
+            await DoHashSlotMigrationAsync();
+
+            await Task.Delay(4000);
+            for (int i = 0; i < 5; i++)
+            {
+                // check we get a hit
+                Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+                await db.StringIncrementAsync(key);
+            }
+
+            await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
+
+            Assert.Equal(2, conn.GetSubscriptionsCount());
+            Assert.Equal(10, received.Count);
+            Assert.Equal(10, Volatile.Read(ref keynotificationCount));
+            await RollbackHashSlotMigrationAsync();
+            ClearAmbientFailures();
         }
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-
-        // lets migrate the slot for "testShardChannel" to another node
-        await DoHashSlotMigrationAsync();
-
-        await Task.Delay(4000);
-        for (int i = 0; i < 5; i++)
+        finally
         {
-            // check we get a hit
-            Assert.Equal(1, await db.PublishAsync(channel, i.ToString()));
+            try
+            {
+                // ReSharper disable once MethodHasAsyncOverload - F+F
+                await pubsub.UnsubscribeAsync(keynotify, flags: CommandFlags.FireAndForget);
+                await pubsub.UnsubscribeAsync(channel, flags: CommandFlags.FireAndForget);
+                Log("Channels unsubscribed.");
+            }
+            catch (Exception ex)
+            {
+                Log($"Error while unsubscribing: {ex.Message}");
+            }
         }
-        await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
-
-        Assert.Equal(1, conn.GetSubscriptionsCount());
-        Assert.Equal(10, received.Count);
-        await RollbackHashSlotMigrationAsync();
-        ClearAmbientFailures();
     }
 
     private Task DoHashSlotMigrationAsync() => MigrateSlotForTestShardChannelAsync(false);

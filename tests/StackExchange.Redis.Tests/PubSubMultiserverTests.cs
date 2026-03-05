@@ -63,7 +63,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
         Assert.True(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
 
         Assert.True(conn.GetSubscriptions().TryGetValue(channel, out var subscription));
-        var initialServer = subscription.GetCurrentServer();
+        var initialServer = subscription.GetAnyCurrentServer();
         Assert.NotNull(initialServer);
         Assert.True(initialServer.IsConnected);
         Log("Connected to: " + initialServer);
@@ -83,10 +83,10 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
             Assert.True(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
             Assert.False(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
         }
-        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnected);
-        Assert.True(subscription.IsConnected);
+        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnectedAny());
+        Assert.True(subscription.IsConnectedAny());
 
-        var newServer = subscription.GetCurrentServer();
+        var newServer = subscription.GetAnyCurrentServer();
         Assert.NotNull(newServer);
         Assert.NotEqual(newServer, initialServer);
         Log("Now connected to: " + newServer);
@@ -148,7 +148,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
         Assert.True(subscribedServerEndpoint.IsSubscriberConnected, "subscribedServerEndpoint.IsSubscriberConnected");
 
         Assert.True(conn.GetSubscriptions().TryGetValue(channel, out var subscription));
-        var initialServer = subscription.GetCurrentServer();
+        var initialServer = subscription.GetAnyCurrentServer();
         Assert.NotNull(initialServer);
         Assert.True(initialServer.IsConnected);
         Log("Connected to: " + initialServer);
@@ -169,10 +169,10 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
 
         if (expectSuccess)
         {
-            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnected);
-            Assert.True(subscription.IsConnected);
+            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnectedAny());
+            Assert.True(subscription.IsConnectedAny());
 
-            var newServer = subscription.GetCurrentServer();
+            var newServer = subscription.GetAnyCurrentServer();
             Assert.NotNull(newServer);
             Assert.NotEqual(newServer, initialServer);
             Log("Now connected to: " + newServer);
@@ -180,16 +180,16 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
         else
         {
             // This subscription shouldn't be able to reconnect by flags (demanding an unavailable server)
-            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnected);
-            Assert.False(subscription.IsConnected);
+            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnectedAny());
+            Assert.False(subscription.IsConnectedAny());
             Log("Unable to reconnect (as expected)");
 
             // Allow connecting back to the original
             conn.AllowConnect = true;
-            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnected);
-            Assert.True(subscription.IsConnected);
+            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => subscription.IsConnectedAny());
+            Assert.True(subscription.IsConnectedAny());
 
-            var newServer = subscription.GetCurrentServer();
+            var newServer = subscription.GetAnyCurrentServer();
             Assert.NotNull(newServer);
             Assert.Equal(newServer, initialServer);
             Log("Now connected to: " + newServer);

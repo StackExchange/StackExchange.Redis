@@ -90,7 +90,7 @@ namespace StackExchange.Redis
             lastBeatTickCount = 0;
             connectionType = bridge.ConnectionType;
             _bridge = new WeakReference(bridge);
-            ChannelPrefix = bridge.Multiplexer.RawConfig.ChannelPrefix;
+            ChannelPrefix = bridge.Multiplexer.ChannelPrefix;
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
             _physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
@@ -820,7 +820,7 @@ namespace StackExchange.Redis
         }
 
         internal void Write(in RedisChannel channel)
-            => WriteUnifiedPrefixedBlob(_ioPipe?.Output, ChannelPrefix, channel.Value);
+            => WriteUnifiedPrefixedBlob(_ioPipe?.Output, channel.IgnoreChannelPrefix ? null : ChannelPrefix, channel.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteBulkString(in RedisValue value)
@@ -921,6 +921,30 @@ namespace StackExchange.Redis
             // *{count}\r\n         = 3 + MaxInt32TextLen
             var span = output.GetSpan(3 + Format.MaxInt32TextLen);
             span[0] = (byte)'*';
+            int offset = WriteRaw(span, count, offset: 1);
+            output.Advance(offset);
+        }
+
+        internal static void WriteMultiBulkHeader(PipeWriter output, long count, ResultType type)
+        {
+            // *{count}\r\n         = 3 + MaxInt32TextLen
+            var span = output.GetSpan(3 + Format.MaxInt32TextLen);
+            span[0] = type switch
+            {
+                ResultType.Push => (byte)'>',
+                ResultType.Attribute => (byte)'|',
+                ResultType.Map => (byte)'%',
+                ResultType.Set => (byte)'~',
+                 _ => (byte)'*',
+            };
+            if ((type is ResultType.Map or ResultType.Attribute) & count > 0)
+            {
+                if ((count & 1) != 0) Throw(type, count);
+                count >>= 1;
+                static void Throw(ResultType type, long count) => throw new ArgumentOutOfRangeException(
+                    paramName: nameof(count),
+                    message: $"{type} data must be in pairs; got {count}");
+            }
             int offset = WriteRaw(span, count, offset: 1);
             output.Advance(offset);
         }
@@ -1999,7 +2023,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool PeekChannelMessage(RedisCommand command, RedisChannel channel)
+        private bool PeekChannelMessage(RedisCommand command, in RedisChannel channel)
         {
             Message? msg;
             bool haveMsg;
@@ -2091,9 +2115,9 @@ namespace StackExchange.Redis
                     Trace($"Processed {handled} messages");
                     input.AdvanceTo(buffer.Start, buffer.End);
 
-                    if (handled == 0 && readResult.IsCompleted)
+                    if ((handled == 0 && readResult.IsCompleted) || BridgeCouldBeNull?.NeedsReconnect == true)
                     {
-                        break; // no more data, or trailing incomplete messages
+                        break; // no more data, trailing incomplete messages, or reconnection required
                     }
                 }
                 Trace("EOF");

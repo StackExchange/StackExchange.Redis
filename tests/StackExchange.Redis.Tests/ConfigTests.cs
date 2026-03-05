@@ -131,13 +131,25 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("contoso.redis.cache.windows.net:6380", true)]
     [InlineData("contoso.REDIS.CACHE.chinacloudapi.cn:6380", true)] // added a few upper case chars to validate comparison
     [InlineData("contoso.redis.cache.usgovcloudapi.net:6380", true)]
-    [InlineData("contoso.redisenterprise.cache.azure.net:10000", false)]
-    [InlineData("contoso.redis.azure.net:10000", true)]
-    [InlineData("contoso.redis.chinacloudapi.cn:10000", true)]
-    [InlineData("contoso.redis.usgovcloudapi.net:10000", true)]
+    [InlineData("contoso.redis.cache.sovcloud-api.de:6380", true)]
+    [InlineData("contoso.redis.cache.sovcloud-api.fr:6380", true)]
     public void ConfigurationOptionsDefaultForAzure(string hostAndPort, bool sslShouldBeEnabled)
     {
         Version defaultAzureVersion = new(6, 0, 0);
+        var options = ConfigurationOptions.Parse(hostAndPort);
+        Assert.True(options.DefaultVersion.Equals(defaultAzureVersion));
+        Assert.False(options.AbortOnConnectFail);
+        Assert.Equal(sslShouldBeEnabled, options.Ssl);
+    }
+
+    [Theory]
+    [InlineData("contoso.redis.azure.net:10000", true)]
+    [InlineData("contoso.redis.chinacloudapi.cn:10000", true)]
+    [InlineData("contoso.redis.usgovcloudapi.net:10000", true)]
+    [InlineData("contoso.redisenterprise.cache.azure.net:10000", true)]
+    public void ConfigurationOptionsDefaultForAzureManagedRedis(string hostAndPort, bool sslShouldBeEnabled)
+    {
+        Version defaultAzureVersion = new(7, 4, 0);
         var options = ConfigurationOptions.Parse(hostAndPort);
         Assert.True(options.DefaultVersion.Equals(defaultAzureVersion));
         Assert.False(options.AbortOnConnectFail);

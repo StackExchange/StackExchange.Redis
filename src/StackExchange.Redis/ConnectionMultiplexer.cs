@@ -356,7 +356,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
+        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved, bool isSelf)
         {
             // If we're being told to re-send something because the hash slot moved, that means our topology is out of date
             // ...and we should re-evaluate what's what.
@@ -367,7 +367,7 @@ namespace StackExchange.Redis
                 ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
             }
 
-            return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
+            return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved, isSelf);
         }
 
         /// <summary>
@@ -730,6 +730,7 @@ namespace StackExchange.Redis
 
         ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => _serverSnapshot.AsSpan();
         internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.AsSpan();
+        internal ReadOnlyMemory<ServerEndPoint> GetServerSnaphotMemory() => _serverSnapshot.AsMemory();
         internal sealed class ServerSnapshot : IEnumerable<ServerEndPoint>
         {
             public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
@@ -1282,6 +1283,9 @@ namespace StackExchange.Redis
         }
 
         internal int LatencyTicks { get; private set; }
+        // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
+        // (we deal with channels far less frequently, so pay the encoding cost up-front)
+        internal byte[] ChannelPrefix => ((byte[]?)RawConfig.ChannelPrefix) ?? [];
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration.

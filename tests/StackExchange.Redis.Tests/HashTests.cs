@@ -265,7 +265,7 @@ public class HashTests(ITestOutputHelper output, SharedConnectionFixture fixture
         }
 
         var inRedis = (await db.HashGetAllAsync(key).ForAwait()).ToDictionary(
-            x => Guid.Parse(x.Name!), x => int.Parse(x.Value!));
+            x => Guid.Parse((string)x.Name!), x => int.Parse(x.Value!));
 
         Assert.Equal(shouldMatch.Count, inRedis.Count);
 

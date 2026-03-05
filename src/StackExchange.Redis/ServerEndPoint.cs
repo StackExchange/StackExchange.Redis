@@ -695,14 +695,15 @@ namespace StackExchange.Redis
                     // Clear the unselectable flag ASAP since we are open for business
                     ClearUnselectable(UnselectableFlags.DidNotRespond);
 
-                    if (bridge == subscription)
+                    bool isResp3 = KnowOrAssumeResp3();
+                    if (bridge == subscription || isResp3)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
                         // TracerProcessor which is executing this line inside a SetResultCore().
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
                     }
-                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || KnowOrAssumeResp3()))
+                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || isResp3))
                     {
                         // Only connect on the second leg - we can accomplish this by checking both
                         // Or the first leg, if we're only making 1 connection because subscriptions aren't supported

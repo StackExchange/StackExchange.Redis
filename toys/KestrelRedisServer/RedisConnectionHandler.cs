@@ -1,15 +1,18 @@
-﻿using System.IO;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Connections;
+﻿using Microsoft.AspNetCore.Connections;
 using StackExchange.Redis.Server;
 
 namespace KestrelRedisServer
 {
-    public class RedisConnectionHandler : ConnectionHandler
+    public class RedisConnectionHandler(RedisServer server) : ConnectionHandler
     {
-        private readonly RespServer _server;
-        public RedisConnectionHandler(RespServer server) => _server = server;
         public override Task OnConnectedAsync(ConnectionContext connection)
-            => _server.RunClientAsync(connection.Transport);
+        {
+            RedisServer.Node? node;
+            if (!(connection.LocalEndPoint is { } ep && server.TryGetNode(ep, out node)))
+            {
+                node = null;
+            }
+            return server.RunClientAsync(connection.Transport, node: node);
+        }
     }
 }

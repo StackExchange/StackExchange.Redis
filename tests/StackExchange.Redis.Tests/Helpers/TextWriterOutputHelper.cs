@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests.Helpers;
 
 public class TextWriterOutputHelper(ITestOutputHelper outputHelper) : TextWriter
 {
-    private StringBuilder Buffer { get; } = new StringBuilder(2048);
+    private readonly StringBuilder _buffer = new(2048);
     private StringBuilder? Echo { get; set; }
     public override Encoding Encoding => Encoding.UTF8;
     private readonly ITestOutputHelper Output = outputHelper;
@@ -37,7 +37,10 @@ public class TextWriterOutputHelper(ITestOutputHelper outputHelper) : TextWriter
 
         try
         {
-            base.WriteLine(value);
+            lock (_buffer) // keep everything together
+            {
+                base.WriteLine(value);
+            }
         }
         catch (Exception ex)
         {
@@ -49,32 +52,44 @@ public class TextWriterOutputHelper(ITestOutputHelper outputHelper) : TextWriter
 
     public override void Write(char value)
     {
-        if (value == '\n' || value == '\r')
+        lock (_buffer)
         {
-            // Ignore empty lines
-            if (Buffer.Length > 0)
+            if (value == '\n' || value == '\r')
             {
-                FlushBuffer();
+                // Ignore empty lines
+                if (_buffer.Length > 0)
+                {
+                    FlushBuffer();
+                }
             }
-        }
-        else
-        {
-            Buffer.Append(value);
+            else
+            {
+                _buffer.Append(value);
+            }
         }
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (Buffer.Length > 0)
+        lock (_buffer)
         {
-            FlushBuffer();
+            if (_buffer.Length > 0)
+            {
+                FlushBuffer();
+            }
         }
+
         base.Dispose(disposing);
     }
 
     private void FlushBuffer()
     {
-        var text = Buffer.ToString();
+        string text;
+        lock (_buffer)
+        {
+            text = _buffer.ToString();
+            _buffer.Clear();
+        }
         try
         {
             Output.WriteLine(text);
@@ -84,6 +99,5 @@ public class TextWriterOutputHelper(ITestOutputHelper outputHelper) : TextWriter
             // Thrown when writing from a handler after a test has ended - just bail in this case
         }
         Echo?.AppendLine(text);
-        Buffer.Clear();
     }
 }

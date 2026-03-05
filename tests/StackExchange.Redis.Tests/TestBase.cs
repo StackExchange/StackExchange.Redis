@@ -7,6 +7,7 @@ using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Configuration;
 using StackExchange.Redis.Profiling;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
@@ -17,20 +18,33 @@ public abstract class TestBase : IDisposable
 {
     private ITestOutputHelper Output { get; }
     protected TextWriterOutputHelper Writer { get; }
-    protected virtual string GetConfiguration() => GetDefaultConfiguration();
+    protected virtual string GetConfiguration()
+    {
+        if (_inProcServerFixture != null)
+        {
+            return _inProcServerFixture.Configuration;
+        }
+        return GetDefaultConfiguration();
+    }
     internal static string GetDefaultConfiguration() => TestConfig.Current.PrimaryServerAndPort;
 
-    private readonly SharedConnectionFixture? _fixture;
+    private readonly SharedConnectionFixture? _sharedConnectionFixture;
+    private readonly InProcServerFixture? _inProcServerFixture;
 
-    protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled && !HighIntegrity;
+    protected bool SharedFixtureAvailable => _sharedConnectionFixture != null && _sharedConnectionFixture.IsEnabled && !HighIntegrity;
 
-    protected TestBase(ITestOutputHelper output, SharedConnectionFixture? fixture = null)
+    protected TestBase(ITestOutputHelper output, SharedConnectionFixture? connection = null, InProcServerFixture? server = null)
     {
         Output = output;
         Output.WriteFrameworkVersion();
         Writer = new TextWriterOutputHelper(output);
-        _fixture = fixture;
+        _sharedConnectionFixture = connection;
+        _inProcServerFixture = server;
         ClearAmbientFailures();
+    }
+
+    protected TestBase(ITestOutputHelper output, InProcServerFixture fixture) : this(output, null, fixture)
+    {
     }
 
     /// <summary>
@@ -85,7 +99,7 @@ public abstract class TestBase : IDisposable
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly", Justification = "Trust me yo")]
     public void Dispose()
     {
-        _fixture?.Teardown(Writer);
+        _sharedConnectionFixture?.Teardown(Writer);
         Teardown();
         Writer.Dispose();
         GC.SuppressFinalize(this);
@@ -226,6 +240,8 @@ public abstract class TestBase : IDisposable
 
     internal virtual bool HighIntegrity => false;
 
+    internal virtual Tunnel? Tunnel => _inProcServerFixture?.Tunnel;
+
     internal virtual IInternalConnectionMultiplexer Create(
         string? clientName = null,
         int? syncTimeout = null,
@@ -262,17 +278,18 @@ public abstract class TestBase : IDisposable
 
         // Share a connection if instructed to and we can - many specifics mean no sharing
         bool highIntegrity = HighIntegrity;
-        if (shared && expectedFailCount == 0
-            && _fixture != null && _fixture.IsEnabled
+        var tunnel = Tunnel;
+        if (tunnel is null && shared && expectedFailCount == 0
+            && _sharedConnectionFixture != null && _sharedConnectionFixture.IsEnabled
             && GetConfiguration() == GetDefaultConfiguration()
             && CanShare(allowAdmin, password, tieBreaker, fail, disabledCommands, enabledCommands, channelPrefix, proxy, configuration, defaultDatabase, backlogPolicy, highIntegrity))
         {
             configuration = GetConfiguration();
-            var fixtureConn = _fixture.GetConnection(this, protocol.Value, caller: caller);
+            var fixtureConn = _sharedConnectionFixture.GetConnection(this, protocol.Value, caller: caller);
             // Only return if we match
             TestBase.ThrowIfIncorrectProtocol(fixtureConn, protocol);
 
-            if (configuration == _fixture.Configuration)
+            if (configuration == _sharedConnectionFixture.Configuration)
             {
                 TestBase.ThrowIfBelowMinVersion(fixtureConn, require);
                 return fixtureConn;
@@ -303,6 +320,7 @@ public abstract class TestBase : IDisposable
             backlogPolicy,
             protocol,
             highIntegrity,
+            tunnel,
             caller);
 
         TestBase.ThrowIfIncorrectProtocol(conn, protocol);
@@ -392,6 +410,7 @@ public abstract class TestBase : IDisposable
         BacklogPolicy? backlogPolicy = null,
         RedisProtocol? protocol = null,
         bool highIntegrity = false,
+        Tunnel? tunnel = null,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
@@ -413,6 +432,7 @@ public abstract class TestBase : IDisposable
                 syncTimeout = int.MaxValue;
             }
 
+            config.Tunnel = tunnel;
             if (channelPrefix is not null) config.ChannelPrefix = RedisChannel.Literal(channelPrefix);
             if (tieBreaker is not null) config.TieBreaker = tieBreaker;
             if (password is not null) config.Password = string.IsNullOrEmpty(password) ? null : password;

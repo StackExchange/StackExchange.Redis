@@ -51,7 +51,9 @@ public class CertValidationTests(ITestOutputHelper output) : TestBase(output)
         Assert.False(callback(this, endpointCert, null, SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNotAvailable), "subtest 3f");
     }
 
+#pragma warning disable SYSLIB0057
     private static X509Certificate2 LoadCert(string certificatePath) => new X509Certificate2(File.ReadAllBytes(certificatePath));
+#pragma warning restore SYSLIB0057
 
     [Fact]
     public void CheckIssuerArgs()

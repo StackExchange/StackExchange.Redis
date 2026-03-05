@@ -743,11 +743,15 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     }
 
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    public async Task ClusterPubSub(bool sharded, bool withKeyRouting)
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    public async Task ClusterPubSub(bool sharded, bool withKeyRouting, bool withKeyPrefix)
     {
         var guid = Guid.NewGuid().ToString();
         var channel = sharded ? RedisChannel.Sharded(guid) : RedisChannel.Literal(guid);
@@ -755,7 +759,12 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         {
             channel = channel.WithKeyRouting();
         }
-        await using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false, require: sharded ? RedisFeatures.v7_0_0_rc1 : RedisFeatures.v2_0_0);
+        await using var conn = Create(
+            keepAlive: 1,
+            connectTimeout: 3000,
+            shared: false,
+            require: sharded ? RedisFeatures.v7_0_0_rc1 : RedisFeatures.v2_0_0,
+            channelPrefix: withKeyPrefix ? "c_prefix:" : null);
         Assert.True(conn.IsConnected);
 
         var pubsub = conn.GetSubscriber();
@@ -778,7 +787,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         }
 
         List<(RedisChannel, RedisValue)> received = [];
-        var queue = await pubsub.SubscribeAsync(channel);
+        var queue = await pubsub.SubscribeAsync(channel, CommandFlags.NoRedirect);
         _ = Task.Run(async () =>
         {
             // use queue API to have control over order

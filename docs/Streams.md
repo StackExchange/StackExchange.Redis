@@ -37,6 +37,24 @@ You also have the option to override the auto-generated message ID by passing yo
 db.StreamAdd("events_stream", "foo_name", "bar_value", messageId: "0-1", maxLength: 100);
 ```
 
+Idempotent write-at-most-once production
+===
+
+From Redis 8.6, streams support idempotent write-at-most-once production. This is achieved by passing a `StreamIdempotentId` to the `StreamAdd` method. Using idempotent ids avoids
+duplicate entries in the stream, even in the event of a failure and retry.
+
+The `StreamIdempotentId` contains a producer id and an optional idempotent id. The producer id should be unique for a given data generator and should be stable and consistent between runs.
+The optional idempotent id should be unique for a given data item. If the idempotent id is not provided, the server will generate it from the content of the data item.
+
+```csharp
+// int someUniqueExternalSourceId = ... // optional
+var idempotentId = new StreamIdempotentId("ticket_generator");
+// optionally, new StreamIdempotentId("ticket_generator", someUniqueExternalSourceId)
+var messageId = db.StreamAdd("events_stream", "foo_name", "bar_value", idempotentId);
+```
+
+~~~~The `StreamConfigure` method can be used to configure the stream, in particular the IDMP map. The `StreamConfiguration` class has properties for the idempotent producer (IDMP) duration and max-size.
+
 Reading from Streams
 ===
 

@@ -7,6 +7,7 @@ on:
     paths:
       - '**'
       - '!/docs/*' # Don't run workflow when files are only in the /docs directory
+  workflow_dispatch:
 
 jobs:
   main:
@@ -22,14 +23,14 @@ jobs:
         fetch-depth: 0  # Fetch the full history
     - name: Start Redis Services (docker-compose)
       working-directory: ./tests/RedisConfigs
-      run: docker compose -f docker-compose.yml up -d --wait           
+      run: docker compose -f docker-compose.yml up -d --wait
     - name: Install .NET SDK
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: | 
+        dotnet-version: |
           6.0.x
           8.0.x
-          9.0.x
+          10.0.x
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: StackExchange.Redis.Tests
@@ -144,8 +145,8 @@ jobs:
         reporter: dotnet-trx
     # Package and upload to MyGet only on pushes to main, not on PRs
     - name: .NET Pack
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
       run: dotnet pack Build.csproj --no-build -c Release /p:PackageOutputPath=${env:GITHUB_WORKSPACE}\.nupkgs /p:CI=true
     - name: Upload to MyGet
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
       run: dotnet nuget push ${env:GITHUB_WORKSPACE}\.nupkgs\*.nupkg -s https://www.myget.org/F/stackoverflow/api/v2/package -k ${{ secrets.MYGET_API_KEY }}

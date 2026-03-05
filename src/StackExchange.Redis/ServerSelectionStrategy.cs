@@ -46,7 +46,7 @@ namespace StackExchange.Redis
             0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0,
         };
 
-        private readonly ConnectionMultiplexer multiplexer;
+        private readonly ConnectionMultiplexer? multiplexer;
         private int anyStartOffset = SharedRandom.Next(); // initialize to a random value so routing isn't uniform
 
         #if NET6_0_OR_GREATER
@@ -57,7 +57,7 @@ namespace StackExchange.Redis
 
         private ServerEndPoint[]? map;
 
-        public ServerSelectionStrategy(ConnectionMultiplexer multiplexer) => this.multiplexer = multiplexer;
+        public ServerSelectionStrategy(ConnectionMultiplexer? multiplexer) => this.multiplexer = multiplexer;
 
         public ServerType ServerType { get; set; } = ServerType.Standalone;
         internal static int TotalSlots => RedisClusterSlotCount;
@@ -96,14 +96,38 @@ namespace StackExchange.Redis
             }
         }
 
+        private byte[] ChannelPrefix => multiplexer?.ChannelPrefix ?? [];
+
         /// <summary>
         /// Computes the hash-slot that would be used by the given channel.
         /// </summary>
         /// <param name="channel">The <see cref="RedisChannel"/> to determine a slot ID for.</param>
         public int HashSlot(in RedisChannel channel)
-            // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
-            // (we deal with channels far less frequently, so pay the encoding cost up-front)
-            => ServerType == ServerType.Standalone || channel.IsNull ? NoSlot : GetClusterSlot((byte[])channel!);
+        {
+            if (ServerType == ServerType.Standalone || channel.IsNull) return NoSlot;
+
+            ReadOnlySpan<byte> routingSpan = channel.RoutingSpan;
+            byte[] prefix;
+            return channel.IgnoreChannelPrefix || (prefix = ChannelPrefix).Length == 0
+                ? GetClusterSlot(routingSpan) : GetClusterSlotWithPrefix(prefix, routingSpan);
+
+            static int GetClusterSlotWithPrefix(byte[] prefixRaw, ReadOnlySpan<byte> routingSpan)
+            {
+                ReadOnlySpan<byte> prefixSpan = prefixRaw;
+                const int MAX_STACK = 128;
+                byte[]? lease = null;
+                var totalLength = prefixSpan.Length + routingSpan.Length;
+                var span = totalLength <= MAX_STACK
+                    ? stackalloc byte[MAX_STACK]
+                    : (lease = ArrayPool<byte>.Shared.Rent(totalLength));
+
+                prefixSpan.CopyTo(span);
+                routingSpan.CopyTo(span.Slice(prefixSpan.Length));
+                var result = GetClusterSlot(span.Slice(0, totalLength));
+                if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+                return result;
+            }
+        }
 
         /// <summary>
         /// Gets the hashslot for a given byte sequence.
@@ -111,15 +135,15 @@ namespace StackExchange.Redis
         /// <remarks>
         /// HASH_SLOT = CRC16(key) mod 16384.
         /// </remarks>
-        private static unsafe int GetClusterSlot(ReadOnlySpan<byte> blob)
+        internal static unsafe int GetClusterSlot(ReadOnlySpan<byte> key)
         {
             unchecked
             {
-                fixed (byte* ptr = blob)
+                fixed (byte* ptr = key)
                 {
                     fixed (ushort* crc16tab = ServerSelectionStrategy.Crc16tab)
                     {
-                        int offset = 0, count = blob.Length, start, end;
+                        int offset = 0, count = key.Length, start, end;
                         if ((start = IndexOf(ptr, (byte)'{', 0, count - 1)) >= 0
                             && (end = IndexOf(ptr, (byte)'}', start + 1, count)) >= 0
                             && --end != start)
@@ -147,7 +171,7 @@ namespace StackExchange.Redis
                 // the same, so this does a pretty good job of spotting illegal commands before sending them
                 case ServerType.Twemproxy:
                     slot = message.GetHashSlot(this);
-                    if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.RawConfig.IncludeDetailInExceptions, message);
+                    if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer?.RawConfig?.IncludeDetailInExceptions ?? false, message);
                     break;
                 /* just shown for completeness
                 case ServerType.Standalone: // don't use sharding
@@ -171,13 +195,13 @@ namespace StackExchange.Redis
             return Select(slot, command, flags, allowDisconnected);
         }
 
-        public bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
+        public bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved, bool isSelf)
         {
             try
             {
-                if (ServerType == ServerType.Standalone || hashSlot < 0 || hashSlot >= RedisClusterSlotCount) return false;
+                if ((ServerType == ServerType.Standalone && !isSelf) || hashSlot < 0 || hashSlot >= RedisClusterSlotCount) return false;
 
-                ServerEndPoint server = multiplexer.GetServerEndPoint(endpoint);
+                ServerEndPoint? server = multiplexer?.GetServerEndPoint(endpoint);
                 if (server != null)
                 {
                     bool retry = false;
@@ -208,7 +232,7 @@ namespace StackExchange.Redis
                         }
                         if (resendVia == null)
                         {
-                            multiplexer.Trace("Unable to resend to " + endpoint);
+                            multiplexer?.Trace("Unable to resend to " + endpoint);
                         }
                         else
                         {
@@ -226,7 +250,7 @@ namespace StackExchange.Redis
                         arr[hashSlot] = server;
                         if (oldServer != server)
                         {
-                            multiplexer.OnHashSlotMoved(hashSlot, oldServer?.EndPoint, endpoint);
+                            multiplexer?.OnHashSlotMoved(hashSlot, oldServer?.EndPoint, endpoint);
                         }
                     }
 
@@ -283,7 +307,7 @@ namespace StackExchange.Redis
         }
 
         private ServerEndPoint? Any(RedisCommand command, CommandFlags flags, bool allowDisconnected) =>
-            multiplexer.AnyServer(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags, allowDisconnected);
+            multiplexer?.AnyServer(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags, allowDisconnected);
 
         private static ServerEndPoint? FindPrimary(ServerEndPoint endpoint, RedisCommand command)
         {
@@ -359,6 +383,26 @@ namespace StackExchange.Redis
                 if (endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
             }
             return Any(command, flags, allowDisconnected);
+        }
+
+        internal bool CanServeSlot(ServerEndPoint server, in RedisChannel channel)
+            => CanServeSlot(server, HashSlot(in channel));
+
+        internal bool CanServeSlot(ServerEndPoint server, int slot)
+        {
+            if (slot == NoSlot) return true;
+            var arr = map;
+            if (arr is null) return true; // means "any"
+
+            var primary = arr[slot];
+            if (server == primary) return true;
+
+            var replicas = primary.Replicas;
+            for (int i = 0; i < replicas.Length; i++)
+            {
+                if (server == replicas[i]) return true;
+            }
+            return false;
         }
     }
 }

@@ -6,6 +6,33 @@ Current package versions:
 | ------------ | ----------------- | ----- |
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
+## 2.11.8
+
+* Handle `-MOVED` error pointing to same endpoint. ([#3003 by @barshaul](https://github.com/StackExchange/StackExchange.Redis/pull/3003))
+* fix time conversion error in `HOTKEYS` ([#3017 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3017))
+
+- Add support for `VRANGE` ([#3011 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3011))
+- Add defensive code in azure-maintenance-events handling ([#3013 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3013))
+
+## 2.11.3
+
+- Add support for `VRANGE` ([#3011 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3011))
+- Add defensive code in azure-maintenance-events handling ([#3013 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3013))
+
+## 2.11.0
+
+- Add support for `HOTKEYS` ([#3008 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3008))
+- Add support for keyspace notifications ([#2995 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2995))
+- Add support for idempotent stream entry (`XADD IDMP[AUTO]`) support  ([#3006 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3006))
+- (internals) split AMR out to a separate options provider ([#2986 by NickCraver and philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/2986))
+
+## 2.10.14
+
+- Fix bug with connection startup failing in low-memory scenarios ([#3002 by nathan-miller23](https://github.com/StackExchange/StackExchange.Redis/pull/3002))
+- Fix under-count of `TotalOutstanding` in server-counters ([#2996 by nathan-miller23](https://github.com/StackExchange/StackExchange.Redis/pull/2996))
+- Fix incorrect debug assertion in `HGETEX` (no impact to release library) ([#2999 by mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/2999))
+
+
 ## 2.10.1
 
 - Support Redis 8.4 CAS/CAD operations (`DIGEST`, and the `IFEQ`, `IFNE`, `IFDEQ`, `IFDNE` modifiers on `SET` / `DEL`)

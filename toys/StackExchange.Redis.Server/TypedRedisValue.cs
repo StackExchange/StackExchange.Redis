@@ -11,16 +11,16 @@ namespace StackExchange.Redis
     {
         // note: if this ever becomes exposed on the public API, it should be made so that it clears;
         // can't trust external callers to clear the space, and using recycle without that is dangerous
-        internal static TypedRedisValue Rent(int count, out Span<TypedRedisValue> span)
+        internal static TypedRedisValue Rent(int count, out Span<TypedRedisValue> span, ResultType type)
         {
             if (count == 0)
             {
                 span = default;
-                return EmptyArray;
+                return EmptyArray(type);
             }
             var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
             span = new Span<TypedRedisValue>(arr, 0, count);
-            return new TypedRedisValue(arr, count);
+            return new TypedRedisValue(arr, count, type);
         }
 
         /// <summary>
@@ -36,7 +36,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns whether this value represents a null array.
         /// </summary>
-        public bool IsNullArray => Type == ResultType.Array && _value.DirectObject == null;
+        public bool IsNullArray => IsAggregate && _value.DirectObject == null;
 
         private readonly RedisValue _value;
 
@@ -76,8 +76,8 @@ namespace StackExchange.Redis
         public static TypedRedisValue OK { get; } = SimpleString("OK");
         internal static TypedRedisValue Zero { get; } = Integer(0);
         internal static TypedRedisValue One { get; } = Integer(1);
-        internal static TypedRedisValue NullArray { get; } = new TypedRedisValue((TypedRedisValue[])null, 0);
-        internal static TypedRedisValue EmptyArray { get; } = new TypedRedisValue(Array.Empty<TypedRedisValue>(), 0);
+        internal static TypedRedisValue NullArray(ResultType type) => new TypedRedisValue((TypedRedisValue[])null, 0, type);
+        internal static TypedRedisValue EmptyArray(ResultType type) => new TypedRedisValue([], 0, type);
 
         /// <summary>
         /// Gets the array elements as a span.
@@ -86,7 +86,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (Type != ResultType.Array) return default;
+                if (!IsAggregate) return default;
                 var arr = (TypedRedisValue[])_value.DirectObject;
                 if (arr == null) return default;
                 var length = (int)_value.DirectOverlappedBits64;
@@ -97,13 +97,16 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (Type != ResultType.Array) return default;
+                if (!IsAggregate) return default;
                 var arr = (TypedRedisValue[])_value.DirectObject;
                 if (arr == null) return default;
                 var length = (int)_value.DirectOverlappedBits64;
                 return new ArraySegment<TypedRedisValue>(arr, 0, length);
             }
         }
+
+        public bool IsAggregate => Type.ToResp2() is ResultType.Array;
+        public bool IsNullValueOrArray => IsAggregate ? IsNullArray : _value.IsNull;
 
         /// <summary>
         /// Initialize a <see cref="TypedRedisValue"/> that represents an integer.
@@ -116,10 +119,10 @@ namespace StackExchange.Redis
         /// Initialize a <see cref="TypedRedisValue"/> from a <see cref="ReadOnlySpan{TypedRedisValue}"/>.
         /// </summary>
         /// <param name="items">The items to intialize a value from.</param>
-        public static TypedRedisValue MultiBulk(ReadOnlySpan<TypedRedisValue> items)
+        public static TypedRedisValue MultiBulk(ReadOnlySpan<TypedRedisValue> items, ResultType type)
         {
-            if (items.IsEmpty) return EmptyArray;
-            var result = Rent(items.Length, out var span);
+            if (items.IsEmpty) return EmptyArray(type);
+            var result = Rent(items.Length, out var span, type);
             items.CopyTo(span);
             return result;
         }
@@ -128,14 +131,14 @@ namespace StackExchange.Redis
         /// Initialize a <see cref="TypedRedisValue"/> from a collection.
         /// </summary>
         /// <param name="items">The items to intialize a value from.</param>
-        public static TypedRedisValue MultiBulk(ICollection<TypedRedisValue> items)
+        public static TypedRedisValue MultiBulk(ICollection<TypedRedisValue> items, ResultType type)
         {
-            if (items == null) return NullArray;
+            if (items == null) return NullArray(type);
             int count = items.Count;
-            if (count == 0) return EmptyArray;
+            if (count == 0) return EmptyArray(type);
             var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
             items.CopyTo(arr, 0);
-            return new TypedRedisValue(arr, count);
+            return new TypedRedisValue(arr, count, type);
         }
 
         /// <summary>
@@ -145,7 +148,7 @@ namespace StackExchange.Redis
         public static TypedRedisValue BulkString(RedisValue value)
             => new TypedRedisValue(value, ResultType.BulkString);
 
-        private TypedRedisValue(TypedRedisValue[] oversizedItems, int count)
+        private TypedRedisValue(TypedRedisValue[] oversizedItems, int count, ResultType type)
         {
             if (oversizedItems == null)
             {
@@ -157,7 +160,7 @@ namespace StackExchange.Redis
                 if (count == 0) oversizedItems = Array.Empty<TypedRedisValue>();
             }
             _value = new RedisValue(oversizedItems, count);
-            Type = ResultType.Array;
+            Type = type;
         }
 
         internal void Recycle(int limit = -1)

@@ -12,7 +12,7 @@ using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
-    internal sealed class RedisServer : RedisBase, IServer
+    internal sealed partial class RedisServer : RedisBase, IServer
     {
         private readonly ServerEndPoint server;
 

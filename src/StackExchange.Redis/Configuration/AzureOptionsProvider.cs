@@ -29,25 +29,16 @@ namespace StackExchange.Redis.Configuration
             ".redis.cache.windows.net",
             ".redis.cache.chinacloudapi.cn",
             ".redis.cache.usgovcloudapi.net",
-            ".redisenterprise.cache.azure.net",
-        };
-
-        private static readonly string[] azureManagedRedisDomains = new[]
-        {
-            ".redis.azure.net",
-            ".redis.chinacloudapi.cn",
-            ".redis.usgovcloudapi.net",
+            ".redis.cache.sovcloud-api.de",
+            ".redis.cache.sovcloud-api.fr",
         };
 
         /// <inheritdoc/>
         public override bool IsMatch(EndPoint endpoint)
         {
-            if (endpoint is DnsEndPoint dnsEp)
+            if (endpoint is DnsEndPoint dnsEp && IsHostInDomains(dnsEp.Host, azureRedisDomains))
             {
-                if (IsHostInDomains(dnsEp.Host, azureRedisDomains) || IsHostInDomains(dnsEp.Host, azureManagedRedisDomains))
-                {
-                    return true;
-                }
+                return true;
             }
 
             return false;
@@ -81,10 +72,6 @@ namespace StackExchange.Redis.Configuration
                         if (dns.Port == 6380)
                         {
                             return true;
-                        }
-                        if (dns.Port == 10000 && IsHostInDomains(dns.Host, azureManagedRedisDomains))
-                        {
-                            return true; // SSL is enabled by default on AMR caches
                         }
                         break;
                     case IPEndPoint ip:

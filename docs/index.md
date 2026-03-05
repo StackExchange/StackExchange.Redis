@@ -31,17 +31,22 @@ Documentation
 ---
 
 - [Server](Server) - running a redis server
+- [Authentication](Authentication) - connecting to a Redis server with user authentication
 - [Basic Usage](Basics) - getting started and basic usage
 - [Async Timeouts](AsyncTimeouts) - async timeouts and cancellation
 - [Configuration](Configuration) - options available when connecting to redis
 - [Pipelines and Multiplexers](PipelinesMultiplexers) - what is a multiplexer?
 - [Keys, Values and Channels](KeysValues) - discusses the data-types used on the API
 - [Transactions](Transactions) - how atomic transactions work in redis
+- [Compare-And-Swap / Compare-And-Delete (CAS/CAD)](CompareAndSwap) - atomic conditional operations using value comparison
 - [Events](Events) - the events available for logging / information purposes
 - [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
+- [Pub/Sub Key Notifications](KeyspaceNotifications) - how to use keyspace and keyevent notifications
+- [Hot Keys](HotKeys) - how to use `HOTKEYS` profiling
 - [Using RESP3](Resp3) - information on using RESP3
 - [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for hosted server maintenance (e.g. Azure Cache for Redis)
 - [Streams](Streams) - how to use the Stream data type
+- [Vector Sets](VectorSets) - how to use Vector Sets for similarity search with embeddings
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement

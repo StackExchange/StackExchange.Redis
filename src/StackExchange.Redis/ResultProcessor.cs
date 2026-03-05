@@ -259,43 +259,50 @@ namespace StackExchange.Redis
                     if (Format.TryParseInt32(parts[1], out int hashSlot)
                         && Format.TryParseEndPoint(parts[2], out var endpoint))
                     {
-                        // no point sending back to same server, and no point sending to a dead server
-                        if (!Equals(server?.EndPoint, endpoint))
+                        // Check if MOVED points to same endpoint
+                        bool isSameEndpoint = Equals(server?.EndPoint, endpoint);
+                        if (isSameEndpoint && isMoved)
                         {
-                            if (bridge is null)
+                            // MOVED to same endpoint detected.
+                            // This occurs when Redis/Valkey servers are behind DNS records, load balancers, or proxies.
+                            // The MOVED error signals that the client should reconnect to allow the DNS/proxy/load balancer
+                            // to route the connection to a different underlying server host, then retry the command.
+                            // Mark the bridge to reconnect - reader loop will handle disconnection and reconnection.
+                            bridge?.MarkNeedsReconnect();
+                        }
+                        if (bridge is null)
+                        {
+                            // already toast
+                        }
+                        else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved, isSameEndpoint))
+                        {
+                            bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
+                            return false;
+                        }
+                        else
+                        {
+                            if (isMoved && wasNoRedirect)
                             {
-                                // already toast
-                            }
-                            else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
-                            {
-                                bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
-                                return false;
-                            }
-                            else
-                            {
-                                if (isMoved && wasNoRedirect)
+                                if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
                                 {
-                                    if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
-                                    {
-                                        err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
-                                    }
-                                    else
-                                    {
-                                        err = "Key has MOVED but CommandFlags.NoRedirect was specified - redirect not followed. ";
-                                    }
+                                    err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
                                 }
                                 else
                                 {
-                                    unableToConnectError = true;
-                                    if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
-                                    {
-                                        err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
-                                            + PerfCounterHelper.GetThreadPoolAndCPUSummary();
-                                    }
-                                    else
-                                    {
-                                        err = "Endpoint is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. ";
-                                    }
+                                    err = "Key has MOVED but CommandFlags.NoRedirect was specified - redirect not followed. ";
+                                }
+                            }
+                            else
+                            {
+                                unableToConnectError = true;
+                                if (bridge.Multiplexer.RawConfig.IncludeDetailInExceptions)
+                                {
+                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. "
+                                        + PerfCounterHelper.GetThreadPoolAndCPUSummary();
+                                }
+                                else
+                                {
+                                    err = "Endpoint is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. ";
                                 }
                             }
                         }
@@ -469,12 +476,21 @@ namespace StackExchange.Redis
                         connection.SubscriptionCount = count;
                         SetResult(message, true);
 
-                        var newServer = message.Command switch
+                        var ep = connection.BridgeCouldBeNull?.ServerEndPoint;
+                        if (ep is not null)
                         {
-                            RedisCommand.SUBSCRIBE or RedisCommand.SSUBSCRIBE or RedisCommand.PSUBSCRIBE => connection.BridgeCouldBeNull?.ServerEndPoint,
-                            _ => null,
-                        };
-                        Subscription?.SetCurrentServer(newServer);
+                            switch (message.Command)
+                            {
+                                case RedisCommand.SUBSCRIBE:
+                                case RedisCommand.SSUBSCRIBE:
+                                case RedisCommand.PSUBSCRIBE:
+                                    Subscription?.AddEndpoint(ep);
+                                    break;
+                                default:
+                                    Subscription?.TryRemoveEndpoint(ep);
+                                    break;
+                            }
+                        }
                         return true;
                     }
                 }
@@ -2528,43 +2544,71 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var arr = result.GetItems();
                 var max = arr.Length / 2;
 
-                long length = -1, radixTreeKeys = -1, radixTreeNodes = -1, groups = -1;
-                var lastGeneratedId = Redis.RedisValue.Null;
+                long length = -1, radixTreeKeys = -1, radixTreeNodes = -1, groups = -1,
+                    entriesAdded = -1, idmpDuration = -1, idmpMaxsize = -1,
+                    pidsTracked = -1, iidsTracked = -1, iidsAdded = -1, iidsDuplicates = -1;
+                RedisValue lastGeneratedId = Redis.RedisValue.Null,
+                    maxDeletedEntryId = Redis.RedisValue.Null,
+                    recordedFirstEntryId = Redis.RedisValue.Null;
                 StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
                 var iter = arr.GetEnumerator();
                 for (int i = 0; i < max; i++)
                 {
                     ref RawResult key = ref iter.GetNext(), value = ref iter.GetNext();
                     if (key.Payload.Length > CommandBytes.MaxLength) continue;
-
-                    var keyBytes = new CommandBytes(key.Payload);
-                    if (keyBytes.Equals(CommonReplies.length))
+                    var hash = key.Payload.Hash64();
+                    switch (hash)
                     {
-                        if (!value.TryGetInt64(out length)) return false;
-                    }
-                    else if (keyBytes.Equals(CommonReplies.radixTreeKeys))
-                    {
-                        if (!value.TryGetInt64(out radixTreeKeys)) return false;
-                    }
-                    else if (keyBytes.Equals(CommonReplies.radixTreeNodes))
-                    {
-                        if (!value.TryGetInt64(out radixTreeNodes)) return false;
-                    }
-                    else if (keyBytes.Equals(CommonReplies.groups))
-                    {
-                        if (!value.TryGetInt64(out groups)) return false;
-                    }
-                    else if (keyBytes.Equals(CommonReplies.lastGeneratedId))
-                    {
-                        lastGeneratedId = value.AsRedisValue();
-                    }
-                    else if (keyBytes.Equals(CommonReplies.firstEntry))
-                    {
-                        firstEntry = ParseRedisStreamEntry(value);
-                    }
-                    else if (keyBytes.Equals(CommonReplies.lastEntry))
-                    {
-                        lastEntry = ParseRedisStreamEntry(value);
+                        case CommonRepliesHash.length.Hash when CommonRepliesHash.length.Is(hash, key):
+                            if (!value.TryGetInt64(out length)) return false;
+                            break;
+                        case CommonRepliesHash.radix_tree_keys.Hash when CommonRepliesHash.radix_tree_keys.Is(hash, key):
+                            if (!value.TryGetInt64(out radixTreeKeys)) return false;
+                            break;
+                        case CommonRepliesHash.radix_tree_nodes.Hash when CommonRepliesHash.radix_tree_nodes.Is(hash, key):
+                            if (!value.TryGetInt64(out radixTreeNodes)) return false;
+                            break;
+                        case CommonRepliesHash.groups.Hash when CommonRepliesHash.groups.Is(hash, key):
+                            if (!value.TryGetInt64(out groups)) return false;
+                            break;
+                        case CommonRepliesHash.last_generated_id.Hash when CommonRepliesHash.last_generated_id.Is(hash, key):
+                            lastGeneratedId = value.AsRedisValue();
+                            break;
+                        case CommonRepliesHash.first_entry.Hash when CommonRepliesHash.first_entry.Is(hash, key):
+                            firstEntry = ParseRedisStreamEntry(value);
+                            break;
+                        case CommonRepliesHash.last_entry.Hash when CommonRepliesHash.last_entry.Is(hash, key):
+                            lastEntry = ParseRedisStreamEntry(value);
+                            break;
+                        // 7.0
+                        case CommonRepliesHash.max_deleted_entry_id.Hash when CommonRepliesHash.max_deleted_entry_id.Is(hash, key):
+                            maxDeletedEntryId = value.AsRedisValue();
+                            break;
+                        case CommonRepliesHash.recorded_first_entry_id.Hash when CommonRepliesHash.recorded_first_entry_id.Is(hash, key):
+                            recordedFirstEntryId = value.AsRedisValue();
+                            break;
+                        case CommonRepliesHash.entries_added.Hash when CommonRepliesHash.entries_added.Is(hash, key):
+                            if (!value.TryGetInt64(out entriesAdded)) return false;
+                            break;
+                        // 8.6
+                        case CommonRepliesHash.idmp_duration.Hash when CommonRepliesHash.idmp_duration.Is(hash, key):
+                            if (!value.TryGetInt64(out idmpDuration)) return false;
+                            break;
+                        case CommonRepliesHash.idmp_maxsize.Hash when CommonRepliesHash.idmp_maxsize.Is(hash, key):
+                            if (!value.TryGetInt64(out idmpMaxsize)) return false;
+                            break;
+                        case CommonRepliesHash.pids_tracked.Hash when CommonRepliesHash.pids_tracked.Is(hash, key):
+                            if (!value.TryGetInt64(out pidsTracked)) return false;
+                            break;
+                        case CommonRepliesHash.iids_tracked.Hash when CommonRepliesHash.iids_tracked.Is(hash, key):
+                            if (!value.TryGetInt64(out iidsTracked)) return false;
+                            break;
+                        case CommonRepliesHash.iids_added.Hash when CommonRepliesHash.iids_added.Is(hash, key):
+                            if (!value.TryGetInt64(out iidsAdded)) return false;
+                            break;
+                        case CommonRepliesHash.iids_duplicates.Hash when CommonRepliesHash.iids_duplicates.Is(hash, key):
+                            if (!value.TryGetInt64(out iidsDuplicates)) return false;
+                            break;
                     }
                 }
 
@@ -2575,7 +2619,16 @@ The coordinates as a two items x,y array (longitude,latitude).
                     groups: checked((int)groups),
                     firstEntry: firstEntry,
                     lastEntry: lastEntry,
-                    lastGeneratedId: lastGeneratedId);
+                    lastGeneratedId: lastGeneratedId,
+                    maxDeletedEntryId: maxDeletedEntryId,
+                    entriesAdded: entriesAdded,
+                    recordedFirstEntryId: recordedFirstEntryId,
+                    idmpDuration: idmpDuration,
+                    idmpMaxSize: idmpMaxsize,
+                    pidsTracked: pidsTracked,
+                    iidsTracked: iidsTracked,
+                    iidsAdded: iidsAdded,
+                    iidsDuplicates: iidsDuplicates);
 
                 SetResult(message, streamInfo);
                 return true;

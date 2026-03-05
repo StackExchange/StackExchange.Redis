@@ -182,6 +182,7 @@ namespace StackExchange.Redis
                     case RedisCommand.DEBUG:
                     case RedisCommand.FLUSHALL:
                     case RedisCommand.FLUSHDB:
+                    case RedisCommand.HOTKEYS:
                     case RedisCommand.INFO:
                     case RedisCommand.KEYS:
                     case RedisCommand.MONITOR:
@@ -553,6 +554,7 @@ namespace StackExchange.Redis
                 case RedisCommand.ECHO:
                 case RedisCommand.FLUSHALL:
                 case RedisCommand.HELLO:
+                case RedisCommand.HOTKEYS:
                 case RedisCommand.INFO:
                 case RedisCommand.LASTSAVE:
                 case RedisCommand.LATENCY:
@@ -890,7 +892,8 @@ namespace StackExchange.Redis
 
         private sealed class CommandChannelMessage : CommandChannelBase
         {
-            public CommandChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel) : base(db, flags, command, channel)
+            public CommandChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel)
+                : base(db, flags, command, channel)
             { }
             protected override void WriteImpl(PhysicalConnection physical)
             {
@@ -903,7 +906,8 @@ namespace StackExchange.Redis
         private sealed class CommandChannelValueMessage : CommandChannelBase
         {
             private readonly RedisValue value;
-            public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value) : base(db, flags, command, channel)
+            public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value)
+                : base(db, flags, command, channel)
             {
                 value.AssertNotNull();
                 this.value = value;
@@ -1746,7 +1750,8 @@ namespace StackExchange.Redis
         private sealed class CommandValueChannelMessage : CommandChannelBase
         {
             private readonly RedisValue value;
-            public CommandValueChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisChannel channel) : base(db, flags, command, channel)
+            public CommandValueChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisChannel channel)
+                : base(db, flags, command, channel)
             {
                 value.AssertNotNull();
                 this.value = value;

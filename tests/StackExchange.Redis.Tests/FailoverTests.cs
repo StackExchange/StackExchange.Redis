@@ -236,9 +236,11 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         server.SimulateConnectionFailure(SimulatedFailureType.All);
         // Trigger failure (RedisTimeoutException or RedisConnectionException because
         // of backlog behavior)
-        var ex = Assert.ThrowsAny<Exception>(() => sub.Ping());
-        Assert.True(ex is RedisTimeoutException or RedisConnectionException);
         Assert.False(sub.IsConnected(channel));
+
+        var ex = Assert.ThrowsAny<Exception>(() => Log($"Ping: {sub.Ping(CommandFlags.DemandMaster)}ms"));
+        Assert.True(ex is RedisTimeoutException or RedisConnectionException);
+        Log($"Failed as expected: {ex.Message}");
 
         // Now reconnect...
         conn.AllowConnect = true;
@@ -263,7 +265,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         foreach (var pair in muxerSubs)
         {
             var muxerSub = pair.Value;
-            Log($"  Muxer Sub: {pair.Key}: (EndPoint: {muxerSub.GetCurrentServer()}, Connected: {muxerSub.IsConnected})");
+            Log($"  Muxer Sub: {pair.Key}: (EndPoint: {muxerSub.GetAnyCurrentServer()}, Connected: {muxerSub.IsConnectedAny()})");
         }
 
         Log("Publishing");

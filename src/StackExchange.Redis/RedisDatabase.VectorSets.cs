@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 // ReSharper disable once CheckNamespace
@@ -187,5 +190,108 @@ internal partial class RedisDatabase
         if (query == null) throw new ArgumentNullException(nameof(query));
         var msg = query.ToMessage(key, Database, flags);
         return ExecuteAsync(msg, msg.GetResultProcessor());
+    }
+
+    private Message GetVectorSetRangeMessage(
+        in RedisKey key,
+        in RedisValue start,
+        in RedisValue end,
+        long count,
+        Exclude exclude,
+        CommandFlags flags)
+    {
+        static RedisValue GetTerminator(RedisValue value, Exclude exclude, bool isStart)
+        {
+            if (value.IsNull) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
+            var mask = isStart ? Exclude.Start : Exclude.Stop;
+            var isExclusive = (exclude & mask) != 0;
+            return (isExclusive ? "(" : "[") + value;
+        }
+
+        var from = GetTerminator(start, exclude, true);
+        var to = GetTerminator(end, exclude, false);
+        return count < 0
+            ? Message.Create(Database, flags, RedisCommand.VRANGE, key, from, to)
+            : Message.Create(Database, flags, RedisCommand.VRANGE, key, from, to, count);
+    }
+
+    public Lease<RedisValue> VectorSetRange(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = -1,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None)
+    {
+        var msg = GetVectorSetRangeMessage(key, start, end, count, exclude, flags);
+        return ExecuteSync(msg, ResultProcessor.LeaseRedisValue)!;
+    }
+
+    public Task<Lease<RedisValue>?> VectorSetRangeAsync(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = -1,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None)
+    {
+        var msg = GetVectorSetRangeMessage(key, start, end, count, exclude, flags);
+        return ExecuteAsync(msg, ResultProcessor.LeaseRedisValue);
+    }
+
+    public IEnumerable<RedisValue> VectorSetRangeEnumerate(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None)
+    {
+        // intentionally not using "scan" naming in case a VSCAN command is added later
+        while (true)
+        {
+            using var batch = VectorSetRange(key, start, end, count, exclude, flags);
+            exclude |= Exclude.Start; // on subsequent iterations, exclude the start (we've already yielded it)
+
+            if (batch is null || batch.IsEmpty) yield break;
+            var segment = batch.ArraySegment;
+            for (int i = 0; i < segment.Count; i++)
+            {
+                // note side effect: use the last value as the exclusive start of the next batch
+                yield return start = segment.Array![segment.Offset + i];
+            }
+            if (batch.Length < count || (!end.IsNull && end == start)) yield break; // no need to issue a final query
+        }
+    }
+
+    public IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None)
+    {
+        // intentionally not using "scan" naming in case a VSCAN command is added later
+        return WithCancellationSupport(CancellationToken.None);
+
+        async IAsyncEnumerable<RedisValue> WithCancellationSupport([EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var batch = await VectorSetRangeAsync(key, start, end, count, exclude, flags);
+                exclude |= Exclude.Start; // on subsequent iterations, exclude the start (we've already yielded it)
+
+                if (batch is null || batch.IsEmpty) yield break;
+                var segment = batch.ArraySegment;
+                for (int i = 0; i < segment.Count; i++)
+                {
+                    // note side effect: use the last value as the exclusive start of the next batch
+                    yield return start = segment.Array![segment.Offset + i];
+                }
+                if (batch.Length < count || (!end.IsNull && end == start)) yield break; // no need to issue a final query
+            }
+        }
     }
 }

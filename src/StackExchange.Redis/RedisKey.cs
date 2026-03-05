@@ -395,6 +395,14 @@ namespace StackExchange.Redis
                 _ => ((byte[])KeyValue).Length,
             };
 
+        internal int MaxByteCount() =>
+            (KeyPrefix is null ? 0 : KeyPrefix.Length) + KeyValue switch
+            {
+                null => 0,
+                string s => Encoding.UTF8.GetMaxByteCount(s.Length),
+                _ => ((byte[])KeyValue).Length,
+            };
+
         internal int CopyTo(Span<byte> destination)
         {
             int written = 0;

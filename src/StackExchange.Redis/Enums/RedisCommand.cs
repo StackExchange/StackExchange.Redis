@@ -81,6 +81,7 @@ internal enum RedisCommand
     HLEN,
     HMGET,
     HMSET,
+    HOTKEYS,
     HPERSIST,
     HPEXPIRE,
     HPEXPIREAT,
@@ -218,6 +219,7 @@ internal enum RedisCommand
     VISMEMBER,
     VLINKS,
     VRANDMEMBER,
+    VRANGE,
     VREM,
     VSETATTR,
     VSIM,
@@ -229,6 +231,7 @@ internal enum RedisCommand
     XADD,
     XAUTOCLAIM,
     XCLAIM,
+    XCFGSET,
     XDEL,
     XDELEX,
     XGROUP,
@@ -375,6 +378,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.VREM:
             case RedisCommand.VSETATTR:
             case RedisCommand.XAUTOCLAIM:
+            case RedisCommand.XCFGSET:
             case RedisCommand.ZADD:
             case RedisCommand.ZDIFFSTORE:
             case RedisCommand.ZINTERSTORE:
@@ -430,6 +434,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.HKEYS:
             case RedisCommand.HLEN:
             case RedisCommand.HMGET:
+            case RedisCommand.HOTKEYS:
             case RedisCommand.HPEXPIRETIME:
             case RedisCommand.HPTTL:
             case RedisCommand.HRANDFIELD:
@@ -529,6 +534,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.VISMEMBER:
             case RedisCommand.VLINKS:
             case RedisCommand.VRANDMEMBER:
+            case RedisCommand.VRANGE:
             case RedisCommand.VSIM:
             // Writable commands, but allowed for the writable-replicas scenario
             case RedisCommand.COPY:

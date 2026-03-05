@@ -297,11 +297,17 @@ public class RedisValueEquivalency
         Assert.False(x.StartsWith(123), LineNumber());
         Assert.False(x.StartsWith(false), LineNumber());
 
-        Assert.True(x.StartsWith(Encoding.ASCII.GetBytes("a")), LineNumber());
-        Assert.True(x.StartsWith(Encoding.ASCII.GetBytes("ab")), LineNumber());
-        Assert.True(x.StartsWith(Encoding.ASCII.GetBytes("abc")), LineNumber());
-        Assert.False(x.StartsWith(Encoding.ASCII.GetBytes("abd")), LineNumber());
-        Assert.False(x.StartsWith(Encoding.ASCII.GetBytes("abcd")), LineNumber());
+        Assert.True(x.StartsWith((RedisValue)Encoding.ASCII.GetBytes("a")), LineNumber());
+        Assert.True(x.StartsWith((RedisValue)Encoding.ASCII.GetBytes("ab")), LineNumber());
+        Assert.True(x.StartsWith((RedisValue)Encoding.ASCII.GetBytes("abc")), LineNumber());
+        Assert.False(x.StartsWith((RedisValue)Encoding.ASCII.GetBytes("abd")), LineNumber());
+        Assert.False(x.StartsWith((RedisValue)Encoding.ASCII.GetBytes("abcd")), LineNumber());
+
+        Assert.True(x.StartsWith("a"u8), LineNumber());
+        Assert.True(x.StartsWith("ab"u8), LineNumber());
+        Assert.True(x.StartsWith("abc"u8), LineNumber());
+        Assert.False(x.StartsWith("abd"u8), LineNumber());
+        Assert.False(x.StartsWith("abcd"u8), LineNumber());
 
         x = 10; // integers are effectively strings in this context
         Assert.True(x.StartsWith(1), LineNumber());

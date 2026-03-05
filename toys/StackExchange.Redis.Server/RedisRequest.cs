@@ -9,7 +9,15 @@ namespace StackExchange.Redis.Server
         // so: using "ref" makes it clear that you can't expect to store these and have
         // them keep working
         private readonly RawResult _inner;
+        private readonly RedisClient _client;
 
+        public RedisRequest WithClient(RedisClient client) => new(in this, client);
+
+        private RedisRequest(scoped in RedisRequest original, RedisClient client)
+        {
+            this = original;
+            _client = client;
+        }
         public int Count { get; }
 
         public override string ToString() => Count == 0 ? "(n/a)" : GetString(0);
@@ -41,9 +49,28 @@ namespace StackExchange.Redis.Server
         public int GetInt32(int index)
             => (int)_inner[index].AsRedisValue();
 
+        public bool TryGetInt64(int index, out long value)
+            => _inner[index].TryGetInt64(out value);
+        public bool TryGetInt32(int index, out int value)
+        {
+            if (_inner[index].TryGetInt64(out var tmp))
+            {
+                value = (int)tmp;
+                if (value == tmp) return true;
+            }
+
+            value = 0;
+            return false;
+        }
+
         public long GetInt64(int index) => (long)_inner[index].AsRedisValue();
 
-        public RedisKey GetKey(int index) => _inner[index].AsRedisKey();
+        public RedisKey GetKey(int index, KeyFlags flags = KeyFlags.None)
+        {
+            var key = _inner[index].AsRedisKey();
+            _client?.OnKey(key, flags);
+            return key;
+        }
 
         internal RedisChannel GetChannel(int index, RedisChannel.RedisChannelOptions options)
             => _inner[index].AsRedisChannel(null, options);
@@ -60,5 +87,13 @@ namespace StackExchange.Redis.Server
             command = payload.IsEmpty ? default : new CommandBytes(payload);
             return true;
         }
+    }
+
+    [Flags]
+    public enum KeyFlags
+    {
+        None = 0,
+        ReadOnly = 1 << 0,
+        NoSlotCheck = 1 << 1,
     }
 }
