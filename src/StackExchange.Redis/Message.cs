@@ -11,6 +11,8 @@ using RESPite.Internal;
 using RESPite.Messages;
 using StackExchange.Redis.Profiling;
 
+#pragma warning disable SA1117 // params all same line; just noise here
+
 namespace StackExchange.Redis
 {
     internal sealed class LoggingMessage : Message
@@ -797,7 +799,7 @@ namespace StackExchange.Redis
 
         internal bool IsFlushRequiredAsync => (Flags & NoFlushFlag) == 0;
 
-        // for sync to skip flush, we need *both* NoFlush and FireAndForget; we absolutely need to flush if someone is waiting on a sync call
+        // for sync to skip flush, we need *both* NoFlush and FireAndForget; we absolutely need to flush if someone is doing a sync call
         internal bool IsFlushRequiredSync => (Flags & (NoFlushFlag | CommandFlags.FireAndForget)) != (NoFlushFlag | CommandFlags.FireAndForget);
 
         /// <summary>
