@@ -36,12 +36,13 @@ public class TestConnection : IDisposable
         CommandMap? commandMap = null,
         byte[]? channelPrefix = null,
         ITestOutputHelper? log = null,
+        bool useSyncInputOutput = false,
         [CallerMemberName] string caller = "")
     {
         // Validate RESP samples are not null/empty to avoid test setup mistakes
         Assert.False(string.IsNullOrEmpty(responseResp), "responseResp must not be null or empty");
 
-        using var conn = new TestConnection(false, connectionType, protocol, log, caller);
+        using var conn = new TestConnection(false, useSyncInputOutput, connectionType, protocol, log, caller);
 
         var box = TaskResultBox<T>.Create(out var tcs, null);
         using var timeout = tcs.CancelWithTest();
@@ -64,12 +65,13 @@ public class TestConnection : IDisposable
 
     public TestConnection(
         bool startReading = true,
+        bool useSyncInputOutput = false,
         ConnectionType connectionType = ConnectionType.Interactive,
         RedisProtocol protocol = RedisProtocol.Resp2,
         ITestOutputHelper? log = null,
         [CallerMemberName] string caller = "")
     {
-        _physical = new PhysicalConnection(connectionType, protocol, _stream, caller);
+        _physical = new PhysicalConnection(connectionType, protocol, _stream, useSyncInputOutput, caller);
         _log = log;
         if (startReading) StartReading();
     }

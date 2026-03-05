@@ -6,6 +6,7 @@ internal partial class DebugCounters
 {
 #if DEBUG
     private static int
+        _tallySyncReadCount,
         _tallyAsyncReadCount,
         _tallyAsyncReadInlineCount,
         _tallyDiscardFullCount,
@@ -54,6 +55,15 @@ internal partial class DebugCounters
     {
 #if DEBUG
         Interlocked.Increment(ref inline ? ref _tallyAsyncReadInlineCount : ref _tallyAsyncReadCount);
+        if (bytes > 0) Interlocked.Add(ref _tallyReadBytes, bytes);
+#endif
+    }
+
+    [Conditional("DEBUG")]
+    internal static void OnSyncRead(int bytes)
+    {
+#if DEBUG
+        Interlocked.Increment(ref _tallySyncReadCount);
         if (bytes > 0) Interlocked.Add(ref _tallyReadBytes, bytes);
 #endif
     }
@@ -131,6 +141,7 @@ internal partial class DebugCounters
         // preferable to getting into a CEX squabble or requiring a lock - it is debug-only and just useful data
     }
 
+    public int SyncReadCount { get; } = Interlocked.Exchange(ref _tallySyncReadCount, 0);
     public int AsyncReadCount { get; } = Interlocked.Exchange(ref _tallyAsyncReadCount, 0);
     public int AsyncReadInlineCount { get; } = Interlocked.Exchange(ref _tallyAsyncReadInlineCount, 0);
     public long ReadBytes { get; } = Interlocked.Exchange(ref _tallyReadBytes, 0);

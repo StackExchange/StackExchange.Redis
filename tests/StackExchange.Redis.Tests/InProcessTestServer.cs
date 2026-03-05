@@ -25,8 +25,8 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
-    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = false, TextWriter? log = null)
-        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub), log);
+    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = false, bool useSyncInputOutput = false, TextWriter? log = null)
+        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, useSyncInputOutput), log);
 
     // view request/response highlights in the log
     public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
@@ -36,7 +36,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         return result;
     }
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = false)
+    public ConfigurationOptions GetClientConfig(bool withPubSub = false, bool useSyncInputOutput = false)
     {
         var commands = GetCommands();
         if (!withPubSub)
@@ -62,6 +62,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             AsyncTimeout = 5000,
             AllowAdmin = true,
             Tunnel = Tunnel,
+            UseSyncInputOutput = useSyncInputOutput,
         };
 
         /* useful for viewing *outbound* data in the log

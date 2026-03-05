@@ -102,8 +102,10 @@ namespace StackExchange.Redis
             ConnectionType connectionType = ConnectionType.Interactive,
             RedisProtocol protocol = RedisProtocol.Resp2,
             Stream? ioStream = null,
+            bool useSyncInputOutput = false,
             [CallerMemberName] string name = "")
         {
+            UseSyncInputOutput = useSyncInputOutput;
             lastWriteTickCount = lastReadTickCount = Environment.TickCount;
             lastBeatTickCount = 0;
             this.connectionType = connectionType;
@@ -113,8 +115,9 @@ namespace StackExchange.Redis
             InitOutput(ioStream);
             OnCreateEcho();
         }
-        public PhysicalConnection(PhysicalBridge bridge)
+        public PhysicalConnection(PhysicalBridge bridge, bool useSyncInputOutput)
         {
+            UseSyncInputOutput = useSyncInputOutput;
             lastWriteTickCount = lastReadTickCount = Environment.TickCount;
             lastBeatTickCount = 0;
             connectionType = bridge.ConnectionType;
@@ -227,7 +230,7 @@ namespace StackExchange.Redis
                             log?.LogInformationStartingRead(new(endpoint));
                             try
                             {
-                                StartReading();
+                                StartReading(CancellationToken.None); // this already includes InputCancel
                                 // Normal return
                             }
                             catch (Exception ex)

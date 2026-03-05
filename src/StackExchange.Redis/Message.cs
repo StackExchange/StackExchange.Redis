@@ -1959,5 +1959,7 @@ namespace StackExchange.Redis
             public override int ArgCount => 0;
             protected override void WriteImpl(in MessageWriter writer) => throw new InvalidOperationException("This message cannot be written");
         }
+
+        public void SetNoFlush() => Flags |= NoFlushFlag;
     }
 }

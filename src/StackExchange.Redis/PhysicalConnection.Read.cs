@@ -18,14 +18,16 @@ internal sealed partial class PhysicalConnection
 {
     private long totalBytesReceived;
 
-    internal static PhysicalConnection Dummy() => new(null!);
+    internal static PhysicalConnection Dummy(bool useSyncInputOutput = false) => new(null!, useSyncInputOutput);
 
     private volatile ReadStatus _readStatus = ReadStatus.NotStarted;
     internal ReadStatus GetReadStatus() => _readStatus;
 
+    private bool UseSyncInputOutput { get; }
+
     internal void StartReading(CancellationToken cancellation = default)
     {
-        if (cancellation.CanBeCanceled)
+        if (cancellation.CanBeCanceled && cancellation != InputCancel)
         {
             cancellation.ThrowIfCancellationRequested();
             if (InputCancel.CanBeCanceled)
@@ -37,7 +39,26 @@ internal sealed partial class PhysicalConnection
         {
             cancellation = InputCancel;
         }
-        ReadAllAsync(cancellation).RedisFireAndForget();
+
+        if (UseSyncInputOutput)
+        {
+            StartReadingSync(this, cancellation);
+            static void StartReadingSync(PhysicalConnection conn, CancellationToken cancellation)
+            {
+                // this method exists purely to limit capture context scope
+                Thread thread = new Thread(() => conn.ReadAllSync(cancellation))
+                {
+                    IsBackground = true,
+                    Priority = ThreadPriority.AboveNormal,
+                    Name = "SE.Redis Sync Writer",
+                };
+                thread.Start();
+            }
+        }
+        else
+        {
+            ReadAllAsync(cancellation).RedisFireAndForget();
+        }
     }
 
     private async Task ReadAllAsync(CancellationToken cancellationToken)
@@ -63,6 +84,63 @@ internal sealed partial class PhysicalConnection
 #if DEBUG
                 DebugCounters.OnAsyncRead(read, inline);
 #endif
+                _readStatus = ReadStatus.TryParseResult;
+            }
+            // another formatter glitch
+            while (CommitAndParseFrames(read) && !ForceReconnect);
+
+            _readStatus = ReadStatus.ProcessBufferComplete;
+
+            // Volatile.Write(ref _readStatus, ReaderCompleted);
+            _readBuffer.Release(); // clean exit, we can recycle
+            _readStatus = ReadStatus.RanToCompletion;
+            RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+        }
+        catch (EndOfStreamException) when (_readStatus is ReadStatus.ReadAsync)
+        {
+            _readStatus = ReadStatus.RanToCompletion;
+            RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+        }
+        catch (OperationCanceledException) when (_readStatus is ReadStatus.ReadAsync)
+        {
+            _readStatus = ReadStatus.RanToCompletion;
+            RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+        }
+        catch (Exception ex)
+        {
+            _readStatus = ReadStatus.Faulted;
+            RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+        }
+        finally
+        {
+            _readBuffer = default; // wipe, however we exited
+        }
+    }
+
+    private void ReadAllSync(CancellationToken cancellationToken)
+    {
+        var tail = _ioStream ?? Stream.Null;
+        _readStatus = ReadStatus.Init;
+        _readState = default;
+        _readBuffer = CycleBuffer.Create();
+        try
+        {
+            int read;
+            do
+            {
+                _readStatus = ReadStatus.ReadAsync;
+                var buffer = _readBuffer.GetUncommittedMemory();
+                cancellationToken.ThrowIfCancellationRequested();
+#if NET || NETSTANDARD2_1_OR_GREATER
+                read = tail.Read(buffer.Span);
+#else
+                read = tail.Read(buffer);
+#endif
+
+                _readStatus = ReadStatus.UpdateWriteTime;
+                UpdateLastReadTime();
+
+                DebugCounters.OnSyncRead(read);
                 _readStatus = ReadStatus.TryParseResult;
             }
             // another formatter glitch

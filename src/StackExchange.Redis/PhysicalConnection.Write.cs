@@ -22,7 +22,9 @@ internal partial class PhysicalConnection
     {
         if (stream is null) return;
         _ioStream = stream;
-        _output = new BufferedAsyncStreamWriter(stream, OutputCancel);
+        _output = UseSyncInputOutput
+            ? new BuffereSyncStreamWriter(stream, OutputCancel)
+            : new BufferedAsyncStreamWriter(stream, OutputCancel);
 #if DEBUG
         if (BridgeCouldBeNull?.Multiplexer.RawConfig.OutputLog is { } log)
         {
