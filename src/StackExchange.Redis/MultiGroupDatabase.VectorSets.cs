@@ -44,4 +44,10 @@ internal sealed partial class MultiGroupDatabase
 
     public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(RedisKey key, VectorSetSimilaritySearchRequest query, CommandFlags flags = CommandFlags.None)
         => GetDatabase().VectorSetSimilaritySearch(key, query, flags);
+
+    public Lease<RedisValue> VectorSetRange(RedisKey key, RedisValue start = default, RedisValue end = default, long count = -1, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        => GetDatabase().VectorSetRange(key, start, end, count, exclude, flags);
+
+    public System.Collections.Generic.IEnumerable<RedisValue> VectorSetRangeEnumerate(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        => GetDatabase().VectorSetRangeEnumerate(key, start, end, count, exclude, flags);
 }

@@ -46,4 +46,10 @@ internal sealed partial class MultiGroupDatabase
 
     public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchAsync(RedisKey key, VectorSetSimilaritySearchRequest query, CommandFlags flags = CommandFlags.None)
         => GetDatabase().VectorSetSimilaritySearchAsync(key, query, flags);
+
+    public Task<Lease<RedisValue>?> VectorSetRangeAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = -1, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        => GetDatabase().VectorSetRangeAsync(key, start, end, count, exclude, flags);
+
+    public System.Collections.Generic.IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        => GetDatabase().VectorSetRangeEnumerateAsync(key, start, end, count, exclude, flags);
 }
