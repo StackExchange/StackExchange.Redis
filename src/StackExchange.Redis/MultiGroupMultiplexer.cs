@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
@@ -88,9 +89,25 @@ internal sealed class MultiGroupMultiplexer : IConnectionMultiplexer
         }
     }
 
-    public void Dispose() => throw new NotImplementedException();
+    public void Dispose()
+    {
+        _active = null;
+        var arr = Interlocked.Exchange(ref _muxers, []);
+        foreach (var muxer in arr)
+        {
+            muxer.Dispose();
+        }
+    }
 
-    public ValueTask DisposeAsync() => throw new NotImplementedException();
+    public async ValueTask DisposeAsync()
+    {
+        _active = null;
+        var arr = Interlocked.Exchange(ref _muxers, []);
+        foreach (var muxer in arr)
+        {
+            await muxer.DisposeAsync();
+        }
+    }
 
     public string ClientName => Active.ClientName;
     public string Configuration => Active.Configuration;
