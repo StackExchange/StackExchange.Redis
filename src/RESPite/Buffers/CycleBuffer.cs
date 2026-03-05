@@ -47,6 +47,7 @@ public partial struct CycleBuffer
         Pool = pool;
         PageSize = pageSize;
         _callback = callback;
+        leasedStart = -1;
     }
 
     private const int DefaultPageSize = 8 * 1024;
@@ -58,7 +59,7 @@ public partial struct CycleBuffer
     private Segment? startSegment, endSegment;
 
     private int endSegmentCommitted, endSegmentLength;
-    private int writeStartOffset;
+    private int leasedStart;
 
     public bool TryGetCommitted(out ReadOnlySpan<byte> span)
     {
@@ -80,34 +81,39 @@ public partial struct CycleBuffer
     public void Commit(int count)
     {
         DebugAssertValid();
+        if (leasedStart < 0)
+        {
+            ThrowNoLease();
+        }
+
         if (count <= 0)
         {
-            if (count < 0) Throw();
+            if (count < 0) ThrowCount();
             return;
         }
 
         var available = endSegmentLength - endSegmentCommitted;
-        if (count > available) Throw();
+        if (count > available) ThrowCount();
 
-        var writeEndOffset = endSegment!.StartTrimCount;
-        if (writeStartOffset != writeEndOffset) CopyDueToDiscardDuringWrite(count);
+        var afterLeasedStart = endSegment!.StartTrimCount + endSegmentCommitted;
+
+        if (leasedStart != afterLeasedStart) CopyDueToDiscardDuringWrite(count);
         endSegmentCommitted += count;
         DebugAssertValid();
 
-        static void Throw() => throw new ArgumentOutOfRangeException(nameof(count));
+        static void ThrowCount() => throw new ArgumentOutOfRangeException(nameof(count));
+        static void ThrowNoLease() => throw new InvalidOperationException("No open lease");
     }
 
     private void CopyDueToDiscardDuringWrite(int count)
     {
-        var segmentSpan = MemoryMarshal.AsMemory(endSegment!.Memory).Span;
-        var delta = writeStartOffset - endSegment.StartTrimCount;
-
-        // note that segmentSpan is already relative to the "new" start, so:
-        var target = segmentSpan.Slice(start: endSegmentCommitted, length: count);
-
-        // using the *old* origin, we need to apply the offset
-        var src = segmentSpan.Slice(start: endSegmentCommitted + delta, length: count);
-        src.CopyTo(target);
+        var targetOffset = endSegment!.StartTrimCount + endSegmentCommitted;
+        if (targetOffset != leasedStart)
+        {
+            var full = endSegment.UntrimmedMemory.Span;
+            full.Slice(leasedStart, count)
+                .CopyTo(full.Slice(targetOffset, count));
+        }
     }
     public bool CommittedIsEmpty => ReferenceEquals(startSegment, endSegment) & endSegmentCommitted == 0;
 
@@ -431,7 +437,7 @@ public partial struct CycleBuffer
         var segment = endSegment;
         if (segment is not null)
         {
-            writeStartOffset = segment.StartTrimCount;
+            leasedStart = segment.StartTrimCount + endSegmentCommitted;
             var memory = segment.Memory;
             if (endSegmentCommitted != 0) memory = memory.Slice(start: endSegmentCommitted);
             if (hint <= 0) // allow anything non-empty
@@ -446,7 +452,8 @@ public partial struct CycleBuffer
 
         // new segment, will always be entire
         segment = GetNextSegment();
-        writeStartOffset = segment.StartTrimCount;
+        leasedStart = segment.StartTrimCount + endSegmentCommitted;
+        Debug.Assert(leasedStart == 0, "should be zero for a new segment");
         return MemoryMarshal.AsMemory(segment.Memory);
     }
 
@@ -557,7 +564,7 @@ public partial struct CycleBuffer
             Next = null;
             RunningIndex = 0;
             _flags = Flags.None;
-            Memory = _lease.Memory; // reset, in case we trimmed it
+            Memory = UntrimmedMemory; // reset, in case we trimmed it
             DebugAssertValidChain();
             return next;
         }
@@ -587,11 +594,16 @@ public partial struct CycleBuffer
         public int StartTrimCount { get; private set; }
 
         /// <summary>
+        /// Get the full memory of the lease, before any trimming.
+        /// </summary>
+        public Memory<byte> UntrimmedMemory => _lease.Memory;
+
+        /// <summary>
         /// Undo any trimming, returning the new full capacity.
         /// </summary>
         public int Untrim(bool expandBackwards = false)
         {
-            var fullMemory = _lease.Memory;
+            var fullMemory = UntrimmedMemory;
             var fullLength = fullMemory.Length;
             var delta = fullLength - Length;
             if (delta != 0)
