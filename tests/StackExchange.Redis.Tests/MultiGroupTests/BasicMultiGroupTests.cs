@@ -77,7 +77,7 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
 
         Assert.True(conn.IsConnected);
         server0.SetLatency(TimeSpan.FromMilliseconds(10));
-        server0.SetLatency(TimeSpan.Zero);
+        server1.SetLatency(TimeSpan.Zero);
         server2.SetLatency(TimeSpan.FromMilliseconds(15));
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
         typed.OnHeartbeat(); // update latencies
