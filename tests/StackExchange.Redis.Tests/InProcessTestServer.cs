@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests;
 public class InProcessTestServer : MemoryCacheRedisServer
 {
     private readonly ITestOutputHelper? _log;
-    public InProcessTestServer(ITestOutputHelper? log = null)
+    public InProcessTestServer(ITestOutputHelper? log = null, EndPoint? endpoint = null) : base(endpoint)
     {
         RedisVersion = RedisFeatures.v6_0_0; // for client to expect RESP3
         _log = log;
@@ -157,4 +157,13 @@ public class InProcessTestServer : MemoryCacheRedisServer
         if (disposing) _server.Dispose();
     }
     */
+    public void SetLatency(TimeSpan latency) => _latency = latency;
+
+    private TimeSpan _latency = TimeSpan.Zero;
+
+    protected override ValueTask ClientPauseAsync(RedisClient client)
+    {
+        var latency = _latency;
+        return latency <= TimeSpan.Zero ? base.ClientPauseAsync(client) : new(Task.Delay(latency));
+    }
 }
