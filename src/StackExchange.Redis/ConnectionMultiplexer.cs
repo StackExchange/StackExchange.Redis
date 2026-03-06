@@ -1036,7 +1036,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private void OnHeartbeat()
+        internal void OnHeartbeat()
         {
             try
             {
@@ -1282,7 +1282,8 @@ namespace StackExchange.Redis
             }
         }
 
-        internal int LatencyTicks { get; private set; }
+        internal uint LatencyTicks { get; private set; } = uint.MaxValue;
+
         // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
         // (we deal with channels far less frequently, so pay the encoding cost up-front)
         internal byte[] ChannelPrefix => ((byte[]?)RawConfig.ChannelPrefix) ?? [];
@@ -2360,5 +2361,29 @@ namespace StackExchange.Redis
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
             => GetServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+
+        internal uint UpdateLatency()
+        {
+            var snapshot = GetServerSnapshot();
+            uint max = uint.MaxValue;
+            foreach (var server in snapshot)
+            {
+                if (server.IsConnected)
+                {
+                    var latency = server.LatencyTicks;
+                    if (max is uint.MaxValue || latency > max)
+                    {
+                        max = latency;
+                    }
+                }
+            }
+
+            if (max != uint.MaxValue)
+            {
+                LatencyTicks = max;
+            }
+
+            return LatencyTicks;
+        }
     }
 }

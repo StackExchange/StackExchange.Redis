@@ -157,4 +157,13 @@ public class InProcessTestServer : MemoryCacheRedisServer
         if (disposing) _server.Dispose();
     }
     */
+    public void SetLatency(TimeSpan latency) => _latency = latency;
+
+    private TimeSpan _latency = TimeSpan.Zero;
+
+    protected override ValueTask ClientPauseAsync(RedisClient client)
+    {
+        var latency = _latency;
+        return latency <= TimeSpan.Zero ? base.ClientPauseAsync(client) : new(Task.Delay(latency));
+    }
 }

@@ -37,7 +37,10 @@ public partial class ConnectionMultiplexer
     /// <param name="member1">An additional initial configuration to connect to.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
 #pragma warning disable RS0016, RS0026
-    public static Task<IConnectionGroup> ConnectGroupAsync(ConnectionGroupMember member0, ConnectionGroupMember member1, TextWriter? log = null)
+    public static Task<IConnectionGroup> ConnectGroupAsync(
+        ConnectionGroupMember member0,
+        ConnectionGroupMember member1,
+        TextWriter? log = null)
 #pragma warning restore RS0016, RS0026
     {
         return MultiGroupMultiplexer.ConnectAsync([member0, member1], log);
@@ -138,25 +141,17 @@ public sealed class ConnectionGroupMember(ConfigurationOptions configuration, st
 
     internal void SetLatency(uint ticks) => _latencyTicks = ticks;
 
-    internal void SetLatency(TimeSpan latency)
+    internal static uint ToLatencyTicks(TimeSpan latency)
     {
-        long ticks64 = latency.Ticks;
-        uint ticks;
-        if (ticks64 <= 0)
+        long ticks = latency.Ticks;
+        if (ticks <= 0)
         {
-            ticks = 0;
+            return 0;
         }
-        else if (ticks64 > uint.MaxValue)
-        {
-            ticks = uint.MaxValue;
-        }
-        else
-        {
-            ticks = (uint)ticks64;
-        }
-
-        SetLatency(ticks);
+        return ticks > uint.MaxValue ? uint.MaxValue : (uint)ticks;
     }
+
+    internal void SetLatency(TimeSpan latency) => SetLatency(ToLatencyTicks(latency));
 
     internal static ConnectionGroupMember? Select(ConnectionGroupMember? x, ConnectionGroupMember? y)
     {
@@ -179,12 +174,22 @@ public sealed class ConnectionGroupMember(ConfigurationOptions configuration, st
 
     internal GroupConnectionChangedEventArgs.ChangeType UpdateState()
     {
-        var isConnected = _muxer is { IsConnected: true };
+        bool isConnected;
+        if (_muxer is { IsConnected: true } muxer)
+        {
+            isConnected = true;
+            SetLatency(muxer.UpdateLatency());
+        }
+        else
+        {
+            isConnected = false;
+        }
+
         var oldConnected = IsConnected;
         IsConnected = isConnected;
 
-        return isConnected == oldConnected ? GroupConnectionChangedEventArgs.ChangeType.Unknown :
-            isConnected ? GroupConnectionChangedEventArgs.ChangeType.Reconnected
+        return isConnected == oldConnected ? GroupConnectionChangedEventArgs.ChangeType.Unknown
+            : isConnected ? GroupConnectionChangedEventArgs.ChangeType.Reconnected
             : GroupConnectionChangedEventArgs.ChangeType.Disconnected;
     }
 }
@@ -221,8 +226,30 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
         {
             return _active ?? Throw();
 
+            [DoesNotReturn]
             static ConnectionMultiplexer Throw() =>
-                throw new ObjectDisposedException("All connections are unavailable.");
+                throw new InvalidOperationException("All connections are unavailable.");
+        }
+    }
+
+    internal ConnectionGroupMember ActiveMember
+    {
+        get
+        {
+            var active = _active;
+            foreach (var member in _members)
+            {
+                if (ReferenceEquals(active, member.Multiplexer))
+                {
+                    return member;
+                }
+            }
+
+            return Throw();
+
+            [DoesNotReturn]
+            static ConnectionGroupMember Throw() =>
+                throw new InvalidOperationException("All connections are unavailable.");
         }
     }
 
@@ -238,6 +265,7 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
         {
             var config = members[i].Configuration;
             config.AbortOnConnectFail = false;
+            config.HeartbeatConsistencyChecks = true;
             pending[i] = ConnectionMultiplexer.ConnectAsync(config, log);
         }
 
@@ -368,6 +396,7 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
     }
 
     private Func<ProfilingSession?>? _profilingSessionProvider;
+
     public void RegisterProfiler(Func<ProfilingSession?> profilingSessionProvider)
     {
         _profilingSessionProvider = profilingSessionProvider;
@@ -809,11 +838,22 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
     public void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All) =>
         Active.ExportConfiguration(destination, options);
 
+    private readonly HashSet<string> _suffixes = new(); // in case we need to add to a new muxer
     public void AddLibraryNameSuffix(string suffix)
     {
-        foreach (var member in _members)
+        if (string.IsNullOrWhiteSpace(suffix)) return; // trivial
+        bool isNew;
+        lock (_suffixes)
         {
-            member.Multiplexer.AddLibraryNameSuffix(suffix);
+            isNew = _suffixes.Add(suffix);
+        }
+
+        if (isNew)
+        {
+            foreach (var member in _members)
+            {
+                member.Multiplexer.AddLibraryNameSuffix(suffix);
+            }
         }
     }
 
@@ -836,12 +876,20 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
     {
         // connect
         member.Init(_members.Length);
+        member.Configuration.HeartbeatConsistencyChecks = true;
         var muxer = await ConnectionMultiplexer.ConnectAsync(member.Configuration, log);
         member.SetMultiplexer(muxer);
 
         // apply any shared hooks
         AddHandlers(muxer);
         if (_profilingSessionProvider is not null) muxer.RegisterProfiler(_profilingSessionProvider);
+        lock (_suffixes)
+        {
+            foreach (var suffix in _suffixes)
+            {
+                muxer.AddLibraryNameSuffix(suffix);
+            }
+        }
 
         // update the members array
         while (true)
@@ -883,5 +931,13 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
         OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Removed, group);
         SelectPreferredGroup();
         return true;
+    }
+
+    internal void OnHeartbeat() // for testing, to update latency etc
+    {
+        foreach (var member in _members)
+        {
+            member.Multiplexer.OnHeartbeat();
+        }
     }
 }

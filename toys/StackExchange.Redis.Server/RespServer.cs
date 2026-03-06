@@ -427,14 +427,14 @@ RetryResp2:
             await output.FlushAsync().ConfigureAwait(false);
         }
 
-        private static bool TryParseRequest(Arena<RawResult> arena, ref ReadOnlySequence<byte> buffer, out RedisRequest request)
+        private static bool TryParseRequest(Arena<RawResult> arena, ref ReadOnlySequence<byte> buffer, out RawResult request)
         {
             var reader = new BufferReader(buffer);
             var raw = PhysicalConnection.TryParseResult(false, arena, in buffer, ref reader, false, null, true);
             if (raw.HasValue)
             {
                 buffer = reader.SliceFromCurrent();
-                request = new RedisRequest(raw);
+                request = raw;
                 return true;
             }
             request = default;
@@ -452,10 +452,32 @@ RetryResp2:
                 response.Recycle();
                 return true;
             }
-            if (!buffer.IsEmpty && TryParseRequest(_arena, ref buffer, out var request))
+            static async ValueTask<bool> AwaitedExec(
+                RespServer server,
+                ValueTask pause,
+                RedisClient client,
+                RawResult requestBuffer,
+                PipeWriter output)
             {
-                request = request.WithClient(client);
+                await pause.ConfigureAwait(false);
                 TypedRedisValue response;
+                try { response = server.Execute(client, new RedisRequest(requestBuffer).WithClient(client)); }
+                finally
+                {
+                    server._arena.Reset();
+                    client.ResetAfterRequest();
+                }
+
+                await WriteResponseAsync(client, output, response, client.Protocol).ConfigureAwait(false);
+                response.Recycle();
+                return true;
+            }
+            if (!buffer.IsEmpty && TryParseRequest(_arena, ref buffer, out var requestBuffer))
+            {
+                var pause = ClientPauseAsync(client);
+                if (!pause.IsCompletedSuccessfully) return AwaitedExec(this, pause, client, requestBuffer, output);
+                TypedRedisValue response;
+                var request = new RedisRequest(requestBuffer).WithClient(client);
                 try { response = Execute(client, request); }
                 finally
                 {
@@ -470,6 +492,8 @@ RetryResp2:
             }
             return new ValueTask<bool>(false);
         }
+
+        protected virtual ValueTask ClientPauseAsync(RedisClient client) => default;
 
         protected object ServerSyncLock => this;
 
