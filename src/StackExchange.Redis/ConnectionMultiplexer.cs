@@ -145,7 +145,6 @@ namespace StackExchange.Redis
                 map.AssertAvailable(RedisCommand.EXISTS);
             }
 
-            OnCreateReaderWriter(configuration);
             ServerSelectionStrategy = new ServerSelectionStrategy(this);
 
             var configChannel = configuration.ConfigurationChannel;
@@ -350,7 +349,7 @@ namespace StackExchange.Redis
             }
 
             // using >= here because we will be adding 1 for the command itself (which is an argument for the purposes of the multi-bulk protocol)
-            if (message.ArgCount >= PhysicalConnection.REDIS_MAX_ARGS)
+            if (message.ArgCount >= MessageWriter.REDIS_MAX_ARGS)
             {
                 throw ExceptionFactory.TooManyArgs(message.CommandAndKey, message.ArgCount);
             }
@@ -2301,7 +2300,6 @@ namespace StackExchange.Redis
                 WaitAllIgnoreErrors(quits);
             }
             DisposeAndClearServers();
-            OnCloseReaderWriter();
             OnClosing(true);
             Interlocked.Increment(ref _connectionCloseCount);
         }

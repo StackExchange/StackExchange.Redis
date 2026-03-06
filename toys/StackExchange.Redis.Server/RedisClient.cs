@@ -1,12 +1,36 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Text;
+using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
 {
     public class RedisClient(RedisServer.Node node) : IDisposable
     {
+        private RespScanState _readState;
+
+        public bool TryReadRequest(ReadOnlySequence<byte> data, out long consumed)
+        {
+            // skip past data we've already read
+            data = data.Slice(_readState.TotalBytes);
+            var status = RespFrameScanner.Default.TryRead(ref _readState, data);
+            consumed = _readState.TotalBytes;
+            switch (status)
+            {
+                case OperationStatus.Done:
+                    _readState = default; // reset ready for the next frame
+                    return true;
+                case OperationStatus.NeedMoreData:
+                    consumed = 0;
+                    return false;
+                default:
+                    throw new InvalidOperationException($"Unexpected status: {status}");
+            }
+        }
+
         public RedisServer.Node Node => node;
         internal int SkipReplies { get; set; }
         internal bool ShouldSkipResponse()
@@ -54,6 +78,8 @@ namespace StackExchange.Redis.Server
                 try { pipe.Output.Complete(); } catch { }
                 if (pipe is IDisposable d) try { d.Dispose(); } catch { }
             }
+
+            _readState = default;
         }
 
         private int _activeSlot = ServerSelectionStrategy.NoSlot;
@@ -233,13 +259,12 @@ namespace StackExchange.Redis.Server
         // completely unoptimized for now; this is fine
         private List<byte[]> _transaction; // null until needed
 
-        internal bool BufferMulti(in RedisRequest request, in CommandBytes command)
+        internal bool BufferMulti(in RedisRequest request, in AsciiHash command)
         {
             switch (_transactionState)
             {
                 case TransactionState.MultiHopeful when !AllowInTransaction(command):
-                    // TODO we also can't do this bit! just store the command name for now
-                    (_transaction ??= []).Add(Encoding.ASCII.GetBytes(request.GetString(0)));
+                    (_transaction ??= []).Add(request.Serialize());
                     return true;
                 case TransactionState.MultiAbortByError when !AllowInTransaction(command):
                 case TransactionState.MultiDoomedByTouch when !AllowInTransaction(command):
@@ -249,12 +274,12 @@ namespace StackExchange.Redis.Server
                     return false;
             }
 
-            static bool AllowInTransaction(in CommandBytes cmd)
+            static bool AllowInTransaction(in AsciiHash cmd)
                 => cmd.Equals(EXEC) || cmd.Equals(DISCARD) || cmd.Equals(MULTI)
                    || cmd.Equals(WATCH) || cmd.Equals(UNWATCH);
         }
 
-        private static readonly CommandBytes
+        private static readonly AsciiHash
             EXEC = new("EXEC"u8), DISCARD = new("DISCARD"u8), MULTI = new("MULTI"u8),
             WATCH = new("WATCH"u8), UNWATCH = new("UNWATCH"u8);
     }

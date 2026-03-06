@@ -1,0 +1,3 @@
+﻿#nullable enable
+[SER004]RESPite.Messages.RespReader.ParseBytes<T>(System.IFormatProvider? formatProvider = null) -> T
+[SER004]RESPite.Messages.RespReader.ParseChars<T>(System.IFormatProvider? formatProvider = null) -> T

@@ -254,11 +254,11 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task GetWithExpiryWrongTypeSync()
     {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
         RedisKey key = Me();
         var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
         {
-            await using var conn = Create();
-            var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);
             db.SetAdd(key, "abc", CommandFlags.FireAndForget);
             db.StringGetWithExpiry(key);
@@ -270,13 +270,15 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task TestSevered()
     {
-        SetExpectedAmbientFailureCount(2);
         await using var conn = Create(allowAdmin: true, shared: false);
         var db = conn.GetDatabase();
         string key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, key, flags: CommandFlags.FireAndForget);
         var server = GetServer(conn);
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
+
+        SetExpectedAmbientFailureCount(2);
         server.SimulateConnectionFailure(SimulatedFailureType.All);
         var watch = Stopwatch.StartNew();
         await UntilConditionAsync(TimeSpan.FromSeconds(10), () => server.IsConnected);

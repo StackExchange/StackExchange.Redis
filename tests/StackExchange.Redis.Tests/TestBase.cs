@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests;
 
 public abstract class TestBase : IDisposable
 {
-    private ITestOutputHelper Output { get; }
+    protected ITestOutputHelper Output { get; }
     protected TextWriterOutputHelper Writer { get; }
     protected virtual string GetConfiguration()
     {
@@ -211,8 +211,6 @@ public abstract class TestBase : IDisposable
             }
             Assert.Skip($"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
         }
-        var pool = SocketManager.Shared?.SchedulerPool;
-        Log($"Service Counts: (Scheduler) Queue: {pool?.TotalServicedByQueue.ToString()}, Pool: {pool?.TotalServicedByPool.ToString()}, Workers: {pool?.WorkerCount.ToString()}, Available: {pool?.AvailableCount.ToString()}");
     }
 
     protected static IServer GetServer(IConnectionMultiplexer muxer)

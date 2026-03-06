@@ -330,9 +330,9 @@ namespace StackExchange.Redis
         {
             // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
             using var pem = X509Certificate2.CreateFromPemFile(userCertificatePath, userKeyPath);
-#pragma warning disable SYSLIB0057 // Type or member is obsolete
+#pragma warning disable SYSLIB0057 // X509 loading
             var pfx = new X509Certificate2(pem.Export(X509ContentType.Pfx));
-#pragma warning restore SYSLIB0057 // Type or member is obsolete
+#pragma warning restore SYSLIB0057 // X509 loading
 
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
@@ -340,7 +340,9 @@ namespace StackExchange.Redis
 
         internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
         {
+#pragma warning disable SYSLIB0057 // X509 loading
             var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+#pragma warning restore SYSLIB0057 // X509 loading
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
 
@@ -350,8 +352,11 @@ namespace StackExchange.Redis
         /// <param name="issuer">The issuer to trust.</param>
         public void TrustIssuer(X509Certificate2 issuer) => CertificateValidationCallback = TrustIssuerCallback(issuer);
 
+#pragma warning disable SYSLIB0057 // X509 loading
         internal static RemoteCertificateValidationCallback TrustIssuerCallback(string issuerCertificatePath)
             => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
+#pragma warning restore SYSLIB0057 // X509 loading
+
         private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
@@ -692,6 +697,7 @@ namespace StackExchange.Redis
         /// This is only used when a <see cref="ConnectionMultiplexer"/> is created.
         /// Modifying it afterwards will have no effect on already-created multiplexers.
         /// </remarks>
+        [Obsolete("SocketManager is no longer used by StackExchange.Redis")]
         public SocketManager? SocketManager { get; set; }
 
 #if NETCOREAPP3_1_OR_GREATER
@@ -821,7 +827,9 @@ namespace StackExchange.Redis
             CertificateValidationCallback = CertificateValidationCallback,
             CertificateSelectionCallback = CertificateSelectionCallback,
             ChannelPrefix = ChannelPrefix.Clone(),
+#pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = SocketManager,
+#pragma warning restore CS0618 // Type or member is obsolete
             connectRetry = connectRetry,
             configCheckSeconds = configCheckSeconds,
             responseTimeout = responseTimeout,
@@ -843,6 +851,10 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
+            WriteMode = WriteMode,
+#if DEBUG
+            OutputLog = OutputLog,
+#endif
         };
 
         /// <summary>
@@ -978,7 +990,9 @@ namespace StackExchange.Redis
             CertificateSelection = null;
             CertificateValidation = null;
             ChannelPrefix = default;
+#pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = null;
+#pragma warning restore CS0618 // Type or member is obsolete
             Tunnel = null;
         }
 
@@ -1166,6 +1180,12 @@ namespace StackExchange.Redis
         /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol { get; set; }
+
+        internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
+
+#if DEBUG
+        internal Action<string>? OutputLog;
+#endif
 
         internal bool TryResp3()
         {

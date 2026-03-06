@@ -25,10 +25,18 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
-    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = false, TextWriter? log = null)
-        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub), log);
+    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = false, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
+        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, writeMode), log);
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = false)
+    // view request/response highlights in the log
+    public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
+    {
+        var result = base.Execute(client, in request);
+        Log($"[{client.Id}] {request.Command} => {(char)result.Type} ({result.Type})");
+        return result;
+    }
+
+    public ConfigurationOptions GetClientConfig(bool withPubSub = false, WriteMode writeMode = WriteMode.Default)
     {
         var commands = GetCommands();
         if (!withPubSub)
@@ -42,12 +50,6 @@ public class InProcessTestServer : MemoryCacheRedisServer
             commands.Remove(nameof(RedisCommand.PUBLISH));
             commands.Remove(nameof(RedisCommand.SPUBLISH));
         }
-        // transactions don't work yet
-        commands.Remove(nameof(RedisCommand.MULTI));
-        commands.Remove(nameof(RedisCommand.EXEC));
-        commands.Remove(nameof(RedisCommand.DISCARD));
-        commands.Remove(nameof(RedisCommand.WATCH));
-        commands.Remove(nameof(RedisCommand.UNWATCH));
 
         var config = new ConfigurationOptions
         {
@@ -60,7 +62,24 @@ public class InProcessTestServer : MemoryCacheRedisServer
             AsyncTimeout = 5000,
             AllowAdmin = true,
             Tunnel = Tunnel,
+            WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
         };
+
+        /* useful for viewing *outbound* data in the log
+#if DEBUG
+        if (_log is not null)
+        {
+            config.OutputLog = msg =>
+            {
+                lock (_log)
+                {
+                    _log.WriteLine(msg);
+                }
+            };
+        }
+#endif
+        */
+
         foreach (var endpoint in GetEndPoints())
         {
             config.EndPoints.Add(endpoint);
@@ -117,8 +136,11 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
-                _ = Task.Run(async () => await server.RunClientAsync(serverSide, node: node), cancellationToken);
-                var clientSide = StreamConnection.GetDuplex(serverToClient.Reader, clientToServer.Writer);
+                Task.Run(async () => await server.RunClientAsync(serverSide, node: node), cancellationToken).RedisFireAndForget();
+
+                var readStream = serverToClient.Reader.AsStream();
+                var writeStream = clientToServer.Writer.AsStream();
+                var clientSide = new DuplexStream(readStream, writeStream);
                 return new(clientSide);
             }
             return base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
