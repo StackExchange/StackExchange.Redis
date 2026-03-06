@@ -16,18 +16,20 @@ public class MovedUnitTests(ITestOutputHelper log)
     private RedisKey Me([CallerMemberName] string callerName = "") => callerName;
 
     [Theory]
-    [InlineData(ServerType.Cluster, false)]
-    [InlineData(ServerType.Standalone, false)]
-    [InlineData(ServerType.Cluster, true)]
-    [InlineData(ServerType.Standalone, true)]
-    public async Task CrossSlotDisallowed(ServerType serverType, bool useSyncInputOutput)
+    [InlineData(ServerType.Cluster, WriteMode.Sync)]
+    [InlineData(ServerType.Standalone, WriteMode.Sync)]
+    [InlineData(ServerType.Cluster, WriteMode.Async)]
+    [InlineData(ServerType.Standalone, WriteMode.Async)]
+    [InlineData(ServerType.Cluster, WriteMode.Pipe)]
+    [InlineData(ServerType.Standalone, WriteMode.Pipe)]
+    public async Task CrossSlotDisallowed(ServerType serverType, WriteMode writeMode)
     {
         // intentionally sending as strings (not keys) via execute to prevent the
         // client library from getting in our way
         string keyA = "abc", keyB = "def"; // known to be on different slots
 
         using var server = new InProcessTestServer(log) { ServerType = serverType };
-        await using var muxer = await server.ConnectAsync(useSyncInputOutput: useSyncInputOutput);
+        await using var muxer = await server.ConnectAsync(writeMode: writeMode);
 
         var db = muxer.GetDatabase();
         await db.StringSetAsync(keyA, "value", flags: CommandFlags.FireAndForget);

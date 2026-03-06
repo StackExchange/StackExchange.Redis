@@ -11,30 +11,90 @@ using RESPite.Buffers;
 
 namespace StackExchange.Redis;
 
-internal abstract class BufferedStreamWriter
-    : IBufferWriter<byte>,
-    IDisposable,
-    ICycleBufferCallback,
-    IAsyncDisposable
+internal abstract class BufferedStreamWriter(Stream target, CancellationToken cancellationToken)
+    : IBufferWriter<byte>, IDisposable, IAsyncDisposable
 {
-    protected BufferedStreamWriter(Stream target, CancellationToken cancellationToken)
+    public enum WriteMode
     {
-        _target = target;
-        _buffer = CycleBuffer.Create(callback: this);
-        _cancellationToken = cancellationToken;
+        Default,
+        Sync,
+        Async,
+        Pipe,
     }
+
+    public static BufferedStreamWriter Create(WriteMode mode, ConnectionType connectionType, Stream target, CancellationToken cancellationToken)
+    {
+        // TODO: change to Async when debugged
+        const WriteMode DefaultAsyncMode = WriteMode.Pipe;
+
+        if (connectionType is ConnectionType.Subscription)
+        {
+            // sync-mode targets latency; pub/sub doens't need that
+            mode = DefaultAsyncMode;
+        }
+        else if (mode is WriteMode.Default)
+        {
+            mode = DefaultAsyncMode;
+        }
+        return mode switch
+        {
+            WriteMode.Sync => new BufferedSyncStreamWriter(target, cancellationToken),
+            WriteMode.Async => new BufferedAsyncStreamWriter(target, cancellationToken),
+            WriteMode.Pipe => new PipeStreamWriter(target, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+        };
+    }
+
+    // ReSharper disable once ReplaceWithFieldKeyword
+    private readonly CancellationToken _cancellationToken = cancellationToken;
+    protected ref readonly CancellationToken CancellationToken => ref _cancellationToken;
+    protected Stream Target { get; } = target;
 
     public abstract Task WriteComplete { get; }
 
+    protected void OnWritten(long count) => _totalBytesWritten += count;
+    protected void OnWritten(int count) => _totalBytesWritten += count;
+    private long _totalBytesWritten;
+    public long TotalBytesWritten => _totalBytesWritten;
+
+    public abstract void Complete(Exception? exception = null);
+    public void Dispose() => Target.Dispose();
+
+    public ValueTask DisposeAsync()
+    {
+        if (Target is IAsyncDisposable asyncDisposable)
+        {
+            return asyncDisposable.DisposeAsync();
+        }
+        Target.Dispose();
+        return default;
+    }
+
+    public abstract void Advance(int count);
+
+    public abstract Memory<byte> GetMemory(int sizeHint = 0);
+
+    public abstract Span<byte> GetSpan(int sizeHint = 0);
+
+    [Conditional("DEBUG")]
+    public virtual void DebugSetLog(Action<string> log) { }
+
+    public abstract void Flush();
+}
+
+internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBufferCallback
+{
+    protected CycleBufferStreamWriter(Stream target, CancellationToken cancellationToken)
+        : base(target, cancellationToken)
+    {
+        _buffer = CycleBuffer.Create(callback: this);
+    }
+
     private CycleBuffer _buffer;
-    private readonly Stream _target;
-    private readonly CancellationToken _cancellationToken;
     private StateFlags _stateFlags;
     private Exception? _exception;
 
     protected bool IsFaulted => _exception is not null;
-    protected ref readonly CancellationToken CancellationToken => ref _cancellationToken;
-    protected Stream Target => _target;
 
     [Flags]
     protected enum StateFlags
@@ -60,9 +120,9 @@ internal abstract class BufferedStreamWriter
     /// <summary>
     /// Activate the writer if necessary, and indicate that all committed data can be consumed, even incomplete pages.
     /// </summary>
-    public void Flush() => OnActivate(StateFlags.Flush);
+    public override void Flush() => OnActivate(StateFlags.Flush);
 
-    public void Complete(Exception? exception = null)
+    public override void Complete(Exception? exception = null)
     {
         _exception ??= exception;
         OnActivate(StateFlags.Flush | StateFlags.Closed);
@@ -104,7 +164,7 @@ internal abstract class BufferedStreamWriter
 #endif
     }
 
-    public void Advance(int count)
+    public override void Advance(int count)
     {
         ThrowIfComplete();
         lock (this)
@@ -113,7 +173,7 @@ internal abstract class BufferedStreamWriter
         }
     }
 
-    public Memory<byte> GetMemory(int sizeHint = 0)
+    public override Memory<byte> GetMemory(int sizeHint = 0)
     {
         ThrowIfComplete();
         lock (this)
@@ -122,7 +182,7 @@ internal abstract class BufferedStreamWriter
         }
     }
 
-    public Span<byte> GetSpan(int sizeHint = 0)
+    public override Span<byte> GetSpan(int sizeHint = 0)
     {
         ThrowIfComplete();
         lock (this)
@@ -163,8 +223,8 @@ internal abstract class BufferedStreamWriter
         ThreadPool.QueueUserWorkItem(_ => _log?.Invoke(message));
 #endif
     }
-    [Conditional("DEBUG")]
-    public void DebugSetLog(Action<string> log)
+
+    public override void DebugSetLog(Action<string> log)
     {
 #if DEBUG
         _log = log;
@@ -173,20 +233,4 @@ internal abstract class BufferedStreamWriter
 #if DEBUG
     private Action<string>? _log;
 #endif
-
-    protected void OnWritten(int count) => _totalBytesWritten += count;
-    private long _totalBytesWritten;
-    public long TotalBytesWritten => _totalBytesWritten;
-
-    public void Dispose() => _target.Dispose();
-
-    public ValueTask DisposeAsync()
-    {
-        if (_target is IAsyncDisposable asyncDisposable)
-        {
-            return asyncDisposable.DisposeAsync();
-        }
-        _target.Dispose();
-        return default;
-    }
 }

@@ -18,12 +18,13 @@ internal sealed partial class PhysicalConnection
 {
     private long totalBytesReceived;
 
-    internal static PhysicalConnection Dummy(bool useSyncInputOutput = false) => new(null!, useSyncInputOutput);
+    internal static PhysicalConnection Dummy(BufferedStreamWriter.WriteMode writeMode = BufferedStreamWriter.WriteMode.Default)
+        => new(null!, writeMode);
 
     private volatile ReadStatus _readStatus = ReadStatus.NotStarted;
     internal ReadStatus GetReadStatus() => _readStatus;
 
-    private bool UseSyncInputOutput { get; }
+    private BufferedStreamWriter.WriteMode WriteMode { get; }
 
     internal void StartReading(CancellationToken cancellation = default)
     {
@@ -40,7 +41,7 @@ internal sealed partial class PhysicalConnection
             cancellation = InputCancel;
         }
 
-        if (UseSyncInputOutput)
+        if (WriteMode is BufferedStreamWriter.WriteMode.Sync)
         {
             StartReadingSync(this, cancellation);
             static void StartReadingSync(PhysicalConnection conn, CancellationToken cancellation)

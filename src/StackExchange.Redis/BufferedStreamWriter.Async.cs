@@ -6,7 +6,7 @@ using System.Threading.Tasks.Sources;
 
 namespace StackExchange.Redis;
 
-internal sealed class BufferedAsyncStreamWriter : BufferedStreamWriter, IValueTaskSource
+internal sealed class BufferedAsyncStreamWriter : CycleBufferStreamWriter, IValueTaskSource
 {
     private ManualResetValueTaskSourceCore<bool> _readerTask;
 

@@ -1,16 +1,13 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -102,25 +99,26 @@ namespace StackExchange.Redis
             ConnectionType connectionType = ConnectionType.Interactive,
             RedisProtocol protocol = RedisProtocol.Resp2,
             Stream? ioStream = null,
-            bool useSyncInputOutput = false,
+            BufferedStreamWriter.WriteMode writeMode = BufferedStreamWriter.WriteMode.Default,
             [CallerMemberName] string name = "")
         {
-            UseSyncInputOutput = useSyncInputOutput;
             lastWriteTickCount = lastReadTickCount = Environment.TickCount;
             lastBeatTickCount = 0;
             this.connectionType = connectionType;
+            WriteMode = writeMode;
             _protocol = protocol;
             _bridge = new WeakReference(null);
             _physicalName = name;
             InitOutput(ioStream);
             OnCreateEcho();
         }
-        public PhysicalConnection(PhysicalBridge bridge, bool useSyncInputOutput)
+
+        public PhysicalConnection(PhysicalBridge bridge, BufferedStreamWriter.WriteMode writeMode)
         {
-            UseSyncInputOutput = useSyncInputOutput;
             lastWriteTickCount = lastReadTickCount = Environment.TickCount;
             lastBeatTickCount = 0;
             connectionType = bridge.ConnectionType;
+            WriteMode = writeMode;
             _bridge = new WeakReference(bridge);
             ChannelPrefix = bridge.Multiplexer.ChannelPrefix;
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty

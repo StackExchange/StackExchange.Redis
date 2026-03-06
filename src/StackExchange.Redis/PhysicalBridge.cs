@@ -1488,7 +1488,7 @@ namespace StackExchange.Redis
                             Interlocked.Exchange(ref connectStartTicks, Environment.TickCount);
                             // separate creation and connection for case when connection completes synchronously
                             // in that case PhysicalConnection will call back to PhysicalBridge, and most PhysicalBridge methods assume that physical is not null;
-                            physical = new PhysicalConnection(this, Multiplexer.RawConfig.UseSyncInputOutput);
+                            physical = new PhysicalConnection(this, Multiplexer.RawConfig.WriteMode);
 
                             physical.BeginConnectAsync(log).RedisFireAndForget();
                         }

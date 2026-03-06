@@ -5,14 +5,14 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
 
-internal sealed class BuffereSyncStreamWriter : BufferedStreamWriter
+internal sealed class BufferedSyncStreamWriter : CycleBufferStreamWriter
 {
     private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public BuffereSyncStreamWriter(Stream target, CancellationToken cancellationToken = default)
+    public BufferedSyncStreamWriter(Stream target, CancellationToken cancellationToken = default)
         : base(target, cancellationToken)
     {
-        Thread thread = new Thread(static s => ((BuffereSyncStreamWriter)s!).CopyOutSync())
+        Thread thread = new Thread(static s => ((BufferedSyncStreamWriter)s!).CopyOutSync())
         {
             IsBackground = true,
             Priority = ThreadPriority.AboveNormal,

@@ -24,6 +24,7 @@ public static class CancellationTokenExtensions
         return default;
     }
 }
+
 public class TestConnection : IDisposable
 {
     internal static async Task<T> ExecuteAsync<T>(
@@ -36,13 +37,13 @@ public class TestConnection : IDisposable
         CommandMap? commandMap = null,
         byte[]? channelPrefix = null,
         ITestOutputHelper? log = null,
-        bool useSyncInputOutput = false,
+        WriteMode writeMode = WriteMode.Default,
         [CallerMemberName] string caller = "")
     {
         // Validate RESP samples are not null/empty to avoid test setup mistakes
         Assert.False(string.IsNullOrEmpty(responseResp), "responseResp must not be null or empty");
 
-        using var conn = new TestConnection(false, useSyncInputOutput, connectionType, protocol, log, caller);
+        using var conn = new TestConnection(false, writeMode, connectionType, protocol, log, caller);
 
         var box = TaskResultBox<T>.Create(out var tcs, null);
         using var timeout = tcs.CancelWithTest();
@@ -65,13 +66,13 @@ public class TestConnection : IDisposable
 
     public TestConnection(
         bool startReading = true,
-        bool useSyncInputOutput = false,
+        WriteMode writeMode = WriteMode.Default,
         ConnectionType connectionType = ConnectionType.Interactive,
         RedisProtocol protocol = RedisProtocol.Resp2,
         ITestOutputHelper? log = null,
         [CallerMemberName] string caller = "")
     {
-        _physical = new PhysicalConnection(connectionType, protocol, _stream, useSyncInputOutput, caller);
+        _physical = new PhysicalConnection(connectionType, protocol, _stream, (BufferedStreamWriter.WriteMode)writeMode, caller);
         _log = log;
         if (startReading) StartReading();
     }

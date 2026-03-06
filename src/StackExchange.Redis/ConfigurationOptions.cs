@@ -111,8 +111,7 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
-                HighIntegrity = "highIntegrity",
-                UseSyncInputOutput = "sync";
+                HighIntegrity = "highIntegrity";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -852,7 +851,7 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
-            useSyncInputOutput = useSyncInputOutput,
+            WriteMode = WriteMode,
 #if DEBUG
             OutputLog = OutputLog,
 #endif
@@ -937,7 +936,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
             Append(sb, OptionKeys.HighIntegrity, highIntegrity);
-            Append(sb, OptionKeys.UseSyncInputOutput, useSyncInputOutput);
             Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
@@ -1107,9 +1105,6 @@ namespace StackExchange.Redis
                         case OptionKeys.HighIntegrity:
                             HighIntegrity = OptionKeys.ParseBoolean(key, value);
                             break;
-                        case OptionKeys.UseSyncInputOutput:
-                            UseSyncInputOutput = OptionKeys.ParseBoolean(key, value);
-                            break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())
                             {
@@ -1186,13 +1181,7 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisProtocol? Protocol { get; set; }
 
-        private bool? useSyncInputOutput;
-
-        internal bool UseSyncInputOutput
-        {
-            get => useSyncInputOutput ?? false;
-            set => useSyncInputOutput = value;
-        }
+        internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
 
 #if DEBUG
         internal Action<string>? OutputLog;
