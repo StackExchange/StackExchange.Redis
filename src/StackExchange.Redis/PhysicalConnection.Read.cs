@@ -41,7 +41,7 @@ internal sealed partial class PhysicalConnection
             cancellation = InputCancel;
         }
 
-        if (WriteMode is BufferedStreamWriter.WriteMode.Sync)
+        if (_output is { IsSync: true })
         {
             StartReadingSync(this, cancellation);
             static void StartReadingSync(PhysicalConnection conn, CancellationToken cancellation)

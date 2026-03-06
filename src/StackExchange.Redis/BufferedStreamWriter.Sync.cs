@@ -7,6 +7,8 @@ namespace StackExchange.Redis;
 
 internal sealed class BufferedSyncStreamWriter : CycleBufferStreamWriter
 {
+    public override bool IsSync => true;
+
     private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public BufferedSyncStreamWriter(Stream target, CancellationToken cancellationToken = default)

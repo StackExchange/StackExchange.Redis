@@ -22,6 +22,8 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
         Pipe,
     }
 
+    public virtual bool IsSync => false;
+
     public static BufferedStreamWriter Create(WriteMode mode, ConnectionType connectionType, Stream target, CancellationToken cancellationToken)
     {
         // TODO: change to Async when debugged
