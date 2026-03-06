@@ -257,7 +257,7 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
         SelectPreferredGroup();
     }
 
-    private void SelectPreferredGroup()
+    internal void SelectPreferredGroup()
     {
         var previousMuxer = _active;
         ConnectionGroupMember? preferredMember = null, previousMember = null;

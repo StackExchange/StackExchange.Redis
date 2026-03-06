@@ -28,10 +28,17 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         ];
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, Log);
         Assert.True(conn.IsConnected);
+        var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
 
         // (R.4.1) If multiple member databases are configured, then I want to failover to the one with the highest weight.
         var db = conn.GetDatabase();
         var ep = await db.IdentifyEndpointAsync();
         Assert.Equal(canada, ep);
+
+        // change weight and update
+        members[1].Weight = 1;
+        typed.SelectPreferredGroup();
+        ep = await db.IdentifyEndpointAsync();
+        Assert.Equal(tokyo, ep);
     }
 }
