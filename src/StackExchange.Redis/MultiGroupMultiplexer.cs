@@ -51,7 +51,7 @@ public partial class ConnectionMultiplexer
 /// A configured member of a <see cref="MultiGroupMultiplexer"/>.
 /// </summary>
 #pragma warning disable RS0016, RS0026
-public sealed class ConnectionGroupMember(ConfigurationOptions configuration, string name = "")
+public sealed partial class ConnectionGroupMember(ConfigurationOptions configuration, string name = "")
 #pragma warning restore RS0016, RS0026
 {
     /// <summary>
@@ -194,7 +194,7 @@ public sealed class ConnectionGroupMember(ConfigurationOptions configuration, st
     }
 }
 
-internal sealed class MultiGroupMultiplexer : IConnectionGroup
+internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
 {
     private ConnectionMultiplexer? _active;
     private ConnectionGroupMember[] _members;
@@ -473,7 +473,7 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
     /// <summary>
     /// Subscribe a child multiplexer to all local event handlers that have subscribers.
     /// </summary>
-    private void AddHandlers(ConnectionMultiplexer muxer)
+    private void AddEventHandlers(ConnectionMultiplexer muxer)
     {
         muxer.ErrorMessage += _errorMessage;
         muxer.ConnectionFailed += _connectionFailed;
@@ -488,7 +488,7 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
     /// <summary>
     /// Unsubscribe a child multiplexer from all local event handlers.
     /// </summary>
-    private void RemoveHandlers(ConnectionMultiplexer? muxer)
+    private void RemoveEventHandlers(ConnectionMultiplexer? muxer)
     {
         if (muxer is null) return;
         muxer.ErrorMessage -= _errorMessage;
@@ -693,7 +693,13 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
 
     public int HashSlot(RedisKey key) => Active.HashSlot(key);
 
-    public ISubscriber GetSubscriber(object? asyncState = null) => throw new NotImplementedException();
+    private ISubscriber? _defaultSubscriber;
+
+    public ISubscriber GetSubscriber(object? asyncState = null)
+    {
+        if (asyncState is null) return _defaultSubscriber ??= new MultiGroupSubscriber(this, null);
+        return new MultiGroupSubscriber(this, asyncState);
+    }
 
     public IDatabase GetDatabase(int db = -1, object? asyncState = null)
     {
@@ -877,11 +883,11 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
         // connect
         member.Init(_members.Length);
         member.Configuration.HeartbeatConsistencyChecks = true;
-        var muxer = await ConnectionMultiplexer.ConnectAsync(member.Configuration, log);
+        var muxer = await ConnectionMultiplexer.ConnectAsync(member.Configuration, log).ConfigureAwait(false);
         member.SetMultiplexer(muxer);
 
         // apply any shared hooks
-        AddHandlers(muxer);
+        AddEventHandlers(muxer);
         if (_profilingSessionProvider is not null) muxer.RegisterProfiler(_profilingSessionProvider);
         lock (_suffixes)
         {
@@ -903,6 +909,9 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
 
         OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Added, member);
         SelectPreferredGroup();
+
+        // pub/sub
+        await AddPubSubHandlersAsync(member).ConfigureAwait(false);
     }
 
     public bool Remove(ConnectionGroupMember group)
@@ -927,9 +936,11 @@ internal sealed class MultiGroupMultiplexer : IConnectionGroup
             if (Interlocked.CompareExchange(ref _members, newArr, arr) == arr) break;
         }
 
-        RemoveHandlers(group.ClearMultiplexer());
+        var muxer = group.ClearMultiplexer();
+        RemoveEventHandlers(muxer);
         OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Removed, group);
         SelectPreferredGroup();
+        muxer?.Dispose();
         return true;
     }
 

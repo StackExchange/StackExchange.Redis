@@ -6,50 +6,50 @@ internal sealed partial class MultiGroupDatabase
 {
     // VectorSet Async operations
     public Task<bool> VectorSetAddAsync(RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetAddAsync(key, request, flags);
+        => GetActiveDatabase().VectorSetAddAsync(key, request, flags);
 
     public Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetLengthAsync(key, flags);
+        => GetActiveDatabase().VectorSetLengthAsync(key, flags);
 
     public Task<int> VectorSetDimensionAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetDimensionAsync(key, flags);
+        => GetActiveDatabase().VectorSetDimensionAsync(key, flags);
 
     public Task<Lease<float>?> VectorSetGetApproximateVectorAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetGetApproximateVectorAsync(key, member, flags);
+        => GetActiveDatabase().VectorSetGetApproximateVectorAsync(key, member, flags);
 
     public Task<string?> VectorSetGetAttributesJsonAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetGetAttributesJsonAsync(key, member, flags);
+        => GetActiveDatabase().VectorSetGetAttributesJsonAsync(key, member, flags);
 
     public Task<VectorSetInfo?> VectorSetInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetInfoAsync(key, flags);
+        => GetActiveDatabase().VectorSetInfoAsync(key, flags);
 
     public Task<bool> VectorSetContainsAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetContainsAsync(key, member, flags);
+        => GetActiveDatabase().VectorSetContainsAsync(key, member, flags);
 
     public Task<Lease<RedisValue>?> VectorSetGetLinksAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetGetLinksAsync(key, member, flags);
+        => GetActiveDatabase().VectorSetGetLinksAsync(key, member, flags);
 
     public Task<Lease<VectorSetLink>?> VectorSetGetLinksWithScoresAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetGetLinksWithScoresAsync(key, member, flags);
+        => GetActiveDatabase().VectorSetGetLinksWithScoresAsync(key, member, flags);
 
     public Task<RedisValue> VectorSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetRandomMemberAsync(key, flags);
+        => GetActiveDatabase().VectorSetRandomMemberAsync(key, flags);
 
     public Task<RedisValue[]> VectorSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetRandomMembersAsync(key, count, flags);
+        => GetActiveDatabase().VectorSetRandomMembersAsync(key, count, flags);
 
     public Task<bool> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetRemoveAsync(key, member, flags);
+        => GetActiveDatabase().VectorSetRemoveAsync(key, member, flags);
 
     public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetSetAttributesJsonAsync(key, member, attributesJson, flags);
+        => GetActiveDatabase().VectorSetSetAttributesJsonAsync(key, member, attributesJson, flags);
 
     public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchAsync(RedisKey key, VectorSetSimilaritySearchRequest query, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetSimilaritySearchAsync(key, query, flags);
+        => GetActiveDatabase().VectorSetSimilaritySearchAsync(key, query, flags);
 
     public Task<Lease<RedisValue>?> VectorSetRangeAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = -1, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetRangeAsync(key, start, end, count, exclude, flags);
+        => GetActiveDatabase().VectorSetRangeAsync(key, start, end, count, exclude, flags);
 
     public System.Collections.Generic.IAsyncEnumerable<RedisValue> VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = 100, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-        => GetDatabase().VectorSetRangeEnumerateAsync(key, start, end, count, exclude, flags);
+        => GetActiveDatabase().VectorSetRangeEnumerateAsync(key, start, end, count, exclude, flags);
 }
