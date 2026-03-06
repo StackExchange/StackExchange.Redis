@@ -117,8 +117,7 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
-                HighIntegrity = "highIntegrity",
-                Weight = "weight";
+                HighIntegrity = "highIntegrity";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -150,7 +149,6 @@ namespace StackExchange.Redis
                 CheckCertificateRevocation,
                 Protocol,
                 HighIntegrity,
-                Weight,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -851,7 +849,6 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
-            Weight = Weight,
         };
 
         /// <summary>
@@ -934,11 +931,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
             Append(sb, OptionKeys.HighIntegrity, highIntegrity);
             Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
-            var weight = Weight;
-            if (!float.IsNaN(weight))
-            {
-                Append(sb, OptionKeys.Weight, weight);
-            }
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -995,7 +987,6 @@ namespace StackExchange.Redis
             ChannelPrefix = default;
             SocketManager = null;
             Tunnel = null;
-            Weight = float.NaN;
         }
 
         object ICloneable.Clone() => Clone();
@@ -1107,9 +1098,6 @@ namespace StackExchange.Redis
                         case OptionKeys.HighIntegrity:
                             HighIntegrity = OptionKeys.ParseBoolean(key, value);
                             break;
-                        case OptionKeys.Weight:
-                            Weight = OptionKeys.ParseSingle(key, value);
-                            break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())
                             {
@@ -1185,11 +1173,6 @@ namespace StackExchange.Redis
         /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol { get; set; }
-
-        /// <summary>
-        /// Specify the preference of this connection group relative to others.
-        /// </summary>
-        public float Weight { get; set; } = float.NaN;
 
         internal bool TryResp3()
         {

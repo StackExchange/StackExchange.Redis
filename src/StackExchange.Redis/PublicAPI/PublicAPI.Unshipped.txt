@@ -1,3 +1,28 @@
 ﻿#nullable enable
-StackExchange.Redis.ConfigurationOptions.Weight.get -> float
-StackExchange.Redis.ConfigurationOptions.Weight.set -> void
+override StackExchange.Redis.ConnectionGroupMember.ToString() -> string!
+StackExchange.Redis.ConnectionGroupMember
+StackExchange.Redis.ConnectionGroupMember.ConnectionGroupMember(StackExchange.Redis.ConfigurationOptions! configuration, string! name = "") -> void
+StackExchange.Redis.ConnectionGroupMember.ConnectionGroupMember(string! configuration, string! name = "") -> void
+StackExchange.Redis.ConnectionGroupMember.IsConnected.get -> bool
+StackExchange.Redis.ConnectionGroupMember.Latency.get -> System.TimeSpan
+StackExchange.Redis.ConnectionGroupMember.Name.get -> string!
+StackExchange.Redis.ConnectionGroupMember.Weight.get -> double
+StackExchange.Redis.ConnectionGroupMember.Weight.set -> void
+StackExchange.Redis.GroupConnectionChangedEventArgs
+StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
+StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType.ActiveChanged = 5 -> StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
+StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType.Added = 1 -> StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
+StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType.Disconnected = 3 -> StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
+StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType.Reconnected = 4 -> StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
+StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType.Removed = 2 -> StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
+StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType.Unknown = 0 -> StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
+StackExchange.Redis.GroupConnectionChangedEventArgs.Group.get -> StackExchange.Redis.ConnectionGroupMember!
+StackExchange.Redis.GroupConnectionChangedEventArgs.GroupConnectionChangedEventArgs(StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType type, StackExchange.Redis.ConnectionGroupMember! group, StackExchange.Redis.ConnectionGroupMember? previousGroup = null) -> void
+StackExchange.Redis.GroupConnectionChangedEventArgs.PreviousGroup.get -> StackExchange.Redis.ConnectionGroupMember?
+StackExchange.Redis.GroupConnectionChangedEventArgs.Type.get -> StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
+StackExchange.Redis.IConnectionGroup
+StackExchange.Redis.IConnectionGroup.AddAsync(StackExchange.Redis.ConnectionGroupMember! group, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task!
+StackExchange.Redis.IConnectionGroup.ConnectionChanged -> System.EventHandler<StackExchange.Redis.GroupConnectionChangedEventArgs!>?
+StackExchange.Redis.IConnectionGroup.GetMembers() -> System.ReadOnlySpan<StackExchange.Redis.ConnectionGroupMember!>
+StackExchange.Redis.IConnectionGroup.Remove(StackExchange.Redis.ConnectionGroupMember! group) -> bool
+static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.ConnectionGroupMember![]! members, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionGroup!>!
