@@ -1,7 +1,5 @@
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using StackExchange.Redis.Configuration;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;

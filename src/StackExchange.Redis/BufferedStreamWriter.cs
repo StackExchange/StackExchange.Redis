@@ -14,6 +14,33 @@ namespace StackExchange.Redis;
 internal abstract class BufferedStreamWriter(Stream target, CancellationToken cancellationToken)
     : IBufferWriter<byte>, IDisposable, IAsyncDisposable
 {
+    /* What is this?
+     *
+     * Basically, an abstraction similar to Pipe - it has a separate write and read head, etc, but
+     * the key difference is that it is focused on reducing context switches:
+     *
+     * - explicit flush is *synchronous*, simply marking the tail buffer as "ready to read"; this is actually pretty
+     *   similar to Pipe if we ignore back-pressure, which it kinda does by default
+     * - implicit flush is implicit - i.e. when committed work fills a page, that page is flushed automatically
+     * - the consumption API allows fully synchronous consumption, if desired
+     *
+     * At the moment, 3 concrete implementations are provided:
+     * - BufferedAsyncStreamWriter: uses the thread-pool and async I/O to copy data to the target stream
+     * - BufferedSyncStreamWriter: uses a dedicated thread to copy data to the target stream using sync IO
+     * - PipeStreamWriter: uses the pre-existing Pipe API and pre-built PipeWriter.CopyTo(Stream)
+     *
+     * The intention is that:
+     * - pub/sub always uses BufferedAsyncStreamWriter
+     * - interactive uses BufferedSyncStreamWriter in low-connection-count scenarios,
+     *   and BufferedAsyncStreamWriter in high-connection-count scenarios (there's some missing work here in
+     *   tracking the count and transitioning from sync to async as we cross some threshold)
+     *
+     * So why the Pipe version? and why not *just* use Pipe? The custom sync/async versions out-perform Pipe, but
+     * there's a dangling bug where occasionally it will stall - presumably some edge-case where the wake logic
+     * is borked. When I debug that, I'll make the other versions the defaults, but for now: Pipe is the default,
+     * with the others only available to me for testing.
+     */
+
     public enum WriteMode
     {
         Default,
