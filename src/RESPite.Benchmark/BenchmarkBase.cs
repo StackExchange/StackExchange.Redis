@@ -45,7 +45,7 @@ public abstract class BenchmarkBase : IDisposable
     public int PipelineDepth { get; } = 1;
     public bool Multiplexed { get; }
     public bool SupportCancel { get; }
-    public bool UseSyncIO { get; }
+    public int? WriteMode { get; }
     public bool Loop { get; }
     public bool Quiet { get; }
     public int ClientCount { get; } = 50;
@@ -77,6 +77,9 @@ public abstract class BenchmarkBase : IDisposable
                 case "-P" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
                     PipelineDepth = tmp;
                     break;
+                case "-w" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp):
+                    WriteMode = tmp;
+                    break;
                 case "+m":
                     Multiplexed = true;
                     break;
@@ -88,12 +91,6 @@ public abstract class BenchmarkBase : IDisposable
                     break;
                 case "-x":
                     SupportCancel = false;
-                    break;
-                case "+sync":
-                    UseSyncIO = true;
-                    break;
-                case "-sync":
-                    UseSyncIO = false;
                     break;
                 case "-l":
                     Loop = true;

@@ -12,10 +12,13 @@ public sealed class OldCoreBenchmark(string[] args) : OldCoreBenchmarkBase(args)
     protected override IConnectionMultiplexer Create(int port)
     {
         var options = ConfigurationOptions.Parse($"127.0.0.1:{Port}");
-        var prop = options.GetType().GetProperty(
-            "UseSyncInputOutput",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        prop?.SetValue(options, UseSyncIO);
+        if (WriteMode is { } wm && options.GetType().GetProperty(
+            "WriteMode",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) is { CanWrite: true, CanRead: true } prop)
+        {
+            prop.SetValue(options, wm);
+            Console.WriteLine($"Set WriteMode to {prop.GetValue(options)}");
+        }
         return ConnectionMultiplexer.Connect(options);
     }
 
