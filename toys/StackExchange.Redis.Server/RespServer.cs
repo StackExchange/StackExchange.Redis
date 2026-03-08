@@ -225,12 +225,12 @@ namespace StackExchange.Redis.Server
             return client;
         }
 
-        protected int ForAllClients<TState>(TState state, Func<RedisClient, TState, bool> func)
+        protected int ForAllClients<TState>(TState state, Func<RedisClient, TState, int> func)
         {
             int count = 0;
             foreach (var client in _clientLookup.Values)
             {
-                if (func(client, state)) count++;
+                count += func(client, state);
             }
             return count;
         }

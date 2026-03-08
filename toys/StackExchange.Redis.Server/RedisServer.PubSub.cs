@@ -41,7 +41,9 @@ public partial class RedisServer
         PublishPair pair = new(
             request.GetChannel(1, RedisChannel.RedisChannelOptions.None),
             request.GetValue(2));
-        int count = ForAllClients(pair, static (client, pair) => client.Publish(pair.Channel, pair.Value) != 0);
+        // note: docs say "the number of clients that the message was sent to.", but this is a lie; it
+        // is the number of *subscriptions* - if a client has two matching: delta is two
+        int count = ForAllClients(pair, static (client, pair) => client.Publish(pair.Channel, pair.Value));
         return TypedRedisValue.Integer(count);
     }
 
@@ -61,8 +63,7 @@ public partial class RedisServer
 
         PublishPair pair = new(channel, request.GetValue(2));
         int count = ForAllClients(pair, static (client, pair) =>
-            ReferenceEquals(client.Node, pair.Node)
-            && client.Publish(pair.Channel, pair.Value) != 0);
+            ReferenceEquals(client.Node, pair.Node) ? client.Publish(pair.Channel, pair.Value) : 0);
         return TypedRedisValue.Integer(count);
     }
 
