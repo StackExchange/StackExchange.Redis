@@ -11,7 +11,23 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
+public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : PubSubTestBase(output, fixture, null)
+{
+}
+
+[RunPerProtocol]
+public class InProcPubSubTests(ITestOutputHelper output, InProcServerFixture fixture)
+    : PubSubTestBase(output, null, fixture)
+{
+}
+
+[RunPerProtocol]
+public abstract class PubSubTestBase(
+    ITestOutputHelper output,
+    SharedConnectionFixture? connection,
+    InProcServerFixture? server)
+    : TestBase(output, connection, server)
 {
     [Fact]
     public async Task ExplicitPublishMode()

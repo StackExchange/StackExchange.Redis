@@ -25,24 +25,14 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
-    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = false, TextWriter? log = null)
-        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub), log);
+    public Task<ConnectionMultiplexer> ConnectAsync(TextWriter? log = null)
+        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(), log);
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = false)
+    public ConfigurationOptions GetClientConfig()
     {
         var commands = GetCommands();
-        if (!withPubSub)
-        {
-            commands.Remove(nameof(RedisCommand.SUBSCRIBE));
-            commands.Remove(nameof(RedisCommand.PSUBSCRIBE));
-            commands.Remove(nameof(RedisCommand.SSUBSCRIBE));
-            commands.Remove(nameof(RedisCommand.UNSUBSCRIBE));
-            commands.Remove(nameof(RedisCommand.PUNSUBSCRIBE));
-            commands.Remove(nameof(RedisCommand.SUNSUBSCRIBE));
-            commands.Remove(nameof(RedisCommand.PUBLISH));
-            commands.Remove(nameof(RedisCommand.SPUBLISH));
-        }
-        // transactions don't work yet
+
+        // transactions don't work yet (needs v3 buffer features)
         commands.Remove(nameof(RedisCommand.MULTI));
         commands.Remove(nameof(RedisCommand.EXEC));
         commands.Remove(nameof(RedisCommand.DISCARD));
@@ -80,6 +70,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
     {
         _log?.WriteLine($"Client {client.Id} being redirected: {hashSlot} to {node}");
         base.OnMoved(client, hashSlot, node);
+    }
+
+    protected override void OnOutOfBand(RedisClient client, TypedRedisValue message)
+    {
+        _log?.WriteLine($"Client {client.Id}: {message.Type}");
+        base.OnOutOfBand(client, message);
     }
 
     public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)

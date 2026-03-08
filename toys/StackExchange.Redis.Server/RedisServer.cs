@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace StackExchange.Redis.Server
 {
-    public abstract class RedisServer : RespServer
+    public abstract partial class RedisServer : RespServer
     {
         // non-trivial wildcards not implemented yet!
         public static bool IsMatch(string pattern, string key) =>
@@ -582,6 +582,7 @@ namespace StackExchange.Redis.Server
 
             public bool HasSlot(int hashSlot)
             {
+                if (hashSlot == ServerSelectionStrategy.NoSlot) return true;
                 var slots = _slots;
                 if (slots is null) return true; // all nodes
                 foreach (var slot in slots)
@@ -742,6 +743,9 @@ namespace StackExchange.Redis.Server
             }
 
             public void Touch(int db, in RedisKey key) => _server.Touch(db, key);
+
+            public void OnOutOfBand(RedisClient client, TypedRedisValue message)
+                => _server.OnOutOfBand(client, message);
         }
 
         public virtual bool CheckCrossSlot => ServerType == ServerType.Cluster;
@@ -1180,6 +1184,7 @@ namespace StackExchange.Redis.Server
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Quit(RedisClient client, in RedisRequest request)
         {
+            client.Complete();
             RemoveClient(client);
             return TypedRedisValue.OK;
         }
@@ -1205,46 +1210,6 @@ namespace StackExchange.Redis.Server
             return TypedRedisValue.OK;
         }
 
-        [RedisCommand(-2)]
-        protected virtual TypedRedisValue Subscribe(RedisClient client, in RedisRequest request)
-            => SubscribeImpl(client, request);
-        [RedisCommand(-2)]
-        protected virtual TypedRedisValue Unsubscribe(RedisClient client, in RedisRequest request)
-            => SubscribeImpl(client, request);
-
-        private TypedRedisValue SubscribeImpl(RedisClient client, in RedisRequest request)
-        {
-            var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span, ResultType.Array);
-            int index = 0;
-            request.TryGetCommandBytes(0, out var cmd);
-            var cmdString = TypedRedisValue.BulkString(cmd.ToArray());
-            var mode = cmd[0] == (byte)'p' ? RedisChannel.RedisChannelOptions.Pattern : RedisChannel.RedisChannelOptions.None;
-            for (int i = 1; i < request.Count; i++)
-            {
-                var channel = request.GetChannel(i, mode);
-                int count;
-                if (s_Subscribe.Equals(cmd))
-                {
-                    count = client.Subscribe(channel);
-                }
-                else if (s_Unsubscribe.Equals(cmd))
-                {
-                    count = client.Unsubscribe(channel);
-                }
-                else
-                {
-                    reply.Recycle(index);
-                    return TypedRedisValue.Nil;
-                }
-                span[index++] = cmdString;
-                span[index++] = TypedRedisValue.BulkString((byte[])channel);
-                span[index++] = TypedRedisValue.Integer(count);
-            }
-            return reply;
-        }
-        private static readonly CommandBytes
-            s_Subscribe = new CommandBytes("subscribe"),
-            s_Unsubscribe = new CommandBytes("unsubscribe");
         private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         [RedisCommand(1, LockFree = true)]

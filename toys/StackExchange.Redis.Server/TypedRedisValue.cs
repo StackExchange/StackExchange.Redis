@@ -148,6 +148,13 @@ namespace StackExchange.Redis
         public static TypedRedisValue BulkString(RedisValue value)
             => new TypedRedisValue(value, ResultType.BulkString);
 
+        /// <summary>
+        /// Initialize a <see cref="TypedRedisValue"/> that represents a bulk string.
+        /// </summary>
+        /// <param name="value">The value to initialize from.</param>
+        public static TypedRedisValue BulkString(in RedisChannel value)
+            => new TypedRedisValue((byte[])value, ResultType.BulkString);
+
         private TypedRedisValue(TypedRedisValue[] oversizedItems, int count, ResultType type)
         {
             if (oversizedItems == null)
