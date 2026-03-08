@@ -70,7 +70,11 @@ public abstract class PubSubTestBase(
     [InlineData("Foo:", true, "f")]
     public async Task TestBasicPubSub(string? channelPrefix, bool wildCard, string breaker)
     {
-        await using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
+        // await using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
+        using var server = new InProcessTestServer(Output);
+        var options = server.GetClientConfig();
+        if (channelPrefix is not null) options.ChannelPrefix = RedisChannel.Literal(channelPrefix);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         var pub = GetAnyPrimary(conn);
         var sub = conn.GetSubscriber();

@@ -160,6 +160,10 @@ namespace StackExchange.Redis.Server
             {
                 if (!Literals.IsAuthCommand(in request)) return TypedRedisValue.Error("NOAUTH Authentication required.");
             }
+            else if (client.Protocol is RedisProtocol.Resp2 && client.IsSubscriber && !Literals.IsPubSubCommand(in request))
+            {
+                return TypedRedisValue.Error("ERR only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT allowed in this context");
+            }
             return base.Execute(client, request);
         }
 
@@ -168,9 +172,21 @@ namespace StackExchange.Redis.Server
             public static readonly CommandBytes
                 AUTH = new("AUTH"u8),
                 HELLO = new("HELLO"u8),
-                SETNAME = new("SETNAME"u8);
+                SETNAME = new("SETNAME"u8),
+                QUIT = new("SETNAME"u8),
+                PING = new("PING"u8),
+                SUBSCRIBE = new("SUBSCRIBE"u8),
+                PSUBSCRIBE = new("PSUBSCRIBE"u8),
+                SSUBSCRIBE = new("SSUBSCRIBE"u8),
+                UNSUBSCRIBE = new("UNSUBSCRIBE"u8),
+                PUNUBSCRIBE = new("PUNUBSCRIBE"u8),
+                SUNSUBSCRIBE = new("SUNSUBSCRIBE"u8);
 
             public static bool IsAuthCommand(in RedisRequest request) =>
+                request.Count != 0 && request.TryGetCommandBytes(0, out var command)
+                                   && (command.Equals(AUTH) || command.Equals(HELLO));
+
+            public static bool IsPubSubCommand(in RedisRequest request) =>
                 request.Count != 0 && request.TryGetCommandBytes(0, out var command)
                                    && (command.Equals(AUTH) || command.Equals(HELLO));
         }
@@ -1177,9 +1193,20 @@ namespace StackExchange.Redis.Server
             }
             return TypedRedisValue.OK;
         }
+
         [RedisCommand(-1, LockFree = true, MaxArgs = 2)]
         protected virtual TypedRedisValue Ping(RedisClient client, in RedisRequest request)
-            => TypedRedisValue.SimpleString(request.Count == 1 ? "PONG" : request.GetString(1));
+        {
+            if (client.IsSubscriber)
+            {
+                var reply = TypedRedisValue.Rent(2, out var span, ResultType.Array);
+                span[0] = TypedRedisValue.BulkString("pong");
+                RedisValue value = request.Count == 1 ? RedisValue.Null : request.GetValue(1);
+                span[1] = TypedRedisValue.BulkString(value);
+                return reply;
+            }
+            return TypedRedisValue.SimpleString(request.Count == 1 ? "PONG" : request.GetString(1));
+        }
 
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Quit(RedisClient client, in RedisRequest request)

@@ -169,6 +169,7 @@ public partial class RedisClient
     public int SubscriptionCount => simpleCount;
     public int ShardedSubscriptionCount => shardedCount;
     public int PatternSubscriptionCount => patternCount;
+    public bool IsSubscriber => (SubscriptionCount + ShardedSubscriptionCount + PatternSubscriptionCount) != 0;
 
     public int Publish(in RedisChannel channel, in RedisValue value)
     {
