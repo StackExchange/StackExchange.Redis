@@ -186,7 +186,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the underlying <see cref="RedisValue"/> assuming that it is a valid type with a meaningful value.
         /// </summary>
-        internal RedisValue AsRedisValue() => Type == ResultType.Array ? default : _value;
+        public RedisValue AsRedisValue() => IsAggregate ? default : _value;
 
         /// <summary>
         /// Obtain the value as a string.
@@ -200,10 +200,8 @@ namespace StackExchange.Redis
                 case ResultType.Integer:
                 case ResultType.Error:
                     return $"{Type}:{_value}";
-                case ResultType.Array:
-                    return $"{Type}:[{Span.Length}]";
                 default:
-                    return Type.ToString();
+                    return IsAggregate ? $"{Type}:[{Span.Length}]" : Type.ToString();
             }
         }
 

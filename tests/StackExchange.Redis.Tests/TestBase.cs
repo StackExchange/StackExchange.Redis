@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests;
 
 public abstract class TestBase : IDisposable
 {
-    private ITestOutputHelper Output { get; }
+    protected ITestOutputHelper Output { get; }
     protected TextWriterOutputHelper Writer { get; }
     protected virtual string GetConfiguration()
     {

@@ -74,7 +74,17 @@ public class InProcessTestServer : MemoryCacheRedisServer
 
     protected override void OnOutOfBand(RedisClient client, TypedRedisValue message)
     {
-        _log?.WriteLine($"Client {client.Id}: {message.Type}");
+        if (message.IsAggregate
+            && message.Span is { IsEmpty: false } span
+            && !span[0].IsAggregate)
+        {
+            _log?.WriteLine($"Client {client.Id}: {span[0].AsRedisValue()} {message} ");
+        }
+        else
+        {
+            _log?.WriteLine($"Client {client.Id}: {message}");
+        }
+
         base.OnOutOfBand(client, message);
     }
 

@@ -171,6 +171,8 @@ public partial class RedisClient
 
     public int Publish(in RedisChannel channel, in RedisValue value)
     {
+        var node = Node;
+        if (node is null) return 0;
         int count = 0;
         var subs = Subscriptions;
         lock (subs)
@@ -182,7 +184,7 @@ public partial class RedisClient
                 span[0] = TypedRedisValue.BulkString(channel.IsSharded ? "smessage" : "message");
                 span[1] = TypedRedisValue.BulkString(channel);
                 span[2] = TypedRedisValue.BulkString(value);
-                AddOutbound(msg);
+                node.OnOutOfBand(this, msg);
                 count++;
             }
 
@@ -199,7 +201,7 @@ public partial class RedisClient
                         span[1] = TypedRedisValue.BulkString(pair.Key);
                         span[2] = TypedRedisValue.BulkString(channel);
                         span[3] = TypedRedisValue.BulkString(value);
-                        AddOutbound(msg);
+                        node.OnOutOfBand(this, msg);
                         count++;
                     }
                 }
@@ -213,7 +215,7 @@ public partial class RedisClient
     {
         if (Node is { } node)
         {
-            var reply = TypedRedisValue.Rent(3, out var span, ResultType.Array);
+            var reply = TypedRedisValue.Rent(3, out var span, ResultType.Push);
             span[0] = TypedRedisValue.BulkString(kind);
             span[1] = TypedRedisValue.BulkString((byte[])channel);
             span[2] = TypedRedisValue.Integer(count);
@@ -224,7 +226,7 @@ public partial class RedisClient
 
     internal void Subscribe(RedisChannel channel)
     {
-        Regex glob = channel.IsPattern ? null : BuildGlob(channel);
+        Regex glob = channel.IsPattern ? BuildGlob(channel) : null;
         var subs = Subscriptions;
         int count;
         lock (subs)
