@@ -40,6 +40,7 @@ public partial class RedisClient
             message.Recycle();
         }
     }
+
     public ValueTask AddOutboundAsync(in TypedRedisValue message, CancellationToken cancellationToken = default)
     {
         if (message.IsNil)
@@ -47,7 +48,32 @@ public partial class RedisClient
             message.Recycle();
             return default;
         }
-        return _replies.Writer.WriteAsync(message, cancellationToken);
+
+        try
+        {
+            var pending = _replies.Writer.WriteAsync(message, cancellationToken);
+            if (!pending.IsCompleted) return Awaited(message, pending);
+            pending.GetAwaiter().GetResult();
+            // if we succeed, the writer owns it for recycling
+        }
+        catch
+        {
+            message.Recycle();
+        }
+        return default;
+
+        static async ValueTask Awaited(TypedRedisValue message, ValueTask pending)
+        {
+            try
+            {
+                await pending;
+                // if we succeed, the writer owns it for recycling
+            }
+            catch
+            {
+                message.Recycle();
+            }
+        }
     }
 
     public void Complete(Exception ex = null) => _replies.Writer.TryComplete(ex);
