@@ -9,8 +9,56 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Server
 {
     public partial class RedisClient(RedisServer.Node node) : IDisposable
+#pragma warning disable SA1001
+        #if NET6_0_OR_GREATER
+        , ISpanFormattable
+#else
+        , IFormattable
+        #endif
+#pragma warning restore SA1001
     {
         private RespScanState _readState;
+
+        public override string ToString()
+        {
+            if (Protocol is RedisProtocol.Resp2)
+            {
+                return IsSubscriber ? $"{Id}:sub" : Id.ToString();
+            }
+            return $"{Id}:r3";
+        }
+
+        string IFormattable.ToString(string format, IFormatProvider formatProvider) => ToString();
+#if NET6_0_OR_GREATER
+        public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider provider)
+        {
+            if (!Id.TryFormat(destination, out charsWritten))
+            {
+                return false;
+            }
+            destination = destination.Slice(charsWritten);
+            if (Protocol is RedisProtocol.Resp2)
+            {
+                if (IsSubscriber)
+                {
+                    if (!":sub".AsSpan().TryCopyTo(destination))
+                    {
+                        return false;
+                    }
+                    charsWritten += 4;
+                }
+            }
+            else
+            {
+                if (!":r3".AsSpan().TryCopyTo(destination))
+                {
+                    return false;
+                }
+                charsWritten += 3;
+            }
+            return true;
+        }
+#endif
 
         public bool TryReadRequest(ReadOnlySequence<byte> data, out long consumed)
         {

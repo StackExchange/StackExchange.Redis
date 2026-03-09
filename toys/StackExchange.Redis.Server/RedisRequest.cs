@@ -76,10 +76,16 @@ namespace StackExchange.Redis.Server
             if (Count == 0)
             {
                 Command = s_EmptyCommand;
+                KnownCommand = RedisCommand.UNKNOWN;
             }
             else
             {
                 local.MoveNextScalar();
+                unsafe
+                {
+                    KnownCommand = local.TryParseScalar(&RedisCommandMetadata.TryParseCI, out RedisCommand cmd)
+                        ? cmd : RedisCommand.UNKNOWN;
+                }
                 var len = local.ScalarLength();
                 if (len > commandLease.Length)
                 {
@@ -93,6 +99,8 @@ namespace StackExchange.Redis.Server
                 Command = new(commandLease, 0, readBytes);
             }
         }
+
+        internal RedisCommand KnownCommand { get; }
 
         internal static byte[] GetLease() => ArrayPool<byte>.Shared.Rent(16);
         internal static void ReleaseLease(ref byte[] commandLease)
@@ -123,7 +131,7 @@ namespace StackExchange.Redis.Server
         }
 
         internal RedisChannel GetChannel(int index, RedisChannel.RedisChannelOptions options)
-            => throw new NotImplementedException();
+            => GetReader(index).ReadRedisChannel(options);
 
         internal RedisRequest(ReadOnlySpan<byte> payload, ref byte[] commandLease) : this(new RespReader(payload), ref commandLease) { }
         internal RedisRequest(in ReadOnlySequence<byte> payload, ref byte[] commandLease) : this(new RespReader(payload), ref commandLease) { }

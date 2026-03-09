@@ -32,7 +32,18 @@ public class InProcessTestServer : MemoryCacheRedisServer
     public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
     {
         var result = base.Execute(client, in request);
-        Log($"[{client.Id}] {request.Command} => {(char)result.Type} ({result.Type})");
+        if (result.IsNil)
+        {
+            Log($"[{client}] {request.Command} (no reply)");
+        }
+        else if (result.IsAggregate)
+        {
+            Log($"[{client}] {request.Command} => {(char)result.Type} ({result.Type}, {result.Span.Length})");
+        }
+        else
+        {
+            Log($"[{client}] {request.Command} => {(char)result.Type} ({result.Type})");
+        }
         return result;
     }
 
@@ -64,6 +75,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             Tunnel = Tunnel,
             WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
         };
+        if (!string.IsNullOrEmpty(Password)) config.Password = Password;
 
         /* useful for viewing *outbound* data in the log
 #if DEBUG
@@ -107,11 +119,11 @@ public class InProcessTestServer : MemoryCacheRedisServer
             && message.Span is { IsEmpty: false } span
             && !span[0].IsAggregate)
         {
-            _log?.WriteLine($"Client {client.Id}: {span[0].AsRedisValue()} {message} ");
+            _log?.WriteLine($"[{client}] => {(char)message.Type} ({message.Type}, {message.Span.Length}): {span[0].AsRedisValue()}");
         }
         else
         {
-            _log?.WriteLine($"Client {client.Id}: {message}");
+            _log?.WriteLine($"[{client}] => {(char)message.Type} ({message.Type})");
         }
 
         base.OnOutOfBand(client, message);
@@ -119,7 +131,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
 
     public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
     {
-        _log?.WriteLine($"[{client.Id}] unknown command: {Encoding.ASCII.GetString(command)}");
+        _log?.WriteLine($"[{client}] unknown command: {Encoding.ASCII.GetString(command)}");
         return base.OnUnknownCommand(in client, in request, command);
     }
 

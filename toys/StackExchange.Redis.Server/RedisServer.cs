@@ -157,16 +157,26 @@ namespace StackExchange.Redis.Server
 
         public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
-            if (request.Count != 0)
+            var pw = Password;
+            if (pw.Length != 0 & !client.IsAuthenticated)
             {
-                if (!IsAuthCommand(in request)) return TypedRedisValue.Error("NOAUTH Authentication required.");
+                if (!IsAuthCommand(request.KnownCommand))
+                    return TypedRedisValue.Error("NOAUTH Authentication required.");
+            }
+            else if (client.Protocol is RedisProtocol.Resp2 && client.IsSubscriber &&
+                     !IsPubSubCommand(request.KnownCommand))
+            {
+                return TypedRedisValue.Error(
+                    $"ERR only [P|S][UN]SUBSCRIBE / PING / QUIT allowed in this context (got: '{request.Command}')");
             }
             return base.Execute(client, request);
 
-            static unsafe bool IsAuthCommand(in RedisRequest request) =>
-                request.Count != 0 && request.GetReader(0).TryParseScalar(
-                                       &RedisCommandMetadata.TryParseCI, out RedisCommand cmd)
-                                   && cmd is RedisCommand.AUTH or RedisCommand.HELLO;
+            static bool IsAuthCommand(RedisCommand cmd) => cmd is RedisCommand.AUTH or RedisCommand.HELLO;
+            static bool IsPubSubCommand(RedisCommand cmd)
+                => cmd is RedisCommand.SUBSCRIBE or RedisCommand.UNSUBSCRIBE
+                        or RedisCommand.SSUBSCRIBE or RedisCommand.SUNSUBSCRIBE
+                        or RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE
+                        or RedisCommand.PING or RedisCommand.QUIT;
         }
 
         [RedisCommand(2)]
@@ -581,6 +591,7 @@ namespace StackExchange.Redis.Server
             private SlotRange[] _slots;
 
             private readonly RedisServer _server;
+            public RedisServer Server => _server;
             public Node(RedisServer server, EndPoint endpoint)
             {
                 Host = GetHost(endpoint, out var port);
@@ -1195,7 +1206,7 @@ namespace StackExchange.Redis.Server
         {
             if (client.IsSubscriber)
             {
-                var reply = TypedRedisValue.Rent(2, out var span, ResultType.Array);
+                var reply = TypedRedisValue.Rent(2, out var span, RespPrefix.Array);
                 span[0] = TypedRedisValue.BulkString("pong");
                 RedisValue value = request.Count == 1 ? RedisValue.Null : request.GetValue(1);
                 span[1] = TypedRedisValue.BulkString(value);
@@ -1231,58 +1242,6 @@ namespace StackExchange.Redis.Server
             if (db < 0 || db >= Databases) return TypedRedisValue.Error("ERR DB index is out of range");
             client.Database = db;
             return TypedRedisValue.OK;
-        }
-
-        [RedisCommand(-2)]
-        protected virtual TypedRedisValue Subscribe(RedisClient client, in RedisRequest request)
-            => SubscribeImpl(client, request);
-        [RedisCommand(-2)]
-        protected virtual TypedRedisValue Unsubscribe(RedisClient client, in RedisRequest request)
-            => SubscribeImpl(client, request);
-
-        private TypedRedisValue SubscribeImpl(RedisClient client, in RedisRequest request)
-        {
-            var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span, RespPrefix.Push);
-
-            _ = RedisCommandMetadata.TryParseCI(request.Command.Span, out var cmd);
-            var mode = cmd switch
-            {
-                RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE => RedisChannel.RedisChannelOptions.Pattern,
-                RedisCommand.SSUBSCRIBE or RedisCommand.SSUBSCRIBE => RedisChannel.RedisChannelOptions.Sharded,
-                _ => RedisChannel.RedisChannelOptions.None,
-            };
-            bool add = cmd is RedisCommand.SUBSCRIBE or RedisCommand.SSUBSCRIBE or RedisCommand.PSUBSCRIBE;
-
-            var msgKind = cmd switch
-            {
-                RedisCommand.SUBSCRIBE => "subscribe",
-                RedisCommand.PSUBSCRIBE => "psubscribe",
-                RedisCommand.SSUBSCRIBE => "ssubscribe",
-                RedisCommand.UNSUBSCRIBE => "unsubscribe",
-                RedisCommand.PUNSUBSCRIBE => "punsubscribe",
-                RedisCommand.SUNSUBSCRIBE => "sunsubscribe",
-                _ => "???",
-            };
-
-            int index = 0;
-            for (int i = 1; i < request.Count; i++)
-            {
-                var channel = request.GetChannel(i, mode);
-                int count;
-                if (add)
-                {
-                    count = client.Subscribe(channel);
-                }
-                else
-                {
-                    count = client.Unsubscribe(channel);
-                }
-
-                span[index++] = TypedRedisValue.BulkString(msgKind);
-                span[index++] = TypedRedisValue.BulkString((byte[])channel);
-                span[index++] = TypedRedisValue.Integer(count);
-            }
-            return reply;
         }
 
         private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);

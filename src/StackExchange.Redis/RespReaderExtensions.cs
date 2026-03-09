@@ -36,11 +36,10 @@ internal static class RespReaderExtensions
             }
         }
 
-        public RedisKey ReadRedisKey()
-        {
-            reader.DemandScalar();
-            return (RedisKey)reader.ReadByteArray();
-        }
+        public RedisKey ReadRedisKey() => (RedisKey)reader.ReadByteArray();
+
+        public RedisChannel ReadRedisChannel(RedisChannel.RedisChannelOptions options)
+            => new(reader.ReadByteArray(), options);
 
         public string GetOverview()
         {

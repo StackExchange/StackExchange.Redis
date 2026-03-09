@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Channels;
@@ -85,13 +84,18 @@ public partial class RedisClient
             var reader = _replies.Reader;
             do
             {
+                int count = 0;
                 while (reader.TryRead(out var message))
                 {
-                    await RespServer.WriteResponseAsync(this, writer, message, Protocol);
+                    RespServer.WriteResponse(this, writer, message, Protocol);
                     message.Recycle();
+                    count++;
                 }
 
-                await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+                if (count != 0)
+                {
+                    await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+                }
             }
             // await more data
             while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false));

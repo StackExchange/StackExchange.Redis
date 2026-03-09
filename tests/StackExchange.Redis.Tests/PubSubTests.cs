@@ -16,14 +16,13 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 {
 }
 
-/*
 [RunPerProtocol]
 public class InProcPubSubTests(ITestOutputHelper output, InProcServerFixture fixture)
     : PubSubTestBase(output, null, fixture)
 {
-    protected override bool UseDedicatedInProcessServer => false;
+    protected override bool UseDedicatedInProcessServer => true;
+    protected override bool UseInProcessServerPubSub => true;
 }
-*/
 
 [RunPerProtocol]
 public abstract class PubSubTestBase(

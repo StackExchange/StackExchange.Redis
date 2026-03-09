@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Threading;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Server;
 
@@ -182,7 +183,7 @@ public partial class RedisClient
             // we can do simple and sharded equality lookups directly
             if ((simpleCount + shardedCount) != 0 && subs.TryGetValue(channel, out _))
             {
-                var msg = TypedRedisValue.Rent(3,  out var span, ResultType.Push);
+                var msg = TypedRedisValue.Rent(3,  out var span, PushKind);
                 span[0] = TypedRedisValue.BulkString(channel.IsSharded ? "smessage" : "message");
                 span[1] = TypedRedisValue.BulkString(channel);
                 span[2] = TypedRedisValue.BulkString(value);
@@ -198,7 +199,7 @@ public partial class RedisClient
                 {
                     if (pair.Key.IsPattern && pair.Value is { } glob && glob.IsMatch(channelName))
                     {
-                        var msg = TypedRedisValue.Rent(4,  out var span, ResultType.Push);
+                        var msg = TypedRedisValue.Rent(4,  out var span, PushKind);
                         span[0] = TypedRedisValue.BulkString("pmessage");
                         span[1] = TypedRedisValue.BulkString(pair.Key);
                         span[2] = TypedRedisValue.BulkString(channel);
@@ -213,11 +214,15 @@ public partial class RedisClient
         return count;
     }
 
-    private void SendMessage(string kind, RedisChannel channel, int count)
+    public bool IsResp2 => Protocol is RedisProtocol.Resp2;
+
+    public RespPrefix PushKind => IsResp2 ? RespPrefix.Array : RespPrefix.Push;
+
+    private void SendSubUnsubMessage(string kind, RedisChannel channel, int count)
     {
         if (Node is { } node)
         {
-            var reply = TypedRedisValue.Rent(3, out var span, ResultType.Push);
+            var reply = TypedRedisValue.Rent(3, out var span, PushKind);
             span[0] = TypedRedisValue.BulkString(kind);
             span[1] = TypedRedisValue.BulkString((byte[])channel);
             span[2] = TypedRedisValue.Integer(count);
@@ -239,7 +244,7 @@ public partial class RedisClient
                 : channel.IsPattern ? ++patternCount
                 : ++simpleCount;
         }
-        SendMessage(
+        SendSubUnsubMessage(
             channel.IsSharded ? "ssubscribe"
             : channel.IsPattern ? "psubscribe"
             : "subscribe",
@@ -273,7 +278,7 @@ public partial class RedisClient
                 : channel.IsPattern ? --patternCount
                 : --simpleCount;
         }
-        SendMessage(
+        SendSubUnsubMessage(
             channel.IsSharded ? "sunsubscribe"
             : channel.IsPattern ? "punsubscribe"
             : "unsubscribe",
@@ -332,7 +337,7 @@ public partial class RedisClient
         }
         foreach (var key in remove.AsSpan(0, count))
         {
-            SendMessage(msg, key, 0);
+            SendSubUnsubMessage(msg, key, 0);
         }
         ArrayPool<RedisChannel>.Shared.Return(remove);
     }
