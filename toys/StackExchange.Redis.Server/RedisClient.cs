@@ -8,7 +8,7 @@ using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
 {
-    public class RedisClient(RedisServer.Node node) : IDisposable
+    public partial class RedisClient(RedisServer.Node node) : IDisposable
     {
         private RespScanState _readState;
 
@@ -42,20 +42,7 @@ namespace StackExchange.Redis.Server
             }
             return false;
         }
-        private HashSet<RedisChannel> _subscripions;
-        public int SubscriptionCount => _subscripions?.Count ?? 0;
-        internal int Subscribe(RedisChannel channel)
-        {
-            if (_subscripions == null) _subscripions = new HashSet<RedisChannel>();
-            _subscripions.Add(channel);
-            return _subscripions.Count;
-        }
-        internal int Unsubscribe(RedisChannel channel)
-        {
-            if (_subscripions == null) return 0;
-            _subscripions.Remove(channel);
-            return _subscripions.Count;
-        }
+
         public int Database { get; set; }
         public string Name { get; set; }
         internal IDuplexPipe LinkedPipe { get; set; }
@@ -286,6 +273,7 @@ namespace StackExchange.Redis.Server
 
     internal sealed class CrossSlotException : Exception
     {
+        private CrossSlotException() { }
         public static void Throw() => throw new CrossSlotException();
     }
 }

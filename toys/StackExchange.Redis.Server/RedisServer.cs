@@ -12,7 +12,7 @@ using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
 {
-    public abstract class RedisServer : RespServer
+    public abstract partial class RedisServer : RespServer
     {
         // non-trivial wildcards not implemented yet!
         public static bool IsMatch(string pattern, string key) =>
@@ -157,8 +157,7 @@ namespace StackExchange.Redis.Server
 
         public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
-            var pw = Password;
-            if (pw.Length != 0 & !client.IsAuthenticated)
+            if (request.Count != 0)
             {
                 if (!IsAuthCommand(in request)) return TypedRedisValue.Error("NOAUTH Authentication required.");
             }
@@ -595,6 +594,7 @@ namespace StackExchange.Redis.Server
 
             public bool HasSlot(int hashSlot)
             {
+                if (hashSlot == ServerSelectionStrategy.NoSlot) return true;
                 var slots = _slots;
                 if (slots is null) return true; // all nodes
                 foreach (var slot in slots)
@@ -755,6 +755,9 @@ namespace StackExchange.Redis.Server
             }
 
             public void Touch(int db, in RedisKey key) => _server.Touch(db, key);
+
+            public void OnOutOfBand(RedisClient client, TypedRedisValue message)
+                => _server.OnOutOfBand(client, message);
         }
 
         public virtual bool CheckCrossSlot => ServerType == ServerType.Cluster;
@@ -1186,13 +1189,25 @@ namespace StackExchange.Redis.Server
             }
             return TypedRedisValue.OK;
         }
+
         [RedisCommand(-1, LockFree = true, MaxArgs = 2)]
         protected virtual TypedRedisValue Ping(RedisClient client, in RedisRequest request)
-            => TypedRedisValue.SimpleString(request.Count == 1 ? "PONG" : request.GetString(1));
+        {
+            if (client.IsSubscriber)
+            {
+                var reply = TypedRedisValue.Rent(2, out var span, ResultType.Array);
+                span[0] = TypedRedisValue.BulkString("pong");
+                RedisValue value = request.Count == 1 ? RedisValue.Null : request.GetValue(1);
+                span[1] = TypedRedisValue.BulkString(value);
+                return reply;
+            }
+            return TypedRedisValue.SimpleString(request.Count == 1 ? "PONG" : request.GetString(1));
+        }
 
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Quit(RedisClient client, in RedisRequest request)
         {
+            client.Complete();
             RemoveClient(client);
             return TypedRedisValue.OK;
         }

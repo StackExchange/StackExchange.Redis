@@ -101,6 +101,22 @@ public class InProcessTestServer : MemoryCacheRedisServer
         base.OnMoved(client, hashSlot, node);
     }
 
+    protected override void OnOutOfBand(RedisClient client, TypedRedisValue message)
+    {
+        if (message.IsAggregate
+            && message.Span is { IsEmpty: false } span
+            && !span[0].IsAggregate)
+        {
+            _log?.WriteLine($"Client {client.Id}: {span[0].AsRedisValue()} {message} ");
+        }
+        else
+        {
+            _log?.WriteLine($"Client {client.Id}: {message}");
+        }
+
+        base.OnOutOfBand(client, message);
+    }
+
     public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
     {
         _log?.WriteLine($"[{client.Id}] unknown command: {Encoding.ASCII.GetString(command)}");

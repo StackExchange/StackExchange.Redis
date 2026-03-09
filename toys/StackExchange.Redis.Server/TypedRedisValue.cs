@@ -156,6 +156,13 @@ namespace StackExchange.Redis
         public static TypedRedisValue BulkString(RedisValue value)
             => new TypedRedisValue(value, RespPrefix.BulkString);
 
+        /// <summary>
+        /// Initialize a <see cref="TypedRedisValue"/> that represents a bulk string.
+        /// </summary>
+        /// <param name="value">The value to initialize from.</param>
+        public static TypedRedisValue BulkString(in RedisChannel value)
+            => new TypedRedisValue((byte[])value, RespPrefix.BulkString);
+
         private TypedRedisValue(TypedRedisValue[] oversizedItems, int count, RespPrefix type)
         {
             if (oversizedItems == null)
@@ -190,7 +197,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the underlying <see cref="RedisValue"/> assuming that it is a valid type with a meaningful value.
         /// </summary>
-        internal RedisValue AsRedisValue() => IsAggregate ? default : _value;
+        public RedisValue AsRedisValue() => IsAggregate ? default : _value;
 
         /// <summary>
         /// Obtain the value as a string.
@@ -207,7 +214,7 @@ namespace StackExchange.Redis
                 case RespPrefix.SimpleError:
                     return $"{Type}:{_value}";
                 default:
-                    return Type.ToString();
+                    return IsAggregate ? $"{Type}:[{Span.Length}]" : Type.ToString();
             }
         }
 

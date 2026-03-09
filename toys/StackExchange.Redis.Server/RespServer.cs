@@ -231,6 +231,16 @@ namespace StackExchange.Redis.Server
             return client;
         }
 
+        protected int ForAllClients<TState>(TState state, Func<RedisClient, TState, int> func)
+        {
+            int count = 0;
+            foreach (var client in _clientLookup.Values)
+            {
+                count += func(client, state);
+            }
+            return count;
+        }
+
         public bool TryGetClient(int id, out RedisClient client) => _clientLookup.TryGetValue(id, out client);
 
         private readonly ConcurrentDictionary<int, RedisClient> _clientLookup = new();
@@ -315,6 +325,8 @@ namespace StackExchange.Redis.Server
                     pipe.Input.AdvanceTo(buffer.Start, buffer.End);
                     if (readResult.IsCompleted) break; // EOF
                 }
+                client.Complete();
+                await incompleteOutput;
             }
             catch (ConnectionResetException) { }
             catch (ObjectDisposedException) { }
@@ -330,6 +342,7 @@ namespace StackExchange.Redis.Server
             finally
             {
                 RedisRequest.ReleaseLease(ref commandLease);
+                client?.Complete(fault);
                 RemoveClient(client);
                 try { pipe.Input.Complete(fault); } catch { }
                 try { pipe.Output.Complete(fault); } catch { }
@@ -512,7 +525,7 @@ namespace StackExchange.Redis.Server
 
         public virtual TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
         {
-            return TypedRedisValue.Nil;
+            return request.CommandNotFound();
         }
 
         public virtual TypedRedisValue Execute(RedisClient client, in RedisRequest request)
@@ -557,12 +570,6 @@ namespace StackExchange.Redis.Server
                 {
                     client.ExecAbort();
                     result = OnUnknownCommand(client, request, request.Command.Span);
-                }
-
-                if (result.IsNil)
-                {
-                    Log($"missing command: '{request.GetString(0)}'");
-                    return request.CommandNotFound();
                 }
 
                 if (result.IsError) Interlocked.Increment(ref _totalErrorCount);

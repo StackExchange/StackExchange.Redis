@@ -1,5 +1,4 @@
-Authentication
-===
+# Authentication
 
 There are multiple ways of connecting to a Redis server, depending on the authentication model. The simplest
 (but least secure) approach is to use the `default` user, with no authentication, and no transport security.
@@ -12,10 +11,9 @@ var muxer = await ConnectionMultiplexer.ConnectAsync("myserver"); // or myserver
 This approach is often used for local transient servers - it is simple, but insecure. But from there,
 we can get more complex!
 
-TLS
-===
+## TLS
 
-If your server has TLS enabled, SE.Redis can be instructed to use it. In some cases (AMR, etc), the
+If your server has TLS enabled, SE.Redis can be instructed to use it. In some cases (Azure Managed Redis, etc), the
 library will recognize the endpoint address, meaning: *you do not need to do anything*. To
 *manually* enable TLS, the `ssl` token can be used:
 
@@ -44,8 +42,7 @@ Alternatively, in advanced scenarios: to provide your own custom server validati
 can be used; this uses the normal [`RemoteCertificateValidationCallback`](https://learn.microsoft.com/dotnet/api/system.net.security.remotecertificatevalidationcallback)
 API.
 
-Usernames and Passwords
-===
+## Usernames and Passwords
 
 Usernames and passwords can be specified with the `user` and `password` tokens, respectively:
 
@@ -56,15 +53,25 @@ var muxer = await ConnectionMultiplexer.ConnectAsync("myserver,ssl=true,user=myu
 If no `user` is provided, the `default` user is assumed. In some cases, an authentication-token can be
 used in place of a classic password.
 
-Client certificates
-===
+## Managed identities
+
+If the server is an Azure Managed Redis resource, connections can be secured using Microsoft Entra ID authentication. Use the [Microsoft.Azure.StackExchangeRedis](https://github.com/Azure/Microsoft.Azure.StackExchangeRedis) extension package to handle the authentication using tokens retrieved from Microsoft Entra. The package integrates via the ConfigurationOptions class, and can use various types of identities for token retrieval. For example with a user-assigned managed identity: 
+
+```csharp
+var options = ConfigurationOptions.Parse("mycache.region.redis.azure.net:10000");
+await options.ConfigureForAzureWithUserAssignedManagedIdentityAsync(managedIdentityClientId);
+```
+
+For details and samples see [https://github.com/Azure/Microsoft.Azure.StackExchangeRedis](https://github.com/Azure/Microsoft.Azure.StackExchangeRedis)
+
+## Client certificates
 
 If the server is configured to require a client certificate, this can be supplied in multiple ways.
 If you have a local public / private key pair (such as `MyUser2.crt` and `MyUser2.key`), the
 `options.SetUserPemCertificate(...)` method can be used:
 
 ``` csharp
-config.SetUserPemCertificate(
+options.SetUserPemCertificate(
     userCertificatePath: userCrtPath,
     userKeyPath: userKeyPath
 );
@@ -74,7 +81,7 @@ If you have a single `pfx` file that contains the public / private pair, the `op
 method can be used:
 
 ``` csharp
-config.SetUserPfxCertificate(
+options.SetUserPfxCertificate(
     userCertificatePath: userCrtPath,
     password: filePassword // optional
 );
@@ -85,8 +92,7 @@ can be used; this uses the normal
 [`LocalCertificateSelectionCallback`](https://learn.microsoft.com/dotnet/api/system.net.security.remotecertificatevalidationcallback)
 API.
 
-User certificates with implicit user authentication
-===
+## User certificates with implicit user authentication
 
 Historically, the client certificate only provided access to the server, but as the `default` user. From 8.6,
 the server can be configured to use client certificates to provide user identity. This replaces the
@@ -114,8 +120,7 @@ var user = (string?)await conn.GetDatabase().ExecuteAsync("acl", "whoami");
 Console.WriteLine(user); // writes "MyUser2"
 ```
 
-More info
-===
+## More info
 
 For more information:
 
