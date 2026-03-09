@@ -585,4 +585,74 @@ public abstract class TestBase : IDisposable
             spent += wait;
         }
     }
+
+    // simplified usage to get an interchangeable dedicated vs shared in-process server, useful for debugging
+    protected virtual bool UseDedicatedInProcessServer => false; // use the shared server by default
+    internal ClientFactory ConnectFactory(bool allowAdmin = false, string? channelPrefix = null, bool shared = true)
+    {
+        if (UseDedicatedInProcessServer)
+        {
+            var server = new InProcessTestServer(Output);
+            return new ClientFactory(this, allowAdmin, channelPrefix, shared, server);
+        }
+        return new ClientFactory(this, allowAdmin, channelPrefix, shared, null);
+    }
+
+    internal sealed class ClientFactory : IDisposable, IAsyncDisposable
+    {
+        private readonly TestBase _testBase;
+        private readonly bool _allowAdmin;
+        private readonly string? _channelPrefix;
+        private readonly bool _shared;
+        private readonly InProcessTestServer? _server;
+        private IInternalConnectionMultiplexer? _defaultClient;
+
+        internal ClientFactory(TestBase testBase, bool allowAdmin, string? channelPrefix, bool shared, InProcessTestServer? server)
+        {
+            _testBase = testBase;
+            _allowAdmin = allowAdmin;
+            _channelPrefix = channelPrefix;
+            _shared = shared;
+            _server = server;
+        }
+
+        public IInternalConnectionMultiplexer DefaultClient => _defaultClient ??= CreateClient();
+
+        public InProcessTestServer? Server => _server;
+
+        public IInternalConnectionMultiplexer CreateClient()
+        {
+            if (_server is not null)
+            {
+                var config = _server.GetClientConfig();
+                config.AllowAdmin = _allowAdmin;
+                if (_channelPrefix is not null)
+                {
+                    config.ChannelPrefix = RedisChannel.Literal(_channelPrefix);
+                }
+                return ConnectionMultiplexer.ConnectAsync(config).Result;
+            }
+            return _testBase.Create(allowAdmin: _allowAdmin, channelPrefix: _channelPrefix, shared: _shared);
+        }
+
+        public IDatabase GetDatabase(int db = -1) => DefaultClient.GetDatabase(db);
+
+        public ISubscriber GetSubscriber() => DefaultClient.GetSubscriber();
+
+        public void Dispose()
+        {
+            _server?.Dispose();
+            _defaultClient?.Dispose();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            _server?.Dispose();
+            if (_defaultClient is not null)
+            {
+                return _defaultClient.DisposeAsync();
+            }
+            return default;
+        }
+    }
 }

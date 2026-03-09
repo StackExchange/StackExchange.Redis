@@ -155,19 +155,21 @@ namespace StackExchange.Redis.Server
 
         public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
-            var pw = Password;
-            if (pw.Length != 0 & !client.IsAuthenticated)
+            if (request.Count != 0)
             {
-                if (!Literals.IsAuthCommand(in request))
-                    return TypedRedisValue.Error("NOAUTH Authentication required.");
+                var pw = Password;
+                if (pw.Length != 0 & !client.IsAuthenticated)
+                {
+                    if (!Literals.IsAuthCommand(in request))
+                        return TypedRedisValue.Error("NOAUTH Authentication required.");
+                }
+                else if (client.Protocol is RedisProtocol.Resp2 && client.IsSubscriber &&
+                         !Literals.IsPubSubCommand(in request, out var cmd))
+                {
+                    return TypedRedisValue.Error(
+                        $"ERR only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT allowed in this context (got: '{cmd}')");
+                }
             }
-            else if (client.Protocol is RedisProtocol.Resp2 && client.IsSubscriber &&
-                     !Literals.IsPubSubCommand(in request, out var cmd))
-            {
-                return TypedRedisValue.Error(
-                    $"ERR only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT allowed in this context (got: '{cmd}')");
-            }
-
             return base.Execute(client, request);
         }
 
@@ -183,24 +185,25 @@ namespace StackExchange.Redis.Server
                 PSUBSCRIBE = new("PSUBSCRIBE"u8),
                 SSUBSCRIBE = new("SSUBSCRIBE"u8),
                 UNSUBSCRIBE = new("UNSUBSCRIBE"u8),
-                PUNUBSCRIBE = new("PUNUBSCRIBE"u8),
+                PUNSUBSCRIBE = new("PUNSUBSCRIBE"u8),
                 SUNSUBSCRIBE = new("SUNSUBSCRIBE"u8);
 
             public static bool IsAuthCommand(in RedisRequest request) =>
                 request.Count != 0 && request.TryGetCommandBytes(0, out var command)
                                    && (command.Equals(AUTH) || command.Equals(HELLO));
 
-            public static bool IsPubSubCommand(in RedisRequest request, out CommandBytes command)
+            public static bool IsPubSubCommand(in RedisRequest request, out string badCommand)
             {
-                if (request.Count == 0 || !request.TryGetCommandBytes(0, out command))
+                badCommand = "";
+                if (request.Count == 0 || !request.TryGetCommandBytes(0, out var command))
                 {
-                    command = default;
+                    if (request.Count != 0) badCommand = request.GetString(0);
                     return false;
                 }
 
                 return command.Equals(SUBSCRIBE) || command.Equals(UNSUBSCRIBE)
                     || command.Equals(SSUBSCRIBE) || command.Equals(SUNSUBSCRIBE)
-                    || command.Equals(PSUBSCRIBE) || command.Equals(PUNUBSCRIBE)
+                    || command.Equals(PSUBSCRIBE) || command.Equals(PUNSUBSCRIBE)
                     || command.Equals(PING) || command.Equals(QUIT);
             }
         }
