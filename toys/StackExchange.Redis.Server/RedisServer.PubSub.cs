@@ -231,18 +231,32 @@ public partial class RedisClient
         }
     }
 
+    private ref int GetCountField(RedisChannel channel)
+        => ref channel.IsSharded ? ref shardedCount
+        : ref channel.IsPattern ? ref patternCount
+        : ref simpleCount;
+
     internal void Subscribe(RedisChannel channel)
     {
         Regex glob = channel.IsPattern ? BuildGlob(channel) : null;
         var subs = Subscriptions;
         int count;
+        ref int field = ref GetCountField(channel);
         lock (subs)
         {
-            if (subs.ContainsKey(channel)) return;
-            subs.Add(channel, glob);
-            count = channel.IsSharded ? ++shardedCount
-                : channel.IsPattern ? ++patternCount
-                : ++simpleCount;
+            #if NET
+            count = subs.TryAdd(channel, glob) ? ++field : field;
+            #else
+            if (subs.ContainsKey(channel))
+            {
+                count = field;
+            }
+            else
+            {
+                subs.Add(channel, glob);
+                count = ++field;
+            }
+            #endif
         }
         SendSubUnsubMessage(
             channel.IsSharded ? "ssubscribe"
@@ -271,12 +285,10 @@ public partial class RedisClient
         var subs = SubscriptionsIfAny;
         if (subs is null) return;
         int count;
+        ref int field = ref GetCountField(channel);
         lock (subs)
         {
-            if (!subs.Remove(channel)) return;
-            count = channel.IsSharded ? --shardedCount
-                : channel.IsPattern ? --patternCount
-                : --simpleCount;
+            count = subs.Remove(channel) ? --field : field;
         }
         SendSubUnsubMessage(
             channel.IsSharded ? "sunsubscribe"

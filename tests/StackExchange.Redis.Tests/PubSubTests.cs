@@ -160,6 +160,8 @@ public abstract class PubSubTestBase(
         await using var conn = ConnectFactory(shared: false);
         var pub = GetAnyPrimary(conn.DefaultClient);
         var sub = conn.GetSubscriber();
+
+        await PingAsync(pub, sub, 5).ForAwait();
         await sub.SubscribeAsync(RedisChannel.Literal(Me()), (_, __) => { }); // to ensure we're in subscriber mode
         await PingAsync(pub, sub, 5).ForAwait();
     }
@@ -232,10 +234,28 @@ public abstract class PubSubTestBase(
             // way to prove that is to use TPL objects
             var subTask = sub.PingAsync();
             var pubTask = pub.PingAsync();
-            await Task.WhenAll(subTask, pubTask).ForAwait();
+            try
+            {
+                await Task.WhenAll(subTask, pubTask).ForAwait();
+            }
+            catch (TimeoutException ex)
+            {
+                throw new TimeoutException($"Timeout; sub: {GetState(subTask)}, pub: {GetState(pubTask)}", ex);
+            }
 
-            Log($"Sub PING time: {subTask.Result.TotalMilliseconds} ms");
-            Log($"Pub PING time: {pubTask.Result.TotalMilliseconds} ms");
+            Log($"sub: {GetState(subTask)}, pub: {GetState(pubTask)}");
+
+            static string GetState(Task<TimeSpan> pending)
+            {
+                var status = pending.Status;
+                return status switch
+                {
+                    TaskStatus.RanToCompletion => $"{status} in {pending.Result.TotalMilliseconds:###,##0.0}ms)",
+                    TaskStatus.Faulted when pending.Exception is { InnerExceptions.Count:1 } ae => $"{status}: {ae.InnerExceptions[0].Message}",
+                    TaskStatus.Faulted => $"{status}: {pending.Exception?.Message}",
+                    _ => status.ToString(),
+                };
+            }
         }
     }
 
