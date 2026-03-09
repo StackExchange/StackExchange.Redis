@@ -25,7 +25,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task PingOnce()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
 
         var duration = await db.PingAsync().ForAwait();
@@ -33,17 +33,18 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
         Assert.True(duration.TotalMilliseconds > 0);
     }
 
-    [Fact(Skip = "This needs some CI love, it's not a scenario we care about too much but noisy atm.")]
+    [Fact]
     public async Task RapidDispose()
     {
-        await using var primary = Create();
+        SkipIfWouldUseRealServer("This needs some CI love, it's not a scenario we care about too much but noisy atm.");
+        await using var primary = ConnectFactory();
         var db = primary.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         for (int i = 0; i < 10; i++)
         {
-            await using var secondary = Create(fail: true, shared: false);
+            await using var secondary = primary.CreateClient();
             secondary.GetDatabase().StringIncrement(key, flags: CommandFlags.FireAndForget);
         }
         // Give it a moment to get through the pipe...they were fire and forget
@@ -54,7 +55,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task PingMany()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         var tasks = new Task<TimeSpan>[100];
         for (int i = 0; i < tasks.Length; i++)
@@ -69,7 +70,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task GetWithNullKey()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         const string? key = null;
         var ex = Assert.Throws<ArgumentException>(() => db.StringGet(key));
@@ -79,7 +80,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task SetWithNullKey()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         const string? key = null, value = "abc";
         var ex = Assert.Throws<ArgumentException>(() => db.StringSet(key!, value));
@@ -89,7 +90,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task SetWithNullValue()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         string key = Me();
         const string? value = null;
@@ -107,7 +108,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task SetWithDefaultValue()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         string key = Me();
         var value = default(RedisValue); // this is kinda 0... ish
@@ -125,7 +126,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task SetWithZeroValue()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         string key = Me();
         const long value = 0;
@@ -143,7 +144,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task GetSetAsync()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
@@ -168,7 +169,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task GetSetSync()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
@@ -195,7 +196,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [InlineData(true, false)]
     public async Task GetWithExpiry(bool exists, bool hasExpiry)
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -231,7 +232,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task GetWithExpiryWrongTypeAsync()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         _ = db.KeyDeleteAsync(key);
@@ -254,7 +255,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task GetWithExpiryWrongTypeSync()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
@@ -270,12 +271,12 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task TestSevered()
     {
-        await using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = ConnectFactory(allowAdmin: true, shared: false);
         var db = conn.GetDatabase();
         string key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-        var server = GetServer(conn);
+        var server = GetServer(conn.DefaultClient);
         Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 
         SetExpectedAmbientFailureCount(2);
@@ -293,7 +294,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task IncrAsync()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -321,7 +322,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task IncrSync()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         Log(key);
@@ -350,7 +351,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task IncrDifferentSizes()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -381,29 +382,9 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     }
 
     [Fact]
-    public async Task ShouldUseSharedMuxer()
-    {
-        Log($"Shared: {SharedFixtureAvailable}");
-        if (SharedFixtureAvailable)
-        {
-            await using var a = Create();
-            Assert.IsNotType<ConnectionMultiplexer>(a);
-            await using var b = Create();
-            Assert.Same(a, b);
-        }
-        else
-        {
-            await using var a = Create();
-            Assert.IsType<ConnectionMultiplexer>(a);
-            await using var b = Create();
-            Assert.NotSame(a, b);
-        }
-    }
-
-    [Fact]
     public async Task Delete()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         var key = Me();
         _ = db.StringSetAsync(key, "Heyyyyy");
@@ -418,7 +399,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task DeleteAsync()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         var key = Me();
         _ = db.StringSetAsync(key, "Heyyyyy");
@@ -433,7 +414,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task DeleteMany()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         var key1 = Me();
         var key2 = Me() + "2";
@@ -452,7 +433,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task DeleteManyAsync()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase();
         var key1 = Me();
         var key2 = Me() + "2";
@@ -472,7 +453,7 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     public async Task WrappedDatabasePrefixIntegration()
     {
         var key = Me();
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
         var db = conn.GetDatabase().WithKeyPrefix("abc");
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringIncrement(key, flags: CommandFlags.FireAndForget);
@@ -486,8 +467,8 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task TransactionSync()
     {
-        await using var conn = Create();
-        Assert.SkipUnless(conn.RawConfig.CommandMap.IsAvailable(RedisCommand.MULTI), "MULTI is not available");
+        await using var conn = ConnectFactory();
+        Assert.SkipUnless(conn.DefaultClient.RawConfig.CommandMap.IsAvailable(RedisCommand.MULTI), "MULTI is not available");
         var db = conn.GetDatabase();
 
         RedisKey key = Me();
@@ -506,8 +487,8 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
     [Fact]
     public async Task TransactionAsync()
     {
-        await using var conn = Create();
-        Assert.SkipUnless(conn.RawConfig.CommandMap.IsAvailable(RedisCommand.MULTI), "MULTI is not available");
+        await using var conn = ConnectFactory();
+        Assert.SkipUnless(conn.DefaultClient.RawConfig.CommandMap.IsAvailable(RedisCommand.MULTI), "MULTI is not available");
 
         var db = conn.GetDatabase();
 

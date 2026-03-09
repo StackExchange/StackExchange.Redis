@@ -21,7 +21,6 @@ public class InProcPubSubTests(ITestOutputHelper output, InProcServerFixture fix
     : PubSubTestBase(output, null, fixture)
 {
     protected override bool UseDedicatedInProcessServer => true;
-    protected override bool UseInProcessServerPubSub => true;
 }
 
 [RunPerProtocol]

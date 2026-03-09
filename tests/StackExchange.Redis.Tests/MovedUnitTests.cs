@@ -27,7 +27,7 @@ public class MovedUnitTests(ITestOutputHelper log)
         string keyA = "abc", keyB = "def"; // known to be on different slots
 
         using var server = new InProcessTestServer(log) { ServerType = serverType };
-        await using var muxer = await server.ConnectAsync(writeMode: writeMode);
+        await using var muxer = await server.ConnectAsync(writeMode: writeMode, withPubSub: false);
 
         var db = muxer.GetDatabase();
         await db.StringSetAsync(keyA, "value", flags: CommandFlags.FireAndForget);
@@ -109,7 +109,7 @@ public class MovedUnitTests(ITestOutputHelper log)
             log: log) { ServerType = serverType, };
 
         // Act: Connect to the test server
-        await using var conn = await testServer.ConnectAsync();
+        await using var conn = await testServer.ConnectAsync(withPubSub: false);
         // Ping the server to ensure it's responsive
         var server = conn.GetServer(testServer.DefaultEndPoint);
 

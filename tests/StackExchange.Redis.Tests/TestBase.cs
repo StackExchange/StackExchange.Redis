@@ -586,7 +586,7 @@ public abstract class TestBase : IDisposable
 
     // simplified usage to get an interchangeable dedicated vs shared in-process server, useful for debugging
     protected virtual bool UseDedicatedInProcessServer => false; // use the shared server by default
-    protected virtual bool UseInProcessServerPubSub => false;
+
     internal ClientFactory ConnectFactory(bool allowAdmin = false, string? channelPrefix = null, bool shared = true)
     {
         if (UseDedicatedInProcessServer)
@@ -597,9 +597,14 @@ public abstract class TestBase : IDisposable
         return new ClientFactory(this, allowAdmin, channelPrefix, shared, null);
     }
 
-    protected void SkipIfWouldUseInProcessServer()
+    protected void SkipIfWouldUseInProcessServer(string? reason = null)
     {
-        Assert.SkipWhen(_inProcServerFixture != null || UseDedicatedInProcessServer, "In-process server is in use.");
+        Assert.SkipWhen(_inProcServerFixture != null || UseDedicatedInProcessServer, reason ?? "In-process server is in use.");
+    }
+
+    protected void SkipIfWouldUseRealServer(string? reason = null)
+    {
+        Assert.SkipUnless(_inProcServerFixture != null || UseDedicatedInProcessServer, reason ?? "Real server is in use.");
     }
 
     internal sealed class ClientFactory : IDisposable, IAsyncDisposable
@@ -628,7 +633,7 @@ public abstract class TestBase : IDisposable
         {
             if (_server is not null)
             {
-                var config = _server.GetClientConfig(withPubSub: _testBase.UseInProcessServerPubSub);
+                var config = _server.GetClientConfig();
                 config.AllowAdmin = _allowAdmin;
                 config.Protocol = TestContext.Current.GetProtocol();
                 if (_channelPrefix is not null)

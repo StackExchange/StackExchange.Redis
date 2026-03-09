@@ -6,7 +6,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 using StackExchange.Redis.Configuration;
 using StackExchange.Redis.Server;
 using Xunit;
@@ -25,7 +24,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
-    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = false, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
+    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
         => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, writeMode), log);
 
     // view request/response highlights in the log
@@ -47,7 +46,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         return result;
     }
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = false, WriteMode writeMode = WriteMode.Default)
+    public ConfigurationOptions GetClientConfig(bool withPubSub = true, WriteMode writeMode = WriteMode.Default)
     {
         var commands = GetCommands();
         if (!withPubSub)

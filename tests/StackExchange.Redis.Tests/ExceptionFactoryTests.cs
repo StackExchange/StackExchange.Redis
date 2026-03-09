@@ -4,7 +4,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
+public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
     public async Task NullLastException()
