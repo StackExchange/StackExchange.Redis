@@ -225,6 +225,16 @@ namespace StackExchange.Redis.Server
             return client;
         }
 
+        protected int ForAllClients<TState>(TState state, Func<RedisClient, TState, int> func)
+        {
+            int count = 0;
+            foreach (var client in _clientLookup.Values)
+            {
+                count += func(client, state);
+            }
+            return count;
+        }
+
         public bool TryGetClient(int id, out RedisClient client) => _clientLookup.TryGetValue(id, out client);
 
         private readonly ConcurrentDictionary<int, RedisClient> _clientLookup = new();
@@ -277,13 +287,14 @@ namespace StackExchange.Redis.Server
             {
                 node ??= DefaultNode;
                 client = AddClient(node, state);
+                var incompleteOutput = client.WriteOutputAsync(pipe.Output);
                 while (!client.Closed)
                 {
                     var readResult = await pipe.Input.ReadAsync().ConfigureAwait(false);
                     var buffer = readResult.Buffer;
 
                     bool makingProgress = false;
-                    while (!client.Closed && await TryProcessRequestAsync(ref buffer, client, pipe.Output).ConfigureAwait(false))
+                    while (!client.Closed && await TryProcessRequestAsync(ref buffer, client).ConfigureAwait(false))
                     {
                         makingProgress = true;
                     }
@@ -294,6 +305,8 @@ namespace StackExchange.Redis.Server
                         break;
                     }
                 }
+                client.Complete();
+                await incompleteOutput;
             }
             catch (ConnectionResetException) { }
             catch (ObjectDisposedException) { }
@@ -308,6 +321,7 @@ namespace StackExchange.Redis.Server
             }
             finally
             {
+                client?.Complete(fault);
                 RemoveClient(client);
                 try { pipe.Input.Complete(fault); } catch { }
                 try { pipe.Output.Complete(fault); } catch { }
@@ -444,12 +458,11 @@ RetryResp2:
 
         private readonly Arena<RawResult> _arena = new Arena<RawResult>();
 
-        public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
+        public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client)
         {
-            static async ValueTask<bool> Awaited(ValueTask write, TypedRedisValue response)
+            static async ValueTask<bool> Awaited(ValueTask write)
             {
-                await write;
-                response.Recycle();
+                await write.ConfigureAwait(false);
                 return true;
             }
             if (!buffer.IsEmpty && TryParseRequest(_arena, ref buffer, out var request))
@@ -463,9 +476,9 @@ RetryResp2:
                     client.ResetAfterRequest();
                 }
 
-                var write = WriteResponseAsync(client, output, response, client.Protocol);
-                if (!write.IsCompletedSuccessfully) return Awaited(write, response);
-                response.Recycle();
+                var write = client.AddOutboundAsync(response);
+                if (!write.IsCompletedSuccessfully) return Awaited(write);
+                write.GetAwaiter().GetResult();
                 return new ValueTask<bool>(true);
             }
             return new ValueTask<bool>(false);
@@ -484,7 +497,7 @@ RetryResp2:
 
         public virtual TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
         {
-            return TypedRedisValue.Nil;
+            return request.CommandNotFound();
         }
 
         public virtual TypedRedisValue Execute(RedisClient client, in RedisRequest request)
@@ -534,12 +547,6 @@ RetryResp2:
                     Span<byte> span = stackalloc byte[CommandBytes.MaxLength];
                     cmdBytes.CopyTo(span);
                     result = OnUnknownCommand(client, request, span.Slice(0, cmdBytes.Length));
-                }
-
-                if (result.IsNil)
-                {
-                    Log($"missing command: '{request.GetString(0)}'");
-                    return request.CommandNotFound();
                 }
 
                 if (result.Type == ResultType.Error) Interlocked.Increment(ref _totalErrorCount);
