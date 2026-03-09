@@ -90,7 +90,10 @@ public ref partial struct RespReader
         }
     }
 
-    private readonly RespReader Clone() => this; // useful for performing streaming operations without moving the primary
+    /// <summary>
+    /// Create an isolated copy of this reader, which can be advanced independently.
+    /// </summary>
+    public readonly RespReader Clone() => this; // useful for performing streaming operations without moving the primary
 
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
     private readonly void ThrowProtocolFailure(string message)

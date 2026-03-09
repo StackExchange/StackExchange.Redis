@@ -1,8 +1,12 @@
 ﻿using System;
+using System.Buffers;
+using System.Diagnostics;
 using System.IO.Pipelines;
+using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Server;
 
@@ -15,7 +19,13 @@ public partial class RedisClient
         AllowSynchronousContinuations = false,
     };
 
-    private readonly Channel<TypedRedisValue> _replies = Channel.CreateUnbounded<TypedRedisValue>(s_replyChannelOptions);
+    private readonly struct VersionedResponse(TypedRedisValue value, RedisProtocol protocol)
+    {
+        public readonly TypedRedisValue Value = value;
+        public readonly RedisProtocol Protocol = protocol;
+    }
+
+    private readonly Channel<VersionedResponse> _replies = Channel.CreateUnbounded<VersionedResponse>(s_replyChannelOptions);
 
     public void AddOutbound(in TypedRedisValue message)
     {
@@ -27,11 +37,12 @@ public partial class RedisClient
 
         try
         {
-            if (!_replies.Writer.TryWrite(message))
+            var versioned = new VersionedResponse(message, Protocol);
+            if (!_replies.Writer.TryWrite(versioned))
             {
                 // sorry, we're going to need it, but in reality: we're using
                 // unbounded channels, so this isn't an issue
-                _replies.Writer.WriteAsync(message).AsTask().Wait();
+                _replies.Writer.WriteAsync(versioned).AsTask().Wait();
             }
         }
         catch
@@ -50,7 +61,8 @@ public partial class RedisClient
 
         try
         {
-            var pending = _replies.Writer.WriteAsync(message, cancellationToken);
+            var versioned = new VersionedResponse(message, Protocol);
+            var pending = _replies.Writer.WriteAsync(versioned, cancellationToken);
             if (!pending.IsCompleted) return Awaited(message, pending);
             pending.GetAwaiter().GetResult();
             // if we succeed, the writer owns it for recycling
@@ -85,15 +97,20 @@ public partial class RedisClient
             do
             {
                 int count = 0;
-                while (reader.TryRead(out var message))
+                while (reader.TryRead(out var versioned))
                 {
-                    RespServer.WriteResponse(this, writer, message, Protocol);
-                    message.Recycle();
+                    WriteResponse(writer, versioned.Value, versioned.Protocol);
+                    versioned.Value.Recycle();
                     count++;
                 }
 
                 if (count != 0)
                 {
+#if NET9_0_OR_GREATER
+                    Node?.Server?.OnFlush(this, count, writer.CanGetUnflushedBytes ? writer.UnflushedBytes : -1);
+#else
+                    Node?.Server?.OnFlush(this, count, -1);
+#endif
                     await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -104,6 +121,116 @@ public partial class RedisClient
         catch (Exception ex)
         {
             await writer.CompleteAsync(ex);
+        }
+
+        static void WriteResponse(IBufferWriter<byte> output, TypedRedisValue value, RedisProtocol protocol)
+        {
+            static void WritePrefix(IBufferWriter<byte> output, char prefix)
+            {
+                var span = output.GetSpan(1);
+                span[0] = (byte)prefix;
+                output.Advance(1);
+            }
+
+            if (value.IsNil) return; // not actually a request (i.e. empty/whitespace request)
+
+            var type = value.Type;
+            if (protocol is RedisProtocol.Resp2 & type is not RespPrefix.Null)
+            {
+                if (type is RespPrefix.VerbatimString)
+                {
+                    var s = (string)value.AsRedisValue();
+                    if (s is { Length: >= 4 } && s[3] == ':')
+                        value = TypedRedisValue.BulkString(s.Substring(4));
+                }
+                type = ToResp2(type);
+            }
+            RetryResp2:
+            if (protocol is RedisProtocol.Resp3 && value.IsNullValueOrArray)
+            {
+                output.Write("_\r\n"u8);
+            }
+            else
+            {
+                char prefix;
+                switch (type)
+                {
+                    case RespPrefix.Integer:
+                        MessageWriter.WriteInteger(output, (long)value.AsRedisValue());
+                        break;
+                    case RespPrefix.SimpleError:
+                        prefix = '-';
+                        goto BasicMessage;
+                    case RespPrefix.SimpleString:
+                        prefix = '+';
+                        BasicMessage:
+                        WritePrefix(output, prefix);
+                        var val = (string)value.AsRedisValue() ?? "";
+                        var expectedLength = Encoding.UTF8.GetByteCount(val);
+                        MessageWriter.WriteRaw(output, val, expectedLength);
+                        MessageWriter.WriteCrlf(output);
+                        break;
+                    case RespPrefix.BulkString:
+                        MessageWriter.WriteBulkString(value.AsRedisValue(), output);
+                        break;
+                    case RespPrefix.Null:
+                    case RespPrefix.Push when value.IsNullArray:
+                    case RespPrefix.Map when value.IsNullArray:
+                    case RespPrefix.Set when value.IsNullArray:
+                    case RespPrefix.Attribute when value.IsNullArray:
+                        output.Write("_\r\n"u8);
+                        break;
+                    case RespPrefix.Array when value.IsNullArray:
+                        MessageWriter.WriteMultiBulkHeader(output, -1);
+                        break;
+                    case RespPrefix.Push:
+                    case RespPrefix.Map:
+                    case RespPrefix.Array:
+                    case RespPrefix.Set:
+                    case RespPrefix.Attribute:
+                        var segment = value.Span;
+                        MessageWriter.WriteMultiBulkHeader(output, segment.Length, type);
+                        foreach (var item in segment)
+                        {
+                            if (item.IsNil) throw new InvalidOperationException("Array element cannot be nil");
+                            WriteResponse(output, item, protocol);
+                        }
+                        break;
+                    default:
+                        // retry with RESP2
+                        var r2 = ToResp2(type);
+                        if (r2 != type)
+                        {
+                            Debug.WriteLine($"{type} not handled in RESP3; using {r2} instead");
+                            goto RetryResp2;
+                        }
+
+                        throw new InvalidOperationException(
+                            "Unexpected result type: " + value.Type);
+                }
+            }
+
+            static RespPrefix ToResp2(RespPrefix type)
+            {
+                switch (type)
+                {
+                    case RespPrefix.Boolean:
+                        return RespPrefix.Integer;
+                    case RespPrefix.Double:
+                    case RespPrefix.BigInteger:
+                        return RespPrefix.SimpleString;
+                    case RespPrefix.BulkError:
+                        return RespPrefix.SimpleError;
+                    case RespPrefix.VerbatimString:
+                        return RespPrefix.BulkString;
+                    case RespPrefix.Map:
+                    case RespPrefix.Set:
+                    case RespPrefix.Push:
+                    case RespPrefix.Attribute:
+                        return RespPrefix.Array;
+                    default: return type;
+                }
+            }
         }
     }
 }

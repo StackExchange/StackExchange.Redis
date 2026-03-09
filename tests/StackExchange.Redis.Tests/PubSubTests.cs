@@ -155,6 +155,16 @@ public abstract class PubSubTestBase(
     }
 
     [Fact]
+    public async Task Ping()
+    {
+        await using var conn = ConnectFactory(shared: false);
+        var pub = GetAnyPrimary(conn.DefaultClient);
+        var sub = conn.GetSubscriber();
+        await sub.SubscribeAsync(RedisChannel.Literal(Me()), (_, __) => { }); // to ensure we're in subscriber mode
+        await PingAsync(pub, sub, 5).ForAwait();
+    }
+
+    [Fact]
     public async Task TestBasicPubSubFireAndForget()
     {
         await using var conn = ConnectFactory(shared: false);
@@ -313,6 +323,7 @@ public abstract class PubSubTestBase(
     public async Task TestMassivePublishWithWithoutFlush_Remote()
     {
         Skip.UnlessLongRunning();
+        SkipIfWouldUseInProcessServer();
         await using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
 
         var sub = conn.GetSubscriber();
@@ -436,6 +447,7 @@ public abstract class PubSubTestBase(
     [Fact]
     public async Task PubSubGetAllCorrectOrder()
     {
+        SkipIfWouldUseInProcessServer();
         await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
@@ -506,6 +518,7 @@ public abstract class PubSubTestBase(
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Sync()
     {
+        SkipIfWouldUseInProcessServer();
         await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
@@ -572,6 +585,7 @@ public abstract class PubSubTestBase(
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Async()
     {
+        SkipIfWouldUseInProcessServer();
         await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();

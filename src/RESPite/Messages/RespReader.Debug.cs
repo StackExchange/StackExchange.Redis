@@ -1,4 +1,6 @@
-﻿using System.Diagnostics;
+﻿using System.Buffers;
+using System.Diagnostics;
+using System.Text;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable CS0282 // There is no defined ordering between fields in multiple declarations of partial struct
@@ -30,4 +32,28 @@ public ref partial struct RespReader
 #if DEBUG
     internal bool VectorizeDisabled { get; set; }
 #endif
+
+    private partial ReadOnlySpan<byte> ActiveBuffer { get; }
+
+    internal readonly string BufferUtf8()
+    {
+        var clone = Clone();
+        var active = clone.ActiveBuffer;
+        var totalLen = checked((int)(active.Length + clone._remainingTailLength));
+        var oversized = ArrayPool<byte>.Shared.Rent(totalLen);
+        Span<byte> target = oversized.AsSpan(0, totalLen);
+
+        while (!target.IsEmpty)
+        {
+            active.CopyTo(target);
+            target = target.Slice(active.Length);
+            if (!clone.TryMoveToNextSegment()) break;
+            active = clone.ActiveBuffer;
+        }
+        if (!target.IsEmpty) throw new EndOfStreamException();
+
+        var s = Encoding.UTF8.GetString(oversized, 0, totalLen);
+        ArrayPool<byte>.Shared.Return(oversized);
+        return s;
+    }
 }

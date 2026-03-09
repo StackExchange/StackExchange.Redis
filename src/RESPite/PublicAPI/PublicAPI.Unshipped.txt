@@ -48,7 +48,9 @@
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw() -> bool
 [SER004]RESPite.Messages.RespReader.AggregateEnumerator.MoveNextRaw<T>(RESPite.Messages.RespAttributeReader<T>! respAttributeReader, ref T attributes) -> bool
+[SER004]RESPite.Messages.RespReader.AggregateIsEmpty() -> bool
 [SER004]RESPite.Messages.RespReader.AggregateLengthIs(int count) -> bool
+[SER004]RESPite.Messages.RespReader.Clone() -> RESPite.Messages.RespReader
 [SER004]RESPite.Messages.RespReader.FillAll<TState, TResult>(scoped System.Span<TResult> target, ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection) -> void
 [SER004]RESPite.Messages.RespReader.Projection<TState, TResult>
 [SER004]RESPite.Messages.RespReader.ReadArray<TState, TResult>(ref TState state, RESPite.Messages.RespReader.Projection<TState, TResult>! projection, bool scalar = false) -> TResult[]?

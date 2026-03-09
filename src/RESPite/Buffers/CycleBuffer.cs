@@ -30,13 +30,19 @@ namespace RESPite.Buffers;
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public partial struct CycleBuffer
 {
+    #if TRACK_MEMORY
+    private static MemoryPool<byte> DefaultPool => MemoryTrackedPool<byte>.Shared;
+    #else
+    private static MemoryPool<byte> DefaultPool => MemoryPool<byte>.Shared;
+    #endif
+
     // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud
     public static CycleBuffer Create(
         MemoryPool<byte>? pool = null,
         int pageSize = DefaultPageSize,
         ICycleBufferCallback? callback = null)
     {
-        pool ??= MemoryPool<byte>.Shared;
+        pool ??= DefaultPool;
         if (pageSize <= 0) pageSize = DefaultPageSize;
         if (pageSize > pool.MaxBufferSize) pageSize = pool.MaxBufferSize;
         return new CycleBuffer(pool, pageSize, callback);

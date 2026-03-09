@@ -52,6 +52,7 @@ public ref partial struct RespReader
         _bufferRoot = ref MemoryMarshal.GetReference(value);
         _bufferLength = value.Length;
     }
+    private partial ReadOnlySpan<byte> ActiveBuffer => MemoryMarshal.CreateReadOnlySpan(ref _bufferRoot, _bufferLength);
 }
 #else
 public ref partial struct RespReader // much more conservative - uses slices etc
@@ -80,5 +81,6 @@ public ref partial struct RespReader // much more conservative - uses slices etc
     private readonly partial ReadOnlySpan<byte> CurrentSpan() => _buffer.Slice(_bufferIndex);
 
     private partial void SetCurrent(ReadOnlySpan<byte> value) => _buffer = value;
+    private partial ReadOnlySpan<byte> ActiveBuffer => _buffer;
 }
 #endif

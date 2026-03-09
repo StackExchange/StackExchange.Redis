@@ -20,7 +20,7 @@ namespace StackExchange.Redis
                 return EmptyArray(type);
             }
 
-            var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
+            var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count); // new TypedRedisValue[count];
             span = new Span<TypedRedisValue>(arr, 0, count);
             return new TypedRedisValue(arr, count, type);
         }
@@ -98,19 +98,6 @@ namespace StackExchange.Redis
             }
         }
 
-        public ArraySegment<TypedRedisValue> Segment
-        {
-            get
-            {
-                if (_value.TryGetForeign<TypedRedisValue[]>(out var arr, out int index, out var length))
-                {
-                    return new(arr, index, length);
-                }
-
-                return default;
-            }
-        }
-
         public bool IsAggregate => Type is RespPrefix.Array or RespPrefix.Set or RespPrefix.Map or RespPrefix.Push or RespPrefix.Attribute;
 
         public bool IsNullValueOrArray => IsAggregate ? IsNullArray : _value.IsNull;
@@ -144,9 +131,14 @@ namespace StackExchange.Redis
             if (items == null) return NullArray(type);
             int count = items.Count;
             if (count == 0) return EmptyArray(type);
-            var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
-            items.CopyTo(arr, 0);
-            return new TypedRedisValue(arr, count, type);
+            var result = Rent(count, out var span, type);
+            int i = 0;
+            foreach (var item in items)
+            {
+                span[i++] = item;
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -186,11 +178,12 @@ namespace StackExchange.Redis
             {
                 if (limit < 0) limit = length;
                 var span = arr.AsSpan(index, limit);
-                foreach (var el in span)
+                foreach (ref readonly TypedRedisValue el in span)
                 {
                     el.Recycle();
                 }
-                ArrayPool<TypedRedisValue>.Shared.Return(arr, clearArray: false);
+                span.Clear();
+                ArrayPool<TypedRedisValue>.Shared.Return(arr, clearArray: false); // we did it ourselves
             }
         }
 

@@ -129,6 +129,21 @@ public class InProcessTestServer : MemoryCacheRedisServer
         base.OnOutOfBand(client, message);
     }
 
+    /*
+    public override void OnFlush(RedisClient client, int messages, long bytes)
+    {
+        if (bytes >= 0)
+        {
+            _log?.WriteLine($"[{client}] flushed {messages} messages, {bytes} bytes");
+        }
+        else
+        {
+            _log?.WriteLine($"[{client}] flushed {messages} messages"); // bytes not available
+        }
+        base.OnFlush(client, messages, bytes);
+    }
+    */
+
     public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
     {
         _log?.WriteLine($"[{client}] unknown command: {Encoding.ASCII.GetString(command)}");

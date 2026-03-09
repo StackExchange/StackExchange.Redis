@@ -41,8 +41,34 @@ internal static class RespReaderExtensions
         public RedisChannel ReadRedisChannel(RedisChannel.RedisChannelOptions options)
             => new(reader.ReadByteArray(), options);
 
+        private bool TryGetFirst(out string first)
+        {
+            if (reader.IsNonNullAggregate && !reader.AggregateIsEmpty())
+            {
+                var clone = reader.Clone();
+                if (clone.TryMoveNext())
+                {
+                    unsafe
+                    {
+                        if (clone.IsScalar &&
+                            clone.TryParseScalar(&PhysicalConnection.PushKindMetadata.TryParse, out PhysicalConnection.PushKind kind))
+                        {
+                            first = kind.ToString();
+                            return true;
+                        }
+                    }
+
+                    first = clone.GetOverview();
+                    return true;
+                }
+            }
+            first = "";
+            return false;
+        }
+
         public string GetOverview()
         {
+            // return reader.BufferUtf8(); // <== for when you really can't grok what is happening
             if (reader.Prefix is RespPrefix.None)
             {
                 var copy = reader;
@@ -54,6 +80,7 @@ internal static class RespReaderExtensions
             return reader.Prefix switch
             {
                 RespPrefix.SimpleString or RespPrefix.Integer or RespPrefix.SimpleError or RespPrefix.Double => $"{reader.Prefix}: {reader.ReadString()}",
+                RespPrefix.Push when reader.TryGetFirst(out var first) => $"{reader.Prefix} ({first}): {reader.AggregateLength()} items",
                 _ when reader.IsScalar => $"{reader.Prefix}: {reader.ScalarLength()} bytes, '{reader.DebugReadTruncatedString(16)}'",
                 _ when reader.IsAggregate => $"{reader.Prefix}: {reader.AggregateLength()} items",
                 _ => $"(unknown: {reader.Prefix})",

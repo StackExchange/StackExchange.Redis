@@ -83,12 +83,12 @@ namespace StackExchange.Redis.Server
         internal int SkipReplies { get; set; }
         internal bool ShouldSkipResponse()
         {
-            if (SkipReplies > 0)
+            if (SkipReplies > 0) // skips N
             {
                 SkipReplies--;
                 return true;
             }
-            return false;
+            return SkipReplies < 0; // skips forever
         }
 
         public int Database { get; set; }

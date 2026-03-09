@@ -311,10 +311,16 @@ namespace StackExchange.Redis.Server
                         RedisRequest request = new(buffer.Slice(0, consumed), ref commandLease);
                         request = request.WithClient(client);
                         var response = Execute(client, request);
-                        client.ResetAfterRequest();
 
-                        WriteResponse(client, pipe.Output, response, client.Protocol);
-                        await pipe.Output.FlushAsync().ConfigureAwait(false);
+                        if (client.ShouldSkipResponse() || response.IsNil) // elective or no-result
+                        {
+                            response.Recycle();
+                        }
+                        else
+                        {
+                            await client.AddOutboundAsync(response);
+                        }
+                        client.ResetAfterRequest();
 
                         // advance the buffer to account for the message we just read
                         buffer = buffer.Slice(consumed);
@@ -391,123 +397,6 @@ namespace StackExchange.Redis.Server
                 lock (output)
                 {
                     output.WriteLine(message);
-                }
-            }
-        }
-
-        public static void WriteResponse(RedisClient client, IBufferWriter<byte> output, TypedRedisValue value, RedisProtocol protocol)
-        {
-            static void WritePrefix(IBufferWriter<byte> output, char prefix)
-            {
-                var span = output.GetSpan(1);
-                span[0] = (byte)prefix;
-                output.Advance(1);
-            }
-
-            if (value.IsNil) return; // not actually a request (i.e. empty/whitespace request)
-            if (client != null && client.ShouldSkipResponse()) return; // intentionally skipping the result
-
-            var type = value.Type;
-            if (protocol is RedisProtocol.Resp2 & type is not RespPrefix.Null)
-            {
-                if (type is RespPrefix.VerbatimString)
-                {
-                    var s = (string)value.AsRedisValue();
-                    if (s is { Length: >= 4 } && s[3] == ':')
-                        value = TypedRedisValue.BulkString(s.Substring(4));
-                }
-                type = ToResp2(type);
-            }
-            RetryResp2:
-            if (protocol is RedisProtocol.Resp3 && value.IsNullValueOrArray)
-            {
-                output.Write("_\r\n"u8);
-            }
-            else
-            {
-                char prefix;
-                switch (type)
-                {
-                    case RespPrefix.Integer:
-                        MessageWriter.WriteInteger(output, (long)value.AsRedisValue());
-                        break;
-                    case RespPrefix.SimpleError:
-                        prefix = '-';
-                        goto BasicMessage;
-                    case RespPrefix.SimpleString:
-                        prefix = '+';
-                        BasicMessage:
-                        WritePrefix(output, prefix);
-                        var val = (string)value.AsRedisValue();
-                        var expectedLength = Encoding.UTF8.GetByteCount(val);
-                        MessageWriter.WriteRaw(output, val, expectedLength);
-                        MessageWriter.WriteCrlf(output);
-                        break;
-                    case RespPrefix.BulkString:
-                        MessageWriter.WriteBulkString(value.AsRedisValue(), output);
-                        break;
-                    case RespPrefix.Null:
-                    case RespPrefix.Push when value.IsNullArray:
-                    case RespPrefix.Map when value.IsNullArray:
-                    case RespPrefix.Set when value.IsNullArray:
-                    case RespPrefix.Attribute when value.IsNullArray:
-                        output.Write("_\r\n"u8);
-                        break;
-                    case RespPrefix.Array when value.IsNullArray:
-                        MessageWriter.WriteMultiBulkHeader(output, -1);
-                        break;
-                    case RespPrefix.Push:
-                    case RespPrefix.Map:
-                    case RespPrefix.Array:
-                    case RespPrefix.Set:
-                    case RespPrefix.Attribute:
-                        var segment = value.Segment;
-                        MessageWriter.WriteMultiBulkHeader(output, segment.Count, type);
-                        var arr = segment.Array;
-                        int offset = segment.Offset;
-                        for (int i = 0; i < segment.Count; i++)
-                        {
-                            var item = arr[offset++];
-                            if (item.IsNil)
-                                throw new InvalidOperationException("Array element cannot be nil, index " + i);
-
-                            // note: don't pass client down; this would impact SkipReplies
-                            WriteResponse(null, output, item, protocol);
-                        }
-                        break;
-                    default:
-                        // retry with RESP2
-                        var r2 = ToResp2(type);
-                        if (r2 != type)
-                        {
-                            Debug.WriteLine($"{type} not handled in RESP3; using {r2} instead");
-                            goto RetryResp2;
-                        }
-
-                        throw new InvalidOperationException(
-                            "Unexpected result type: " + value.Type);
-                }
-            }
-
-            static RespPrefix ToResp2(RespPrefix type)
-            {
-                switch (type)
-                {
-                    case RespPrefix.Boolean:
-                        return RespPrefix.Integer;
-                    case RespPrefix.Double:
-                    case RespPrefix.BigInteger:
-                        return RespPrefix.SimpleString;
-                    case RespPrefix.BulkError:
-                        return RespPrefix.SimpleError;
-                    case RespPrefix.VerbatimString:
-                        return RespPrefix.BulkString;
-                    case RespPrefix.Map:
-                    case RespPrefix.Set:
-                    case RespPrefix.Push:
-                    case RespPrefix.Attribute:
-                        return RespPrefix.Array;
-                    default: return type;
                 }
             }
         }

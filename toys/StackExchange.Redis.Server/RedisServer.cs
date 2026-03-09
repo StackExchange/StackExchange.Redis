@@ -1204,7 +1204,7 @@ namespace StackExchange.Redis.Server
         [RedisCommand(-1, LockFree = true, MaxArgs = 2)]
         protected virtual TypedRedisValue Ping(RedisClient client, in RedisRequest request)
         {
-            if (client.IsSubscriber)
+            if (client.IsResp2 & client.IsSubscriber)
             {
                 var reply = TypedRedisValue.Rent(2, out var span, RespPrefix.Array);
                 span[0] = TypedRedisValue.BulkString("pong");
@@ -1284,6 +1284,10 @@ namespace StackExchange.Redis.Server
             var value = ((long)Get(database, key)) + delta;
             Set(database, key, value);
             return value;
+        }
+
+        public virtual void OnFlush(RedisClient client, int messages, long bytes)
+        {
         }
     }
 

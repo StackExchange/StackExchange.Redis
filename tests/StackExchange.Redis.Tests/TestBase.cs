@@ -597,6 +597,11 @@ public abstract class TestBase : IDisposable
         return new ClientFactory(this, allowAdmin, channelPrefix, shared, null);
     }
 
+    protected void SkipIfWouldUseInProcessServer()
+    {
+        Assert.SkipWhen(_inProcServerFixture != null || UseDedicatedInProcessServer, "In-process server is in use.");
+    }
+
     internal sealed class ClientFactory : IDisposable, IAsyncDisposable
     {
         private readonly TestBase _testBase;

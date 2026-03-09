@@ -111,6 +111,11 @@ public ref partial struct RespReader
         IsInlineScalar ? _length == 0 : (IsNullScalar || !ScalarChunks().MoveNext());
 
     /// <summary>
+    /// Indicates whether this aggregate value is zero-length.
+    /// </summary>
+    public readonly bool AggregateIsEmpty() => AggregateLengthIs(0);
+
+    /// <summary>
     /// The payload length of this scalar element (includes combined length for streaming scalars).
     /// </summary>
     public readonly long ScalarLongLength() => IsInlineScalar ? _length : IsNullScalar ? 0 : ScalarLengthSlow();
