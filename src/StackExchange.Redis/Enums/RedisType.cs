@@ -65,5 +65,11 @@
         /// The data-type was not recognised by the client library.
         /// </summary>
         Unknown,
+
+        /// <summary>
+        /// Vector sets are a data type similar to sorted sets, but instead of a score,
+        /// vector set elements have a string representation of a vector.
+        /// </summary>
+        VectorSet,
     }
 }

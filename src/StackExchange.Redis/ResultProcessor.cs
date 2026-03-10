@@ -1898,14 +1898,14 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
                 switch (result.Resp2TypeArray)
                 {
-                    case ResultType.Array:
-                        SetResult(message, Parse(result));
+                    case ResultType.Array when TryParse(result, out var value):
+                        SetResult(message, value);
                         return true;
                 }
                 return false;
             }
 
-            private static LCSMatchResult Parse(in RawResult result)
+            private static bool TryParse(in RawResult result, out LCSMatchResult value)
             {
                 var topItems = result.GetItems();
                 var matches = new LCSMatchResult.LCSMatch[topItems[1].GetItems().Length];
@@ -1915,14 +1915,35 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     var matchItems = match.GetItems();
 
-                    matches[i++] = new LCSMatchResult.LCSMatch(
-                        firstStringIndex: (long)matchItems[0].GetItems()[0].AsRedisValue(),
-                        secondStringIndex: (long)matchItems[1].GetItems()[0].AsRedisValue(),
-                        length: (long)matchItems[2].AsRedisValue());
+                    if (TryReadPosition(matchItems[0], out var first)
+                        && TryReadPosition(matchItems[1], out var second)
+                        && matchItems[2].TryGetInt64(out var length))
+                    {
+                        matches[i++] = new LCSMatchResult.LCSMatch(first, second, length);
+                    }
+                    else
+                    {
+                        value = default;
+                        return false;
+                    }
                 }
                 var len = (long)topItems[3].AsRedisValue();
 
-                return new LCSMatchResult(matches, len);
+                value = new LCSMatchResult(matches, len);
+                return true;
+            }
+
+            private static bool TryReadPosition(in RawResult raw, out LCSMatchResult.LCSPosition position)
+            {
+                // Expecting a 2-element array: [start, end]
+                if (raw.Resp2TypeArray is ResultType.Array && raw.ItemsCount >= 2
+                    && raw[0].TryGetInt64(out var start) && raw[1].TryGetInt64(out var end))
+                {
+                    position = new LCSMatchResult.LCSPosition(start, end);
+                    return true;
+                }
+                position = default;
+                return false;
             }
         }
 
