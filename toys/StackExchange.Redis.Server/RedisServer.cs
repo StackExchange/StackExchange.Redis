@@ -1237,8 +1237,7 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue Select(RedisClient client, in RedisRequest request)
         {
             var raw = request.GetValue(1);
-            if (!raw.IsInteger) return TypedRedisValue.Error("ERR invalid DB index");
-            int db = (int)raw;
+            if (!raw.TryParse(out int db)) return TypedRedisValue.Error("ERR invalid DB index");
             if (db < 0 || db >= Databases) return TypedRedisValue.Error("ERR DB index is out of range");
             client.Database = db;
             return TypedRedisValue.OK;

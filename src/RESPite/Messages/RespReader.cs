@@ -1771,7 +1771,7 @@ public ref partial struct RespReader
     /// <summary>
     /// Try to read the current element as a <see cref="double"/> value.
     /// </summary>
-    public bool TryReadDouble(out double value, bool allowTokens = true)
+    public readonly bool TryReadDouble(out double value, bool allowTokens = true)
     {
         var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesNumber + 1]);
 

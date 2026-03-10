@@ -20,6 +20,8 @@ internal static class RespReaderExtensions
             {
                 RespPrefix.Boolean => reader.ReadBoolean(),
                 RespPrefix.Integer => reader.ReadInt64(),
+                _ when reader.TryReadInt64(out var i64) => i64,
+                _ when reader.TryReadDouble(out var fp64) => fp64,
                 _ => reader.ReadByteArray(),
             };
         }
