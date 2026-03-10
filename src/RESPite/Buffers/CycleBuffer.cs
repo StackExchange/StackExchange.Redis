@@ -272,6 +272,7 @@ public partial struct CycleBuffer
     [Conditional("DEBUG")]
     private void DebugAssertValid()
     {
+#if DEBUG
         if (startSegment is null)
         {
             Debug.Assert(
@@ -288,6 +289,7 @@ public partial struct CycleBuffer
 
         // check running indices
         startSegment?.DebugAssertValidChain();
+#endif
     }
 
     public long GetCommittedLength()
