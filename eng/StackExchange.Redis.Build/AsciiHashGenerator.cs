@@ -211,8 +211,26 @@ public class AsciiHashGenerator : IIncrementalGenerator
 
         var arg = method.Parameters[0];
         if (arg is not { IsOptional: false, RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKind.RefReadOnlyParameter }) return default;
+
+        static bool IsBytes(ITypeSymbol type)
+        {
+            // byte[]
+            if (type is IArrayTypeSymbol { ElementType: { SpecialType: SpecialType.System_Byte } })
+                return true;
+
+            // Span<byte> or ReadOnlySpan<byte>
+            if (type is INamedTypeSymbol { TypeKind: TypeKind.Struct, Arity: 1, Name: "Span" or "ReadOnlySpan",
+                    ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true },
+                    TypeArguments: { Length: 1 } ta }
+                && ta[0].SpecialType == SpecialType.System_Byte)
+            {
+                return true;
+            }
+            return false;
+        }
+
         var fromType = arg.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        bool fromBytes = fromType is "byte[]" || fromType.EndsWith("Span<byte>");
+        bool fromBytes = IsBytes(arg.Type);
         var from = (fromType, arg.Name, fromBytes, arg.RefKind);
 
         arg = method.Parameters[1];
