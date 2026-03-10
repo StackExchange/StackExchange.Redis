@@ -913,7 +913,7 @@ namespace StackExchange.Redis
         internal void RecordQuit()
         {
             // don't blame redis if we fired the first shot
-            Thread.VolatileWrite(ref clientSentQuit, 1);
+            Volatile.Write(ref clientSentQuit, 1);
             (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
         }
 

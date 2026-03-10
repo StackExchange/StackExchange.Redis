@@ -340,7 +340,9 @@ namespace StackExchange.Redis
 
         internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
         {
+#pragma warning disable SYSLIB0057
             var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+#pragma warning restore SYSLIB0057
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
 
@@ -351,7 +353,9 @@ namespace StackExchange.Redis
         public void TrustIssuer(X509Certificate2 issuer) => CertificateValidationCallback = TrustIssuerCallback(issuer);
 
         internal static RemoteCertificateValidationCallback TrustIssuerCallback(string issuerCertificatePath)
+#pragma warning disable SYSLIB0057
             => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
+#pragma warning restore SYSLIB0057
         private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
