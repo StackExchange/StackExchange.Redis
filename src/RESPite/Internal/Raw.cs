@@ -127,7 +127,7 @@ internal static class Raw
 
     private static Vector256<uint> CreateUInt32(uint value)
     {
-#if NET7_0_OR_GREATER
+#if NET8_0_OR_GREATER
         return Vector256.Create<uint>(value);
 #else
         return Vector256.Create(value, value, value, value, value, value, value, value);

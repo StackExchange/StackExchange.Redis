@@ -24,7 +24,7 @@ public abstract class VectorSetAddRequest
     public static VectorSetAddRequest Member(
         RedisValue element,
         ReadOnlyMemory<float> values,
-#if NET7_0_OR_GREATER
+#if NET8_0_OR_GREATER
         [StringSyntax(StringSyntaxAttribute.Json)]
 #endif
         string? attributesJson = null)

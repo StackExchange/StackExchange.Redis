@@ -155,14 +155,12 @@ public class RespReaderTests(ITestOutputHelper logger)
         Assert.Equal("hello world", reader.ReadString());
         Assert.Equal("hello world", reader.ReadString(out var prefix));
         Assert.Equal("", prefix);
-#if NET7_0_OR_GREATER
-        Assert.Equal("hello world", reader.ParseChars<string>());
-#endif
-        /* interestingly, string does not implement IUtf8SpanParsable
 #if NET8_0_OR_GREATER
+        Assert.Equal("hello world", reader.ParseChars<string>());
+        /* interestingly, string does not implement IUtf8SpanParsable
         Assert.Equal("hello world", reader.ParseBytes<string>());
-#endif
         */
+#endif
         reader.DemandEnd();
     }
 
@@ -220,12 +218,10 @@ public class RespReaderTests(ITestOutputHelper logger)
         Assert.Equal(1234, reader.ReadInt32());
         Assert.Equal(1234D, reader.ReadDouble());
         Assert.Equal(1234M, reader.ReadDecimal());
-#if NET7_0_OR_GREATER
+#if NET8_0_OR_GREATER
         Assert.Equal(1234, reader.ParseChars<int>());
         Assert.Equal(1234D, reader.ParseChars<double>());
         Assert.Equal(1234M, reader.ParseChars<decimal>());
-#endif
-#if NET8_0_OR_GREATER
         Assert.Equal(1234, reader.ParseBytes<int>());
         Assert.Equal(1234D, reader.ParseBytes<double>());
         Assert.Equal(1234M, reader.ParseBytes<decimal>());

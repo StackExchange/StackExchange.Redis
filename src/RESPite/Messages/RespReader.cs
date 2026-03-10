@@ -910,7 +910,7 @@ public ref partial struct RespReader
         }
     }
 
-#if NET7_0_OR_GREATER
+#if NET8_0_OR_GREATER
     /// <summary>
     /// Reads the current element using <see cref="ISpanParsable{TSelf}"/>.
     /// </summary>

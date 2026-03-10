@@ -14,7 +14,7 @@ namespace RESPite.Messages;
  How we actually implement the underlying buffer depends on the capabilities of the runtime.
  */
 
-#if NET7_0_OR_GREATER && USE_UNSAFE_SPAN
+#if NET8_0_OR_GREATER && USE_UNSAFE_SPAN
 
 public ref partial struct RespReader
 {
