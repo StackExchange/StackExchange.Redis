@@ -262,7 +262,7 @@ namespace StackExchange.Redis
 
         public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, GeoEntry[] values)
         {
-#if NET6_0_OR_GREATER
+#if NET
             ArgumentNullException.ThrowIfNull(values);
 #else
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -485,7 +485,7 @@ namespace StackExchange.Redis
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue[] values)
         {
-#if NET6_0_OR_GREATER
+#if NET
             ArgumentNullException.ThrowIfNull(values);
 #else
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -503,7 +503,7 @@ namespace StackExchange.Redis
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1, RedisValue[] values)
         {
-#if NET6_0_OR_GREATER
+#if NET
             ArgumentNullException.ThrowIfNull(values);
 #else
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -524,7 +524,7 @@ namespace StackExchange.Redis
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, RedisValue[] values, in RedisKey key1)
         {
-#if NET6_0_OR_GREATER
+#if NET
             ArgumentNullException.ThrowIfNull(values);
 #else
             if (values == null) throw new ArgumentNullException(nameof(values));

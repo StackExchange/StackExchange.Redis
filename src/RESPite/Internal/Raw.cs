@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 #endif
@@ -95,7 +95,7 @@ internal static class Raw
     public static uint ArrayPrefix_9_4 = Create32("*9\r\n"u8, 4);
     public static ulong ArrayPrefix_10_5 = Create64("*10\r\n"u8, 5);
 
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
     private static uint FirstAndLast(char first, char last)
     {
         Debug.Assert(first < 128 && last < 128, "ASCII please");

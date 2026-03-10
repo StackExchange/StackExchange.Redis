@@ -47,7 +47,7 @@ public ref partial struct RespReader
         /// <inheritdoc cref="IEnumerator{T}.Current"/>
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
 #if DEBUG
-#if NET6_0 || NET8_0
+#if NET8_0 // strictly net8; net10 and our polyfill have .Message
         [Experimental("SERDBG")]
 #else
         [Experimental("SERDBG", Message = $"Prefer {nameof(Value)}")]

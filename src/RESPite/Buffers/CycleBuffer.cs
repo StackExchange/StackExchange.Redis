@@ -727,7 +727,7 @@ public partial struct CycleBuffer
     {
         if (value.IsSingleSegment)
         {
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
+#if NET
             Write(value.FirstSpan);
 #else
             Write(value.First.Span);
@@ -742,7 +742,7 @@ public partial struct CycleBuffer
         {
             foreach (var segment in value)
             {
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
+#if NET
                 @this.Write(value.FirstSpan);
 #else
                 @this.Write(value.First.Span);

@@ -359,7 +359,7 @@ public abstract class LoggingTunnel : Tunnel
             userCertificateSelectionCallback: _options.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback(),
             encryptionPolicy: EncryptionPolicy.RequireEncryption);
 
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
         var configOptions = _options.SslClientAuthenticationOptions?.Invoke(host);
         if (configOptions is not null)
         {
@@ -532,7 +532,7 @@ public abstract class LoggingTunnel : Tunnel
             base.Close();
         }
 
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
         public override async ValueTask DisposeAsync()
         {
             await _inner.DisposeAsync().ForAwait();
@@ -574,7 +574,7 @@ public abstract class LoggingTunnel : Tunnel
             }
             return len;
         }
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
         public override int Read(Span<byte> buffer)
         {
             var len = _inner.Read(buffer);
@@ -613,7 +613,7 @@ public abstract class LoggingTunnel : Tunnel
             await _inner.WriteAsync(buffer, offset, count, cancellationToken).ForAwait();
             await writesTask;
         }
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
         public override void Write(ReadOnlySpan<byte> buffer)
         {
             _writes.Write(buffer);

@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using RESPite.Internal;
 
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 #endif
@@ -797,7 +797,7 @@ public ref partial struct RespReader
             return simple;
         }
 
-#if NET6_0_OR_GREATER
+#if NET
         return BufferSlow(ref Unsafe.NullRef<byte[]>(), target, usePool: false);
 #else
         byte[] pooled = [];
@@ -1019,7 +1019,7 @@ public ref partial struct RespReader
 
     /// <inheritdoc cref="RespReader"/>
     public RespReader(scoped in ReadOnlySequence<byte> value)
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
         : this(value.FirstSpan)
 #else
         : this(value.First.Span)
@@ -1046,7 +1046,7 @@ public ref partial struct RespReader
     {
         MovePastCurrent();
 
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
         // check what we have available; don't worry about zero/fetching the next segment; this is only
         // for SIMD lookup, and zero would only apply when data ends exactly on segment boundaries, which
         // is incredible niche
@@ -1883,7 +1883,7 @@ public ref partial struct RespReader
     /// <typeparam name="T">The type of enum being parsed.</typeparam>
     public readonly T ReadEnum<T>(T unknownValue = default) where T : struct, Enum
     {
-#if NET6_0_OR_GREATER
+#if NET
         return ParseChars(static (chars, state) => Enum.TryParse(chars, true, out T value) ? value : state, unknownValue);
 #else
         return Enum.TryParse(ReadString(), true, out T value) ? value : unknownValue;

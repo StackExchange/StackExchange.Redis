@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Server
 {
     public partial class RedisClient(RedisServer.Node node) : IDisposable
 #pragma warning disable SA1001
-        #if NET6_0_OR_GREATER
+        #if NET
         , ISpanFormattable
 #else
         , IFormattable
@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Server
         }
 
         string IFormattable.ToString(string format, IFormatProvider formatProvider) => ToString();
-#if NET6_0_OR_GREATER
+#if NET
         public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider provider)
         {
             if (!Id.TryFormat(destination, out charsWritten))

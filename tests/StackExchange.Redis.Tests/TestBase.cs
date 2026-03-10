@@ -562,7 +562,7 @@ public abstract class TestBase : IDisposable
             for (int i = 0; i < threads; i++)
             {
                 var thd = threadArr[i];
-#if !NET6_0_OR_GREATER
+#if !NET
                 if (thd.IsAlive) thd.Abort();
 #endif
             }

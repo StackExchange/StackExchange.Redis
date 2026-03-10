@@ -441,7 +441,7 @@ namespace StackExchange.Redis
                 s = Format.GetString(Payload.First.Span);
                 return Resp3Type == ResultType.VerbatimString ? GetVerbatimString(s, out verbatimPrefix) : s;
             }
-#if NET6_0_OR_GREATER
+#if NET
             // use system-provided sequence decoder
             return Encoding.UTF8.GetString(in _payload);
 #else

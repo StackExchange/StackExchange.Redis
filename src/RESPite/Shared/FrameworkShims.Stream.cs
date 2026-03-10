@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
 
-#if !(NETCOREAPP || NETSTANDARD2_1_OR_GREATER)
+#if !NET
 // ReSharper disable once CheckNamespace
 namespace System.IO
 {

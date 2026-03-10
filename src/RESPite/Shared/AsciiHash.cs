@@ -199,7 +199,7 @@ readonly partial struct AsciiHash
 
         // Something looks possibly lower-case; we can't just mask it off,
         // because there are other non-alpha characters in that range.
-#if NET || NETSTANDARD2_1_OR_GREATER
+#if NET
         ToUpper(MemoryMarshal.CreateSpan(ref Unsafe.As<long, byte>(ref hashCS), sizeof(long)));
         return hashCS;
 #else

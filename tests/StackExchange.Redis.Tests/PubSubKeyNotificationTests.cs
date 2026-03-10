@@ -50,7 +50,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
 
     private RedisKey SelectKey(RedisKey[] keys) => keys[SharedRandom.Next(0, keys.Length)];
 
-#if NET6_0_OR_GREATER
+#if NET
     private static Random SharedRandom => Random.Shared;
 #else
     private static Random SharedRandom { get; } = new();

@@ -4,7 +4,7 @@
 // the most relevant to us, so we have audited that no "stackalloc" use expects the buffers to be zero'd initially
 [module:System.Runtime.CompilerServices.SkipLocalsInit]
 
-#if !NET5_0_OR_GREATER
+#if !NET
 // when not available, we can spoof it in a private type
 namespace System.Runtime.CompilerServices
 {

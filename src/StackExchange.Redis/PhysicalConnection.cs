@@ -1576,7 +1576,7 @@ namespace StackExchange.Redis
                     return ConfigurationOptions.CreatePfxUserCertificateCallback(certificatePath, password, storageFlags);
                 }
 
-#if NET5_0_OR_GREATER
+#if NET
                 certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPemPath");
                 if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
                 {
@@ -1635,7 +1635,7 @@ namespace StackExchange.Redis
                     {
                         try
                         {
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
                             var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
                             if (configOptions is not null)
                             {

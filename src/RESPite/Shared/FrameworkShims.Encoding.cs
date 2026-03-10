@@ -1,4 +1,4 @@
-#if !(NETCOREAPP || NETSTANDARD2_1_OR_GREATER)
+#if !NET
 // ReSharper disable once CheckNamespace
 namespace System.Text
 {

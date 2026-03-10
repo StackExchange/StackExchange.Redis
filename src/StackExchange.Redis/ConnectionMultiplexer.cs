@@ -1911,7 +1911,7 @@ namespace StackExchange.Redis
             if (colonPosition > 0)
             {
                 // Has a port specifier
-#if NETCOREAPP
+#if NET
                 return string.Concat(input.AsSpan(0, periodPosition), input.AsSpan(colonPosition));
 #else
                 return input.Substring(0, periodPosition) + input.Substring(colonPosition);

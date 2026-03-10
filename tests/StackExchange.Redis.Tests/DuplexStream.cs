@@ -43,7 +43,7 @@ internal sealed class DuplexStream(Stream inputStream, Stream outputStream) : St
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         => _inputStream.ReadAsync(buffer, offset, count, cancellationToken);
 
-#if NET6_0_OR_GREATER
+#if NET
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         => _inputStream.ReadAsync(buffer, cancellationToken);
 
@@ -60,7 +60,7 @@ internal sealed class DuplexStream(Stream inputStream, Stream outputStream) : St
     public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         => _outputStream.WriteAsync(buffer, offset, count, cancellationToken);
 
-#if NET6_0_OR_GREATER
+#if NET
     public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         => _outputStream.WriteAsync(buffer, cancellationToken);
 
@@ -100,7 +100,7 @@ internal sealed class DuplexStream(Stream inputStream, Stream outputStream) : St
         base.Dispose(disposing);
     }
 
-#if NET6_0_OR_GREATER
+#if NET
     public override async ValueTask DisposeAsync()
     {
         await _inputStream.DisposeAsync().ConfigureAwait(false);
@@ -121,7 +121,7 @@ internal sealed class DuplexStream(Stream inputStream, Stream outputStream) : St
     public override void EndWrite(IAsyncResult asyncResult)
         => _outputStream.EndWrite(asyncResult);
 
-#if NET6_0_OR_GREATER
+#if NET
     public override void CopyTo(Stream destination, int bufferSize)
         => _inputStream.CopyTo(destination, bufferSize);
 #endif

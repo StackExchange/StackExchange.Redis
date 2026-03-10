@@ -22,7 +22,7 @@ namespace StackExchange.Redis
             iocp = $"(Busy={busyIoThreads},Free={freeIoThreads},Min={minIoThreads},Max={maxIoThreads})";
             worker = $"(Busy={busyWorkerThreads},Free={freeWorkerThreads},Min={minWorkerThreads},Max={maxWorkerThreads})";
 
-#if NETCOREAPP
+#if NET
             workItems = $"(Threads={ThreadPool.ThreadCount},QueuedItems={ThreadPool.PendingWorkItemCount},CompletedItems={ThreadPool.CompletedWorkItemCount},Timers={Timer.ActiveCount})";
 #else
             workItems = null;

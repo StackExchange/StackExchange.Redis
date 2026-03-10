@@ -123,7 +123,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
             Assert.Contains("async-ops: ", ex.Message);
             Assert.Contains("conn-sec: n/a", ex.Message);
             Assert.Contains("aoc: 1", ex.Message);
-#if NETCOREAPP
+#if NET
             // ...POOL: (Threads=33,QueuedItems=0,CompletedItems=5547,Timers=60)...
             Assert.Contains("POOL: ", ex.Message);
             Assert.Contains("Threads=", ex.Message);

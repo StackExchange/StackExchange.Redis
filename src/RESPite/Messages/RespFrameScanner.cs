@@ -125,7 +125,7 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
     {
         if (!_pubsub & state.TotalBytes == 0 & data.IsSingleSegment)
         {
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
             var status = TryFastRead(data.FirstSpan, ref state);
 #else
             var status = TryFastRead(data.First.Span, ref state);
@@ -154,7 +154,7 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
     {
         if (!_pubsub & state.TotalBytes == 0)
         {
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
             var status = TryFastRead(data, ref state);
 #else
             var status = TryFastRead(data, ref state);

@@ -34,7 +34,7 @@ internal static partial class LoggerExtensions
 
         _ = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker, out string? workItems);
 
-#if NET6_0_OR_GREATER
+#if NET
         // use DISH when possible
         // similar to: var composed = $"{message}, IOCP: {iocp}, WORKER: {worker}, ..."; on net6+
         var dish = new System.Runtime.CompilerServices.DefaultInterpolatedStringHandler(26, 4);

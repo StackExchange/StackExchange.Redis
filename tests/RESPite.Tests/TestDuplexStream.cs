@@ -149,7 +149,7 @@ public sealed class TestDuplexStream : Stream
         return _inboundStream.ReadAsync(buffer, offset, count, cancellationToken);
     }
 
-#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+#if NET
     public override int Read(Span<byte> buffer)
     {
         return _inboundStream.Read(buffer);
@@ -172,7 +172,7 @@ public sealed class TestDuplexStream : Stream
         return _outbound.WriteAsync(buffer, offset, count, cancellationToken);
     }
 
-#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+#if NET
     public override void Write(ReadOnlySpan<byte> buffer)
     {
         _outbound.Write(buffer);
@@ -216,7 +216,7 @@ public sealed class TestDuplexStream : Stream
         base.Dispose(disposing);
     }
 
-#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+#if NET
     public override async ValueTask DisposeAsync()
     {
         _inbound.Writer.Complete();
