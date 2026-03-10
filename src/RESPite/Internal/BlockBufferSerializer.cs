@@ -36,7 +36,7 @@ internal abstract partial class BlockBufferSerializer(ArrayPool<byte>? arrayPool
         ReadOnlySpan<byte> command,
         in TRequest request,
         IRespFormatter<TRequest> formatter)
-#if NET9_0_OR_GREATER
+#if NET10_0_OR_GREATER
     where TRequest : allows ref struct
 #endif
     {

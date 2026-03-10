@@ -106,7 +106,7 @@ public partial class RedisClient
 
                 if (count != 0)
                 {
-#if NET9_0_OR_GREATER
+#if NET10_0_OR_GREATER
                     Node?.Server?.OnFlush(this, count, writer.CanGetUnflushedBytes ? writer.UnflushedBytes : -1);
 #else
                     Node?.Server?.OnFlush(this, count, -1);

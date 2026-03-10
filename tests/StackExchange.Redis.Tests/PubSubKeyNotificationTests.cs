@@ -338,7 +338,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             var recvKey = notification.GetKey();
             Assert.True(observedCounts.TryGetValue(recvKey.ToString(), out var counter));
 
-#if NET9_0_OR_GREATER
+#if NET10_0_OR_GREATER
             // it would be more efficient to stash the alt-lookup, but that would make our API here non-viable,
             // since we need to support multiple frameworks
             var viaAlt = FindViaAltLookup(notification, observedCounts.GetAlternateLookup<ReadOnlySpan<char>>());
@@ -396,7 +396,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         }
     }
 
-#if NET9_0_OR_GREATER
+#if NET10_0_OR_GREATER
     // demonstrate that we can use the alt-lookup APIs to avoid string allocations
     private static Counter? FindViaAltLookup(
         in KeyNotification notification,

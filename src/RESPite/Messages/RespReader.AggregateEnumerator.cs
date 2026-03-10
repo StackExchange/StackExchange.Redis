@@ -198,7 +198,7 @@ public ref partial struct RespReader
         }
 
         public void FillAll<TState, TResult>(scoped Span<TResult> target, ref TState state, Projection<TState, TResult> projection)
-#if NET9_0_OR_GREATER
+#if NET10_0_OR_GREATER
             where TState : allows ref struct
 #endif
         {
@@ -234,7 +234,7 @@ public ref partial struct RespReader
             Projection<TState, TFirst> first,
             Projection<TState, TSecond> second,
             Func<TState, TFirst, TSecond, TResult> combine)
-#if NET9_0_OR_GREATER
+#if NET10_0_OR_GREATER
             where TState : allows ref struct
 #endif
         {

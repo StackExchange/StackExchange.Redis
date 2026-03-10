@@ -1,6 +1,6 @@
 ﻿#pragma warning disable SA1403 // single namespace
 
-#if !NET9_0_OR_GREATER
+#if !NET10_0_OR_GREATER
 namespace System.Runtime.CompilerServices
 {
     // see https://learn.microsoft.com/dotnet/api/system.runtime.compilerservices.overloadresolutionpriorityattribute
