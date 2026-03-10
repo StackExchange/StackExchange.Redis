@@ -2554,59 +2554,60 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var iter = arr.GetEnumerator();
                 for (int i = 0; i < max; i++)
                 {
-                    ref RawResult key = ref iter.GetNext(), value = ref iter.GetNext();
-                    if (key.Payload.Length > CommandBytes.MaxLength) continue;
-                    var hash = key.Payload.Hash64();
-                    switch (hash)
+                    if (!iter.GetNext().TryParse(StreamInfoFieldMetadata.TryParse, out StreamInfoField field))
+                        field = StreamInfoField.Unknown;
+                    ref RawResult value = ref iter.GetNext();
+
+                    switch (field)
                     {
-                        case CommonRepliesHash.length.Hash when CommonRepliesHash.length.Is(hash, key):
+                        case StreamInfoField.Length:
                             if (!value.TryGetInt64(out length)) return false;
                             break;
-                        case CommonRepliesHash.radix_tree_keys.Hash when CommonRepliesHash.radix_tree_keys.Is(hash, key):
+                        case StreamInfoField.RadixTreeKeys:
                             if (!value.TryGetInt64(out radixTreeKeys)) return false;
                             break;
-                        case CommonRepliesHash.radix_tree_nodes.Hash when CommonRepliesHash.radix_tree_nodes.Is(hash, key):
+                        case StreamInfoField.RadixTreeNodes:
                             if (!value.TryGetInt64(out radixTreeNodes)) return false;
                             break;
-                        case CommonRepliesHash.groups.Hash when CommonRepliesHash.groups.Is(hash, key):
+                        case StreamInfoField.Groups:
                             if (!value.TryGetInt64(out groups)) return false;
                             break;
-                        case CommonRepliesHash.last_generated_id.Hash when CommonRepliesHash.last_generated_id.Is(hash, key):
+                        case StreamInfoField.LastGeneratedId:
                             lastGeneratedId = value.AsRedisValue();
                             break;
-                        case CommonRepliesHash.first_entry.Hash when CommonRepliesHash.first_entry.Is(hash, key):
+                        case StreamInfoField.FirstEntry:
                             firstEntry = ParseRedisStreamEntry(value);
                             break;
-                        case CommonRepliesHash.last_entry.Hash when CommonRepliesHash.last_entry.Is(hash, key):
+                        case StreamInfoField.LastEntry:
                             lastEntry = ParseRedisStreamEntry(value);
                             break;
                         // 7.0
-                        case CommonRepliesHash.max_deleted_entry_id.Hash when CommonRepliesHash.max_deleted_entry_id.Is(hash, key):
+                        case StreamInfoField.MaxDeletedEntryId:
                             maxDeletedEntryId = value.AsRedisValue();
                             break;
-                        case CommonRepliesHash.recorded_first_entry_id.Hash when CommonRepliesHash.recorded_first_entry_id.Is(hash, key):
+                        case StreamInfoField.RecordedFirstEntryId:
                             recordedFirstEntryId = value.AsRedisValue();
                             break;
-                        case CommonRepliesHash.entries_added.Hash when CommonRepliesHash.entries_added.Is(hash, key):
+                        case StreamInfoField.EntriesAdded:
                             if (!value.TryGetInt64(out entriesAdded)) return false;
                             break;
                         // 8.6
-                        case CommonRepliesHash.idmp_duration.Hash when CommonRepliesHash.idmp_duration.Is(hash, key):
+                        case StreamInfoField.IdmpDuration:
                             if (!value.TryGetInt64(out idmpDuration)) return false;
                             break;
-                        case CommonRepliesHash.idmp_maxsize.Hash when CommonRepliesHash.idmp_maxsize.Is(hash, key):
+                        case StreamInfoField.IdmpMaxsize:
                             if (!value.TryGetInt64(out idmpMaxsize)) return false;
                             break;
-                        case CommonRepliesHash.pids_tracked.Hash when CommonRepliesHash.pids_tracked.Is(hash, key):
+                        case StreamInfoField.PidsTracked:
                             if (!value.TryGetInt64(out pidsTracked)) return false;
                             break;
-                        case CommonRepliesHash.iids_tracked.Hash when CommonRepliesHash.iids_tracked.Is(hash, key):
+                        case StreamInfoField.IidsTracked:
                             if (!value.TryGetInt64(out iidsTracked)) return false;
                             break;
-                        case CommonRepliesHash.iids_added.Hash when CommonRepliesHash.iids_added.Is(hash, key):
+                        case StreamInfoField.IidsAdded:
                             if (!value.TryGetInt64(out iidsAdded)) return false;
                             break;
-                        case CommonRepliesHash.iids_duplicates.Hash when CommonRepliesHash.iids_duplicates.Is(hash, key):
+                        case StreamInfoField.IidsDuplicates:
                             if (!value.TryGetInt64(out iidsDuplicates)) return false;
                             break;
                     }

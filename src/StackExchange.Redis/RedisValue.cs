@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Buffers.Text;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -1366,6 +1367,32 @@ HaveString:
                 default:
                     return false;
             }
+        }
+
+        // used by the toy server to smuggle weird vectors; on their own heads... not used by SE.Redis itself
+        // (these additions just formalize the usage in the older server code)
+        internal bool TryGetForeign<T>([NotNullWhen(true)] out T? value, out int index, out int length)
+            where T : class
+        {
+            if (typeof(T) != typeof(string) && typeof(T) != typeof(byte[]) && DirectObject is T found)
+            {
+                index = 0;
+                length = checked((int)DirectOverlappedBits64);
+                value = found;
+                return true;
+            }
+            value = null;
+            index = 0;
+            length = 0;
+            return false;
+        }
+
+        internal static RedisValue CreateForeign<T>(T obj, int offset, int count) where T : class
+        {
+            // non-zero offset isn't supported until v3, left here for API parity
+            if (typeof(T) == typeof(string) || typeof(T) == typeof(byte[]) || offset != 0) Throw();
+            return new RedisValue(obj, count);
+            static void Throw() => throw new InvalidOperationException();
         }
     }
 }
