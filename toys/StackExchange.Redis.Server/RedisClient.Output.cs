@@ -210,28 +210,6 @@ public partial class RedisClient
                 }
             }
 
-            static RespPrefix ToResp2(RespPrefix type)
-            {
-                switch (type)
-                {
-                    case RespPrefix.Boolean:
-                        return RespPrefix.Integer;
-                    case RespPrefix.Double:
-                    case RespPrefix.BigInteger:
-                        return RespPrefix.SimpleString;
-                    case RespPrefix.BulkError:
-                        return RespPrefix.SimpleError;
-                    case RespPrefix.VerbatimString:
-                        return RespPrefix.BulkString;
-                    case RespPrefix.Map:
-                    case RespPrefix.Set:
-                    case RespPrefix.Push:
-                    case RespPrefix.Attribute:
-                        return RespPrefix.Array;
-                    default: return type;
-                }
-            }
-
             static ResultType ToResultType(RespPrefix type) =>
                 type switch
                 {
@@ -255,6 +233,30 @@ public partial class RedisClient
                     // These are protocol-level markers, not result types
                     _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unexpected RespPrefix value"),
                 };
+        }
+    }
+
+    public RespPrefix ApplyProtocol(RespPrefix type) => IsResp2 ? ToResp2(type) : type;
+
+    private static RespPrefix ToResp2(RespPrefix type)
+    {
+        switch (type)
+        {
+            case RespPrefix.Boolean:
+                return RespPrefix.Integer;
+            case RespPrefix.Double:
+            case RespPrefix.BigInteger:
+                return RespPrefix.SimpleString;
+            case RespPrefix.BulkError:
+                return RespPrefix.SimpleError;
+            case RespPrefix.VerbatimString:
+                return RespPrefix.BulkString;
+            case RespPrefix.Map:
+            case RespPrefix.Set:
+            case RespPrefix.Push:
+            case RespPrefix.Attribute:
+                return RespPrefix.Array;
+            default: return type;
         }
     }
 }

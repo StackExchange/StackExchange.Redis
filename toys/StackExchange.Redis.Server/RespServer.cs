@@ -297,6 +297,7 @@ namespace StackExchange.Redis.Server
             {
                 node ??= DefaultNode;
                 client = AddClient(node, state);
+                OnClientConnected(client, state);
                 Task output = client.WriteOutputAsync(pipe.Output);
                 while (!client.Closed)
                 {

@@ -16,14 +16,12 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 {
 }
 
-/*
 [RunPerProtocol]
 public class InProcPubSubTests(ITestOutputHelper output, InProcServerFixture fixture)
     : PubSubTestBase(output, null, fixture)
 {
-    protected override bool UseDedicatedInProcessServer => false;
+    protected override bool UseDedicatedInProcessServer => true;
 }
-*/
 
 [RunPerProtocol]
 public abstract class PubSubTestBase(
@@ -156,6 +154,18 @@ public abstract class PubSubTestBase(
     }
 
     [Fact]
+    public async Task Ping()
+    {
+        await using var conn = ConnectFactory(shared: false);
+        var pub = GetAnyPrimary(conn.DefaultClient);
+        var sub = conn.GetSubscriber();
+
+        await PingAsync(pub, sub, 5).ForAwait();
+        await sub.SubscribeAsync(RedisChannel.Literal(Me()), (_, __) => { }); // to ensure we're in subscriber mode
+        await PingAsync(pub, sub, 5).ForAwait();
+    }
+
+    [Fact]
     public async Task TestBasicPubSubFireAndForget()
     {
         await using var conn = ConnectFactory(shared: false);
@@ -223,10 +233,28 @@ public abstract class PubSubTestBase(
             // way to prove that is to use TPL objects
             var subTask = sub.PingAsync();
             var pubTask = pub.PingAsync();
-            await Task.WhenAll(subTask, pubTask).ForAwait();
+            try
+            {
+                await Task.WhenAll(subTask, pubTask).ForAwait();
+            }
+            catch (TimeoutException ex)
+            {
+                throw new TimeoutException($"Timeout; sub: {GetState(subTask)}, pub: {GetState(pubTask)}", ex);
+            }
 
-            Log($"Sub PING time: {subTask.Result.TotalMilliseconds} ms");
-            Log($"Pub PING time: {pubTask.Result.TotalMilliseconds} ms");
+            Log($"sub: {GetState(subTask)}, pub: {GetState(pubTask)}");
+
+            static string GetState(Task<TimeSpan> pending)
+            {
+                var status = pending.Status;
+                return status switch
+                {
+                    TaskStatus.RanToCompletion => $"{status} in {pending.Result.TotalMilliseconds:###,##0.0}ms)",
+                    TaskStatus.Faulted when pending.Exception is { InnerExceptions.Count:1 } ae => $"{status}: {ae.InnerExceptions[0].Message}",
+                    TaskStatus.Faulted => $"{status}: {pending.Exception?.Message}",
+                    _ => status.ToString(),
+                };
+            }
         }
     }
 
@@ -314,6 +342,7 @@ public abstract class PubSubTestBase(
     public async Task TestMassivePublishWithWithoutFlush_Remote()
     {
         Skip.UnlessLongRunning();
+        SkipIfWouldUseInProcessServer();
         await using var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort);
 
         var sub = conn.GetSubscriber();
@@ -437,6 +466,7 @@ public abstract class PubSubTestBase(
     [Fact]
     public async Task PubSubGetAllCorrectOrder()
     {
+        SkipIfWouldUseInProcessServer();
         await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
@@ -507,6 +537,7 @@ public abstract class PubSubTestBase(
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Sync()
     {
+        SkipIfWouldUseInProcessServer();
         await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
@@ -573,6 +604,7 @@ public abstract class PubSubTestBase(
     [Fact]
     public async Task PubSubGetAllCorrectOrder_OnMessage_Async()
     {
+        SkipIfWouldUseInProcessServer();
         await using (var conn = Create(configuration: TestConfig.Current.RemoteServerAndPort, syncTimeout: 20000, log: Writer))
         {
             var sub = conn.GetSubscriber();
