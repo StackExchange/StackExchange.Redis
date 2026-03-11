@@ -40,20 +40,20 @@ public class InProcessTestServer : MemoryCacheRedisServer
         }
         else if (result.IsAggregate)
         {
-            Log($"[{client}] {request.Command} => {(char)type} ({type}, {result.Span.Length})");
+            Log($"[{client}] {request.Command} => {(char)type}{result.Span.Length}");
         }
         else
         {
             try
             {
                 var s = result.AsRedisValue().ToString() ?? "(null)";
-                const int MAX_CHARS = 16;
+                const int MAX_CHARS = 32;
                 s = s.Length <= MAX_CHARS ? s : s.Substring(0, MAX_CHARS) + "...";
-                Log($"[{client}] {request.Command} => {(char)type} ({type}) {s}");
+                Log($"[{client}] {request.Command} => {(char)type}{s}");
             }
             catch
             {
-                Log($"[{client}] {request.Command} => {(char)type} ({type})");
+                Log($"[{client}] {request.Command} => {(char)type}");
             }
         }
         return result;
@@ -133,11 +133,11 @@ public class InProcessTestServer : MemoryCacheRedisServer
             && message.Span is { IsEmpty: false } span
             && !span[0].IsAggregate)
         {
-            _log?.WriteLine($"[{client}] => {(char)type} ({type}, {message.Span.Length}): {span[0].AsRedisValue()}");
+            _log?.WriteLine($"[{client}] => {(char)type}{message.Span.Length} {span[0].AsRedisValue()}");
         }
         else
         {
-            _log?.WriteLine($"[{client}] => {(char)type} ({type})");
+            _log?.WriteLine($"[{client}] => {(char)type}");
         }
 
         base.OnOutOfBand(client, message);
