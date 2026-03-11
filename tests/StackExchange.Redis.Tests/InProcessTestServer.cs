@@ -85,6 +85,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             AsyncTimeout = 5000,
             AllowAdmin = true,
             Tunnel = Tunnel,
+            Protocol = TestContext.Current.GetProtocol(),
             // WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
         };
         if (!string.IsNullOrEmpty(Password)) config.Password = Password;
