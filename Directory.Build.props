@@ -42,4 +42,11 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="all" />
     <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All" />
   </ItemGroup>
+  
+  <ItemGroup>
+    <!-- for everything except the build project itself: use the build project as an analyzer -->
+    <ProjectReference Condition="'$(AssemblyName)' != 'StackExchange.Redis.Build'"
+                      Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

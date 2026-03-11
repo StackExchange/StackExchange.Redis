@@ -31,8 +31,6 @@ jobs:
             6.0.x
             8.0.x
             10.0.x
-      - name: .NET Build (eng prebuild)
-        run: dotnet build eng/StackExchange.Redis.Build/StackExchange.Redis.Build.csproj -c Release /p:CI=true
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
       - name: StackExchange.Redis.Tests
@@ -134,8 +132,6 @@ jobs:
           redis-cli -p 26381 INFO SERVER | grep redis_version || echo "Failed to get version for port 26381"
         continue-on-error: true
 
-      - name: .NET Build (eng prebuild)
-        run: dotnet build eng/StackExchange.Redis.Build/StackExchange.Redis.Build.csproj -c Release /p:CI=true
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
       - name: StackExchange.Redis.Tests

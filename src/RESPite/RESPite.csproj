@@ -19,8 +19,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="RESPite.Tests"/>
     <None Include="readme.md" Pack="true" PackagePath="/"/>
-    <None Include="../../eng/StackExchange.Redis.Build/bin/$(Configuration)/netstandard2.0/StackExchange.Redis.Build.dll" Pack="true" PackagePath="analyzers/dotnet" Visible="true"
-      Link="Shared/StackExchange.Redis.Build.dll"/>
   </ItemGroup>
 
   <ItemGroup>
