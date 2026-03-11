@@ -42,7 +42,7 @@
   <ItemGroup>
     <!-- APIs for all target frameworks -->
     <AdditionalFiles Include="PublicAPI/PublicAPI.*.txt" />
-    <!-- progressively additive APIs in later frameworks -->
+    <!-- progressively additive APIs in later frameworks; each folder is effectively NET_X_Y_OR_GREATER -->
     <AdditionalFiles Include="PublicAPI/net6.0/PublicAPI.*.txt" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))" />
     <!-- for example... -->
     <!-- <AdditionalFiles Include="PublicAPI/net10.0/PublicAPI.*.txt" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))" /> -->
