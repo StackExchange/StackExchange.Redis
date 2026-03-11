@@ -12,11 +12,13 @@ public class BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fix
 {
 }
 
+/*
 [RunPerProtocol]
 public class InProcBasicOpsTests(ITestOutputHelper output, InProcServerFixture fixture)
     : BasicOpsTestsBase(output, null, fixture)
 {
 }
+*/
 
 [RunPerProtocol]
 public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnectionFixture? connection, InProcServerFixture? server)
