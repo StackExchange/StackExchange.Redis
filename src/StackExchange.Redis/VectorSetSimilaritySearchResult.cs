@@ -25,6 +25,7 @@ public readonly struct VectorSetSimilaritySearchResult(RedisValue member, double
     /// </summary>
 #if NET8_0_OR_GREATER
     [StringSyntax(StringSyntaxAttribute.Json)]
+#endif
     public string? AttributesJson { get; } = attributesJson;
 
     /// <inheritdoc/>
