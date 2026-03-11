@@ -1,4 +1,5 @@
 ﻿using System;
+using RESPite;
 
 namespace StackExchange.Redis;
 
@@ -280,8 +281,14 @@ internal enum RedisCommand
     UNKNOWN,
 }
 
-internal static class RedisCommandExtensions
+internal static partial class RedisCommandMetadata
 {
+    [AsciiHash(CaseSensitive = false)]
+    public static partial bool TryParseCI(ReadOnlySpan<byte> command, out RedisCommand value);
+
+    [AsciiHash(CaseSensitive = false)]
+    public static partial bool TryParseCI(ReadOnlySpan<char> command, out RedisCommand value);
+
     /// <summary>
     /// Gets whether a given command can be issued only to a primary, or if any server is eligible.
     /// </summary>

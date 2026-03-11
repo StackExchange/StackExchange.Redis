@@ -1,6 +1,6 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
+using RESPite;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis.KeyspaceIsolation;

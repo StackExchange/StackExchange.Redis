@@ -1,4 +1,7 @@
-﻿namespace StackExchange.Redis
+﻿using System;
+using RESPite;
+
+namespace StackExchange.Redis
 {
     /// <summary>
     /// The intrinsic data-types supported by redis.
@@ -9,6 +12,7 @@
         /// <summary>
         /// The specified key does not exist.
         /// </summary>
+        [AsciiHash("")]
         None,
 
         /// <summary>
@@ -17,6 +21,7 @@
         /// A String value can be at max 512 Megabytes in length.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#string"/></remarks>
+        [AsciiHash("string")]
         String,
 
         /// <summary>
@@ -25,6 +30,7 @@
         /// on the tail (on the right) of the list.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#list"/></remarks>
+        [AsciiHash("list")]
         List,
 
         /// <summary>
@@ -35,6 +41,7 @@
         /// Practically speaking this means that adding a member does not require a check if exists then add operation.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#set"/></remarks>
+        [AsciiHash("set")]
         Set,
 
         /// <summary>
@@ -44,6 +51,7 @@
         /// While members are unique, scores may be repeated.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#sorted_set"/></remarks>
+        [AsciiHash("zset")]
         SortedSet,
 
         /// <summary>
@@ -51,6 +59,7 @@
         /// to represent objects (e.g. A User with a number of fields like name, surname, age, and so forth).
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#hash"/></remarks>
+        [AsciiHash("hash")]
         Hash,
 
         /// <summary>
@@ -59,11 +68,28 @@
         /// stream contains a unique message ID and a list of name/value pairs containing the entry's data.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#stream"/></remarks>
+        [AsciiHash("stream")]
         Stream,
 
         /// <summary>
         /// The data-type was not recognised by the client library.
         /// </summary>
         Unknown,
+
+        /// <summary>
+        /// Vector sets are a data type similar to sorted sets, but instead of a score,
+        /// vector set elements have a string representation of a vector.
+        /// </summary>
+        [AsciiHash("vectorset")]
+        VectorSet,
+    }
+
+    /// <summary>
+    /// Metadata and parsing methods for RedisType.
+    /// </summary>
+    internal static partial class RedisTypeMetadata
+    {
+        [AsciiHash]
+        internal static partial bool TryParse(ReadOnlySpan<byte> value, out RedisType redisType);
     }
 }

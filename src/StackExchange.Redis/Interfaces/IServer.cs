@@ -814,5 +814,12 @@ namespace StackExchange.Redis
         /// <param name="server">The server to simulate failure on.</param>
         /// <param name="failureType">The type of failure(s) to simulate.</param>
         internal static void SimulateConnectionFailure(this IServer server, SimulatedFailureType failureType) => (server as RedisServer)?.SimulateConnectionFailure(failureType);
+
+        /// <summary>
+        /// For testing only: Check if the server can simulate connection failure.
+        /// </summary>
+        /// <param name="server">The server to check.</param>
+        internal static bool CanSimulateConnectionFailure(this IServer server) =>
+            (server as RedisServer)?.CanSimulateConnectionFailure == true;
     }
 }

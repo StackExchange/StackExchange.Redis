@@ -6,7 +6,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 using StackExchange.Redis.Configuration;
 using StackExchange.Redis.Server;
 using Xunit;
@@ -25,19 +24,42 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
-    public Task<ConnectionMultiplexer> ConnectAsync(TextWriter? log = null)
-        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(), log);
+    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
+        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, writeMode), log);
 
-    public ConfigurationOptions GetClientConfig()
+    // view request/response highlights in the log
+    public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
+    {
+        var result = base.Execute(client, in request);
+        if (result.IsNil)
+        {
+            Log($"[{client}] {request.Command} (no reply)");
+        }
+        else if (result.IsAggregate)
+        {
+            Log($"[{client}] {request.Command} => {(char)result.Type} ({result.Type}, {result.Span.Length})");
+        }
+        else
+        {
+            Log($"[{client}] {request.Command} => {(char)result.Type} ({result.Type})");
+        }
+        return result;
+    }
+
+    public ConfigurationOptions GetClientConfig(bool withPubSub = true, WriteMode writeMode = WriteMode.Default)
     {
         var commands = GetCommands();
-
-        // transactions don't work yet (needs v3 buffer features)
-        commands.Remove(nameof(RedisCommand.MULTI));
-        commands.Remove(nameof(RedisCommand.EXEC));
-        commands.Remove(nameof(RedisCommand.DISCARD));
-        commands.Remove(nameof(RedisCommand.WATCH));
-        commands.Remove(nameof(RedisCommand.UNWATCH));
+        if (!withPubSub)
+        {
+            commands.Remove(nameof(RedisCommand.SUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.PSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.SSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.UNSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.PUNSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.SUNSUBSCRIBE));
+            commands.Remove(nameof(RedisCommand.PUBLISH));
+            commands.Remove(nameof(RedisCommand.SPUBLISH));
+        }
 
         var config = new ConfigurationOptions
         {
@@ -50,7 +72,25 @@ public class InProcessTestServer : MemoryCacheRedisServer
             AsyncTimeout = 5000,
             AllowAdmin = true,
             Tunnel = Tunnel,
+            WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
         };
+        if (!string.IsNullOrEmpty(Password)) config.Password = Password;
+
+        /* useful for viewing *outbound* data in the log
+#if DEBUG
+        if (_log is not null)
+        {
+            config.OutputLog = msg =>
+            {
+                lock (_log)
+                {
+                    _log.WriteLine(msg);
+                }
+            };
+        }
+#endif
+        */
+
         foreach (var endpoint in GetEndPoints())
         {
             config.EndPoints.Add(endpoint);
@@ -78,19 +118,34 @@ public class InProcessTestServer : MemoryCacheRedisServer
             && message.Span is { IsEmpty: false } span
             && !span[0].IsAggregate)
         {
-            _log?.WriteLine($"Client {client.Id}: {span[0].AsRedisValue()} {message} ");
+            _log?.WriteLine($"[{client}] => {(char)message.Type} ({message.Type}, {message.Span.Length}): {span[0].AsRedisValue()}");
         }
         else
         {
-            _log?.WriteLine($"Client {client.Id}: {message}");
+            _log?.WriteLine($"[{client}] => {(char)message.Type} ({message.Type})");
         }
 
         base.OnOutOfBand(client, message);
     }
 
+    /*
+    public override void OnFlush(RedisClient client, int messages, long bytes)
+    {
+        if (bytes >= 0)
+        {
+            _log?.WriteLine($"[{client}] flushed {messages} messages, {bytes} bytes");
+        }
+        else
+        {
+            _log?.WriteLine($"[{client}] flushed {messages} messages"); // bytes not available
+        }
+        base.OnFlush(client, messages, bytes);
+    }
+    */
+
     public override TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
     {
-        _log?.WriteLine($"[{client.Id}] unknown command: {Encoding.ASCII.GetString(command)}");
+        _log?.WriteLine($"[{client}] unknown command: {Encoding.ASCII.GetString(command)}");
         return base.OnUnknownCommand(in client, in request, command);
     }
 
@@ -123,8 +178,11 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
-                _ = Task.Run(async () => await server.RunClientAsync(serverSide, node: node), cancellationToken);
-                var clientSide = StreamConnection.GetDuplex(serverToClient.Reader, clientToServer.Writer);
+                Task.Run(async () => await server.RunClientAsync(serverSide, node: node), cancellationToken).RedisFireAndForget();
+
+                var readStream = serverToClient.Reader.AsStream();
+                var writeStream = clientToServer.Writer.AsStream();
+                var clientSide = new DuplexStream(readStream, writeStream);
                 return new(clientSide);
             }
             return base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
