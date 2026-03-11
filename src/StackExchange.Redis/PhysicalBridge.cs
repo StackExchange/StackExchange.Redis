@@ -1622,7 +1622,7 @@ namespace StackExchange.Redis
 
                 if (_nextHighIntegrityToken is not 0
                     && !connection.TransactionActive // validated in the UNWATCH/EXEC/DISCARD
-                    && message.Command is not RedisCommand.AUTH or RedisCommand.HELLO) // if auth fails, ECHO may also fail; avoid confusion
+                    && message.Command is not (RedisCommand.AUTH or RedisCommand.HELLO)) // if auth fails, ECHO may also fail; avoid confusion
                 {
                     // make sure this value exists early to avoid a race condition
                     // if the response comes back super quickly
