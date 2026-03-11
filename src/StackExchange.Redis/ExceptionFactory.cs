@@ -347,6 +347,12 @@ namespace StackExchange.Redis
                 Add(data, sb, "Last-Result-Bytes", "last-in", bs.Connection.BytesLastResult.ToString());
                 Add(data, sb, "Inbound-Buffer-Bytes", "cur-in", bs.Connection.BytesInBuffer.ToString());
 
+                var liveMuxers = ConnectionMultiplexer.GetLiveObjectCount(out var created, out var destroyed, out var nonDisposed);
+                if (created > 1)
+                {
+                    Add(data, sb, "Live-Multiplexers", "lm", $"{liveMuxers}/{created}/{destroyed}/{nonDisposed}");
+                }
+
                 Add(data, sb, "Sync-Ops", "sync-ops", multiplexer.syncOps.ToString());
                 Add(data, sb, "Async-Ops", "async-ops", multiplexer.asyncOps.ToString());
 

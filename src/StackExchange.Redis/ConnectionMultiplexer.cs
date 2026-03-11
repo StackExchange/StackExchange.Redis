@@ -128,6 +128,8 @@ namespace StackExchange.Redis
 
         private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null)
         {
+            Interlocked.Increment(ref s_MuxerCreateCount);
+
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
@@ -2258,6 +2260,7 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             GC.SuppressFinalize(this);
+            Interlocked.Increment(ref s_MuxerDestroyCount);
             Close(!_isDisposed);
             sentinelConnection?.Dispose();
             var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
@@ -2270,6 +2273,7 @@ namespace StackExchange.Redis
         public async ValueTask DisposeAsync()
         {
             GC.SuppressFinalize(this);
+            Interlocked.Increment(ref s_MuxerDestroyCount);
             await CloseAsync(!_isDisposed).ForAwait();
             if (sentinelConnection is ConnectionMultiplexer sentinel)
             {
