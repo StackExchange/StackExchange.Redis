@@ -782,10 +782,6 @@ namespace StackExchange.Redis.Server
             return base.GetNode(hashSlot);
         }
 
-        [RedisCommand(-1)]
-        protected virtual TypedRedisValue Sentinel(RedisClient client, in RedisRequest request)
-            => request.CommandNotFound();
-
         [RedisCommand(-3)]
         protected virtual TypedRedisValue Lpush(RedisClient client, in RedisRequest request)
         {
