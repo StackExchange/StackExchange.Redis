@@ -128,6 +128,8 @@ namespace StackExchange.Redis
 
         private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null)
         {
+            Interlocked.Increment(ref s_MuxerCreateCount);
+
             RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
             EndPoints = endpoints ?? RawConfig.EndPoints.Clone();
             EndPoints.SetDefaultPorts(serverType, ssl: RawConfig.Ssl);
@@ -2258,7 +2260,8 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             GC.SuppressFinalize(this);
-            Close(!_isDisposed);
+            if (!_isDisposed) Interlocked.Increment(ref s_DisposedCount);
+            Close(!_isDisposed); // marks disposed
             sentinelConnection?.Dispose();
             var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
             oldTimer?.Dispose();
@@ -2270,7 +2273,8 @@ namespace StackExchange.Redis
         public async ValueTask DisposeAsync()
         {
             GC.SuppressFinalize(this);
-            await CloseAsync(!_isDisposed).ForAwait();
+            if (!_isDisposed) Interlocked.Increment(ref s_DisposedCount);
+            await CloseAsync(!_isDisposed).ForAwait(); // marks disposed
             if (sentinelConnection is ConnectionMultiplexer sentinel)
             {
                 await sentinel.DisposeAsync().ForAwait();

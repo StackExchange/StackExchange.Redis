@@ -1622,8 +1622,13 @@ namespace StackExchange.Redis
 
                 if (_nextHighIntegrityToken is not 0
                     && !connection.TransactionActive // validated in the UNWATCH/EXEC/DISCARD
-                    && message.Command is not RedisCommand.AUTH or RedisCommand.HELLO) // if auth fails, ECHO may also fail; avoid confusion
+                    && message.Command is not RedisCommand.AUTH // if auth fails, later commands may also fail; avoid confusion
+                    && message.Command is not RedisCommand.HELLO)
                 {
+                    // note on the Command match above: curiously, .NET 10 and .NET 11 SDKs emit *opposite* errors here
+                    // re "CS9336: The pattern is redundant." ("fixing" one "breaks" the other); possibly a fixed bool inversion
+                    // in the analyzer? to avoid pain, we'll just use the most obviously correct form
+
                     // make sure this value exists early to avoid a race condition
                     // if the response comes back super quickly
                     message.WithHighIntegrity(NextHighIntegrityTokenInsideLock());
