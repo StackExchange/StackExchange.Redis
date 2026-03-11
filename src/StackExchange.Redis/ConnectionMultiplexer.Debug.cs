@@ -4,16 +4,16 @@ namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
-    private static int _collectedWithoutDispose, s_MuxerDestroyCount, s_MuxerCreateCount;
+    private static int _collectedWithoutDispose, s_DisposedCount, s_MuxerCreateCount;
     internal static int CollectedWithoutDispose => Volatile.Read(ref _collectedWithoutDispose);
 
-    internal static int GetLiveObjectCount(out int created, out int destroyed, out int nonDisposed)
+    internal static int GetLiveObjectCount(out int created, out int disposed, out int finalized)
     {
         // read destroy first, to prevent negative numbers in race conditions
-        destroyed = Volatile.Read(ref s_MuxerDestroyCount);
+        disposed = Volatile.Read(ref s_DisposedCount);
         created = Volatile.Read(ref s_MuxerCreateCount);
-        nonDisposed = Volatile.Read(ref _collectedWithoutDispose);
-        return created - destroyed;
+        finalized = Volatile.Read(ref _collectedWithoutDispose);
+        return created - (disposed + finalized);
     }
 
     /// <summary>
@@ -21,7 +21,6 @@ public partial class ConnectionMultiplexer
     /// </summary>
     ~ConnectionMultiplexer()
     {
-        Interlocked.Increment(ref s_MuxerDestroyCount);
         Interlocked.Increment(ref _collectedWithoutDispose);
     }
 

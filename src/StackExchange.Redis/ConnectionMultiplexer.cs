@@ -2260,8 +2260,8 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             GC.SuppressFinalize(this);
-            Interlocked.Increment(ref s_MuxerDestroyCount);
-            Close(!_isDisposed);
+            if (!_isDisposed) Interlocked.Increment(ref s_DisposedCount);
+            Close(!_isDisposed); // marks disposed
             sentinelConnection?.Dispose();
             var oldTimer = Interlocked.Exchange(ref sentinelPrimaryReconnectTimer, null);
             oldTimer?.Dispose();
@@ -2273,8 +2273,8 @@ namespace StackExchange.Redis
         public async ValueTask DisposeAsync()
         {
             GC.SuppressFinalize(this);
-            Interlocked.Increment(ref s_MuxerDestroyCount);
-            await CloseAsync(!_isDisposed).ForAwait();
+            if (!_isDisposed) Interlocked.Increment(ref s_DisposedCount);
+            await CloseAsync(!_isDisposed).ForAwait(); // marks disposed
             if (sentinelConnection is ConnectionMultiplexer sentinel)
             {
                 await sentinel.DisposeAsync().ForAwait();
