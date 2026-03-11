@@ -43,10 +43,9 @@
     <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All" />
   </ItemGroup>
   
-  <ItemGroup>
-    <!-- for everything except the build project itself: use the build project as an analyzer -->
-    <ProjectReference Condition="'$(AssemblyName)' != 'StackExchange.Redis.Build'"
-                      Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj"
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Build' and '$(MSBuildProjectName)' != 'StackExchange.Redis.Build'">
+    <!-- for everything except the build-tools project itself and the Build.csproj wrapper: use the build project as an analyzer -->
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
