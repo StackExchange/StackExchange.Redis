@@ -78,6 +78,7 @@ namespace StackExchange.Redis
             NOSAVE = RedisValue.FromRaw("NOSAVE"u8),
             NOT = RedisValue.FromRaw("NOT"u8),
             NOVALUES = RedisValue.FromRaw("NOVALUES"u8),
+            NUM_REQUESTS = RedisValue.FromRaw("NUM_REQUESTS"u8),
             NUMPAT = RedisValue.FromRaw("NUMPAT"u8),
             NUMSUB = RedisValue.FromRaw("NUMSUB"u8),
             NX = RedisValue.FromRaw("NX"u8),
