@@ -12,20 +12,30 @@ internal sealed partial class MultiGroupSubscriber
     public void Subscribe(
         RedisChannel channel,
         Action<RedisChannel, RedisValue> handler,
-        CommandFlags flags = CommandFlags.None) => parent.SubscribeToAll(channel, handler, flags, asyncState);
+        CommandFlags flags = CommandFlags.None) => parent.SubscribeToAll(new(channel, handler, flags, asyncState));
 
     public Task SubscribeAsync(
         RedisChannel channel,
         Action<RedisChannel, RedisValue> handler,
-        CommandFlags flags = CommandFlags.None) => parent.SubscribeToAllAsync(channel, handler, flags, asyncState);
+        CommandFlags flags = CommandFlags.None) => parent.SubscribeToAllAsync(new(channel, handler, flags, asyncState));
 
     public ChannelMessageQueue Subscribe(
         RedisChannel channel,
-        CommandFlags flags = CommandFlags.None) => throw new NotImplementedException("Soon");
+        CommandFlags flags = CommandFlags.None)
+    {
+        var tuple = new MultiGroupMultiplexer.HandlerTuple(channel, flags, asyncState);
+        parent.SubscribeToAll(tuple);
+        return tuple.Queue!;
+    }
 
-    public Task<ChannelMessageQueue> SubscribeAsync(
+    public async Task<ChannelMessageQueue> SubscribeAsync(
         RedisChannel channel,
-        CommandFlags flags = CommandFlags.None) => throw new NotImplementedException("Soon");
+        CommandFlags flags = CommandFlags.None)
+    {
+        var tuple = new MultiGroupMultiplexer.HandlerTuple(channel, flags, asyncState);
+        await parent.SubscribeToAllAsync(tuple);
+        return tuple.Queue!;
+    }
 
     // to do this we'd need to track the *filtered* subscriber per node per subscriber per channel
     public void Unsubscribe(
@@ -57,37 +67,115 @@ internal sealed partial class MultiGroupMultiplexer
         };
     }
 
-    private readonly struct HandlerTuple(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object? asyncState)
+    private static void ForwardFilteredMessages(
+        MultiGroupMultiplexer parent,
+        ConnectionGroupMember active,
+        ChannelMessageQueue writeTo,
+        ChannelMessageQueue readFrom)
     {
-        public readonly RedisChannel Channel = channel;
-        public readonly Action<RedisChannel, RedisValue> Handler = handler;
-        public readonly CommandFlags Flags = flags;
-        public readonly object? AsyncState = asyncState;
+        // Create an async worker; note we can't just use a handler-style callback, because the
+        // key point of ChannelMessageQueue is to preserve order, and our callback implementation explicitly
+        // does not guarantee anything about order.
+        _ = Task.Run(() => ForwardFilteredMessagesAsync(parent, active, writeTo, readFrom));
+        static async Task ForwardFilteredMessagesAsync(
+            MultiGroupMultiplexer parent,
+            ConnectionGroupMember active,
+            ChannelMessageQueue writeTo,
+            ChannelMessageQueue readFrom)
+        {
+            try
+            {
+                while (await readFrom.WaitToReadAsync())
+                {
+                    while (readFrom.TryRead(out var message))
+                    {
+                        if (ReferenceEquals(parent._active, active.Multiplexer))
+                        {
+                            // Because of the switchover being imperfect, we can't guarantee exactly one writer, so
+                            // we need to be synchronized; in reality, it will *almost never* be contended, so
+                            // this isn't a bottleneck - so we will pay the price of a lock here, and keep the
+                            // queue in single-writer mode.
+                            writeTo.SynchronizedWrite(message.Channel, message.Message);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                parent.OnInternalError(ex);
+            }
+        }
+    }
+
+    internal readonly struct HandlerTuple
+    {
+        public readonly RedisChannel Channel;
+        public Action<RedisChannel, RedisValue>? Handler => _handlerOrQueue as Action<RedisChannel, RedisValue>;
+        public ChannelMessageQueue? Queue => _handlerOrQueue as ChannelMessageQueue;
+        public readonly CommandFlags Flags;
+        public readonly object? AsyncState;
+
+        private readonly object _handlerOrQueue;
+
+        public HandlerTuple(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object? asyncState)
+        {
+            Channel = channel;
+            _handlerOrQueue = handler;
+            Flags = flags;
+            AsyncState = asyncState;
+        }
+
+        public HandlerTuple(RedisChannel channel, CommandFlags flags, object? asyncState)
+        {
+            Channel = channel;
+            // note: multi-writer because we can't rule out race conditions at switchover
+            _handlerOrQueue = new ChannelMessageQueue(channel, null);
+            Flags = flags;
+            AsyncState = asyncState;
+        }
     }
 
     private List<HandlerTuple> _handlers = new();
 
-    public void SubscribeToAll(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object? asyncState)
+    internal void SubscribeToAll(HandlerTuple tuple)
     {
         lock (_handlers)
         {
-            _handlers.Add(new HandlerTuple(channel, handler, flags, asyncState));
+            _handlers.Add(tuple);
         }
         foreach (var member in _members)
         {
-            member.Multiplexer.GetSubscriber(asyncState).Subscribe(channel, FilteredHandler(this, member, handler), flags);
+            var sub = member.Multiplexer.GetSubscriber(tuple.AsyncState);
+            if (tuple.Handler is not null)
+            {
+                sub.Subscribe(tuple.Channel, FilteredHandler(this, member, tuple.Handler), tuple.Flags);
+            }
+            else if (tuple.Queue is not null)
+            {
+                var from = sub.Subscribe(tuple.Channel, tuple.Flags);
+                ForwardFilteredMessages(this, member, tuple.Queue, from);
+            }
         }
     }
 
-    public async Task SubscribeToAllAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object? asyncState)
+    internal async Task SubscribeToAllAsync(HandlerTuple tuple)
     {
         lock (_handlers)
         {
-            _handlers.Add(new HandlerTuple(channel, handler, flags, asyncState));
+            _handlers.Add(tuple);
         }
         foreach (var member in _members)
         {
-            await member.Multiplexer.GetSubscriber(asyncState).SubscribeAsync(channel, FilteredHandler(this, member, handler), flags);
+            var sub = member.Multiplexer.GetSubscriber(tuple.AsyncState);
+            if (tuple.Handler is not null)
+            {
+                await sub.SubscribeAsync(tuple.Channel, FilteredHandler(this, member, tuple.Handler), tuple.Flags);
+            }
+            else if (tuple.Queue is not null)
+            {
+                var from = await sub.SubscribeAsync(tuple.Channel, tuple.Flags);
+                ForwardFilteredMessages(this, member, tuple.Queue, from);
+            }
         }
     }
 
@@ -110,16 +198,24 @@ internal sealed partial class MultiGroupMultiplexer
         // when adding a connection to an established group, add any missing pub/sub handlers
         var lease = LeaseHandlers(out var count);
         object? asyncState = null;
-        ISubscriber? subscriber = null; // try to reuse when possible
+        ISubscriber? sub = null; // try to reuse when possible
         for (int i = 0; i < count; i++)
         {
             var tuple = lease[i];
-            if (subscriber is null || tuple.AsyncState != asyncState)
+            if (sub is null || tuple.AsyncState != asyncState)
             {
                 asyncState = tuple.AsyncState;
-                subscriber = member.Multiplexer.GetSubscriber(asyncState);
+                sub = member.Multiplexer.GetSubscriber(asyncState);
             }
-            await subscriber.SubscribeAsync(tuple.Channel, FilteredHandler(this, member, tuple.Handler), tuple.Flags);
+            if (tuple.Handler is not null)
+            {
+                await sub.SubscribeAsync(tuple.Channel, FilteredHandler(this, member, tuple.Handler), tuple.Flags);
+            }
+            else if (tuple.Queue is not null)
+            {
+                var from = await sub.SubscribeAsync(tuple.Channel, tuple.Flags);
+                ForwardFilteredMessages(this, member, tuple.Queue, from);
+            }
         }
         ArrayPool<HandlerTuple>.Shared.Return(lease);
     }

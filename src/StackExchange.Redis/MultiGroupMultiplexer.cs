@@ -951,4 +951,14 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
             member.Multiplexer.OnHeartbeat();
         }
     }
+
+    internal void OnInternalError(Exception exception, EndPoint? endpoint = null, ConnectionType connectionType = ConnectionType.None, string? origin = null)
+    {
+        var handler = _internalError;
+        if (handler is not null)
+        {
+            InternalErrorEventArgs args = new(handler, this, endpoint, connectionType, exception, origin);
+            ConnectionMultiplexer.CompleteAsWorker(args);
+        }
+    }
 }
