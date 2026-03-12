@@ -110,6 +110,7 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         EndPoint tokyo = new DnsEndPoint("tokyo", 6379);
 
         using var server0 = new InProcessTestServer(endpoint: germany);
+        Assert.SkipUnless(server0.GetClientConfig().CommandMap.IsAvailable(RedisCommand.PUBLISH), "PUBLISH is not available");
         using var server1 = new InProcessTestServer(endpoint: canada);
         using var server2 = new InProcessTestServer(endpoint: tokyo);
 
@@ -149,6 +150,112 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
         var multi = conn.GetSubscriber();
         await multi.SubscribeAsync(channel, (x, y) => Seen(nameof(conn), x, y));
+
+        // (R.4.1) If multiple member databases are configured, then I want to failover to the one with the highest weight.
+        var db = conn.GetDatabase();
+        var ep = await db.IdentifyEndpointAsync();
+        Assert.Equal(canada, ep);
+
+        // now publish via all 4 options, see what happens
+        Reset();
+        await pub0.PublishAsync(channel, "abc");
+        await pub1.PublishAsync(channel, "def");
+        await pub2.PublishAsync(channel, "ghi");
+        await multi.PublishAsync(channel, "jkl");
+        await multi.PingAsync();
+
+        // we're expecting just canada, so:
+        Assert.Equal(6, seen.Count);
+        Assert.Contains("[pub0] chan: abc", seen);
+        Assert.Contains("[pub1] chan: def", seen);
+        Assert.Contains("[pub2] chan: ghi", seen);
+        Assert.Contains("[conn] chan: def", seen); // receives the message from pub1
+        Assert.Contains("[conn] chan: jkl", seen); // receives the message from itself
+        Assert.Contains("[pub1] chan: jkl", seen); // received the message from the multi-group
+
+        // change weight and update
+        members[1].Weight = 1;
+        typed.SelectPreferredGroup();
+        ep = await db.IdentifyEndpointAsync();
+        Assert.Equal(tokyo, ep);
+
+        Reset();
+        await pub0.PublishAsync(channel, "abc");
+        await pub1.PublishAsync(channel, "def");
+        await pub2.PublishAsync(channel, "ghi");
+        await multi.PublishAsync(channel, "jkl");
+        await multi.PingAsync();
+
+        // now we're expecting just tokyo, so:
+        Assert.Equal(6, seen.Count);
+        Assert.Contains("[pub0] chan: abc", seen);
+        Assert.Contains("[pub1] chan: def", seen);
+        Assert.Contains("[pub2] chan: ghi", seen);
+        Assert.Contains("[conn] chan: jkl", seen); // receives the message from pub2
+        Assert.Contains("[conn] chan: jkl", seen); // receives the message from itself
+        Assert.Contains("[pub2] chan: jkl", seen); // received the message from the multi-group
+    }
+
+    [Fact]
+    public async Task PubSubOrderedRouted()
+    {
+        EndPoint germany = new DnsEndPoint("germany", 6379);
+        EndPoint canada = new DnsEndPoint("canada", 6379);
+        EndPoint tokyo = new DnsEndPoint("tokyo", 6379);
+
+        using var server0 = new InProcessTestServer(endpoint: germany);
+        Assert.SkipUnless(server0.GetClientConfig().CommandMap.IsAvailable(RedisCommand.PUBLISH), "PUBLISH is not available");
+        using var server1 = new InProcessTestServer(endpoint: canada);
+        using var server2 = new InProcessTestServer(endpoint: tokyo);
+
+        HashSet<string> seen = [];
+
+        void Seen(string source, RedisChannel channel, RedisValue value)
+        {
+            string message = $"[{source}] {channel}: {value}";
+            lock (seen)
+            {
+                seen.Add(message);
+            }
+        }
+
+        void Reset()
+        {
+            lock (seen)
+            {
+                seen.Clear();
+            }
+        }
+
+        void WriteSeen(string source, ChannelMessageQueue queue)
+        {
+            _ = Task.Run(async () =>
+            {
+                await foreach (var msg in queue)
+                {
+                    Seen(source, msg.Channel, msg.Message);
+                }
+            });
+        }
+
+        RedisChannel channel = RedisChannel.Literal("chan");
+        var pub0 = (await server0.ConnectAsync()).GetSubscriber();
+        WriteSeen(nameof(pub0), await pub0.SubscribeAsync(channel));
+        var pub1 = (await server1.ConnectAsync()).GetSubscriber();
+        WriteSeen(nameof(pub1), await pub1.SubscribeAsync(channel));
+        var pub2 = (await server2.ConnectAsync()).GetSubscriber();
+        WriteSeen(nameof(pub2), await pub2.SubscribeAsync(channel));
+
+        ConnectionGroupMember[] members = [
+            new(server0.GetClientConfig()) { Weight = 2 },
+            new(server1.GetClientConfig()) { Weight = 9 },
+            new(server2.GetClientConfig()) { Weight = 3 },
+        ];
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
+        Assert.True(conn.IsConnected);
+        var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
+        var multi = conn.GetSubscriber();
+        WriteSeen(nameof(conn), await multi.SubscribeAsync(channel));
 
         // (R.4.1) If multiple member databases are configured, then I want to failover to the one with the highest weight.
         var db = conn.GetDatabase();
