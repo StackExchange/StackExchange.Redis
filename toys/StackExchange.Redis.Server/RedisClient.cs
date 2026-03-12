@@ -23,40 +23,58 @@ namespace StackExchange.Redis.Server
         {
             if (Protocol is RedisProtocol.Resp2)
             {
-                return IsSubscriber ? $"{Id}:sub" : Id.ToString();
+                return IsSubscriber ? $"{node.Host}:{node.Port} #{Id}:sub" : $"{node.Host}:{node.Port} #{Id}";
             }
-            return $"{Id}:r3";
+            return $"{node.Host}:{node.Port} #{Id}:r3";
         }
 
         string IFormattable.ToString(string format, IFormatProvider formatProvider) => ToString();
 #if NET
         public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider provider)
         {
-            if (!Id.TryFormat(destination, out charsWritten))
+            charsWritten = 0;
+            if (!(TryWrite(ref destination, node.Host.AsSpan(), ref charsWritten)
+                    && TryWrite(ref destination, ":".AsSpan(), ref charsWritten)
+                    && TryWriteInt32(ref destination, node.Port, ref charsWritten)
+                    && TryWrite(ref destination, " #".AsSpan(), ref charsWritten)
+                    && TryWriteInt32(ref destination, Id, ref charsWritten)))
             {
                 return false;
             }
-            destination = destination.Slice(charsWritten);
             if (Protocol is RedisProtocol.Resp2)
             {
                 if (IsSubscriber)
                 {
-                    if (!":sub".AsSpan().TryCopyTo(destination))
-                    {
-                        return false;
-                    }
-                    charsWritten += 4;
+                    if (!TryWrite(ref destination, ":sub".AsSpan(), ref charsWritten)) return false;
                 }
             }
             else
             {
-                if (!":r3".AsSpan().TryCopyTo(destination))
+                if (!TryWrite(ref destination, ":r3".AsSpan(), ref charsWritten)) return false;
+            }
+            return true;
+
+            static bool TryWrite(ref Span<char> destination, ReadOnlySpan<char> value, ref int charsWritten)
+            {
+                if (value.Length > destination.Length)
                 {
                     return false;
                 }
-                charsWritten += 3;
+                value.CopyTo(destination);
+                destination = destination.Slice(value.Length);
+                charsWritten += value.Length;
+                return true;
             }
-            return true;
+            static bool TryWriteInt32(ref Span<char> destination, int value, ref int charsWritten)
+            {
+                if (!value.TryFormat(destination, out var len))
+                {
+                    return false;
+                }
+                destination = destination.Slice(len);
+                charsWritten += len;
+                return true;
+            }
         }
 #endif
 

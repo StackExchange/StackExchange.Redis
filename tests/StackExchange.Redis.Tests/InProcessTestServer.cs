@@ -122,7 +122,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
 
     protected override void OnMoved(RedisClient client, int hashSlot, Node node)
     {
-        _log?.WriteLine($"Client {client.Id} being redirected: {hashSlot} to {node}");
+        _log?.WriteLine($"[{client}] being redirected: slot {hashSlot} to {node}");
         base.OnMoved(client, hashSlot, node);
     }
 
@@ -206,7 +206,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 if (!clientTcs.Task.Wait(1000)) throw new TimeoutException("Client not connected");
                 var client = clientTcs.Task.Result;
                 server._log?.WriteLine(
-                    $"[{client}] connected to {Format.ToString(endpoint)} ({connectionType} mapped to {server.ServerType} node {node})");
+                    $"[{client}] connected ({connectionType} mapped to {server.ServerType} node {node})");
 
                 var readStream = serverToClient.Reader.AsStream();
                 var writeStream = clientToServer.Writer.AsStream();
