@@ -469,8 +469,7 @@ RetryResp2:
                 RespServer server,
                 ValueTask pause,
                 RedisClient client,
-                RawResult requestBuffer,
-                PipeWriter output)
+                RawResult requestBuffer)
             {
                 await pause.ConfigureAwait(false);
                 TypedRedisValue response;
@@ -480,15 +479,13 @@ RetryResp2:
                     server._arena.Reset();
                     client.ResetAfterRequest();
                 }
-
-                await WriteResponseAsync(client, output, response, client.Protocol).ConfigureAwait(false);
-                response.Recycle();
+                await client.AddOutboundAsync(response);
                 return true;
             }
             if (!buffer.IsEmpty && TryParseRequest(_arena, ref buffer, out var requestBuffer))
             {
                 var pause = ClientPauseAsync(client);
-                if (!pause.IsCompletedSuccessfully) return AwaitedExec(this, pause, client, requestBuffer, output);
+                if (!pause.IsCompletedSuccessfully) return AwaitedExec(this, pause, client, requestBuffer);
                 TypedRedisValue response;
                 var request = new RedisRequest(requestBuffer).WithClient(client);
                 try { response = Execute(client, request); }
