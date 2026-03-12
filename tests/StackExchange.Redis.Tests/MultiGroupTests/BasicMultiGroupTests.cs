@@ -8,6 +8,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests.MultiGroupTests;
 
+[RunPerProtocol]
 public class BasicMultiGroupTests(ITestOutputHelper log)
 {
     protected TextWriter Log { get; } = new TextWriterOutputHelper(log);
