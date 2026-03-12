@@ -155,6 +155,7 @@
 [SER004]RESPite.Messages.RespReader.ProtocolBytesRemaining.get -> long
 [SER004]RESPite.Messages.RespReader.ReadArray<TResult>(RESPite.Messages.RespReader.Projection<TResult>! projection, bool scalar = false) -> TResult[]?
 [SER004]RESPite.Messages.RespReader.ReadBoolean() -> bool
+[SER004]RESPite.Messages.RespReader.TryReadBoolean(out bool value) -> bool
 [SER004]RESPite.Messages.RespReader.ReadByteArray() -> byte[]?
 [SER004]RESPite.Messages.RespReader.ReadDecimal() -> decimal
 [SER004]RESPite.Messages.RespReader.ReadDouble() -> double

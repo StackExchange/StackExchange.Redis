@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
 
@@ -337,5 +338,69 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static TTo[]? ToArray<TTo, TState>(in this RawResult result, Projection<RawResult, TState, TTo> selector, in TState state)
             => result.IsNull ? null : result.GetItems().ToArray(selector, in state);
+
+        /// <summary>
+        /// Attempts to acquire a GCRA rate limit token, retrying with delays if rate limited.
+        /// </summary>
+        /// <param name="database">The database instance.</param>
+        /// <param name="key">The key for the rate limiter.</param>
+        /// <param name="maxBurst">The maximum burst size.</param>
+        /// <param name="requestsPerPeriod">The number of requests allowed per period.</param>
+        /// <param name="allow">The maximum time to wait for a successful acquisition.</param>
+        /// <param name="periodSeconds">The period in seconds (default: 1.0).</param>
+        /// <param name="count">The number of tokens to acquire (default: 1).</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>True if the token was acquired within the allowed time; false otherwise.</returns>
+        public static async ValueTask<bool> TryAcquireGcraAsync(
+            this IDatabaseAsync database,
+            RedisKey key,
+            int maxBurst,
+            int requestsPerPeriod,
+            TimeSpan allow,
+            double periodSeconds = 1.0,
+            int count = 1,
+            CommandFlags flags = CommandFlags.None,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var startTime = DateTime.UtcNow;
+            var allowMilliseconds = allow.TotalMilliseconds;
+
+            while (true)
+            {
+                var result = await database.StringGcraRateLimitAsync(key, maxBurst, requestsPerPeriod, periodSeconds, count, flags).ConfigureAwait(false);
+
+                if (!result.Limited)
+                {
+                    return true;
+                }
+
+                var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                var remaining = allowMilliseconds - elapsed;
+
+                if (remaining <= 0)
+                {
+                    return false;
+                }
+
+                var delaySeconds = result.RetryAfterSeconds;
+                if (delaySeconds <= 0)
+                {
+                    // Shouldn't happen when Limited is true, but handle defensively
+                    return false;
+                }
+
+                var delayMilliseconds = delaySeconds * 1000.0;
+                if (delayMilliseconds > remaining)
+                {
+                    // Not enough time left to wait for retry
+                    return false;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 }
