@@ -11,12 +11,31 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
+public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixture)
+    : PubSubTestBase(output, fixture, null)
+{
+}
+
+/*
+[RunPerProtocol]
+public class InProcPubSubTests(ITestOutputHelper output, InProcServerFixture fixture)
+    : PubSubTestBase(output, null, fixture)
+{
+    protected override bool UseDedicatedInProcessServer => false;
+}
+*/
+
+[RunPerProtocol]
+public abstract class PubSubTestBase(
+    ITestOutputHelper output,
+    SharedConnectionFixture? connection,
+    InProcServerFixture? server)
+    : TestBase(output, connection, server)
 {
     [Fact]
     public async Task ExplicitPublishMode()
     {
-        await using var conn = Create(channelPrefix: "foo:", log: Writer);
+        await using var conn = ConnectFactory(channelPrefix: "foo:");
 
         var pub = conn.GetSubscriber();
         int a = 0, b = 0, c = 0, d = 0;
@@ -54,9 +73,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("Foo:", true, "f")]
     public async Task TestBasicPubSub(string? channelPrefix, bool wildCard, string breaker)
     {
-        await using var conn = Create(channelPrefix: channelPrefix, shared: false, log: Writer);
+        await using var conn = ConnectFactory(channelPrefix: channelPrefix, shared: false);
 
-        var pub = GetAnyPrimary(conn);
+        var pub = GetAnyPrimary(conn.DefaultClient);
         var sub = conn.GetSubscriber();
         await PingAsync(pub, sub).ForAwait();
         HashSet<string?> received = [];
@@ -139,10 +158,10 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestBasicPubSubFireAndForget()
     {
-        await using var conn = Create(shared: false, log: Writer);
+        await using var conn = ConnectFactory(shared: false);
 
-        var profiler = conn.AddProfiler();
-        var pub = GetAnyPrimary(conn);
+        var profiler = conn.DefaultClient.AddProfiler();
+        var pub = GetAnyPrimary(conn.DefaultClient);
         var sub = conn.GetSubscriber();
 
         RedisChannel key = RedisChannel.Literal(Me() + Guid.NewGuid());
@@ -214,9 +233,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestPatternPubSub()
     {
-        await using var conn = Create(shared: false, log: Writer);
+        await using var conn = ConnectFactory(shared: false);
 
-        var pub = GetAnyPrimary(conn);
+        var pub = GetAnyPrimary(conn.DefaultClient);
         var sub = conn.GetSubscriber();
 
         HashSet<string?> received = [];
@@ -273,7 +292,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestPublishWithNoSubscribers()
     {
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
 
         var sub = conn.GetSubscriber();
 #pragma warning disable CS0618
@@ -285,7 +304,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task TestMassivePublishWithWithoutFlush_Local()
     {
         Skip.UnlessLongRunning();
-        await using var conn = Create();
+        await using var conn = ConnectFactory();
 
         var sub = conn.GetSubscriber();
         TestMassivePublish(sub, Me(), "local");
@@ -335,7 +354,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task SubscribeAsyncEnumerable()
     {
-        await using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
+        await using var conn = ConnectFactory(shared: false);
 
         var sub = conn.GetSubscriber();
         RedisChannel channel = RedisChannel.Literal(Me());
@@ -370,7 +389,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task PubSubGetAllAnyOrder()
     {
-        await using var conn = Create(syncTimeout: 20000, shared: false, log: Writer);
+        await using var conn = ConnectFactory(shared: false);
 
         var sub = conn.GetSubscriber();
         RedisChannel channel = RedisChannel.Literal(Me());
@@ -625,9 +644,10 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestPublishWithSubscribers()
     {
-        await using var connA = Create(shared: false, log: Writer);
-        await using var connB = Create(shared: false, log: Writer);
-        await using var connPub = Create();
+        await using var pair = ConnectFactory(shared: false);
+        await using var connA = pair.DefaultClient;
+        await using var connB = pair.CreateClient();
+        await using var connPub = pair.CreateClient();
 
         var channel = Me();
         var listenA = connA.GetSubscriber();
@@ -652,9 +672,10 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestMultipleSubscribersGetMessage()
     {
-        await using var connA = Create(shared: false, log: Writer);
-        await using var connB = Create(shared: false, log: Writer);
-        await using var connPub = Create();
+        await using var pair = ConnectFactory(shared: false);
+        await using var connA = pair.DefaultClient;
+        await using var connB = pair.CreateClient();
+        await using var connPub = pair.CreateClient();
 
         var channel = RedisChannel.Literal(Me());
         var listenA = connA.GetSubscriber();
@@ -682,7 +703,7 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task Issue38()
     {
-        await using var conn = Create(log: Writer);
+        await using var conn = ConnectFactory();
 
         var sub = conn.GetSubscriber();
         int count = 0;
@@ -717,9 +738,10 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestPartialSubscriberGetMessage()
     {
-        await using var connA = Create();
-        await using var connB = Create();
-        await using var connPub = Create();
+        await using var pair = ConnectFactory();
+        await using var connA = pair.DefaultClient;
+        await using var connB = pair.CreateClient();
+        await using var connPub = pair.CreateClient();
 
         int gotA = 0, gotB = 0;
         var listenA = connA.GetSubscriber();
@@ -750,8 +772,9 @@ public class PubSubTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestSubscribeUnsubscribeAndSubscribeAgain()
     {
-        await using var connPub = Create();
-        await using var connSub = Create();
+        await using var pair = ConnectFactory();
+        await using var connPub = pair.DefaultClient;
+        await using var connSub = pair.CreateClient();
 
         var prefix = Me();
         var pub = connPub.GetSubscriber();
