@@ -1,5 +1,4 @@
-﻿extern alias respite;
-using System;
+﻿using System;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;

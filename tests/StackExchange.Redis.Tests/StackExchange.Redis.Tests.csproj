@@ -36,7 +36,7 @@
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="System.IO.Compression" />
     <PackageReference Include="System.IO.Pipelines" />
-    <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" Aliases="respite"/>
+    <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" />
     <ProjectReference Include="..\RESPite.Tests\RESPite.Tests.csproj" />
   </ItemGroup>
 </Project>
