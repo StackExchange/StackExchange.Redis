@@ -36,20 +36,22 @@ public sealed partial class HotKeysResult
         var iter = result.GetItems().GetEnumerator();
         while (iter.MoveNext())
         {
-            ref readonly RawResult key = ref iter.Current;
+            if (!iter.Current.TryParse(HotKeysFieldMetadata.TryParse, out HotKeysField field))
+                field = HotKeysField.Unknown;
+
             if (!iter.MoveNext()) break; // lies about the length!
             ref readonly RawResult value = ref iter.Current;
-            var hash = key.Payload.Hash64();
+
             long i64;
-            switch (hash)
+            switch (field)
             {
-                case tracking_active.Hash when tracking_active.Is(hash, key):
+                case HotKeysField.TrackingActive:
                     TrackingActive = value.GetBoolean();
                     break;
-                case sample_ratio.Hash when sample_ratio.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.SampleRatio when value.TryGetInt64(out i64):
                     SampleRatio = i64;
                     break;
-                case selected_slots.Hash when selected_slots.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
+                case HotKeysField.SelectedSlots when value.Resp2TypeArray is ResultType.Array:
                     var len = value.ItemsCount;
                     if (len == 0)
                     {
@@ -92,55 +94,55 @@ public sealed partial class HotKeysResult
                     }
                     _selectedSlots = slots;
                     break;
-                case all_commands_all_slots_us.Hash when all_commands_all_slots_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.AllCommandsAllSlotsUs when value.TryGetInt64(out i64):
                     AllCommandsAllSlotsMicroseconds = i64;
                     break;
-                case all_commands_selected_slots_us.Hash when all_commands_selected_slots_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.AllCommandsSelectedSlotsUs when value.TryGetInt64(out i64):
                     AllCommandSelectedSlotsMicroseconds = i64;
                     break;
-                case sampled_command_selected_slots_us.Hash when sampled_command_selected_slots_us.Is(hash, key) && value.TryGetInt64(out i64):
-                case sampled_commands_selected_slots_us.Hash when sampled_commands_selected_slots_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.SampledCommandSelectedSlotsUs when value.TryGetInt64(out i64):
+                case HotKeysField.SampledCommandsSelectedSlotsUs when value.TryGetInt64(out i64):
                     SampledCommandsSelectedSlotsMicroseconds = i64;
                     break;
-                case net_bytes_all_commands_all_slots.Hash when net_bytes_all_commands_all_slots.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.NetBytesAllCommandsAllSlots when value.TryGetInt64(out i64):
                     AllCommandsAllSlotsNetworkBytes = i64;
                     break;
-                case net_bytes_all_commands_selected_slots.Hash when net_bytes_all_commands_selected_slots.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.NetBytesAllCommandsSelectedSlots when value.TryGetInt64(out i64):
                     NetworkBytesAllCommandsSelectedSlotsRaw = i64;
                     break;
-                case net_bytes_sampled_commands_selected_slots.Hash when net_bytes_sampled_commands_selected_slots.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.NetBytesSampledCommandsSelectedSlots when value.TryGetInt64(out i64):
                     NetworkBytesSampledCommandsSelectedSlotsRaw = i64;
                     break;
-                case collection_start_time_unix_ms.Hash when collection_start_time_unix_ms.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.CollectionStartTimeUnixMs when value.TryGetInt64(out i64):
                     CollectionStartTimeUnixMilliseconds = i64;
                     break;
-                case collection_duration_ms.Hash when collection_duration_ms.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.CollectionDurationMs when value.TryGetInt64(out i64):
                     CollectionDurationMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case collection_duration_us.Hash when collection_duration_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.CollectionDurationUs when value.TryGetInt64(out i64):
                     CollectionDurationMicroseconds = i64;
                     break;
-                case total_cpu_time_sys_ms.Hash when total_cpu_time_sys_ms.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.TotalCpuTimeSysMs when value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeSystemMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case total_cpu_time_sys_us.Hash when total_cpu_time_sys_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.TotalCpuTimeSysUs when value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeSystemMicroseconds = i64;
                     break;
-                case total_cpu_time_user_ms.Hash when total_cpu_time_user_ms.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.TotalCpuTimeUserMs when value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeUserMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case total_cpu_time_user_us.Hash when total_cpu_time_user_us.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.TotalCpuTimeUserUs when value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeUserMicroseconds = i64;
                     break;
-                case total_net_bytes.Hash when total_net_bytes.Is(hash, key) && value.TryGetInt64(out i64):
+                case HotKeysField.TotalNetBytes when value.TryGetInt64(out i64):
                     metrics |= HotKeysMetrics.Network;
                     TotalNetworkBytesRaw = i64;
                     break;
-                case by_cpu_time_us.Hash when by_cpu_time_us.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
+                case HotKeysField.ByCpuTimeUs when value.Resp2TypeArray is ResultType.Array:
                     metrics |= HotKeysMetrics.Cpu;
                     len = value.ItemsCount / 2;
                     if (len == 0)
@@ -162,7 +164,7 @@ public sealed partial class HotKeysResult
 
                     _cpuByKey = cpuTime;
                     break;
-                case by_net_bytes.Hash when by_net_bytes.Is(hash, key) & value.Resp2TypeArray is ResultType.Array:
+                case HotKeysField.ByNetBytes when value.Resp2TypeArray is ResultType.Array:
                     metrics |= HotKeysMetrics.Network;
                     len = value.ItemsCount / 2;
                     if (len == 0)
@@ -188,30 +190,4 @@ public sealed partial class HotKeysResult
         } // while
         Metrics = metrics;
     }
-
-#pragma warning disable SA1134, SA1300
-    // ReSharper disable InconsistentNaming
-    [FastHash] internal static partial class tracking_active { }
-    [FastHash] internal static partial class sample_ratio { }
-    [FastHash] internal static partial class selected_slots { }
-    [FastHash] internal static partial class all_commands_all_slots_us { }
-    [FastHash] internal static partial class all_commands_selected_slots_us { }
-    [FastHash] internal static partial class sampled_command_selected_slots_us { }
-    [FastHash] internal static partial class sampled_commands_selected_slots_us { }
-    [FastHash] internal static partial class net_bytes_all_commands_all_slots { }
-    [FastHash] internal static partial class net_bytes_all_commands_selected_slots { }
-    [FastHash] internal static partial class net_bytes_sampled_commands_selected_slots { }
-    [FastHash] internal static partial class collection_start_time_unix_ms { }
-    [FastHash] internal static partial class collection_duration_ms { }
-    [FastHash] internal static partial class collection_duration_us { }
-    [FastHash] internal static partial class total_cpu_time_user_ms { }
-    [FastHash] internal static partial class total_cpu_time_user_us { }
-    [FastHash] internal static partial class total_cpu_time_sys_ms { }
-    [FastHash] internal static partial class total_cpu_time_sys_us { }
-    [FastHash] internal static partial class total_net_bytes { }
-    [FastHash] internal static partial class by_cpu_time_us { }
-    [FastHash] internal static partial class by_net_bytes { }
-
-    // ReSharper restore InconsistentNaming
-#pragma warning restore SA1134, SA1300
 }

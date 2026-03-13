@@ -71,7 +71,7 @@ public class MovedTestServer : InProcessTestServer
     {
         if (client is MovedTestClient movedClient)
         {
-            Log($"Client {client.Id} connected (assigned to {movedClient.AssignedHost}), total connections: {TotalClientCount}");
+            Log($"[{client}] connected (assigned to {movedClient.AssignedHost}), total connections: {TotalClientCount}");
         }
         base.OnClientConnected(client, state);
     }

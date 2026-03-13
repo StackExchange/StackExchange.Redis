@@ -2,9 +2,6 @@
 using System.Globalization;
 using System.Net;
 using System.Threading.Tasks;
-#if NETCOREAPP
-using System.Buffers.Text;
-#endif
 
 namespace StackExchange.Redis.Maintenance
 {
@@ -58,7 +55,7 @@ namespace StackExchange.Redis.Maintenance
 
                     if (key.Length > 0 && value.Length > 0)
                     {
-#if NETCOREAPP
+#if NET
                         switch (key)
                         {
                             case var _ when key.SequenceEqual(nameof(NotificationType).AsSpan()):

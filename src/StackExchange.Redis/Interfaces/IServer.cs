@@ -814,5 +814,8 @@ namespace StackExchange.Redis
         /// <param name="server">The server to simulate failure on.</param>
         /// <param name="failureType">The type of failure(s) to simulate.</param>
         internal static void SimulateConnectionFailure(this IServer server, SimulatedFailureType failureType) => (server as RedisServer)?.SimulateConnectionFailure(failureType);
+
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+        internal static bool CanSimulateConnectionFailure(this IServer server) => server is not null; // this changes in v3
     }
 }

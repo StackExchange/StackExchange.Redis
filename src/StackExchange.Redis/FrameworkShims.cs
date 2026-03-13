@@ -1,6 +1,6 @@
 ﻿#pragma warning disable SA1403 // single namespace
 
-#if NET5_0_OR_GREATER
+#if NET
 // context: https://github.com/StackExchange/StackExchange.Redis/issues/2619
 [assembly: System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.Runtime.CompilerServices.IsExternalInit))]
 #else
@@ -15,7 +15,7 @@ namespace System.Runtime.CompilerServices
 }
 #endif
 
-#if !NET9_0_OR_GREATER
+#if !NET10_0_OR_GREATER
 namespace System.Runtime.CompilerServices
 {
     // see https://learn.microsoft.com/dotnet/api/system.runtime.compilerservices.overloadresolutionpriorityattribute
@@ -27,7 +27,7 @@ namespace System.Runtime.CompilerServices
 }
 #endif
 
-#if !(NETCOREAPP || NETSTANDARD2_1_OR_GREATER)
+#if !NET
 
 namespace System.Text
 {

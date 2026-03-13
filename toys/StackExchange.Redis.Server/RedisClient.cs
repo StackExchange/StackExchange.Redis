@@ -1,22 +1,112 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Text;
+using RESPite;
+using RESPite.Messages;
 
 namespace StackExchange.Redis.Server
 {
     public partial class RedisClient(RedisServer.Node node) : IDisposable
+#pragma warning disable SA1001
+        #if NET
+        , ISpanFormattable
+#else
+        , IFormattable
+        #endif
+#pragma warning restore SA1001
     {
+        private RespScanState _readState;
+
+        public override string ToString()
+        {
+            if (Protocol is RedisProtocol.Resp2)
+            {
+                return IsSubscriber ? $"{node.Host}:{node.Port} #{Id}:sub" : $"{node.Host}:{node.Port} #{Id}";
+            }
+            return $"{node.Host}:{node.Port} #{Id}:r3";
+        }
+
+        string IFormattable.ToString(string format, IFormatProvider formatProvider) => ToString();
+#if NET
+        public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider provider)
+        {
+            charsWritten = 0;
+            if (!(TryWrite(ref destination, node.Host.AsSpan(), ref charsWritten)
+                    && TryWrite(ref destination, ":".AsSpan(), ref charsWritten)
+                    && TryWriteInt32(ref destination, node.Port, ref charsWritten)
+                    && TryWrite(ref destination, " #".AsSpan(), ref charsWritten)
+                    && TryWriteInt32(ref destination, Id, ref charsWritten)))
+            {
+                return false;
+            }
+            if (Protocol is RedisProtocol.Resp2)
+            {
+                if (IsSubscriber)
+                {
+                    if (!TryWrite(ref destination, ":sub".AsSpan(), ref charsWritten)) return false;
+                }
+            }
+            else
+            {
+                if (!TryWrite(ref destination, ":r3".AsSpan(), ref charsWritten)) return false;
+            }
+            return true;
+
+            static bool TryWrite(ref Span<char> destination, ReadOnlySpan<char> value, ref int charsWritten)
+            {
+                if (value.Length > destination.Length)
+                {
+                    return false;
+                }
+                value.CopyTo(destination);
+                destination = destination.Slice(value.Length);
+                charsWritten += value.Length;
+                return true;
+            }
+            static bool TryWriteInt32(ref Span<char> destination, int value, ref int charsWritten)
+            {
+                if (!value.TryFormat(destination, out var len))
+                {
+                    return false;
+                }
+                destination = destination.Slice(len);
+                charsWritten += len;
+                return true;
+            }
+        }
+#endif
+
+        public bool TryReadRequest(ReadOnlySequence<byte> data, out long consumed)
+        {
+            // skip past data we've already read
+            data = data.Slice(_readState.TotalBytes);
+            var status = RespFrameScanner.Default.TryRead(ref _readState, data);
+            consumed = _readState.TotalBytes;
+            switch (status)
+            {
+                case OperationStatus.Done:
+                    _readState = default; // reset ready for the next frame
+                    return true;
+                case OperationStatus.NeedMoreData:
+                    consumed = 0;
+                    return false;
+                default:
+                    throw new InvalidOperationException($"Unexpected status: {status}");
+            }
+        }
+
         public RedisServer.Node Node => node;
         internal int SkipReplies { get; set; }
         internal bool ShouldSkipResponse()
         {
-            if (SkipReplies > 0)
+            if (SkipReplies > 0) // skips N
             {
                 SkipReplies--;
                 return true;
             }
-            return false;
+            return SkipReplies < 0; // skips forever
         }
 
         public int Database { get; set; }
@@ -41,6 +131,8 @@ namespace StackExchange.Redis.Server
                 try { pipe.Output.Complete(); } catch { }
                 if (pipe is IDisposable d) try { d.Dispose(); } catch { }
             }
+
+            _readState = default;
         }
 
         private int _activeSlot = ServerSelectionStrategy.NoSlot;
@@ -220,13 +312,12 @@ namespace StackExchange.Redis.Server
         // completely unoptimized for now; this is fine
         private List<byte[]> _transaction; // null until needed
 
-        internal bool BufferMulti(in RedisRequest request, in CommandBytes command)
+        internal bool BufferMulti(in RedisRequest request, in AsciiHash command)
         {
             switch (_transactionState)
             {
                 case TransactionState.MultiHopeful when !AllowInTransaction(command):
-                    // TODO we also can't do this bit! just store the command name for now
-                    (_transaction ??= []).Add(Encoding.ASCII.GetBytes(request.GetString(0)));
+                    (_transaction ??= []).Add(request.Serialize());
                     return true;
                 case TransactionState.MultiAbortByError when !AllowInTransaction(command):
                 case TransactionState.MultiDoomedByTouch when !AllowInTransaction(command):
@@ -236,12 +327,12 @@ namespace StackExchange.Redis.Server
                     return false;
             }
 
-            static bool AllowInTransaction(in CommandBytes cmd)
+            static bool AllowInTransaction(in AsciiHash cmd)
                 => cmd.Equals(EXEC) || cmd.Equals(DISCARD) || cmd.Equals(MULTI)
                    || cmd.Equals(WATCH) || cmd.Equals(UNWATCH);
         }
 
-        private static readonly CommandBytes
+        private static readonly AsciiHash
             EXEC = new("EXEC"u8), DISCARD = new("DISCARD"u8), MULTI = new("MULTI"u8),
             WATCH = new("WATCH"u8), UNWATCH = new("UNWATCH"u8);
     }

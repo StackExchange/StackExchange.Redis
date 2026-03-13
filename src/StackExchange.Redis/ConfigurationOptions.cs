@@ -301,7 +301,7 @@ namespace StackExchange.Redis
         /// <param name="issuerCertificatePath">The file system path to find the certificate at.</param>
         public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
 
-#if NET5_0_OR_GREATER
+#if NET
         /// <summary>
         /// Supply a user certificate from a PEM file pair and enable TLS.
         /// </summary>
@@ -325,7 +325,7 @@ namespace StackExchange.Redis
             Ssl = true;
         }
 
-#if NET5_0_OR_GREATER
+#if NET
         internal static LocalCertificateSelectionCallback CreatePemUserCertificateCallback(string userCertificatePath, string? userKeyPath)
         {
             // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
@@ -340,7 +340,9 @@ namespace StackExchange.Redis
 
         internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
         {
+#pragma warning disable SYSLIB0057
             var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+#pragma warning restore SYSLIB0057
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
 
@@ -351,7 +353,9 @@ namespace StackExchange.Redis
         public void TrustIssuer(X509Certificate2 issuer) => CertificateValidationCallback = TrustIssuerCallback(issuer);
 
         internal static RemoteCertificateValidationCallback TrustIssuerCallback(string issuerCertificatePath)
+#pragma warning disable SYSLIB0057
             => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
+#pragma warning restore SYSLIB0057
         private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
@@ -694,7 +698,7 @@ namespace StackExchange.Redis
         /// </remarks>
         public SocketManager? SocketManager { get; set; }
 
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
         /// <summary>
         /// A <see cref="SslClientAuthenticationOptions"/> provider for a given host, for custom TLS connection options.
         /// Note: this overrides *all* other TLS and certificate settings, only for advanced use cases.
@@ -833,7 +837,7 @@ namespace StackExchange.Redis
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
             LoggerFactory = LoggerFactory,
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
             Tunnel = Tunnel,

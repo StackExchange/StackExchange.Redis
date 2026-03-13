@@ -11,7 +11,7 @@ namespace StackExchange.Redis
         internal static bool IsNullOrWhiteSpace([NotNullWhen(false)] this string? s) =>
             string.IsNullOrWhiteSpace(s);
 
-#if !NETCOREAPP3_1_OR_GREATER
+#if !NET
         internal static bool TryDequeue<T>(this Queue<T> queue, [NotNullWhen(true)] out T? result)
         {
             if (queue.Count == 0)

@@ -25,7 +25,7 @@ namespace StackExchange.Redis
             return task;
         }
 
-#if !NET6_0_OR_GREATER
+#if !NET
         // suboptimal polyfill version of the .NET 6+ API, but reasonable for light use
         internal static Task<T> WaitAsync<T>(this Task<T> task, CancellationToken cancellationToken)
         {

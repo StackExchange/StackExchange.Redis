@@ -211,8 +211,6 @@ public abstract class TestBase : IDisposable
             }
             Assert.Skip($"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
         }
-        var pool = SocketManager.Shared?.SchedulerPool;
-        Log($"Service Counts: (Scheduler) Queue: {pool?.TotalServicedByQueue.ToString()}, Pool: {pool?.TotalServicedByPool.ToString()}, Workers: {pool?.WorkerCount.ToString()}, Available: {pool?.AvailableCount.ToString()}");
     }
 
     protected static IServer GetServer(IConnectionMultiplexer muxer)
@@ -564,7 +562,7 @@ public abstract class TestBase : IDisposable
             for (int i = 0; i < threads; i++)
             {
                 var thd = threadArr[i];
-#if !NET6_0_OR_GREATER
+#if !NET
                 if (thd.IsAlive) thd.Abort();
 #endif
             }
@@ -588,6 +586,7 @@ public abstract class TestBase : IDisposable
 
     // simplified usage to get an interchangeable dedicated vs shared in-process server, useful for debugging
     protected virtual bool UseDedicatedInProcessServer => false; // use the shared server by default
+
     internal ClientFactory ConnectFactory(bool allowAdmin = false, string? channelPrefix = null, bool shared = true)
     {
         if (UseDedicatedInProcessServer)
@@ -596,6 +595,16 @@ public abstract class TestBase : IDisposable
             return new ClientFactory(this, allowAdmin, channelPrefix, shared, server);
         }
         return new ClientFactory(this, allowAdmin, channelPrefix, shared, null);
+    }
+
+    protected void SkipIfWouldUseInProcessServer(string? reason = null)
+    {
+        Assert.SkipWhen(_inProcServerFixture != null || UseDedicatedInProcessServer, reason ?? "In-process server is in use.");
+    }
+
+    protected void SkipIfWouldUseRealServer(string? reason = null)
+    {
+        Assert.SkipUnless(_inProcServerFixture != null || UseDedicatedInProcessServer, reason ?? "Real server is in use.");
     }
 
     internal sealed class ClientFactory : IDisposable, IAsyncDisposable

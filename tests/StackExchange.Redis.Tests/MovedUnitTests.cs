@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Tests;
 /// When a MOVED error points to the same endpoint, the client should reconnect before retrying,
 /// allowing the DNS record/proxy/load balancer to route to a different underlying server host.
 /// </summary>
+[RunPerProtocol]
 public class MovedUnitTests(ITestOutputHelper log)
 {
     private RedisKey Me([CallerMemberName] string callerName = "") => callerName;
@@ -48,13 +49,16 @@ public class MovedUnitTests(ITestOutputHelper log)
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task KeyMigrationFollowed(bool allowFollowRedirects)
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task KeyMigrationFollowed(bool allowFollowRedirects, bool toNewUnknownNode)
     {
         RedisKey key = Me();
         using var server = new InProcessTestServer(log) { ServerType = ServerType.Cluster };
-        var secondNode = server.AddEmptyNode();
+        // depending on the test, we might not want the client to know about the second node yet
+        var secondNode = toNewUnknownNode ? null : server.AddEmptyNode();
 
         await using var muxer = await server.ConnectAsync();
         var db = muxer.GetDatabase();
@@ -62,6 +66,11 @@ public class MovedUnitTests(ITestOutputHelper log)
         await db.StringSetAsync(key, "value");
         var value = await db.StringGetAsync(key);
         Assert.Equal("value", (string?)value);
+
+        if (toNewUnknownNode) // if deferred, the client doesn't know about this yet
+        {
+            secondNode = server.AddEmptyNode();
+        }
 
         server.Migrate(key, secondNode);
 

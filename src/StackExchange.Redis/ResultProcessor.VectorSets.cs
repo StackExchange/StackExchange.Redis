@@ -73,49 +73,36 @@ internal abstract partial class ResultProcessor
                 var iter = result.GetItems().GetEnumerator();
                 while (iter.MoveNext())
                 {
-                    ref readonly RawResult key = ref iter.Current;
+                    if (!iter.Current.TryParse(VectorSetInfoFieldMetadata.TryParse, out VectorSetInfoField field))
+                        field = VectorSetInfoField.Unknown;
+
                     if (!iter.MoveNext()) break;
                     ref readonly RawResult value = ref iter.Current;
 
-                    var len = key.Payload.Length;
-                    var keyHash = key.Payload.Hash64();
-                    switch (key.Payload.Length)
+                    switch (field)
                     {
-                        case size.Length when size.Is(keyHash, key) && value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.Size when value.TryGetInt64(out var i64):
                             resultSize = i64;
                             break;
-                        case vset_uid.Length when vset_uid.Is(keyHash, key) && value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.VsetUid when value.TryGetInt64(out var i64):
                             vsetUid = i64;
                             break;
-                        case max_level.Length when max_level.Is(keyHash, key) && value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.MaxLevel when value.TryGetInt64(out var i64):
                             maxLevel = checked((int)i64);
                             break;
-                        case vector_dim.Length
-                            when vector_dim.Is(keyHash, key) && value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.VectorDim when value.TryGetInt64(out var i64):
                             vectorDim = checked((int)i64);
                             break;
-                        case quant_type.Length when quant_type.Is(keyHash, key):
-                            var qHash = value.Payload.Hash64();
-                            switch (value.Payload.Length)
-                            {
-                                case bin.Length when bin.Is(qHash, value):
-                                    quantType = VectorSetQuantization.Binary;
-                                    break;
-                                case f32.Length when f32.Is(qHash, value):
-                                    quantType = VectorSetQuantization.None;
-                                    break;
-                                case int8.Length when int8.Is(qHash, value):
-                                    quantType = VectorSetQuantization.Int8;
-                                    break;
-                                default:
-                                    quantTypeRaw = value.GetString();
-                                    quantType = VectorSetQuantization.Unknown;
-                                    break;
-                            }
-
+                        case VectorSetInfoField.QuantType
+                            when value.TryParse(VectorSetQuantizationMetadata.TryParse, out VectorSetQuantization quantTypeValue)
+                                && quantTypeValue is not VectorSetQuantization.Unknown:
+                            quantType = quantTypeValue;
                             break;
-                        case hnsw_max_node_uid.Length
-                            when hnsw_max_node_uid.Is(keyHash, key) && value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.QuantType:
+                            quantTypeRaw = value.GetString();
+                            quantType = VectorSetQuantization.Unknown;
+                            break;
+                        case VectorSetInfoField.HnswMaxNodeUid when value.TryGetInt64(out var i64):
                             hnswMaxNodeUid = i64;
                             break;
                     }
@@ -129,21 +116,5 @@ internal abstract partial class ResultProcessor
 
             return false;
         }
-
-#pragma warning disable CS8981, SA1134, SA1300, SA1303, SA1502
-        // ReSharper disable InconsistentNaming - to better represent expected literals
-        // ReSharper disable IdentifierTypo
-        [FastHash] private static partial class bin { }
-        [FastHash] private static partial class f32 { }
-        [FastHash] private static partial class int8 { }
-        [FastHash] private static partial class size { }
-        [FastHash] private static partial class vset_uid { }
-        [FastHash] private static partial class max_level { }
-        [FastHash] private static partial class quant_type { }
-        [FastHash] private static partial class vector_dim { }
-        [FastHash] private static partial class hnsw_max_node_uid { }
-        // ReSharper restore InconsistentNaming
-        // ReSharper restore IdentifierTypo
-#pragma warning restore CS8981, SA1134, SA1300, SA1303, SA1502
     }
 }

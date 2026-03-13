@@ -17,33 +17,33 @@ jobs:
       DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Enable color output, even though the console output is redirected in Actions
       TERM: xterm # Enable color output in GitHub Actions
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Fetch the full history
-    - name: Start Redis Services (docker-compose)
-      working-directory: ./tests/RedisConfigs
-      run: docker compose -f docker-compose.yml up -d --wait
-    - name: Install .NET SDK
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: |
-          6.0.x
-          8.0.x
-          10.0.x
-    - name: .NET Build
-      run: dotnet build Build.csproj -c Release /p:CI=true
-    - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
-    - uses: dorny/test-reporter@v1
-      continue-on-error: true
-      if: success() || failure()
-      with:
-        name: Test Results - Ubuntu
-        path: 'test-results/*.trx'
-        reporter: dotnet-trx
-    - name: .NET Lib Pack
-      run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the full history
+      - name: Start Redis Services (docker-compose)
+        working-directory: ./tests/RedisConfigs
+        run: docker compose -f docker-compose.yml up -d --wait
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+            10.0.x
+      - name: .NET Build
+        run: dotnet build Build.csproj -c Release /p:CI=true
+      - name: StackExchange.Redis.Tests
+        run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+      - uses: dorny/test-reporter@v1
+        continue-on-error: true
+        if: success() || failure()
+        with:
+          name: Test Results - Ubuntu
+          path: 'test-results/*.trx'
+          reporter: dotnet-trx
+      - name: .NET Lib Pack
+        run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
 
   windows:
     name: StackExchange.Redis (Windows Server 2022)
@@ -54,99 +54,99 @@ jobs:
       TERM: xterm
       DOCKER_BUILDKIT: 1
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Fetch the full history
-    - uses: Vampire/setup-wsl@v2
-      with:
-        distribution: Ubuntu-22.04
-    - name: Install Redis
-      shell: wsl-bash {0}
-      working-directory: ./tests/RedisConfigs
-      run: |
-        apt-get update
-        apt-get install curl gpg lsb-release libgomp1 jq -y
-        curl -fsSL https://packages.redis.io/gpg | gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
-        chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
-        echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/redis.list
-        apt-get update
-        apt-get install -y redis
-        mkdir redis
-    - name: Run redis-server
-      shell: wsl-bash {0}
-      working-directory: ./tests/RedisConfigs/redis
-      run: |
-        pwd
-        ls .
-        # Run each server instance in order
-        redis-server ../Basic/primary-6379.conf &
-        redis-server ../Basic/replica-6380.conf &
-        redis-server ../Basic/secure-6381.conf &
-        redis-server ../Failover/primary-6382.conf &
-        redis-server ../Failover/replica-6383.conf &
-        redis-server ../Cluster/cluster-7000.conf --dir ../Cluster &
-        redis-server ../Cluster/cluster-7001.conf --dir ../Cluster &
-        redis-server ../Cluster/cluster-7002.conf --dir ../Cluster &
-        redis-server ../Cluster/cluster-7003.conf --dir ../Cluster &
-        redis-server ../Cluster/cluster-7004.conf --dir ../Cluster &
-        redis-server ../Cluster/cluster-7005.conf --dir ../Cluster &
-        redis-server ../Sentinel/redis-7010.conf &
-        redis-server ../Sentinel/redis-7011.conf &
-        redis-server ../Sentinel/sentinel-26379.conf --sentinel &
-        redis-server ../Sentinel/sentinel-26380.conf --sentinel &
-        redis-server ../Sentinel/sentinel-26381.conf --sentinel &
-        # Wait for server instances to get ready
-        sleep 5
-        echo "Checking redis-server version with port 6379"
-        redis-cli -p 6379 INFO SERVER | grep redis_version || echo "Failed to get version for port 6379"
-        echo "Checking redis-server version with port 6380"
-        redis-cli -p 6380 INFO SERVER | grep redis_version || echo "Failed to get version for port 6380"
-        echo "Checking redis-server version with port 6381"
-        redis-cli -p 6381 INFO SERVER | grep redis_version || echo "Failed to get version for port 6381"
-        echo "Checking redis-server version with port 6382"
-        redis-cli -p 6382 INFO SERVER | grep redis_version || echo "Failed to get version for port 6382"
-        echo "Checking redis-server version with port 6383"
-        redis-cli -p 6383 INFO SERVER | grep redis_version || echo "Failed to get version for port 6383"
-        echo "Checking redis-server version with port 7000"
-        redis-cli -p 7000 INFO SERVER | grep redis_version || echo "Failed to get version for port 7000"
-        echo "Checking redis-server version with port 7001"
-        redis-cli -p 7001 INFO SERVER | grep redis_version || echo "Failed to get version for port 7001"
-        echo "Checking redis-server version with port 7002"
-        redis-cli -p 7002 INFO SERVER | grep redis_version || echo "Failed to get version for port 7002"
-        echo "Checking redis-server version with port 7003"
-        redis-cli -p 7003 INFO SERVER | grep redis_version || echo "Failed to get version for port 7003"
-        echo "Checking redis-server version with port 7004"
-        redis-cli -p 7004 INFO SERVER | grep redis_version || echo "Failed to get version for port 7004"
-        echo "Checking redis-server version with port 7005"
-        redis-cli -p 7005 INFO SERVER | grep redis_version || echo "Failed to get version for port 7005"
-        echo "Checking redis-server version with port 7010"
-        redis-cli -p 7010 INFO SERVER | grep redis_version || echo "Failed to get version for port 7010"
-        echo "Checking redis-server version with port 7011"
-        redis-cli -p 7011 INFO SERVER | grep redis_version || echo "Failed to get version for port 7011"
-        echo "Checking redis-server version with port 26379"
-        redis-cli -p 26379 INFO SERVER | grep redis_version || echo "Failed to get version for port 26379"
-        echo "Checking redis-server version with port 26380"
-        redis-cli -p 26380 INFO SERVER | grep redis_version || echo "Failed to get version for port 26380"
-        echo "Checking redis-server version with port 26381"
-        redis-cli -p 26381 INFO SERVER | grep redis_version || echo "Failed to get version for port 26381"
-      continue-on-error: true
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch the full history
+      - uses: Vampire/setup-wsl@v2
+        with:
+          distribution: Ubuntu-22.04
+      - name: Install Redis
+        shell: wsl-bash {0}
+        working-directory: ./tests/RedisConfigs
+        run: |
+          apt-get update
+          apt-get install curl gpg lsb-release libgomp1 jq -y
+          curl -fsSL https://packages.redis.io/gpg | gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+          chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/redis.list
+          apt-get update
+          apt-get install -y redis
+          mkdir redis
+      - name: Run redis-server
+        shell: wsl-bash {0}
+        working-directory: ./tests/RedisConfigs/redis
+        run: |
+          pwd
+          ls .
+          # Run each server instance in order
+          redis-server ../Basic/primary-6379.conf &
+          redis-server ../Basic/replica-6380.conf &
+          redis-server ../Basic/secure-6381.conf &
+          redis-server ../Failover/primary-6382.conf &
+          redis-server ../Failover/replica-6383.conf &
+          redis-server ../Cluster/cluster-7000.conf --dir ../Cluster &
+          redis-server ../Cluster/cluster-7001.conf --dir ../Cluster &
+          redis-server ../Cluster/cluster-7002.conf --dir ../Cluster &
+          redis-server ../Cluster/cluster-7003.conf --dir ../Cluster &
+          redis-server ../Cluster/cluster-7004.conf --dir ../Cluster &
+          redis-server ../Cluster/cluster-7005.conf --dir ../Cluster &
+          redis-server ../Sentinel/redis-7010.conf &
+          redis-server ../Sentinel/redis-7011.conf &
+          redis-server ../Sentinel/sentinel-26379.conf --sentinel &
+          redis-server ../Sentinel/sentinel-26380.conf --sentinel &
+          redis-server ../Sentinel/sentinel-26381.conf --sentinel &
+          # Wait for server instances to get ready
+          sleep 5
+          echo "Checking redis-server version with port 6379"
+          redis-cli -p 6379 INFO SERVER | grep redis_version || echo "Failed to get version for port 6379"
+          echo "Checking redis-server version with port 6380"
+          redis-cli -p 6380 INFO SERVER | grep redis_version || echo "Failed to get version for port 6380"
+          echo "Checking redis-server version with port 6381"
+          redis-cli -p 6381 INFO SERVER | grep redis_version || echo "Failed to get version for port 6381"
+          echo "Checking redis-server version with port 6382"
+          redis-cli -p 6382 INFO SERVER | grep redis_version || echo "Failed to get version for port 6382"
+          echo "Checking redis-server version with port 6383"
+          redis-cli -p 6383 INFO SERVER | grep redis_version || echo "Failed to get version for port 6383"
+          echo "Checking redis-server version with port 7000"
+          redis-cli -p 7000 INFO SERVER | grep redis_version || echo "Failed to get version for port 7000"
+          echo "Checking redis-server version with port 7001"
+          redis-cli -p 7001 INFO SERVER | grep redis_version || echo "Failed to get version for port 7001"
+          echo "Checking redis-server version with port 7002"
+          redis-cli -p 7002 INFO SERVER | grep redis_version || echo "Failed to get version for port 7002"
+          echo "Checking redis-server version with port 7003"
+          redis-cli -p 7003 INFO SERVER | grep redis_version || echo "Failed to get version for port 7003"
+          echo "Checking redis-server version with port 7004"
+          redis-cli -p 7004 INFO SERVER | grep redis_version || echo "Failed to get version for port 7004"
+          echo "Checking redis-server version with port 7005"
+          redis-cli -p 7005 INFO SERVER | grep redis_version || echo "Failed to get version for port 7005"
+          echo "Checking redis-server version with port 7010"
+          redis-cli -p 7010 INFO SERVER | grep redis_version || echo "Failed to get version for port 7010"
+          echo "Checking redis-server version with port 7011"
+          redis-cli -p 7011 INFO SERVER | grep redis_version || echo "Failed to get version for port 7011"
+          echo "Checking redis-server version with port 26379"
+          redis-cli -p 26379 INFO SERVER | grep redis_version || echo "Failed to get version for port 26379"
+          echo "Checking redis-server version with port 26380"
+          redis-cli -p 26380 INFO SERVER | grep redis_version || echo "Failed to get version for port 26380"
+          echo "Checking redis-server version with port 26381"
+          redis-cli -p 26381 INFO SERVER | grep redis_version || echo "Failed to get version for port 26381"
+        continue-on-error: true
 
-    - name: .NET Build
-      run: dotnet build Build.csproj -c Release /p:CI=true
-    - name: StackExchange.Redis.Tests
-      run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
-    - uses: dorny/test-reporter@v1
-      continue-on-error: true
-      if: success() || failure()
-      with:
-        name: Tests Results - Windows Server 2022
-        path: 'test-results/*.trx'
-        reporter: dotnet-trx
-    # Package and upload to MyGet only on pushes to main, not on PRs
-    - name: .NET Pack
-      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-      run: dotnet pack Build.csproj --no-build -c Release /p:PackageOutputPath=${env:GITHUB_WORKSPACE}\.nupkgs /p:CI=true
-    - name: Upload to MyGet
-      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-      run: dotnet nuget push ${env:GITHUB_WORKSPACE}\.nupkgs\*.nupkg -s https://www.myget.org/F/stackoverflow/api/v2/package -k ${{ secrets.MYGET_API_KEY }}
+      - name: .NET Build
+        run: dotnet build Build.csproj -c Release /p:CI=true
+      - name: StackExchange.Redis.Tests
+        run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+      - uses: dorny/test-reporter@v1
+        continue-on-error: true
+        if: success() || failure()
+        with:
+          name: Tests Results - Windows Server 2022
+          path: 'test-results/*.trx'
+          reporter: dotnet-trx
+      # Package and upload to MyGet only on pushes to main, not on PRs
+      - name: .NET Pack
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        run: dotnet pack Build.csproj --no-build -c Release /p:PackageOutputPath=${env:GITHUB_WORKSPACE}\.nupkgs /p:CI=true
+      - name: Upload to MyGet
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        run: dotnet nuget push ${env:GITHUB_WORKSPACE}\.nupkgs\*.nupkg -s https://www.myget.org/F/stackoverflow/api/v2/package -k ${{ secrets.MYGET_API_KEY }}

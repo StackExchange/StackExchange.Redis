@@ -23,5 +23,8 @@ public class InProcServerFixture : IDisposable
 
     public Tunnel? Tunnel => _server.Tunnel;
 
-    public void Dispose() => _server.Dispose();
+    public void Dispose()
+    {
+        try { _server.Dispose(); } catch { }
+    }
 }
