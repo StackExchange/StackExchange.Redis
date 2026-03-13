@@ -6,6 +6,18 @@ Current package versions:
 | ------------ | ----------------- | ----- |
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
+## Unreleased
+
+- (none)
+
+## 2.12.1
+
+- Add missing `LCS` outputs and missing `RedisType.VectorSet` ([#3028 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3028))
+- Track and report multiplexer count ([#3030 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3030))
+- (docs) Add Entra ID authentication docs ([#3023 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3023))
+- (eng) Improve test infrastructure (toy-server) ([#3021 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3021), [#3022 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3022), [#3027 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3027), [#3028 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3028))
+- (eng) Pre-V2 work: bring RESPite down, toy-server, migrate to `AsciiHash` ([#3028 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3028))
+
 ## 2.11.8
 
 * Handle `-MOVED` error pointing to same endpoint. ([#3003 by @barshaul](https://github.com/StackExchange/StackExchange.Redis/pull/3003))
