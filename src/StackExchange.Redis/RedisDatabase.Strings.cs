@@ -49,13 +49,13 @@ internal partial class RedisDatabase
 
     public GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
     {
-        var msg = GetStringGcraRateLimitMessage(key, maxBurst, requestsPerPeriod, periodSeconds, count, flags);
+        var msg = new GcraMessage(Database, flags, key, maxBurst, requestsPerPeriod, periodSeconds, count);
         return ExecuteSync(msg, ResultProcessor.GcraRateLimit);
     }
 
     public Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
     {
-        var msg = GetStringGcraRateLimitMessage(key, maxBurst, requestsPerPeriod, periodSeconds, count, flags);
+        var msg = new GcraMessage(Database, flags, key, maxBurst, requestsPerPeriod, periodSeconds, count);
         return ExecuteAsync(msg, ResultProcessor.GcraRateLimit);
     }
 

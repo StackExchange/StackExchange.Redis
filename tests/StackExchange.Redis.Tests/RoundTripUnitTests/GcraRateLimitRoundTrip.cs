@@ -15,7 +15,7 @@ public class GcraRateLimitRoundTrip
         string requestResp,
         string responseResp)
     {
-        var msg = Message.Create(0, CommandFlags.None, RedisCommand.GCRA, (RedisKey)key, maxBurst, requestsPerPeriod, periodSeconds);
+        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, requestsPerPeriod, periodSeconds, 1);
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.GcraRateLimit, requestResp, responseResp);
 
         Assert.False(result.Limited);
@@ -36,7 +36,7 @@ public class GcraRateLimitRoundTrip
         string requestResp,
         string responseResp)
     {
-        var msg = Message.Create(0, CommandFlags.None, RedisCommand.GCRA, (RedisKey)key, maxBurst, requestsPerPeriod, periodSeconds, RedisLiterals.NUM_REQUESTS, count);
+        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, requestsPerPeriod, periodSeconds, count);
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.GcraRateLimit, requestResp, responseResp);
 
         Assert.True(result.Limited);
@@ -56,7 +56,7 @@ public class GcraRateLimitRoundTrip
         string requestResp,
         string responseResp)
     {
-        var msg = Message.Create(0, CommandFlags.None, RedisCommand.GCRA, (RedisKey)key, maxBurst, requestsPerPeriod, periodSeconds);
+        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, requestsPerPeriod, periodSeconds, 1);
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.GcraRateLimit, requestResp, responseResp);
 
         Assert.False(result.Limited);

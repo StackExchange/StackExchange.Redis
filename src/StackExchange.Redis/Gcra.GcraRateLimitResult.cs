@@ -32,13 +32,8 @@ public readonly partial struct GcraRateLimitResult
     public int FullBurstAfterSeconds { get; }
 
     /// <summary>
-    /// Creates a new <see cref="GcraRateLimitResult"/>.
+    /// Initializes a new instance of the <see cref="GcraRateLimitResult"/> struct.
     /// </summary>
-    /// <param name="limited">Whether the request was rate limited.</param>
-    /// <param name="maxRequests">The maximum number of requests allowed.</param>
-    /// <param name="availableRequests">The number of requests available immediately.</param>
-    /// <param name="retryAfterSeconds">The number of seconds after which to retry (in seconds). -1 if not limited.</param>
-    /// <param name="fullBurstAfterSeconds">The number of seconds after which a full burst will be allowed (in seconds).</param>
     public GcraRateLimitResult(bool limited, int maxRequests, int availableRequests, int retryAfterSeconds, int fullBurstAfterSeconds)
     {
         Limited = limited;

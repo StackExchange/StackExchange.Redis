@@ -67,15 +67,13 @@ public class GcraTestServer : InProcessTestServer
         };
 
         // Return the configured result as a 5-element array
-        var elements = new[]
-        {
-            TypedRedisValue.Integer(_expectedResult.Limited ? 1 : 0),
-            TypedRedisValue.Integer(_expectedResult.MaxRequests),
-            TypedRedisValue.Integer(_expectedResult.AvailableRequests),
-            TypedRedisValue.Integer(_expectedResult.RetryAfterSeconds),
-            TypedRedisValue.Integer(_expectedResult.FullBurstAfterSeconds),
-        };
-        return TypedRedisValue.MultiBulk(elements, RespPrefix.Array);
+        var result = TypedRedisValue.Rent(5, out var span, RespPrefix.Array);
+        span[0] = TypedRedisValue.Integer(_expectedResult.Limited ? 1 : 0);
+        span[1] = TypedRedisValue.Integer(_expectedResult.MaxRequests);
+        span[2] = TypedRedisValue.Integer(_expectedResult.AvailableRequests);
+        span[3] = TypedRedisValue.Integer(_expectedResult.RetryAfterSeconds);
+        span[4] = TypedRedisValue.Integer(_expectedResult.FullBurstAfterSeconds);
+        return result;
     }
 
     /// <summary>

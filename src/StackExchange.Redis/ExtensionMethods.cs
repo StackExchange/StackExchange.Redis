@@ -354,6 +354,8 @@ namespace StackExchange.Redis
             CommandFlags flags = CommandFlags.None,
             CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var startTime = DateTime.UtcNow;
             var allowMilliseconds = allow.TotalMilliseconds;
 

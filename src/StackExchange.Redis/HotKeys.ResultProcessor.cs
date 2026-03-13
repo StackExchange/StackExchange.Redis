@@ -56,10 +56,11 @@ public sealed partial class HotKeysResult
             if (!reader.TryMoveNext()) break;
 
             long i64;
+            bool b;
             switch (field)
             {
-                case HotKeysField.TrackingActive:
-                    TrackingActive = reader.ReadBoolean();
+                case HotKeysField.TrackingActive when reader.TryReadBoolean(out b):
+                    TrackingActive = b;
                     break;
                 case HotKeysField.SampleRatio when reader.TryReadInt64(out i64):
                     SampleRatio = i64;
