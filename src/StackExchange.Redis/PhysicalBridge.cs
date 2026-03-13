@@ -1314,7 +1314,7 @@ namespace StackExchange.Redis
                     // an actual timeout
 #if NET
                     var pending = _singleWriterMutex.WaitAsync(TimeoutMilliseconds);
-                    if (pending.Status != TaskStatus.RanToCompletion) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
+                    if (pending.IsCompletedSuccessfully) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
 
                     gotLock = pending.Result; // fine since we know we got a result
                     if (!gotLock) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
