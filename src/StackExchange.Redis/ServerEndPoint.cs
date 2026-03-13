@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -1123,5 +1124,19 @@ namespace StackExchange.Redis
             if (interactive?.HasPendingCallerFacingItems() == true) return true;
             return subscription?.HasPendingCallerFacingItems() ?? false;
         }
+
+        public void SetLatency(DateTime startTime)
+        {
+            try
+            {
+                LatencyTicks = ConnectionGroupMember.ToLatencyTicks(DateTime.UtcNow - startTime);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+        }
+
+        internal uint LatencyTicks { get; private set; } = uint.MaxValue;
     }
 }

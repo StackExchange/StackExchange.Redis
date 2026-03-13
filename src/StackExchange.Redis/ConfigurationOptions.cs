@@ -40,6 +40,12 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            public static float ParseSingle(string key, string value)
+            {
+                if (!Format.TryParseDouble(value, out double tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a numeric value; the value '{value}' is not recognised.");
+                return (float)tmp;
+            }
+
             internal static bool ParseBoolean(string key, string value)
             {
                 if (!Format.TryParseBoolean(value, out bool tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a boolean value; the value '{value}' is not recognised.");
@@ -944,9 +950,9 @@ namespace StackExchange.Redis
             };
         }
 
-        private static void Append(StringBuilder sb, object value)
+        private static void Append(StringBuilder sb, object? value)
         {
-            if (value == null) return;
+            if (value is null) return;
             string s = Format.ToString(value);
             if (!string.IsNullOrWhiteSpace(s))
             {
@@ -957,7 +963,8 @@ namespace StackExchange.Redis
 
         private static void Append(StringBuilder sb, string prefix, object? value)
         {
-            string? s = value?.ToString();
+            if (value is null) return;
+            string? s = value.ToString();
             if (!string.IsNullOrWhiteSpace(s))
             {
                 if (sb.Length != 0) sb.Append(',');

@@ -319,6 +319,7 @@ namespace StackExchange.Redis.Server
                         }
                         else
                         {
+                            await ClientPauseAsync(client);
                             await client.AddOutboundAsync(response);
                         }
                         client.ResetAfterRequest();
@@ -383,6 +384,7 @@ namespace StackExchange.Redis.Server
                     charCount += Encoding.UTF8.GetChars(segment.Span, target.Slice(charCount));
                 }
             }
+
             const string CR = "\u240D", LF = "\u240A", CRLF = CR + LF;
             string s = target.Slice(0, charCount).ToString()
                 .Replace("\r\n", CRLF).Replace("\r", CR).Replace("\n", LF);
@@ -401,6 +403,8 @@ namespace StackExchange.Redis.Server
                 }
             }
         }
+
+        protected virtual ValueTask ClientPauseAsync(RedisClient client) => default;
 
         protected object ServerSyncLock => this;
 

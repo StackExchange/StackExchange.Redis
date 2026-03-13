@@ -59,4 +59,10 @@
     <Compile Include="..\RESPite\Shared\AsciiHash.cs" Link="Shared\AsciiHash.cs" />
     <Compile Include="..\RESPite\Shared\Experiments.cs" Link="Shared\Experiments.cs" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="MultiGroupDatabase.*.cs">
+      <DependentUpon>MultiGroupDatabase.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>
