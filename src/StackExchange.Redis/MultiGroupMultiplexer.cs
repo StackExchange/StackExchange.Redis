@@ -21,9 +21,9 @@ public partial class ConnectionMultiplexer
     /// <param name="members">The initial configurations to connect to.</param>
     /// <param name="options">Additional options for configuring this group.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-#pragma warning disable RS0016, RS0026
+#pragma warning disable RS0026
     public static Task<IConnectionGroup> ConnectGroupAsync(ConnectionGroupMember[] members, MultiGroupOptions? options = null, TextWriter? log = null)
-#pragma warning restore RS0016, RS0026
+#pragma warning restore RS0026
     {
         // create a defensive copy of the array; we don't want callers being able to radically swap things!
         members = (ConnectionGroupMember[])members.Clone();
@@ -40,13 +40,13 @@ public partial class ConnectionMultiplexer
     /// <param name="member1">An additional initial configuration to connect to.</param>
     /// <param name="options">Additional options for configuring this group.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-#pragma warning disable RS0016, RS0026
+#pragma warning disable RS0026
     public static Task<IConnectionGroup> ConnectGroupAsync(
         ConnectionGroupMember member0,
         ConnectionGroupMember member1,
         MultiGroupOptions? options = null,
         TextWriter? log = null)
-#pragma warning restore RS0016, RS0026
+#pragma warning restore RS0026
     {
         options ??= MultiGroupOptions.Default;
         options.Freeze();
@@ -326,6 +326,7 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
             {
                 try
                 {
+                    if (typed.IsDisposed) return false;
                     typed.SelectPreferredGroup();
                 }
                 catch (Exception ex)
@@ -338,8 +339,11 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         }
     }
 
+    internal bool IsDisposed => _disposed;
+
     internal void SelectPreferredGroup()
     {
+        if (_disposed) return;
         var previousMuxer = _active;
         ConnectionGroupMember? preferredMember = null, previousMember = null;
         var members = _members;

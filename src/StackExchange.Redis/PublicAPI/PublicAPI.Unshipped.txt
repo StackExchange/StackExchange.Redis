@@ -29,6 +29,8 @@ StackExchange.Redis.MultiGroupOptions
 StackExchange.Redis.MultiGroupOptions.CheckInterval.get -> System.TimeSpan
 StackExchange.Redis.MultiGroupOptions.CheckInterval.set -> void
 StackExchange.Redis.MultiGroupOptions.MultiGroupOptions() -> void
+static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.ConnectionGroupMember! member0, StackExchange.Redis.ConnectionGroupMember! member1, StackExchange.Redis.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionGroup!>!
+static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.ConnectionGroupMember![]! members, StackExchange.Redis.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionGroup!>!
 static StackExchange.Redis.MultiGroupOptions.Default.get -> StackExchange.Redis.MultiGroupOptions!
 override StackExchange.Redis.LCSMatchResult.LCSMatch.Equals(object? obj) -> bool
 override StackExchange.Redis.LCSMatchResult.LCSMatch.GetHashCode() -> int
