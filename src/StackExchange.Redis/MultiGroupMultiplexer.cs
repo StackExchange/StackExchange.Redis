@@ -19,14 +19,17 @@ public partial class ConnectionMultiplexer
     /// redundant configurations, based on their availability and relative <see cref="ConnectionGroupMember.Weight"/>.
     /// </summary>
     /// <param name="members">The initial configurations to connect to.</param>
+    /// <param name="options">Additional options for configuring this group.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
 #pragma warning disable RS0016, RS0026
-    public static Task<IConnectionGroup> ConnectGroupAsync(ConnectionGroupMember[] members, TextWriter? log = null)
+    public static Task<IConnectionGroup> ConnectGroupAsync(ConnectionGroupMember[] members, MultiGroupOptions? options = null, TextWriter? log = null)
 #pragma warning restore RS0016, RS0026
     {
         // create a defensive copy of the array; we don't want callers being able to radically swap things!
         members = (ConnectionGroupMember[])members.Clone();
-        return MultiGroupMultiplexer.ConnectAsync(members, log);
+        options ??= MultiGroupOptions.Default;
+        options.Freeze();
+        return MultiGroupMultiplexer.ConnectAsync(members, options, log);
     }
 
     /// <summary>
@@ -35,15 +38,19 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="member0">An initial configuration to connect to.</param>
     /// <param name="member1">An additional initial configuration to connect to.</param>
+    /// <param name="options">Additional options for configuring this group.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
 #pragma warning disable RS0016, RS0026
     public static Task<IConnectionGroup> ConnectGroupAsync(
         ConnectionGroupMember member0,
         ConnectionGroupMember member1,
+        MultiGroupOptions? options = null,
         TextWriter? log = null)
 #pragma warning restore RS0016, RS0026
     {
-        return MultiGroupMultiplexer.ConnectAsync([member0, member1], log);
+        options ??= MultiGroupOptions.Default;
+        options.Freeze();
+        return MultiGroupMultiplexer.ConnectAsync([member0, member1], options, log);
     }
 }
 
@@ -253,7 +260,7 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         }
     }
 
-    internal static async Task<IConnectionGroup> ConnectAsync(ConnectionGroupMember[] members, TextWriter? log)
+    internal static async Task<IConnectionGroup> ConnectAsync(ConnectionGroupMember[] members, MultiGroupOptions options, TextWriter? log)
     {
         for (int i = 0; i < members.Length; i++)
         {
@@ -275,14 +282,35 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
             members[i].SetMultiplexer(muxer);
         }
 
-        return new MultiGroupMultiplexer(members);
+        return new MultiGroupMultiplexer(members, options);
     }
 
-    private MultiGroupMultiplexer(ConnectionGroupMember[] members)
+    private readonly MultiGroupOptions _options;
+    private MultiGroupMultiplexer(ConnectionGroupMember[] members, MultiGroupOptions options)
     {
+        _options = options;
         _members = members;
         _active = null;
         SelectPreferredGroup();
+        _ = Task.Run(PollAsync);
+    }
+
+    private async Task PollAsync()
+    {
+        try
+        {
+            var interval = _options.CheckInterval;
+            if (interval <= TimeSpan.Zero || interval == TimeSpan.MaxValue) return;
+            while (!Volatile.Read(ref _disposed))
+            {
+                await Task.Delay(interval).ConfigureAwait(false);
+                SelectPreferredGroup();
+            }
+        }
+        catch (Exception ex)
+        {
+            OnInternalError(ex, origin: "update group");
+        }
     }
 
     internal void SelectPreferredGroup()
@@ -338,8 +366,10 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         return muxers;
     }
 
+    private bool _disposed;
     public void Dispose()
     {
+        _disposed = true;
         foreach (var muxer in DropAll())
         {
             muxer.Dispose();
@@ -348,6 +378,7 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         foreach (var muxer in DropAll())
         {
             await muxer.DisposeAsync();
@@ -826,9 +857,23 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
 
     public void GetStatus(TextWriter log) => Active.GetStatus(log);
 
-    public void Close(bool allowCommandsToComplete = true) => Active.Close(allowCommandsToComplete);
+    public void Close(bool allowCommandsToComplete = true)
+    {
+        _disposed = true;
+        foreach (var member in DropAll())
+        {
+            member.Close(allowCommandsToComplete);
+        }
+    }
 
-    public Task CloseAsync(bool allowCommandsToComplete = true) => Active.CloseAsync(allowCommandsToComplete);
+    public async Task CloseAsync(bool allowCommandsToComplete = true)
+    {
+        _disposed = true;
+        foreach (var member in DropAll())
+        {
+            await member.CloseAsync(allowCommandsToComplete);
+        }
+    }
 
     public string? GetStormLog() => Active.GetStormLog();
 

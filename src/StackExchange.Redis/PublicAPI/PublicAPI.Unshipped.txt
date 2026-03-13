@@ -25,4 +25,8 @@ StackExchange.Redis.IConnectionGroup.AddAsync(StackExchange.Redis.ConnectionGrou
 StackExchange.Redis.IConnectionGroup.ConnectionChanged -> System.EventHandler<StackExchange.Redis.GroupConnectionChangedEventArgs!>?
 StackExchange.Redis.IConnectionGroup.GetMembers() -> System.ReadOnlySpan<StackExchange.Redis.ConnectionGroupMember!>
 StackExchange.Redis.IConnectionGroup.Remove(StackExchange.Redis.ConnectionGroupMember! group) -> bool
-static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.ConnectionGroupMember![]! members, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionGroup!>!
+StackExchange.Redis.MultiGroupOptions
+StackExchange.Redis.MultiGroupOptions.CheckInterval.get -> System.TimeSpan
+StackExchange.Redis.MultiGroupOptions.CheckInterval.set -> void
+StackExchange.Redis.MultiGroupOptions.MultiGroupOptions() -> void
+static StackExchange.Redis.MultiGroupOptions.Default.get -> StackExchange.Redis.MultiGroupOptions!
