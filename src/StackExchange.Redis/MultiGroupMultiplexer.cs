@@ -292,24 +292,49 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         _members = members;
         _active = null;
         SelectPreferredGroup();
-        _ = Task.Run(PollAsync);
+        StartPolling();
     }
 
-    private async Task PollAsync()
+    private void StartPolling()
     {
-        try
+        // use a weak-ref to avoid the loop keeping the object alive
+        _ = Task.Run(() => PollAsync(new(this)));
+
+        static async Task PollAsync(WeakReference weakRef)
         {
-            var interval = _options.CheckInterval;
-            if (interval <= TimeSpan.Zero || interval == TimeSpan.MaxValue) return;
-            while (!Volatile.Read(ref _disposed))
+            while (TryGetDelay(weakRef, out var interval))
             {
                 await Task.Delay(interval).ConfigureAwait(false);
-                SelectPreferredGroup();
+                if (!TrySelectPreferredGroup(weakRef)) break;
             }
         }
-        catch (Exception ex)
+
+        static bool TryGetDelay(WeakReference weakRef, out TimeSpan interval)
         {
-            OnInternalError(ex, origin: "update group");
+            if (weakRef.Target is MultiGroupMultiplexer typed)
+            {
+                interval = typed._options.CheckInterval;
+                return interval > TimeSpan.Zero & interval != TimeSpan.MaxValue;
+            }
+
+            interval = TimeSpan.Zero;
+            return false;
+        }
+        static bool TrySelectPreferredGroup(WeakReference weakRef)
+        {
+            if (weakRef.Target is MultiGroupMultiplexer typed)
+            {
+                try
+                {
+                    typed.SelectPreferredGroup();
+                }
+                catch (Exception ex)
+                {
+                    typed.OnInternalError(ex, origin: "update group");
+                }
+                return true; // even if we fault: try again
+            }
+            return false;
         }
     }
 

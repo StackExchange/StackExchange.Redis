@@ -319,6 +319,7 @@ namespace StackExchange.Redis.Server
                         }
                         else
                         {
+                            await ClientPauseAsync(client);
                             await client.AddOutboundAsync(response);
                         }
                         client.ResetAfterRequest();
@@ -389,21 +390,6 @@ namespace StackExchange.Redis.Server
                 .Replace("\r\n", CRLF).Replace("\r", CR).Replace("\n", LF);
             if (lease is not null) ArrayPool<char>.Shared.Return(lease);
             return s;
-        }
-
-        private static bool TryParseRequest(Arena<RawResult> arena, ref ReadOnlySequence<byte> buffer, out RawResult request)
-        {
-            var reader = new BufferReader(buffer);
-            var raw = PhysicalConnection.TryParseResult(false, arena, in buffer, ref reader, false, null, true);
-            if (raw.HasValue)
-            {
-                buffer = reader.SliceFromCurrent();
-                request = raw;
-                return true;
-            }
-            request = default;
-
-            return false;
         }
 
         public virtual void Log(string message)
