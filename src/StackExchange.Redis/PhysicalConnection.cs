@@ -19,6 +19,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite;
 using static StackExchange.Redis.Message;
 
 namespace StackExchange.Redis
@@ -825,9 +826,9 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteBulkString(in RedisValue value)
             => WriteBulkString(value, _ioPipe?.Output);
-        internal static void WriteBulkString(in RedisValue value, PipeWriter? maybeNullWriter)
+        internal static void WriteBulkString(in RedisValue value, IBufferWriter<byte>? maybeNullWriter)
         {
-            if (maybeNullWriter is not PipeWriter writer)
+            if (maybeNullWriter is not { } writer)
             {
                 return; // Prevent null refs during disposal
             }
@@ -912,11 +913,11 @@ namespace StackExchange.Redis
         internal void RecordQuit()
         {
             // don't blame redis if we fired the first shot
-            Thread.VolatileWrite(ref clientSentQuit, 1);
+            Volatile.Write(ref clientSentQuit, 1);
             (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
         }
 
-        internal static void WriteMultiBulkHeader(PipeWriter output, long count)
+        internal static void WriteMultiBulkHeader(IBufferWriter<byte> output, long count)
         {
             // *{count}\r\n         = 3 + MaxInt32TextLen
             var span = output.GetSpan(3 + Format.MaxInt32TextLen);
@@ -925,7 +926,7 @@ namespace StackExchange.Redis
             output.Advance(offset);
         }
 
-        internal static void WriteMultiBulkHeader(PipeWriter output, long count, ResultType type)
+        internal static void WriteMultiBulkHeader(IBufferWriter<byte> output, long count, ResultType type)
         {
             // *{count}\r\n         = 3 + MaxInt32TextLen
             var span = output.GetSpan(3 + Format.MaxInt32TextLen);
@@ -958,7 +959,7 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void WriteCrlf(PipeWriter writer)
+        internal static void WriteCrlf(IBufferWriter<byte> writer)
         {
             var span = writer.GetSpan(2);
             span[0] = (byte)'\r';
@@ -1122,7 +1123,7 @@ namespace StackExchange.Redis
 
         private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
-        private static void WriteUnifiedBlob(PipeWriter writer, byte[]? value)
+        private static void WriteUnifiedBlob(IBufferWriter<byte> writer, byte[]? value)
         {
             if (value == null)
             {
@@ -1135,7 +1136,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void WriteUnifiedSpan(PipeWriter writer, ReadOnlySpan<byte> value)
+        private static void WriteUnifiedSpan(IBufferWriter<byte> writer, ReadOnlySpan<byte> value)
         {
             // ${len}\r\n           = 3 + MaxInt32TextLen
             // {value}\r\n          = 2 + value.Length
@@ -1229,9 +1230,9 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        internal static void WriteUnifiedPrefixedString(PipeWriter? maybeNullWriter, byte[]? prefix, string? value)
+        internal static void WriteUnifiedPrefixedString(IBufferWriter<byte>? maybeNullWriter, byte[]? prefix, string? value)
         {
-            if (maybeNullWriter is not PipeWriter writer)
+            if (maybeNullWriter is not { } writer)
             {
                 return; // Prevent null refs during disposal
             }
@@ -1284,7 +1285,7 @@ namespace StackExchange.Redis
             return encoder;
         }
 
-        internal static unsafe void WriteRaw(PipeWriter writer, string value, int expectedLength)
+        internal static unsafe void WriteRaw(IBufferWriter<byte> writer, string value, int expectedLength)
         {
             const int MaxQuickEncodeSize = 512;
 
@@ -1368,7 +1369,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void WriteUnifiedInt64(PipeWriter writer, long value)
+        private static void WriteUnifiedInt64(IBufferWriter<byte> writer, long value)
         {
             // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
             // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
@@ -1382,7 +1383,7 @@ namespace StackExchange.Redis
             writer.Advance(bytes);
         }
 
-        private static void WriteUnifiedUInt64(PipeWriter writer, ulong value)
+        private static void WriteUnifiedUInt64(IBufferWriter<byte> writer, ulong value)
         {
             // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
             // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
@@ -1400,7 +1401,7 @@ namespace StackExchange.Redis
             writer.Advance(offset);
         }
 
-        private static void WriteUnifiedDouble(PipeWriter writer, double value)
+        private static void WriteUnifiedDouble(IBufferWriter<byte> writer, double value)
         {
 #if NET8_0_OR_GREATER
             Span<byte> valueSpan = stackalloc byte[Format.MaxDoubleTextLen];
@@ -1421,7 +1422,7 @@ namespace StackExchange.Redis
 #endif
         }
 
-        internal static void WriteInteger(PipeWriter writer, long value)
+        internal static void WriteInteger(IBufferWriter<byte> writer, long value)
         {
             // note: client should never write integer; only server does this
             // :{asc}\r\n                = MaxInt64TextLen + 3
@@ -1575,7 +1576,7 @@ namespace StackExchange.Redis
                     return ConfigurationOptions.CreatePfxUserCertificateCallback(certificatePath, password, storageFlags);
                 }
 
-#if NET5_0_OR_GREATER
+#if NET
                 certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPemPath");
                 if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
                 {
@@ -1634,7 +1635,7 @@ namespace StackExchange.Redis
                     {
                         try
                         {
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
                             var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
                             if (configOptions is not null)
                             {
@@ -1691,19 +1692,36 @@ namespace StackExchange.Redis
             }
         }
 
-        private enum PushKind
+        internal enum PushKind
         {
+            [AsciiHash("")]
             None,
+            [AsciiHash("message")]
             Message,
+            [AsciiHash("pmessage")]
             PMessage,
+            [AsciiHash("smessage")]
             SMessage,
+            [AsciiHash("subscribe")]
             Subscribe,
+            [AsciiHash("psubscribe")]
             PSubscribe,
+            [AsciiHash("ssubscribe")]
             SSubscribe,
+            [AsciiHash("unsubscribe")]
             Unsubscribe,
+            [AsciiHash("punsubscribe")]
             PUnsubscribe,
+            [AsciiHash("sunsubscribe")]
             SUnsubscribe,
         }
+
+        internal static partial class PushKindMetadata
+        {
+            [AsciiHash]
+            internal static partial bool TryParse(ReadOnlySpan<byte> value, out PushKind result);
+        }
+
         private PushKind GetPushKind(in Sequence<RawResult> result, out RedisChannel channel)
         {
             var len = result.Length;
@@ -1714,63 +1732,40 @@ namespace StackExchange.Redis
                 return PushKind.None;
             }
 
-            const int MAX_LEN = 16;
-            Debug.Assert(MAX_LEN >= Enumerable.Max(
-            [
-                PushMessage.Length, PushPMessage.Length, PushSMessage.Length,
-                PushSubscribe.Length, PushPSubscribe.Length, PushSSubscribe.Length,
-                PushUnsubscribe.Length, PushPUnsubscribe.Length, PushSUnsubscribe.Length,
-            ]));
-            ref readonly RawResult pushKind = ref result[0];
-            var multiSegmentPayload = pushKind.Payload;
-            if (multiSegmentPayload.Length <= MAX_LEN)
+            if (result[0].TryParse(PushKindMetadata.TryParse, out PushKind kind) && kind is not PushKind.None)
             {
-                var span = multiSegmentPayload.IsSingleSegment
-                    ? multiSegmentPayload.First.Span
-                    : CopyTo(stackalloc byte[MAX_LEN], multiSegmentPayload);
-
-                var hash = FastHash.Hash64(span);
                 RedisChannel.RedisChannelOptions channelOptions = RedisChannel.RedisChannelOptions.None;
-                PushKind kind;
-                switch (hash)
+                switch (kind)
                 {
-                    case PushMessage.Hash when PushMessage.Is(hash, span) & len >= 3:
-                        kind = PushKind.Message;
+                    case PushKind.Message when len >= 3:
                         break;
-                    case PushPMessage.Hash when PushPMessage.Is(hash, span) & len >= 4:
+                    case PushKind.PMessage when len >= 4:
                         channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                        kind = PushKind.PMessage;
                         break;
-                    case PushSMessage.Hash when PushSMessage.Is(hash, span) & len >= 3:
+                    case PushKind.SMessage when len >= 3:
                         channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                        kind = PushKind.SMessage;
                         break;
-                    case PushSubscribe.Hash when PushSubscribe.Is(hash, span):
-                        kind = PushKind.Subscribe;
+                    case PushKind.Subscribe:
                         break;
-                    case PushPSubscribe.Hash when PushPSubscribe.Is(hash, span):
+                    case PushKind.PSubscribe:
                         channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                        kind = PushKind.PSubscribe;
                         break;
-                    case PushSSubscribe.Hash when PushSSubscribe.Is(hash, span):
+                    case PushKind.SSubscribe:
                         channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                        kind = PushKind.SSubscribe;
                         break;
-                    case PushUnsubscribe.Hash when PushUnsubscribe.Is(hash, span):
-                        kind = PushKind.Unsubscribe;
+                    case PushKind.Unsubscribe:
                         break;
-                    case PushPUnsubscribe.Hash when PushPUnsubscribe.Is(hash, span):
+                    case PushKind.PUnsubscribe:
                         channelOptions = RedisChannel.RedisChannelOptions.Pattern;
-                        kind = PushKind.PUnsubscribe;
                         break;
-                    case PushSUnsubscribe.Hash when PushSUnsubscribe.Is(hash, span):
+                    case PushKind.SUnsubscribe:
                         channelOptions = RedisChannel.RedisChannelOptions.Sharded;
-                        kind = PushKind.SUnsubscribe;
                         break;
                     default:
                         kind = PushKind.None;
                         break;
                 }
+
                 if (kind != PushKind.None)
                 {
                     // the channel is always the second element
@@ -1780,40 +1775,7 @@ namespace StackExchange.Redis
             }
             channel = default;
             return PushKind.None;
-
-            static ReadOnlySpan<byte> CopyTo(Span<byte> target, in ReadOnlySequence<byte> source)
-            {
-                source.CopyTo(target);
-                return target.Slice(0, (int)source.Length);
-            }
         }
-
-        [FastHash("message")]
-        private static partial class PushMessage { }
-
-        [FastHash("pmessage")]
-        private static partial class PushPMessage { }
-
-        [FastHash("smessage")]
-        private static partial class PushSMessage { }
-
-        [FastHash("subscribe")]
-        private static partial class PushSubscribe { }
-
-        [FastHash("psubscribe")]
-        private static partial class PushPSubscribe { }
-
-        [FastHash("ssubscribe")]
-        private static partial class PushSSubscribe { }
-
-        [FastHash("unsubscribe")]
-        private static partial class PushUnsubscribe { }
-
-        [FastHash("punsubscribe")]
-        private static partial class PushPUnsubscribe { }
-
-        [FastHash("sunsubscribe")]
-        private static partial class PushSUnsubscribe { }
 
         private void MatchResult(in RawResult result)
         {
@@ -1902,7 +1864,7 @@ namespace StackExchange.Redis
                             // counter-intuitively, the only server we *know* already knows the new route is:
                             // the outgoing server, since it had to change to MIGRATING etc; the new INCOMING server
                             // knows, but *we don't know who that is*, and other nodes: aren't guaranteed to know (yet)
-                            muxer.DefaultSubscriber.ResubscribeToServer(subscription, subscriptionChannel, server, cause: PushSUnsubscribe.Text);
+                            muxer.DefaultSubscriber.ResubscribeToServer(subscription, subscriptionChannel, server, cause: "sunsubscribe");
                         }
                         return; // and STOP PROCESSING; unsolicited
                 }

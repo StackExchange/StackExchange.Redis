@@ -12,6 +12,31 @@ namespace StackExchange.Redis
 
         internal int ItemsCount => (int)_items.Length;
 
+        public delegate bool ScalarParser<T>(scoped ReadOnlySpan<byte> span, out T value);
+
+        internal bool TryParse<T>(ScalarParser<T> parser, out T value)
+            => _payload.IsSingleSegment ? parser(_payload.First.Span, out value) : TryParseSlow(parser, out value);
+
+        private bool TryParseSlow<T>(ScalarParser<T> parser, out T value)
+        {
+            // linearize a multi-segment payload into a single span for parsing
+            const int MAX_STACK = 64;
+            var len = checked((int)_payload.Length);
+            byte[]? lease = null;
+            try
+            {
+                Span<byte> span =
+                    (len <= MAX_STACK ? stackalloc byte[MAX_STACK] : (lease = ArrayPool<byte>.Shared.Rent(len)))
+                    .Slice(0, len);
+                _payload.CopyTo(span);
+                return parser(span, out value);
+            }
+            finally
+            {
+                if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+            }
+        }
+
         private readonly ReadOnlySequence<byte> _payload;
         internal ReadOnlySequence<byte> Payload => _payload;
 
@@ -416,7 +441,7 @@ namespace StackExchange.Redis
                 s = Format.GetString(Payload.First.Span);
                 return Resp3Type == ResultType.VerbatimString ? GetVerbatimString(s, out verbatimPrefix) : s;
             }
-#if NET6_0_OR_GREATER
+#if NET
             // use system-provided sequence decoder
             return Encoding.UTF8.GetString(in _payload);
 #else

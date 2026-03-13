@@ -5,9 +5,6 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-#if NETCOREAPP3_1
-using System.Reflection;
-#endif
 
 namespace StackExchange.Redis;
 
@@ -90,31 +87,12 @@ public sealed class ChannelMessageQueue : IAsyncEnumerable<ChannelMessage>
     /// <param name="count">The (approximate) count of items in the Channel.</param>
     public bool TryGetCount(out int count)
     {
-        // This is specific to netcoreapp3.1, because full framework was out of band and the new prop is present
-#if NETCOREAPP3_1
-        // get this using the reflection
-        try
-        {
-            var prop =
-                _queue.GetType().GetProperty("ItemsCountForDebugger", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (prop is not null)
-            {
-                count = (int)prop.GetValue(_queue)!;
-                return true;
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine(ex.Message); // but ignore
-        }
-#else
         var reader = _queue.Reader;
         if (reader.CanCount)
         {
             count = reader.Count;
             return true;
         }
-#endif
 
         count = 0;
         return false;
@@ -348,7 +326,7 @@ public sealed class ChannelMessageQueue : IAsyncEnumerable<ChannelMessage>
     public Task UnsubscribeAsync(CommandFlags flags = CommandFlags.None) => UnsubscribeAsyncImpl(null, flags);
 
     /// <inheritdoc cref="IAsyncEnumerable{ChannelMessage}.GetAsyncEnumerator(CancellationToken)"/>
-#if NETCOREAPP3_0_OR_GREATER
+#if NET
     public IAsyncEnumerator<ChannelMessage> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         // ReSharper disable once MethodSupportsCancellation - provided in GetAsyncEnumerator
         => _queue.Reader.ReadAllAsync().GetAsyncEnumerator(cancellationToken);

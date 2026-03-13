@@ -1,7 +1,9 @@
 ﻿using System;
+using RESPite;
 
 namespace StackExchange.Redis;
 
+// ReSharper disable InconsistentNaming
 internal enum RedisCommand
 {
     NONE, // must be first for "zero reasons"
@@ -280,6 +282,16 @@ internal enum RedisCommand
     UNKNOWN,
 }
 
+internal static partial class RedisCommandMetadata
+{
+    [AsciiHash(CaseSensitive = false)]
+    public static partial bool TryParseCI(ReadOnlySpan<byte> command, out RedisCommand value);
+
+    [AsciiHash(CaseSensitive = false)]
+    public static partial bool TryParseCI(ReadOnlySpan<char> command, out RedisCommand value);
+}
+
+// ReSharper restore InconsistentNaming
 internal static class RedisCommandExtensions
 {
     /// <summary>

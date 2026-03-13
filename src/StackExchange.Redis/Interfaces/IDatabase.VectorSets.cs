@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;
@@ -161,7 +162,7 @@ public partial interface IDatabase
     bool VectorSetSetAttributesJson(
         RedisKey key,
         RedisValue member,
-#if NET7_0_OR_GREATER
+#if NET8_0_OR_GREATER
         [StringSyntax(StringSyntaxAttribute.Json)]
 #endif
         string attributesJson,

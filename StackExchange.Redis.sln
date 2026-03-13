@@ -21,6 +21,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		Shared.ruleset = Shared.ruleset
 		version.json = version.json
 		tests\RedisConfigs\.docker\Redis\Dockerfile = tests\RedisConfigs\.docker\Redis\Dockerfile
+		.github\workflows\codeql.yml = .github\workflows\codeql.yml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfigs", "{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}"
@@ -127,6 +128,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "eng", "eng", "{5FA0958E-6EB
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.Build", "eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj", "{190742E1-FA50-4E36-A8C4-88AE87654340}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RESPite", "src\RESPite\RESPite.csproj", "{05761CF5-CC46-43A6-814B-6BD2ECC1F0ED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RESPite.Tests", "tests\RESPite.Tests\RESPite.Tests.csproj", "{CA67D8CA-6CC9-40E2-8CAC-F0B1401BEF7B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -189,6 +194,14 @@ Global
 		{190742E1-FA50-4E36-A8C4-88AE87654340}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{190742E1-FA50-4E36-A8C4-88AE87654340}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{190742E1-FA50-4E36-A8C4-88AE87654340}.Release|Any CPU.Build.0 = Release|Any CPU
+		{05761CF5-CC46-43A6-814B-6BD2ECC1F0ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{05761CF5-CC46-43A6-814B-6BD2ECC1F0ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05761CF5-CC46-43A6-814B-6BD2ECC1F0ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{05761CF5-CC46-43A6-814B-6BD2ECC1F0ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA67D8CA-6CC9-40E2-8CAC-F0B1401BEF7B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA67D8CA-6CC9-40E2-8CAC-F0B1401BEF7B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA67D8CA-6CC9-40E2-8CAC-F0B1401BEF7B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA67D8CA-6CC9-40E2-8CAC-F0B1401BEF7B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -212,6 +225,8 @@ Global
 		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{59889284-FFEE-82E7-94CB-3B43E87DA6CF} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{190742E1-FA50-4E36-A8C4-88AE87654340} = {5FA0958E-6EBD-45F4-808E-3447A293F96F}
+		{05761CF5-CC46-43A6-814B-6BD2ECC1F0ED} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
+		{CA67D8CA-6CC9-40E2-8CAC-F0B1401BEF7B} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {193AA352-6748-47C1-A5FC-C9AA6B5F000B}

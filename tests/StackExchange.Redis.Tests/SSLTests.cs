@@ -163,7 +163,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         }
     }
 
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
 #pragma warning disable CS0618 // Type or member is obsolete
     // Docker configured with only TLS_AES_256_GCM_SHA384 for testing
     [Theory]

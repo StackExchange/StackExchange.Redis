@@ -1,4 +1,5 @@
-﻿using System;
+﻿/*
+using System;
 using System.Net;
 using BenchmarkDotNet.Attributes;
 
@@ -51,3 +52,4 @@ namespace StackExchange.Redis.Benchmarks
         public EndPoint ParseEndPoint(string host, int port) => Format.ParseEndPoint(host, port);
     }
 }
+*/

@@ -15,7 +15,7 @@ namespace StackExchange.Redis
 {
     internal static class Format
     {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+#if NET
         public static int ParseInt32(ReadOnlySpan<char> s) => int.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
         public static bool TryParseInt32(ReadOnlySpan<char> s, out int value) => int.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
 #endif
@@ -197,7 +197,7 @@ namespace StackExchange.Redis
                         }
                         break;
                 }
-#if NET6_0_OR_GREATER
+#if NET
                 Unsafe.SkipInit(out value);
 #else
                 value = 0;
@@ -281,7 +281,7 @@ namespace StackExchange.Redis
                         }
                         break;
                 }
-#if NET6_0_OR_GREATER
+#if NET
                 Unsafe.SkipInit(out value);
 #else
                 value = 0;
@@ -406,7 +406,7 @@ namespace StackExchange.Redis
         internal static unsafe string GetString(ReadOnlySpan<byte> span)
         {
             if (span.IsEmpty) return "";
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
             return Encoding.UTF8.GetString(span);
 #else
             fixed (byte* ptr = span)
@@ -567,7 +567,7 @@ namespace StackExchange.Redis
 
         internal static bool TryParseVersion(ReadOnlySpan<char> input, [NotNullWhen(true)] out Version? version)
         {
-#if NETCOREAPP3_1_OR_GREATER
+#if NET
             if (Version.TryParse(input, out version)) return true;
             // allow major-only (Version doesn't do this, because... reasons?)
             if (TryParseInt32(input, out int i32))

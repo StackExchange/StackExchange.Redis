@@ -10,7 +10,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CodeAnalysisRuleset>$(MSBuildThisFileDirectory)Shared.ruleset</CodeAnalysisRuleset>
     <MSBuildWarningsAsMessages>NETSDK1069</MSBuildWarningsAsMessages>
-    <NoWarn>$(NoWarn);NU5105;NU1507;SER001;SER002;SER003</NoWarn>
+    <NoWarn>$(NoWarn);NU5105;NU1507;SER001;SER002;SER003;SER004;SER005</NoWarn>
     <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
     <PackageProjectUrl>https://stackexchange.github.io/StackExchange.Redis/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -41,5 +41,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="all" />
     <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All" />
+  </ItemGroup>
+  
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Build' and '$(MSBuildProjectName)' != 'StackExchange.Redis.Build'">
+    <!-- for everything except the build-tools project itself and the Build.csproj wrapper: use the build project as an analyzer -->
+    <ProjectReference Include="..\..\eng\StackExchange.Redis.Build\StackExchange.Redis.Build.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

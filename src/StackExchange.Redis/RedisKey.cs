@@ -419,7 +419,7 @@ namespace StackExchange.Redis
                 case string s:
                     if (s.Length != 0)
                     {
-#if NETCOREAPP
+#if NET
                         written += Encoding.UTF8.GetBytes(s, destination);
 #else
                         unsafe
