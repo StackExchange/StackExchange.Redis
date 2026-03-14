@@ -21,6 +21,7 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
             await db.PingAsync();
 
             var server = conn.GetServer(conn.GetEndPoints()[0]);
+            Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
             var server2 = conn.GetServer(conn.GetEndPoints()[1]);
 
             conn.AllowConnect = false;
@@ -61,6 +62,7 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
             await db.PingAsync();
 
             var server = conn.GetServer(conn.GetEndPoints()[0]);
+            Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
             var server2 = conn.GetServer(conn.GetEndPoints()[1]);
 
             conn.AllowConnect = false;
@@ -121,6 +123,7 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
         Assert.Equal(0, Volatile.Read(ref restoreCount));
 
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
         server.SimulateConnectionFailure(SimulatedFailureType.All);
 
         await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= 2 && Volatile.Read(ref restoreCount) >= 2);

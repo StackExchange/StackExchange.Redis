@@ -1,11 +1,9 @@
-#nullable enable
-extern alias seredis;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using RESPite.Messages;
 
-namespace StackExchange.Redis; // this really belongs in SE.Redis, will be moved in v3
+namespace StackExchange.Redis;
 
 internal static class RespReaderExtensions
 {
@@ -20,8 +18,6 @@ internal static class RespReaderExtensions
             {
                 RespPrefix.Boolean => reader.ReadBoolean(),
                 RespPrefix.Integer => reader.ReadInt64(),
-                _ when reader.TryReadInt64(out var i64) => i64,
-                _ when reader.TryReadDouble(out var fp64) => fp64,
                 _ => reader.ReadByteArray(),
             };
         }
@@ -139,15 +135,15 @@ internal static class RespReaderExtensions
         public RedisValue[]? ReadPastRedisValues()
             => reader.ReadPastArray(static (ref r) => r.ReadRedisValue(), scalar: true);
 
-        public seredis::StackExchange.Redis.Lease<byte>? AsLease()
+        public Lease<byte>? AsLease()
         {
             if (!reader.IsScalar) throw new InvalidCastException("Cannot convert to Lease: " + reader.Prefix);
             if (reader.IsNull) return null;
 
             var length = reader.ScalarLength();
-            if (length == 0) return seredis::StackExchange.Redis.Lease<byte>.Empty;
+            if (length == 0) return Lease<byte>.Empty;
 
-            var lease = seredis::StackExchange.Redis.Lease<byte>.Create(length, clear: false);
+            var lease = Lease<byte>.Create(length, clear: false);
             if (reader.TryGetSpan(out var span))
             {
                 span.CopyTo(lease.Span);
@@ -204,7 +200,7 @@ internal static class RespReaderExtensions
         }
     }
 
-#if !NET
+#if !(NET || NETSTANDARD2_1_OR_GREATER)
     extension(Task task)
     {
         public bool IsCompletedSuccessfully => task.Status is TaskStatus.RanToCompletion;

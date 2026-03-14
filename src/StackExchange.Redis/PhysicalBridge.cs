@@ -854,9 +854,9 @@ namespace StackExchange.Redis
 
                 var result = WriteMessageInsideLock(physical, message);
 
-                if (result == WriteResult.Success)
+                if (result == WriteResult.Success & message.IsFlushRequiredSync)
                 {
-                    result = physical.FlushSync(false, TimeoutMilliseconds);
+                    physical.Flush();
                 }
 
                 physical.SetIdle();
@@ -1179,7 +1179,8 @@ namespace StackExchange.Redis
                 // Only execute if we're connected.
                 // Timeouts are handled above, so we're exclusively into backlog items eligible to write at this point.
                 // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
-                while (IsConnected && physical?.HasOutputPipe == true)
+                bool flush = false;
+                while (IsConnected && physical is { HasOutputPipe: true })
                 {
                     Message? message;
                     _backlogStatus = BacklogStatus.CheckingForWork;
@@ -1199,13 +1200,8 @@ namespace StackExchange.Redis
                         _backlogStatus = BacklogStatus.WritingMessage;
                         var result = WriteMessageInsideLock(physical, message);
 
-                        if (result == WriteResult.Success)
-                        {
-                            _backlogStatus = BacklogStatus.Flushing;
-#pragma warning disable CS0618 // Type or member is obsolete
-                            result = physical.FlushSync(false, TimeoutMilliseconds);
-#pragma warning restore CS0618 // Type or member is obsolete
-                        }
+                        // use flush logic that assumes a sync caller
+                        if (!flush) flush = message.IsFlushRequiredSync;
 
                         _backlogStatus = BacklogStatus.MarkingInactive;
                         if (result != WriteResult.Success)
@@ -1225,6 +1221,14 @@ namespace StackExchange.Redis
                         UnmarkActiveMessage(message);
                     }
                 }
+
+                if (flush && IsConnected && physical is { HasOutputPipe: true })
+                {
+                    // at least one message wants flushing
+                    _backlogStatus = BacklogStatus.Flushing;
+                    physical?.Flush();
+                }
+
                 _backlogStatus = BacklogStatus.SettingIdle;
                 physical?.SetIdle();
                 _backlogStatus = BacklogStatus.Inactive;
@@ -1310,7 +1314,7 @@ namespace StackExchange.Redis
                     // an actual timeout
 #if NET
                     var pending = _singleWriterMutex.WaitAsync(TimeoutMilliseconds);
-                    if (pending.Status != TaskStatus.RanToCompletion) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
+                    if (pending.IsCompletedSuccessfully) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
 
                     gotLock = pending.Result; // fine since we know we got a result
                     if (!gotLock) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
@@ -1323,20 +1327,9 @@ namespace StackExchange.Redis
 #endif
                 }
                 var result = WriteMessageInsideLock(physical, message);
-                if (result == WriteResult.Success)
+                if (result == WriteResult.Success & message.IsFlushRequiredAsync)
                 {
-                    var flush = physical.FlushAsync(false);
-                    if (!flush.IsCompletedSuccessfully)
-                    {
-                        releaseLock = false; // so we don't release prematurely
-#if NET
-                        return CompleteWriteAndReleaseLockAsync(flush, message);
-#else
-                        return CompleteWriteAndReleaseLockAsync(token, flush, message);
-#endif
-                    }
-
-                    result = flush.Result; // .Result: we know it was completed, so this is fine
+                    physical.Flush();
                 }
 
                 physical.SetIdle();
@@ -1394,7 +1387,7 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
-                    result = await physical.FlushAsync(false).ForAwait();
+                    physical.Flush();
                 }
 
                 physical.SetIdle();
@@ -1495,7 +1488,7 @@ namespace StackExchange.Redis
                             Interlocked.Exchange(ref connectStartTicks, Environment.TickCount);
                             // separate creation and connection for case when connection completes synchronously
                             // in that case PhysicalConnection will call back to PhysicalBridge, and most PhysicalBridge methods assume that physical is not null;
-                            physical = new PhysicalConnection(this);
+                            physical = new PhysicalConnection(this, Multiplexer.RawConfig.WriteMode);
 
                             physical.BeginConnectAsync(log).RedisFireAndForget();
                         }
@@ -1714,6 +1707,8 @@ namespace StackExchange.Redis
                     return _nextHighIntegrityToken++;
             }
         }
+
+        internal bool CanSimulateConnectionFailure => Multiplexer.RawConfig.AllowAdmin && physical?.CanSimulateConnectionFailure == true;
 
         /// <summary>
         /// For testing only.

@@ -12,7 +12,7 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" Aliases="seredis"/>
+    <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
     <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" />
     <PackageReference Include="System.Runtime.Caching" />
   </ItemGroup>

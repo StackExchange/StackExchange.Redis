@@ -8,7 +8,6 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -329,13 +328,5 @@ namespace StackExchange.Redis
             return -1;
         }
 #endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static T[]? ToArray<T>(in this RawResult result, Projection<RawResult, T> selector)
-            => result.IsNull ? null : result.GetItems().ToArray(selector);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static TTo[]? ToArray<TTo, TState>(in this RawResult result, Projection<RawResult, TState, TTo> selector, in TState state)
-            => result.IsNull ? null : result.GetItems().ToArray(selector, in state);
     }
 }

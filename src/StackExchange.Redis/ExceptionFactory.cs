@@ -28,7 +28,7 @@ namespace StackExchange.Redis
             => new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + command);
 
         internal static Exception TooManyArgs(string command, int argCount)
-            => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {PhysicalConnection.REDIS_MAX_ARGS}): {command}");
+            => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {MessageWriter.REDIS_MAX_ARGS}): {command}");
 
         internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint? server)
         {
@@ -367,7 +367,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "Abort-On-Connect", "aoc", multiplexer.RawConfig.AbortOnConnectFail ? "1" : "0");
             }
             Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
-            Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
 
             Add(data, sb, "Client-Name", "clientName", multiplexer.ClientName);
             if (message != null)

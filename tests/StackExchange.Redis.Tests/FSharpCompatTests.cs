@@ -18,7 +18,7 @@ public class FSharpCompatTests(ITestOutputHelper output) : TestBase(output)
     {
         Assert.Equal(default, new RedisValue());
         Assert.Equal((RedisValue)"MyKey", new RedisValue("MyKey"));
-        Assert.Equal((RedisValue)"MyKey2", new RedisValue("MyKey2", 0));
+        Assert.Equal((RedisValue)"MyKey2", new RedisValue("MyKey2"));
     }
 #pragma warning restore SA1129 // Do not use default value type constructor
 }

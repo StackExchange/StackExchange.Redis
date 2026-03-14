@@ -1,6 +1,9 @@
-﻿using Pipelines.Sockets.Unofficial.Arenas;
+﻿// ReSharper disable once CheckNamespace
 
-// ReSharper disable once CheckNamespace
+using System;
+using RESPite;
+using RESPite.Messages;
+
 namespace StackExchange.Redis;
 
 internal abstract partial class ResultProcessor
@@ -17,104 +20,128 @@ internal abstract partial class ResultProcessor
 
     private sealed class VectorSetLinksWithScoresProcessor : FlattenedLeaseProcessor<VectorSetLink>
     {
-        protected override long GetArrayLength(in RawResult array) => array.GetItems().Length / 2;
+        protected override long GetArrayLength(in RespReader reader) => reader.AggregateLength() / 2;
 
-        protected override bool TryReadOne(ref Sequence<RawResult>.Enumerator reader, out VectorSetLink value)
+        protected override bool TryReadOne(ref RespReader reader, out VectorSetLink value)
         {
-            if (reader.MoveNext())
+            if (!reader.IsScalar)
             {
-                ref readonly RawResult first = ref reader.Current;
-                if (reader.MoveNext() && reader.Current.TryGetDouble(out var score))
-                {
-                    value = new VectorSetLink(first.AsRedisValue(), score);
-                    return true;
-                }
+                value = default;
+                return false;
             }
 
-            value = default;
-            return false;
+            var member = reader.ReadRedisValue();
+            if (!reader.TryMoveNext() || !reader.IsScalar || !reader.TryReadDouble(out var score))
+            {
+                value = default;
+                return false;
+            }
+
+            value = new VectorSetLink(member, score);
+            return true;
         }
     }
 
     private sealed class VectorSetLinksProcessor : FlattenedLeaseProcessor<RedisValue>
     {
-        protected override bool TryReadOne(in RawResult result, out RedisValue value)
+        protected override bool TryReadOne(ref RespReader reader, out RedisValue value)
         {
-            value = result.AsRedisValue();
+            if (!reader.IsScalar)
+            {
+                value = default;
+                return false;
+            }
+
+            value = reader.ReadRedisValue();
             return true;
         }
     }
 
     private sealed class LeaseRedisValueProcessor : LeaseProcessor<RedisValue>
     {
-        protected override bool TryParse(in RawResult raw, out RedisValue parsed)
-        {
-            parsed = raw.AsRedisValue();
-            return true;
-        }
+        protected override RedisValue TryParse(ref RespReader reader) => reader.ReadRedisValue();
     }
 
     private sealed partial class VectorSetInfoProcessor : ResultProcessor<VectorSetInfo?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (result.Resp2TypeArray == ResultType.Array)
+            if (!reader.IsAggregate) return false;
+
+            if (reader.IsNull)
             {
-                if (result.IsNull)
+                SetResult(message, null);
+                return true;
+            }
+
+            var quantType = VectorSetQuantization.Unknown;
+            string? quantTypeRaw = null;
+            int vectorDim = 0, maxLevel = 0;
+            long resultSize = 0, vsetUid = 0, hnswMaxNodeUid = 0;
+
+            // Iterate through key-value pairs
+            while (reader.TryMoveNext())
+            {
+                // Read key
+                if (!reader.IsScalar) break;
+
+                VectorSetInfoField field;
+                unsafe
                 {
-                    SetResult(message, null);
-                    return true;
+                    if (!reader.TryParseScalar(&VectorSetInfoFieldMetadata.TryParse, out field))
+                    {
+                        field = VectorSetInfoField.Unknown;
+                    }
                 }
 
-                var quantType = VectorSetQuantization.Unknown;
-                string? quantTypeRaw = null;
-                int vectorDim = 0, maxLevel = 0;
-                long resultSize = 0, vsetUid = 0, hnswMaxNodeUid = 0;
-                var iter = result.GetItems().GetEnumerator();
-                while (iter.MoveNext())
+                // Move to value
+                if (!reader.TryMoveNext()) break;
+
+                // Skip non-scalar values (future-proofing)
+                if (!reader.IsScalar)
                 {
-                    if (!iter.Current.TryParse(VectorSetInfoFieldMetadata.TryParse, out VectorSetInfoField field))
-                        field = VectorSetInfoField.Unknown;
+                    reader.SkipChildren();
+                    continue;
+                }
 
-                    if (!iter.MoveNext()) break;
-                    ref readonly RawResult value = ref iter.Current;
-
+                unsafe
+                {
                     switch (field)
                     {
-                        case VectorSetInfoField.Size when value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.Size when reader.TryReadInt64(out var i64):
                             resultSize = i64;
                             break;
-                        case VectorSetInfoField.VsetUid when value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.VsetUid when reader.TryReadInt64(out var i64):
                             vsetUid = i64;
                             break;
-                        case VectorSetInfoField.MaxLevel when value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.MaxLevel when reader.TryReadInt64(out var i64):
                             maxLevel = checked((int)i64);
                             break;
-                        case VectorSetInfoField.VectorDim when value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.VectorDim when reader.TryReadInt64(out var i64):
                             vectorDim = checked((int)i64);
                             break;
                         case VectorSetInfoField.QuantType
-                            when value.TryParse(VectorSetQuantizationMetadata.TryParse, out VectorSetQuantization quantTypeValue)
-                                && quantTypeValue is not VectorSetQuantization.Unknown:
+                            when reader.TryParseScalar(
+                                     &VectorSetQuantizationMetadata.TryParse,
+                                     out VectorSetQuantization quantTypeValue)
+                                 && quantTypeValue is not VectorSetQuantization.Unknown:
                             quantType = quantTypeValue;
                             break;
                         case VectorSetInfoField.QuantType:
-                            quantTypeRaw = value.GetString();
+                            quantTypeRaw = reader.ReadString();
                             quantType = VectorSetQuantization.Unknown;
                             break;
-                        case VectorSetInfoField.HnswMaxNodeUid when value.TryGetInt64(out var i64):
+                        case VectorSetInfoField.HnswMaxNodeUid when reader.TryReadInt64(out var i64):
                             hnswMaxNodeUid = i64;
                             break;
                     }
                 }
-
-                SetResult(
-                    message,
-                    new VectorSetInfo(quantType, quantTypeRaw, vectorDim, resultSize, maxLevel, vsetUid, hnswMaxNodeUid));
-                return true;
             }
 
-            return false;
+            SetResult(
+                message,
+                new VectorSetInfo(quantType, quantTypeRaw, vectorDim, resultSize, maxLevel, vsetUid, hnswMaxNodeUid));
+            return true;
         }
     }
 }

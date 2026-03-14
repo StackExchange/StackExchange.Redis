@@ -29,6 +29,7 @@ namespace StackExchange.Redis.Tests.Issues
             var key = Me();
             var db = conn.GetDatabase();
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
 
             // Fail the connection
             conn.AllowConnect = false;

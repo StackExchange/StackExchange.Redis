@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
-using Pipelines.Sockets.Unofficial.Arenas;
+using System.Threading.Tasks;
+using StackExchange.Redis.Configuration;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -27,20 +30,17 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
         yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPONG\r\n$", 3 };
     }
 
-    [Theory]
+    [Theory(Timeout = 1000)]
     [MemberData(nameof(GetTestData))]
-    public void ParseAsSingleChunk(string ascii, int expected)
+    public Task ParseAsSingleChunk(string ascii, int expected)
     {
         var buffer = new ReadOnlySequence<byte>(Encoding.ASCII.GetBytes(ascii));
-        using (var arena = new Arena<RawResult>())
-        {
-            ProcessMessages(arena, buffer, expected);
-        }
+        return ProcessMessagesAsync(buffer, expected);
     }
 
-    [Theory]
+    [Theory(Timeout = 1000)]
     [MemberData(nameof(GetTestData))]
-    public void ParseAsLotsOfChunks(string ascii, int expected)
+    public Task ParseAsLotsOfChunks(string ascii, int expected)
     {
         var bytes = Encoding.ASCII.GetBytes(ascii);
         FragmentedSegment<byte>? chain = null, tail = null;
@@ -59,23 +59,47 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
         }
         var buffer = new ReadOnlySequence<byte>(chain!, 0, tail!, 1);
         Assert.Equal(bytes.Length, buffer.Length);
-        using (var arena = new Arena<RawResult>())
-        {
-            ProcessMessages(arena, buffer, expected);
-        }
+        return ProcessMessagesAsync(buffer, expected);
     }
 
-    private void ProcessMessages(Arena<RawResult> arena, ReadOnlySequence<byte> buffer, int expected)
+    private async Task ProcessMessagesAsync(ReadOnlySequence<byte> buffer, int expected, bool isInbound = false)
     {
+        var cancel = TestContext.Current.CancellationToken;
         Log($"chain: {buffer.Length}");
-        var reader = new BufferReader(buffer);
-        RawResult result;
-        int found = 0;
-        while (!(result = PhysicalConnection.TryParseResult(false, arena, buffer, ref reader, false, null, false)).IsNull)
+        MemoryStream ms;
+        if (buffer.IsSingleSegment && MemoryMarshal.TryGetArray(buffer.First, out var segment))
         {
-            Log($"{result} - {result.GetString()}");
+            // use existing buffer
+            ms = new MemoryStream(segment.Array!, segment.Offset, (int)buffer.Length, false, true);
+        }
+        else
+        {
+            ms = new MemoryStream(checked((int)buffer.Length));
+            foreach (var chunk in buffer)
+            {
+#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+                ms.Write(chunk.Span);
+#else
+                ms.Write(chunk);
+#endif
+            }
+
+            ms.Position = 0;
+        }
+
+#pragma warning disable CS0618 // Type or member is obsolete
+        var reader = new LoggingTunnel.StreamRespReader(ms, isInbound: isInbound);
+#pragma warning restore CS0618 // Type or member is obsolete
+        int found = 0;
+        while (!cancel.IsCancellationRequested)
+        {
+            var oldPos = reader.Position;
+            var result = await reader.ReadOneAsync(cancel).ForAwait();
+            if (result.Result is null) break;
+            Log($"[{oldPos},{reader.Position}): {result} - {result.Result}");
             found++;
         }
+        cancel.ThrowIfCancellationRequested();
         Assert.Equal(expected, found);
     }
 
