@@ -1,11 +1,14 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
+using RESPite;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Configuration options for controlling connections to multiple groups.
 /// </summary>
+[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
 public sealed class MultiGroupOptions
 {
     private static MultiGroupOptions? _default;

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite;
 using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 
@@ -22,6 +23,7 @@ public partial class ConnectionMultiplexer
     /// <param name="options">Additional options for configuring this group.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
 #pragma warning disable RS0026
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
     public static Task<IConnectionGroup> ConnectGroupAsync(ConnectionGroupMember[] members, MultiGroupOptions? options = null, TextWriter? log = null)
 #pragma warning restore RS0026
     {
@@ -40,6 +42,7 @@ public partial class ConnectionMultiplexer
     /// <param name="member1">An additional initial configuration to connect to.</param>
     /// <param name="options">Additional options for configuring this group.</param>
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0026
     public static Task<IConnectionGroup> ConnectGroupAsync(
         ConnectionGroupMember member0,
@@ -57,6 +60,7 @@ public partial class ConnectionMultiplexer
 /// <summary>
 /// A configured member of a <see cref="MultiGroupMultiplexer"/>.
 /// </summary>
+[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0016, RS0026
 public sealed partial class ConnectionGroupMember(ConfigurationOptions configuration, string name = "")
 #pragma warning restore RS0016, RS0026
