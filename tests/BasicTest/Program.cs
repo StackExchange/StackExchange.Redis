@@ -51,7 +51,7 @@ namespace BasicTest
         [GlobalSetup]
         public void Setup()
         {
-            // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
+            // Dependencies.Assert();
             var options = ConfigurationOptions.Parse("127.0.0.1:6379");
             connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase(3);

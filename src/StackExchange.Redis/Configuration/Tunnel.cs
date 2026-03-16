@@ -57,47 +57,29 @@ namespace StackExchange.Redis.Configuration
                     offset += encoding.GetBytes(ep, 0, ep.Length, chunk, offset);
                     offset += encoding.GetBytes(Suffix, 0, Suffix.Length, chunk, offset);
 
-                    static void SafeAbort(object? obj)
+                    await socket.SendAsync(chunk.AsMemory(0, offset), SocketFlags.None, cancellationToken).ForAwait();
+
+                    // we expect to see: "HTTP/1.1 200 OK\n"; note our buffer is definitely big enough already
+                    int toRead = Math.Max(encoding.GetByteCount(ExpectedResponse1), encoding.GetByteCount(ExpectedResponse2)), read;
+                    offset = 0;
+
+                    var actualResponse = "";
+                    while (toRead > 0 && !actualResponse.EndsWith("\r\n\r\n"))
                     {
-                        try
-                        {
-                            (obj as SocketAwaitableEventArgs)?.Abort(SocketError.TimedOut);
-                        }
-                        catch { } // best effort only
-                    }
+                        read = await socket.ReceiveAsync(chunk.AsMemory(offset, toRead), SocketFlags.None, cancellationToken).ForAwait();
+                        if (read <= 0) break; // EOF (since we're never doing zero-length reads)
+                        toRead -= read;
+                        offset += read;
 
-                    using (var args = new SocketAwaitableEventArgs())
-                    using (cancellationToken.Register(static s => SafeAbort(s), args))
+                        actualResponse = encoding.GetString(chunk, 0, offset);
+                    }
+                    if (toRead != 0 && !actualResponse.EndsWith("\r\n\r\n")) throw new EndOfStreamException("EOF negotiating HTTP tunnel");
+                    // lazy
+                    if (ExpectedResponse1 != actualResponse && ExpectedResponse2 != actualResponse)
                     {
-                        args.SetBuffer(chunk, 0, offset);
-                        if (!socket.SendAsync(args)) args.Complete();
-                        await args;
-
-                        // we expect to see: "HTTP/1.1 200 OK\n"; note our buffer is definitely big enough already
-                        int toRead = Math.Max(encoding.GetByteCount(ExpectedResponse1), encoding.GetByteCount(ExpectedResponse2)), read;
-                        offset = 0;
-
-                        var actualResponse = "";
-                        while (toRead > 0 && !actualResponse.EndsWith("\r\n\r\n"))
-                        {
-                            args.SetBuffer(chunk, offset, toRead);
-                            if (!socket.ReceiveAsync(args)) args.Complete();
-                            read = await args;
-
-                            if (read <= 0) break; // EOF (since we're never doing zero-length reads)
-                            toRead -= read;
-                            offset += read;
-
-                            actualResponse = encoding.GetString(chunk, 0, offset);
-                        }
-                        if (toRead != 0 && !actualResponse.EndsWith("\r\n\r\n")) throw new EndOfStreamException("EOF negotiating HTTP tunnel");
-                        // lazy
-                        if (ExpectedResponse1 != actualResponse && ExpectedResponse2 != actualResponse)
-                        {
-                            throw new InvalidOperationException("Unexpected response negotiating HTTP tunnel");
-                        }
-                        ArrayPool<byte>.Shared.Return(chunk);
+                        throw new InvalidOperationException("Unexpected response negotiating HTTP tunnel");
                     }
+                    ArrayPool<byte>.Shared.Return(chunk);
                 }
                 return default; // no need for custom stream wrapper here
             }

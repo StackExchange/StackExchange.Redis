@@ -102,7 +102,7 @@ internal static class Delegates
         }
     }
     private static Func<MulticastDelegate, T> GetViaReflection<T>(FieldInfo field)
-        => handler => (T)field.GetValue(handler);
+        => handler => (T)field.GetValue(handler)!;
 #endif
 
     /// <summary>

@@ -21,7 +21,6 @@
     <!-- needed everywhere (with hack to override to LTS when possible) -->
     <PackageReference Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="8.0"/>
     <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" />
-    <!--<PackageReference Include="Pipelines.Sockets.Unofficial" />-->
 
     <!-- hashing; net10 version bumps System.Buffers, which is a pain-point on netfx; as such, pin on anything down-level -->
     <PackageReference Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="System.IO.Hashing" />
