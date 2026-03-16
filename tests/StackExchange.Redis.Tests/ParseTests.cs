@@ -77,7 +77,7 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
             ms = new MemoryStream(checked((int)buffer.Length));
             foreach (var chunk in buffer)
             {
-#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+#if NET
                 ms.Write(chunk.Span);
 #else
                 ms.Write(chunk);

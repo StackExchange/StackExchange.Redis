@@ -67,7 +67,7 @@ internal sealed class BufferedSyncStreamWriter : CycleBufferStreamWriter
                         OnWritten(memory.Length);
                         OnDebugBufferLog(memory);
 
-#if NET || NETSTANDARD2_1_OR_GREATER
+#if NET
                         Target.Write(memory.Span);
 #else
                         Target.Write(memory);

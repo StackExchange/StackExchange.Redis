@@ -200,7 +200,7 @@ internal static class RespReaderExtensions
         }
     }
 
-#if !(NET || NETSTANDARD2_1_OR_GREATER)
+#if !NET
     extension(Task task)
     {
         public bool IsCompletedSuccessfully => task.Status is TaskStatus.RanToCompletion;
