@@ -17,7 +17,8 @@ namespace StackExchange.Redis.Tests;
 public class InProcessTestServer : MemoryCacheRedisServer
 {
     private readonly ITestOutputHelper? _log;
-    public InProcessTestServer(ITestOutputHelper? log = null)
+    public InProcessTestServer(ITestOutputHelper? log = null, EndPoint? endpoint = null)
+        : base(endpoint)
     {
         RedisVersion = RedisFeatures.v6_0_0; // for client to expect RESP3
         _log = log;

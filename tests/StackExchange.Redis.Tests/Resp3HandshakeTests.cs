@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading.Tasks;
 using StackExchange.Redis.Server;
 using Xunit;
@@ -99,8 +100,9 @@ public class Resp3HandshakeTests(ITestOutputHelper log)
         }
     }
 
+    private static readonly EndPoint EP = new DnsEndPoint("home", 8000);
     private sealed class HandshakeServer(ServerResponse response, ITestOutputHelper log)
-        : InProcessTestServer(log)
+        : InProcessTestServer(log, EP)
     {
         protected override RedisProtocol MaxProtocol => response switch
         {

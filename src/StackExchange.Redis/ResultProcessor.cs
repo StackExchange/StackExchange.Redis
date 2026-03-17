@@ -2892,10 +2892,18 @@ The coordinates as a two items x,y array (longitude,latitude).
                     }
                 }
 
+                // We need to SetResult before OnFullyEstablished so that the
+                // protocol is reliably known *before* we do next-steps.
                 if (connection.Protocol is null)
                 {
                     // if we didn't get a valid response from HELLO, then we have to assume RESP2 at some point
                     connection.SetProtocol(RedisProtocol.Resp2);
+                }
+
+                if (final & establishConnection)
+                {
+                    // This is what ultimately brings us to complete a connection, by advancing the state forward from a successful tracer after connection.
+                    connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
                 }
 
                 return final;
@@ -2939,11 +2947,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 if (happy)
                 {
-                    if (establishConnection)
-                    {
-                        // This is what ultimately brings us to complete a connection, by advancing the state forward from a successful tracer after connection.
-                        connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
-                    }
                     SetResult(message, happy);
                     return true;
                 }
