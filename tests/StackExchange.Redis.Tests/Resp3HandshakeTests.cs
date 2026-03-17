@@ -12,9 +12,9 @@ public class Resp3HandshakeTests(ITestOutputHelper log)
 {
     public enum ServerResponse
     {
-        Resp3,
-        Resp2,
-        UnknownCommand,
+        Resp3, // up-level server style
+        Resp2, // DMC hybrid style, i.e. we know about it, but: "no, you'll take RESP2"
+        UnknownCommand, // down-level server style
     }
 
     [Flags]
