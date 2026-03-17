@@ -7,13 +7,12 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-[RunPerProtocol]
 public class Resp3HandshakeTests(ITestOutputHelper log)
 {
     public enum ServerResponse
     {
-        SuccessResp3,
-        SuccessResp2,
+        Resp3,
+        Resp2,
         UnknownCommand,
     }
 
@@ -31,31 +30,44 @@ public class Resp3HandshakeTests(ITestOutputHelper log)
     private static readonly int HandshakeFlagsCount = Enum.GetValues(typeof(HandshakeFlags)).Length - 1;
     public static IEnumerable<object[]> GetHandshakeParameters()
     {
-        // all server-response modes; all flag permutations
-        foreach (ServerResponse response in Enum.GetValues(typeof(ServerResponse)))
+        // all client protocols, all server-response modes; all flag permutations
+        var clients = (RedisProtocol[])Enum.GetValues(typeof(RedisProtocol));
+        var servers = (ServerResponse[])Enum.GetValues(typeof(ServerResponse));
+        foreach (var client in clients)
         {
-            int count = 1 << HandshakeFlagsCount;
-            for (int i = 0; i < count; i++)
+            foreach (var server in servers)
             {
-                yield return [response, (HandshakeFlags)i];
+                if (client is RedisProtocol.Resp2 & server is not ServerResponse.Resp2)
+                {
+                    // we don't issue HELLO for this, nothing to test
+                }
+                else
+                {
+                    int count = 1 << HandshakeFlagsCount;
+                    for (int i = 0; i < count; i++)
+                    {
+                        yield return [client, server, (HandshakeFlags)i];
+                    }
+                }
             }
         }
     }
 
     [Theory]
     [MemberData(nameof(GetHandshakeParameters))]
-    public async Task Handshake(ServerResponse response, HandshakeFlags flags)
+    public async Task Handshake(RedisProtocol client, ServerResponse server, HandshakeFlags flags)
     {
-        using var server = new HandshakeServer(response, log);
-        server.Password = (flags & HandshakeFlags.Authenticated) == 0 ? null : "mypassword";
-        var config = server.GetClientConfig();
+        using var serverObj = new HandshakeServer(server, log);
+        serverObj.Password = (flags & HandshakeFlags.Authenticated) == 0 ? null : "mypassword";
+        var config = serverObj.GetClientConfig();
+        config.Protocol = client;
         config.TieBreaker = (flags & HandshakeFlags.TieBreaker) == 0 ? "" : "tiebreaker_key";
         config.ConfigurationChannel = (flags & HandshakeFlags.ConfigChannel) == 0 ? "" : "broadcast_channel";
 
-        using var client = await ConnectionMultiplexer.ConnectAsync(config);
+        using var clientObj = await ConnectionMultiplexer.ConnectAsync(config);
 
-        var sub = client.GetSubscriber();
-        var db = client.GetDatabase();
+        var sub = clientObj.GetSubscriber();
+        var db = clientObj.GetDatabase();
         ConcurrentBag<string> received = [];
         RedisChannel channel = RedisChannel.Literal("mychannel");
         RedisKey key = "mykey";
@@ -92,7 +104,7 @@ public class Resp3HandshakeTests(ITestOutputHelper log)
     {
         protected override RedisProtocol MaxProtocol => response switch
         {
-            ServerResponse.SuccessResp3 => RedisProtocol.Resp3,
+            ServerResponse.Resp3 => RedisProtocol.Resp3,
             _ => RedisProtocol.Resp2,
         };
 
