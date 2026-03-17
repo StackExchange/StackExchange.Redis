@@ -116,7 +116,6 @@ namespace StackExchange.Redis.Server
         public int Id { get; internal set; }
         public bool IsAuthenticated { get; internal set; }
         public RedisProtocol Protocol { get; internal set; } = RedisProtocol.Resp2;
-        public long ProtocolVersion => Protocol is RedisProtocol.Resp2 ? 2 : 3;
 
         public void Dispose()
         {
