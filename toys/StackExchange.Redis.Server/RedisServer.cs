@@ -159,7 +159,7 @@ namespace StackExchange.Redis.Server
         public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
             var pw = Password;
-            if (pw.Length != 0 & !client.IsAuthenticated)
+            if (!string.IsNullOrEmpty(pw) & !client.IsAuthenticated)
             {
                 if (!IsAuthCommand(request.KnownCommand))
                     return TypedRedisValue.Error("NOAUTH Authentication required.");
@@ -253,8 +253,8 @@ namespace StackExchange.Redis.Server
             // all good, update client
             long proto32 = protocol switch
             {
-                RedisProtocol.Resp2 => 2,
-                RedisProtocol.Resp3 => 3,
+                >= RedisProtocol.Resp3 => 3,
+                >= RedisProtocol.Resp2 => 2,
                 _ => throw new InvalidOperationException($"Unexpected protocol: {protocol}"),
             };
             client.Protocol = protocol;
