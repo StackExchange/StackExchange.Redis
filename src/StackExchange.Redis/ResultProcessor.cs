@@ -2892,11 +2892,11 @@ The coordinates as a two items x,y array (longitude,latitude).
                     }
                 }
 
-                // We need to SetResult before OnFullyEstablished so that the
-                // protocol is reliably known *before* we do next-steps.
                 if (connection.Protocol is null)
                 {
-                    // if we didn't get a valid response from HELLO, then we have to assume RESP2 at some point
+                    // If we didn't get a valid response from HELLO, then we have to assume RESP2 at some point.
+                    // We need the protocol assigned before OnFullyEstablished so that the
+                    // protocol is reliably known *before* we do next-steps.
                     connection.SetProtocol(RedisProtocol.Resp2);
                 }
 
