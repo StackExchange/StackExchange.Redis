@@ -1284,6 +1284,10 @@ namespace StackExchange.Redis.Server
         public virtual void OnFlush(RedisClient client, int messages, long bytes)
         {
         }
+
+        public virtual void OnClientCompleted(RedisClient redisClient, Exception exception)
+        {
+        }
     }
 
     internal static partial class HelloSubFieldsMetadata

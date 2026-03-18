@@ -173,6 +173,25 @@ public class InProcessTestServer : MemoryCacheRedisServer
         base.OnClientConnected(client, state);
     }
 
+    public override void OnClientCompleted(RedisClient client, Exception? fault)
+    {
+        if (fault is null)
+        {
+            _log?.WriteLine($"[{client}] completed");
+        }
+        else
+        {
+            _log?.WriteLine($"[{client}] faulted: {fault.Message} ({fault.GetType().Name})");
+        }
+        base.OnClientCompleted(client, fault);
+    }
+
+    protected override void OnSkippedReply(RedisClient client)
+    {
+        _log?.WriteLine($"[{client}] skipped reply");
+        base.OnSkippedReply(client);
+    }
+
     private sealed class InProcTunnel(
         InProcessTestServer server,
         PipeOptions? pipeOptions = null) : Tunnel
@@ -197,6 +216,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         {
             if (server.TryGetNode(endpoint, out var node))
             {
+                server.OnAcceptClient(endpoint);
                 var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
@@ -228,6 +248,10 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 return default;
             }
         }
+    }
+
+    protected virtual void OnAcceptClient(EndPoint endpoint)
+    {
     }
 
     /*

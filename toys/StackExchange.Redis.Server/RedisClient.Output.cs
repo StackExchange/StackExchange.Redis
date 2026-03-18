@@ -51,7 +51,22 @@ public partial class RedisClient
         }
     }
 
-    public ValueTask AddOutboundAsync(in TypedRedisValue message, CancellationToken cancellationToken = default)
+    public bool Kill()
+    {
+        if (!_lifetime.IsCancellationRequested)
+        {
+            try
+            {
+                _lifetime.Cancel();
+                return true;
+            }
+            catch { }
+        }
+
+        return false;
+    }
+
+    public ValueTask AddOutboundAsync(in TypedRedisValue message)
     {
         if (message.IsNil)
         {
@@ -62,7 +77,7 @@ public partial class RedisClient
         try
         {
             var versioned = new VersionedResponse(message, Protocol);
-            var pending = _replies.Writer.WriteAsync(versioned, cancellationToken);
+            var pending = _replies.Writer.WriteAsync(versioned, Lifetime);
             if (!pending.IsCompleted) return Awaited(message, pending);
             pending.GetAwaiter().GetResult();
             // if we succeed, the writer owns it for recycling
@@ -87,9 +102,13 @@ public partial class RedisClient
         }
     }
 
-    public void Complete(Exception ex = null) => _replies.Writer.TryComplete(ex);
+    public void Complete(Exception ex = null)
+    {
+        Node.Server?.OnClientCompleted(this, ex);
+        _replies.Writer.TryComplete(ex);
+    }
 
-    public async Task WriteOutputAsync(PipeWriter writer, CancellationToken cancellationToken = default)
+    public async Task WriteOutputAsync(PipeWriter writer)
     {
         try
         {
@@ -111,11 +130,11 @@ public partial class RedisClient
 #else
                     Node?.Server?.OnFlush(this, count, -1);
 #endif
-                    await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+                    await writer.FlushAsync(Lifetime).ConfigureAwait(false);
                 }
             }
             // await more data
-            while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false));
+            while (await reader.WaitToReadAsync(Lifetime).ConfigureAwait(false));
             await writer.CompleteAsync();
         }
         catch (Exception ex)
