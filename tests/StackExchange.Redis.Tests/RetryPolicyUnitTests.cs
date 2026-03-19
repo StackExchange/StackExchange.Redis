@@ -19,7 +19,7 @@ public class RetryPolicyUnitTests(ITestOutputHelper log)
     [InlineData(FailureMode.SlowNonConnect)]
     [InlineData(FailureMode.NoResponses)]
     [InlineData(FailureMode.GarbageResponses)]
-    public async Task TestExponentialRetry(FailureMode failureMode)
+    public async Task RetryPolicyFailureCases(FailureMode failureMode)
     {
         using var server = new NonResponsiveServer(log);
         var options = server.GetClientConfig(withPubSub: false);

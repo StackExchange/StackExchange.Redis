@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -1068,8 +1069,10 @@ namespace StackExchange.Redis
             }
 
             var tracer = GetTracerMessage(true);
+            tracer.SetHandshakeCompletion();
             tracer = LoggingMessage.Create(log, tracer);
             log?.LogInformationSendingCriticalTracer(new(this), tracer.CommandAndKey);
+            Debug.Assert(tracer.IsHandshakeCompletion, "Tracer message should identify as handshake completion");
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
 
             // Note: this **must** be the last thing on the subscription handshake, because after this
