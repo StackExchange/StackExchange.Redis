@@ -696,13 +696,19 @@ namespace StackExchange.Redis
                     // Clear the unselectable flag ASAP since we are open for business
                     ClearUnselectable(UnselectableFlags.DidNotRespond);
 
-                    bool isResp3 = KnowOrAssumeResp3();
+                    // is *this specific* connection using RESP3? (without reference to config preferences)
+                    bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
                     if (bridge == subscription || isResp3)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
                         // TracerProcessor which is executing this line inside a SetResultCore().
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
+                    }
+                    else if (SupportsSubscriptions && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
+                    {
+                        // interactive, and we wanted RESP3+, but we didn't get it; spin up pub/sub
+                        Activate(ConnectionType.Subscription, null);
                     }
                     if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || isResp3))
                     {

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using RESPite;
@@ -158,7 +159,7 @@ namespace StackExchange.Redis.Server
         public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
             var pw = Password;
-            if (pw.Length != 0 & !client.IsAuthenticated)
+            if (!string.IsNullOrEmpty(pw) & !client.IsAuthenticated)
             {
                 if (!IsAuthCommand(request.KnownCommand))
                     return TypedRedisValue.Error("NOAUTH Authentication required.");
@@ -190,6 +191,8 @@ namespace StackExchange.Redis.Server
             return TypedRedisValue.Error("ERR invalid password");
         }
 
+        protected virtual RedisProtocol MaxProtocol => RedisProtocol.Resp3;
+
         [RedisCommand(-1)]
         protected virtual TypedRedisValue Hello(RedisClient client, in RedisRequest request)
         {
@@ -204,12 +207,14 @@ namespace StackExchange.Redis.Server
                     case 2:
                         protocol = RedisProtocol.Resp2;
                         break;
-                    case 3: // this client does not currently support RESP3
+                    case 3:
                         protocol = RedisProtocol.Resp3;
                         break;
                     default:
                         return TypedRedisValue.Error("NOPROTO unsupported protocol version");
                 }
+                protocol = (RedisProtocol)Math.Min((int)protocol, (int)MaxProtocol);
+
                 static TypedRedisValue ArgFail(in RespReader reader) => TypedRedisValue.Error($"ERR Syntax error in HELLO option '{reader.ReadString()}'\"");
 
                 for (int i = 2; i < request.Count; i++)
@@ -246,6 +251,12 @@ namespace StackExchange.Redis.Server
             }
 
             // all good, update client
+            long proto32 = protocol switch
+            {
+                >= RedisProtocol.Resp3 => 3,
+                >= RedisProtocol.Resp2 => 2,
+                _ => throw new InvalidOperationException($"Unexpected protocol: {protocol}"),
+            };
             client.Protocol = protocol;
             client.IsAuthenticated = isAuthed;
             client.Name = name;
@@ -256,7 +267,7 @@ namespace StackExchange.Redis.Server
             span[2] = TypedRedisValue.BulkString("version");
             span[3] = TypedRedisValue.BulkString(VersionString);
             span[4] = TypedRedisValue.BulkString("proto");
-            span[5] = TypedRedisValue.Integer(client.ProtocolVersion);
+            span[5] = TypedRedisValue.Integer(proto32);
             span[6] = TypedRedisValue.BulkString("id");
             span[7] = TypedRedisValue.Integer(client.Id);
             span[8] = TypedRedisValue.BulkString("mode");
