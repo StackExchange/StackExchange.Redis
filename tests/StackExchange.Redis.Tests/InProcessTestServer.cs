@@ -208,7 +208,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             return base.GetSocketConnectEndpointAsync(endpoint, cancellationToken);
         }
 
-        public override ValueTask<Stream?> BeforeAuthenticateAsync(
+        public override async ValueTask<Stream?> BeforeAuthenticateAsync(
             EndPoint endpoint,
             ConnectionType connectionType,
             Socket? socket,
@@ -216,7 +216,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         {
             if (server.TryGetNode(endpoint, out var node))
             {
-                server.OnAcceptClient(endpoint);
+                await server.OnAcceptClientAsync(endpoint);
                 var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
@@ -231,9 +231,9 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 var readStream = serverToClient.Reader.AsStream();
                 var writeStream = clientToServer.Writer.AsStream();
                 var clientSide = new DuplexStream(readStream, writeStream);
-                return new(clientSide);
+                return clientSide;
             }
-            return base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
+            return await base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
         }
 
         private sealed class Duplex(PipeReader input, PipeWriter output) : IDuplexPipe
@@ -250,9 +250,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         }
     }
 
-    protected virtual void OnAcceptClient(EndPoint endpoint)
-    {
-    }
+    protected virtual ValueTask OnAcceptClientAsync(EndPoint endpoint) => default;
 
     /*
 

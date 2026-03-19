@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -13,9 +14,12 @@ namespace StackExchange.Redis.Tests;
 public class RetryPolicyUnitTests(ITestOutputHelper log)
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task TestExponentialRetry(bool rejectConnection)
+    [InlineData(FailureMode.Success)]
+    [InlineData(FailureMode.ConnectionRefused)]
+    [InlineData(FailureMode.SlowNonConnect)]
+    [InlineData(FailureMode.NoResponses)]
+    [InlineData(FailureMode.GarbageResponses)]
+    public async Task TestExponentialRetry(FailureMode failureMode)
     {
         using var server = new NonResponsiveServer(log);
         var options = server.GetClientConfig(withPubSub: false);
@@ -31,7 +35,7 @@ public class RetryPolicyUnitTests(ITestOutputHelper log)
         Assert.Equal(0, policy.Clear());
 
         // now tell the server to become non-responsive to the next 2, and kill the current
-        server.IgnoreNext(2, rejectConnection);
+        server.FailNext(2, failureMode);
         server.ForAllClients(x => x.Kill());
 
         for (int i = 0; i < 10; i++)
@@ -47,7 +51,14 @@ public class RetryPolicyUnitTests(ITestOutputHelper log)
             }
         }
         var counts = policy.GetRetryCounts();
-        Assert.Equal("0,1", string.Join(",", counts));
+        if (failureMode is FailureMode.Success)
+        {
+            Assert.Empty(counts);
+        }
+        else
+        {
+            Assert.Equal("0,1", string.Join(",", counts));
+        }
     }
 
     private sealed class CountingRetryPolicy : IReconnectRetryPolicy
@@ -87,42 +98,99 @@ public class RetryPolicyUnitTests(ITestOutputHelper log)
         }
     }
 
+    public enum FailureMode
+    {
+        Success,
+        SlowNonConnect,
+        ConnectionRefused,
+        NoResponses,
+        GarbageResponses,
+    }
     private sealed class NonResponsiveServer(ITestOutputHelper log) : InProcessTestServer(log)
     {
-        private int _ignoreNext;
-        private bool _rejectConnection;
+        private int _failNext;
+        private FailureMode _failureMode;
 
-        public void IgnoreNext(int count, bool rejectConnection)
+        public void FailNext(int count, FailureMode failureMode)
         {
-            _ignoreNext = count;
-            _rejectConnection = rejectConnection;
+            _failNext = count;
+            _failureMode = failureMode;
         }
 
-        protected override void OnAcceptClient(EndPoint endpoint)
+        protected override ValueTask OnAcceptClientAsync(EndPoint endpoint)
         {
-            if (_rejectConnection && ShouldIgnoreClient())
+            switch (_failureMode)
             {
-                Log($"(rejecting connection to {endpoint})");
-                throw new SocketException((int)SocketError.ConnectionRefused);
+                case FailureMode.SlowNonConnect when ShouldIgnoreClient():
+                    Log($"(leaving pending connect to {endpoint})");
+                    return TimeoutEventually();
+                case FailureMode.ConnectionRefused when ShouldIgnoreClient():
+                    Log($"(rejecting connection to {endpoint})");
+                    throw new SocketException((int)SocketError.ConnectionRefused);
+                default:
+                    return base.OnAcceptClientAsync(endpoint);
             }
-            base.OnAcceptClient(endpoint);
+
+            static async ValueTask TimeoutEventually()
+            {
+                await Task.Delay(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+                throw new TimeoutException();
+            }
         }
 
         private bool ShouldIgnoreClient()
         {
             while (true)
             {
-                var oldValue = Volatile.Read(ref _ignoreNext);
+                var oldValue = Volatile.Read(ref _failNext);
                 if (oldValue <= 0) return false;
                 var newValue = oldValue - 1;
-                if (Interlocked.CompareExchange(ref _ignoreNext, newValue, oldValue) == oldValue) return true;
+                if (Interlocked.CompareExchange(ref _failNext, newValue, oldValue) == oldValue) return true;
+            }
+        }
+
+        private sealed class GarbageClient(Node node) : RedisClient(node)
+        {
+            protected override void WriteResponse(
+                IBufferWriter<byte> output,
+                TypedRedisValue value,
+                RedisProtocol protocol)
+            {
+#if NET
+                var rand = Random.Shared;
+#else
+                var rand = new Random();
+#endif
+                var len = rand.Next(1, 1024);
+                var buffer = ArrayPool<byte>.Shared.Rent(len);
+                var span = buffer.AsSpan(0, len);
+                try
+                {
+#if NET
+                    rand.NextBytes(span);
+#else
+                    rand.NextBytes(buffer);
+#endif
+                    output.Write(span);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
             }
         }
 
         public override RedisClient CreateClient(Node node)
         {
-            var client = base.CreateClient(node);
-            if (!_rejectConnection && ShouldIgnoreClient())
+            RedisClient client;
+            if (_failureMode is FailureMode.GarbageResponses && ShouldIgnoreClient())
+            {
+                client = new GarbageClient(node);
+                Log($"(accepting garbage-responsive connection to {node.Host}:{node.Port})");
+                return client;
+            }
+            client = base.CreateClient(node);
+            if (_failureMode is FailureMode.NoResponses && ShouldIgnoreClient())
             {
                 Log($"(accepting non-responsive connection to {node.Host}:{node.Port})");
                 client.SkipAllReplies();
