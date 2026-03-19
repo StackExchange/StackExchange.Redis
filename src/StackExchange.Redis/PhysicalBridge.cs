@@ -617,13 +617,14 @@ namespace StackExchange.Redis
                         // We need to time that out and cleanup the PhysicalConnection if needed, otherwise that reader and socket will remain open
                         // for the lifetime of the application due to being orphaned, yet still referenced by the active task doing the pipe read.
                     case (int)State.ConnectedEstablished:
-                        // Track that we should reset the count on the next disconnect, but not do so in a loop
-                        shouldResetConnectionRetryCount = true;
                         var tmp = physical;
                         if (tmp != null)
                         {
                             if (state == (int)State.ConnectedEstablished)
                             {
+                                // Track that we should reset the count on the next disconnect, but not do so in a loop, reset
+                                // the connect-retry-count (used for backoff decay etc), and remove any non-responsive flag.
+                                shouldResetConnectionRetryCount = true;
                                 Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                                 tmp.BridgeCouldBeNull?.ServerEndPoint?.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }

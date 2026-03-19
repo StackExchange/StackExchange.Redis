@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Text;
+using System.Threading;
 using RESPite;
 using RESPite.Messages;
 
@@ -98,7 +99,8 @@ namespace StackExchange.Redis.Server
         }
 
         public RedisServer.Node Node => node;
-        internal int SkipReplies { get; set; }
+        public int SkipReplies { get; set; }
+        public void SkipAllReplies() => SkipReplies = -1;
         internal bool ShouldSkipResponse()
         {
             if (SkipReplies > 0) // skips N
@@ -118,6 +120,10 @@ namespace StackExchange.Redis.Server
         public RedisProtocol Protocol { get; internal set; } = RedisProtocol.Resp2;
         public long ProtocolVersion => Protocol is RedisProtocol.Resp2 ? 2 : 3;
 
+        private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(node.Server.Lifetime);
+
+        public CancellationToken Lifetime => _lifetime.Token;
+
         public void Dispose()
         {
             Closed = true;
@@ -131,7 +137,7 @@ namespace StackExchange.Redis.Server
                 try { pipe.Output.Complete(); } catch { }
                 if (pipe is IDisposable d) try { d.Dispose(); } catch { }
             }
-
+            _lifetime.Dispose();
             _readState = default;
         }
 
