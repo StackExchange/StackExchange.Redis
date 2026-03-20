@@ -8,7 +8,8 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Add `IServer.GetProductVariant` to detect the product variant and version of the connected server, and use that internally
+  to enable multi-DB operations on Valkey clusters ([#3040 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3040))
 
 ## 2.12.4
 
