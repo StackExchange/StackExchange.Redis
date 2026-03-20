@@ -73,6 +73,12 @@ namespace StackExchange.Redis
         Version Version { get; }
 
         /// <summary>
+        /// Attempt to identify the specific Redis product variant and version.
+        /// </summary>
+        /// <remarks>Note that it is explicitly not assumed that the version will conform to the <see cref="Version"/> format.</remarks>
+        ProductVariant GetProductVariant(out string version);
+
+        /// <summary>
         /// The number of databases supported on this server.
         /// </summary>
         int DatabaseCount { get; }

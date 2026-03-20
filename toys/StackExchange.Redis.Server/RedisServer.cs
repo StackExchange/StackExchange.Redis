@@ -1100,7 +1100,7 @@ namespace StackExchange.Redis.Server
         private static readonly Version s_DefaultServerVersion = new(1, 0, 0);
 
         private string _versionString;
-        private string VersionString => _versionString;
+        public string VersionString => _versionString;
         private static string FormatVersion(Version v)
         {
             var sb = new StringBuilder().Append(v.Major).Append('.').Append(v.Minor);
@@ -1140,7 +1140,6 @@ namespace StackExchange.Redis.Server
             switch (section)
             {
                 case "Server":
-                    var v = RedisVersion;
                     AddHeader().Append("redis_version:").AppendLine(VersionString)
                         .Append("redis_mode:").Append(ModeString).AppendLine()
                         .Append("os:").Append(Environment.OSVersion).AppendLine()

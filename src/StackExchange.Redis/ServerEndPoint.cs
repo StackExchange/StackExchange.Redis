@@ -1132,5 +1132,20 @@ namespace StackExchange.Redis
             if (interactive?.HasPendingCallerFacingItems() == true) return true;
             return subscription?.HasPendingCallerFacingItems() ?? false;
         }
+
+        private ProductVariant _productVariant = ProductVariant.Redis;
+        private string _productVersion = "";
+
+        internal void SetProductVariant(ProductVariant variant, string productVersion)
+        {
+            _productVariant = variant;
+            _productVersion = productVersion;
+        }
+
+        internal ProductVariant GetProductVariant(out string productVersion)
+        {
+            productVersion = _productVersion;
+            return _productVariant;
+        }
     }
 }

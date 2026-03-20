@@ -1,1 +1,6 @@
 ﻿#nullable enable
+StackExchange.Redis.IServer.GetProductVariant(out string! version) -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Garnet = 2 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Redis = 0 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Valkey = 1 -> StackExchange.Redis.ProductVariant
