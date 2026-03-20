@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Server
     public class MemoryCacheRedisServer : RedisServer
     {
         private readonly string _cacheNamePrefix = $"{nameof(MemoryCacheRedisServer)}.{Guid.NewGuid():N}";
-        private readonly ConcurrentDictionary<int, MemoryCache> _cache2 = new();
+        private readonly ConcurrentDictionary<int, MemoryCache> _databases = new();
         private int _nextCacheId;
 
         public MemoryCacheRedisServer(EndPoint endpoint = null, int databases = DefaultDatabaseCount, TextWriter output = null) : base(endpoint, databases, output)
@@ -27,10 +27,10 @@ namespace StackExchange.Redis.Server
         {
             while (true)
             {
-                if (_cache2.TryGetValue(database, out var existing)) return existing;
+                if (_databases.TryGetValue(database, out var existing)) return existing;
 
                 var created = CreateNewCache(database);
-                if (_cache2.TryAdd(database, created)) return created;
+                if (_databases.TryAdd(database, created)) return created;
 
                 created.Dispose();
             }
@@ -38,14 +38,14 @@ namespace StackExchange.Redis.Server
 
         private void FlushDbCore(int database)
         {
-            if (_cache2.TryRemove(database, out var cache)) cache.Dispose();
+            if (_databases.TryRemove(database, out var cache)) cache.Dispose();
         }
 
         private void FlushAllCore()
         {
-            foreach (var pair in _cache2)
+            foreach (var pair in _databases)
             {
-                if (_cache2.TryRemove(pair.Key, out var cache)) cache.Dispose();
+                if (_databases.TryRemove(pair.Key, out var cache)) cache.Dispose();
             }
         }
 
