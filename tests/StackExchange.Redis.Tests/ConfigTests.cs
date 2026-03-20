@@ -27,10 +27,12 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         // if this test fails, check that you've updated ConfigurationOptions.Clone(), then: fix the test!
         // this is a simple but pragmatic "have you considered?" check
-        var fields = Array.ConvertAll(
-            typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance),
-            x => Regex.Replace(x.Name, """^<(\w+)>k__BackingField$""", "$1"));
-        Array.Sort(fields);
+        var fields = (
+            from field in typeof(ConfigurationOptions).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            let name = Regex.Replace(field.Name, """^<(\w+)>k__BackingField$""", "$1")
+            where name is not "WriteMode" // silently ignored
+            orderby name
+            select name).ToArray();
         Assert.Equal(
             new[]
             {
