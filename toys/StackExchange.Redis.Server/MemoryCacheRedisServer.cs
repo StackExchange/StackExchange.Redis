@@ -1,34 +1,61 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.Caching;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace StackExchange.Redis.Server
 {
     public class MemoryCacheRedisServer : RedisServer
     {
-        public MemoryCacheRedisServer(EndPoint endpoint = null, TextWriter output = null) : base(endpoint, 1, output)
-            => CreateNewCache();
+        private readonly string _cacheNamePrefix = $"{nameof(MemoryCacheRedisServer)}.{Guid.NewGuid():N}";
+        private readonly ConcurrentDictionary<int, MemoryCache> _cache2 = new();
+        private int _nextCacheId;
 
-        private MemoryCache _cache2;
-
-        private void CreateNewCache()
+        public MemoryCacheRedisServer(EndPoint endpoint = null, int databases = DefaultDatabaseCount, TextWriter output = null) : base(endpoint, databases, output)
         {
-            var old = _cache2;
-            _cache2 = new MemoryCache(GetType().Name);
-            old?.Dispose();
+        }
+
+        private MemoryCache CreateNewCache(int database)
+            => new($"{_cacheNamePrefix}.{database}.{Interlocked.Increment(ref _nextCacheId)}");
+
+        private MemoryCache GetDb(int database)
+        {
+            while (true)
+            {
+                if (_cache2.TryGetValue(database, out var existing)) return existing;
+
+                var created = CreateNewCache(database);
+                if (_cache2.TryAdd(database, created)) return created;
+
+                created.Dispose();
+            }
+        }
+
+        private void FlushDbCore(int database)
+        {
+            if (_cache2.TryRemove(database, out var cache)) cache.Dispose();
+        }
+
+        private void FlushAllCore()
+        {
+            foreach (var pair in _cache2)
+            {
+                if (_cache2.TryRemove(pair.Key, out var cache)) cache.Dispose();
+            }
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) _cache2.Dispose();
+            if (disposing) FlushAllCore();
             base.Dispose(disposing);
         }
 
-        protected override long Dbsize(int database) => _cache2.GetCount();
+        protected override long Dbsize(int database) => GetDb(database).GetCount();
 
         private readonly struct ExpiringValue(object value, DateTime absoluteExpiration)
         {
@@ -43,9 +70,10 @@ namespace StackExchange.Redis.Server
             Set,
             List,
         }
-        private object Get(in RedisKey key, ExpectedType expectedType)
+        private object Get(int database, in RedisKey key, ExpectedType expectedType)
         {
-            var val = _cache2[key];
+            var db = GetDb(database);
+            var val = db[key];
             switch (val)
             {
                 case null:
@@ -53,7 +81,7 @@ namespace StackExchange.Redis.Server
                 case ExpiringValue ev:
                     if (ev.AbsoluteExpiration <= Time())
                     {
-                        _cache2.Remove(key);
+                        db.Remove(key);
                         return null;
                     }
                     return Validate(ev.Value, expectedType);
@@ -78,7 +106,8 @@ namespace StackExchange.Redis.Server
         }
         protected override TimeSpan? Ttl(int database, in RedisKey key)
         {
-            var val = _cache2[key];
+            var db = GetDb(database);
+            var val = db[key];
             switch (val)
             {
                 case null:
@@ -87,7 +116,7 @@ namespace StackExchange.Redis.Server
                     var delta = ev.AbsoluteExpiration - Time();
                     if (delta <= TimeSpan.Zero)
                     {
-                        _cache2.Remove(key);
+                        db.Remove(key);
                         return null;
                     }
                     return delta;
@@ -99,10 +128,11 @@ namespace StackExchange.Redis.Server
         protected override bool Expire(int database, in RedisKey key, TimeSpan timeout)
         {
             if (timeout <= TimeSpan.Zero) return Del(database, key);
-            var val = Get(key, ExpectedType.Any);
+            var db = GetDb(database);
+            var val = Get(database, key, ExpectedType.Any);
             if (val is not null)
             {
-                _cache2[key] = new ExpiringValue(val, Time() + timeout);
+                db[key] = new ExpiringValue(val, Time() + timeout);
                 return true;
             }
 
@@ -111,107 +141,115 @@ namespace StackExchange.Redis.Server
 
         protected override RedisValue Get(int database, in RedisKey key)
         {
-            var val = Get(key, ExpectedType.Stack);
+            var val = Get(database, key, ExpectedType.Stack);
             return RedisValue.Unbox(val);
         }
 
         protected override void Set(int database, in RedisKey key, in RedisValue value)
-            => _cache2[key] = value.Box();
+            => GetDb(database)[key] = value.Box();
 
         protected override void SetEx(int database, in RedisKey key, TimeSpan expiration, in RedisValue value)
         {
+            var db = GetDb(database);
             var now = Time();
             var absolute = now + expiration;
-            if (absolute <= now) _cache2.Remove(key);
-            else _cache2[key] = new ExpiringValue(value.Box(), absolute);
+            if (absolute <= now) db.Remove(key);
+            else db[key] = new ExpiringValue(value.Box(), absolute);
         }
 
         protected override bool Del(int database, in RedisKey key)
-            => _cache2.Remove(key) != null;
+            => GetDb(database).Remove(key) != null;
         protected override void Flushdb(int database)
-            => CreateNewCache();
+            => FlushDbCore(database);
 
-        protected override bool Exists(int database, in RedisKey key)
+        protected override TypedRedisValue Flushall(RedisClient client, in RedisRequest request)
         {
-            var val = Get(key, ExpectedType.Any);
-            return val != null && !(val is ExpiringValue ev && ev.AbsoluteExpiration <= Time());
+            FlushAllCore();
+            return TypedRedisValue.OK;
         }
 
-        protected override IEnumerable<RedisKey> Keys(int database, in RedisKey pattern) => GetKeysCore(pattern);
-        private IEnumerable<RedisKey> GetKeysCore(RedisKey pattern)
+        protected override bool Exists(int database, in RedisKey key)
+            => Get(database, key, ExpectedType.Any) is not null;
+
+        protected override IEnumerable<RedisKey> Keys(int database, in RedisKey pattern) => GetKeysCore(database, pattern);
+        private IEnumerable<RedisKey> GetKeysCore(int database, RedisKey pattern)
         {
-            foreach (var pair in _cache2)
+            foreach (var pair in GetDb(database))
             {
                 if (pair.Value is ExpiringValue ev && ev.AbsoluteExpiration <= Time()) continue;
                 if (IsMatch(pattern, pair.Key)) yield return pair.Key;
             }
         }
         protected override bool Sadd(int database, in RedisKey key, in RedisValue value)
-            => GetSet(key, true).Add(value);
+            => GetSet(database, key, true).Add(value);
 
         protected override bool Sismember(int database, in RedisKey key, in RedisValue value)
-            => GetSet(key, false)?.Contains(value) ?? false;
+            => GetSet(database, key, false)?.Contains(value) ?? false;
 
         protected override bool Srem(int database, in RedisKey key, in RedisValue value)
         {
-            var set = GetSet(key, false);
+            var db = GetDb(database);
+            var set = GetSet(database, key, false);
             if (set != null && set.Remove(value))
             {
-                if (set.Count == 0) _cache2.Remove(key);
+                if (set.Count == 0) db.Remove(key);
                 return true;
             }
             return false;
         }
         protected override long Scard(int database, in RedisKey key)
-            => GetSet(key, false)?.Count ?? 0;
+            => GetSet(database, key, false)?.Count ?? 0;
 
-        private HashSet<RedisValue> GetSet(RedisKey key, bool create)
+        private HashSet<RedisValue> GetSet(int database, in RedisKey key, bool create)
         {
-            var set = (HashSet<RedisValue>)Get(key, ExpectedType.Set);
+            var db = GetDb(database);
+            var set = (HashSet<RedisValue>)Get(database, key, ExpectedType.Set);
             if (set == null && create)
             {
                 set = new HashSet<RedisValue>();
-                _cache2[key] = set;
+                db[key] = set;
             }
             return set;
         }
 
         protected override RedisValue Spop(int database, in RedisKey key)
         {
-            var set = GetSet(key, false);
+            var db = GetDb(database);
+            var set = GetSet(database, key, false);
             if (set == null) return RedisValue.Null;
 
             var result = set.First();
             set.Remove(result);
-            if (set.Count == 0) _cache2.Remove(key);
+            if (set.Count == 0) db.Remove(key);
             return result;
         }
 
         protected override long Lpush(int database, in RedisKey key, in RedisValue value)
         {
-            var stack = GetStack(key, true);
+            var stack = GetStack(database, key, true);
             stack.Push(value);
             return stack.Count;
         }
         protected override RedisValue Lpop(int database, in RedisKey key)
         {
-            var stack = GetStack(key, false);
+            var db = GetDb(database);
+            var stack = GetStack(database, key, false);
             if (stack == null) return RedisValue.Null;
 
             var val = stack.Pop();
-            if (stack.Count == 0) _cache2.Remove(key);
+            if (stack.Count == 0) db.Remove(key);
             return val;
         }
 
         protected override long Llen(int database, in RedisKey key)
-            => GetStack(key, false)?.Count ?? 0;
+            => GetStack(database, key, false)?.Count ?? 0;
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ThrowArgumentOutOfRangeException() => throw new ArgumentOutOfRangeException();
 
         protected override void LRange(int database, in RedisKey key, long start, Span<TypedRedisValue> arr)
         {
-            var stack = GetStack(key, false);
+            var stack = GetStack(database, key, false);
 
             using (var iter = stack.GetEnumerator())
             {
@@ -227,13 +265,14 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        private Stack<RedisValue> GetStack(in RedisKey key, bool create)
+        private Stack<RedisValue> GetStack(int database, in RedisKey key, bool create)
         {
-            var stack = (Stack<RedisValue>)Get(key, ExpectedType.Stack);
+            var db = GetDb(database);
+            var stack = (Stack<RedisValue>)Get(database, key, ExpectedType.Stack);
             if (stack == null && create)
             {
                 stack = new Stack<RedisValue>();
-                _cache2[key] = stack;
+                db[key] = stack;
             }
             return stack;
         }

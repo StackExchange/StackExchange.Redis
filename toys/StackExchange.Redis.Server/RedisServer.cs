@@ -15,6 +15,8 @@ namespace StackExchange.Redis.Server
 {
     public abstract partial class RedisServer : RespServer
     {
+        public const int DefaultDatabaseCount = 16;
+
         // non-trivial wildcards not implemented yet!
         public static bool IsMatch(string pattern, string key) =>
             pattern == "*" || string.Equals(pattern, key, StringComparison.OrdinalIgnoreCase);
@@ -121,7 +123,7 @@ namespace StackExchange.Redis.Server
             return endpoint;
         }
 
-        protected RedisServer(EndPoint endpoint = null, int databases = 16, TextWriter output = null) : base(output)
+        protected RedisServer(EndPoint endpoint = null, int databases = DefaultDatabaseCount, TextWriter output = null) : base(output)
         {
             endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
             _nodes.TryAdd(endpoint, new Node(this, endpoint));
@@ -1245,8 +1247,20 @@ namespace StackExchange.Redis.Server
             var raw = request.GetValue(1);
             if (!raw.TryParse(out int db)) return TypedRedisValue.Error("ERR invalid DB index");
             if (db < 0 || db >= Databases) return TypedRedisValue.Error("ERR DB index is out of range");
+            if (db != 0 && !SupportMultiDb(out var err)) return TypedRedisValue.Error(err);
             client.Database = db;
             return TypedRedisValue.OK;
+        }
+
+        protected virtual bool SupportMultiDb(out string err)
+        {
+            if (ServerType is ServerType.Cluster)
+            {
+                err = "ERR SELECT is not allowed in cluster mode";
+                return false;
+            }
+            err = "";
+            return true;
         }
 
         private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
