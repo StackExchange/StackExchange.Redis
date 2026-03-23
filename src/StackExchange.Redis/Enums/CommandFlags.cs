@@ -109,5 +109,7 @@ namespace StackExchange.Redis
         // 1024: used for "no flush"; never user-specified, so not visible on the public API
 
         // 2048: Use subscription connection type; never user-specified, so not visible on the public API
+
+        // 4096: Identifies handshake completion messages; never user-specified, so not visible on the public API
     }
 }
