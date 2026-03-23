@@ -181,6 +181,11 @@ namespace StackExchange.Redis
                     if (node.IsNoAddr || node.IsFail || node.EndPoint == null)
                         continue;
 
+                    // Be resilient to "handshake" nodes, which are nodes that are in the process of joining the cluster and hence might not have all information available yet.
+                    // These nodes will be included in the configuration once they finish the handshake process and are fully part of the cluster, so we can safely ignore them for now.
+                    if (node.IsHandshake)
+                        continue;
+
                     // Override the origin value with the endpoint advertised with the target node to
                     // make sure that things like clusterConfiguration[clusterConfiguration.Origin]
                     // will work as expected.
@@ -308,6 +313,7 @@ namespace StackExchange.Redis
             }
 
             NodeId = parts[0];
+            IsHandshake = flags.Contains("handshake");
             IsFail = flags.Contains("fail");
             IsPossiblyFail = flags.Contains("fail?");
             IsReplica = flags.Contains("slave") || flags.Contains("replica");
@@ -376,6 +382,14 @@ namespace StackExchange.Redis
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead, this will be removed in 3.0.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IsSlave => IsReplica;
+
+        /// <summary>
+        /// The handshake flag is set for nodes which are currently in the process of joining the cluster.
+        /// They might not be fully configured, node IDs and slot ranges are placeholder information, and endpoint details 'best guess'.
+        /// We use this property only to filter out handshake nodes when building the configuration,
+        /// since they may be unusable, so it is not made public for now.
+        /// </summary>
+        internal bool IsHandshake { get; }
 
         /// <summary>
         /// Gets whether this node is a replica.
