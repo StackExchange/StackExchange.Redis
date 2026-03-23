@@ -325,7 +325,7 @@ namespace StackExchange.Redis
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "Trust me yo")]
-        internal void Shutdown()
+        internal void Shutdown(ConnectionFailureType failureType = ConnectionFailureType.ConnectionDisposed)
         {
             var output = Interlocked.Exchange(ref _output, null); // compare to the critical read
             var socket = Interlocked.Exchange(ref _socket, null);
@@ -333,7 +333,7 @@ namespace StackExchange.Redis
             if (output != null)
             {
                 Trace("Disconnecting...");
-                try { BridgeCouldBeNull?.OnDisconnected(ConnectionFailureType.ConnectionDisposed, this, out _, out _); } catch { }
+                try { BridgeCouldBeNull?.OnDisconnected(failureType, this, out _, out _); } catch { }
                 try { output.Complete(); } catch { }
             }
 
@@ -784,6 +784,12 @@ namespace StackExchange.Redis
                                 msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
                                 multiplexer.OnAsyncTimeout();
                                 result++;
+                            }
+                            else if (msg.IsHandshakeCompletion)
+                            {
+                                // Critical handshake validation timed out; note that this doesn't have a result-box,
+                                // so doesn't get timed out via the above.
+                                Shutdown(ConnectionFailureType.UnableToConnect);
                             }
                         }
                         else

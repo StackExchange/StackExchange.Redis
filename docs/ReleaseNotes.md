@@ -10,6 +10,12 @@ Current package versions:
 
 - (none)
 
+## 2.12.4
+
+- Fix RESP3 client handshakes on non-RESP3 servers by ([#3037 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3037))
+- Improve detection of connect/handshake failures and how that impacts the retry-policy ([#3038 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3038))
+
+
 ## 2.12.1
 
 - Add missing `LCS` outputs and missing `RedisType.VectorSet` ([#3028 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3028))

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -695,13 +696,19 @@ namespace StackExchange.Redis
                     // Clear the unselectable flag ASAP since we are open for business
                     ClearUnselectable(UnselectableFlags.DidNotRespond);
 
-                    bool isResp3 = KnowOrAssumeResp3();
+                    // is *this specific* connection using RESP3? (without reference to config preferences)
+                    bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
                     if (bridge == subscription || isResp3)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
                         // TracerProcessor which is executing this line inside a SetResultCore().
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
+                    }
+                    else if (SupportsSubscriptions && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
+                    {
+                        // interactive, and we wanted RESP3+, but we didn't get it; spin up pub/sub
+                        Activate(ConnectionType.Subscription, null);
                     }
                     if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || isResp3))
                     {
@@ -1069,8 +1076,10 @@ namespace StackExchange.Redis
 
             // note that the final messages *are* flushed (no Message.NoFlushFlag)
             var tracer = GetTracerMessage(true);
+            tracer.SetHandshakeCompletion();
             tracer = LoggingMessage.Create(log, tracer);
             log?.LogInformationSendingCriticalTracer(new(this), tracer.CommandAndKey);
+            Debug.Assert(tracer.IsHandshakeCompletion, "Tracer message should identify as handshake completion");
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
 
             // Note: this **must** be the last thing on the subscription handshake, because after this
