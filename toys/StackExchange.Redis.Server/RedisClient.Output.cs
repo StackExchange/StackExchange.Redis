@@ -228,30 +228,6 @@ public partial class RedisClient
                         "Unexpected result type: " + value.Type);
             }
         }
-
-        static ResultType ToResultType(RespPrefix type) =>
-            type switch
-            {
-                RespPrefix.None => ResultType.None,
-                RespPrefix.SimpleString => ResultType.SimpleString,
-                RespPrefix.SimpleError => ResultType.Error,
-                RespPrefix.Integer => ResultType.Integer,
-                RespPrefix.BulkString => ResultType.BulkString,
-                RespPrefix.Array => ResultType.Array,
-                RespPrefix.Null => ResultType.Null,
-                RespPrefix.Boolean => ResultType.Boolean,
-                RespPrefix.Double => ResultType.Double,
-                RespPrefix.BigInteger => ResultType.BigInteger,
-                RespPrefix.BulkError => ResultType.BlobError,
-                RespPrefix.VerbatimString => ResultType.VerbatimString,
-                RespPrefix.Map => ResultType.Map,
-                RespPrefix.Set => ResultType.Set,
-                RespPrefix.Push => ResultType.Push,
-                RespPrefix.Attribute => ResultType.Attribute,
-                // StreamContinuation and StreamTerminator don't have direct ResultType equivalents
-                // These are protocol-level markers, not result types
-                _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unexpected RespPrefix value"),
-            };
     }
 
     public RespPrefix ApplyProtocol(RespPrefix type) => IsResp2 ? ToResp2(type) : type;
