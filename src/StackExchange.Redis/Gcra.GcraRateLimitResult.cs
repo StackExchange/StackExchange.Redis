@@ -1,8 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
+
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents the result of a GCRA (Generic Cell Rate Algorithm) rate limit check.
 /// </summary>
+[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public readonly partial struct GcraRateLimitResult
 {
     /// <summary>

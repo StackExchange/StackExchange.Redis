@@ -3265,6 +3265,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A <see cref="GcraRateLimitResult"/> containing the rate limit decision and metadata.</returns>
         /// <remarks><seealso href="https://redis.io/commands/gcra"/></remarks>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

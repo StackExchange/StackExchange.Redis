@@ -1,7 +1,5 @@
 using System;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
-using RESPite;
 using VsimFlags = StackExchange.Redis.VectorSetSimilaritySearchMessage.VsimFlags;
 
 namespace StackExchange.Redis;
@@ -9,7 +7,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Represents the request for a vector similarity search operation.
 /// </summary>
-[Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
 public abstract class VectorSetSimilaritySearchRequest
 {
     internal VectorSetSimilaritySearchRequest()

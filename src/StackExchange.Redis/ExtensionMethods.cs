@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite;
 
 namespace StackExchange.Redis
 {
@@ -352,6 +353,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>True if the token was acquired within the allowed time; false otherwise.</returns>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static async ValueTask<bool> TryAcquireGcraAsync(
             this IDatabaseAsync database,
             RedisKey key,

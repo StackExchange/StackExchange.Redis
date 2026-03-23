@@ -1,13 +1,11 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
-using RESPite;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents the request for a vectorset add operation.
 /// </summary>
-[Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
 public abstract class VectorSetAddRequest
 {
     // polymorphism left open for future, but needs to be handled internally
