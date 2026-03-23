@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Add `GCRA` support (and remove experimental flag on `VSIM`) ([#3041 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3041))
+- Add [`GCRA`](https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm) support (and remove experimental flag on `VSIM`) ([#3041 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3041))
 
 ## 2.12.4
 
