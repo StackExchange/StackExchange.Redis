@@ -8,6 +8,10 @@ Current package versions:
 
 ## Unreleased
 
+- none
+
+## 2.12.8
+
 - Add [`GCRA`](https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm) support (and remove experimental flag on `VSIM`) ([#3041 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3041))
 - Add `IServer.GetProductVariant` to detect the product variant and version of the connected server, and use that internally
   to enable multi-DB operations on Valkey clusters ([#3040 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3040))
