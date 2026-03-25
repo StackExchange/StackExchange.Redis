@@ -165,6 +165,7 @@ StackExchange.Redis.ClusterNode.EndPoint.get -> System.Net.EndPoint?
 StackExchange.Redis.ClusterNode.Equals(StackExchange.Redis.ClusterNode? other) -> bool
 StackExchange.Redis.ClusterNode.IsConnected.get -> bool
 StackExchange.Redis.ClusterNode.IsFail.get -> bool
+StackExchange.Redis.ClusterNode.IsHandshake.get -> bool
 StackExchange.Redis.ClusterNode.IsMyself.get -> bool
 StackExchange.Redis.ClusterNode.IsNoAddr.get -> bool
 StackExchange.Redis.ClusterNode.IsPossiblyFail.get -> bool
