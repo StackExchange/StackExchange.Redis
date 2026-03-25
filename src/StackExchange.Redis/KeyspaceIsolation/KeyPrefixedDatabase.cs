@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 
 namespace StackExchange.Redis.KeyspaceIsolation
@@ -774,6 +773,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLength(ToInner(key), flags);
+
+        public GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int requestsPerPeriod, double period = 1.0, int count = 1, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringGcraRateLimit(ToInner(key), maxBurst, requestsPerPeriod, period, count, flags);
 
         public bool StringSet(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
             => Inner.StringSet(ToInner(key), value, expiry, when, flags);

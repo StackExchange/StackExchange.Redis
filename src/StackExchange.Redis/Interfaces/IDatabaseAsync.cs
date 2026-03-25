@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 using RESPite;
@@ -795,6 +794,10 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StringDigest(RedisKey, CommandFlags)"/>
         [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         Task<ValueCondition?> StringDigestAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.StringGcraRateLimit(RedisKey, int, int, double, int, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringGet(RedisKey, CommandFlags)"/>
         Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None);

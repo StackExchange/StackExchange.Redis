@@ -10,9 +10,15 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct TypedRedisValue
     {
-        // note: if this ever becomes exposed on the public API, it should be made so that it clears;
-        // can't trust external callers to clear the space, and using recycle without that is dangerous
-        internal static TypedRedisValue Rent(int count, out Span<TypedRedisValue> span, RespPrefix type)
+        /// <summary>
+        /// Rents an array from the pool and returns a <see cref="TypedRedisValue"/> that wraps it.
+        /// The returned span is cleared to ensure safe usage.
+        /// </summary>
+        /// <param name="count">The number of elements to rent.</param>
+        /// <param name="span">The span that can be used to populate the array.</param>
+        /// <param name="type">The RESP type of the array.</param>
+        /// <returns>A <see cref="TypedRedisValue"/> that wraps the rented array.</returns>
+        public static TypedRedisValue Rent(int count, out Span<TypedRedisValue> span, RespPrefix type)
         {
             if (count == 0)
             {
@@ -20,8 +26,9 @@ namespace StackExchange.Redis
                 return EmptyArray(type);
             }
 
-            var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count); // new TypedRedisValue[count];
+            var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
             span = new Span<TypedRedisValue>(arr, 0, count);
+            span.Clear(); // Clear the span to ensure safe usage by external callers
             return new TypedRedisValue(arr, count, type);
         }
 

@@ -1,12 +1,10 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using RESPite;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents a result from vector similarity search operations.
 /// </summary>
-[Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
 public readonly struct VectorSetSimilaritySearchResult(RedisValue member, double score = double.NaN, string? attributesJson = null)
 {
     /// <summary>

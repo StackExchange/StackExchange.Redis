@@ -1852,9 +1852,11 @@ public ref partial struct RespReader
     }
 
     /// <summary>
-    /// Read the current element as a <see cref="bool"/> value.
+    /// Try to read the current element as a <see cref="bool"/> value.
     /// </summary>
-    public readonly bool ReadBoolean()
+    /// <param name="value">The parsed boolean value if successful.</param>
+    /// <returns>True if the value was successfully parsed; false otherwise.</returns>
+    public readonly bool TryReadBoolean(out bool value)
     {
         var span = Buffer(stackalloc byte[2]);
         switch (span.Length)
@@ -1862,18 +1864,40 @@ public ref partial struct RespReader
             case 1:
                 switch (span[0])
                 {
-                    case (byte)'0' when Prefix == RespPrefix.Integer: return false;
-                    case (byte)'1' when Prefix == RespPrefix.Integer: return true;
-                    case (byte)'f' when Prefix == RespPrefix.Boolean: return false;
-                    case (byte)'t' when Prefix == RespPrefix.Boolean: return true;
+                    case (byte)'0' when Prefix == RespPrefix.Integer:
+                        value = false;
+                        return true;
+                    case (byte)'1' when Prefix == RespPrefix.Integer:
+                        value = true;
+                        return true;
+                    case (byte)'f' when Prefix == RespPrefix.Boolean:
+                        value = false;
+                        return true;
+                    case (byte)'t' when Prefix == RespPrefix.Boolean:
+                        value = true;
+                        return true;
                 }
 
                 break;
-            case 2 when Prefix == RespPrefix.SimpleString && IsOK(): return true;
+            case 2 when Prefix == RespPrefix.SimpleString && IsOK():
+                value = true;
+                return true;
         }
 
-        ThrowFormatException();
+        value = false;
         return false;
+    }
+
+    /// <summary>
+    /// Read the current element as a <see cref="bool"/> value.
+    /// </summary>
+    public readonly bool ReadBoolean()
+    {
+        if (!TryReadBoolean(out var value))
+        {
+            ThrowFormatException();
+        }
+        return value;
     }
 
     /// <summary>
