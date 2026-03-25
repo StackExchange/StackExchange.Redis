@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Sdk;
@@ -27,5 +28,19 @@ public class ClusterHandshakeNodesUnitTests(ITestOutputHelper log)
         Assert.Contains(a, ep);
         Assert.Contains(b, ep);
         Assert.DoesNotContain(c, ep);
+
+        // check we can still *fetch* handshake nodes via the admin API
+        var serverApi = conn.GetServer(a);
+        var config = await serverApi.ClusterNodesAsync();
+        Assert.NotNull(config);
+        Assert.Equal(3, config.Nodes.Count);
+        var eps = config.Nodes.Select(x => x.EndPoint).ToArray();
+        Assert.Contains(a, eps);
+        Assert.Contains(b, eps);
+        Assert.Contains(c, eps);
+
+        Assert.False(config[a]!.IsHandshake);
+        Assert.False(config[b]!.IsHandshake);
+        Assert.True(config[c]!.IsHandshake);
     }
 }
