@@ -1,16 +1,21 @@
-﻿using System;
+﻿#if NET8_0_OR_GREATER
+#define UNSAFE_ACCESSOR // retain ability to disable easily
+#endif
+
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+
+#if !UNSAFE_ACCESSOR
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
+#endif
 
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Provides utility methods for working with delegates.
+/// Provides utility methods for working *efficiently* with multicast delegates.
 /// </summary>
 internal static class Delegates
 {
@@ -35,29 +40,36 @@ internal static class Delegates
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsSingle(this MulticastDelegate handler)
-    #if NET8_0_OR_GREATER
-        => s_getArr(handler) is null;
-    #else
-        => s_getArr is not null && s_getArr(handler) is null;
-    #endif
+    {
+#if UNSAFE_ACCESSOR
+        return s_getArr(handler) is null;
+#else
+        if (s_isAvailable)
+        {
+            if (s_getArr is not null)
+            {
+                return s_getArr(handler) is null;
+            }
+
+            return s_delegates!(handler) is null;
+        }
+        return handler.GetInvocationList().Length == 1;
+#endif
+    }
 
     /// <summary>
     /// Indicates whether optimized usage is supported on this environment; without this, it may still
     /// work, but with additional overheads at runtime.
     /// </summary>
-#if !NET8_0_OR_GREATER
-    [MemberNotNullWhen(true, nameof(s_getArr))]
-    [MemberNotNullWhen(true, nameof(s_getCount))]
-#endif
     public static bool IsSupported => s_isAvailable;
 
-#if NET8_0_OR_GREATER
+#if UNSAFE_ACCESSOR
 #pragma warning disable SA1300
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_invocationList")]
-    private static extern object? s_getArr(MulticastDelegate handler);
+    private static extern ref readonly object? s_getArr(MulticastDelegate handler);
 
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_invocationCount")]
-    private static extern IntPtr s_getCount(MulticastDelegate handler);
+    private static extern ref readonly nint s_getCount(MulticastDelegate handler);
 
     // ReSharper disable once InconsistentNaming
 #pragma warning disable SA1303
@@ -67,10 +79,32 @@ internal static class Delegates
 #pragma warning restore SA1300
 #else
 #pragma warning disable SA1300
-    private static readonly Func<MulticastDelegate, object?>? s_getArr = GetGetter<object>("_invocationList");
-    private static readonly Func<MulticastDelegate, IntPtr>? s_getCount = GetGetter<IntPtr>("_invocationCount");
+    private static readonly Func<MulticastDelegate, object?>? s_getArr;
+    private static readonly Func<MulticastDelegate, nint>? s_getCount;
+    private static readonly Func<MulticastDelegate, Delegate[]>? s_delegates;
 
-    private static readonly bool s_isAvailable = s_getArr is not null & s_getCount is not null;
+    private static readonly bool s_isAvailable = IsAvailable(out s_getArr, out s_getCount, out s_delegates);
+
+    private static bool IsAvailable(
+        out Func<MulticastDelegate, object?>? getArr,
+        out Func<MulticastDelegate, nint>? getCount,
+        out Func<MulticastDelegate, Delegate[]>? delegates)
+    {
+        // look for .NET's convention
+        getArr = GetGetter<object>("_invocationList");
+        getCount = GetGetter<IntPtr>("_invocationCount");
+        if (getArr is not null & getCount is not null)
+        {
+            delegates = null;
+            return true;
+        }
+
+        // try for Mono
+        getArr = null;
+        getCount = null;
+        delegates = GetGetter<Delegate[]>("delegates");
+        return delegates is not null;
+    }
 
 #pragma warning restore SA1300
 
@@ -140,23 +174,31 @@ internal static class Delegates
         {
             // Debug.Assert(handler is not null);
             _handler = handler;
-            if (IsSupported)
+#if UNSAFE_ACCESSOR
+            _arr = s_getArr(handler) as object[];
+            _count = _arr is null ? 1 : (int)s_getCount(handler);
+#else
+            if (s_isAvailable)
             {
-                _arr = (object[]?)s_getArr(handler);
-                if (_arr is null)
+                if (s_delegates is null)
                 {
-                    _count = 1;
+                    _arr = s_getArr!(handler) as object[];
+                    _count = _arr is null ? 1 : (int)s_getCount!(handler);
                 }
                 else
                 {
-                    _count = (int)s_getCount(handler);
+                    // ReSharper disable once CoVariantArrayConversion
+                    _arr = s_delegates(handler);
+                    _count = _arr?.Length ?? 1;
                 }
             }
             else
             {
+                // ReSharper disable once CoVariantArrayConversion
                 _arr = handler.GetInvocationList();
                 _count = _arr.Length;
             }
+#endif
             _current = null;
             _index = -1;
         }

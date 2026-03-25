@@ -22,10 +22,29 @@ public class DelegateTests
             action += Add(captured, i);
             static Action Add(List<int> captured, int i) => () => captured.Add(i);
         }
+
+        switch (count)
+        {
+            case 0:
+            Assert.Null(action);
+            break;
+            case 1:
+            Assert.NotNull(action);
+            Assert.True(action.IsSingle());
+            break;
+            default:
+            Assert.NotNull(action);
+            Assert.False(action.IsSingle());
+            break;
+        }
+
+        int foreachCount = 0;
         foreach (var inner in action.AsEnumerable())
         {
             inner.Invoke();
+            foreachCount++;
         }
+        Assert.Equal(count, foreachCount);
         Assert.Equal(count, captured.Count);
         for (int i = 0; i < captured.Count; i++)
         {
