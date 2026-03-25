@@ -1759,7 +1759,7 @@ namespace StackExchange.Redis
                 {
                     return null;
                 }
-                var clusterEndpoints = new EndPointCollection(clusterConfig.Nodes.Where(node => node.EndPoint is not null).Select(node => node.EndPoint!).ToList());
+                var clusterEndpoints = new EndPointCollection(clusterConfig.Nodes.Where(node => node.EndPoint is not null && !node.IgnoreFromClient).Select(node => node.EndPoint!).ToList());
                 // Loop through nodes in the cluster and update nodes relations to other nodes
                 ServerEndPoint? serverEndpoint = null;
                 foreach (EndPoint endpoint in clusterEndpoints)
@@ -1932,7 +1932,7 @@ namespace StackExchange.Redis
             }
             foreach (var node in configuration.Nodes)
             {
-                if (node.IsReplica || node.Slots.Count == 0) continue;
+                if (node.IgnoreFromClient || node.IsReplica || node.Slots.Count == 0) continue;
                 foreach (var slot in node.Slots)
                 {
                     if (GetServerEndPoint(node.EndPoint) is ServerEndPoint server)

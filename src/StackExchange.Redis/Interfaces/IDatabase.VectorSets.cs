@@ -19,7 +19,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns><see langword="true"/> if the element was added; <see langword="false"/> if it already existed.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vadd"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     bool VectorSetAdd(
         RedisKey key,
         VectorSetAddRequest request,
@@ -32,7 +31,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>The cardinality of the vectorset.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vcard"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     long VectorSetLength(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -42,7 +40,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>The dimension of vectors in the vectorset.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vdim"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     int VectorSetDimension(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -53,7 +50,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>The vector as a pooled memory lease.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vemb"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     Lease<float>? VectorSetGetApproximateVector(
         RedisKey key,
         RedisValue member,
@@ -67,7 +63,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>The attributes as a JSON string.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vgetattr"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     string? VectorSetGetAttributesJson(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -77,7 +72,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>Information about the vectorset.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vinfo"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     VectorSetInfo? VectorSetInfo(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -88,7 +82,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>True if the member exists, false otherwise.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vismember"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     bool VectorSetContains(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -99,7 +92,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>The linked members.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vlinks"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     Lease<RedisValue>? VectorSetGetLinks(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -110,7 +102,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>The linked members with their similarity scores.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vlinks"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     Lease<VectorSetLink>? VectorSetGetLinksWithScores(
         RedisKey key,
         RedisValue member,
@@ -123,7 +114,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>A random member from the vectorset, or null if the vectorset is empty.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vrandmember"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     RedisValue VectorSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -134,7 +124,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>Random members from the vectorset.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vrandmember"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     RedisValue[] VectorSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -145,7 +134,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns><see langword="true"/> if the member was removed; <see langword="false"/> if it was not found.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vrem"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     bool VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
     /// <summary>
@@ -157,7 +145,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>True if successful.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vsetattr"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     bool VectorSetSetAttributesJson(
         RedisKey key,
         RedisValue member,
@@ -175,7 +162,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>Similar vectors with their similarity scores.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vsim"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(
         RedisKey key,
         VectorSetSimilaritySearchRequest query,
@@ -192,7 +178,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>Members in the specified range as a pooled memory lease.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vrange"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     Lease<RedisValue> VectorSetRange(
         RedisKey key,
         RedisValue start = default,
@@ -212,7 +197,6 @@ public partial interface IDatabase
     /// <param name="flags">The flags to use for this operation.</param>
     /// <returns>An enumerable of members in the specified range.</returns>
     /// <remarks><seealso href="https://redis.io/commands/vrange"/></remarks>
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     System.Collections.Generic.IEnumerable<RedisValue> VectorSetRangeEnumerate(
         RedisKey key,
         RedisValue start = default,

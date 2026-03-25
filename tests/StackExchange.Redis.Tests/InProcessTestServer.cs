@@ -25,7 +25,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
-    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
+    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
         => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, writeMode), log);
 
     // view request/response highlights in the log
@@ -58,7 +58,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         return result;
     }
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = true, WriteMode writeMode = WriteMode.Default)
+    public ConfigurationOptions GetClientConfig(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default)
     {
         var commands = GetCommands();
         if (!withPubSub)
@@ -105,9 +105,16 @@ public class InProcessTestServer : MemoryCacheRedisServer
 #endif
         */
 
-        foreach (var endpoint in GetEndPoints())
+        if (defaultOnly)
         {
-            config.EndPoints.Add(endpoint);
+            config.EndPoints.Add(DefaultEndPoint);
+        }
+        else
+        {
+            foreach (var endpoint in GetEndPoints())
+            {
+                config.EndPoints.Add(endpoint);
+            }
         }
         return config;
     }

@@ -60,6 +60,7 @@ internal enum RedisCommand
     GEOSEARCH,
     GEOSEARCHSTORE,
 
+    GCRA,
     GET,
     GETBIT,
     GETDEL,
@@ -323,6 +324,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.EXPIREAT:
             case RedisCommand.FLUSHALL:
             case RedisCommand.FLUSHDB:
+            case RedisCommand.GCRA:
             case RedisCommand.GEOSEARCHSTORE:
             case RedisCommand.GETDEL:
             case RedisCommand.GETEX:

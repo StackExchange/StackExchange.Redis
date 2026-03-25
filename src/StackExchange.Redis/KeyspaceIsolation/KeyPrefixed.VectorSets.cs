@@ -8,7 +8,6 @@ namespace StackExchange.Redis.KeyspaceIsolation;
 internal partial class KeyPrefixed<TInner>
 {
     // Vector Set operations - async methods
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     public Task<bool> VectorSetAddAsync(
         RedisKey key,
         VectorSetAddRequest request,

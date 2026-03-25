@@ -1,12 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
-using RESPite;
-
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Contains metadata information about a vectorset returned by VINFO command.
 /// </summary>
-[Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
 public readonly struct VectorSetInfo(
     VectorSetQuantization quantization,
     string? quantizationRaw,

@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
 namespace StackExchange.Redis;
@@ -7,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Specifies the quantization type for vectors in a vectorset.
 /// </summary>
-[Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
 public enum VectorSetQuantization
 {
     /// <summary>

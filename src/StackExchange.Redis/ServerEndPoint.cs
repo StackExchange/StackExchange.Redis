@@ -91,7 +91,12 @@ namespace StackExchange.Redis
         /// This is memoized because it's accessed on hot paths inside the write lock.
         /// </remarks>
         public bool SupportsDatabases =>
-            supportsDatabases ??= serverType == ServerType.Standalone && Multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT);
+            supportsDatabases ??= serverType switch
+            {
+                ServerType.Standalone => true,
+                ServerType.Cluster => _productVariant is ProductVariant.Valkey,
+                _ => false,
+            } && Multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT);
 
         public int Databases
         {
@@ -324,6 +329,8 @@ namespace StackExchange.Redis
                 ServerEndPoint? primary = null;
                 foreach (var node in configuration.Nodes)
                 {
+                    if (node.IgnoreFromClient) continue;
+
                     if (node.NodeId == thisNode.ParentNodeId)
                     {
                         primary = Multiplexer.GetServerEndPoint(node.EndPoint);
@@ -1134,6 +1141,22 @@ namespace StackExchange.Redis
             // check whichever bridges exist
             if (interactive?.HasPendingCallerFacingItems() == true) return true;
             return subscription?.HasPendingCallerFacingItems() ?? false;
+        }
+
+        private ProductVariant _productVariant = ProductVariant.Redis;
+        private string _productVersion = "";
+
+        internal void SetProductVariant(ProductVariant variant, string productVersion)
+        {
+            _productVariant = variant;
+            _productVersion = productVersion;
+            ClearMemoized(); // variant impacts multi-DB rules for cluster
+        }
+
+        internal ProductVariant GetProductVariant(out string productVersion)
+        {
+            productVersion = _productVersion;
+            return _productVariant;
         }
     }
 }
