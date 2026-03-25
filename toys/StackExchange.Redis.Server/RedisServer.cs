@@ -23,17 +23,7 @@ namespace StackExchange.Redis.Server
 
         public bool TryGetNode(EndPoint endpoint, out Node node) => _nodes.TryGetValue(endpoint, out node);
 
-        public EndPoint DefaultEndPoint
-        {
-            get
-            {
-                foreach (var pair in _nodes)
-                {
-                    return pair.Key;
-                }
-                throw new InvalidOperationException("No endpoints");
-            }
-        }
+        public EndPoint DefaultEndPoint { get; }
 
         public override Node DefaultNode
         {
@@ -135,7 +125,7 @@ namespace StackExchange.Redis.Server
 
         protected RedisServer(EndPoint endpoint = null, int databases = 16, TextWriter output = null) : base(output)
         {
-            endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
+            DefaultEndPoint = endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
             _nodes.TryAdd(endpoint, new Node(this, endpoint, NodeFlags.None));
             RedisVersion = s_DefaultServerVersion;
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
