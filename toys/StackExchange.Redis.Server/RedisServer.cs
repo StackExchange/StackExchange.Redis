@@ -78,7 +78,19 @@ namespace StackExchange.Redis.Server
         public bool Migrate(Span<byte> key, EndPoint to) => Migrate(ServerSelectionStrategy.GetClusterSlot(key), to);
         public bool Migrate(in RedisKey key, EndPoint to) => Migrate(GetHashSlot(key), to);
 
-        public EndPoint AddEmptyNode()
+        [Flags]
+        public enum NodeFlags
+        {
+            None = 0, // note: implicitly primary, since no replica flag
+            Replica = 1 << 0,
+            Handshake = 1 << 1,
+            Fail = 1 << 2,
+            PFail = 1 << 3,
+            NoAddress = 1 << 4,
+            NoFailover = 1 << 5,
+        }
+
+        public EndPoint AddEmptyNode(NodeFlags flags = NodeFlags.None)
         {
             EndPoint endpoint;
             Node node;
@@ -113,7 +125,7 @@ namespace StackExchange.Redis.Server
                         break;
                 }
 
-                node = new(this, endpoint);
+                node = new(this, endpoint, flags);
                 node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
             }
             // defensive loop for concurrency
@@ -124,7 +136,7 @@ namespace StackExchange.Redis.Server
         protected RedisServer(EndPoint endpoint = null, int databases = 16, TextWriter output = null) : base(output)
         {
             endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
-            _nodes.TryAdd(endpoint, new Node(this, endpoint));
+            _nodes.TryAdd(endpoint, new Node(this, endpoint, NodeFlags.None));
             RedisVersion = s_DefaultServerVersion;
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
             Databases = databases;
@@ -487,7 +499,16 @@ namespace StackExchange.Redis.Server
                 {
                     sb.Append("myself,");
                 }
-                sb.Append("master - 0 0 1 connected");
+                sb.Append((node.Flags & NodeFlags.Replica) == 0 ? "master" : "slave");
+                if ((node.Flags & NodeFlags.Handshake) != 0)
+                {
+                    sb.Append(",handshake");
+                }
+                if ((node.Flags & NodeFlags.Fail) != 0) sb.Append(",fail");
+                if ((node.Flags & NodeFlags.PFail) != 0) sb.Append(",fail?");
+                if ((node.Flags & NodeFlags.NoAddress) != 0) sb.Append(",noaddr");
+                if ((node.Flags & NodeFlags.NoFailover) != 0) sb.Append(",nofailover");
+                sb.Append(" - 0 0 1 connected");
                 foreach (var range in node.Slots)
                 {
                     sb.Append(" ").Append(range.ToString());
@@ -603,11 +624,13 @@ namespace StackExchange.Redis.Server
 
             private readonly RedisServer _server;
             public RedisServer Server => _server;
-            public Node(RedisServer server, EndPoint endpoint)
+            public NodeFlags Flags { get; }
+            public Node(RedisServer server, EndPoint endpoint, NodeFlags flags)
             {
                 Host = GetHost(endpoint, out var port);
                 Port = port;
                 _server = server;
+                Flags = flags;
             }
 
             public void UpdateSlots(SlotRange[] slots) => _slots = slots;

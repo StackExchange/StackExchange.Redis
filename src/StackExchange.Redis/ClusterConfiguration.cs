@@ -181,11 +181,6 @@ namespace StackExchange.Redis
                     if (node.IsNoAddr || node.IsFail || node.EndPoint == null)
                         continue;
 
-                    // Be resilient to "handshake" nodes, which are nodes that are in the process of joining the cluster and hence might not have all information available yet.
-                    // These nodes will be included in the configuration once they finish the handshake process and are fully part of the cluster, so we can safely ignore them for now.
-                    if (node.IsHandshake)
-                        continue;
-
                     // Override the origin value with the endpoint advertised with the target node to
                     // make sure that things like clusterConfiguration[clusterConfiguration.Origin]
                     // will work as expected.
@@ -430,6 +425,10 @@ namespace StackExchange.Redis
         /// The slots owned by this server.
         /// </summary>
         public IList<SlotRange> Slots { get; }
+
+        // Be resilient to "handshake" nodes, which are nodes that are in the process of joining the cluster and hence might not have all information available yet.
+        // These nodes will be included in the configuration once they finish the handshake process and are fully part of the cluster, so we can safely ignore them for now.
+        internal bool IgnoreFromClient => IsHandshake; // possibly also noaddr?
 
         /// <summary>
         /// Compares the current instance with another object of the same type and returns an integer that indicates
