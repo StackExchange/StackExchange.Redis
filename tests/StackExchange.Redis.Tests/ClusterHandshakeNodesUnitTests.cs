@@ -1,7 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Sdk;
 
 namespace StackExchange.Redis.Tests;
 
@@ -15,7 +14,7 @@ public class ClusterHandshakeNodesUnitTests(ITestOutputHelper log)
         var a = server.DefaultEndPoint;
         var b = server.AddEmptyNode();
         var c = server.AddEmptyNode(Server.RedisServer.NodeFlags.Handshake);
-        using var conn = await server.ConnectAsync(defaultOnly: true); // defaultOnly: only connect to a initially
+        await using var conn = await server.ConnectAsync(defaultOnly: true); // defaultOnly: only connect to a initially
 
         log.WriteLine($"a: {Format.ToString(a)}, b: {Format.ToString(b)}, c: {Format.ToString(c)}");
         var ep = conn.GetEndPoints();
@@ -28,6 +27,16 @@ public class ClusterHandshakeNodesUnitTests(ITestOutputHelper log)
         Assert.Contains(a, ep);
         Assert.Contains(b, ep);
         Assert.DoesNotContain(c, ep);
+    }
+
+    [Fact]
+    public async Task ClusterHandshakeNodesAreNotIgnoredWhenFetchingDirectly()
+    {
+        using var server = new InProcessTestServer() { ServerType = ServerType.Cluster };
+        var a = server.DefaultEndPoint;
+        var b = server.AddEmptyNode();
+        var c = server.AddEmptyNode(Server.RedisServer.NodeFlags.Handshake);
+        await using var conn = await server.ConnectAsync(defaultOnly: true); // defaultOnly: only connect to a initially
 
         // check we can still *fetch* handshake nodes via the admin API
         var serverApi = conn.GetServer(a);
