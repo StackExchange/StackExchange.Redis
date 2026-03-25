@@ -381,10 +381,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// The handshake flag is set for nodes which are currently in the process of joining the cluster.
         /// They might not be fully configured, node IDs and slot ranges are placeholder information, and endpoint details 'best guess'.
-        /// We use this property only to filter out handshake nodes when building the configuration,
-        /// since they may be unusable, so it is not made public for now.
         /// </summary>
-        internal bool IsHandshake { get; }
+        public bool IsHandshake { get; }
 
         /// <summary>
         /// Gets whether this node is a replica.
