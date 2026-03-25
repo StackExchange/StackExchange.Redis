@@ -886,7 +886,7 @@ namespace StackExchange.Redis
                 // Handle INFO command (returns bulk string)
                 if (message?.Command == RedisCommand.INFO && reader.IsScalar)
                 {
-                    string? info = result.GetString();
+                    string? info = reader.ReadString();
                     if (string.IsNullOrWhiteSpace(info))
                     {
                         SetResult(message, true);
@@ -897,9 +897,9 @@ namespace StackExchange.Redis
                     ProductVariant productVariant = ProductVariant.Redis;
                     string productVersion = "";
 
-                    using (var reader = new StringReader(info))
+                    using (var infoReader = new StringReader(info))
                     {
-                        while (reader.ReadLine() is string line)
+                        while (infoReader.ReadLine() is { } line)
                         {
                             if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# "))
                             {
@@ -1100,11 +1100,11 @@ namespace StackExchange.Redis
                                 connection.ConnectionId = i64;
                                 Log?.LogInformationAutoConfiguredHelloConnectionId(new(server), i64);
                                 break;
-                            case HelloField.Mode when TryParseServerType(val.ReadString(), out var serverType):
+                            case HelloField.Mode when ServerTypeMetadata.TryParse(val.ReadString(), out var serverType):
                                 server.ServerType = serverType;
                                 Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
                                 break;
-                            case HelloField.Role when TryParseRole(val.ReadString(), out bool isReplica):
+                            case HelloField.Role when RoleTypeMetadata.TryParse(val.ReadString(), out bool isReplica):
                                 server.IsReplica = isReplica;
                                 Log?.LogInformationAutoConfiguredHelloRole(new(server), isReplica ? "replica" : "primary");
                                 break;

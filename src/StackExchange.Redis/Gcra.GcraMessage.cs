@@ -11,7 +11,7 @@ internal partial class RedisDatabase
         double periodSeconds,
         int count) : Message(database, flags, RedisCommand.GCRA)
     {
-        protected override void WriteImpl(PhysicalConnection connection)
+        protected override void WriteImpl(in MessageWriter connection)
         {
             // GCRA key max_burst requests_per_period period [NUM_REQUESTS count]
             connection.WriteHeader(Command, ArgCount);
