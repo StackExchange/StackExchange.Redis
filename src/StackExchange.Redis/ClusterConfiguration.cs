@@ -308,6 +308,7 @@ namespace StackExchange.Redis
             }
 
             NodeId = parts[0];
+            IsHandshake = flags.Contains("handshake");
             IsFail = flags.Contains("fail");
             IsPossiblyFail = flags.Contains("fail?");
             IsReplica = flags.Contains("slave") || flags.Contains("replica");
@@ -378,6 +379,12 @@ namespace StackExchange.Redis
         public bool IsSlave => IsReplica;
 
         /// <summary>
+        /// The handshake flag is set for nodes which are currently in the process of joining the cluster.
+        /// They might not be fully configured, node IDs and slot ranges are placeholder information, and endpoint details 'best guess'.
+        /// </summary>
+        public bool IsHandshake { get; }
+
+        /// <summary>
         /// Gets whether this node is a replica.
         /// </summary>
         public bool IsReplica { get; }
@@ -416,6 +423,10 @@ namespace StackExchange.Redis
         /// The slots owned by this server.
         /// </summary>
         public IList<SlotRange> Slots { get; }
+
+        // Be resilient to "handshake" nodes, which are nodes that are in the process of joining the cluster and hence might not have all information available yet.
+        // These nodes will be included in the configuration once they finish the handshake process and are fully part of the cluster, so we can safely ignore them for now.
+        internal bool IgnoreFromClient => IsHandshake; // possibly also noaddr?
 
         /// <summary>
         /// Compares the current instance with another object of the same type and returns an integer that indicates

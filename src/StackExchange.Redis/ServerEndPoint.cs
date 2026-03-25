@@ -324,6 +324,8 @@ namespace StackExchange.Redis
                 ServerEndPoint? primary = null;
                 foreach (var node in configuration.Nodes)
                 {
+                    if (node.IgnoreFromClient) continue;
+
                     if (node.NodeId == thisNode.ParentNodeId)
                     {
                         primary = Multiplexer.GetServerEndPoint(node.EndPoint);
