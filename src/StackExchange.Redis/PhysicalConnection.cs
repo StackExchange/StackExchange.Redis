@@ -14,8 +14,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
 
 using static StackExchange.Redis.Message;
 
@@ -132,6 +130,42 @@ namespace StackExchange.Redis
         // *definitely* multi-database; this can help identify some unusual config scenarios
         internal bool MultiDatabasesOverride { get; set; } // switch to flags-enum if more needed later
 
+#if NET
+        private static CancellationTokenSource? _spareTimeoutSource;
+#endif
+
+        private static CancellationTokenSource GetTimeout(int milliseconds)
+        {
+#if NET
+            var source = Interlocked.Exchange(ref _spareTimeoutSource, null) ?? new();
+#else
+            var source = new CancellationTokenSource();
+#endif
+            source.CancelAfter(milliseconds);
+            return source;
+        }
+
+        private static void DiscardTimeout(ref CancellationTokenSource? source)
+        {
+            #if NET // can try to recycle
+            if (source is not null
+                && source.TryReset()
+                && Interlocked.CompareExchange(ref _spareTimeoutSource, source, null) is null)
+            {
+                // reusable and stashed, nice
+                source = null;
+            }
+            #endif
+
+            if (source is not null)
+            {
+                try { source.Dispose(); }
+                catch { }
+
+                source = null;
+            }
+        }
+
         internal async Task BeginConnectAsync(ILogger? log)
         {
             var bridge = BridgeCouldBeNull;
@@ -161,7 +195,7 @@ namespace StackExchange.Redis
                     var socket = addressFamily == AddressFamily.Unspecified
                         ? new Socket(SocketType.Stream, protocolType)
                         : new Socket(addressFamily, SocketType.Stream, protocolType);
-                    SocketConnection.SetRecommendedClientOptions(socket);
+                    socket.SetRecommendedSocketOptions();
                     // socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
                     return socket;
                 }
@@ -182,85 +216,67 @@ namespace StackExchange.Redis
             CancellationTokenSource? timeoutSource = null;
             try
             {
-                using (var args = connectTo is null ? null : new SocketAwaitableEventArgs
+                ValueTask pendingConnect;
+                if (connectTo is not null && VolatileSocket is { } socket)
                 {
-                    RemoteEndPoint = connectTo,
-                })
+                    timeoutSource = GetTimeout(bridge.Multiplexer.RawConfig.ConnectTimeout);
+                    pendingConnect = socket.ConnectAsync(connectTo, timeoutSource.Token);
+                }
+                else
                 {
-                    var x = VolatileSocket;
-                    if (x == null)
-                    {
-                        args?.Abort();
-                    }
-                    else if (args is not null && x.ConnectAsync(args))
-                    {
-                        // asynchronous operation is pending
-                        timeoutSource = ConfigureTimeout(args, bridge.Multiplexer.RawConfig.ConnectTimeout);
-                    }
-                    else
-                    {
-                        // completed synchronously
-                        args?.Complete();
-                    }
+                    pendingConnect = default;
+                }
 
-                    // Complete connection
-                    try
+                // Complete connection
+                try
+                {
+                    // If we're told to ignore connect, abort here
+                    if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
+
+                    await pendingConnect; // wait for the connect to complete or fail (will throw)
+                    DiscardTimeout(ref timeoutSource);
+
+                    socket = VolatileSocket;
+                    if (socket is null && connectTo is not null)
                     {
-                        // If we're told to ignore connect, abort here
-                        if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
-
-                        if (args is not null)
+                        ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
+                    }
+                    else if (await ConnectedAsync(socket, log).ForAwait())
+                    {
+                        log?.LogInformationStartingRead(new(endpoint));
+                        try
                         {
-                            await args; // wait for the connect to complete or fail (will throw)
+                            StartReading(CancellationToken.None); // this already includes InputCancel
+                            // Normal return
                         }
-                        if (timeoutSource != null)
+                        catch (Exception ex)
                         {
-                            timeoutSource.Cancel();
-                            timeoutSource.Dispose();
-                        }
-
-                        x = VolatileSocket;
-                        if (x == null && args is not null)
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
-                        }
-                        else if (await ConnectedAsync(x, log).ForAwait())
-                        {
-                            log?.LogInformationStartingRead(new(endpoint));
-                            try
-                            {
-                                StartReading(CancellationToken.None); // this already includes InputCancel
-                                // Normal return
-                            }
-                            catch (Exception ex)
-                            {
-                                ConnectionMultiplexer.TraceWithoutContext(ex.Message);
-                                Shutdown();
-                            }
-                        }
-                        else
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                            ConnectionMultiplexer.TraceWithoutContext(ex.Message);
                             Shutdown();
                         }
                     }
-                    catch (ObjectDisposedException ex)
+                    else
                     {
-                        log?.LogErrorSocketShutdown(ex, new(endpoint));
-                        try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
-                        catch (Exception inner)
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext(inner.Message);
-                        }
+                        ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                        Shutdown();
                     }
-                    catch (Exception outer)
+                }
+                catch (ObjectDisposedException ex)
+                {
+                    log?.LogErrorSocketShutdown(ex, new(endpoint));
+                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
+                    catch (Exception inner)
                     {
-                        ConnectionMultiplexer.TraceWithoutContext(outer.Message);
-                        try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
-                        catch (Exception inner)
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext(inner.Message);
-                        }
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
+                    }
+                }
+                catch (Exception outer)
+                {
+                    ConnectionMultiplexer.TraceWithoutContext(outer.Message);
+                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
+                    catch (Exception inner)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
                     }
                 }
             }
@@ -272,25 +288,6 @@ namespace StackExchange.Redis
             {
                 if (timeoutSource != null) try { timeoutSource.Dispose(); } catch { }
             }
-        }
-
-        private static CancellationTokenSource ConfigureTimeout(SocketAwaitableEventArgs args, int timeoutMilliseconds)
-        {
-            var cts = new CancellationTokenSource();
-            var timeout = Task.Delay(timeoutMilliseconds, cts.Token);
-            timeout.ContinueWith(
-                (_, state) =>
-                {
-                    try
-                    {
-                        var a = (SocketAwaitableEventArgs)state!;
-                        a.Abort(SocketError.TimedOut);
-                        Socket.CancelConnectAsync(a);
-                    }
-                    catch { }
-                },
-                args);
-            return cts;
         }
 
         private enum ReadMode : byte

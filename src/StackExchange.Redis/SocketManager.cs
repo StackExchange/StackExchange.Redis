@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Net;
-using System.Net.Sockets;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {

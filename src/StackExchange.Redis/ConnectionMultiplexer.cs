@@ -12,7 +12,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
 using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
@@ -568,7 +567,7 @@ namespace StackExchange.Redis
         /// <remarks>Note: For Sentinel, do <b>not</b> specify a <see cref="ConfigurationOptions.CommandMap"/> - this is handled automatically.</remarks>
         public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
         {
-            SocketConnection.AssertDependencies();
+            Dependencies.Assert();
             Validate(configuration);
 
             return configuration.IsSentinel
@@ -656,7 +655,7 @@ namespace StackExchange.Redis
         /// <remarks>Note: For Sentinel, do <b>not</b> specify a <see cref="ConfigurationOptions.CommandMap"/> - this is handled automatically.</remarks>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter? log = null)
         {
-            SocketConnection.AssertDependencies();
+            Dependencies.Assert();
             Validate(configuration);
 
             return configuration.IsSentinel

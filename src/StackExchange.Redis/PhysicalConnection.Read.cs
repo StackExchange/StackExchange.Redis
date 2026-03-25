@@ -132,7 +132,7 @@ internal sealed partial class PhysicalConnection
                 _readStatus = ReadStatus.ReadAsync;
                 var buffer = _readBuffer.GetUncommittedMemory();
                 cancellationToken.ThrowIfCancellationRequested();
-#if NET || NETSTANDARD2_1_OR_GREATER
+#if NET
                 read = tail.Read(buffer.Span);
 #else
                 read = tail.Read(buffer);
@@ -364,7 +364,7 @@ internal sealed partial class PhysicalConnection
     {
         if (payload.IsSingleSegment)
         {
-#if NETCOREAPP || NETSTANDARD2_1_OR_GREATER
+#if NET
             OnResponseFrame(prefix, payload.FirstSpan, ref SharedNoLease);
 #else
             OnResponseFrame(prefix, payload.First.Span, ref SharedNoLease);

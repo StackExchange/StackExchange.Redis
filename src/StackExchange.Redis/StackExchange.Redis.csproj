@@ -18,14 +18,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- needed everywhere (with hack to override to LTS when possible) -->
-    <PackageReference Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="8.0"/>
-    <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="Microsoft.Extensions.Logging.Abstractions" />
-    <PackageReference Include="Pipelines.Sockets.Unofficial" />
+    <!-- needed everywhere -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="System.IO.Hashing" />
 
-    <!-- hashing; net10 version bumps System.Buffers, which is a pain-point on netfx; as such, pin on anything down-level -->
-    <PackageReference Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="System.IO.Hashing" />
-    <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))" Include="System.IO.Hashing" VersionOverride="9.0.12"/>
+    <!-- pipelines is built in from .NET 10 onwards -->
+    <PackageReference Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))" Include="System.IO.Pipelines"/>
 
     <!-- built into .NET core now -->
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />

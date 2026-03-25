@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis;
 
