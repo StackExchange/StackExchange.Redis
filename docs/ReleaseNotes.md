@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Ignore cluster nodes with the `handshake` flag ([#3043 by @TimLovellSmith](https://github.com/StackExchange/StackExchange.Redis/pull/3043))
 
 ## 2.12.4
 
