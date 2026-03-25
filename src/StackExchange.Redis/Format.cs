@@ -583,14 +583,8 @@ namespace StackExchange.Redis
                 version = null;
                 return false;
             }
-            unsafe
-            {
-                fixed (char* ptr = input)
-                {
-                    string s = new(ptr, 0, input.Length);
-                    return TryParseVersion(s, out version);
-                }
-            }
+            string s = input.ToString();
+            return TryParseVersion(s, out version);
 #endif
         }
 

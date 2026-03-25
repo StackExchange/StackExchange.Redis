@@ -49,6 +49,8 @@ namespace StackExchange.Redis
 
         public ServerType ServerType => server.ServerType;
 
+        public ProductVariant GetProductVariant(out string version) => server.GetProductVariant(out version);
+
         public Version Version => server.Version;
 
         public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
