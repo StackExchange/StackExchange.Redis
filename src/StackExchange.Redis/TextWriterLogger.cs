@@ -17,22 +17,18 @@ internal sealed class TextWriterLogger : ILogger
         _wrapped = wrapped;
     }
 
-#if NET8_0_OR_GREATER
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NothingDisposable.Instance;
-#else
-    public IDisposable BeginScope<TState>(TState state) => NothingDisposable.Instance;
-#endif
 
     public bool IsEnabled(LogLevel logLevel) => _writer is not null || _wrapped is not null;
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         _wrapped?.Log(logLevel, eventId, state, exception, formatter);
-        if (_writer is TextWriter writer)
+        if (_writer is { } writer)
         {
             lock (writer)
             {
                 // We check here again because it's possible we've released below, and never want to write past releasing.
-                if (_writer is TextWriter innerWriter)
+                if (_writer is { } innerWriter)
                 {
                     innerWriter.Write($"{DateTime.UtcNow:HH:mm:ss.ffff}: ");
                     innerWriter.WriteLine(formatter(state, exception));

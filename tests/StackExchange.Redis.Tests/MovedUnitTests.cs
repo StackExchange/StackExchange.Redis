@@ -1,7 +1,5 @@
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using StackExchange.Redis.Configuration;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -17,16 +15,20 @@ public class MovedUnitTests(ITestOutputHelper log)
     private RedisKey Me([CallerMemberName] string callerName = "") => callerName;
 
     [Theory]
-    [InlineData(ServerType.Cluster)]
-    [InlineData(ServerType.Standalone)]
-    public async Task CrossSlotDisallowed(ServerType serverType)
+    [InlineData(ServerType.Cluster, WriteMode.Sync)]
+    [InlineData(ServerType.Standalone, WriteMode.Sync)]
+    [InlineData(ServerType.Cluster, WriteMode.Async)]
+    [InlineData(ServerType.Standalone, WriteMode.Async)]
+    [InlineData(ServerType.Cluster, WriteMode.Pipe)]
+    [InlineData(ServerType.Standalone, WriteMode.Pipe)]
+    public async Task CrossSlotDisallowed(ServerType serverType, WriteMode writeMode)
     {
         // intentionally sending as strings (not keys) via execute to prevent the
         // client library from getting in our way
         string keyA = "abc", keyB = "def"; // known to be on different slots
 
         using var server = new InProcessTestServer(log) { ServerType = serverType };
-        await using var muxer = await server.ConnectAsync();
+        await using var muxer = await server.ConnectAsync(writeMode: writeMode, withPubSub: false);
 
         var db = muxer.GetDatabase();
         await db.StringSetAsync(keyA, "value", flags: CommandFlags.FireAndForget);
@@ -116,7 +118,7 @@ public class MovedUnitTests(ITestOutputHelper log)
             log: log) { ServerType = serverType, };
 
         // Act: Connect to the test server
-        await using var conn = await testServer.ConnectAsync();
+        await using var conn = await testServer.ConnectAsync(withPubSub: false);
         // Ping the server to ensure it's responsive
         var server = conn.GetServer(testServer.DefaultEndPoint);
 

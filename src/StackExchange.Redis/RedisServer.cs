@@ -8,7 +8,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial.Arenas;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -893,34 +893,39 @@ namespace StackExchange.Redis
             public static readonly ResultProcessor<ScanResult> processor = new ScanResultProcessor();
             private sealed class ScanResultProcessor : ResultProcessor<ScanResult>
             {
-                protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+                protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
                 {
-                    switch (result.Resp2TypeArray)
+                    if (reader.IsAggregate && reader.AggregateLengthIs(2))
                     {
-                        case ResultType.Array:
-                            var arr = result.GetItems();
-                            RawResult inner;
-                            if (arr.Length == 2 && (inner = arr[1]).Resp2TypeArray == ResultType.Array)
+                        // SCAN returns [cursor, [keys...]]
+                        var iter = reader.AggregateChildren();
+                        if (!iter.MoveNext()) return false;
+                        var cursor = iter.Value.ReadRedisValue();
+
+                        if (iter.MoveNext() && iter.Value.IsAggregate)
+                        {
+                            RedisKey[] keys;
+                            int count;
+                            if (iter.Value.IsNull || iter.Value.AggregateLengthIs(0))
                             {
-                                var items = inner.GetItems();
-                                RedisKey[] keys;
-                                int count;
-                                if (items.IsEmpty)
-                                {
-                                    keys = Array.Empty<RedisKey>();
-                                    count = 0;
-                                }
-                                else
-                                {
-                                    count = (int)items.Length;
-                                    keys = ArrayPool<RedisKey>.Shared.Rent(count);
-                                    items.CopyTo(keys, (in RawResult r) => r.AsRedisKey());
-                                }
-                                var keysResult = new ScanResult(arr[0].AsRedisValue(), keys, count, true);
-                                SetResult(message, keysResult);
-                                return true;
+                                keys = Array.Empty<RedisKey>();
+                                count = 0;
                             }
-                            break;
+                            else
+                            {
+                                count = iter.Value.AggregateLength();
+                                keys = ArrayPool<RedisKey>.Shared.Rent(count);
+                                var keysIter = iter.Value.AggregateChildren();
+                                for (int i = 0; i < count; i++)
+                                {
+                                    keysIter.DemandNext();
+                                    keys[i] = keysIter.Value.ReadRedisKey();
+                                }
+                            }
+                            var keysResult = new ScanResult(cursor, keys, count, true);
+                            SetResult(message, keysResult);
+                            return true;
+                        }
                     }
                     return false;
                 }
@@ -1060,6 +1065,11 @@ namespace StackExchange.Redis
             var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, db, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
+
+        /// <summary>
+        /// For testing only: Check if the server can simulate connection failure.
+        /// </summary>
+        internal bool CanSimulateConnectionFailure => server.CanSimulateConnectionFailure;
 
         /// <summary>
         /// For testing only.

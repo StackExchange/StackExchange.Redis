@@ -6,7 +6,6 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis;
 
@@ -106,7 +105,7 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
     public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter? log = null)
     {
-        SocketConnection.AssertDependencies();
+        Dependencies.Assert();
         Validate(configuration);
 
         return ConnectImpl(configuration, log, ServerType.Sentinel);
@@ -119,7 +118,7 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
     public static Task<ConnectionMultiplexer> SentinelConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
     {
-        SocketConnection.AssertDependencies();
+        Dependencies.Assert();
         Validate(configuration);
 
         return ConnectImplAsync(configuration, log, ServerType.Sentinel);

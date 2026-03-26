@@ -58,6 +58,7 @@
 [SER004]RESPite.Messages.RespReader.ScalarParser<TSource, TValue>
 [SER004]RESPite.Messages.RespReader.TryParseScalar<T>(delegate*<System.ReadOnlySpan<byte>, out T, bool> parser, out T value) -> bool
 [SER004]RESPite.Messages.RespReader.TryParseScalar<T>(RESPite.Messages.RespReader.ScalarParser<byte, T>! parser, out T value) -> bool
+[SER004]RESPite.Messages.RespReader.TryParseScalar<T>(RESPite.Messages.RespReader.ScalarParser<char, T>! parser, out T value) -> bool
 [SER004]static RESPite.AsciiHash.CaseInsensitiveEqualityComparer.get -> System.Collections.Generic.IEqualityComparer<RESPite.AsciiHash>!
 [SER004]static RESPite.AsciiHash.CaseSensitiveEqualityComparer.get -> System.Collections.Generic.IEqualityComparer<RESPite.AsciiHash>!
 [SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<byte> second) -> bool

@@ -40,8 +40,8 @@ public readonly ref struct KeyNotification
             var hashCS = AsciiHash.HashCS(prefix);
             switch (hashCS)
             {
-                case KeyEventPrefix.HashCS when KeyEventPrefix.IsCS(prefix, hashCS):
                 case KeySpacePrefix.HashCS when KeySpacePrefix.IsCS(prefix, hashCS):
+                case KeyEventPrefix.HashCS when KeyEventPrefix.IsCS(prefix, hashCS):
                     // check that there is *something* non-empty after the prefix, with __: as the suffix (we don't verify *what*)
                     if (span.Slice(KeySpacePrefix.Length).IndexOf("__:"u8) > 0)
                     {

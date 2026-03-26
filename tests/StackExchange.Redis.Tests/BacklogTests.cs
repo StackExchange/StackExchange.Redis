@@ -53,12 +53,14 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
             // Fail the connection
             Log("Test: Simulating failure");
             conn.AllowConnect = false;
+
             server.SimulateConnectionFailure(SimulatedFailureType.All);
             Assert.False(conn.IsConnected);
 
@@ -115,7 +117,6 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
-                SocketManager = SocketManager.ThreadPool,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
@@ -130,6 +131,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
@@ -206,7 +208,6 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
-                SocketManager = SocketManager.ThreadPool,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
@@ -221,6 +222,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
@@ -308,7 +310,6 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             options.KeepAlive = 10000;
             options.AsyncTimeout = 5000;
             options.AllowAdmin = true;
-            options.SocketManager = SocketManager.ThreadPool;
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
@@ -327,6 +328,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await UntilConditionAsync(TimeSpan.FromSeconds(10), () => (server = conn.SelectServer(getMsg)) != null);
 
             Assert.NotNull(server);
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
@@ -414,7 +416,6 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
-                SocketManager = SocketManager.ThreadPool,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
@@ -424,6 +425,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
 
             // Verify TotalOutstanding is 0 when connected and idle
             Log("Test: asserting connected counters");

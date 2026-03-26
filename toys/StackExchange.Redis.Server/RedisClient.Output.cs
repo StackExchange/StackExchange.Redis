@@ -176,7 +176,7 @@ public partial class RedisClient
             switch (type)
             {
                 case RespPrefix.Integer:
-                    PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
+                    MessageWriter.WriteInteger(output, (long)value.AsRedisValue());
                     break;
                 case RespPrefix.SimpleError:
                     prefix = '-';
@@ -187,11 +187,11 @@ public partial class RedisClient
                     WritePrefix(output, prefix);
                     var val = (string)value.AsRedisValue() ?? "";
                     var expectedLength = Encoding.UTF8.GetByteCount(val);
-                    PhysicalConnection.WriteRaw(output, val, expectedLength);
-                    PhysicalConnection.WriteCrlf(output);
+                    MessageWriter.WriteRaw(output, val, expectedLength);
+                    MessageWriter.WriteCrlf(output);
                     break;
                 case RespPrefix.BulkString:
-                    PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
+                    MessageWriter.WriteBulkString(value.AsRedisValue(), output);
                     break;
                 case RespPrefix.Null:
                 case RespPrefix.Push when value.IsNullArray:
@@ -201,7 +201,7 @@ public partial class RedisClient
                     output.Write("_\r\n"u8);
                     break;
                 case RespPrefix.Array when value.IsNullArray:
-                    PhysicalConnection.WriteMultiBulkHeader(output, -1);
+                    MessageWriter.WriteMultiBulkHeader(output, -1);
                     break;
                 case RespPrefix.Push:
                 case RespPrefix.Map:
@@ -209,7 +209,7 @@ public partial class RedisClient
                 case RespPrefix.Set:
                 case RespPrefix.Attribute:
                     var segment = value.Span;
-                    PhysicalConnection.WriteMultiBulkHeader(output, segment.Length, ToResultType(type));
+                    MessageWriter.WriteMultiBulkHeader(output, segment.Length, type);
                     foreach (var item in segment)
                     {
                         if (item.IsNil) throw new InvalidOperationException("Array element cannot be nil");
@@ -224,35 +224,10 @@ public partial class RedisClient
                         Debug.WriteLine($"{type} not handled in RESP3; using {r2} instead");
                         goto RetryResp2;
                     }
-
                     throw new InvalidOperationException(
                         "Unexpected result type: " + value.Type);
             }
         }
-
-        static ResultType ToResultType(RespPrefix type) =>
-            type switch
-            {
-                RespPrefix.None => ResultType.None,
-                RespPrefix.SimpleString => ResultType.SimpleString,
-                RespPrefix.SimpleError => ResultType.Error,
-                RespPrefix.Integer => ResultType.Integer,
-                RespPrefix.BulkString => ResultType.BulkString,
-                RespPrefix.Array => ResultType.Array,
-                RespPrefix.Null => ResultType.Null,
-                RespPrefix.Boolean => ResultType.Boolean,
-                RespPrefix.Double => ResultType.Double,
-                RespPrefix.BigInteger => ResultType.BigInteger,
-                RespPrefix.BulkError => ResultType.BlobError,
-                RespPrefix.VerbatimString => ResultType.VerbatimString,
-                RespPrefix.Map => ResultType.Map,
-                RespPrefix.Set => ResultType.Set,
-                RespPrefix.Push => ResultType.Push,
-                RespPrefix.Attribute => ResultType.Attribute,
-                // StreamContinuation and StreamTerminator don't have direct ResultType equivalents
-                // These are protocol-level markers, not result types
-                _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unexpected RespPrefix value"),
-            };
     }
 
     public RespPrefix ApplyProtocol(RespPrefix type) => IsResp2 ? ToResp2(type) : type;

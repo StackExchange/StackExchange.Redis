@@ -46,7 +46,7 @@ namespace StackExchange.Redis
                         else tcs.TrySetResult(t.Result);
                     },
                     tcs);
-                return await tcs.Task;
+                return await tcs.Task.ForAwait();
             }
         }
 

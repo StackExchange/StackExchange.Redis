@@ -33,11 +33,14 @@ internal enum KnownRole
 internal static partial class KnownRoleMetadata
 {
     [AsciiHash]
+    private static partial bool TryParseCore(ReadOnlySpan<byte> value, out KnownRole role);
+
+    [AsciiHash]
     private static partial bool TryParseCore(ReadOnlySpan<char> value, out KnownRole role);
 
-    internal static bool TryParse(ReadOnlySpan<char> value, out bool isReplica)
+    internal static bool TryParse(ReadOnlySpan<byte> value, out bool isReplica)
     {
-        if (!TryParseCore(value.Trim(), out var role))
+        if (!TryParseCore(value, out var role))
         {
             isReplica = false;
             return false;
@@ -46,9 +49,22 @@ internal static partial class KnownRoleMetadata
         isReplica = role is KnownRole.Replica or KnownRole.Slave;
         return true;
     }
-    internal static bool TryParse(string? val, out bool isReplica)
+
+    internal static bool TryParse(ReadOnlySpan<char> value, out bool isReplica)
     {
-        if (val is not null) return TryParse(val.AsSpan(), out isReplica);
+        if (!TryParseCore(value, out var role))
+        {
+            isReplica = false;
+            return false;
+        }
+
+        isReplica = role is KnownRole.Replica or KnownRole.Slave;
+        return true;
+    }
+
+    internal static bool TryParse(string? value, out bool isReplica)
+    {
+        if (value is not null) return TryParse(value.AsSpan(), out isReplica);
         isReplica = false;
         return false;
     }

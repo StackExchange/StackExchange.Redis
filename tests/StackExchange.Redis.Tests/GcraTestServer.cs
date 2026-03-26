@@ -1,5 +1,4 @@
-extern alias respite;
-using respite::RESPite.Messages;
+using RESPite.Messages;
 using StackExchange.Redis.Server;
 using Xunit;
 

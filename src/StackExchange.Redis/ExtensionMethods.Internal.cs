@@ -1,5 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Sockets;
 
 namespace StackExchange.Redis
 {
@@ -33,5 +36,20 @@ namespace StackExchange.Redis
             return true;
         }
 #endif
+
+        internal static void SetRecommendedSocketOptions(this Socket socket)
+        {
+            try
+            {
+                if (socket.AddressFamily is not AddressFamily.Unix)
+                {
+                    socket.NoDelay = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message, nameof(Socket));
+            }
+        }
     }
 }

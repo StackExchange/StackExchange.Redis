@@ -244,7 +244,7 @@ public readonly struct Expiration
         _ => 2,
     };
 
-    internal void WriteTo(PhysicalConnection physical)
+    internal void WriteTo(in MessageWriter writer)
     {
         var mode = Mode;
         switch (Mode)
@@ -252,13 +252,13 @@ public readonly struct Expiration
             case ExpirationMode.Default or ExpirationMode.NotUsed:
                 break;
             case ExpirationMode.KeepTtl:
-                physical.WriteBulkString("KEEPTTL"u8);
+                writer.WriteBulkString("KEEPTTL"u8);
                 break;
             case ExpirationMode.Persist:
-                physical.WriteBulkString("PERSIST"u8);
+                writer.WriteBulkString("PERSIST"u8);
                 break;
             default:
-                physical.WriteBulkString(mode switch
+                writer.WriteBulkString(mode switch
                 {
                     ExpirationMode.RelativeSeconds => "EX"u8,
                     ExpirationMode.RelativeMilliseconds => "PX"u8,
@@ -266,7 +266,7 @@ public readonly struct Expiration
                     ExpirationMode.AbsoluteMilliseconds => "PXAT"u8,
                     _ => default,
                 });
-                physical.WriteBulkString(Value);
+                writer.WriteBulkString(Value);
                 break;
         }
     }

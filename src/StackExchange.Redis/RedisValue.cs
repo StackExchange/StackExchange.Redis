@@ -16,43 +16,150 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents values that can be stored in redis.
     /// </summary>
+    [StructLayout(LayoutKind.Explicit)]
     public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
+        // Note that this allocates a byte[]; fine when used for a static field from a u8 literal, but
+        // not a good option to call every time.
+        internal static RedisValue FromRaw(ReadOnlySpan<byte> bytes) => bytes.ToArray();
+
         internal static readonly RedisValue[] EmptyArray = Array.Empty<RedisValue>();
 
-        private readonly object? _objectOrSentinel;
-        private readonly ReadOnlyMemory<byte> _memory;
-        private readonly long _overlappedBits64;
+#pragma warning disable SA1134
+        [FieldOffset(0)] private readonly int _index;
+        [FieldOffset(4)] private readonly int _length;
 
-        private RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object? objectOrSentinel)
+        // these should only be used if the value of _obj is the appropriate sentinel
+        [FieldOffset(0)] private readonly long _valueInt64;
+        [FieldOffset(0)] private readonly ulong _valueUInt64;
+        [FieldOffset(0)] private readonly double _valueDouble;
+
+        [FieldOffset(8)] private readonly object? _obj;
+#pragma warning restore SA1134
+
+        private RedisValue(byte[]? value)
         {
-            _overlappedBits64 = overlappedValue64;
-            _memory = memory;
-            _objectOrSentinel = objectOrSentinel;
+            if (value is null)
+            {
+                this = default;
+            }
+            else if (value.Length == 0)
+            {
+                this = EmptyString;
+            }
+            else
+            {
+                Unsafe.SkipInit(out this);
+                _index = 0;
+                _length = value.Length;
+                _obj = value;
+            }
         }
 
-        internal RedisValue(object obj, long overlappedBits)
+        private RedisValue(ReadOnlyMemory<byte> value)
         {
-            // this creates a bodged RedisValue which should **never**
-            // be seen directly; the contents are ... unexpected
-            _overlappedBits64 = overlappedBits;
-            _objectOrSentinel = obj;
-            _memory = default;
+            Unsafe.SkipInit(out this);
+            if (value.IsEmpty)
+            {
+                this = EmptyString;
+            }
+            else if (MemoryMarshal.TryGetArray(value, out var segment))
+            {
+                _index = segment.Offset;
+                _length = segment.Count;
+                _obj = segment.Array;
+            }
+            else if (MemoryMarshal.TryGetMemoryManager<byte, MemoryManager<byte>>(value, out var manager, out var index, out var length))
+            {
+                _index = index;
+                _length = length;
+                _obj = manager;
+            }
+            else
+            {
+                Throw();
+                static void Throw() => throw new ArgumentException("Unrecognized memory type");
+            }
+        }
+
+        private RedisValue(long value)
+        {
+            Unsafe.SkipInit(out this);
+            _valueInt64 = value;
+            _obj = Sentinel_SignedInteger;
+        }
+
+        private RedisValue(ulong value)
+        {
+            Unsafe.SkipInit(out this);
+            if (value <= long.MaxValue)
+            {
+                _valueInt64 = (long)value;
+                _obj = Sentinel_SignedInteger;
+            }
+            else
+            {
+                _valueUInt64 = value;
+                _obj = Sentinel_UnsignedInteger;
+            }
+        }
+
+        private RedisValue(double value)
+        {
+            Unsafe.SkipInit(out this);
+            try
+            {
+                var i64 = (long)value;
+                // note: double doesn't offer integer accuracy at 64 bits, so we know it can't be unsigned (only use that for 64-bit)
+                // ReSharper disable once CompareOfFloatsByEqualityOperator
+                if (value == i64)
+                {
+                    _valueInt64 = i64;
+                    _obj = Sentinel_SignedInteger;
+                    return;
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+
+            _valueDouble = value;
+            _obj = Sentinel_Double;
         }
 
         /// <summary>
         /// Creates a <see cref="RedisValue"/> from a string.
         /// </summary>
-        public RedisValue(string value) : this(0, default, value) { }
+        public RedisValue(string value)
+        {
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (value is null)
+            {
+                // I have trust issues
+                this = default;
+            }
+            else
+            {
+                Unsafe.SkipInit(out this);
+                _index = 0;
+                _length = value.Length;
+                _obj = value;
+            }
+        }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
-        internal object? DirectObject => _objectOrSentinel;
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1085:Use auto-implemented property.", Justification = "Intentional field ref")]
-        internal long DirectOverlappedBits64 => _overlappedBits64;
+#pragma warning disable RCS1085 // use auto-prop
+        // ReSharper disable ConvertToAutoProperty
+        internal double OverlappedValueDouble => _valueDouble;
+
+        internal long OverlappedValueInt64 => _valueInt64;
+
+        internal ulong OverlappedValueUInt64 => _valueUInt64;
+        // ReSharper restore ConvertToAutoProperty
+#pragma warning restore RCS1085 // use auto-prop
 
         private static readonly object Sentinel_SignedInteger = new();
         private static readonly object Sentinel_UnsignedInteger = new();
-        private static readonly object Sentinel_Raw = new();
         private static readonly object Sentinel_Double = new();
 
         /// <summary>
@@ -60,8 +167,8 @@ namespace StackExchange.Redis
         /// </summary>
         public object? Box()
         {
-            var obj = _objectOrSentinel;
-            if (obj is null || obj is string || obj is byte[]) return obj;
+            var obj = _obj;
+            if (obj is null || obj is string || (obj is byte[] b && _index == 0 && _length == b.Length)) return obj;
             if (obj == Sentinel_SignedInteger)
             {
                 var l = OverlappedValueInt64;
@@ -80,7 +187,6 @@ namespace StackExchange.Redis
                 if (double.IsNaN(d)) return s_DoubleNAN;
                 return d;
             }
-            if (obj == Sentinel_Raw && _memory.IsEmpty) return s_EmptyString;
             return this;
         }
 
@@ -98,7 +204,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Represents the string <c>""</c>.
         /// </summary>
-        public static RedisValue EmptyString { get; } = new RedisValue(0, default, Sentinel_Raw);
+        public static RedisValue EmptyString { get; } = new("");
 
         // note: it is *really important* that this s_EmptyString assignment happens *after* the EmptyString initializer above!
         private static readonly object s_DoubleNAN = double.NaN, s_DoublePosInf = double.PositiveInfinity, s_DoubleNegInf = double.NegativeInfinity,
@@ -108,7 +214,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// A null value.
         /// </summary>
-        public static RedisValue Null { get; } = new RedisValue(0, default, null);
+        public static RedisValue Null { get; } = default;
 
         /// <summary>
         /// Indicates whether the **underlying** value is a primitive integer (signed or unsigned); this is **not**
@@ -116,12 +222,12 @@ namespace StackExchange.Redis
         /// and <seealso cref="TryParse(out long)"/>, which is usually the more appropriate test.
         /// </summary>
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Advanced)] // hide it, because this *probably* isn't what callers need
-        public bool IsInteger => _objectOrSentinel == Sentinel_SignedInteger || _objectOrSentinel == Sentinel_UnsignedInteger;
+        public bool IsInteger => _obj == Sentinel_SignedInteger || _obj == Sentinel_UnsignedInteger;
 
         /// <summary>
         /// Indicates whether the value should be considered a null value.
         /// </summary>
-        public bool IsNull => _objectOrSentinel == null;
+        public bool IsNull => _obj is null;
 
         /// <summary>
         /// Indicates whether the value is either null or a zero-length value.
@@ -130,11 +236,10 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (IsNull) return true;
-                if (_objectOrSentinel == Sentinel_Raw && _memory.IsEmpty) return true;
-                if (_objectOrSentinel is string s && s.Length == 0) return true;
-                if (_objectOrSentinel is byte[] arr && arr.Length == 0) return true;
-                return false;
+                // primitives are never null
+                if (_obj == Sentinel_Double || _obj == Sentinel_SignedInteger || _obj == Sentinel_UnsignedInteger) return false;
+                // everything else either null or a buffer or some kind; can use length
+                return _length == 0;
             }
         }
 
@@ -150,23 +255,22 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator !=(RedisValue x, RedisValue y) => !(x == y);
 
-        internal double OverlappedValueDouble
+        internal ReadOnlySpan<byte> RawSpan()
         {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => BitConverter.Int64BitsToDouble(_overlappedBits64);
+            if (_obj is byte[] b) return new ReadOnlySpan<byte>(b, _index, _length);
+            if (_obj is MemoryManager<byte> m) return m.GetSpan().Slice(_index, _length);
+            ThrowRawType();
+            return default;
         }
 
-        internal long OverlappedValueInt64
+        internal string RawString()
         {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _overlappedBits64;
+            if (_obj is string s) return s;
+            ThrowRawType();
+            return "";
         }
 
-        internal ulong OverlappedValueUInt64
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => unchecked((ulong)_overlappedBits64);
-        }
+        private static void ThrowRawType() => throw new InvalidOperationException("Invalid raw operation.");
 
         /// <summary>
         /// Indicates whether two RedisValue values are equivalent.
@@ -187,14 +291,15 @@ namespace StackExchange.Redis
                 switch (xType)
                 {
                     case StorageType.Double: // make sure we use double equality rules
+                        // ReSharper disable once CompareOfFloatsByEqualityOperator
                         return x.OverlappedValueDouble == y.OverlappedValueDouble;
                     case StorageType.Int64:
                     case StorageType.UInt64: // as long as xType == yType, only need to check the bits
-                        return x._overlappedBits64 == y._overlappedBits64;
+                        return x._valueInt64 == y._valueInt64;
                     case StorageType.String:
-                        return (string?)x._objectOrSentinel == (string?)y._objectOrSentinel;
-                    case StorageType.Raw:
-                        return x._memory.Span.SequenceEqual(y._memory.Span);
+                        return x.RawString() == y.RawString();
+                    case StorageType.ByteArray or StorageType.MemoryManager:
+                        return x.RawSpan().SequenceEqual(y.RawSpan());
                 }
             }
 
@@ -246,9 +351,9 @@ namespace StackExchange.Redis
             {
                 StorageType.Null => -1,
                 StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
-                StorageType.Int64 or StorageType.UInt64 => x._overlappedBits64.GetHashCode(),
-                StorageType.Raw => ((string)x!).GetHashCode(), // to match equality
-                _ => x._objectOrSentinel!.GetHashCode(),
+                StorageType.Int64 or StorageType.UInt64 => x._valueInt64.GetHashCode(),
+                StorageType.String => x.RawString().GetHashCode(),
+                _ => ((string)x!).GetHashCode(), // to match equality
             };
         }
 
@@ -317,24 +422,59 @@ namespace StackExchange.Redis
             Int64,
             UInt64,
             Double,
-            Raw,
+            MemoryManager,
+            ByteArray,
             String,
+            Unknown,
         }
 
         internal StorageType Type
         {
             get
             {
-                var objectOrSentinel = _objectOrSentinel;
-                if (objectOrSentinel == null) return StorageType.Null;
-                if (objectOrSentinel == Sentinel_SignedInteger) return StorageType.Int64;
-                if (objectOrSentinel == Sentinel_Double) return StorageType.Double;
-                if (objectOrSentinel == Sentinel_Raw) return StorageType.Raw;
-                if (objectOrSentinel is string) return StorageType.String;
-                if (objectOrSentinel is byte[]) return StorageType.Raw; // doubled-up, but retaining the array
-                if (objectOrSentinel == Sentinel_UnsignedInteger) return StorageType.UInt64;
-                throw new InvalidOperationException("Unknown type");
+                var obj = _obj;
+                if (obj is null) return StorageType.Null;
+                if (obj == Sentinel_SignedInteger) return StorageType.Int64;
+                if (obj == Sentinel_Double) return StorageType.Double;
+                if (obj is string) return StorageType.String;
+                if (obj is byte[]) return StorageType.ByteArray;
+                if (obj == Sentinel_UnsignedInteger) return StorageType.UInt64;
+                if (obj is MemoryManager<byte>) return StorageType.MemoryManager;
+                return StorageType.Unknown;
             }
+        }
+
+        // used in the toy server only!
+        internal static RedisValue CreateForeign<T>(T value, int index, int length) where T : class
+        {
+            if (typeof(T) == typeof(string) || typeof(T) == typeof(byte[])) Throw();
+            return new RedisValue(value, index, length);
+            static void Throw() => throw new InvalidOperationException();
+        }
+
+        private RedisValue(object obj, int index, int length)
+        {
+            Unsafe.SkipInit(out this);
+            _index = index;
+            _length = length;
+            _obj = obj;
+        }
+
+        // used in the toy server only!
+        internal bool TryGetForeign<T>([NotNullWhen(true)] out T? value, out int index, out int length)
+            where T : class
+        {
+            if (typeof(T) != typeof(string) && typeof(T) != typeof(byte[]) && _obj is T found)
+            {
+                index = _index;
+                length = _length;
+                value = found;
+                return true;
+            }
+            value = null;
+            index = 0;
+            length = 0;
+            return false;
         }
 
         /// <summary>
@@ -343,8 +483,8 @@ namespace StackExchange.Redis
         public long Length() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.Raw => _memory.Length,
-            StorageType.String => Encoding.UTF8.GetByteCount((string)_objectOrSentinel!),
+            StorageType.MemoryManager or StorageType.ByteArray => _length,
+            StorageType.String => Encoding.UTF8.GetByteCount(RawString()),
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
             StorageType.Double => Format.MeasureDouble(OverlappedValueDouble),
@@ -379,9 +519,9 @@ namespace StackExchange.Redis
                         case StorageType.UInt64:
                             return x.OverlappedValueUInt64.CompareTo(y.OverlappedValueUInt64);
                         case StorageType.String:
-                            return string.CompareOrdinal((string)x._objectOrSentinel!, (string)y._objectOrSentinel!);
-                        case StorageType.Raw:
-                            return x._memory.Span.SequenceCompareTo(y._memory.Span);
+                            return string.CompareOrdinal(x.RawString(), y.RawString());
+                        case StorageType.MemoryManager or StorageType.ByteArray:
+                            return x.RawSpan().SequenceCompareTo(y.RawSpan());
                     }
                 }
 
@@ -450,75 +590,59 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisValue"/> from an <see cref="int"/>.
         /// </summary>
         /// <param name="value">The <see cref="int"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(int value) => new RedisValue(value, default, Sentinel_SignedInteger);
+        public static implicit operator RedisValue(int value) => new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{int}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:Nullable{int}"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(int? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
+        public static implicit operator RedisValue(int? value) => value == null ? Null : new(value.GetValueOrDefault());
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="long"/>.
         /// </summary>
         /// <param name="value">The <see cref="long"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(long value) => new RedisValue(value, default, Sentinel_SignedInteger);
+        public static implicit operator RedisValue(long value) => new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{long}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:Nullable{long}"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(long? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
+        public static implicit operator RedisValue(long? value) => value == null ? Null : new(value.GetValueOrDefault());
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="ulong"/>.
         /// </summary>
         /// <param name="value">The <see cref="ulong"/> to convert to a <see cref="RedisValue"/>.</param>
         [CLSCompliant(false)]
-        public static implicit operator RedisValue(ulong value)
-        {
-            const ulong MSB = 1UL << 63;
-            return (value & MSB) == 0
-                ? new RedisValue((long)value, default, Sentinel_SignedInteger) // prefer signed whenever we can
-                : new RedisValue(unchecked((long)value), default, Sentinel_UnsignedInteger); // with unsigned as the fallback
-        }
+        public static implicit operator RedisValue(ulong value) => new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{ulong}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:Nullable{ulong}"/> to convert to a <see cref="RedisValue"/>.</param>
         [CLSCompliant(false)]
-        public static implicit operator RedisValue(ulong? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
+        public static implicit operator RedisValue(ulong? value) => value == null ? Null : new(value.GetValueOrDefault());
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="uint"/>.
         /// </summary>
         /// <param name="value">The <see cref="uint"/> to convert to a <see cref="RedisValue"/>.</param>
         [CLSCompliant(false)]
-        public static implicit operator RedisValue(uint value) => new RedisValue(value, default, Sentinel_SignedInteger); // 32-bits always fits as signed
+        public static implicit operator RedisValue(uint value) => new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{uint}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:Nullable{uint}"/> to convert to a <see cref="RedisValue"/>.</param>
         [CLSCompliant(false)]
-        public static implicit operator RedisValue(uint? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
+        public static implicit operator RedisValue(uint? value) => value == null ? Null : new(value.GetValueOrDefault());
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="double"/>.
         /// </summary>
         /// <param name="value">The <see cref="double"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(double value)
-        {
-            try
-            {
-                var i64 = (long)value;
-                // note: double doesn't offer integer accuracy at 64 bits, so we know it can't be unsigned (only use that for 64-bit)
-                if (value == i64) return new RedisValue(i64, default, Sentinel_SignedInteger);
-            }
-            catch { }
-            return new RedisValue(BitConverter.DoubleToInt64Bits(value), default, Sentinel_Double);
-        }
+        public static implicit operator RedisValue(double value) => new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{double}"/>.
@@ -530,51 +654,38 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisValue"/> from a <see cref="T:ReadOnlyMemory{byte}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:ReadOnlyMemory{byte}"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(ReadOnlyMemory<byte> value)
-        {
-            if (value.Length == 0) return EmptyString;
-            return new RedisValue(0, value, Sentinel_Raw);
-        }
+        public static implicit operator RedisValue(ReadOnlyMemory<byte> value) => new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from a <see cref="T:Memory{byte}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:Memory{byte}"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(Memory<byte> value) => (ReadOnlyMemory<byte>)value;
+        public static implicit operator RedisValue(Memory<byte> value) => new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="string"/>.
         /// </summary>
         /// <param name="value">The <see cref="string"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(string? value)
-        {
-            if (value == null) return Null;
-            if (value.Length == 0) return EmptyString;
-            return new RedisValue(0, default, value);
-        }
+        public static implicit operator RedisValue(string? value) => value is null ? Null : new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:byte[]"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(byte[]? value)
-        {
-            if (value == null) return Null;
-            if (value.Length == 0) return EmptyString;
-            return new RedisValue(0, new Memory<byte>(value), value);
-        }
+        public static implicit operator RedisValue(byte[]? value) => new(value);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="bool"/>.
         /// </summary>
         /// <param name="value">The <see cref="bool"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(bool value) => new RedisValue(value ? 1 : 0, default, Sentinel_SignedInteger);
+        public static implicit operator RedisValue(bool value) => new RedisValue(value ? 1 : 0);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{bool}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:Nullable{bool}"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(bool? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
+        public static implicit operator RedisValue(bool? value) => value == null ? Null
+            : new(value.GetValueOrDefault() ? 1 : 0);
 
         /// <summary>
         /// Converts a <see cref="RedisValue"/> to a <see cref="bool"/>.
@@ -658,8 +769,8 @@ namespace StackExchange.Redis
                 StorageType.UInt64 => value.OverlappedValueUInt64,
                 StorageType.Double => value.OverlappedValueDouble,
                 // special values like NaN/Inf are deliberately not handled by Simplify, but need to be considered for casting
-                StorageType.String when Format.TryParseDouble((string)value._objectOrSentinel!, out var d) => d,
-                StorageType.Raw when TryParseDouble(value._memory.Span, out var d) => d,
+                StorageType.String when Format.TryParseDouble(value.RawString(), out var d) => d,
+                StorageType.MemoryManager or StorageType.ByteArray when TryParseDouble(value.RawSpan(), out var d) => d,
                 // anything else: fail
                 _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
             };
@@ -781,9 +892,9 @@ namespace StackExchange.Redis
                 case StorageType.Double: return Format.ToString(value.OverlappedValueDouble);
                 case StorageType.Int64: return Format.ToString(value.OverlappedValueInt64);
                 case StorageType.UInt64: return Format.ToString(value.OverlappedValueUInt64);
-                case StorageType.String: return (string)value._objectOrSentinel!;
-                case StorageType.Raw:
-                    var span = value._memory.Span;
+                case StorageType.String: return value.RawString();
+                case StorageType.MemoryManager or StorageType.ByteArray:
+                    var span = value.RawSpan();
                     if (span.IsEmpty) return "";
                     if (span.Length == 2 && span[0] == (byte)'O' && span[1] == (byte)'K') return "OK"; // frequent special-case
                     try
@@ -835,17 +946,11 @@ namespace StackExchange.Redis
             switch (value.Type)
             {
                 case StorageType.Null: return null;
-                case StorageType.Raw:
-                    if (value._objectOrSentinel is byte[] arr) return arr;
-
-                    if (MemoryMarshal.TryGetArray(value._memory, out var segment)
-                        && segment.Offset == 0
-                        && segment.Count == (segment.Array?.Length ?? -1))
-                    {
-                        return segment.Array; // the memory is backed by an array, and we're reading all of it
-                    }
-
-                    return value._memory.ToArray();
+                case StorageType.ByteArray when value._obj is byte[] arr && value._index is 0 && value._length == arr.Length:
+                    // the memory is backed by an array, and we're reading all of it
+                    return arr;
+                case StorageType.ByteArray or StorageType.MemoryManager:
+                    return value.RawSpan().ToArray();
                 case StorageType.Int64:
                     Debug.Assert(Format.MaxInt64TextLen <= 24);
                     Span<byte> span = stackalloc byte[24];
@@ -861,7 +966,7 @@ namespace StackExchange.Redis
                     len = Format.FormatDouble(value.OverlappedValueDouble, span);
                     return span.Slice(0, len).ToArray();
                 case StorageType.String:
-                    return Encoding.UTF8.GetBytes((string)value._objectOrSentinel!);
+                    return Encoding.UTF8.GetBytes(value.RawString());
             }
             // fallback: stringify and encode
             return Encoding.UTF8.GetBytes((string)value!);
@@ -873,8 +978,8 @@ namespace StackExchange.Redis
         public int GetByteCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.Raw => _memory.Length,
-            StorageType.String => Encoding.UTF8.GetByteCount((string)_objectOrSentinel!),
+            StorageType.MemoryManager or StorageType.ByteArray => _length,
+            StorageType.String => Encoding.UTF8.GetByteCount(RawString()),
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
             StorageType.Double => Format.MeasureDouble(OverlappedValueDouble),
@@ -887,8 +992,8 @@ namespace StackExchange.Redis
         internal int GetMaxByteCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.Raw => _memory.Length,
-            StorageType.String => Encoding.UTF8.GetMaxByteCount(((string)_objectOrSentinel!).Length),
+            StorageType.MemoryManager or StorageType.ByteArray => _length,
+            StorageType.String => Encoding.UTF8.GetMaxByteCount(RawString().Length),
             StorageType.Int64 => Format.MaxInt64TextLen,
             StorageType.UInt64 => Format.MaxInt64TextLen,
             StorageType.Double => Format.MaxDoubleTextLen,
@@ -901,8 +1006,8 @@ namespace StackExchange.Redis
         internal int GetCharCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.Raw => Encoding.UTF8.GetCharCount(_memory.Span),
-            StorageType.String => ((string)_objectOrSentinel!).Length,
+            StorageType.MemoryManager or StorageType.ByteArray => Encoding.UTF8.GetCharCount(RawSpan()),
+            StorageType.String => _length,
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
             StorageType.Double => Format.MeasureDouble(OverlappedValueDouble),
@@ -915,8 +1020,8 @@ namespace StackExchange.Redis
         internal int GetMaxCharCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.Raw => Encoding.UTF8.GetMaxCharCount(_memory.Length),
-            StorageType.String => ((string)_objectOrSentinel!).Length,
+            StorageType.MemoryManager or StorageType.ByteArray => Encoding.UTF8.GetMaxCharCount(_length),
+            StorageType.String => _length,
             StorageType.Int64 => Format.MaxInt64TextLen,
             StorageType.UInt64 => Format.MaxInt64TextLen,
             StorageType.Double => Format.MaxDoubleTextLen,
@@ -941,12 +1046,11 @@ namespace StackExchange.Redis
             {
                 case StorageType.Null:
                     return 0;
-                case StorageType.Raw:
-                    var srcBytes = _memory.Span;
-                    srcBytes.CopyTo(destination);
-                    return srcBytes.Length;
+                case StorageType.MemoryManager or StorageType.ByteArray:
+                    RawSpan().CopyTo(destination);
+                    return _length;
                 case StorageType.String:
-                    return Encoding.UTF8.GetBytes(((string)_objectOrSentinel!).AsSpan(), destination);
+                    return Encoding.UTF8.GetBytes(RawString().AsSpan(), destination);
                 case StorageType.Int64:
                     return Format.FormatInt64(OverlappedValueInt64, destination);
                 case StorageType.UInt64:
@@ -967,11 +1071,10 @@ namespace StackExchange.Redis
             {
                 case StorageType.Null:
                     return 0;
-                case StorageType.Raw:
-                    var srcBytes = _memory.Span;
-                    return Encoding.UTF8.GetChars(srcBytes, destination);
+                case StorageType.MemoryManager or StorageType.ByteArray:
+                    return Encoding.UTF8.GetChars(RawSpan(), destination);
                 case StorageType.String:
-                    var span = ((string)_objectOrSentinel!).AsSpan();
+                    var span = RawString().AsSpan();
                     span.CopyTo(destination);
                     return span.Length;
                 case StorageType.Int64:
@@ -990,7 +1093,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator ReadOnlyMemory<byte>(RedisValue value)
-            => value.Type == StorageType.Raw ? value._memory : (byte[]?)value;
+        {
+            if (value._obj is byte[] arr) return new ReadOnlyMemory<byte>(arr, value._index, value._length);
+            if (value._obj is MemoryManager<byte> manager) return manager.Memory.Slice(value._index, value._length);
+            if (value._obj is null) return default;
+            return (byte[]?)value;
+        }
 
         TypeCode IConvertible.GetTypeCode() => TypeCode.Object;
 
@@ -1054,7 +1162,7 @@ namespace StackExchange.Redis
             switch (Type)
             {
                 case StorageType.String:
-                    string s = (string)_objectOrSentinel!;
+                    string s = RawString();
                     if (Format.CouldBeInteger(s))
                     {
                         if (Format.TryParseInt64(s, out i64)) return i64;
@@ -1063,8 +1171,8 @@ namespace StackExchange.Redis
                     // note: don't simplify inf/nan, as that causes equality semantic problems
                     if (Format.TryParseDouble(s, out var f64) && !IsSpecialDouble(f64)) return f64;
                     break;
-                case StorageType.Raw:
-                    var b = _memory.Span;
+                case StorageType.MemoryManager or StorageType.ByteArray:
+                    var b = RawSpan();
                     if (Format.CouldBeInteger(b))
                     {
                         if (Format.TryParseInt64(b, out i64)) return i64;
@@ -1101,9 +1209,9 @@ namespace StackExchange.Redis
                     val = default;
                     return false;
                 case StorageType.String:
-                    return Format.TryParseInt64((string)_objectOrSentinel!, out val);
-                case StorageType.Raw:
-                    return Format.TryParseInt64(_memory.Span, out val);
+                    return Format.TryParseInt64(RawString(), out val);
+                case StorageType.MemoryManager or StorageType.ByteArray:
+                    return Format.TryParseInt64(RawSpan(), out val);
                 case StorageType.Double:
                     var d = OverlappedValueDouble;
                     try
@@ -1161,9 +1269,9 @@ namespace StackExchange.Redis
                     val = OverlappedValueDouble;
                     return true;
                 case StorageType.String:
-                    return Format.TryParseDouble((string)_objectOrSentinel!, out val);
-                case StorageType.Raw:
-                    return TryParseDouble(_memory.Span, out val);
+                    return Format.TryParseDouble(RawString(), out val);
+                case StorageType.MemoryManager or StorageType.ByteArray:
+                    return TryParseDouble(RawSpan(), out val);
                 case StorageType.Null:
                     // in redis-land 0 approx. equal null; so roll with it
                     val = 0;
@@ -1224,27 +1332,24 @@ namespace StackExchange.Redis
             if (value.IsNullOrEmpty) return true;
             if (IsNullOrEmpty) return false;
 
-            ReadOnlyMemory<byte> rawThis, rawOther;
             var thisType = Type;
             if (thisType == value.Type) // same? can often optimize
             {
                 switch (thisType)
                 {
                     case StorageType.String:
-                        var sThis = (string)_objectOrSentinel!;
-                        var sOther = (string)value._objectOrSentinel!;
+                        var sThis = RawString();
+                        var sOther = value.RawString();
                         return sThis.StartsWith(sOther, StringComparison.Ordinal);
-                    case StorageType.Raw:
-                        rawThis = _memory;
-                        rawOther = value._memory;
-                        return rawThis.Span.StartsWith(rawOther.Span);
+                    case StorageType.MemoryManager or StorageType.ByteArray:
+                        return RawSpan().StartsWith(value.RawSpan());
                 }
             }
             byte[]? arr0 = null, arr1 = null;
             try
             {
-                rawThis = AsMemory(out arr0);
-                rawOther = value.AsMemory(out arr1);
+                var rawThis = AsMemory(out arr0);
+                var rawOther = value.AsMemory(out arr1);
 
                 return rawThis.Span.StartsWith(rawOther.Span);
             }
@@ -1259,11 +1364,14 @@ namespace StackExchange.Redis
         {
             switch (Type)
             {
-                case StorageType.Raw:
+                case StorageType.MemoryManager:
                     leased = null;
-                    return _memory;
+                    return ((MemoryManager<byte>)_obj!).Memory.Slice(_index, _length);
+                case StorageType.ByteArray:
+                    leased = null;
+                    return new ReadOnlyMemory<byte>((byte[])_obj!, _index, _length);
                 case StorageType.String:
-                    string s = (string)_objectOrSentinel!;
+                    string s = RawString();
 HaveString:
                     if (s.Length == 0)
                     {
@@ -1278,7 +1386,7 @@ HaveString:
                     goto HaveString;
                 case StorageType.Int64:
                     leased = ArrayPool<byte>.Shared.Rent(Format.MaxInt64TextLen + 2); // reused code has CRLF terminator
-                    len = PhysicalConnection.WriteRaw(leased, OverlappedValueInt64) - 2; // drop the CRLF
+                    len = MessageWriter.WriteRaw(leased, OverlappedValueInt64) - 2; // drop the CRLF
                     return new ReadOnlyMemory<byte>(leased, 0, len);
                 case StorageType.UInt64:
                     leased = ArrayPool<byte>.Shared.Rent(Format.MaxInt64TextLen); // reused code has CRLF terminator
@@ -1298,8 +1406,8 @@ HaveString:
         {
             switch (Type)
             {
-                case StorageType.Raw:
-                    return ValueCondition.CalculateDigest(_memory.Span);
+                case StorageType.MemoryManager or StorageType.ByteArray:
+                    return ValueCondition.CalculateDigest(RawSpan());
                 case StorageType.Null:
                     return ValueCondition.NotExists; // interpret === null as "not exists"
                 default:
@@ -1315,9 +1423,14 @@ HaveString:
 
         internal bool TryGetSpan(out ReadOnlySpan<byte> span)
         {
-            if (_objectOrSentinel == Sentinel_Raw)
+            if (_obj is MemoryManager<byte> manager)
             {
-                span = _memory.Span;
+                span = manager.Memory.Span.Slice(_index, _length);
+                return true;
+            }
+            if (_obj is byte[] bytes)
+            {
+                span = new ReadOnlySpan<byte>(bytes, _index, _length);
                 return true;
             }
             span = default;
@@ -1338,8 +1451,8 @@ HaveString:
             int len;
             switch (Type)
             {
-                case StorageType.Raw:
-                    return _memory.Span.StartsWith(value);
+                case StorageType.MemoryManager or StorageType.ByteArray:
+                    return RawSpan().StartsWith(value);
                 case StorageType.Int64:
                     Span<byte> buffer = stackalloc byte[Format.MaxInt64TextLen];
                     len = Format.FormatInt64(OverlappedValueInt64, buffer);
@@ -1353,7 +1466,7 @@ HaveString:
                     len = Format.FormatDouble(OverlappedValueDouble, buffer);
                     return buffer.Slice(0, len).StartsWith(value);
                 case StorageType.String:
-                    var s = ((string)_objectOrSentinel!).AsSpan();
+                    var s = RawString().AsSpan();
                     if (s.Length < value.Length) return false; // not enough characters to match
                     if (s.Length > value.Length) s = s.Slice(0, value.Length); // only need to match the prefix
                     var maxBytes = Encoding.UTF8.GetMaxByteCount(s.Length);
@@ -1367,32 +1480,6 @@ HaveString:
                 default:
                     return false;
             }
-        }
-
-        // used by the toy server to smuggle weird vectors; on their own heads... not used by SE.Redis itself
-        // (these additions just formalize the usage in the older server code)
-        internal bool TryGetForeign<T>([NotNullWhen(true)] out T? value, out int index, out int length)
-            where T : class
-        {
-            if (typeof(T) != typeof(string) && typeof(T) != typeof(byte[]) && DirectObject is T found)
-            {
-                index = 0;
-                length = checked((int)DirectOverlappedBits64);
-                value = found;
-                return true;
-            }
-            value = null;
-            index = 0;
-            length = 0;
-            return false;
-        }
-
-        internal static RedisValue CreateForeign<T>(T obj, int offset, int count) where T : class
-        {
-            // non-zero offset isn't supported until v3, left here for API parity
-            if (typeof(T) == typeof(string) || typeof(T) == typeof(byte[]) || offset != 0) Throw();
-            return new RedisValue(obj, count);
-            static void Throw() => throw new InvalidOperationException();
         }
     }
 }

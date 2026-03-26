@@ -45,14 +45,13 @@ namespace BasicTest
     [Config(typeof(CustomConfig))]
     public class RedisBenchmarks : IDisposable
     {
-        private SocketManager mgr;
         private ConnectionMultiplexer connection;
         private IDatabase db;
 
         [GlobalSetup]
         public void Setup()
         {
-            // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
+            // Dependencies.Assert();
             var options = ConfigurationOptions.Parse("127.0.0.1:6379");
             connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase(3);
@@ -71,9 +70,7 @@ namespace BasicTest
         private static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter", StringKey = "string", HashKey = "hash";
         void IDisposable.Dispose()
         {
-            mgr?.Dispose();
             connection?.Dispose();
-            mgr = null;
             db = null;
             connection = null;
             GC.SuppressFinalize(this);
