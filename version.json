@@ -1,9 +1,10 @@
 {
-  "version": "3.0",
+  "version": "3.0-preview",
   "versionHeightOffset": 0,
   "assemblyVersion": "3.0",
   "publicReleaseRefSpec": [
     "^refs/heads/main$",
+    "^refs/heads/v[0-9]+$",
     "^refs/tags/v\\d+\\.\\d+"
   ],
   "nugetPackageVersion": {
