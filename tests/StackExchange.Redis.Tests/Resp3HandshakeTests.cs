@@ -65,7 +65,7 @@ public class Resp3HandshakeTests(ITestOutputHelper log)
         config.TieBreaker = (flags & HandshakeFlags.TieBreaker) == 0 ? "" : "tiebreaker_key";
         config.ConfigurationChannel = (flags & HandshakeFlags.ConfigChannel) == 0 ? "" : "broadcast_channel";
 
-        using var clientObj = await ConnectionMultiplexer.ConnectAsync(config);
+        await using var clientObj = await ConnectionMultiplexer.ConnectAsync(config);
 
         var sub = clientObj.GetSubscriber();
         var db = clientObj.GetDatabase();
@@ -85,7 +85,8 @@ public class Resp3HandshakeTests(ITestOutputHelper log)
         }
         if (usePubSub)
         {
-            await sub.PublishAsync(channel, "msg payload");
+            var count = await sub.PublishAsync(channel, "msg payload");
+            Assert.Equal(1, count);
             for (int i = 0; i < 5 && received.IsEmpty; i++)
             {
                 await Task.Delay(10, TestContext.Current.CancellationToken);
