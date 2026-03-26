@@ -233,7 +233,7 @@ namespace StackExchange.Redis
                     // If we're told to ignore connect, abort here
                     if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
 
-                    await pendingConnect; // wait for the connect to complete or fail (will throw)
+                    await pendingConnect.ForAwait(); // wait for the connect to complete or fail (will throw)
                     DiscardTimeout(ref timeoutSource);
 
                     socket = VolatileSocket;

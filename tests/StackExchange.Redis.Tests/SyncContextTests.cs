@@ -1,11 +1,14 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
+    [RunPerProtocol]
     public class SyncContextTests(ITestOutputHelper testOutput) : TestBase(testOutput)
     {
         /* Note A (referenced below)
@@ -72,6 +75,7 @@ namespace StackExchange.Redis.Tests
             using var ctx = new MySyncContext(Writer);
             await using var conn = Create();
             Assert.Equal(0, ctx.OpCount);
+            // ReSharper disable once MethodHasAsyncOverload - very deliberate
             Assert.True(conn.Configure());
             Assert.Equal(0, ctx.OpCount);
         }
@@ -130,7 +134,7 @@ namespace StackExchange.Redis.Tests
 
             public override void Post(SendOrPostCallback d, object? state)
             {
-                Log(_log, "sync-ctx: Post");
+                Log(_log, $"sync-ctx: Post {Format(d, state)}");
                 Incr();
                 ThreadPool.QueueUserWorkItem(
                     static state =>
@@ -143,14 +147,32 @@ namespace StackExchange.Redis.Tests
 
             private void Invoke(SendOrPostCallback d, object? state)
             {
-                Log(_log, "sync-ctx: Invoke");
+                Log(_log, $"sync-ctx: Invoke {Format(d, state)}");
                 if (!IsCurrent) SetSynchronizationContext(this);
                 d(state);
             }
 
+            private static string Format(SendOrPostCallback? d, object? state)
+            {
+                if (d is null) return "";
+                string name = d.IsSingle() ? d.Method.Name : GetNames(d);
+                return state is null ? name : $"{name}:{state}";
+
+                static string GetNames(SendOrPostCallback d)
+                {
+                    var sb = new StringBuilder();
+                    foreach (var x in d.AsEnumerable())
+                    {
+                        if (sb.Length != 0) sb.Append(",");
+                        sb.Append(x.Method.Name);
+                    }
+                    return sb.ToString();
+                }
+            }
+
             public override void Send(SendOrPostCallback d, object? state)
             {
-                Log(_log, "sync-ctx: Send");
+                Log(_log, $"sync-ctx: Send {Format(d, state)}");
                 Incr();
                 Invoke(d, state);
             }
