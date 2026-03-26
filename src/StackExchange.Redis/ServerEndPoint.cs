@@ -935,6 +935,8 @@ namespace StackExchange.Redis
                 {
                     return Awaited(result);
                 }
+                // Must consume the ValueTask even on success path
+                result.GetAwaiter().GetResult();
             }
             return default;
         }
