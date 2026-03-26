@@ -635,6 +635,7 @@ public abstract class TestBase : IDisposable
             {
                 var config = _server.GetClientConfig();
                 config.AllowAdmin = _allowAdmin;
+                config.Protocol = TestContext.Current.GetProtocol();
                 if (_channelPrefix is not null)
                 {
                     config.ChannelPrefix = RedisChannel.Literal(_channelPrefix);

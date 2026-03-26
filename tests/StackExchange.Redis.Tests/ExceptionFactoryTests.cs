@@ -4,7 +4,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
+public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture fixture) : TestBase(output, fixture)
 {
     [Fact]
     public async Task NullLastException()
@@ -21,7 +21,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
     public void CanGetVersion()
     {
         var libVer = Utils.GetLibVersion();
-        Assert.Matches(@"2\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
+        Assert.Matches(@"[2-3]\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
     }
 
 #if DEBUG
@@ -37,7 +37,9 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
 
             foreach (var endpoint in conn.GetEndPoints())
             {
-                conn.GetServer(endpoint).SimulateConnectionFailure(SimulatedFailureType.All);
+                var server = conn.GetServer(endpoint);
+                Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
+                server.SimulateConnectionFailure(SimulatedFailureType.All);
             }
 
             var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, null);
@@ -64,7 +66,9 @@ public class ExceptionFactoryTests(ITestOutputHelper output) : TestBase(output)
             conn.GetDatabase();
             conn.AllowConnect = false;
 
-            conn.GetServer(conn.GetEndPoints()[0]).SimulateConnectionFailure(SimulatedFailureType.All);
+            var server = conn.GetServer(conn.GetEndPoints()[0]);
+            Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
+            server.SimulateConnectionFailure(SimulatedFailureType.All);
 
             var ex = ExceptionFactory.NoConnectionAvailable(conn.UnderlyingMultiplexer, null, conn.GetServerSnapshot()[0]);
             Assert.IsType<RedisConnectionException>(ex);

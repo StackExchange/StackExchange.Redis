@@ -51,30 +51,30 @@ internal abstract class VectorSetAddMessage(
         return MemoryMarshal.Cast<byte, float>("\0\0(B"u8)[0] == 42;
     }
 
-    protected abstract void WriteElement(PhysicalConnection physical);
+    protected abstract void WriteElement(in MessageWriter writer);
 
-    protected override void WriteImpl(PhysicalConnection physical)
+    protected override void WriteImpl(in MessageWriter writer)
     {
-        physical.WriteHeader(Command, GetArgCount());
-        physical.Write(key);
+        writer.WriteHeader(Command, GetArgCount());
+        writer.Write(key);
         if (reducedDimensions.HasValue)
         {
-            physical.WriteBulkString("REDUCE"u8);
-            physical.WriteBulkString(reducedDimensions.GetValueOrDefault());
+            writer.WriteBulkString("REDUCE"u8);
+            writer.WriteBulkString(reducedDimensions.GetValueOrDefault());
         }
 
-        WriteElement(physical);
-        if (useCheckAndSet) physical.WriteBulkString("CAS"u8);
+        WriteElement(writer);
+        if (useCheckAndSet) writer.WriteBulkString("CAS"u8);
 
         switch (quantization)
         {
             case VectorSetQuantization.Int8:
                 break;
             case VectorSetQuantization.None:
-                physical.WriteBulkString("NOQUANT"u8);
+                writer.WriteBulkString("NOQUANT"u8);
                 break;
             case VectorSetQuantization.Binary:
-                physical.WriteBulkString("BIN"u8);
+                writer.WriteBulkString("BIN"u8);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(quantization));
@@ -82,20 +82,20 @@ internal abstract class VectorSetAddMessage(
 
         if (buildExplorationFactor.HasValue)
         {
-            physical.WriteBulkString("EF"u8);
-            physical.WriteBulkString(buildExplorationFactor.GetValueOrDefault());
+            writer.WriteBulkString("EF"u8);
+            writer.WriteBulkString(buildExplorationFactor.GetValueOrDefault());
         }
 
-        WriteAttributes(physical);
+        WriteAttributes(writer);
 
         if (maxConnections.HasValue)
         {
-            physical.WriteBulkString("M"u8);
-            physical.WriteBulkString(maxConnections.GetValueOrDefault());
+            writer.WriteBulkString("M"u8);
+            writer.WriteBulkString(maxConnections.GetValueOrDefault());
         }
     }
 
-    protected abstract void WriteAttributes(PhysicalConnection physical);
+    protected abstract void WriteAttributes(in MessageWriter writer);
 
     internal sealed class VectorSetAddMemberMessage(
         int db,
@@ -128,32 +128,32 @@ internal abstract class VectorSetAddMessage(
         public override int GetAttributeArgCount()
             => _attributesJson is null ? 0 : 2; // [SETATTR {attributes}]
 
-        protected override void WriteElement(PhysicalConnection physical)
+        protected override void WriteElement(in MessageWriter writer)
         {
             if (UseFp32)
             {
-                physical.WriteBulkString("FP32"u8);
-                physical.WriteBulkString(MemoryMarshal.AsBytes(values.Span));
+                writer.WriteBulkString("FP32"u8);
+                writer.WriteBulkString(MemoryMarshal.AsBytes(values.Span));
             }
             else
             {
-                physical.WriteBulkString("VALUES"u8);
-                physical.WriteBulkString(values.Length);
+                writer.WriteBulkString("VALUES"u8);
+                writer.WriteBulkString(values.Length);
                 foreach (var val in values.Span)
                 {
-                    physical.WriteBulkString(val);
+                    writer.WriteBulkString(val);
                 }
             }
 
-            physical.WriteBulkString(element);
+            writer.WriteBulkString(element);
         }
 
-        protected override void WriteAttributes(PhysicalConnection physical)
+        protected override void WriteAttributes(in MessageWriter writer)
         {
             if (_attributesJson is not null)
             {
-                physical.WriteBulkString("SETATTR"u8);
-                physical.WriteBulkString(_attributesJson);
+                writer.WriteBulkString("SETATTR"u8);
+                writer.WriteBulkString(_attributesJson);
             }
         }
     }

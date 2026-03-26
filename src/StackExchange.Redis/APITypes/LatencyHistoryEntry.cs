@@ -1,4 +1,5 @@
 ﻿using System;
+using RESPite.Messages;
 
 namespace StackExchange.Redis;
 
@@ -11,18 +12,14 @@ public readonly struct LatencyHistoryEntry
 
     private sealed class Processor : ArrayResultProcessor<LatencyHistoryEntry>
     {
-        protected override bool TryParse(in RawResult raw, out LatencyHistoryEntry parsed)
+        protected override bool TryParse(ref RespReader reader, out LatencyHistoryEntry parsed)
         {
-            if (raw.Resp2TypeArray == ResultType.Array)
+            if (reader.IsAggregate
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var timestamp)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var duration))
             {
-                var items = raw.GetItems();
-                if (items.Length >= 2
-                    && items[0].TryGetInt64(out var timestamp)
-                    && items[1].TryGetInt64(out var duration))
-                {
-                    parsed = new LatencyHistoryEntry(timestamp, duration);
-                    return true;
-                }
+                parsed = new LatencyHistoryEntry(timestamp, duration);
+                return true;
             }
             parsed = default;
             return false;

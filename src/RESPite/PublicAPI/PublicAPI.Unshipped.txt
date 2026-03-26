@@ -1,1 +1,2 @@
 ﻿#nullable enable
+[SER004]RESPite.Messages.RespReader.TryParseScalar<T>(RESPite.Messages.RespReader.ScalarParser<char, T>! parser, out T value) -> bool

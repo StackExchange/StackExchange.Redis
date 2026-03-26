@@ -67,10 +67,10 @@ public readonly struct ValueCondition
             case ConditionKind.ValueNotEquals:
                 return $"IFNE {_value}";
             case ConditionKind.DigestEquals:
-                var written = WriteHex(_value.DirectOverlappedBits64, stackalloc char[2 * DigestBytes]);
+                var written = WriteHex(_value.OverlappedValueInt64, stackalloc char[2 * DigestBytes]);
                 return $"IFDEQ {written.ToString()}";
             case ConditionKind.DigestNotEquals:
-                written = WriteHex(_value.DirectOverlappedBits64, stackalloc char[2 * DigestBytes]);
+                written = WriteHex(_value.OverlappedValueInt64, stackalloc char[2 * DigestBytes]);
                 return $"IFDNE {written.ToString()}";
             case ConditionKind.Always:
                 return "";
@@ -249,33 +249,33 @@ public readonly struct ValueCondition
         _ => 0,
     };
 
-    internal void WriteTo(PhysicalConnection physical)
+    internal void WriteTo(in MessageWriter writer)
     {
         switch (_kind)
         {
             case ConditionKind.Exists:
-                physical.WriteBulkString("XX"u8);
+                writer.WriteBulkString("XX"u8);
                 break;
             case ConditionKind.NotExists:
-                physical.WriteBulkString("NX"u8);
+                writer.WriteBulkString("NX"u8);
                 break;
             case ConditionKind.ValueEquals:
-                physical.WriteBulkString("IFEQ"u8);
-                physical.WriteBulkString(_value);
+                writer.WriteBulkString("IFEQ"u8);
+                writer.WriteBulkString(_value);
                 break;
             case ConditionKind.ValueNotEquals:
-                physical.WriteBulkString("IFNE"u8);
-                physical.WriteBulkString(_value);
+                writer.WriteBulkString("IFNE"u8);
+                writer.WriteBulkString(_value);
                 break;
             case ConditionKind.DigestEquals:
-                physical.WriteBulkString("IFDEQ"u8);
-                var written = WriteHex(_value.DirectOverlappedBits64, stackalloc byte[2 * DigestBytes]);
-                physical.WriteBulkString(written);
+                writer.WriteBulkString("IFDEQ"u8);
+                var written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
+                writer.WriteBulkString(written);
                 break;
             case ConditionKind.DigestNotEquals:
-                physical.WriteBulkString("IFDNE"u8);
-                written = WriteHex(_value.DirectOverlappedBits64, stackalloc byte[2 * DigestBytes]);
-                physical.WriteBulkString(written);
+                writer.WriteBulkString("IFDNE"u8);
+                written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
+                writer.WriteBulkString(written);
                 break;
         }
     }

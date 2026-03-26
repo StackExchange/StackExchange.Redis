@@ -1,4 +1,4 @@
-﻿using System;
+﻿/* left for ref only
 using System.Net;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
@@ -25,3 +25,4 @@ namespace StackExchange.Redis.Server
         }
     }
 }
+*/

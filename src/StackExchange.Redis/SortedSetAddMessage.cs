@@ -23,15 +23,15 @@ internal partial class RedisDatabase
 
         protected abstract int EntryCount { get; }
 
-        protected override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteImpl(in MessageWriter writer)
         {
-            physical.WriteHeader(Command, ArgCount);
-            physical.Write(Key);
-            WriteOptions(physical);
-            WriteEntries(physical);
+            writer.WriteHeader(Command, ArgCount);
+            writer.Write(Key);
+            WriteOptions(writer);
+            WriteEntries(writer);
         }
 
-        protected abstract void WriteEntries(PhysicalConnection physical);
+        protected abstract void WriteEntries(in MessageWriter writer);
 
         private int GetOptionCount()
         {
@@ -56,7 +56,7 @@ internal partial class RedisDatabase
             return when;
         }
 
-        private void WriteOptions(PhysicalConnection physical)
+        private void WriteOptions(in MessageWriter physical)
         {
             if ((_when & SortedSetWhen.NotExists) != 0)
             {
@@ -100,10 +100,10 @@ internal partial class RedisDatabase
 
         protected override int EntryCount => 1;
 
-        protected override void WriteEntries(PhysicalConnection physical)
+        protected override void WriteEntries(in MessageWriter writer)
         {
-            physical.WriteBulkString(_score);
-            physical.WriteBulkString(_member);
+            writer.WriteBulkString(_score);
+            writer.WriteBulkString(_member);
         }
 
         private static RedisValue AssertMember(in RedisValue member)
@@ -125,12 +125,12 @@ internal partial class RedisDatabase
 
         protected override int EntryCount => _values.Length;
 
-        protected override void WriteEntries(PhysicalConnection physical)
+        protected override void WriteEntries(in MessageWriter writer)
         {
             for (int i = 0; i < _values.Length; i++)
             {
-                physical.WriteBulkString(_values[i].score);
-                physical.WriteBulkString(_values[i].element);
+                writer.WriteBulkString(_values[i].score);
+                writer.WriteBulkString(_values[i].element);
             }
         }
 

@@ -13,6 +13,7 @@ public class ConnectFailTimeoutTests(ITestOutputHelper output) : TestBase(output
         await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 
         await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
 

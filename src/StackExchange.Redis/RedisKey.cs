@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -424,7 +425,7 @@ namespace StackExchange.Redis
 #else
                         unsafe
                         {
-                            fixed (byte* bPtr = destination)
+                            fixed (byte* bPtr = &MemoryMarshal.GetReference(destination))
                             {
                                 fixed (char* cPtr = s)
                                 {

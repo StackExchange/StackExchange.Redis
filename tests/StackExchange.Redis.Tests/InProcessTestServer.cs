@@ -1,5 +1,4 @@
-﻿extern alias respite;
-using System;
+﻿using System;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
@@ -13,7 +12,6 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using respite::RESPite.Messages;
 using StackExchange.Redis.Configuration;
 using StackExchange.Redis.Server;
 using Xunit;
@@ -50,8 +48,8 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
-    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, bool defaultOnly = false /*, WriteMode writeMode = WriteMode.Default */, TextWriter? log = null)
-        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, defaultOnly /*, writeMode */), log);
+    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
+        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, defaultOnly, writeMode), log);
 
     // view request/response highlights in the log
     public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
@@ -83,7 +81,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         return result;
     }
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = true, bool defaultOnly = false /*, WriteMode writeMode = WriteMode.Default */)
+    public ConfigurationOptions GetClientConfig(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default)
     {
         var commands = GetCommands();
         if (!withPubSub)
@@ -109,6 +107,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             AsyncTimeout = 5000,
             AllowAdmin = true,
             Tunnel = Tunnel,
+            WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
             Protocol = TestContext.Current.GetProtocol(),
             // WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
         };

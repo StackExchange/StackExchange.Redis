@@ -6,12 +6,11 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
-using Pipelines.Sockets.Unofficial.Arenas;
 using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
@@ -295,8 +294,6 @@ namespace StackExchange.Redis.Server
             DoShutdown(ShutdownReason.ServerDisposed);
         }
 
-        private readonly Arena _arena = new();
-
         public virtual RedisServer.Node DefaultNode => null;
 
         public async Task RunClientAsync(IDuplexPipe pipe, RedisServer.Node node = null, object state = null)
@@ -349,27 +346,25 @@ namespace StackExchange.Redis.Server
                 }
                 client.Complete();
                 await output;
+
                 RemoveClient(client);
                 client = null; // already completed
             }
-            catch (ConnectionResetException) { }
-            catch (ObjectDisposedException) { }
+            catch (SocketException) { } // expected
+            catch (OperationCanceledException) { } // expected
+            catch (ObjectDisposedException) { } // expected
             catch (Exception ex)
             {
-                if (ex.GetType().Name != nameof(ConnectionResetException))
-                {
-                    // aspnet core has one too; swallow it by pattern
-                    fault = ex;
-                    throw;
-                }
+                // unexpected: report as a failure exit
+                fault = ex;
             }
             finally
             {
                 RedisRequest.ReleaseLease(ref commandLease);
                 client?.Complete(fault);
                 RemoveClient(client);
-                try { pipe.Input.Complete(fault); } catch { }
-                try { pipe.Output.Complete(fault); } catch { }
+                try { await pipe.Input.CompleteAsync(fault); } catch { }
+                try { await pipe.Output.CompleteAsync(fault); } catch { }
 
                 if (fault != null && !_isShutdown)
                 {

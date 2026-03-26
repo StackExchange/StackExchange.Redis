@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>StackExchange.Redis MicroBenchmark Suite</Description>
-    <TargetFrameworks>net481;net8.0</TargetFrameworks>
+    <TargetFrameworks>net481;net8.0;net10.0</TargetFrameworks>
     <Configuration>Release</Configuration>
     <OutputType>Exe</OutputType>
     <SignAssembly>true</SignAssembly>

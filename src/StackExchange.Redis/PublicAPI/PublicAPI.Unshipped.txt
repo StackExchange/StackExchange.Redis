@@ -1,1 +1,59 @@
 ﻿#nullable enable
+abstract StackExchange.Redis.Configuration.LoggingTunnel.Log(System.IO.Stream! stream, System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType) -> System.IO.Stream!
+override StackExchange.Redis.Configuration.LoggingTunnel.BeforeAuthenticateAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Net.Sockets.Socket? socket, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.IO.Stream?>
+override StackExchange.Redis.Configuration.LoggingTunnel.BeforeSocketConnectAsync(System.Net.EndPoint! endPoint, StackExchange.Redis.ConnectionType connectionType, System.Net.Sockets.Socket? socket, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override StackExchange.Redis.Configuration.LoggingTunnel.GetSocketConnectEndpointAsync(System.Net.EndPoint! endpoint, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Net.EndPoint?>
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.BeginRead(byte[]! buffer, int offset, int count, System.AsyncCallback? callback, object? state) -> System.IAsyncResult!
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.BeginWrite(byte[]! buffer, int offset, int count, System.AsyncCallback? callback, object? state) -> System.IAsyncResult!
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.CanRead.get -> bool
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.CanSeek.get -> bool
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.CanTimeout.get -> bool
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.CanWrite.get -> bool
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Close() -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.EndRead(System.IAsyncResult! asyncResult) -> int
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.EndWrite(System.IAsyncResult! asyncResult) -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Flush() -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.FlushAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Length.get -> long
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Position.get -> long
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Position.set -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Read(byte[]! buffer, int offset, int count) -> int
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.ReadAsync(byte[]! buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.ReadByte() -> int
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.ReadTimeout.get -> int
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.ReadTimeout.set -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Seek(long offset, System.IO.SeekOrigin origin) -> long
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.SetLength(long value) -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Write(byte[]! buffer, int offset, int count) -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.WriteAsync(byte[]! buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.WriteByte(byte value) -> void
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.WriteTimeout.get -> int
+override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.WriteTimeout.set -> void
+StackExchange.Redis.Configuration.LoggingTunnel
+StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream
+StackExchange.Redis.Configuration.LoggingTunnel.LoggingTunnel(StackExchange.Redis.ConfigurationOptions? options = null, StackExchange.Redis.Configuration.Tunnel? tail = null) -> void
+static StackExchange.Redis.Configuration.LoggingTunnel.DefaultFormatCommand(StackExchange.Redis.RedisResult! value) -> string!
+static StackExchange.Redis.Configuration.LoggingTunnel.DefaultFormatResponse(StackExchange.Redis.RedisResult! value) -> string!
+static StackExchange.Redis.Configuration.LoggingTunnel.LogToDirectory(StackExchange.Redis.ConfigurationOptions! options, string! path) -> void
+static StackExchange.Redis.Configuration.LoggingTunnel.ReplayAsync(string! path, System.Action<StackExchange.Redis.RedisResult!, StackExchange.Redis.RedisResult!>! pair) -> System.Threading.Tasks.Task<long>!
+static StackExchange.Redis.Configuration.LoggingTunnel.ReplayAsync(System.IO.Stream! out, System.IO.Stream! in, System.Action<StackExchange.Redis.RedisResult!, StackExchange.Redis.RedisResult!>! pair) -> System.Threading.Tasks.Task<long>!
+static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(string! path) -> System.Threading.Tasks.Task<long>!
+static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(System.IO.Stream! stream) -> System.Threading.Tasks.Task<long>!
+[SER005]StackExchange.Redis.TestHarness
+[SER005]StackExchange.Redis.TestHarness.BufferValidator
+[SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel
+[SER005]StackExchange.Redis.TestHarness.CommandMap.get -> StackExchange.Redis.CommandMap!
+[SER005]StackExchange.Redis.TestHarness.KeyPrefix.get -> StackExchange.Redis.RedisKey
+[SER005]StackExchange.Redis.TestHarness.Read(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.RedisResult!
+[SER005]StackExchange.Redis.TestHarness.TestHarness(StackExchange.Redis.CommandMap? commandMap = null, StackExchange.Redis.RedisChannel channelPrefix = default(StackExchange.Redis.RedisChannel), StackExchange.Redis.RedisKey keyPrefix = default(StackExchange.Redis.RedisKey)) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateResp(string! expected, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateResp(System.ReadOnlySpan<byte> expected, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateRouting(in StackExchange.Redis.RedisKey expected, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.Write(string! command, params System.Collections.Generic.ICollection<object!>! args) -> byte[]!
+[SER005]StackExchange.Redis.TestHarness.Write(System.Buffers.IBufferWriter<byte>! target, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]static StackExchange.Redis.TestHarness.AssertEqual(string! expected, System.ReadOnlySpan<byte> actual, System.Action<string!, string!>! handler) -> void
+[SER005]static StackExchange.Redis.TestHarness.AssertEqual(System.ReadOnlySpan<byte> expected, System.ReadOnlySpan<byte> actual, System.Action<System.ReadOnlyMemory<byte>, System.ReadOnlyMemory<byte>>! handler) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.BufferValidator.Invoke(scoped System.ReadOnlySpan<byte> buffer) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(in StackExchange.Redis.RedisKey expected, in StackExchange.Redis.RedisKey actual) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(string! expected, string! actual) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(System.ReadOnlyMemory<byte> expected, System.ReadOnlyMemory<byte> actual) -> void

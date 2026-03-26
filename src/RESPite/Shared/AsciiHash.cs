@@ -1,4 +1,3 @@
-﻿using System;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -6,8 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace RESPite;
-
-#pragma warning disable SA1205 // deliberately omit accessibility - see AsciiHash.Public.cs
 
 /// <summary>
 /// This type is intended to provide fast hashing functions for small ASCII strings, for example well-known
@@ -22,7 +19,7 @@ namespace RESPite;
     Inherited = false)]
 [Conditional("DEBUG")] // evaporate in release
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-sealed partial class AsciiHashAttribute(string token = "") : Attribute
+public sealed partial class AsciiHashAttribute(string token = "") : Attribute
 {
     /// <summary>
     /// The token expected when parsing data, if different from the implied value. The implied
@@ -38,7 +35,7 @@ sealed partial class AsciiHashAttribute(string token = "") : Attribute
 
 // note: instance members are in AsciiHash.Instance.cs.
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-readonly partial struct AsciiHash
+public readonly partial struct AsciiHash
 {
     /// <summary>
     /// In-place ASCII upper-case conversion.

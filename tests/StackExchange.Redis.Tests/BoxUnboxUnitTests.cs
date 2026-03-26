@@ -1,11 +1,12 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class BoxUnboxTests
+public class BoxUnboxUnitTests
 {
     [Theory]
     [MemberData(nameof(RoundTripValues))]
@@ -26,8 +27,9 @@ public class BoxUnboxTests
 
     [Theory]
     [MemberData(nameof(InternedValues))]
-    public void ReturnInternedBoxesForCommonValues(RedisValue value, bool expectSameReference)
+    public void ReturnInternedBoxesForCommonValues(RedisValue value, bool expectSameReference, string label)
     {
+        _ = label;
         object? x = value.Box(), y = value.Box();
         Assert.Equal(expectSameReference, ReferenceEquals(x, y));
         // check we got the right values!
@@ -50,7 +52,7 @@ public class BoxUnboxTests
         Assert.Equal(expected, actual);
     }
 
-    private static readonly byte[] s_abc = Encoding.UTF8.GetBytes("abc");
+    private static readonly byte[] s_abc = "abc"u8.ToArray();
     public static IEnumerable<object[]> RoundTripValues
         => new[]
         {
@@ -138,31 +140,64 @@ public class BoxUnboxTests
         for (int i = -20; i <= 40; i++)
         {
             bool expectInterned = i >= -1 & i <= 20;
-            yield return new object[] { (RedisValue)i, expectInterned };
-            yield return new object[] { (RedisValue)(long)i, expectInterned };
-            yield return new object[] { (RedisValue)(float)i, expectInterned };
-            yield return new object[] { (RedisValue)(double)i, expectInterned };
+            yield return new object[] { (RedisValue)i, expectInterned, "int" };
+            yield return new object[] { (RedisValue)(long)i, expectInterned, "long" };
+            yield return new object[] { (RedisValue)(float)i, expectInterned, "float" };
+            yield return new object[] { (RedisValue)(double)i, expectInterned, "double" };
         }
 
-        yield return new object[] { (RedisValue)float.NegativeInfinity, true };
-        yield return new object[] { (RedisValue)(-0.5F), false };
-        yield return new object[] { (RedisValue)0.5F, false };
-        yield return new object[] { (RedisValue)float.PositiveInfinity, true };
-        yield return new object[] { (RedisValue)float.NaN, true };
+        yield return new object[] { (RedisValue)float.NegativeInfinity, true, "float" };
+        yield return new object[] { (RedisValue)(-0.5F), false, "float" };
+        yield return new object[] { (RedisValue)0.5F, false, "float" };
+        yield return new object[] { (RedisValue)float.PositiveInfinity, true, "float" };
+        yield return new object[] { (RedisValue)float.NaN, true, "float" };
 
-        yield return new object[] { (RedisValue)double.NegativeInfinity, true };
-        yield return new object[] { (RedisValue)(-0.5D), false };
-        yield return new object[] { (RedisValue)0.5D, false };
-        yield return new object[] { (RedisValue)double.PositiveInfinity, true };
-        yield return new object[] { (RedisValue)double.NaN, true };
+        yield return new object[] { (RedisValue)double.NegativeInfinity, true, "double" };
+        yield return new object[] { (RedisValue)(-0.5D), false, "double" };
+        yield return new object[] { (RedisValue)0.5D, false, "double" };
+        yield return new object[] { (RedisValue)double.PositiveInfinity, true, "double" };
+        yield return new object[] { (RedisValue)double.NaN, true, "double" };
 
-        yield return new object[] { (RedisValue)true, true };
-        yield return new object[] { (RedisValue)false, true };
-        yield return new object[] { RedisValue.Null, true };
-        yield return new object[] { RedisValue.EmptyString, true };
-        yield return new object[] { (RedisValue)"abc", true };
-        yield return new object[] { (RedisValue)s_abc, true };
-        yield return new object[] { (RedisValue)new Memory<byte>(s_abc), false };
-        yield return new object[] { (RedisValue)new ReadOnlyMemory<byte>(s_abc), false };
+        yield return new object[] { (RedisValue)true, true, "bool" };
+        yield return new object[] { (RedisValue)false, true, "bool" };
+        yield return new object[] { RedisValue.Null, true, "Null" };
+        yield return new object[] { RedisValue.EmptyString, true, "EmptyString" };
+        yield return new object[] { (RedisValue)"abc", true, "string" };
+        yield return new object[] { (RedisValue)s_abc, true, "byte[]" };
+
+        // memory that is a full array: fine, boxes as the array
+        Memory<byte> memRW = s_abc;
+        ReadOnlyMemory<byte> memRO = memRW;
+        yield return new object[] { (RedisValue)memRW, true, "byte[] Memory<byte>-full" };
+        yield return new object[] { (RedisValue)memRO, true, "byte[] ReadOnlyMemory<byte>-full" };
+
+        // memory that is a partial array; boxes raw
+        memRW = s_abc.AsMemory(1, 2);
+        memRO = memRW;
+        yield return new object[] { (RedisValue)memRW, false, "byte[] Memory<byte>-partial" };
+        yield return new object[] { (RedisValue)memRO, false, "byte[] ReadOnlyMemory<byte>-partial" };
+
+        var custom = new CustomMemoryManager(10);
+        memRW = custom.Memory;
+        memRO = memRW;
+        // memory that is a custom manager, full width; boxes raw
+        yield return new object[] { (RedisValue)memRW, false, "custom Memory<byte>-partial" };
+        yield return new object[] { (RedisValue)memRO, false, "custom ReadOnlyMemory<byte>-partial" };
+
+        memRW = custom.Memory.Slice(1, 2);
+        memRO = memRW;
+        // memory that is a custom manager, partial width; boxes raw
+        yield return new object[] { (RedisValue)memRW, false, "custom Memory<byte>-partial" };
+        yield return new object[] { (RedisValue)memRO, false, "custom ReadOnlyMemory<byte>-partial" };
+    }
+
+    private sealed class CustomMemoryManager(int size) : MemoryManager<byte>
+    {
+        private readonly byte[] _data = new byte[size];
+
+        public override Span<byte> GetSpan() => _data;
+        public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+        public override void Unpin() { }
+        protected override void Dispose(bool disposing) { }
     }
 }

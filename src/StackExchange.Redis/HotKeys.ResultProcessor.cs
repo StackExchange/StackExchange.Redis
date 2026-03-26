@@ -1,4 +1,8 @@
-﻿namespace StackExchange.Redis;
+﻿using System;
+using RESPite;
+using RESPite.Messages;
+
+namespace StackExchange.Redis;
 
 public sealed partial class HotKeysResult
 {
@@ -6,21 +10,22 @@ public sealed partial class HotKeysResult
 
     private sealed class HotKeysResultProcessor : ResultProcessor<HotKeysResult?>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (result.IsNull)
+            if (reader.IsNull)
             {
                 SetResult(message, null);
                 return true;
             }
 
             // an array with a single element that *is* an array/map that is the results
-            if (result is { Resp2TypeArray: ResultType.Array, ItemsCount: 1 })
+            if (reader.IsAggregate && reader.AggregateLengthIs(1))
             {
-                ref readonly RawResult inner = ref result[0];
-                if (inner is { Resp2TypeArray: ResultType.Array, IsNull: false })
+                var iter = reader.AggregateChildren();
+                iter.DemandNext();
+                if (iter.Value.IsAggregate && !iter.Value.IsNull)
                 {
-                    var hotKeys = new HotKeysResult(in inner);
+                    var hotKeys = new HotKeysResult(ref iter.Value);
                     SetResult(message, hotKeys);
                     return true;
                 }
@@ -30,160 +35,146 @@ public sealed partial class HotKeysResult
         }
     }
 
-    private HotKeysResult(in RawResult result)
+    private HotKeysResult(ref RespReader reader)
     {
         var metrics = HotKeysMetrics.None; // we infer this from the keys present
-        var iter = result.GetItems().GetEnumerator();
-        while (iter.MoveNext())
-        {
-            if (!iter.Current.TryParse(HotKeysFieldMetadata.TryParse, out HotKeysField field))
-                field = HotKeysField.Unknown;
+        int count = reader.AggregateLength();
+        if ((count & 1) != 0) return; // must be even (key-value pairs)
 
-            if (!iter.MoveNext()) break; // lies about the length!
-            ref readonly RawResult value = ref iter.Current;
+        while (reader.TryMoveNext() && reader.IsScalar)
+        {
+            HotKeysField field;
+            unsafe
+            {
+                if (!reader.TryParseScalar(&HotKeysFieldMetadata.TryParse, out field))
+                {
+                    field = HotKeysField.Unknown;
+                }
+            }
+
+            // Move to value
+            if (!reader.TryMoveNext()) break;
 
             long i64;
             switch (field)
             {
                 case HotKeysField.TrackingActive:
-                    TrackingActive = value.GetBoolean();
+                    TrackingActive = reader.ReadBoolean();
                     break;
-                case HotKeysField.SampleRatio when value.TryGetInt64(out i64):
+                case HotKeysField.SampleRatio when reader.TryReadInt64(out i64):
                     SampleRatio = i64;
                     break;
-                case HotKeysField.SelectedSlots when value.Resp2TypeArray is ResultType.Array:
-                    var len = value.ItemsCount;
-                    if (len == 0)
-                    {
-                        _selectedSlots = [];
-                        continue;
-                    }
-
-                    var items = value.GetItems().GetEnumerator();
-                    var slots = len == 1 ? null : new SlotRange[len];
-                    for (int i = 0; i < len && items.MoveNext(); i++)
-                    {
-                        ref readonly RawResult pair = ref items.Current;
-                        if (pair.Resp2TypeArray is ResultType.Array)
+                case HotKeysField.SelectedSlots when reader.IsAggregate:
+                    var slotRanges = reader.ReadPastArray(
+                        static (ref RespReader slotReader) =>
                         {
+                            if (!slotReader.IsAggregate) return default;
+
+                            int pairLen = slotReader.AggregateLength();
                             long from = -1, to = -1;
-                            switch (pair.ItemsCount)
+
+                            var pairIter = slotReader.AggregateChildren();
+                            if (pairLen >= 1 && pairIter.MoveNext() && pairIter.Value.TryReadInt64(out from))
                             {
-                                case 1 when pair[0].TryGetInt64(out from):
-                                    to = from; // single slot
-                                    break;
-                                case 2 when pair[0].TryGetInt64(out from) && pair[1].TryGetInt64(out to):
-                                    break;
+                                to = from; // single slot
+                                if (pairLen >= 2 && pairIter.MoveNext() && pairIter.Value.TryReadInt64(out to))
+                                {
+                                    // to is now set
+                                }
                             }
 
-                            if (from < SlotRange.MinSlot)
-                            {
-                                // skip invalid ranges
-                            }
-                            else if (len == 1 & from == SlotRange.MinSlot & to == SlotRange.MaxSlot)
-                            {
-                                // this is the "normal" case when no slot filter was applied
-                                slots = SlotRange.SharedAllSlots; // avoid the alloc
-                            }
-                            else
-                            {
-                                slots ??= new SlotRange[len];
-                                slots[i] = new((int)from, (int)to);
-                            }
-                        }
+                            return from >= SlotRange.MinSlot ? new SlotRange((int)from, (int)to) : default;
+                        },
+                        scalar: false);
+
+                    if (slotRanges is { Length: 1 } && slotRanges[0].From == SlotRange.MinSlot && slotRanges[0].To == SlotRange.MaxSlot)
+                    {
+                        // this is the "normal" case when no slot filter was applied
+                        _selectedSlots = SlotRange.SharedAllSlots; // avoid the alloc
                     }
-                    _selectedSlots = slots;
+                    else
+                    {
+                        _selectedSlots = slotRanges ?? [];
+                    }
                     break;
-                case HotKeysField.AllCommandsAllSlotsUs when value.TryGetInt64(out i64):
+                case HotKeysField.AllCommandsAllSlotsUs when reader.TryReadInt64(out i64):
                     AllCommandsAllSlotsMicroseconds = i64;
                     break;
-                case HotKeysField.AllCommandsSelectedSlotsUs when value.TryGetInt64(out i64):
+                case HotKeysField.AllCommandsSelectedSlotsUs when reader.TryReadInt64(out i64):
                     AllCommandSelectedSlotsMicroseconds = i64;
                     break;
-                case HotKeysField.SampledCommandSelectedSlotsUs when value.TryGetInt64(out i64):
-                case HotKeysField.SampledCommandsSelectedSlotsUs when value.TryGetInt64(out i64):
+                case HotKeysField.SampledCommandSelectedSlotsUs when reader.TryReadInt64(out i64):
+                case HotKeysField.SampledCommandsSelectedSlotsUs when reader.TryReadInt64(out i64):
                     SampledCommandsSelectedSlotsMicroseconds = i64;
                     break;
-                case HotKeysField.NetBytesAllCommandsAllSlots when value.TryGetInt64(out i64):
+                case HotKeysField.NetBytesAllCommandsAllSlots when reader.TryReadInt64(out i64):
                     AllCommandsAllSlotsNetworkBytes = i64;
                     break;
-                case HotKeysField.NetBytesAllCommandsSelectedSlots when value.TryGetInt64(out i64):
+                case HotKeysField.NetBytesAllCommandsSelectedSlots when reader.TryReadInt64(out i64):
                     NetworkBytesAllCommandsSelectedSlotsRaw = i64;
                     break;
-                case HotKeysField.NetBytesSampledCommandsSelectedSlots when value.TryGetInt64(out i64):
+                case HotKeysField.NetBytesSampledCommandsSelectedSlots when reader.TryReadInt64(out i64):
                     NetworkBytesSampledCommandsSelectedSlotsRaw = i64;
                     break;
-                case HotKeysField.CollectionStartTimeUnixMs when value.TryGetInt64(out i64):
+                case HotKeysField.CollectionStartTimeUnixMs when reader.TryReadInt64(out i64):
                     CollectionStartTimeUnixMilliseconds = i64;
                     break;
-                case HotKeysField.CollectionDurationMs when value.TryGetInt64(out i64):
+                case HotKeysField.CollectionDurationMs when reader.TryReadInt64(out i64):
                     CollectionDurationMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case HotKeysField.CollectionDurationUs when value.TryGetInt64(out i64):
+                case HotKeysField.CollectionDurationUs when reader.TryReadInt64(out i64):
                     CollectionDurationMicroseconds = i64;
                     break;
-                case HotKeysField.TotalCpuTimeSysMs when value.TryGetInt64(out i64):
+                case HotKeysField.TotalCpuTimeSysMs when reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeSystemMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case HotKeysField.TotalCpuTimeSysUs when value.TryGetInt64(out i64):
+                case HotKeysField.TotalCpuTimeSysUs when reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeSystemMicroseconds = i64;
                     break;
-                case HotKeysField.TotalCpuTimeUserMs when value.TryGetInt64(out i64):
+                case HotKeysField.TotalCpuTimeUserMs when reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeUserMicroseconds = i64 * 1000; // ms vs us is in question: support both, and abstract it from the caller
                     break;
-                case HotKeysField.TotalCpuTimeUserUs when value.TryGetInt64(out i64):
+                case HotKeysField.TotalCpuTimeUserUs when reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Cpu;
                     TotalCpuTimeUserMicroseconds = i64;
                     break;
-                case HotKeysField.TotalNetBytes when value.TryGetInt64(out i64):
+                case HotKeysField.TotalNetBytes when reader.TryReadInt64(out i64):
                     metrics |= HotKeysMetrics.Network;
                     TotalNetworkBytesRaw = i64;
                     break;
-                case HotKeysField.ByCpuTimeUs when value.Resp2TypeArray is ResultType.Array:
+                case HotKeysField.ByCpuTimeUs when reader.IsAggregate:
                     metrics |= HotKeysMetrics.Cpu;
-                    len = value.ItemsCount / 2;
-                    if (len == 0)
+                    int cpuLen = reader.AggregateLength() / 2;
+                    var cpuTime = new MetricKeyCpu[cpuLen];
+                    var cpuIter = reader.AggregateChildren();
+                    int cpuIdx = 0;
+                    while (cpuIter.MoveNext() && cpuIdx < cpuLen)
                     {
-                        _cpuByKey = [];
-                        continue;
-                    }
-
-                    var cpuTime = new MetricKeyCpu[len];
-                    items = value.GetItems().GetEnumerator();
-                    for (int i = 0; i < len && items.MoveNext(); i++)
-                    {
-                        var metricKey = items.Current.AsRedisKey();
-                        if (items.MoveNext() && items.Current.TryGetInt64(out var metricValue))
+                        var metricKey = cpuIter.Value.ReadRedisKey();
+                        if (cpuIter.MoveNext() && cpuIter.Value.TryReadInt64(out var metricValue))
                         {
-                            cpuTime[i] = new(metricKey, metricValue);
+                            cpuTime[cpuIdx++] = new(metricKey, metricValue);
                         }
                     }
-
                     _cpuByKey = cpuTime;
                     break;
-                case HotKeysField.ByNetBytes when value.Resp2TypeArray is ResultType.Array:
+                case HotKeysField.ByNetBytes when reader.IsAggregate:
                     metrics |= HotKeysMetrics.Network;
-                    len = value.ItemsCount / 2;
-                    if (len == 0)
+                    int netLen = reader.AggregateLength() / 2;
+                    var netBytes = new MetricKeyBytes[netLen];
+                    var netIter = reader.AggregateChildren();
+                    int netIdx = 0;
+                    while (netIter.MoveNext() && netIdx < netLen)
                     {
-                        _networkBytesByKey = [];
-                        continue;
-                    }
-
-                    var netBytes = new MetricKeyBytes[len];
-                    items = value.GetItems().GetEnumerator();
-                    for (int i = 0; i < len && items.MoveNext(); i++)
-                    {
-                        var metricKey = items.Current.AsRedisKey();
-                        if (items.MoveNext() && items.Current.TryGetInt64(out var metricValue))
+                        var metricKey = netIter.Value.ReadRedisKey();
+                        if (netIter.MoveNext() && netIter.Value.TryReadInt64(out var metricValue))
                         {
-                            netBytes[i] = new(metricKey, metricValue);
+                            netBytes[netIdx++] = new(metricKey, metricValue);
                         }
                     }
-
                     _networkBytesByKey = netBytes;
                     break;
             } // switch

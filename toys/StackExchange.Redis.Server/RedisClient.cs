@@ -11,11 +11,11 @@ namespace StackExchange.Redis.Server
 {
     public partial class RedisClient(RedisServer.Node node) : IDisposable
 #pragma warning disable SA1001
-        #if NET
+#if NET
         , ISpanFormattable
 #else
         , IFormattable
-        #endif
+#endif
 #pragma warning restore SA1001
     {
         private RespScanState _readState;
