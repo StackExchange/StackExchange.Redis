@@ -266,7 +266,7 @@ public abstract class LoggingTunnel : Tunnel
     public static async Task<long> ValidateAsync(Stream stream)
     {
         using var reader = new StreamRespReader(stream, isInbound: false);
-        return await reader.ValidateAsync();
+        return await reader.ValidateAsync().ForAwait();
     }
 
     internal readonly struct ContextualRedisResult
@@ -529,9 +529,9 @@ public abstract class LoggingTunnel : Tunnel
 
         public override async Task FlushAsync(CancellationToken cancellationToken)
         {
-            var writesTask = _writes.FlushAsync().ForAwait();
+            var writesTask = _writes.FlushAsync();
             await _inner.FlushAsync().ForAwait();
-            await writesTask;
+            await writesTask.ForAwait();
         }
 
         protected override void Dispose(bool disposing)
@@ -634,9 +634,9 @@ public abstract class LoggingTunnel : Tunnel
         }
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            var writesTask = _writes.WriteAsync(buffer, offset, count, cancellationToken).ForAwait();
+            var writesTask = _writes.WriteAsync(buffer, offset, count, cancellationToken);
             await _inner.WriteAsync(buffer, offset, count, cancellationToken).ForAwait();
-            await writesTask;
+            await writesTask.ForAwait();
         }
 #if NET
         public override void Write(ReadOnlySpan<byte> buffer)
@@ -644,11 +644,12 @@ public abstract class LoggingTunnel : Tunnel
             _writes.Write(buffer);
             _inner.Write(buffer);
         }
+        // ReSharper disable once OptionalParameterHierarchyMismatch
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
         {
-            var writesTask = _writes.WriteAsync(buffer, cancellationToken).ForAwait();
+            var writesTask = _writes.WriteAsync(buffer, cancellationToken);
             await _inner.WriteAsync(buffer, cancellationToken).ForAwait();
-            await writesTask;
+            await writesTask.ForAwait();
         }
 #endif
     }

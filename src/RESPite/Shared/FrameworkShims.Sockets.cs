@@ -18,7 +18,7 @@ internal static class SocketExtensions
         {
             args.Complete();
         }
-        await args;
+        await args; // .ConfigureAwait(false) does not apply here
     }
 
     internal static async ValueTask<int> SendAsync(this Socket socket, ReadOnlyMemory<byte> buffer, SocketFlags socketFlags, CancellationToken cancellationToken = default)
@@ -30,7 +30,8 @@ internal static class SocketExtensions
         {
             args.Complete();
         }
-        return await args;
+
+        return await args; // .ConfigureAwait(false) does not apply here
     }
 
     internal static async ValueTask<int> ReceiveAsync(this Socket socket, Memory<byte> buffer, SocketFlags socketFlags, CancellationToken cancellationToken = default)
@@ -42,7 +43,8 @@ internal static class SocketExtensions
         {
             args.Complete();
         }
-        return await args;
+
+        return await args; // .ConfigureAwait(false) does not apply here
     }
 
     /// <summary>
