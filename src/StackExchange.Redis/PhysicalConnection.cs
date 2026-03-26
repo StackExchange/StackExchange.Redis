@@ -786,15 +786,16 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                // Only count how many sync timeouts we detect here.
-                                // The actual timeout is handled in ConnectionMultiplexer.ExecuteSyncImpl().
+                                // Only count how many sync timeouts we detect here (do not poke them;
+                                // the actual timeout is handled in ConnectionMultiplexer.ExecuteSyncImpl)
                                 syncTimeoutDetected++;
-                            }
-                            else if (msg.IsHandshakeCompletion)
-                            {
-                                // Critical handshake validation timed out; note that this doesn't have a result-box,
-                                // so doesn't get timed out via the above.
-                                Shutdown(ConnectionFailureType.UnableToConnect);
+
+                                if (msg.IsHandshakeCompletion)
+                                {
+                                    // Critical handshake validation timed out; note that this doesn't have a result-box,
+                                    // so doesn't get timed out via the async path above.
+                                    Shutdown(ConnectionFailureType.UnableToConnect);
+                                }
                             }
                         }
                         else
