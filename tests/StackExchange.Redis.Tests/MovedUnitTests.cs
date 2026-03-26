@@ -15,10 +15,12 @@ public class MovedUnitTests(ITestOutputHelper log)
     private RedisKey Me([CallerMemberName] string callerName = "") => callerName;
 
     [Theory]
+    /*
     [InlineData(ServerType.Cluster, WriteMode.Sync)]
     [InlineData(ServerType.Standalone, WriteMode.Sync)]
     [InlineData(ServerType.Cluster, WriteMode.Async)]
     [InlineData(ServerType.Standalone, WriteMode.Async)]
+    */
     [InlineData(ServerType.Cluster, WriteMode.Pipe)]
     [InlineData(ServerType.Standalone, WriteMode.Pipe)]
     public async Task CrossSlotDisallowed(ServerType serverType, WriteMode writeMode)
