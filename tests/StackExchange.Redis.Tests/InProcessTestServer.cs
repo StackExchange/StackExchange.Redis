@@ -26,7 +26,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
     }
 
     public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
-        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, writeMode), log);
+        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, defaultOnly, writeMode), log);
 
     // view request/response highlights in the log
     public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)

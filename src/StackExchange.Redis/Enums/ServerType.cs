@@ -47,6 +47,9 @@ namespace StackExchange.Redis
         [AsciiHash]
         internal static partial bool TryParse(ReadOnlySpan<char> value, out ServerType serverType);
 
+        [AsciiHash]
+        internal static partial bool TryParse(ReadOnlySpan<byte> value, out ServerType serverType);
+
         internal static bool TryParse(string? val, out ServerType serverType)
         {
             if (val is not null) return TryParse(val.AsSpan().Trim(), out serverType);

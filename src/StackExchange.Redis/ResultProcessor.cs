@@ -1073,43 +1073,48 @@ namespace StackExchange.Redis
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext())
                     {
-                        var key = iter.Value;
                         HelloField field;
                         unsafe
                         {
-                            if (!key.TryParseScalar(&HelloFieldMetadata.TryParse, out field))
+                            if (!iter.Value.TryParseScalar(&HelloFieldMetadata.TryParse, out field))
                             {
                                 field = HelloField.Unknown;
                             }
-                        }
 
-                        if (!iter.MoveNext()) break;
-                        var val = iter.Value;
+                            if (!iter.MoveNext()) break;
 
-                        switch (field)
-                        {
-                            case HelloField.Version when Format.TryParseVersion(val.ReadString(), out var version):
-                                server.Version = version;
-                                Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
-                                break;
-                            case HelloField.Proto when val.TryReadInt64(out var i64):
-                                connection.SetProtocol(i64 >= 3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
-                                Log?.LogInformationAutoConfiguredHelloProtocol(new(server), connection.Protocol ?? RedisProtocol.Resp2);
-                                break;
-                            case HelloField.Id when val.TryReadInt64(out var i64):
-                                connection.ConnectionId = i64;
-                                Log?.LogInformationAutoConfiguredHelloConnectionId(new(server), i64);
-                                break;
-                            case HelloField.Mode when ServerTypeMetadata.TryParse(val.ReadString(), out var serverType):
-                                server.ServerType = serverType;
-                                Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
-                                break;
-                            case HelloField.Role when RoleTypeMetadata.TryParse(val.ReadString(), out bool isReplica):
-                                server.IsReplica = isReplica;
-                                Log?.LogInformationAutoConfiguredHelloRole(new(server), isReplica ? "replica" : "primary");
-                                break;
+                            switch (field)
+                            {
+                                case HelloField.Version when iter.Value.TryParseScalar(Format.TryParseVersion!, out Version version):
+                                    server.Version = version;
+                                    Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
+                                    break;
+                                case HelloField.Proto when iter.Value.TryReadInt64(out var i64):
+                                    connection.SetProtocol(i64 >= 3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
+                                    Log?.LogInformationAutoConfiguredHelloProtocol(
+                                        new(server),
+                                        connection.Protocol ?? RedisProtocol.Resp2);
+                                    break;
+                                case HelloField.Id when iter.Value.TryReadInt64(out var i64):
+                                    connection.ConnectionId = i64;
+                                    Log?.LogInformationAutoConfiguredHelloConnectionId(new(server), i64);
+                                    break;
+                                case HelloField.Mode
+                                    when iter.Value.TryParseScalar(&ServerTypeMetadata.TryParse, out ServerType serverType):
+                                    server.ServerType = serverType;
+                                    Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
+                                    break;
+                                case HelloField.Role
+                                    when iter.Value.TryParseScalar(&KnownRoleMetadata.TryParse, out bool isReplica):
+                                    server.IsReplica = isReplica;
+                                    Log?.LogInformationAutoConfiguredHelloRole(
+                                        new(server),
+                                        isReplica ? "replica" : "primary");
+                                    break;
+                            }
                         }
                     }
+
                     SetResult(message, true);
                     return true;
                 }
