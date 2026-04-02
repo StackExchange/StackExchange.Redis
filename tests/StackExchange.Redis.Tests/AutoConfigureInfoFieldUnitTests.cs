@@ -14,6 +14,7 @@ public class AutoConfigureInfoFieldUnitTests
     [InlineData("run_id", (int)AutoConfigureInfoField.RunId)]
     [InlineData("garnet_version", (int)AutoConfigureInfoField.GarnetVersion)]
     [InlineData("valkey_version", (int)AutoConfigureInfoField.ValkeyVersion)]
+    [InlineData("server_mode", (int)AutoConfigureInfoField.ServerMode)]
     public void TryParse_CharSpan_KnownFields(string value, int expected)
     {
         Assert.True(AutoConfigureInfoFieldMetadata.TryParse(value.AsSpan(), out var actual));
