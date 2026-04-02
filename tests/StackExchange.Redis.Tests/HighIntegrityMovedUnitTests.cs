@@ -18,7 +18,7 @@ public class HighIntegrityMovedUnitTests(ITestOutputHelper log)
         using var client = await ConnectionMultiplexer.ConnectAsync(config);
 
         RedisKey a = "a", b = "b"; // known to be in different slots
-        Assert.NotEqual(ServerSelectionStrategy.GetHashSlot(a), ServerSelectionStrategy.GetHashSlot(b));
+        Assert.NotEqual(ServerSelectionStrategy.GetClusterSlot(a), ServerSelectionStrategy.GetClusterSlot(b));
 
         var db = client.GetDatabase();
         var x = db.StringIncrementAsync(a);
