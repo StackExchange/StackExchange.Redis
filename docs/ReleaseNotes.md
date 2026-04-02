@@ -6,7 +6,14 @@ Current package versions:
 | ------------ | ----------------- | ----- |
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
-## Unreleased
+## 3.0
+
+From 3.0, [release notes will be maintained in GitHub only](https://github.com/StackExchange/StackExchange.Redis/releases) to avoid duplication.
+
+---
+
+
+## 2.12.14
 
 - Critical fix for high-integrity mode in cluster scenarios ([#3049 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/issues/3049))
 
