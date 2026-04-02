@@ -642,11 +642,16 @@ internal sealed partial class PhysicalConnection
         var reader = new RespReader(frame);
 
         OnDetailLog($"computing result for {msg.CommandAndKey} ({RespReaderExtensions.GetRespPrefix(frame)})");
-        if (msg.ComputeResult(this, ref reader))
+
+        // need to capture HIT promptly, as -MOVED could cause a resend with a new high-integrity token
+        // (a lazy approach would be to not rotate, but: we'd rather avoid that; the -MOVED case is rare)
+        var highIntegrityToken = msg.HighIntegrityToken;
+        bool computed = msg.ComputeResult(this, ref reader);
+        if (computed)
         {
             OnDetailLog($"> complete: {msg.CommandAndKey}");
             _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
-            if (!msg.IsHighIntegrity)
+            if (highIntegrityToken is 0)
             {
                 // can't complete yet if needs checksum
                 msg.Complete();
@@ -656,10 +661,10 @@ internal sealed partial class PhysicalConnection
         {
             OnDetailLog($"> incomplete: {msg.CommandAndKey}");
         }
-        if (msg.IsHighIntegrity)
+        if (highIntegrityToken is not 0)
         {
-            // stash this for the next non-OOB response
-            Volatile.Write(ref _awaitingToken, msg);
+            // stash this for the next non-OOB response, retaining the old HIT iff we had a -MOVED etc
+            Volatile.Write(ref _awaitingToken, computed ? msg : new DummyHighIntegrityMessage(msg, highIntegrityToken));
         }
 
         _readStatus = ReadStatus.MatchResultComplete;
@@ -786,5 +791,19 @@ internal sealed partial class PhysicalConnection
             throw new InvalidOperationException(
                 $"Unexpected additional {reader.ProtocolBytesRemaining} bytes remaining, {prefix}");
         }
+    }
+
+    internal sealed class DummyHighIntegrityMessage : Message
+    {
+        // note: we don't create this message very often - only when a HIT gets a -MOVED or similar
+        public DummyHighIntegrityMessage(Message msg, uint highIntegrityToken) : base(msg.Db, msg.Flags, msg.Command)
+        {
+            WithHighIntegrity(highIntegrityToken);
+        }
+
+        public override int ArgCount => 0;
+
+        protected override void WriteImpl(in MessageWriter writer)
+            => throw new NotSupportedException("This message cannot be written; it is a place-holder for high-integrity scenarios.");
     }
 }
