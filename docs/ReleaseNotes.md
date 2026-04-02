@@ -8,6 +8,10 @@ Current package versions:
 
 ## Unreleased
 
+- (none)
+
+## 2.12.14
+
 - Critical fix for high-integrity mode in cluster scenarios ([#3049 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/issues/3049))
 
 ## 2.12.8
