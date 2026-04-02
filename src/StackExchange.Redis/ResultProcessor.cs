@@ -920,6 +920,7 @@ namespace StackExchange.Redis
                                             }
                                             break;
                                         case AutoConfigureInfoField.RedisMode:
+                                        case AutoConfigureInfoField.ServerMode:
                                             if (ServerTypeMetadata.TryParse(valSpan, out var serverType))
                                             {
                                                 server.ServerType = serverType;
