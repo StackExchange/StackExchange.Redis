@@ -1914,19 +1914,25 @@ namespace StackExchange.Redis
 
             Trace("Response to: " + msg);
             _readStatus = ReadStatus.ComputeResult;
-            if (msg.ComputeResult(this, result))
+
+            // need to capture HIT promptly, as -MOVED could cause a resend with a new high-integrity token
+            // (a lazy approach would be to not rotate, but: we'd rather avoid that; the -MOVED case is rare)
+            var highIntegrityToken = msg.HighIntegrityToken;
+
+            bool computed = msg.ComputeResult(this, result);
+            if (computed)
             {
                 _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
-                if (!msg.IsHighIntegrity)
+                if (highIntegrityToken == 0)
                 {
                     // can't complete yet if needs checksum
                     msg.Complete();
                 }
             }
-            if (msg.IsHighIntegrity)
+            if (highIntegrityToken != 0)
             {
-                // stash this for the next non-OOB response
-                Volatile.Write(ref _awaitingToken, msg);
+                // stash this for the next non-OOB response, retaining the old HIT iff we had a -MOVED etc
+                Volatile.Write(ref _awaitingToken, computed ? msg : new DummyHighIntegrityMessage(msg, highIntegrityToken));
             }
 
             _readStatus = ReadStatus.MatchResultComplete;
@@ -2454,5 +2460,18 @@ namespace StackExchange.Redis
                 if (lockTaken) Monitor.Exit(_writtenAwaitingResponse);
             }
         }
+    }
+
+    internal sealed class DummyHighIntegrityMessage : Message
+    {
+        // note: we don't create this message very often - only when a HIT gets a -MOVED or similar
+        public DummyHighIntegrityMessage(Message msg, uint highIntegrityToken) : base(msg.Db, msg.Flags, msg.Command)
+        {
+            WithHighIntegrity(highIntegrityToken);
+        }
+
+        public override int ArgCount => 0;
+        protected override void WriteImpl(PhysicalConnection physical)
+            => throw new NotSupportedException("This message cannot be written; it is a place-holder for high-integrity scenarios.");
     }
 }
