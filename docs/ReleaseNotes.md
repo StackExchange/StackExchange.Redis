@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Update experimental `GCRA` APIs and wire protocol terminology from "requests" to "tokens", to match server change ([#PR by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/PR))
+- Update experimental `GCRA` APIs and wire protocol terminology from "requests" to "tokens", to match server change ([#3051 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3051))
 
 ## 2.12.14
 
