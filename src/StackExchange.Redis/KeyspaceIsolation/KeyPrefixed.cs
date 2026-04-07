@@ -792,8 +792,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLengthAsync(ToInner(key), flags);
 
-        public Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int requestsPerPeriod, double period = 1.0, int count = 1, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringGcraRateLimitAsync(ToInner(key), maxBurst, requestsPerPeriod, period, count, flags);
+        public Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int tokensPerPeriod, double period = 1.0, int count = 1, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringGcraRateLimitAsync(ToInner(key), maxBurst, tokensPerPeriod, period, count, flags);
 
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
             => Inner.StringSetAsync(ToInner(key), value, expiry, when, flags);

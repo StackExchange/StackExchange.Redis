@@ -12,38 +12,38 @@ public class GcraRateLimitRoundTrip
     public async Task GcraRateLimit_DefaultCount_RoundTrip(
         string key,
         int maxBurst,
-        int requestsPerPeriod,
+        int tokensPerPeriod,
         double periodSeconds,
         string requestResp,
         string responseResp)
     {
-        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, requestsPerPeriod, periodSeconds, 1);
+        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, tokensPerPeriod, periodSeconds, 1);
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.GcraRateLimit, requestResp, responseResp);
 
         Assert.False(result.Limited);
-        Assert.Equal(11, result.MaxRequests);
-        Assert.Equal(10, result.AvailableRequests);
+        Assert.Equal(11, result.MaxTokens);
+        Assert.Equal(10, result.AvailableTokens);
         Assert.Equal(-1, result.RetryAfterSeconds);
         Assert.Equal(5, result.FullBurstAfterSeconds);
     }
 
     [Theory(Timeout = 1000)]
-    [InlineData("mykey", 10, 100, 1.0, 5, "*7\r\n$4\r\nGCRA\r\n$5\r\nmykey\r\n$2\r\n10\r\n$3\r\n100\r\n$1\r\n1\r\n$12\r\nNUM_REQUESTS\r\n$1\r\n5\r\n", "*5\r\n:1\r\n:11\r\n:0\r\n:2\r\n:10\r\n")]
+    [InlineData("mykey", 10, 100, 1.0, 5, "*7\r\n$4\r\nGCRA\r\n$5\r\nmykey\r\n$2\r\n10\r\n$3\r\n100\r\n$1\r\n1\r\n$6\r\nTOKENS\r\n$1\r\n5\r\n", "*5\r\n:1\r\n:11\r\n:0\r\n:2\r\n:10\r\n")]
     public async Task GcraRateLimit_WithCount_RoundTrip(
         string key,
         int maxBurst,
-        int requestsPerPeriod,
+        int tokensPerPeriod,
         double periodSeconds,
         int count,
         string requestResp,
         string responseResp)
     {
-        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, requestsPerPeriod, periodSeconds, count);
+        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, tokensPerPeriod, periodSeconds, count);
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.GcraRateLimit, requestResp, responseResp);
 
         Assert.True(result.Limited);
-        Assert.Equal(11, result.MaxRequests);
-        Assert.Equal(0, result.AvailableRequests);
+        Assert.Equal(11, result.MaxTokens);
+        Assert.Equal(0, result.AvailableTokens);
         Assert.Equal(2, result.RetryAfterSeconds);
         Assert.Equal(10, result.FullBurstAfterSeconds);
     }
@@ -53,17 +53,17 @@ public class GcraRateLimitRoundTrip
     public async Task GcraRateLimit_CustomPeriod_RoundTrip(
         string key,
         int maxBurst,
-        int requestsPerPeriod,
+        int tokensPerPeriod,
         double periodSeconds,
         string requestResp,
         string responseResp)
     {
-        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, requestsPerPeriod, periodSeconds, 1);
+        var msg = new RedisDatabase.GcraMessage(0, CommandFlags.None, key, maxBurst, tokensPerPeriod, periodSeconds, 1);
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.GcraRateLimit, requestResp, responseResp);
 
         Assert.False(result.Limited);
-        Assert.Equal(51, result.MaxRequests);
-        Assert.Equal(25, result.AvailableRequests);
+        Assert.Equal(51, result.MaxTokens);
+        Assert.Equal(25, result.AvailableTokens);
         Assert.Equal(-1, result.RetryAfterSeconds);
         Assert.Equal(30, result.FullBurstAfterSeconds);
     }
