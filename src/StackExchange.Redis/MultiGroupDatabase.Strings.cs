@@ -38,6 +38,9 @@ internal sealed partial class MultiGroupDatabase
     public ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StringDigest(key, flags);
 
+    public GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StringGcraRateLimit(key, maxBurst, requestsPerPeriod, periodSeconds, count, flags);
+
     public RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StringGet(key, flags);
 

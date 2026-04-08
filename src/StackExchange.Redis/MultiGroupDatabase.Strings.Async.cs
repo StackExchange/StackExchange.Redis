@@ -39,6 +39,9 @@ internal sealed partial class MultiGroupDatabase
     public Task<ValueCondition?> StringDigestAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StringDigestAsync(key, flags);
 
+    public Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StringGcraRateLimitAsync(key, maxBurst, requestsPerPeriod, periodSeconds, count, flags);
+
     public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StringGetAsync(key, flags);
 
