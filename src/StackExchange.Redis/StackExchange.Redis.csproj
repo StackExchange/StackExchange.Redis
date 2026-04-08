@@ -64,5 +64,8 @@
     <Compile Update="MultiGroupDatabase.*.cs">
       <DependentUpon>MultiGroupDatabase.cs</DependentUpon>
     </Compile>
+    <Compile Update="HealthCheck.*.cs">
+      <DependentUpon>HealthCheck.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 </Project>

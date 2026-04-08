@@ -1,4 +1,55 @@
 ﻿#nullable enable
+abstract StackExchange.Redis.HealthCheck.HealthCheckProbe.CheckHealthAsync(StackExchange.Redis.HealthCheck! healthCheck, StackExchange.Redis.IConnectionMultiplexer! multiplexer, System.Net.EndPoint! endpoint) -> System.Threading.Tasks.Task<StackExchange.Redis.HealthCheck.HealthCheckResult>!
+abstract StackExchange.Redis.HealthCheck.HealthCheckProbePolicy.Evaluate(in StackExchange.Redis.HealthCheck.HealthCheckProbeContext context) -> StackExchange.Redis.HealthCheck.HealthCheckResult
+abstract StackExchange.Redis.HealthCheck.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.HealthCheck! healthCheck, StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.RedisKey key) -> System.Threading.Tasks.Task<StackExchange.Redis.HealthCheck.HealthCheckResult>!
+override StackExchange.Redis.HealthCheck.HealthCheckProbeContext.ToString() -> string!
+override StackExchange.Redis.HealthCheck.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.HealthCheck! healthCheck, StackExchange.Redis.IConnectionMultiplexer! multiplexer, System.Net.EndPoint! endpoint) -> System.Threading.Tasks.Task<StackExchange.Redis.HealthCheck.HealthCheckResult>!
+StackExchange.Redis.HealthCheck
+StackExchange.Redis.HealthCheck.Builder() -> StackExchange.Redis.HealthCheck.HealthCheckBuilder!
+StackExchange.Redis.HealthCheck.CheckHealthAsync(StackExchange.Redis.IConnectionMultiplexer! multiplexer, System.Net.EndPoint! endpoint) -> System.Threading.Tasks.Task<StackExchange.Redis.HealthCheck.HealthCheckResult>!
+StackExchange.Redis.HealthCheck.HealthCheckBuilder
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.Build() -> StackExchange.Redis.HealthCheck!
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.HealthCheckBuilder() -> void
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.Interval.get -> System.TimeSpan
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.Interval.set -> void
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.Probe.get -> StackExchange.Redis.HealthCheck.HealthCheckProbe!
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.Probe.set -> void
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.ProbeCount.get -> int
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.ProbeCount.set -> void
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.ProbeInterval.get -> System.TimeSpan
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.ProbeInterval.set -> void
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.ProbePolicy.get -> StackExchange.Redis.HealthCheck.HealthCheckProbePolicy!
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.ProbePolicy.set -> void
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.ProbeTimeout.get -> System.TimeSpan
+StackExchange.Redis.HealthCheck.HealthCheckBuilder.ProbeTimeout.set -> void
+StackExchange.Redis.HealthCheck.HealthCheckProbe
+StackExchange.Redis.HealthCheck.HealthCheckProbe.HealthCheckProbe() -> void
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext.Failure.get -> int
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext.HealthCheckProbeContext() -> void
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext.HealthCheckProbeContext(int success, int failure, int remaining) -> void
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext.Remaining.get -> int
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext.Success.get -> int
+StackExchange.Redis.HealthCheck.HealthCheckProbePolicy
+StackExchange.Redis.HealthCheck.HealthCheckProbePolicy.HealthCheckProbePolicy() -> void
+StackExchange.Redis.HealthCheck.HealthCheckResult
+StackExchange.Redis.HealthCheck.HealthCheckResult.Healthy = 1 -> StackExchange.Redis.HealthCheck.HealthCheckResult
+StackExchange.Redis.HealthCheck.HealthCheckResult.Inconclusive = 0 -> StackExchange.Redis.HealthCheck.HealthCheckResult
+StackExchange.Redis.HealthCheck.HealthCheckResult.Unhealthy = 2 -> StackExchange.Redis.HealthCheck.HealthCheckResult
+StackExchange.Redis.HealthCheck.Interval.get -> System.TimeSpan
+StackExchange.Redis.HealthCheck.KeyWriteHealthCheckProbe
+StackExchange.Redis.HealthCheck.KeyWriteHealthCheckProbe.KeyWriteHealthCheckProbe() -> void
+StackExchange.Redis.HealthCheck.Probe.get -> StackExchange.Redis.HealthCheck.HealthCheckProbe!
+StackExchange.Redis.HealthCheck.ProbeCount.get -> int
+StackExchange.Redis.HealthCheck.ProbeInterval.get -> System.TimeSpan
+StackExchange.Redis.HealthCheck.ProbePolicy.get -> StackExchange.Redis.HealthCheck.HealthCheckProbePolicy!
+StackExchange.Redis.HealthCheck.ProbeTimeout.get -> System.TimeSpan
+static StackExchange.Redis.HealthCheck.HealthCheckProbe.Inconclusive.get -> System.Threading.Tasks.Task<StackExchange.Redis.HealthCheck.HealthCheckResult>!
+static StackExchange.Redis.HealthCheck.HealthCheckProbe.Ping.get -> StackExchange.Redis.HealthCheck.HealthCheckProbe!
+static StackExchange.Redis.HealthCheck.HealthCheckProbe.StringSet.get -> StackExchange.Redis.HealthCheck.HealthCheckProbe!
+static StackExchange.Redis.HealthCheck.HealthCheckProbePolicy.AllSuccess.get -> StackExchange.Redis.HealthCheck.HealthCheckProbePolicy!
+static StackExchange.Redis.HealthCheck.HealthCheckProbePolicy.AnySuccess.get -> StackExchange.Redis.HealthCheck.HealthCheckProbePolicy!
+static StackExchange.Redis.HealthCheck.HealthCheckProbePolicy.MajoritySuccess.get -> StackExchange.Redis.HealthCheck.HealthCheckProbePolicy!
 [SER007]override StackExchange.Redis.ConnectionGroupMember.ToString() -> string!
 [SER007]StackExchange.Redis.ConnectionGroupMember
 [SER007]StackExchange.Redis.ConnectionGroupMember.ConnectionGroupMember(StackExchange.Redis.ConfigurationOptions! configuration, string! name = "") -> void
@@ -31,9 +82,9 @@
 [SER007]StackExchange.Redis.MultiGroupOptions.MultiGroupOptions() -> void
 [SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.ConnectionGroupMember! member0, StackExchange.Redis.ConnectionGroupMember! member1, StackExchange.Redis.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionGroup!>!
 [SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.ConnectionGroupMember![]! members, StackExchange.Redis.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionGroup!>!
-[SER007]static StackExchange.Redis.MultiGroupOptions.Default.get -> StackExchange.Redis.MultiGroupOptions!
 StackExchange.Redis.IServer.GetProductVariant(out string! version) -> StackExchange.Redis.ProductVariant
 StackExchange.Redis.ProductVariant
 StackExchange.Redis.ProductVariant.Garnet = 2 -> StackExchange.Redis.ProductVariant
 StackExchange.Redis.ProductVariant.Redis = 0 -> StackExchange.Redis.ProductVariant
 StackExchange.Redis.ProductVariant.Valkey = 1 -> StackExchange.Redis.ProductVariant
+[SER007]static StackExchange.Redis.MultiGroupOptions.Default.get -> StackExchange.Redis.MultiGroupOptions!
