@@ -165,6 +165,7 @@ StackExchange.Redis.ClusterNode.EndPoint.get -> System.Net.EndPoint?
 StackExchange.Redis.ClusterNode.Equals(StackExchange.Redis.ClusterNode? other) -> bool
 StackExchange.Redis.ClusterNode.IsConnected.get -> bool
 StackExchange.Redis.ClusterNode.IsFail.get -> bool
+StackExchange.Redis.ClusterNode.IsHandshake.get -> bool
 StackExchange.Redis.ClusterNode.IsMyself.get -> bool
 StackExchange.Redis.ClusterNode.IsNoAddr.get -> bool
 StackExchange.Redis.ClusterNode.IsPossiblyFail.get -> bool
@@ -481,6 +482,14 @@ StackExchange.Redis.GeoUnit.Feet = 3 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Kilometers = 1 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Meters = 0 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
+[SER006]StackExchange.Redis.GcraRateLimitResult
+[SER006]StackExchange.Redis.GcraRateLimitResult.AvailableRequests.get -> int
+[SER006]StackExchange.Redis.GcraRateLimitResult.FullBurstAfterSeconds.get -> int
+[SER006]StackExchange.Redis.GcraRateLimitResult.GcraRateLimitResult() -> void
+[SER006]StackExchange.Redis.GcraRateLimitResult.GcraRateLimitResult(bool limited, int maxRequests, int availableRequests, int retryAfterSeconds, int fullBurstAfterSeconds) -> void
+[SER006]StackExchange.Redis.GcraRateLimitResult.Limited.get -> bool
+[SER006]StackExchange.Redis.GcraRateLimitResult.MaxRequests.get -> int
+[SER006]StackExchange.Redis.GcraRateLimitResult.RetryAfterSeconds.get -> int
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void
@@ -777,6 +786,7 @@ StackExchange.Redis.IDatabase.StringGetSet(StackExchange.Redis.RedisKey key, Sta
 StackExchange.Redis.IDatabase.StringGetSetExpiry(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringGetSetExpiry(StackExchange.Redis.RedisKey key, System.DateTime expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringGetWithExpiry(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValueWithExpiry
+[SER006]StackExchange.Redis.IDatabase.StringGcraRateLimit(StackExchange.Redis.RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1, int count = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.GcraRateLimitResult
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> double
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringLength(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
@@ -1021,6 +1031,7 @@ StackExchange.Redis.IDatabaseAsync.StringGetSetAsync(StackExchange.Redis.RedisKe
 StackExchange.Redis.IDatabaseAsync.StringGetSetExpiryAsync(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringGetSetExpiryAsync(StackExchange.Redis.RedisKey key, System.DateTime expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringGetWithExpiryAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValueWithExpiry>!
+[SER006]StackExchange.Redis.IDatabaseAsync.StringGcraRateLimitAsync(StackExchange.Redis.RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1, int count = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.GcraRateLimitResult>!
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<double>!
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringLengthAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
@@ -1710,6 +1721,7 @@ static StackExchange.Redis.ExtensionMethods.ToStringArray(this StackExchange.Red
 static StackExchange.Redis.ExtensionMethods.ToStringDictionary(this StackExchange.Redis.HashEntry[]? hash) -> System.Collections.Generic.Dictionary<string!, string!>?
 static StackExchange.Redis.ExtensionMethods.ToStringDictionary(this StackExchange.Redis.SortedSetEntry[]? sortedSet) -> System.Collections.Generic.Dictionary<string!, double>?
 static StackExchange.Redis.ExtensionMethods.ToStringDictionary(this System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]? pairs) -> System.Collections.Generic.Dictionary<string!, string!>?
+[SER006]static StackExchange.Redis.ExtensionMethods.TryAcquireGcraAsync(this StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.RedisKey key, int maxBurst, int requestsPerPeriod, System.TimeSpan allow, double periodSeconds = 1, int count = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 static StackExchange.Redis.GeoEntry.operator !=(StackExchange.Redis.GeoEntry x, StackExchange.Redis.GeoEntry y) -> bool
 static StackExchange.Redis.GeoEntry.operator ==(StackExchange.Redis.GeoEntry x, StackExchange.Redis.GeoEntry y) -> bool
 static StackExchange.Redis.GeoPosition.operator !=(StackExchange.Redis.GeoPosition x, StackExchange.Redis.GeoPosition y) -> bool
@@ -1967,95 +1979,95 @@ StackExchange.Redis.ConnectionMultiplexer.GetServer(StackExchange.Redis.RedisKey
 StackExchange.Redis.IConnectionMultiplexer.GetServer(StackExchange.Redis.RedisKey key, object? asyncState = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.IServer!
 StackExchange.Redis.IServer.Execute(int? database, string! command, System.Collections.Generic.ICollection<object!>! args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisResult!
 StackExchange.Redis.IServer.ExecuteAsync(int? database, string! command, System.Collections.Generic.ICollection<object!>! args, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisResult!>!
-[SER001]override StackExchange.Redis.VectorSetLink.ToString() -> string!
-[SER001]override StackExchange.Redis.VectorSetSimilaritySearchResult.ToString() -> string!
-[SER001]StackExchange.Redis.IDatabase.VectorSetAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetAddRequest! request, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetAddRequest! request, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
-[SER001]StackExchange.Redis.VectorSetAddRequest
-[SER001]StackExchange.Redis.VectorSetAddRequest.BuildExplorationFactor.get -> int?
-[SER001]StackExchange.Redis.VectorSetAddRequest.BuildExplorationFactor.set -> void
-[SER001]StackExchange.Redis.VectorSetAddRequest.MaxConnections.get -> int?
-[SER001]StackExchange.Redis.VectorSetAddRequest.MaxConnections.set -> void
-[SER001]StackExchange.Redis.VectorSetAddRequest.Quantization.get -> StackExchange.Redis.VectorSetQuantization
-[SER001]StackExchange.Redis.VectorSetAddRequest.Quantization.set -> void
-[SER001]StackExchange.Redis.VectorSetAddRequest.ReducedDimensions.get -> int?
-[SER001]StackExchange.Redis.VectorSetAddRequest.ReducedDimensions.set -> void
-[SER001]StackExchange.Redis.VectorSetAddRequest.UseCheckAndSet.get -> bool
-[SER001]StackExchange.Redis.VectorSetAddRequest.UseCheckAndSet.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.Count.get -> int?
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.Count.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.DisableThreading.get -> bool
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.DisableThreading.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.Epsilon.get -> double?
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.Epsilon.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.FilterExpression.get -> string?
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.FilterExpression.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.MaxFilteringEffort.get -> int?
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.MaxFilteringEffort.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.SearchExplorationFactor.get -> int?
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.SearchExplorationFactor.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.UseExactSearch.get -> bool
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.UseExactSearch.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.WithAttributes.get -> bool
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.WithAttributes.set -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.WithScores.get -> bool
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchRequest.WithScores.set -> void
-[SER001]StackExchange.Redis.IDatabase.VectorSetContains(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
-[SER001]StackExchange.Redis.IDatabase.VectorSetDimension(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> int
-[SER001]StackExchange.Redis.IDatabase.VectorSetGetApproximateVector(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<float>?
-[SER001]StackExchange.Redis.IDatabase.VectorSetGetAttributesJson(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string?
-[SER001]StackExchange.Redis.IDatabase.VectorSetGetLinks(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<StackExchange.Redis.RedisValue>?
-[SER001]StackExchange.Redis.IDatabase.VectorSetGetLinksWithScores(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<StackExchange.Redis.VectorSetLink>?
-[SER001]StackExchange.Redis.IDatabase.VectorSetInfo(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.VectorSetInfo?
-[SER001]StackExchange.Redis.IDatabase.VectorSetLength(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
-[SER001]StackExchange.Redis.IDatabase.VectorSetRandomMember(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
-[SER001]StackExchange.Redis.IDatabase.VectorSetRandomMembers(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
-[SER001]StackExchange.Redis.IDatabase.VectorSetRemove(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
-[SER001]StackExchange.Redis.IDatabase.VectorSetSetAttributesJson(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, string! attributesJson, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
-[SER001]StackExchange.Redis.IDatabase.VectorSetSimilaritySearch(StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetSimilaritySearchRequest! query, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<StackExchange.Redis.VectorSetSimilaritySearchResult>?
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetContainsAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetDimensionAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<int>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetGetApproximateVectorAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<float>?>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetGetAttributesJsonAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string?>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetGetLinksAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<StackExchange.Redis.RedisValue>?>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetGetLinksWithScoresAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<StackExchange.Redis.VectorSetLink>?>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetInfoAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.VectorSetInfo?>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetLengthAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetRandomMemberAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetRandomMembersAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetRemoveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetSetAttributesJsonAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, string! attributesJson, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetSimilaritySearchAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetSimilaritySearchRequest! query, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<StackExchange.Redis.VectorSetSimilaritySearchResult>?>!
-[SER001]StackExchange.Redis.VectorSetInfo
-[SER001]StackExchange.Redis.VectorSetInfo.Dimension.get -> int
-[SER001]StackExchange.Redis.VectorSetInfo.HnswMaxNodeUid.get -> long
-[SER001]StackExchange.Redis.VectorSetInfo.Length.get -> long
-[SER001]StackExchange.Redis.VectorSetInfo.MaxLevel.get -> int
-[SER001]StackExchange.Redis.VectorSetInfo.Quantization.get -> StackExchange.Redis.VectorSetQuantization
-[SER001]StackExchange.Redis.VectorSetInfo.QuantizationRaw.get -> string?
-[SER001]StackExchange.Redis.VectorSetInfo.VectorSetInfo() -> void
-[SER001]StackExchange.Redis.VectorSetInfo.VectorSetInfo(StackExchange.Redis.VectorSetQuantization quantization, string? quantizationRaw, int dimension, long length, int maxLevel, long vectorSetUid, long hnswMaxNodeUid) -> void
-[SER001]StackExchange.Redis.VectorSetInfo.VectorSetUid.get -> long
-[SER001]StackExchange.Redis.VectorSetLink
-[SER001]StackExchange.Redis.VectorSetLink.Member.get -> StackExchange.Redis.RedisValue
-[SER001]StackExchange.Redis.VectorSetLink.Score.get -> double
-[SER001]StackExchange.Redis.VectorSetLink.VectorSetLink() -> void
-[SER001]StackExchange.Redis.VectorSetLink.VectorSetLink(StackExchange.Redis.RedisValue member, double score) -> void
-[SER001]StackExchange.Redis.VectorSetQuantization
-[SER001]StackExchange.Redis.VectorSetQuantization.Binary = 3 -> StackExchange.Redis.VectorSetQuantization
-[SER001]StackExchange.Redis.VectorSetQuantization.Int8 = 2 -> StackExchange.Redis.VectorSetQuantization
-[SER001]StackExchange.Redis.VectorSetQuantization.None = 1 -> StackExchange.Redis.VectorSetQuantization
-[SER001]StackExchange.Redis.VectorSetQuantization.Unknown = 0 -> StackExchange.Redis.VectorSetQuantization
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchResult
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchResult.AttributesJson.get -> string?
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchResult.Member.get -> StackExchange.Redis.RedisValue
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchResult.Score.get -> double
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchResult.VectorSetSimilaritySearchResult() -> void
-[SER001]StackExchange.Redis.VectorSetSimilaritySearchResult.VectorSetSimilaritySearchResult(StackExchange.Redis.RedisValue member, double score = NaN, string? attributesJson = null) -> void
-[SER001]static StackExchange.Redis.VectorSetAddRequest.Member(StackExchange.Redis.RedisValue element, System.ReadOnlyMemory<float> values, string? attributesJson = null) -> StackExchange.Redis.VectorSetAddRequest!
-[SER001]static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByMember(StackExchange.Redis.RedisValue member) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
-[SER001]static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByVector(System.ReadOnlyMemory<float> vector) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
+override StackExchange.Redis.VectorSetLink.ToString() -> string!
+override StackExchange.Redis.VectorSetSimilaritySearchResult.ToString() -> string!
+StackExchange.Redis.IDatabase.VectorSetAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetAddRequest! request, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabaseAsync.VectorSetAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetAddRequest! request, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.VectorSetAddRequest
+StackExchange.Redis.VectorSetAddRequest.BuildExplorationFactor.get -> int?
+StackExchange.Redis.VectorSetAddRequest.BuildExplorationFactor.set -> void
+StackExchange.Redis.VectorSetAddRequest.MaxConnections.get -> int?
+StackExchange.Redis.VectorSetAddRequest.MaxConnections.set -> void
+StackExchange.Redis.VectorSetAddRequest.Quantization.get -> StackExchange.Redis.VectorSetQuantization
+StackExchange.Redis.VectorSetAddRequest.Quantization.set -> void
+StackExchange.Redis.VectorSetAddRequest.ReducedDimensions.get -> int?
+StackExchange.Redis.VectorSetAddRequest.ReducedDimensions.set -> void
+StackExchange.Redis.VectorSetAddRequest.UseCheckAndSet.get -> bool
+StackExchange.Redis.VectorSetAddRequest.UseCheckAndSet.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest
+StackExchange.Redis.VectorSetSimilaritySearchRequest.Count.get -> int?
+StackExchange.Redis.VectorSetSimilaritySearchRequest.Count.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest.DisableThreading.get -> bool
+StackExchange.Redis.VectorSetSimilaritySearchRequest.DisableThreading.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest.Epsilon.get -> double?
+StackExchange.Redis.VectorSetSimilaritySearchRequest.Epsilon.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest.FilterExpression.get -> string?
+StackExchange.Redis.VectorSetSimilaritySearchRequest.FilterExpression.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest.MaxFilteringEffort.get -> int?
+StackExchange.Redis.VectorSetSimilaritySearchRequest.MaxFilteringEffort.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest.SearchExplorationFactor.get -> int?
+StackExchange.Redis.VectorSetSimilaritySearchRequest.SearchExplorationFactor.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest.UseExactSearch.get -> bool
+StackExchange.Redis.VectorSetSimilaritySearchRequest.UseExactSearch.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest.WithAttributes.get -> bool
+StackExchange.Redis.VectorSetSimilaritySearchRequest.WithAttributes.set -> void
+StackExchange.Redis.VectorSetSimilaritySearchRequest.WithScores.get -> bool
+StackExchange.Redis.VectorSetSimilaritySearchRequest.WithScores.set -> void
+StackExchange.Redis.IDatabase.VectorSetContains(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabase.VectorSetDimension(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> int
+StackExchange.Redis.IDatabase.VectorSetGetApproximateVector(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<float>?
+StackExchange.Redis.IDatabase.VectorSetGetAttributesJson(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string?
+StackExchange.Redis.IDatabase.VectorSetGetLinks(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<StackExchange.Redis.RedisValue>?
+StackExchange.Redis.IDatabase.VectorSetGetLinksWithScores(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<StackExchange.Redis.VectorSetLink>?
+StackExchange.Redis.IDatabase.VectorSetInfo(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.VectorSetInfo?
+StackExchange.Redis.IDatabase.VectorSetLength(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.VectorSetRandomMember(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+StackExchange.Redis.IDatabase.VectorSetRandomMembers(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
+StackExchange.Redis.IDatabase.VectorSetRemove(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabase.VectorSetSetAttributesJson(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, string! attributesJson, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+StackExchange.Redis.IDatabase.VectorSetSimilaritySearch(StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetSimilaritySearchRequest! query, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<StackExchange.Redis.VectorSetSimilaritySearchResult>?
+StackExchange.Redis.IDatabaseAsync.VectorSetContainsAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IDatabaseAsync.VectorSetDimensionAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<int>!
+StackExchange.Redis.IDatabaseAsync.VectorSetGetApproximateVectorAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<float>?>!
+StackExchange.Redis.IDatabaseAsync.VectorSetGetAttributesJsonAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string?>!
+StackExchange.Redis.IDatabaseAsync.VectorSetGetLinksAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<StackExchange.Redis.RedisValue>?>!
+StackExchange.Redis.IDatabaseAsync.VectorSetGetLinksWithScoresAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<StackExchange.Redis.VectorSetLink>?>!
+StackExchange.Redis.IDatabaseAsync.VectorSetInfoAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.VectorSetInfo?>!
+StackExchange.Redis.IDatabaseAsync.VectorSetLengthAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.VectorSetRandomMemberAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabaseAsync.VectorSetRandomMembersAsync(StackExchange.Redis.RedisKey key, long count, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+StackExchange.Redis.IDatabaseAsync.VectorSetRemoveAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IDatabaseAsync.VectorSetSetAttributesJsonAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, string! attributesJson, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+StackExchange.Redis.IDatabaseAsync.VectorSetSimilaritySearchAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.VectorSetSimilaritySearchRequest! query, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<StackExchange.Redis.VectorSetSimilaritySearchResult>?>!
+StackExchange.Redis.VectorSetInfo
+StackExchange.Redis.VectorSetInfo.Dimension.get -> int
+StackExchange.Redis.VectorSetInfo.HnswMaxNodeUid.get -> long
+StackExchange.Redis.VectorSetInfo.Length.get -> long
+StackExchange.Redis.VectorSetInfo.MaxLevel.get -> int
+StackExchange.Redis.VectorSetInfo.Quantization.get -> StackExchange.Redis.VectorSetQuantization
+StackExchange.Redis.VectorSetInfo.QuantizationRaw.get -> string?
+StackExchange.Redis.VectorSetInfo.VectorSetInfo() -> void
+StackExchange.Redis.VectorSetInfo.VectorSetInfo(StackExchange.Redis.VectorSetQuantization quantization, string? quantizationRaw, int dimension, long length, int maxLevel, long vectorSetUid, long hnswMaxNodeUid) -> void
+StackExchange.Redis.VectorSetInfo.VectorSetUid.get -> long
+StackExchange.Redis.VectorSetLink
+StackExchange.Redis.VectorSetLink.Member.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.VectorSetLink.Score.get -> double
+StackExchange.Redis.VectorSetLink.VectorSetLink() -> void
+StackExchange.Redis.VectorSetLink.VectorSetLink(StackExchange.Redis.RedisValue member, double score) -> void
+StackExchange.Redis.VectorSetQuantization
+StackExchange.Redis.VectorSetQuantization.Binary = 3 -> StackExchange.Redis.VectorSetQuantization
+StackExchange.Redis.VectorSetQuantization.Int8 = 2 -> StackExchange.Redis.VectorSetQuantization
+StackExchange.Redis.VectorSetQuantization.None = 1 -> StackExchange.Redis.VectorSetQuantization
+StackExchange.Redis.VectorSetQuantization.Unknown = 0 -> StackExchange.Redis.VectorSetQuantization
+StackExchange.Redis.VectorSetSimilaritySearchResult
+StackExchange.Redis.VectorSetSimilaritySearchResult.AttributesJson.get -> string?
+StackExchange.Redis.VectorSetSimilaritySearchResult.Member.get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.VectorSetSimilaritySearchResult.Score.get -> double
+StackExchange.Redis.VectorSetSimilaritySearchResult.VectorSetSimilaritySearchResult() -> void
+StackExchange.Redis.VectorSetSimilaritySearchResult.VectorSetSimilaritySearchResult(StackExchange.Redis.RedisValue member, double score = NaN, string? attributesJson = null) -> void
+static StackExchange.Redis.VectorSetAddRequest.Member(StackExchange.Redis.RedisValue element, System.ReadOnlyMemory<float> values, string? attributesJson = null) -> StackExchange.Redis.VectorSetAddRequest!
+static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByMember(StackExchange.Redis.RedisValue member) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
+static StackExchange.Redis.VectorSetSimilaritySearchRequest.ByVector(System.ReadOnlyMemory<float> vector) -> StackExchange.Redis.VectorSetSimilaritySearchRequest!
 StackExchange.Redis.RedisChannel.WithKeyRouting() -> StackExchange.Redis.RedisChannel
 StackExchange.Redis.IDatabase.StreamReadGroup(StackExchange.Redis.StreamPosition[]! streamPositions, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue consumerName, int? countPerStream = null, bool noAck = false, System.TimeSpan? claimMinIdleTime = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisStream[]!
 StackExchange.Redis.IDatabase.StreamReadGroup(StackExchange.Redis.StreamPosition[]! streamPositions, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue consumerName, int? countPerStream, bool noAck, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.RedisStream[]!
@@ -2271,10 +2283,10 @@ StackExchange.Redis.StreamInfo.EntriesAdded.get -> long
 StackExchange.Redis.StreamInfo.MaxDeletedEntryId.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.StreamInfo.RecordedFirstEntryId.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.Lease<T>.IsEmpty.get -> bool
-[SER001]StackExchange.Redis.IDatabase.VectorSetRange(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = -1, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<StackExchange.Redis.RedisValue>!
-[SER001]StackExchange.Redis.IDatabase.VectorSetRangeEnumerate(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = 100, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Collections.Generic.IEnumerable<StackExchange.Redis.RedisValue>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetRangeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = -1, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<StackExchange.Redis.RedisValue>?>!
-[SER001]StackExchange.Redis.IDatabaseAsync.VectorSetRangeEnumerateAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = 100, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Collections.Generic.IAsyncEnumerable<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabase.VectorSetRange(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = -1, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.Lease<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabase.VectorSetRangeEnumerate(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = 100, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Collections.Generic.IEnumerable<StackExchange.Redis.RedisValue>!
+StackExchange.Redis.IDatabaseAsync.VectorSetRangeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = -1, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.Lease<StackExchange.Redis.RedisValue>?>!
+StackExchange.Redis.IDatabaseAsync.VectorSetRangeEnumerateAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue start = default(StackExchange.Redis.RedisValue), StackExchange.Redis.RedisValue end = default(StackExchange.Redis.RedisValue), long count = 100, StackExchange.Redis.Exclude exclude = StackExchange.Redis.Exclude.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Collections.Generic.IAsyncEnumerable<StackExchange.Redis.RedisValue>!
 override StackExchange.Redis.LCSMatchResult.LCSMatch.Equals(object? obj) -> bool
 override StackExchange.Redis.LCSMatchResult.LCSMatch.GetHashCode() -> int
 override StackExchange.Redis.LCSMatchResult.LCSMatch.ToString() -> string!

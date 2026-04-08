@@ -231,7 +231,7 @@ namespace StackExchange.Redis.Server
             return client;
         }
 
-        protected int ForAllClients<TState>(TState state, Func<RedisClient, TState, int> func)
+        public int ForAllClients<TState>(TState state, Func<RedisClient, TState, int> func)
         {
             int count = 0;
             foreach (var client in _clientLookup.Values)
@@ -240,6 +240,14 @@ namespace StackExchange.Redis.Server
             }
             return count;
         }
+
+        public int ForAllClients(Action<RedisClient> action) => ForAllClients(
+            action,
+            static (c, a) =>
+            {
+                a(c);
+                return 1;
+            });
 
         public bool TryGetClient(int id, out RedisClient client) => _clientLookup.TryGetValue(id, out client);
 
@@ -266,6 +274,7 @@ namespace StackExchange.Redis.Server
         {
             if (_isShutdown) throw new InvalidOperationException("The server is shutting down");
         }
+
         protected void DoShutdown(ShutdownReason reason)
         {
             if (_isShutdown) return;
@@ -274,7 +283,11 @@ namespace StackExchange.Redis.Server
             foreach (var client in _clientLookup.Values) client.Dispose();
             _clientLookup.Clear();
             _shutdown.TrySetResult(reason);
+            try { _lifetime.Cancel(); } catch { }
         }
+
+        private readonly CancellationTokenSource _lifetime = new();
+        public CancellationToken Lifetime => _lifetime.Token;
         public Task<ShutdownReason> Shutdown => _shutdown.Task;
         public void Dispose() => Dispose(true);
         protected virtual void Dispose(bool disposing)
@@ -301,7 +314,7 @@ namespace StackExchange.Redis.Server
                 Task output = client.WriteOutputAsync(pipe.Output);
                 while (!client.Closed)
                 {
-                    var readResult = await pipe.Input.ReadAsync().ConfigureAwait(false);
+                    var readResult = await pipe.Input.ReadAsync(client.Lifetime).ConfigureAwait(false);
                     buffer = readResult.Buffer;
 
                     wasReading = true;
@@ -313,8 +326,10 @@ namespace StackExchange.Redis.Server
                         request = request.WithClient(client);
                         var response = Execute(client, request);
 
-                        if (client.ShouldSkipResponse() || response.IsNil) // elective or no-result
+                        bool skipped = client.ShouldSkipResponse();
+                        if (skipped || response.IsNil) // elective or no-result
                         {
+                            if (skipped) OnSkippedReply(client);
                             response.Recycle();
                         }
                         else
@@ -335,6 +350,8 @@ namespace StackExchange.Redis.Server
                 }
                 client.Complete();
                 await output;
+                RemoveClient(client);
+                client = null; // already completed
             }
             catch (ConnectionResetException) { }
             catch (ObjectDisposedException) { }
@@ -365,6 +382,8 @@ namespace StackExchange.Redis.Server
                 }
             }
         }
+
+        protected virtual void OnSkippedReply(RedisClient client) { }
 
         internal static string GetUtf8String(in ReadOnlySequence<byte> buffer)
         {

@@ -1,7 +1,4 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Threading.Tasks;
-using RESPite;
+﻿using System.Threading.Tasks;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis.KeyspaceIsolation;
@@ -9,7 +6,6 @@ namespace StackExchange.Redis.KeyspaceIsolation;
 internal partial class KeyPrefixed<TInner>
 {
     // Vector Set operations - async methods
-    [Experimental(Experiments.VectorSets, UrlFormat = Experiments.UrlFormat)]
     public Task<bool> VectorSetAddAsync(
         RedisKey key,
         VectorSetAddRequest request,

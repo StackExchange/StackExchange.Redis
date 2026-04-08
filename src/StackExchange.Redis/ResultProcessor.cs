@@ -113,6 +113,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<GeoPosition?>
             RedisGeoPosition = new RedisValueGeoPositionProcessor();
 
+        public static readonly ResultProcessor<GcraRateLimitResult>
+            GcraRateLimit = GcraRateLimitResult.Processor;
+
         public static readonly ResultProcessor<TimeSpan>
             ResponseTimer = new TimingProcessor();
 
@@ -867,6 +870,9 @@ namespace StackExchange.Redis
                             }
                             string? primaryHost = null, primaryPort = null;
                             bool roleSeen = false;
+                            ProductVariant productVariant = ProductVariant.Redis;
+                            string productVersion = "";
+
                             using (var reader = new StringReader(info))
                             {
                                 while (reader.ReadLine() is string line)
@@ -876,43 +882,62 @@ namespace StackExchange.Redis
                                         continue;
                                     }
 
-                                    string? val;
-                                    if ((val = Extract(line, "role:")) != null)
+                                    var idx = line.IndexOf(':');
+                                    if (idx < 0) continue;
+
+                                    if (!AutoConfigureInfoFieldMetadata.TryParse(line.AsSpan(0, idx), out AutoConfigureInfoField field))
                                     {
-                                        roleSeen = true;
-                                        if (TryParseRole(val, out bool isReplica))
-                                        {
-                                            server.IsReplica = isReplica;
-                                            Log?.LogInformationAutoConfiguredInfoRole(new(server), isReplica ? "replica" : "primary");
-                                        }
+                                        continue;
                                     }
-                                    else if ((val = Extract(line, "master_host:")) != null)
+                                    var valSpan = line.AsSpan(idx + 1).Trim();
+
+                                    switch (field)
                                     {
-                                        primaryHost = val;
-                                    }
-                                    else if ((val = Extract(line, "master_port:")) != null)
-                                    {
-                                        primaryPort = val;
-                                    }
-                                    else if ((val = Extract(line, "redis_version:")) != null)
-                                    {
-                                        if (Format.TryParseVersion(val, out Version? version))
-                                        {
-                                            server.Version = version;
-                                            Log?.LogInformationAutoConfiguredInfoVersion(new(server), version);
-                                        }
-                                    }
-                                    else if ((val = Extract(line, "redis_mode:")) != null)
-                                    {
-                                        if (TryParseServerType(val, out var serverType))
-                                        {
-                                            server.ServerType = serverType;
-                                            Log?.LogInformationAutoConfiguredInfoServerType(new(server), serverType);
-                                        }
-                                    }
-                                    else if ((val = Extract(line, "run_id:")) != null)
-                                    {
-                                        server.RunId = val;
+                                        case AutoConfigureInfoField.Role:
+                                            roleSeen = true;
+                                            if (KnownRoleMetadata.TryParse(valSpan, out bool isReplica))
+                                            {
+                                                server.IsReplica = isReplica;
+                                                Log?.LogInformationAutoConfiguredInfoRole(new(server), isReplica ? "replica" : "primary");
+                                            }
+                                            break;
+                                        case AutoConfigureInfoField.MasterHost:
+                                            primaryHost = valSpan.ToString();
+                                            break;
+                                        case AutoConfigureInfoField.MasterPort:
+                                            primaryPort = valSpan.ToString();
+                                            break;
+                                        case AutoConfigureInfoField.RedisVersion:
+                                            if (Format.TryParseVersion(valSpan, out Version? version))
+                                            {
+                                                server.Version = version;
+                                                Log?.LogInformationAutoConfiguredInfoVersion(new(server), version);
+                                            }
+                                            if (productVariant is ProductVariant.Redis)
+                                            {
+                                                // if we haven't already decided this is Garnet/Valkey, etc: capture the version string.
+                                                productVersion = valSpan.ToString();
+                                            }
+                                            break;
+                                        case AutoConfigureInfoField.RedisMode:
+                                        case AutoConfigureInfoField.ServerMode:
+                                            if (ServerTypeMetadata.TryParse(valSpan, out var serverType))
+                                            {
+                                                server.ServerType = serverType;
+                                                Log?.LogInformationAutoConfiguredInfoServerType(new(server), serverType);
+                                            }
+                                            break;
+                                        case AutoConfigureInfoField.RunId:
+                                            server.RunId = valSpan.ToString();
+                                            break;
+                                        case AutoConfigureInfoField.GarnetVersion:
+                                            productVariant = ProductVariant.Garnet;
+                                            productVersion = valSpan.ToString();
+                                            break;
+                                        case AutoConfigureInfoField.ValkeyVersion:
+                                            productVariant = ProductVariant.Valkey;
+                                            productVersion = valSpan.ToString();
+                                            break;
                                     }
                                 }
                                 if (roleSeen && Format.TryParseEndPoint(primaryHost!, primaryPort, out var sep))
@@ -920,6 +945,13 @@ namespace StackExchange.Redis
                                     // These are in the same section, if present
                                     server.PrimaryEndPoint = sep;
                                 }
+                            }
+
+                            // Set the product variant and version (this is deferred because there can be
+                            // both redis_version:6.1.2 and whatever_version:12.3.4, in any order).
+                            if (!string.IsNullOrWhiteSpace(productVersion))
+                            {
+                                server.SetProductVariant(productVariant, productVersion);
                             }
                         }
                         else if (message?.Command == RedisCommand.SENTINEL)
@@ -1006,12 +1038,12 @@ namespace StackExchange.Redis
                                     connection.ConnectionId = i64;
                                     Log?.LogInformationAutoConfiguredHelloConnectionId(new(server), i64);
                                 }
-                                else if (key.IsEqual(CommonReplies.mode) && TryParseServerType(val.GetString(), out var serverType))
+                                else if (key.IsEqual(CommonReplies.mode) && ServerTypeMetadata.TryParse(val.GetString(), out var serverType))
                                 {
                                     server.ServerType = serverType;
                                     Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
                                 }
-                                else if (key.IsEqual(CommonReplies.role) && TryParseRole(val.GetString(), out bool isReplica))
+                                else if (key.IsEqual(CommonReplies.role) && KnownRoleMetadata.TryParse(val.GetString(), out bool isReplica))
                                 {
                                     server.IsReplica = isReplica;
                                     Log?.LogInformationAutoConfiguredHelloRole(new(server), isReplica ? "replica" : "primary");
@@ -1027,49 +1059,6 @@ namespace StackExchange.Redis
                         return true;
                 }
                 return false;
-            }
-
-            private static string? Extract(string line, string prefix)
-            {
-                if (line.StartsWith(prefix)) return line.Substring(prefix.Length).Trim();
-                return null;
-            }
-
-            private static bool TryParseServerType(string? val, out ServerType serverType)
-            {
-                switch (val)
-                {
-                    case "standalone":
-                        serverType = ServerType.Standalone;
-                        return true;
-                    case "cluster":
-                        serverType = ServerType.Cluster;
-                        return true;
-                    case "sentinel":
-                        serverType = ServerType.Sentinel;
-                        return true;
-                    default:
-                        serverType = default;
-                        return false;
-                }
-            }
-
-            private static bool TryParseRole(string? val, out bool isReplica)
-            {
-                switch (val)
-                {
-                    case "primary":
-                    case "master":
-                        isReplica = false;
-                        return true;
-                    case "replica":
-                    case "slave":
-                        isReplica = true;
-                        return true;
-                    default:
-                        isReplica = default;
-                        return false;
-                }
             }
 
             internal static ResultProcessor<bool> Create(ILogger? log) => log is null ? AutoConfigure : new AutoConfigureProcessor(log);
@@ -2888,8 +2877,16 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 if (connection.Protocol is null)
                 {
-                    // if we didn't get a valid response from HELLO, then we have to assume RESP2 at some point
+                    // If we didn't get a valid response from HELLO, then we have to assume RESP2 at some point.
+                    // We need the protocol assigned before OnFullyEstablished so that the
+                    // protocol is reliably known *before* we do next-steps.
                     connection.SetProtocol(RedisProtocol.Resp2);
+                }
+
+                if (final & establishConnection)
+                {
+                    // This is what ultimately brings us to complete a connection, by advancing the state forward from a successful tracer after connection.
+                    connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
                 }
 
                 return final;
@@ -2933,11 +2930,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 if (happy)
                 {
-                    if (establishConnection)
-                    {
-                        // This is what ultimately brings us to complete a connection, by advancing the state forward from a successful tracer after connection.
-                        connection.BridgeCouldBeNull?.OnFullyEstablished(connection, $"From command: {message.Command}");
-                    }
                     SetResult(message, happy);
                     return true;
                 }

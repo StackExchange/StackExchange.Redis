@@ -61,7 +61,8 @@ namespace StackExchange.Redis
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
                                    ScriptUnavailableFlag = (CommandFlags)256,
-                                   DemandSubscriptionConnection = (CommandFlags)2048;
+                                   DemandSubscriptionConnection = (CommandFlags)2048,
+                                   HandshakeCompletionFlag = (CommandFlags)4096;
 
         private const CommandFlags MaskPrimaryServerPreference = CommandFlags.DemandMaster
                                                                | CommandFlags.DemandReplica
@@ -720,6 +721,8 @@ namespace StackExchange.Redis
 
         public virtual string CommandString => Command.ToString();
 
+        public bool IsHandshakeCompletion => (Flags & HandshakeCompletionFlag) != 0;
+
         /// <summary>
         /// Sends this command to the subscription connection rather than the interactive.
         /// </summary>
@@ -741,6 +744,8 @@ namespace StackExchange.Redis
             if (value) Flags |= AskingFlag; // the bits giveth
             else Flags &= ~AskingFlag; // and the bits taketh away
         }
+
+        internal void SetHandshakeCompletion() => Flags |= HandshakeCompletionFlag;
 
         internal void SetNoRedirect() => Flags |= CommandFlags.NoRedirect;
 

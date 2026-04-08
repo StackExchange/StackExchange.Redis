@@ -8,7 +8,24 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
+
+## 2.12.14
+
+- Critical fix for high-integrity mode in cluster scenarios ([#3049 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/issues/3049))
+
+## 2.12.8
+
+- Add [`GCRA`](https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm) support (and remove experimental flag on `VSIM`) ([#3041 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3041))
+- Add `IServer.GetProductVariant` to detect the product variant and version of the connected server, and use that internally
+  to enable multi-DB operations on Valkey clusters ([#3040 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3040))
+- Ignore cluster nodes with the `handshake` flag ([#3043 by @TimLovellSmith](https://github.com/StackExchange/StackExchange.Redis/pull/3043))
+
+## 2.12.4
+
+- Fix RESP3 client handshakes on non-RESP3 servers by ([#3037 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3037))
+- Improve detection of connect/handshake failures and how that impacts the retry-policy ([#3038 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3038))
+
 
 ## 2.12.1
 

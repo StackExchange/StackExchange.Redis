@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace StackExchange.Redis;
+﻿namespace StackExchange.Redis;
 
 internal partial class Message
 {

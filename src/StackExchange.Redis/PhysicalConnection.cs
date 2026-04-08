@@ -282,7 +282,7 @@ namespace StackExchange.Redis
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "Trust me yo")]
-        internal void Shutdown()
+        internal void Shutdown(ConnectionFailureType failureType = ConnectionFailureType.ConnectionDisposed)
         {
             var ioPipe = Interlocked.Exchange(ref _ioPipe, null); // compare to the critical read
             var socket = Interlocked.Exchange(ref _socket, null);
@@ -290,7 +290,7 @@ namespace StackExchange.Redis
             if (ioPipe != null)
             {
                 Trace("Disconnecting...");
-                try { BridgeCouldBeNull?.OnDisconnected(ConnectionFailureType.ConnectionDisposed, this, out _, out _); } catch { }
+                try { BridgeCouldBeNull?.OnDisconnected(failureType, this, out _, out _); } catch { }
                 try { ioPipe.Input?.CancelPendingRead(); } catch { }
                 try { ioPipe.Input?.Complete(); } catch { }
                 try { ioPipe.Output?.CancelPendingFlush(); } catch { }
@@ -745,10 +745,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Runs on every heartbeat for a bridge, timing out any commands that are overdue and returning an integer of how many we timed out.
         /// </summary>
-        /// <returns>How many commands were overdue and threw timeout exceptions.</returns>
-        internal int OnBridgeHeartbeat()
+        /// <param name="asyncTimeoutDetected">How many async commands were overdue and threw timeout exceptions.</param>
+        /// <param name="syncTimeoutDetected">How many sync commands were overdue. No exception are thrown for these commands here.</param>
+        internal void OnBridgeHeartbeat(out int asyncTimeoutDetected, out int syncTimeoutDetected)
         {
-            var result = 0;
+            asyncTimeoutDetected = 0;
+            syncTimeoutDetected = 0;
             var now = Environment.TickCount;
             Interlocked.Exchange(ref lastBeatTickCount, now);
 
@@ -775,7 +777,20 @@ namespace StackExchange.Redis
                                 multiplexer.OnMessageFaulted(msg, timeoutEx);
                                 msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
                                 multiplexer.OnAsyncTimeout();
-                                result++;
+                                asyncTimeoutDetected++;
+                            }
+                            else
+                            {
+                                // Only count how many sync timeouts we detect here (do not poke them;
+                                // the actual timeout is handled in ConnectionMultiplexer.ExecuteSyncImpl)
+                                syncTimeoutDetected++;
+
+                                if (msg.IsHandshakeCompletion)
+                                {
+                                    // Critical handshake validation timed out; note that this doesn't have a result-box,
+                                    // so doesn't get timed out via the async path above.
+                                    Shutdown(ConnectionFailureType.UnableToConnect);
+                                }
                             }
                         }
                         else
@@ -790,7 +805,6 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            return result;
         }
 
         internal void OnInternalError(Exception exception, [CallerMemberName] string? origin = null)
@@ -1900,19 +1914,25 @@ namespace StackExchange.Redis
 
             Trace("Response to: " + msg);
             _readStatus = ReadStatus.ComputeResult;
-            if (msg.ComputeResult(this, result))
+
+            // need to capture HIT promptly, as -MOVED could cause a resend with a new high-integrity token
+            // (a lazy approach would be to not rotate, but: we'd rather avoid that; the -MOVED case is rare)
+            var highIntegrityToken = msg.HighIntegrityToken;
+
+            bool computed = msg.ComputeResult(this, result);
+            if (computed)
             {
                 _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
-                if (!msg.IsHighIntegrity)
+                if (highIntegrityToken == 0)
                 {
                     // can't complete yet if needs checksum
                     msg.Complete();
                 }
             }
-            if (msg.IsHighIntegrity)
+            if (highIntegrityToken != 0)
             {
-                // stash this for the next non-OOB response
-                Volatile.Write(ref _awaitingToken, msg);
+                // stash this for the next non-OOB response, retaining the old HIT iff we had a -MOVED etc
+                Volatile.Write(ref _awaitingToken, computed ? msg : new DummyHighIntegrityMessage(msg, highIntegrityToken));
             }
 
             _readStatus = ReadStatus.MatchResultComplete;
@@ -2440,5 +2460,18 @@ namespace StackExchange.Redis
                 if (lockTaken) Monitor.Exit(_writtenAwaitingResponse);
             }
         }
+    }
+
+    internal sealed class DummyHighIntegrityMessage : Message
+    {
+        // note: we don't create this message very often - only when a HIT gets a -MOVED or similar
+        public DummyHighIntegrityMessage(Message msg, uint highIntegrityToken) : base(msg.Db, msg.Flags, msg.Command)
+        {
+            WithHighIntegrity(highIntegrityToken);
+        }
+
+        public override int ArgCount => 0;
+        protected override void WriteImpl(PhysicalConnection physical)
+            => throw new NotSupportedException("This message cannot be written; it is a place-holder for high-integrity scenarios.");
     }
 }

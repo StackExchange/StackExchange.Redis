@@ -8,11 +8,11 @@
         public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/";
 
         // ReSharper disable InconsistentNaming
-        public const string VectorSets = "SER001";
         public const string Server_8_4 = "SER002";
         public const string Server_8_6 = "SER003";
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
+        public const string Server_8_8 = "SER006";
         public const string ActiveActive = "SER007";
         // ReSharper restore InconsistentNaming
     }

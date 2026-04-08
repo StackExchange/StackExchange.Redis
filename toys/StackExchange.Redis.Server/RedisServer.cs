@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using RESPite;
@@ -14,6 +15,8 @@ namespace StackExchange.Redis.Server
 {
     public abstract partial class RedisServer : RespServer
     {
+        public const int DefaultDatabaseCount = 16;
+
         // non-trivial wildcards not implemented yet!
         public static bool IsMatch(string pattern, string key) =>
             pattern == "*" || string.Equals(pattern, key, StringComparison.OrdinalIgnoreCase);
@@ -22,17 +25,7 @@ namespace StackExchange.Redis.Server
 
         public bool TryGetNode(EndPoint endpoint, out Node node) => _nodes.TryGetValue(endpoint, out node);
 
-        public EndPoint DefaultEndPoint
-        {
-            get
-            {
-                foreach (var pair in _nodes)
-                {
-                    return pair.Key;
-                }
-                throw new InvalidOperationException("No endpoints");
-            }
-        }
+        public EndPoint DefaultEndPoint { get; }
 
         public override Node DefaultNode
         {
@@ -77,7 +70,19 @@ namespace StackExchange.Redis.Server
         public bool Migrate(Span<byte> key, EndPoint to) => Migrate(ServerSelectionStrategy.GetClusterSlot(key), to);
         public bool Migrate(in RedisKey key, EndPoint to) => Migrate(GetHashSlot(key), to);
 
-        public EndPoint AddEmptyNode()
+        [Flags]
+        public enum NodeFlags
+        {
+            None = 0, // note: implicitly primary, since no replica flag
+            Replica = 1 << 0,
+            Handshake = 1 << 1,
+            Fail = 1 << 2,
+            PFail = 1 << 3,
+            NoAddress = 1 << 4,
+            NoFailover = 1 << 5,
+        }
+
+        public EndPoint AddEmptyNode(NodeFlags flags = NodeFlags.None)
         {
             EndPoint endpoint;
             Node node;
@@ -112,7 +117,7 @@ namespace StackExchange.Redis.Server
                         break;
                 }
 
-                node = new(this, endpoint);
+                node = new(this, endpoint, flags);
                 node.UpdateSlots([]); // explicit empty range (rather than implicit "all nodes")
             }
             // defensive loop for concurrency
@@ -120,10 +125,10 @@ namespace StackExchange.Redis.Server
             return endpoint;
         }
 
-        protected RedisServer(EndPoint endpoint = null, int databases = 16, TextWriter output = null) : base(output)
+        protected RedisServer(EndPoint endpoint = null, int databases = DefaultDatabaseCount, TextWriter output = null) : base(output)
         {
-            endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
-            _nodes.TryAdd(endpoint, new Node(this, endpoint));
+            DefaultEndPoint = endpoint ??= new IPEndPoint(IPAddress.Loopback, 6379);
+            _nodes.TryAdd(endpoint, new Node(this, endpoint, NodeFlags.None));
             RedisVersion = s_DefaultServerVersion;
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
             Databases = databases;
@@ -158,7 +163,7 @@ namespace StackExchange.Redis.Server
         public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
             var pw = Password;
-            if (pw.Length != 0 & !client.IsAuthenticated)
+            if (!string.IsNullOrEmpty(pw) & !client.IsAuthenticated)
             {
                 if (!IsAuthCommand(request.KnownCommand))
                     return TypedRedisValue.Error("NOAUTH Authentication required.");
@@ -190,6 +195,8 @@ namespace StackExchange.Redis.Server
             return TypedRedisValue.Error("ERR invalid password");
         }
 
+        protected virtual RedisProtocol MaxProtocol => RedisProtocol.Resp3;
+
         [RedisCommand(-1)]
         protected virtual TypedRedisValue Hello(RedisClient client, in RedisRequest request)
         {
@@ -204,12 +211,14 @@ namespace StackExchange.Redis.Server
                     case 2:
                         protocol = RedisProtocol.Resp2;
                         break;
-                    case 3: // this client does not currently support RESP3
+                    case 3:
                         protocol = RedisProtocol.Resp3;
                         break;
                     default:
                         return TypedRedisValue.Error("NOPROTO unsupported protocol version");
                 }
+                protocol = (RedisProtocol)Math.Min((int)protocol, (int)MaxProtocol);
+
                 static TypedRedisValue ArgFail(in RespReader reader) => TypedRedisValue.Error($"ERR Syntax error in HELLO option '{reader.ReadString()}'\"");
 
                 for (int i = 2; i < request.Count; i++)
@@ -246,6 +255,12 @@ namespace StackExchange.Redis.Server
             }
 
             // all good, update client
+            long proto32 = protocol switch
+            {
+                >= RedisProtocol.Resp3 => 3,
+                >= RedisProtocol.Resp2 => 2,
+                _ => throw new InvalidOperationException($"Unexpected protocol: {protocol}"),
+            };
             client.Protocol = protocol;
             client.IsAuthenticated = isAuthed;
             client.Name = name;
@@ -256,11 +271,11 @@ namespace StackExchange.Redis.Server
             span[2] = TypedRedisValue.BulkString("version");
             span[3] = TypedRedisValue.BulkString(VersionString);
             span[4] = TypedRedisValue.BulkString("proto");
-            span[5] = TypedRedisValue.Integer(client.ProtocolVersion);
+            span[5] = TypedRedisValue.Integer(proto32);
             span[6] = TypedRedisValue.BulkString("id");
             span[7] = TypedRedisValue.Integer(client.Id);
             span[8] = TypedRedisValue.BulkString("mode");
-            span[9] = TypedRedisValue.BulkString(ModeString);
+            span[9] = TypedRedisValue.BulkString(ServerModeValue);
             span[10] = TypedRedisValue.BulkString("role");
             span[11] = TypedRedisValue.BulkString("master");
             span[12] = TypedRedisValue.BulkString("modules");
@@ -476,7 +491,16 @@ namespace StackExchange.Redis.Server
                 {
                     sb.Append("myself,");
                 }
-                sb.Append("master - 0 0 1 connected");
+                sb.Append((node.Flags & NodeFlags.Replica) == 0 ? "master" : "slave");
+                if ((node.Flags & NodeFlags.Handshake) != 0)
+                {
+                    sb.Append(",handshake");
+                }
+                if ((node.Flags & NodeFlags.Fail) != 0) sb.Append(",fail");
+                if ((node.Flags & NodeFlags.PFail) != 0) sb.Append(",fail?");
+                if ((node.Flags & NodeFlags.NoAddress) != 0) sb.Append(",noaddr");
+                if ((node.Flags & NodeFlags.NoFailover) != 0) sb.Append(",nofailover");
+                sb.Append(" - 0 0 1 connected");
                 foreach (var range in node.Slots)
                 {
                     sb.Append(" ").Append(range.ToString());
@@ -592,11 +616,13 @@ namespace StackExchange.Redis.Server
 
             private readonly RedisServer _server;
             public RedisServer Server => _server;
-            public Node(RedisServer server, EndPoint endpoint)
+            public NodeFlags Flags { get; }
+            public Node(RedisServer server, EndPoint endpoint, NodeFlags flags)
             {
                 Host = GetHost(endpoint, out var port);
                 Port = port;
                 _server = server;
+                Flags = flags;
             }
 
             public void UpdateSlots(SlotRange[] slots) => _slots = slots;
@@ -1089,7 +1115,7 @@ namespace StackExchange.Redis.Server
         private static readonly Version s_DefaultServerVersion = new(1, 0, 0);
 
         private string _versionString;
-        private string VersionString => _versionString;
+        public string VersionString => _versionString;
         private static string FormatVersion(Version v)
         {
             var sb = new StringBuilder().Append(v.Major).Append('.').Append(v.Minor);
@@ -1112,12 +1138,15 @@ namespace StackExchange.Redis.Server
         public DateTime StartTime { get; set; } = DateTime.UtcNow;
         public ServerType ServerType { get; set; } = ServerType.Standalone;
 
-        private string ModeString => ServerType switch
+        private string ServerModeValue => ServerType switch
         {
             ServerType.Cluster => "cluster",
             ServerType.Sentinel => "sentinel",
             _ => "standalone",
         };
+
+        protected virtual string ServerModeKey => "redis_mode";
+
         protected virtual void Info(StringBuilder sb, string section)
         {
             StringBuilder AddHeader()
@@ -1129,9 +1158,8 @@ namespace StackExchange.Redis.Server
             switch (section)
             {
                 case "Server":
-                    var v = RedisVersion;
                     AddHeader().Append("redis_version:").AppendLine(VersionString)
-                        .Append("redis_mode:").Append(ModeString).AppendLine()
+                        .Append(ServerModeKey).Append(':').Append(ServerModeValue).AppendLine()
                         .Append("os:").Append(Environment.OSVersion).AppendLine()
                         .Append("arch_bits:x").Append(IntPtr.Size * 8).AppendLine();
                     using (var process = Process.GetCurrentProcess())
@@ -1235,8 +1263,20 @@ namespace StackExchange.Redis.Server
             var raw = request.GetValue(1);
             if (!raw.TryParse(out int db)) return TypedRedisValue.Error("ERR invalid DB index");
             if (db < 0 || db >= Databases) return TypedRedisValue.Error("ERR DB index is out of range");
+            if (db != 0 && !SupportMultiDb(out var err)) return TypedRedisValue.Error(err);
             client.Database = db;
             return TypedRedisValue.OK;
+        }
+
+        protected virtual bool SupportMultiDb(out string err)
+        {
+            if (ServerType is ServerType.Cluster)
+            {
+                err = "ERR SELECT is not allowed in cluster mode";
+                return false;
+            }
+            err = "";
+            return true;
         }
 
         private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -1282,6 +1322,10 @@ namespace StackExchange.Redis.Server
         }
 
         public virtual void OnFlush(RedisClient client, int messages, long bytes)
+        {
+        }
+
+        public virtual void OnClientCompleted(RedisClient redisClient, Exception exception)
         {
         }
     }

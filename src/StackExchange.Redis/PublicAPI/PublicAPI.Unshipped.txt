@@ -32,3 +32,8 @@
 [SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.ConnectionGroupMember! member0, StackExchange.Redis.ConnectionGroupMember! member1, StackExchange.Redis.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionGroup!>!
 [SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.ConnectionGroupMember![]! members, StackExchange.Redis.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.IConnectionGroup!>!
 [SER007]static StackExchange.Redis.MultiGroupOptions.Default.get -> StackExchange.Redis.MultiGroupOptions!
+StackExchange.Redis.IServer.GetProductVariant(out string! version) -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Garnet = 2 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Redis = 0 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Valkey = 1 -> StackExchange.Redis.ProductVariant

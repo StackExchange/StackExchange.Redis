@@ -3255,6 +3255,20 @@ namespace StackExchange.Redis
         ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Performs a GCRA (Generic Cell Rate Algorithm) rate limit check on the specified key.
+        /// </summary>
+        /// <param name="key">The key to rate limit.</param>
+        /// <param name="maxBurst">The maximum burst size.</param>
+        /// <param name="requestsPerPeriod">The number of requests allowed per period.</param>
+        /// <param name="periodSeconds">The period duration in seconds. Default is 1.0.</param>
+        /// <param name="count">The number of requests to consume. Default is 1.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A <see cref="GcraRateLimitResult"/> containing the rate limit decision and metadata.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/gcra"/></remarks>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Get the value of key. If the key does not exist the special value <see cref="RedisValue.Null"/> is returned.
         /// An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>

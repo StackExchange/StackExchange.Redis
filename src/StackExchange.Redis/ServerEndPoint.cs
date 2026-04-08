@@ -91,7 +91,12 @@ namespace StackExchange.Redis
         /// This is memoized because it's accessed on hot paths inside the write lock.
         /// </remarks>
         public bool SupportsDatabases =>
-            supportsDatabases ??= serverType == ServerType.Standalone && Multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT);
+            supportsDatabases ??= serverType switch
+            {
+                ServerType.Standalone => true,
+                ServerType.Cluster => _productVariant is ProductVariant.Valkey,
+                _ => false,
+            } && Multiplexer.CommandMap.IsAvailable(RedisCommand.SELECT);
 
         public int Databases
         {
@@ -324,6 +329,8 @@ namespace StackExchange.Redis
                 ServerEndPoint? primary = null;
                 foreach (var node in configuration.Nodes)
                 {
+                    if (node.IgnoreFromClient) continue;
+
                     if (node.NodeId == thisNode.ParentNodeId)
                     {
                         primary = Multiplexer.GetServerEndPoint(node.EndPoint);
@@ -696,13 +703,19 @@ namespace StackExchange.Redis
                     // Clear the unselectable flag ASAP since we are open for business
                     ClearUnselectable(UnselectableFlags.DidNotRespond);
 
-                    bool isResp3 = KnowOrAssumeResp3();
+                    // is *this specific* connection using RESP3? (without reference to config preferences)
+                    bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
                     if (bridge == subscription || isResp3)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
                         // TracerProcessor which is executing this line inside a SetResultCore().
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
+                    }
+                    else if (SupportsSubscriptions && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
+                    {
+                        // interactive, and we wanted RESP3+, but we didn't get it; spin up pub/sub
+                        Activate(ConnectionType.Subscription, null);
                     }
                     if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || isResp3))
                     {
@@ -1069,8 +1082,10 @@ namespace StackExchange.Redis
             }
 
             var tracer = GetTracerMessage(true);
+            tracer.SetHandshakeCompletion();
             tracer = LoggingMessage.Create(log, tracer);
             log?.LogInformationSendingCriticalTracer(new(this), tracer.CommandAndKey);
+            Debug.Assert(tracer.IsHandshakeCompletion, "Tracer message should identify as handshake completion");
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
 
             // Note: this **must** be the last thing on the subscription handshake, because after this
@@ -1138,5 +1153,21 @@ namespace StackExchange.Redis
         }
 
         internal uint LatencyTicks { get; private set; } = uint.MaxValue;
+
+        private ProductVariant _productVariant = ProductVariant.Redis;
+        private string _productVersion = "";
+
+        internal void SetProductVariant(ProductVariant variant, string productVersion)
+        {
+            _productVariant = variant;
+            _productVersion = productVersion;
+            ClearMemoized(); // variant impacts multi-DB rules for cluster
+        }
+
+        internal ProductVariant GetProductVariant(out string productVersion)
+        {
+            productVersion = _productVersion;
+            return _productVariant;
+        }
     }
 }

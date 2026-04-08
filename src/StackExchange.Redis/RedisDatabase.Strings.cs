@@ -1,5 +1,4 @@
-﻿using System;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
@@ -46,6 +45,18 @@ internal partial class RedisDatabase
     {
         var msg = Message.Create(Database, flags, RedisCommand.DIGEST, key);
         return ExecuteAsync(msg, ResultProcessor.Digest);
+    }
+
+    public GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
+    {
+        var msg = new GcraMessage(Database, flags, key, maxBurst, requestsPerPeriod, periodSeconds, count);
+        return ExecuteSync(msg, ResultProcessor.GcraRateLimit);
+    }
+
+    public Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
+    {
+        var msg = new GcraMessage(Database, flags, key, maxBurst, requestsPerPeriod, periodSeconds, count);
+        return ExecuteAsync(msg, ResultProcessor.GcraRateLimit);
     }
 
     public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)

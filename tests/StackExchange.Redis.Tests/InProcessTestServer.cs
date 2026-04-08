@@ -17,7 +17,9 @@ namespace StackExchange.Redis.Tests;
 public class InProcessTestServer : MemoryCacheRedisServer
 {
     private readonly ITestOutputHelper? _log;
-    public InProcessTestServer(ITestOutputHelper? log = null, EndPoint? endpoint = null) : base(endpoint)
+
+    public InProcessTestServer(ITestOutputHelper? log = null, EndPoint? endpoint = null)
+        : base(endpoint)
     {
         RedisVersion = RedisFeatures.v6_0_0; // for client to expect RESP3
         _log = log;
@@ -26,8 +28,8 @@ public class InProcessTestServer : MemoryCacheRedisServer
         Tunnel = new InProcTunnel(this);
     }
 
-    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true /*, WriteMode writeMode = WriteMode.Default */, TextWriter? log = null)
-        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub /*, writeMode */), log);
+    public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, bool defaultOnly = false /*, WriteMode writeMode = WriteMode.Default */, TextWriter? log = null)
+        => ConnectionMultiplexer.ConnectAsync(GetClientConfig(withPubSub, defaultOnly /*, writeMode */), log);
 
     // view request/response highlights in the log
     public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
@@ -59,7 +61,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         return result;
     }
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = true /*, WriteMode writeMode = WriteMode.Default */)
+    public ConfigurationOptions GetClientConfig(bool withPubSub = true, bool defaultOnly = false /*, WriteMode writeMode = WriteMode.Default */)
     {
         var commands = GetCommands();
         if (!withPubSub)
@@ -105,9 +107,16 @@ public class InProcessTestServer : MemoryCacheRedisServer
 #endif
         */
 
-        foreach (var endpoint in GetEndPoints())
+        if (defaultOnly)
         {
-            config.EndPoints.Add(endpoint);
+            config.EndPoints.Add(DefaultEndPoint);
+        }
+        else
+        {
+            foreach (var endpoint in GetEndPoints())
+            {
+                config.EndPoints.Add(endpoint);
+            }
         }
         return config;
     }
@@ -173,6 +182,25 @@ public class InProcessTestServer : MemoryCacheRedisServer
         base.OnClientConnected(client, state);
     }
 
+    public override void OnClientCompleted(RedisClient client, Exception? fault)
+    {
+        if (fault is null)
+        {
+            _log?.WriteLine($"[{client}] completed");
+        }
+        else
+        {
+            _log?.WriteLine($"[{client}] faulted: {fault.Message} ({fault.GetType().Name})");
+        }
+        base.OnClientCompleted(client, fault);
+    }
+
+    protected override void OnSkippedReply(RedisClient client)
+    {
+        _log?.WriteLine($"[{client}] skipped reply");
+        base.OnSkippedReply(client);
+    }
+
     private sealed class InProcTunnel(
         InProcessTestServer server,
         PipeOptions? pipeOptions = null) : Tunnel
@@ -189,7 +217,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             return base.GetSocketConnectEndpointAsync(endpoint, cancellationToken);
         }
 
-        public override ValueTask<Stream?> BeforeAuthenticateAsync(
+        public override async ValueTask<Stream?> BeforeAuthenticateAsync(
             EndPoint endpoint,
             ConnectionType connectionType,
             Socket? socket,
@@ -197,6 +225,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         {
             if (server.TryGetNode(endpoint, out var node))
             {
+                await server.OnAcceptClientAsync(endpoint);
                 var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
@@ -211,9 +240,9 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 var readStream = serverToClient.Reader.AsStream();
                 var writeStream = clientToServer.Writer.AsStream();
                 var clientSide = new DuplexStream(readStream, writeStream);
-                return new(clientSide);
+                return clientSide;
             }
-            return base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
+            return await base.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
         }
 
         private sealed class Duplex(PipeReader input, PipeWriter output) : IDuplexPipe
@@ -229,6 +258,8 @@ public class InProcessTestServer : MemoryCacheRedisServer
             }
         }
     }
+
+    protected virtual ValueTask OnAcceptClientAsync(EndPoint endpoint) => default;
 
     /*
 
