@@ -37,6 +37,9 @@ internal enum AutoConfigureInfoField
 
     [AsciiHash("valkey_version")]
     ValkeyVersion,
+
+    [AsciiHash("server_mode")]
+    ServerMode,
 }
 
 /// <summary>

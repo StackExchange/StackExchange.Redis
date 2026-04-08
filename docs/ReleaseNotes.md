@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
 
 ## 2.12.14
 

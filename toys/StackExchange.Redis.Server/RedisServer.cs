@@ -275,7 +275,7 @@ namespace StackExchange.Redis.Server
             span[6] = TypedRedisValue.BulkString("id");
             span[7] = TypedRedisValue.Integer(client.Id);
             span[8] = TypedRedisValue.BulkString("mode");
-            span[9] = TypedRedisValue.BulkString(ModeString);
+            span[9] = TypedRedisValue.BulkString(ServerModeValue);
             span[10] = TypedRedisValue.BulkString("role");
             span[11] = TypedRedisValue.BulkString("master");
             span[12] = TypedRedisValue.BulkString("modules");
@@ -1138,12 +1138,15 @@ namespace StackExchange.Redis.Server
         public DateTime StartTime { get; set; } = DateTime.UtcNow;
         public ServerType ServerType { get; set; } = ServerType.Standalone;
 
-        private string ModeString => ServerType switch
+        private string ServerModeValue => ServerType switch
         {
             ServerType.Cluster => "cluster",
             ServerType.Sentinel => "sentinel",
             _ => "standalone",
         };
+
+        protected virtual string ServerModeKey => "redis_mode";
+
         protected virtual void Info(StringBuilder sb, string section)
         {
             StringBuilder AddHeader()
@@ -1156,7 +1159,7 @@ namespace StackExchange.Redis.Server
             {
                 case "Server":
                     AddHeader().Append("redis_version:").AppendLine(VersionString)
-                        .Append("redis_mode:").Append(ModeString).AppendLine()
+                        .Append(ServerModeKey).Append(':').Append(ServerModeValue).AppendLine()
                         .Append("os:").Append(Environment.OSVersion).AppendLine()
                         .Append("arch_bits:x").Append(IntPtr.Size * 8).AppendLine();
                     using (var process = Process.GetCurrentProcess())
