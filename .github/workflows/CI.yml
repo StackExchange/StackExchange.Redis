@@ -1,4 +1,5 @@
 name: CI
+run-name: "CI${{ github.event.inputs.client-libs-test-image-tag != '' && format(' using image: {0}', github.event.inputs.client-libs-test-image-tag) || '' }}"
 
 on:
   pull_request:
@@ -8,7 +9,11 @@ on:
       - '**'
       - '!/docs/*' # Don't run workflow when files are only in the /docs directory
   workflow_dispatch:
-
+    inputs:
+      client-libs-test-image-tag:
+        description: 'Tag of the client libs test image to use'
+        required: false
+        default: ''
 jobs:
   main:
     name: StackExchange.Redis (Ubuntu)
@@ -19,9 +24,12 @@ jobs:
     steps:
       - name: Run tests
         uses: ./.github/actions/run-tests
+        with:
+          client-libs-test-image-tag: "${{ github.event.inputs.client-libs-test-image-tag }}"
 
   windows:
     name: StackExchange.Redis (Windows Server 2022)
+    if: github.event.inputs.client-libs-test-image-tag == ''
     runs-on: windows-2022
     env:
       NUGET_CERT_REVOCATION_MODE: offline # Disabling signing because of massive perf hit, see https://github.com/NuGet/Home/issues/11548
