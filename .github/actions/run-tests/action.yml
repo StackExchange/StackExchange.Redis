@@ -71,7 +71,7 @@ runs:
         --results-directory ./test-results/
         /p:CI=true
 
-    - uses: dorny/test-reporter@v1
+    - uses: dorny/test-reporter@v3
       continue-on-error: true
       if: success() || failure()
       with:
