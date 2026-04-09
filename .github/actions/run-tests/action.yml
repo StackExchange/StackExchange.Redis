@@ -1,0 +1,90 @@
+name: 'Run StackExchange.Redis tests'
+description: 'Runs StackExchange.Redis tests using docker compose'
+
+inputs:
+  client-libs-test-image-tag:
+    description: 'Tag of the client libs test image to use'
+    required: false
+    default: ''
+  client-libs-test-image:
+    description: 'Custom client libs test image name to use'
+    required: false
+    default: 'redislabs/client-libs-test'
+  repository:
+    description: 'Git repository to checkout'
+    required: false
+    default: ''
+  ref:
+    description: 'Git ref to checkout'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/checkout@v6
+      with:
+        repository: ${{ inputs.repository }}
+        ref: ${{ inputs.ref }}
+        fetch-depth: 0
+
+    - name: Start Redis Services (docker-compose)
+      shell: bash
+      working-directory: ./tests/RedisConfigs
+      env:
+        INPUT_CLIENT_LIBS_TEST_IMAGE_TAG: ${{ inputs.client-libs-test-image-tag }}
+        INPUT_CLIENT_LIBS_TEST_IMAGE: ${{ inputs.client-libs-test-image }}
+      run: |
+        set -e
+
+        if [ -n "$INPUT_CLIENT_LIBS_TEST_IMAGE_TAG" ]; then
+          if [ -z "$INPUT_CLIENT_LIBS_TEST_IMAGE" ]; then
+            echo "Error: client-libs-test-image is required when client-libs-test-image-tag is set"
+            exit 1
+          fi
+          export CLIENT_LIBS_TEST_IMAGE="$INPUT_CLIENT_LIBS_TEST_IMAGE:$INPUT_CLIENT_LIBS_TEST_IMAGE_TAG"
+          echo "CLIENT_LIBS_TEST_IMAGE=${CLIENT_LIBS_TEST_IMAGE}" >> "$GITHUB_ENV"
+          echo "Using custom client libs test image: ${CLIENT_LIBS_TEST_IMAGE}"
+        fi
+
+        docker compose -f docker-compose.yml up -d --quiet-pull --wait
+
+    - name: Install .NET SDK
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: |
+          6.0.x
+          8.0.x
+          10.0.x
+
+    - name: .NET Build
+      shell: bash
+      run: dotnet build Build.csproj -c Release /p:CI=true
+
+    - name: StackExchange.Redis.Tests
+      shell: bash
+      run: >-
+        dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj
+        -c Release
+        --logger trx
+        --logger "GitHubActions;summary-include-passed=false;summary-include-skipped=false"
+        --results-directory ./test-results/
+        /p:CI=true
+
+    - uses: dorny/test-reporter@v1
+      continue-on-error: true
+      if: success() || failure()
+      with:
+        name: Test Results - Ubuntu
+        path: 'test-results/*.trx'
+        reporter: dotnet-trx
+
+    - name: .NET Lib Pack
+      shell: bash
+      run: >-
+        dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj
+        --no-build
+        -c Release
+        /p:Packing=true
+        /p:PackageOutputPath=%CD%\.nupkgs
+        /p:CI=true
