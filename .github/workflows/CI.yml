@@ -22,6 +22,7 @@ jobs:
       DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: "1" # Enable color output, even though the console output is redirected in Actions
       TERM: xterm # Enable color output in GitHub Actions
     steps:
+      - uses: actions/checkout@v6
       - name: Run tests
         uses: ./.github/actions/run-tests
         with:
