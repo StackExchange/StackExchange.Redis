@@ -160,16 +160,20 @@ public sealed partial class HealthCheck
                     case HealthCheckResult.Healthy: success++; break;
                     case HealthCheckResult.Unhealthy: failure++; break;
                 }
-                HealthCheckProbeContext ctx = new(success, failure, --remaining);
+                HealthCheckProbeContext ctx = new(probeResult, success, failure, --remaining, ProbeInterval);
 
                 // evaluate the policy
-                var policyResult = ProbePolicy.Evaluate(ctx);
+                var policyResult = ProbePolicy.Evaluate(in ctx);
                 if (policyResult != HealthCheckResult.Inconclusive) return policyResult;
 
-                if (probeResult is HealthCheckResult.Unhealthy && remaining > 0)
+                if (remaining > 0)
                 {
                     // delay if appropriate
-                    await Task.Delay(ProbeInterval).ConfigureAwait(false);
+                    var delay = ProbePolicy.GetEffectiveProbeInterval(in ctx);
+                    if (delay > TimeSpan.Zero)
+                    {
+                        await Task.Delay(ctx.ProbeInterval).ConfigureAwait(false);
+                    }
                 }
             }
 

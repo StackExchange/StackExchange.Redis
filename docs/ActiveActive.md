@@ -194,7 +194,268 @@ foreach (var member in conn.GetMembers())
 }
 ```
 
-These are the same instances that were passed into `ConnectGroupAsync`. 
+These are the same instances that were passed into `ConnectGroupAsync`.
+
+## Health Checks
+
+The Active:Active feature includes configurable health checking to monitor the health of all endpoints and automatically route traffic away from unhealthy instances.
+
+### Basic Health Check Configuration
+
+Health checks are configured globally for all members using the `MultiGroupOptions` parameter:
+
+```csharp
+var healthCheck = new HealthCheck
+{
+    Interval = TimeSpan.FromSeconds(10),      // How often to check health
+    ProbeCount = 3,                           // Maximum number of probe attempts per check
+    ProbeTimeout = TimeSpan.FromSeconds(2),   // Timeout for each probe attempt
+    ProbeInterval = TimeSpan.FromSeconds(1),  // Delay between failed probes
+    Probe = HealthCheckProbe.Ping,            // Which probe type to use
+    ProbePolicy = HealthCheckProbePolicy.AnySuccess // Evaluation policy
+};
+
+var options = new MultiGroupOptions
+{
+    DefaultHealthCheck = healthCheck
+};
+
+ConnectionGroupMember[] members = [
+    new("us-east.redis.example.com:6379", name: "US East") { Weight = 10 },
+    new("us-west.redis.example.com:6379", name: "US West") { Weight = 5 }
+];
+
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+```
+
+### Using Default Health Checks
+
+If you don't specify a health check, the system uses sensible defaults:
+
+```csharp
+// Uses default health check settings
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
+
+// Equivalent to:
+var options = new MultiGroupOptions
+{
+    DefaultHealthCheck = HealthCheck.Default
+};
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+```
+
+You can also clone and customize the default:
+
+```csharp
+var customHealthCheck = HealthCheck.Default.Clone();
+customHealthCheck.Interval = TimeSpan.FromSeconds(5);
+customHealthCheck.ProbeCount = 5;
+
+var options = new MultiGroupOptions
+{
+    DefaultHealthCheck = customHealthCheck
+};
+```
+
+### Health Check Properties
+
+The `HealthCheck` class provides several configurable properties:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Interval` | 10 seconds | How frequently health checks are performed |
+| `ProbeCount` | 3 | Number of probe operations to perform per health check |
+| `ProbeTimeout` | 2 seconds | Maximum time allowed for an individual probe to complete |
+| `ProbeInterval` | 1 second | Delay between consecutive failed probes |
+| `Probe` | `Ping` | The probe operation to execute |
+| `ProbePolicy` | `AnySuccess` | Policy for evaluating multiple probe results |
+
+### Built-in Probes
+
+StackExchange.Redis provides several built-in health check probes:
+
+#### HealthCheckProbe.Ping
+
+The simplest probe that executes a `PING` command against the server:
+
+```csharp
+var healthCheck = new HealthCheck
+{
+    Probe = HealthCheckProbe.Ping
+};
+```
+
+This is the default and recommended probe for most scenarios as it's lightweight and tests basic connectivity.
+
+#### HealthCheckProbe.IsConnected
+
+Checks the connection status without sending any commands:
+
+```csharp
+var healthCheck = new HealthCheck
+{
+    Probe = HealthCheckProbe.IsConnected
+};
+```
+
+This is even more lightweight than `Ping` but only verifies the socket connection, not Redis responsiveness.
+
+#### HealthCheckProbe.StringSet
+
+Performs a write operation to verify read/write capability:
+
+```csharp
+var healthCheck = new HealthCheck
+{
+    Probe = HealthCheckProbe.StringSet
+};
+```
+
+This probe writes a random value to a health check key and verifies it can be retrieved. It's more comprehensive but has higher overhead than `Ping`. Note that this probe automatically skips replica servers.
+
+### Health Check Policies
+
+The probe policy determines how multiple probe results are evaluated to determine overall health:
+
+#### HealthCheckProbePolicy.AnySuccess (Default)
+
+The health check passes if **any** probe succeeds. This provides the most lenient evaluation:
+
+```csharp
+var healthCheck = new HealthCheck
+{
+    ProbeCount = 3,
+    ProbePolicy = HealthCheckProbePolicy.AnySuccess
+};
+// Healthy if 1 or more of 3 probes succeed
+```
+
+#### HealthCheckProbePolicy.AllSuccess
+
+The health check passes only if **all** probes succeed. This provides the strictest evaluation:
+
+```csharp
+var healthCheck = new HealthCheck
+{
+    ProbeCount = 3,
+    ProbePolicy = HealthCheckProbePolicy.AllSuccess
+};
+// Healthy only if all 3 probes succeed
+```
+
+#### HealthCheckProbePolicy.MajoritySuccess
+
+The health check passes if a **majority** of probes succeed:
+
+```csharp
+var healthCheck = new HealthCheck
+{
+    ProbeCount = 3,
+    ProbePolicy = HealthCheckProbePolicy.MajoritySuccess
+};
+// Healthy if 2 or more of  probes succeed
+```
+
+### Custom Health Check Probes
+
+You can implement custom health check logic by extending `HealthCheckProbe`. Note that care must be used
+if the probe involves talking to data via a `RedisKey`, as on "cluster" configurations, it must be ensured that the
+key used resolves to the correct server; for this purpose, the `server.InventKey` method can be used:
+
+```csharp
+public abstract class CustomProbe : HealthCheckProbe
+{
+    public override Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server)
+    {
+        // create a random key that routes to the correct server, using
+        // the specified prefix
+        RedisKey key = server.InventKey("health-check/");
+        // ...
+    }
+}
+````
+
+Or more conveniently, the key-specific `KeyWriteHealthCheckProbe` encapsulates this logic: 
+
+```csharp
+public class CustomWriteProbe : KeyWriteHealthCheckProbe
+{
+    public override async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheck healthCheck,
+        IDatabaseAsync database,
+        RedisKey key)
+    {
+        try
+        {
+            var value = Guid.NewGuid().ToString();
+            await database.StringSetAsync(key, value, expiry: healthCheck.ProbeTimeout);
+            bool isMatch = value == await database.StringGetAsync(key);
+
+            return isMatch ? HealthCheckResult.Healthy : HealthCheckResult.Unhealthy;
+        }
+        catch
+        {
+            return HealthCheckResult.Unhealthy;
+        }
+    }
+}
+```
+
+### Custom Probe Policies
+
+In addition to the inbuilt policies, custom policies can be implemented by extending `HealthCheckProbePolicy`.
+By checking the properties of the `HealthCheckProbeContext` parameter, your policy can make a determination
+about the health of the server - returning `HealthCheckResult.Healthy` or `HealthCheckResult.Unhealthy` as
+appropriate. If you return `HealthCheckResult.Inconclusive`, the health check will continue with additional probes.
+
+#### Example: Require at Least N Successes
+
+This example demonstrates a policy that requires at least a specified number of successful probes before declaring the endpoint healthy:
+
+```csharp
+public class AtLeastPolicy(int requiredSuccesses) : HealthCheckProbePolicy
+{
+    public override HealthCheckResult Evaluate(in HealthCheckProbeContext context)
+    {
+        // Success if we have at least the required number of successful probes
+        if (context.Success >= requiredSuccesses) return HealthCheckResult.Healthy;
+
+        // If no more probes remaining, we haven't met our threshold; otherwise: keep trying
+        return context.Remaining == 0 ? HealthCheckResult.Unhealthy : HealthCheckResult.Inconclusive;
+    }
+}
+
+// Use the custom policy requiring at least 2 successes
+var healthCheck = new HealthCheck
+{
+    ProbeCount = 5,  // Need enough probes to allow for the required successes
+    ProbePolicy = new AtLeastPolicy(2)
+};
+
+var options = new MultiGroupOptions
+{
+    DefaultHealthCheck = healthCheck
+};
+```
+
+This policy ensures that transient successes don't immediately mark an endpoint as healthy. It requires at least the specified number of successful probes, which provides better confidence in the endpoint's stability while still being more lenient than `AllSuccess`.
+
+### Health Check Behavior
+
+When a health check fails for a member:
+- The member's `IsConnected` property reflects the unhealthy state
+- Traffic is automatically routed to other healthy members based on weight and latency
+- The system continues to perform health checks on the unhealthy member
+- Once the member recovers and passes health checks, traffic automatically resumes
+
+### Best Practices
+
+1. **Choose appropriate probe types**: Use `Ping` for most scenarios; use `StringSet` when you need to verify write capability
+2. **Balance probe frequency**: More frequent checks provide faster failover but increase load on your Redis servers
+3. **Match policy to requirements**: Use `AnySuccess` for resilience, `AllSuccess` for strict validation, `MajoritySuccess` for balance
+4. **Increase probe count for critical systems**: More probes with `MajoritySuccess` reduces false positives from transient failures
+5. **Set reasonable timeouts**: Ensure `ProbeTimeout` accounts for network latency to your Redis servers
+6. **Consider replica behavior**: Write-based probes automatically skip replicas to avoid false negatives
 
 ## Dynamic Member Management
 

@@ -1,3 +1,5 @@
+using System;
+
 namespace StackExchange.Redis;
 
 public sealed partial class HealthCheck
@@ -13,6 +15,17 @@ public sealed partial class HealthCheck
         /// <param name="context">The state of the probes so far.</param>
         /// <returns>The result of the policy evaluation.</returns>
         public abstract HealthCheckResult Evaluate(in HealthCheckProbeContext context);
+
+        /// <summary>
+        /// Get the interval to wait before the next probe attempt.
+        /// </summary>
+        internal TimeSpan GetEffectiveProbeInterval(in HealthCheckProbeContext context)
+        {
+            // if we make this public / overrideable, we will need to think about the max delay timeout
+
+            // only delay between failures
+            return context.Result is HealthCheckResult.Unhealthy ? context.ProbeInterval : TimeSpan.Zero;
+        }
 
         /// <summary>
         /// Require all probes to succeed.
@@ -37,16 +50,10 @@ public sealed partial class HealthCheck
             public override HealthCheckResult Evaluate(in HealthCheckProbeContext context)
             {
                 // Fail as soon as we have any failure
-                if (context.Failure > 0)
-                {
-                    return HealthCheckResult.Unhealthy;
-                }
+                if (context.Failure > 0) return HealthCheckResult.Unhealthy;
 
                 // Succeed only when all probes have succeeded (no remaining)
-                if (context.Remaining == 0)
-                {
-                    return HealthCheckResult.Healthy;
-                }
+                if (context.Remaining == 0) return HealthCheckResult.Healthy;
 
                 // Can't determine yet
                 return HealthCheckResult.Inconclusive;
@@ -61,16 +68,10 @@ public sealed partial class HealthCheck
             public override HealthCheckResult Evaluate(in HealthCheckProbeContext context)
             {
                 // Succeed as soon as we have any success
-                if (context.Success > 0)
-                {
-                    return HealthCheckResult.Healthy;
-                }
+                if (context.Success > 0) return HealthCheckResult.Healthy;
 
                 // Fail only when all probes have failed (no remaining)
-                if (context.Remaining == 0)
-                {
-                    return HealthCheckResult.Unhealthy;
-                }
+                if (context.Remaining == 0) return HealthCheckResult.Unhealthy;
 
                 // Can't determine yet
                 return HealthCheckResult.Inconclusive;
@@ -88,16 +89,10 @@ public sealed partial class HealthCheck
                 int majority = (total / 2) + 1;
 
                 // Succeed as soon as we have enough successes for a majority
-                if (context.Success >= majority)
-                {
-                    return HealthCheckResult.Healthy;
-                }
+                if (context.Success >= majority) return HealthCheckResult.Healthy;
 
                 // Fail as soon as we have enough failures to make a majority impossible
-                if (context.Failure >= majority)
-                {
-                    return HealthCheckResult.Unhealthy;
-                }
+                if (context.Failure >= majority) return HealthCheckResult.Unhealthy;
 
                 // Can't determine yet
                 return HealthCheckResult.Inconclusive;

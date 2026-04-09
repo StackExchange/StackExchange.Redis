@@ -14,8 +14,10 @@ StackExchange.Redis.HealthCheck.HealthCheckProbe.HealthCheckProbe() -> void
 StackExchange.Redis.HealthCheck.HealthCheckProbeContext
 StackExchange.Redis.HealthCheck.HealthCheckProbeContext.Failure.get -> int
 StackExchange.Redis.HealthCheck.HealthCheckProbeContext.HealthCheckProbeContext() -> void
-StackExchange.Redis.HealthCheck.HealthCheckProbeContext.HealthCheckProbeContext(int success, int failure, int remaining) -> void
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext.HealthCheckProbeContext(StackExchange.Redis.HealthCheck.HealthCheckResult result, int success, int failure, int remaining, System.TimeSpan probeInterval) -> void
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext.ProbeInterval.get -> System.TimeSpan
 StackExchange.Redis.HealthCheck.HealthCheckProbeContext.Remaining.get -> int
+StackExchange.Redis.HealthCheck.HealthCheckProbeContext.Result.get -> StackExchange.Redis.HealthCheck.HealthCheckResult
 StackExchange.Redis.HealthCheck.HealthCheckProbeContext.Success.get -> int
 StackExchange.Redis.HealthCheck.HealthCheckProbePolicy
 StackExchange.Redis.HealthCheck.HealthCheckProbePolicy.HealthCheckProbePolicy() -> void
