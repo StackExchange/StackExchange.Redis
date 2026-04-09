@@ -1,63 +1,39 @@
 using System;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Describes a health check to perform against instances.
 /// </summary>
-public sealed partial class HealthCheck
+public sealed partial class HealthCheck : ICloneable
 {
-    internal HealthCheck(
-        TimeSpan interval,
-        int probeCount,
-        TimeSpan probeTimeout,
-        TimeSpan probeInterval,
-        HealthCheckProbe probe,
-        HealthCheckProbePolicy healthCheckProbePolicy)
+    private static HealthCheck? _default;
+
+    /// <summary>
+    /// The default health check options. These options are immutable and cannot be modified; to customize, either
+    /// use <see cref="Clone"/> to create a mutable copy, or create a new instance - and customize as needed.
+    /// </summary>
+    public static HealthCheck Default => _default ?? CreateDefault();
+
+    private static HealthCheck CreateDefault()
     {
-        Interval = interval;
-        ProbeCount = probeCount;
-        ProbeTimeout = probeTimeout;
-        ProbeInterval = probeInterval;
-        Probe = probe;
-        ProbePolicy = healthCheckProbePolicy;
+        var options = new HealthCheck();
+        options.Freeze();
+        // memoize, preferring to re-use the existing instance if we're competing (but since frozen: that's fine)
+        return Interlocked.CompareExchange(ref _default, options, null) ?? options;
     }
 
-    /// <summary>
-    /// Gets the interval at which health checks should be performed.
-    /// </summary>
-    public TimeSpan Interval { get; }
+    internal void Freeze() => _frozen = true;
+    private bool _frozen;
 
     /// <summary>
-    /// Gets the number of probes to perform for this health check.
+    /// Create a mutable copy of this health check.
     /// </summary>
-    public int ProbeCount { get; }
-
-    /// <summary>
-    /// Gets the time that should be allowed for an individual probe to complete.
-    /// </summary>
-    public TimeSpan ProbeTimeout { get; }
-
-    /// <summary>
-    /// Gets the interval between failed probes.
-    /// </summary>
-    public TimeSpan ProbeInterval { get; }
-
-    /// <summary>
-    /// Gets the probe to use for this health check.
-    /// </summary>
-    public HealthCheckProbe Probe { get; }
-
-    /// <summary>
-    /// Gets the policy to use for this health check.
-    /// </summary>
-    public HealthCheckProbePolicy ProbePolicy { get; }
-
-    /// <summary>
-    /// Create a builder base on this health check.
-    /// </summary>
-    public HealthCheckBuilder Builder() => new()
+    public HealthCheck Clone() => new()
     {
+        // note: do not copy _frozen
         Interval = Interval,
         ProbeCount = ProbeCount,
         ProbeTimeout = ProbeTimeout,
@@ -66,38 +42,81 @@ public sealed partial class HealthCheck
         ProbePolicy = ProbePolicy,
     };
 
+    object ICloneable.Clone() => Clone();
+
     /// <summary>
-    /// Allows configuration of a <see cref="HealthCheck"/>.
+    /// Create a new health check instance.
     /// </summary>
-    public class HealthCheckBuilder
+    public HealthCheck()
     {
-        /// <summary>
-        /// Create a <see cref="HealthCheck"/> from this builder.
-        /// </summary>
-        public HealthCheck Build() => new(
-            Interval,
-            ProbeCount,
-            ProbeTimeout,
-            ProbeInterval,
-            Probe,
-            ProbePolicy);
+        Interval = TimeSpan.FromSeconds(10);
+        ProbeCount = 3;
+        ProbeTimeout = TimeSpan.FromSeconds(2);
+        ProbeInterval = TimeSpan.FromSeconds(1);
+        Probe = HealthCheckProbe.Ping;
+        ProbePolicy = HealthCheckProbePolicy.AnySuccess;
+    }
 
-        /// <inheritdoc cref="HealthCheck.Interval"/>
-        public TimeSpan Interval { get; set; } = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// Gets or sets the interval at which health checks should be performed.
+    /// </summary>
+    public TimeSpan Interval
+    {
+        get;
+        set => SetField(ref field, value);
+    }
 
-        /// <inheritdoc cref="HealthCheck.ProbeCount"/>
-        public int ProbeCount { get; set; } = 3;
+    /// <summary>
+    /// Gets or sets the number of probes to perform for this health check.
+    /// </summary>
+    public int ProbeCount
+    {
+        get;
+        set => SetField(ref field, value);
+    }
 
-        /// <inheritdoc cref="HealthCheck.ProbeTimeout"/>
-        public TimeSpan ProbeTimeout { get; set; } = TimeSpan.FromSeconds(2);
+    /// <summary>
+    /// Gets or sets the time that should be allowed for an individual probe to complete.
+    /// </summary>
+    public TimeSpan ProbeTimeout
+    {
+        get;
+        set => SetField(ref field, value);
+    }
 
-        /// <inheritdoc cref="HealthCheck.ProbeInterval"/>
-        public TimeSpan ProbeInterval { get; set; } = TimeSpan.FromSeconds(1);
+    /// <summary>
+    /// Gets or sets the interval between failed probes.
+    /// </summary>
+    public TimeSpan ProbeInterval
+    {
+        get;
+        set => SetField(ref field, value);
+    }
 
-        /// <inheritdoc cref="HealthCheck.Probe"/>
-        public HealthCheckProbe Probe { get; set; } = HealthCheckProbe.Ping;
+    /// <summary>
+    /// Gets or sets the probe to use for this health check.
+    /// </summary>
+    public HealthCheckProbe Probe
+    {
+        get;
+        set => SetField(ref field, value);
+    }
 
-        /// <inheritdoc cref="HealthCheck.ProbePolicy"/>
-        public HealthCheckProbePolicy ProbePolicy { get; set; } = HealthCheckProbePolicy.AnySuccess;
+    /// <summary>
+    /// Gets or sets the policy to use for this health check.
+    /// </summary>
+    public HealthCheckProbePolicy ProbePolicy
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    // ReSharper disable once RedundantAssignment
+    private void SetField<T>(ref T field, T value, [CallerMemberName] string caller = "")
+    {
+        if (_frozen) Throw(caller);
+        field = value;
+
+        static void Throw(string caller) => throw new InvalidOperationException($"{nameof(HealthCheck)}.{caller} cannot be modified once the object is in use.");
     }
 }

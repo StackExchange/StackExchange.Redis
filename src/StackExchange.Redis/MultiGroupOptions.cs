@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using RESPite;
 
@@ -9,7 +10,7 @@ namespace StackExchange.Redis;
 /// Configuration options for controlling connections to multiple groups.
 /// </summary>
 [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
-public sealed class MultiGroupOptions
+public sealed class MultiGroupOptions()
 {
     private static MultiGroupOptions? _default;
     private bool _frozen;
@@ -27,30 +28,21 @@ public sealed class MultiGroupOptions
     }
 
     /// <summary>
-    /// Create a new options instance.
+    /// The health check to use for members of the group when no per-member health check is specified.
     /// </summary>
-    public MultiGroupOptions()
+    public HealthCheck HealthCheck
     {
-        CheckInterval = TimeSpan.FromSeconds(5);
+        get => field ?? HealthCheck.Default;
+        set => SetField(ref field, value);
     }
 
-    /// <summary>
-    /// The frequency to check the status of the nodes in the group.
-    /// </summary>
-    public TimeSpan CheckInterval
+    // ReSharper disable once RedundantAssignment
+    private void SetField<T>(ref T field, T value, [CallerMemberName] string caller = "")
     {
-        get => field;
-        set
-        {
-            ThrowIfFrozen();
-            field = value;
-        }
-    }
+        if (_frozen) Throw(caller);
+        field = value;
 
-    private void ThrowIfFrozen()
-    {
-        if (_frozen) Throw();
-        static void Throw() => throw new InvalidOperationException($"{nameof(MultiGroupOptions)} is in use and cannot be used.");
+        static void Throw(string caller) => throw new InvalidOperationException($"{nameof(MultiGroupOptions)}.{caller} cannot be modified once the object is in use.");
     }
 
     internal void Freeze() => _frozen = true;

@@ -53,6 +53,12 @@ namespace StackExchange.Redis
 
         public Version Version => server.Version;
 
+        public RedisKey InventKey(RedisKey prefix = default)
+        {
+            var guid = Guid.NewGuid();
+            throw new NotImplementedException();
+        }
+
         public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint));

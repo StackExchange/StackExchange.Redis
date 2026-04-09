@@ -761,6 +761,7 @@ namespace StackExchange.Redis
         public int WriteBuffer
         {
             get => 0;
+            // ReSharper disable once ValueParameterNotUsed
             set { }
         }
 

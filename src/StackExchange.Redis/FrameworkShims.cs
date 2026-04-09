@@ -28,7 +28,6 @@ namespace System.Runtime.CompilerServices
 #endif
 
 #if !NET
-
 namespace System.Text
 {
     internal static class EncodingExtensions

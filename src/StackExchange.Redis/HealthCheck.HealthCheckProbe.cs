@@ -14,14 +14,24 @@ public sealed partial class HealthCheck
         /// <summary>
         /// Check the health of the specified endpoint.
         /// </summary>
-        public abstract Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IConnectionMultiplexer multiplexer, EndPoint endpoint);
+        public abstract Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server);
 
-        private static Task<HealthCheckResult>? _inconclusive;
+        private static Task<HealthCheckResult>? _inconclusive, _healthy, _unhealthy;
 
         /// <summary>
-        /// Reports a probe that was skipped without being evaluated.
+        /// Reports a memoized probe that was skipped without being evaluated.
         /// </summary>
-        protected static Task<HealthCheckResult> Inconclusive => _inconclusive ??= Task.FromResult(HealthCheckResult.Inconclusive);
+        protected internal static Task<HealthCheckResult> InconclusiveTask => _inconclusive ??= Task.FromResult(HealthCheckResult.Inconclusive);
+
+        /// <summary>
+        /// Reports a memoized probe that was healthy.
+        /// </summary>
+        protected internal static Task<HealthCheckResult> HealthyTask => _healthy ??= Task.FromResult(HealthCheckResult.Healthy);
+
+        /// <summary>
+        /// Reports a memoized probe that was unhealthy.
+        /// </summary>
+        protected internal static Task<HealthCheckResult> UnhealthyTask => _unhealthy ??= Task.FromResult(HealthCheckResult.Unhealthy);
     }
 
     /// <summary>
@@ -30,15 +40,14 @@ public sealed partial class HealthCheck
     public abstract class KeyWriteHealthCheckProbe : HealthCheckProbe
     {
         /// <inheritdoc/>
-        public override Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IConnectionMultiplexer multiplexer, EndPoint endpoint)
+        public override Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server)
         {
-            var server = multiplexer.GetServer(endpoint);
-            if (server.IsReplica) return Inconclusive;
+            if (server.IsReplica) return InconclusiveTask;
 
-            RedisKey key = server.InventKey("health-check/"u8);
-            if (key.IsNull) return Inconclusive;
-            Debug.Assert(multiplexer.GetServer(key).EndPoint == endpoint, "Key was not routed to the correct endpoint");
-            return CheckHealthAsync(healthCheck, multiplexer.GetDatabase(), key);
+            RedisKey key = server.InventKey("health-check/");
+            if (key.IsNull) return InconclusiveTask;
+            Debug.Assert(server.Multiplexer.GetServer(key).EndPoint == server.EndPoint, "Key was not routed to the correct endpoint");
+            return CheckHealthAsync(healthCheck, server.Multiplexer.GetDatabase(), key);
         }
 
         /// <summary>

@@ -18,9 +18,8 @@ public sealed partial class HealthCheck
         public static PingProbe Instance { get; } = new();
         private PingProbe() { }
 
-        public override async Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IConnectionMultiplexer multiplexer, EndPoint endpoint)
+        public override async Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server)
         {
-            var server = multiplexer.GetServer(endpoint);
             await server.PingAsync();
             return HealthCheckResult.Healthy;
         }

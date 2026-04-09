@@ -183,12 +183,12 @@ public sealed partial class ConnectionGroupMember(ConfigurationOptions configura
         return xl <= yl ? x : y;
     }
 
-    internal GroupConnectionChangedEventArgs.ChangeType UpdateState()
+    internal GroupConnectionChangedEventArgs.ChangeType UpdateState(HealthCheck.HealthCheckResult result)
     {
         bool isConnected;
         if (_muxer is { IsConnected: true } muxer)
         {
-            isConnected = true;
+            isConnected = result is HealthCheck.HealthCheckResult.Healthy;
             SetLatency(muxer.UpdateLatency());
         }
         else
@@ -286,7 +286,11 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
             members[i].SetMultiplexer(muxer);
         }
 
-        return new MultiGroupMultiplexer(members, options);
+        // run initial healthcheck and begin
+        var result = new MultiGroupMultiplexer(members, options);
+        await TryHealthCheckAndSelectPreferredGroupAsync(result).ForAwait();
+        result.StartPolling();
+        return result;
     }
 
     private readonly MultiGroupOptions _options;
@@ -295,8 +299,25 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         _options = options;
         _members = members;
         _active = null;
-        SelectPreferredGroup();
-        StartPolling();
+    }
+
+    internal static async Task<bool> TryHealthCheckAndSelectPreferredGroupAsync(object? target)
+    {
+        if (target is MultiGroupMultiplexer typed)
+        {
+            try
+            {
+                if (typed.IsDisposed) return false;
+                await typed.RunHealthCheckAsync().ForAwait();
+                typed.SelectPreferredGroup();
+            }
+            catch (Exception ex)
+            {
+                typed.OnInternalError(ex, origin: "update group");
+            }
+            return true; // even if we fault: try again
+        }
+        return false;
     }
 
     private void StartPolling()
@@ -306,44 +327,65 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
 
         static async Task PollAsync(WeakReference weakRef)
         {
-            while (TryGetDelay(weakRef, out var interval))
+            while (TryGetHealthCheck(weakRef.Target, out var interval))
             {
-                await Task.Delay(interval).ConfigureAwait(false);
-                if (!TrySelectPreferredGroup(weakRef)) break;
+                await Task.Delay(interval).ForAwait();
+                if (!await TryHealthCheckAndSelectPreferredGroupAsync(weakRef.Target).ForAwait()) break;
             }
         }
 
-        static bool TryGetDelay(WeakReference weakRef, out TimeSpan interval)
+        static bool TryGetHealthCheck(object? target, out TimeSpan interval)
         {
-            if (weakRef.Target is MultiGroupMultiplexer typed)
+            if (target is MultiGroupMultiplexer typed
+                && typed._options.HealthCheck is { } healthCheck)
             {
-                interval = typed._options.CheckInterval;
+                interval = healthCheck.Interval;
                 return interval > TimeSpan.Zero & interval != TimeSpan.MaxValue;
             }
 
             interval = TimeSpan.Zero;
             return false;
         }
-        static bool TrySelectPreferredGroup(WeakReference weakRef)
-        {
-            if (weakRef.Target is MultiGroupMultiplexer typed)
-            {
-                try
-                {
-                    if (typed.IsDisposed) return false;
-                    typed.SelectPreferredGroup();
-                }
-                catch (Exception ex)
-                {
-                    typed.OnInternalError(ex, origin: "update group");
-                }
-                return true; // even if we fault: try again
-            }
-            return false;
-        }
     }
 
     internal bool IsDisposed => _disposed;
+
+    private Task<HealthCheck.HealthCheckResult>[]? _reusableHealthCheckBuffer;
+
+    internal async Task RunHealthCheckAsync()
+    {
+        if (_disposed) return;
+        var healthCheck = _options.HealthCheck;
+        var members = _members;
+        var pending = HealthCheck.GetReusablePending(ref _reusableHealthCheckBuffer, members.Length);
+        for (int i = 0; i < members.Length; i++)
+        {
+            pending[i] = healthCheck.CheckHealthAsync(members[i].Multiplexer);
+        }
+
+        await Task.WhenAll(pending).TimeoutAfter(healthCheck.TotalTimeoutMillis()).ForAwait();
+        for (int i = 0; i < pending.Length; i++)
+        {
+            HealthCheck.HealthCheckResult result;
+            if (pending[i].IsCompletedSuccessfully)
+            {
+                result = await pending[i].ForAwait();
+            }
+            else
+            {
+                _ = pending[i].ObserveErrors();
+                result = HealthCheck.HealthCheckResult.Unhealthy;
+            }
+
+            var delta = members[i].UpdateState(result);
+            if (delta != GroupConnectionChangedEventArgs.ChangeType.Unknown)
+            {
+                OnConnectionChanged(delta, members[i]);
+            }
+        }
+
+        HealthCheck.PutReusablePending(ref _reusableHealthCheckBuffer, ref pending);
+    }
 
     internal void SelectPreferredGroup()
     {
@@ -351,15 +393,6 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         var previousMuxer = _active;
         ConnectionGroupMember? preferredMember = null, previousMember = null;
         var members = _members;
-        foreach (var member in _members)
-        {
-            var delta = member.UpdateState();
-            if (delta != GroupConnectionChangedEventArgs.ChangeType.Unknown)
-            {
-                OnConnectionChanged(delta, member);
-            }
-        }
-
         foreach (var member in members)
         {
             if (previousMember is null && ReferenceEquals(member.Multiplexer, previousMuxer))
@@ -963,6 +996,8 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         member.Configuration.HeartbeatConsistencyChecks = true;
         var muxer = await ConnectionMultiplexer.ConnectAsync(member.Configuration, log).ConfigureAwait(false);
         member.SetMultiplexer(muxer);
+        var health = await _options.HealthCheck.CheckHealthAsync(muxer).ConfigureAwait(false);
+        member.UpdateState(health);
 
         // apply any shared hooks
         AddEventHandlers(muxer);
