@@ -4,6 +4,8 @@ services:
   redis:
     build:
       context: .docker/Redis
+      args:
+        CLIENT_LIBS_TEST_IMAGE: ${CLIENT_LIBS_TEST_IMAGE:-redislabs/client-libs-test:unstable-23321515778-debian}
       additional_contexts:
          configs: .
     platform: linux
