@@ -188,7 +188,7 @@ public sealed partial class ConnectionGroupMember(ConfigurationOptions configura
         bool isConnected;
         if (_muxer is { IsConnected: true } muxer)
         {
-            isConnected = result is HealthCheck.HealthCheckResult.Healthy;
+            isConnected = result is not HealthCheck.HealthCheckResult.Unhealthy;
             SetLatency(muxer.UpdateLatency());
         }
         else
