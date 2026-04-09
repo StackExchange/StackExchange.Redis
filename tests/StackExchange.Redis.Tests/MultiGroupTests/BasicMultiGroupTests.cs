@@ -91,23 +91,48 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
     }
     protected TextWriter Log { get; } = new TextWriterOutputHelper(log);
 
-    [Fact]
-    public async Task SelectByWeight()
+    public enum InbuiltProbe
     {
+        IsConnected,
+        Ping,
+        StringSet,
+    }
+
+    [Theory]
+    [InlineData(InbuiltProbe.IsConnected, ServerType.Standalone)]
+    [InlineData(InbuiltProbe.Ping, ServerType.Standalone)]
+    [InlineData(InbuiltProbe.StringSet, ServerType.Standalone)]
+    [InlineData(InbuiltProbe.IsConnected, ServerType.Cluster)]
+    [InlineData(InbuiltProbe.Ping, ServerType.Cluster)]
+    [InlineData(InbuiltProbe.StringSet, ServerType.Cluster)]
+    public async Task SelectByWeight(InbuiltProbe probe, ServerType serverType)
+    {
+        var healthCheck = new HealthCheck
+        {
+            Probe = probe switch
+            {
+                InbuiltProbe.IsConnected => HealthCheck.HealthCheckProbe.IsConnected,
+                InbuiltProbe.Ping => HealthCheck.HealthCheckProbe.Ping,
+                InbuiltProbe.StringSet => HealthCheck.HealthCheckProbe.StringSet,
+                _ => throw new ArgumentOutOfRangeException(nameof(probe)),
+            },
+        };
+
         EndPoint germany = new DnsEndPoint("germany", 6379);
         EndPoint canada = new DnsEndPoint("canada", 6379);
         EndPoint tokyo = new DnsEndPoint("tokyo", 6379);
 
-        using var server0 = new InProcessTestServer(log, endpoint: germany);
-        using var server1 = new InProcessTestServer(log, endpoint: canada);
-        using var server2 = new InProcessTestServer(log, endpoint: tokyo);
+        using var server0 = new InProcessTestServer(log, endpoint: germany) { ServerType = serverType };
+        using var server1 = new InProcessTestServer(log, endpoint: canada) { ServerType = serverType };
+        using var server2 = new InProcessTestServer(log, endpoint: tokyo) { ServerType = serverType };
 
         ConnectionGroupMember[] members = [
             new(server0.GetClientConfig()) { Weight = 2 },
             new(server1.GetClientConfig()) { Weight = 9 },
             new(server2.GetClientConfig()) { Weight = 3 },
         ];
-        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
+        var options = new MultiGroupOptions { HealthCheck = healthCheck };
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
         Assert.True(conn.IsConnected);
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
 
