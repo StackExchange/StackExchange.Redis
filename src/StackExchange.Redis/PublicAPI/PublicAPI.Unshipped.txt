@@ -72,10 +72,11 @@ static StackExchange.Redis.HealthCheck.HealthCheckProbePolicy.MajoritySuccess.ge
 [SER007]StackExchange.Redis.GroupConnectionChangedEventArgs.PreviousGroup.get -> StackExchange.Redis.ConnectionGroupMember?
 [SER007]StackExchange.Redis.GroupConnectionChangedEventArgs.Type.get -> StackExchange.Redis.GroupConnectionChangedEventArgs.ChangeType
 [SER007]StackExchange.Redis.IConnectionGroup
-[SER007]StackExchange.Redis.IConnectionGroup.AddAsync(StackExchange.Redis.ConnectionGroupMember! group, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task!
+[SER007]StackExchange.Redis.IConnectionGroup.AddAsync(StackExchange.Redis.ConnectionGroupMember! member, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task!
 [SER007]StackExchange.Redis.IConnectionGroup.ConnectionChanged -> System.EventHandler<StackExchange.Redis.GroupConnectionChangedEventArgs!>?
 [SER007]StackExchange.Redis.IConnectionGroup.GetMembers() -> System.ReadOnlySpan<StackExchange.Redis.ConnectionGroupMember!>
-[SER007]StackExchange.Redis.IConnectionGroup.Remove(StackExchange.Redis.ConnectionGroupMember! group) -> bool
+[SER007]StackExchange.Redis.IConnectionGroup.Remove(StackExchange.Redis.ConnectionGroupMember! member) -> bool
+[SER007]StackExchange.Redis.IConnectionGroup.TryFailoverTo(StackExchange.Redis.ConnectionGroupMember? member) -> bool
 [SER007]StackExchange.Redis.MultiGroupOptions
 [SER007]StackExchange.Redis.MultiGroupOptions.HealthCheck.get -> StackExchange.Redis.HealthCheck!
 [SER007]StackExchange.Redis.MultiGroupOptions.HealthCheck.set -> void

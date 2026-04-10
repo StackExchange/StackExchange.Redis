@@ -24,12 +24,21 @@ public interface IConnectionGroup : IConnectionMultiplexer
     /// <summary>
     /// Adds a new member to the group.
     /// </summary>
-    Task AddAsync(ConnectionGroupMember group, TextWriter? log = null);
+    Task AddAsync(ConnectionGroupMember member, TextWriter? log = null);
+
+    /// <summary>
+    /// Attempt to explicitly switch to the specified member, or remove an explicit failover if <paramref name="member"/> is <see langword="null"/>.
+    /// A member specified via this method will be preferred over other members (ignoring <see cref="ConnectionGroupMember.Weight"/> and <see cref="ConnectionGroupMember.Latency"/>)
+    /// until the failover is removed, or the connection is no longer reachable.
+    /// </summary>
+    /// <param name="member">The member to switch to, or <see langword="null"/> to remove an explicit failover.</param>
+    /// <returns><see langword="true"/> if the failover was successful (i.e. the member can be used), <see langword="false"/> otherwise.</returns>
+    bool TryFailoverTo(ConnectionGroupMember? member);
 
     /// <summary>
     /// Removes a member from the group.
     /// </summary>
-    bool Remove(ConnectionGroupMember group);
+    bool Remove(ConnectionGroupMember member);
 
     /// <summary>
     /// Get the members of the group.

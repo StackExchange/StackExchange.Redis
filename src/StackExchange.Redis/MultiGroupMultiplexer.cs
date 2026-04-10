@@ -141,6 +141,8 @@ public sealed partial class ConnectionGroupMember(ConfigurationOptions configura
         set => Interlocked.Exchange(ref _weight64, BitConverter.DoubleToInt64Bits(value));
     }
 
+    internal bool ExplicitOverride { get; set; }
+
     private long _weight64 = BitConverter.DoubleToInt64Bits(1.0);
 
     /// <summary>
@@ -171,6 +173,11 @@ public sealed partial class ConnectionGroupMember(ConfigurationOptions configura
 
         // always prefer a connected endpoint
         bool xc = x.IsConnected, yc = y.IsConnected;
+        if (xc != yc) return xc ? x : y;
+
+        // prefer manual override if only one is overridden
+        xc = x.ExplicitOverride;
+        yc = y.ExplicitOverride;
         if (xc != yc) return xc ? x : y;
 
         // prefer higher weight
@@ -1027,7 +1034,53 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         await AddPubSubHandlersAsync(member).ConfigureAwait(false);
     }
 
-    public bool Remove(ConnectionGroupMember group)
+    public bool TryFailoverTo(ConnectionGroupMember? member)
+    {
+        if (member is null)
+        {
+            // remove any explicit overrides, returning whether that was an actual change
+            bool result = false;
+            foreach (var m in _members)
+            {
+                if (m.ExplicitOverride)
+                {
+                    result = true; // someone was explicitly enabled
+                    m.ExplicitOverride = false;
+                }
+            }
+            SelectPreferredGroup();
+            return result;
+        }
+
+        var members = _members;
+        if (!members.Contains(member))
+        {
+            // not one of ours?
+            return false;
+        }
+
+        if (!member.IsConnected)
+        {
+            // not allowed
+            return false;
+        }
+
+        if (member.ExplicitOverride)
+        {
+            // already preferred; no change, but report as success
+            return true;
+        }
+
+        // otherwise, deselect everyone else, and select this one
+        foreach (var m in members)
+        {
+            m.ExplicitOverride = ReferenceEquals(m, member);
+        }
+        SelectPreferredGroup();
+        return true;
+    }
+
+    public bool Remove(ConnectionGroupMember member)
     {
         while (true)
         {
@@ -1035,7 +1088,7 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
             int index = -1;
             for (int i = 0; i < arr.Length; i++)
             {
-                if (ReferenceEquals(arr[i], group))
+                if (ReferenceEquals(arr[i], member))
                 {
                     index = i;
                     break;
@@ -1049,9 +1102,9 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
             if (Interlocked.CompareExchange(ref _members, newArr, arr) == arr) break;
         }
 
-        var muxer = group.ClearMultiplexer();
+        var muxer = member.ClearMultiplexer();
         RemoveEventHandlers(muxer);
-        OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Removed, group);
+        OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Removed, member);
         SelectPreferredGroup();
         muxer?.Dispose();
         return true;

@@ -457,6 +457,126 @@ When a health check fails for a member:
 5. **Set reasonable timeouts**: Ensure `ProbeTimeout` accounts for network latency to your Redis servers
 6. **Consider replica behavior**: Write-based probes automatically skip replicas to avoid false negatives
 
+## Manual Failover
+
+In some scenarios, you may need to manually control which member is actively serving traffic, overriding the automatic selection based on weight and latency. The `TryFailoverTo` method allows you to explicitly switch to a specific member or restore automatic selection.
+
+### Basic Failover to a Specific Member
+
+```csharp
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
+
+// Get the members to find the one you want to fail over to
+var groupMembers = conn.GetMembers();
+var targetMember = groupMembers.FirstOrDefault(m => m.Name == "US West");
+
+if (targetMember != null)
+{
+    // Attempt to fail over to the specified member
+    bool success = conn.TryFailoverTo(targetMember);
+
+    if (success)
+    {
+        Console.WriteLine($"Successfully failed over to {targetMember.Name}");
+    }
+    else
+    {
+        Console.WriteLine($"Failed to fail over to {targetMember.Name} (member may be disconnected)");
+    }
+}
+```
+
+### Restore Automatic Selection
+
+To remove an explicit failover and return to automatic member selection based on weight and latency:
+
+```csharp
+// Pass null to remove the explicit failover
+bool hadExplicitFailover = conn.TryFailoverTo(null);
+
+if (hadExplicitFailover)
+{
+    Console.WriteLine("Removed explicit failover, now using automatic selection");
+}
+else
+{
+    Console.WriteLine("No explicit failover was active");
+}
+```
+
+### Failover Behavior
+
+The `TryFailoverTo` method has the following behavior:
+
+- **Returns `true`**: The failover was successful and the specified member is now active (or an explicit override was successfully removed)
+- **Returns `false`**: The failover failed because:
+  - The member is not connected
+  - The member is not part of this connection group
+
+When an explicit failover is active:
+- The specified member will be preferred for all traffic
+- Weight and latency are ignored for member selection
+- If the explicitly selected member becomes unavailable, the system automatically falls back to other connected members
+- Health checks continue to run on all members
+
+### Example: Maintenance Mode
+
+This is particularly useful when performing maintenance on one region and you want to temporarily route all traffic to another:
+
+```csharp
+var members = new ConnectionGroupMember[]
+{
+    new("us-east.redis.example.com:6379", name: "US East") { Weight = 100 },
+    new("us-west.redis.example.com:6379", name: "US West") { Weight = 100 }
+};
+
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
+
+// During maintenance on US East, explicitly route to US West
+var westMember = conn.GetMembers().First(m => m.Name == "US West");
+if (conn.TryFailoverTo(westMember))
+{
+    Console.WriteLine("Traffic now routed to US West for maintenance");
+}
+
+// ... perform maintenance on US East ...
+
+// After maintenance, restore automatic selection
+if (conn.TryFailoverTo(null))
+{
+    Console.WriteLine("Maintenance complete, automatic selection restored");
+}
+```
+
+### Example: Monitoring Failover Events
+
+You can monitor when failovers occur using the `ConnectionChanged` event:
+
+```csharp
+conn.ConnectionChanged += (sender, args) =>
+{
+    if (args.Type == GroupConnectionChangedEventArgs.ChangeType.ActiveChanged)
+    {
+        Console.WriteLine($"Active member changed from {args.PreviousGroup?.Name ?? "none"} to {args.Group.Name}");
+    }
+};
+
+// Trigger an explicit failover
+var member = conn.GetMembers().First(m => m.Name == "Backup");
+conn.TryFailoverTo(member);
+// Event will fire: "Active member changed from Primary to Backup"
+```
+
+### Important Notes
+
+1. **Connection Required**: You can only fail over to a member that is currently connected (`IsConnected == true`)
+2. **Temporary Override**: The explicit failover persists until:
+   - You call `TryFailoverTo(null)` to remove it
+   - The connection group is disposed
+   - The explicitly selected member becomes disconnected (automatic fallback occurs)
+3. **Not Persistent**: Explicit failovers are not persisted across application restarts
+4. **Thread-Safe**: `TryFailoverTo` is thread-safe and can be called concurrently with normal operations
+
 ## Dynamic Member Management
 
 You can add or remove members dynamically using the `IConnectionGroup` interface:
