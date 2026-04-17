@@ -250,20 +250,26 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         }
     }
 
+    private ConnectionGroupMember? GetActiveMember()
+    {
+        var active = _active;
+        foreach (var member in _members)
+        {
+            if (ReferenceEquals(active, member.Multiplexer))
+            {
+                return member;
+            }
+        }
+
+        return null;
+    }
+    ConnectionGroupMember? IConnectionGroup.ActiveMember => GetActiveMember();
+
     internal ConnectionGroupMember ActiveMember
     {
         get
         {
-            var active = _active;
-            foreach (var member in _members)
-            {
-                if (ReferenceEquals(active, member.Multiplexer))
-                {
-                    return member;
-                }
-            }
-
-            return Throw();
+            return GetActiveMember() ?? Throw();
 
             [DoesNotReturn]
             static ConnectionGroupMember Throw() =>

@@ -44,6 +44,11 @@ public interface IConnectionGroup : IConnectionMultiplexer
     /// Get the members of the group.
     /// </summary>
     ReadOnlySpan<ConnectionGroupMember> GetMembers();
+
+    /// <summary>
+    /// Gets the currently active member.
+    /// </summary>
+    ConnectionGroupMember? ActiveMember { get; }
 }
 
 /// <summary>

@@ -3,4 +3,8 @@
   //"PrimaryServer": "[::1]",
   //"ReplicaServer": "[::1]",
   //"SecureServer": "[::1]"
+  //"ActiveActiveEndpoints": [
+  //  "somewhere,password=sssshhh",
+  //  "somewhereElse,password=sssshhh"
+  //]
 }
