@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -34,7 +35,7 @@ public sealed class ChannelMessageQueue : IAsyncEnumerable<ChannelMessage>
     /// </summary>
     public Task Completion => _queue.Reader.Completion;
 
-    internal ChannelMessageQueue(in RedisChannel redisChannel, RedisSubscriber parent)
+    internal ChannelMessageQueue(in RedisChannel redisChannel, RedisSubscriber? parent)
     {
         Channel = redisChannel;
         _parent = parent;
@@ -48,8 +49,22 @@ public sealed class ChannelMessageQueue : IAsyncEnumerable<ChannelMessage>
 
     private void Write(in RedisChannel channel, in RedisValue value)
     {
-        var writer = _queue.Writer;
-        writer.TryWrite(new ChannelMessage(this, channel, value));
+        try
+        {
+            _queue.Writer.TryWrite(new ChannelMessage(this, channel, value));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine("pub/sub ChannelWrite.TryWrite failed: " + ex.Message);
+        }
+    }
+
+    internal void SynchronizedWrite(in RedisChannel channel, in RedisValue value)
+    {
+        lock (this)
+        {
+            Write(channel, value);
+        }
     }
 
     /// <summary>
@@ -326,4 +341,7 @@ public sealed class ChannelMessageQueue : IAsyncEnumerable<ChannelMessage>
         }
     }
 #endif
+
+    internal ValueTask<bool> WaitToReadAsync(CancellationToken cancellationToken = default)
+        => _queue.Reader.WaitToReadAsync(cancellationToken);
 }

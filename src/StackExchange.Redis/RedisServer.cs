@@ -53,6 +53,18 @@ namespace StackExchange.Redis
 
         public Version Version => server.Version;
 
+        public RedisKey InventKey(RedisKey prefix = default)
+        {
+            var guid = Guid.NewGuid();
+            if (server.ServerType is ServerType.Cluster)
+            {
+                var hashTag = multiplexer.ServerSelectionStrategy.GetHashTag(server);
+                if (string.IsNullOrEmpty(hashTag)) return RedisKey.Null;
+                return prefix.Append($"{guid}:{{{hashTag}}}");
+            }
+            return prefix.Append(guid.ToString());
+        }
+
         public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint));

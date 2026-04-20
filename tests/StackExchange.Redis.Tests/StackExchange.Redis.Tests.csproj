@@ -33,5 +33,6 @@
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="System.IO.Compression" />
     <PackageReference Include="System.IO.Pipelines" />
+    <PackageReference Include="System.Private.Uri" />
   </ItemGroup>
 </Project>

@@ -2852,17 +2852,11 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class TracerProcessor : ResultProcessor<bool>
+        private sealed class TracerProcessor(bool establishConnection) : ResultProcessor<bool>
         {
-            private readonly bool establishConnection;
-
-            public TracerProcessor(bool establishConnection)
-            {
-                this.establishConnection = establishConnection;
-            }
-
             public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {
+                connection.BridgeCouldBeNull?.ServerEndPoint?.SetLatency(message.CreatedDateTime);
                 connection.BridgeCouldBeNull?.Multiplexer.OnInfoMessage($"got '{result}' for '{message.CommandAndKey}' on '{connection}'");
                 var final = base.SetResult(connection, message, result);
                 if (result.IsError)

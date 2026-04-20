@@ -810,6 +810,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="SentinelSentinels(string, CommandFlags)"/>
         Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Invent a random key that will resolve to this server.
+        /// </summary>
+        RedisKey InventKey(RedisKey prefix = default);
     }
 
     internal static class IServerExtensions

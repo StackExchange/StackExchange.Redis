@@ -352,7 +352,7 @@ namespace StackExchange.Redis.Server
             RedisKey key = request.GetKey(1);
             int seconds = request.GetInt32(2);
             var value = request.GetValue(3);
-            SetEx(client.Database, key, TimeSpan.FromSeconds(seconds), value);
+            Set(client.Database, key, value, TimeSpan.FromSeconds(seconds));
             return TypedRedisValue.OK;
         }
 
@@ -429,12 +429,6 @@ namespace StackExchange.Redis.Server
                 RedisRequest.ReleaseLease(ref lease);
             }
             return results;
-        }
-
-        protected virtual void SetEx(int database, in RedisKey key, TimeSpan timeout, in RedisValue value)
-        {
-            Set(database, key, value);
-            Expire(database, key, timeout);
         }
 
         [RedisCommand(3, nameof(RedisCommand.CLIENT), "setname", LockFree = true)]
@@ -967,13 +961,37 @@ namespace StackExchange.Redis.Server
 
         protected virtual RedisValue Get(int database, in RedisKey key) => throw new NotSupportedException();
 
-        [RedisCommand(3)]
+        [RedisCommand(-3)]
         protected virtual TypedRedisValue Set(RedisClient client, in RedisRequest request)
         {
-            Set(client.Database, request.GetKey(1), request.GetValue(2));
-            return TypedRedisValue.OK;
+            TimeSpan? expiry = null;
+            var key = request.GetKey(1);
+            var value = request.GetValue(2);
+            SetFlags flags = SetFlags.None;
+            for (int i = 3; i < request.Count; i++)
+            {
+                if (request.IsString(i, "nx"u8) || request.IsString(i, "NX"u8)) flags |= SetFlags.NX;
+                else if (request.IsString(i, "xx"u8) || request.IsString(i, "XX"u8)) flags |= SetFlags.XX;
+                else if (request.IsString(i, "ex"u8) || request.IsString(i, "EX"u8)) expiry = TimeSpan.FromSeconds(request.GetInt32(++i));
+                else if (request.IsString(i, "px"u8) || request.IsString(i, "PX"u8)) expiry = TimeSpan.FromMilliseconds(request.GetInt32(++i));
+                else return TypedRedisValue.Error("ERR syntax error");
+            }
+            const SetFlags BOTH = SetFlags.NX | SetFlags.XX;
+            if ((flags & BOTH) == BOTH) return TypedRedisValue.Error("ERR Invalid flags combination");
+            var result = Set(client.Database, request.GetKey(1), request.GetValue(2), expiry, flags);
+            return result ? TypedRedisValue.OK : TypedRedisValue.BulkString(RedisValue.Null);
         }
-        protected virtual void Set(int database, in RedisKey key, in RedisValue value) => throw new NotSupportedException();
+
+        [Flags]
+        public enum SetFlags
+        {
+            None = 0,
+            NX = 1,
+            XX = 2,
+        }
+
+        protected virtual bool Set(int database, in RedisKey key, in RedisValue value, TimeSpan? expiry = null, SetFlags flags = SetFlags.None) => throw new NotSupportedException();
+
         [RedisCommand(1)]
         protected new virtual TypedRedisValue Shutdown(RedisClient client, in RedisRequest request)
         {

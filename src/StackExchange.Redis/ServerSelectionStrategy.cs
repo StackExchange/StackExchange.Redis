@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
-    internal sealed class ServerSelectionStrategy
+    internal sealed partial class ServerSelectionStrategy
     {
         public const int NoSlot = -1, MultipleSlots = -2;
         private const int RedisClusterSlotCount = 16384;
@@ -404,5 +404,29 @@ namespace StackExchange.Redis
             }
             return false;
         }
+
+        /// <summary>
+        /// Gets a string that can be used as a hash-tag to reference a specific slot.
+        /// </summary>
+        internal string GetHashTag(ServerEndPoint endpoint)
+        {
+            if (map is { } arr)
+            {
+                // inefficient way of finding a slot for a given endpoint, but: it'll work
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    if (arr[i] == endpoint)
+                    {
+                        return HashTags.Get(i);
+                    }
+                }
+            }
+            return "";
+        }
+
+        /// <summary>
+        /// Gets a string that can be used as a hash-tag to reference a specific slot.
+        /// </summary>
+        internal static string GetHashTag(int slot) => slot < 0 ? "" : HashTags.Get(slot);
     }
 }
