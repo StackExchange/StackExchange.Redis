@@ -2303,3 +2303,8 @@ StackExchange.Redis.LCSMatchResult.LCSPosition.LCSPosition() -> void
 StackExchange.Redis.LCSMatchResult.LCSPosition.LCSPosition(long start, long end) -> void
 StackExchange.Redis.LCSMatchResult.LCSPosition.Start.get -> long
 StackExchange.Redis.RedisType.VectorSet = 8 -> StackExchange.Redis.RedisType
+StackExchange.Redis.IServer.GetProductVariant(out string! version) -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Garnet = 2 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Redis = 0 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Valkey = 1 -> StackExchange.Redis.ProductVariant

@@ -1,4 +1,4 @@
-FROM redislabs/client-libs-test:unstable-23321515778-debian
+FROM redislabs/client-libs-test:8.8-m02
 
 COPY --from=configs ./Basic /data/Basic/
 COPY --from=configs ./Failover /data/Failover/
