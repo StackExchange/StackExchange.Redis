@@ -943,16 +943,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StreamNegativeAcknowledgeAsync_1()
         {
-            await prefixed.StreamNegativeAcknowledgeAsync("key", "group", "consumer", StreamNackMode.Fail, "0-0", CommandFlags.None);
-            await mock.Received().StreamNegativeAcknowledgeAsync("prefix:key", "group", "consumer", StreamNackMode.Fail, "0-0", CommandFlags.None);
+            await prefixed.StreamNegativeAcknowledgeAsync("key", "group", StreamNackMode.Fail, "0-0", CommandFlags.None);
+            await mock.Received().StreamNegativeAcknowledgeAsync("prefix:key", "group", StreamNackMode.Fail, "0-0", CommandFlags.None);
         }
 
         [Fact]
         public async Task StreamNegativeAcknowledgeAsync_2()
         {
             var messageIds = new RedisValue[] { "0-0", "0-1", "0-2" };
-            await prefixed.StreamNegativeAcknowledgeAsync("key", "group", "consumer", StreamNackMode.Fail, messageIds, CommandFlags.None);
-            await mock.Received().StreamNegativeAcknowledgeAsync("prefix:key", "group", "consumer", StreamNackMode.Fail, messageIds, CommandFlags.None);
+            await prefixed.StreamNegativeAcknowledgeAsync("key", "group", StreamNackMode.Fail, messageIds, CommandFlags.None);
+            await mock.Received().StreamNegativeAcknowledgeAsync("prefix:key", "group", StreamNackMode.Fail, messageIds, CommandFlags.None);
         }
 
         [Fact]

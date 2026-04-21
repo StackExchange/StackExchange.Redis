@@ -996,23 +996,23 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(3, entries.Length);
 
         long oneNack = async
-            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, consumer, mode, id1)
-            : db.StreamNegativeAcknowledge(key, groupName, consumer, mode, id1);
+            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, mode, id1)
+            : db.StreamNegativeAcknowledge(key, groupName, mode, id1);
         Assert.Equal(1, oneNack);
 
         long zeroNack = async
-            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, consumer, mode, notexist)
-            : db.StreamNegativeAcknowledge(key, groupName, consumer, mode, notexist);
+            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, mode, notexist)
+            : db.StreamNegativeAcknowledge(key, groupName, mode, notexist);
         Assert.Equal(0, zeroNack);
 
         long oneArrayNack = async
-            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, consumer, mode, [id2])
-            : db.StreamNegativeAcknowledge(key, groupName, consumer, mode, [id2]);
+            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, mode, [id2])
+            : db.StreamNegativeAcknowledge(key, groupName, mode, [id2]);
         Assert.Equal(1, oneArrayNack);
 
         long multiArrayNack = async
-            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, consumer, mode, [id3, notexist])
-            : db.StreamNegativeAcknowledge(key, groupName, consumer, mode, [id3, notexist]);
+            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, mode, [id3, notexist])
+            : db.StreamNegativeAcknowledge(key, groupName, mode, [id3, notexist]);
         Assert.Equal(1, multiArrayNack);
 
         var consumerPending = db.StreamPendingMessages(key, groupName, 10, consumer);
@@ -1023,6 +1023,10 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Contains(allPending, x => x.MessageId == id1 && x.ConsumerName.IsNullOrEmpty);
         Assert.Contains(allPending, x => x.MessageId == id2 && x.ConsumerName.IsNullOrEmpty);
         Assert.Contains(allPending, x => x.MessageId == id3 && x.ConsumerName.IsNullOrEmpty);
+        if (mode == StreamNackMode.Fatal)
+        {
+            Assert.All(allPending, x => Assert.Equal(int.MinValue, x.DeliveryCount));
+        }
     }
 
     [Fact]

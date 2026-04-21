@@ -5,40 +5,37 @@ namespace StackExchange.Redis;
 
 internal partial class RedisDatabase
 {
-    public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
-        => ExecuteSync(GetStreamNegativeAcknowledgeMessage(key, groupName, consumerName, mode, messageId, flags), ResultProcessor.Int64);
+    public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
+        => ExecuteSync(GetStreamNegativeAcknowledgeMessage(key, groupName, mode, messageId, flags), ResultProcessor.Int64);
 
-    public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
-        => ExecuteAsync(GetStreamNegativeAcknowledgeMessage(key, groupName, consumerName, mode, messageId, flags), ResultProcessor.Int64);
+    public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
+        => ExecuteAsync(GetStreamNegativeAcknowledgeMessage(key, groupName, mode, messageId, flags), ResultProcessor.Int64);
 
-    public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
-        => ExecuteSync(GetStreamNegativeAcknowledgeMessage(key, groupName, consumerName, mode, messageIds, flags), ResultProcessor.Int64);
+    public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        => ExecuteSync(GetStreamNegativeAcknowledgeMessage(key, groupName, mode, messageIds, flags), ResultProcessor.Int64);
 
-    public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
-        => ExecuteAsync(GetStreamNegativeAcknowledgeMessage(key, groupName, consumerName, mode, messageIds, flags), ResultProcessor.Int64);
+    public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        => ExecuteAsync(GetStreamNegativeAcknowledgeMessage(key, groupName, mode, messageIds, flags), ResultProcessor.Int64);
 
-    private Message GetStreamNegativeAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue messageId, CommandFlags flags)
-        => new StreamNackMessageSingle(Database, flags, key, groupName, consumerName, mode, messageId);
+    private Message GetStreamNegativeAcknowledgeMessage(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags)
+        => new StreamNackMessageSingle(Database, flags, key, groupName, mode, messageId);
 
-    private Message GetStreamNegativeAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags)
+    private Message GetStreamNegativeAcknowledgeMessage(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags)
         => messageIds is { Length: 1 }
-            ? new StreamNackMessageSingle(Database, flags, key, groupName, consumerName, mode, messageIds[0])
-            : new StreamNackMessageMulti(Database, flags, key, groupName, consumerName, mode, messageIds);
+            ? new StreamNackMessageSingle(Database, flags, key, groupName, mode, messageIds[0])
+            : new StreamNackMessageMulti(Database, flags, key, groupName, mode, messageIds);
 
     internal abstract class StreamNackMessageBase : Message.CommandKeyBase
     {
         private readonly RedisValue groupName;
-        private readonly RedisValue consumerName;
         private readonly StreamNackMode mode;
 
-        protected StreamNackMessageBase(int db, CommandFlags flags, in RedisKey key, in RedisValue groupName, in RedisValue consumerName, StreamNackMode mode)
+        protected StreamNackMessageBase(int db, CommandFlags flags, in RedisKey key, in RedisValue groupName, StreamNackMode mode)
             : base(db, flags, RedisCommand.XNACK, key)
         {
             groupName.AssertNotNull();
-            consumerName.AssertNotNull();
 
             this.groupName = groupName;
-            this.consumerName = consumerName;
             this.mode = mode;
         }
 
@@ -51,7 +48,6 @@ internal partial class RedisDatabase
             physical.WriteHeader(Command, ArgCount);
             physical.Write(Key);
             physical.WriteBulkString(groupName);
-            physical.WriteBulkString(consumerName);
             WriteMode(physical);
             physical.WriteBulkString(StreamConstants.Ids);
             physical.WriteBulkString(Count);
@@ -76,15 +72,15 @@ internal partial class RedisDatabase
             }
         }
 
-        public override int ArgCount => 6 + Count;
+        public override int ArgCount => 5 + Count;
     }
 
     internal sealed class StreamNackMessageSingle : StreamNackMessageBase
     {
         private readonly RedisValue messageId;
 
-        public StreamNackMessageSingle(int db, CommandFlags flags, in RedisKey key, in RedisValue groupName, in RedisValue consumerName, StreamNackMode mode, in RedisValue messageId)
-            : base(db, flags, key, groupName, consumerName, mode)
+        public StreamNackMessageSingle(int db, CommandFlags flags, in RedisKey key, in RedisValue groupName, StreamNackMode mode, in RedisValue messageId)
+            : base(db, flags, key, groupName, mode)
         {
             messageId.AssertNotNull();
             this.messageId = messageId;
@@ -99,8 +95,8 @@ internal partial class RedisDatabase
     {
         private readonly RedisValue[] messageIds;
 
-        public StreamNackMessageMulti(int db, CommandFlags flags, in RedisKey key, in RedisValue groupName, in RedisValue consumerName, StreamNackMode mode, RedisValue[] messageIds)
-            : base(db, flags, key, groupName, consumerName, mode)
+        public StreamNackMessageMulti(int db, CommandFlags flags, in RedisKey key, in RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds)
+            : base(db, flags, key, groupName, mode)
         {
 #if NET
             ArgumentNullException.ThrowIfNull(messageIds);

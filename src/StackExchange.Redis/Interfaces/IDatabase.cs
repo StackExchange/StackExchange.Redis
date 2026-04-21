@@ -2620,14 +2620,13 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the consumer group that received the message.</param>
-        /// <param name="consumerName">The name of the consumer releasing the message.</param>
         /// <param name="mode">The negative acknowledge mode to use.</param>
         /// <param name="messageId">The ID of the message to negatively acknowledge.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of messages negatively acknowledged.</returns>
+        /// <returns>Returns the number of messages successfully NACKed as a resp integer, regardless of mode (SILENT, FAIL, or FATAL) or options (RETRYCOUNT, FORCE) specified.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
+        long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Allow the consumer to release pending messages back to the group without marking them as correctly processed.
@@ -2635,14 +2634,13 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the consumer group that received the messages.</param>
-        /// <param name="consumerName">The name of the consumer releasing the messages.</param>
         /// <param name="mode">The negative acknowledge mode to use.</param>
         /// <param name="messageIds">The IDs of the messages to negatively acknowledge.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of messages negatively acknowledged.</returns>
+        /// <returns>Returns the number of messages successfully NACKed as a resp integer, regardless of mode (SILENT, FAIL, or FATAL) or options (RETRYCOUNT, FORCE) specified.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+        long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds an entry using the specified values to the given stream key.

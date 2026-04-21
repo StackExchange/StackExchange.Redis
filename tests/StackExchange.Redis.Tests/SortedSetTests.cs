@@ -325,6 +325,48 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
     }
 
     [Fact]
+    public async Task SortedSetCombineAggregateCount()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_8_0);
+
+        var db = conn.GetDatabase();
+        var key1 = Me();
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        var key2 = Me() + "2";
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+        var destination = Me() + "dest";
+        db.KeyDelete(destination, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(key1, entries);
+        db.SortedSetAdd(key2, entriesPow3);
+
+        var inter = db.SortedSetCombineWithScores(SetOperation.Intersect, [key1, key2], aggregate: Aggregate.Count);
+        Assert.Equal(5, inter.Length);
+        Assert.Equal(new SortedSetEntry("a", 2), inter[0]);
+        Assert.Equal(new SortedSetEntry("c", 2), inter[1]);
+        Assert.Equal(new SortedSetEntry("e", 2), inter[2]);
+        Assert.Equal(new SortedSetEntry("g", 2), inter[3]);
+        Assert.Equal(new SortedSetEntry("i", 2), inter[4]);
+
+        var union = db.SortedSetCombineWithScores(SetOperation.Union, [key1, key2], aggregate: Aggregate.Count);
+        Assert.Equal(10, union.Length);
+        Assert.Equal(new SortedSetEntry("b", 1), union[0]);
+        Assert.Equal(new SortedSetEntry("d", 1), union[1]);
+        Assert.Equal(new SortedSetEntry("f", 1), union[2]);
+        Assert.Equal(new SortedSetEntry("h", 1), union[3]);
+        Assert.Equal(new SortedSetEntry("j", 1), union[4]);
+        Assert.Equal(new SortedSetEntry("a", 2), union[5]);
+        Assert.Equal(new SortedSetEntry("c", 2), union[6]);
+        Assert.Equal(new SortedSetEntry("e", 2), union[7]);
+        Assert.Equal(new SortedSetEntry("g", 2), union[8]);
+        Assert.Equal(new SortedSetEntry("i", 2), union[9]);
+
+        var stored = db.SortedSetCombineAndStore(SetOperation.Intersect, destination, [key1, key2], aggregate: Aggregate.Count);
+        Assert.Equal(5, stored);
+        Assert.Equal(inter, db.SortedSetRangeByRankWithScores(destination));
+    }
+
+    [Fact]
     public async Task SortedSetRangeViaScript()
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
