@@ -25,7 +25,7 @@ public class GcraTestServer : InProcessTestServer
     {
         public RedisKey Key { get; init; }
         public int MaxBurst { get; init; }
-        public int RequestsPerPeriod { get; init; }
+        public int TokensPerPeriod { get; init; }
         public double PeriodSeconds { get; init; }
         public int Count { get; init; }
     }
@@ -44,14 +44,14 @@ public class GcraTestServer : InProcessTestServer
         // Parse request parameters
         var key = request.GetKey(1);
         var maxBurst = request.GetInt32(2);
-        var requestsPerPeriod = request.GetInt32(3);
+        var tokensPerPeriod = request.GetInt32(3);
         // Parse period as a string and convert to double
         var periodString = request.GetString(4);
         var periodSeconds = double.Parse(periodString, System.Globalization.CultureInfo.InvariantCulture);
 
         // Optional count parameter (defaults to 1)
         var count = 1;
-        if (request.Count >= 7 && request.GetString(5) == "NUM_REQUESTS")
+        if (request.Count >= 7 && request.GetString(5) == "TOKENS")
         {
             count = request.GetInt32(6);
         }
@@ -61,7 +61,7 @@ public class GcraTestServer : InProcessTestServer
         {
             Key = key,
             MaxBurst = maxBurst,
-            RequestsPerPeriod = requestsPerPeriod,
+            TokensPerPeriod = tokensPerPeriod,
             PeriodSeconds = periodSeconds,
             Count = count,
         };
@@ -69,8 +69,8 @@ public class GcraTestServer : InProcessTestServer
         // Return the configured result as a 5-element array
         var result = TypedRedisValue.Rent(5, out var span, RespPrefix.Array);
         span[0] = TypedRedisValue.Integer(_expectedResult.Limited ? 1 : 0);
-        span[1] = TypedRedisValue.Integer(_expectedResult.MaxRequests);
-        span[2] = TypedRedisValue.Integer(_expectedResult.AvailableRequests);
+        span[1] = TypedRedisValue.Integer(_expectedResult.MaxTokens);
+        span[2] = TypedRedisValue.Integer(_expectedResult.AvailableTokens);
         span[3] = TypedRedisValue.Integer(_expectedResult.RetryAfterSeconds);
         span[4] = TypedRedisValue.Integer(_expectedResult.FullBurstAfterSeconds);
         return result;

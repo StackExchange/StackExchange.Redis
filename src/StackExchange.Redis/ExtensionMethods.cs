@@ -346,7 +346,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database instance.</param>
         /// <param name="key">The key for the rate limiter.</param>
         /// <param name="maxBurst">The maximum burst size.</param>
-        /// <param name="requestsPerPeriod">The number of requests allowed per period.</param>
+        /// <param name="tokensPerPeriod">The number of tokens allowed per period.</param>
         /// <param name="allow">The maximum time to wait for a successful acquisition.</param>
         /// <param name="periodSeconds">The period in seconds (default: 1.0).</param>
         /// <param name="count">The number of tokens to acquire (default: 1).</param>
@@ -358,7 +358,7 @@ namespace StackExchange.Redis
             this IDatabaseAsync database,
             RedisKey key,
             int maxBurst,
-            int requestsPerPeriod,
+            int tokensPerPeriod,
             TimeSpan allow,
             double periodSeconds = 1.0,
             int count = 1,
@@ -372,7 +372,7 @@ namespace StackExchange.Redis
 
             while (true)
             {
-                var result = await database.StringGcraRateLimitAsync(key, maxBurst, requestsPerPeriod, periodSeconds, count, flags).ConfigureAwait(false);
+                var result = await database.StringGcraRateLimitAsync(key, maxBurst, tokensPerPeriod, periodSeconds, count, flags).ConfigureAwait(false);
 
                 if (!result.Limited)
                 {
