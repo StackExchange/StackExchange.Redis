@@ -240,6 +240,7 @@ internal enum RedisCommand
     XGROUP,
     XINFO,
     XLEN,
+    XNACK,
     XPENDING,
     XRANGE,
     XREAD,
@@ -561,6 +562,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.XDEL:
             case RedisCommand.XDELEX:
             case RedisCommand.XGROUP:
+            case RedisCommand.XNACK:
             case RedisCommand.XREADGROUP:
             case RedisCommand.XTRIM:
                 return false;
