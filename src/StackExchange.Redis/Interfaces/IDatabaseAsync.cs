@@ -805,7 +805,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.StringGcraRateLimit(RedisKey, int, int, double, int, CommandFlags)"/>
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None);
+        Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int tokensPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringGet(RedisKey, CommandFlags)"/>
         Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None);

@@ -7,22 +7,22 @@ internal partial class RedisDatabase
         CommandFlags flags,
         RedisKey key,
         int maxBurst,
-        int requestsPerPeriod,
+        int tokensPerPeriod,
         double periodSeconds,
         int count) : Message(database, flags, RedisCommand.GCRA)
     {
         protected override void WriteImpl(PhysicalConnection connection)
         {
-            // GCRA key max_burst requests_per_period period [NUM_REQUESTS count]
+            // GCRA key max_burst tokens_per_period period [TOKENS count]
             connection.WriteHeader(Command, ArgCount);
             connection.WriteBulkString(key);
             connection.WriteBulkString(maxBurst);
-            connection.WriteBulkString(requestsPerPeriod);
+            connection.WriteBulkString(tokensPerPeriod);
             connection.WriteBulkString(periodSeconds);
 
             if (count != 1)
             {
-                connection.WriteBulkString("NUM_REQUESTS"u8);
+                connection.WriteBulkString("TOKENS"u8);
                 connection.WriteBulkString(count);
             }
         }
@@ -31,8 +31,8 @@ internal partial class RedisDatabase
         {
             get
             {
-                int argCount = 4; // key, max_burst, requests_per_period, period
-                if (count != 1) argCount += 2; // NUM_REQUESTS, count
+                int argCount = 4; // key, max_burst, tokens_per_period, period
+                if (count != 1) argCount += 2; // TOKENS, count
                 return argCount;
             }
         }
