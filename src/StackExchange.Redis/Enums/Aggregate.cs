@@ -1,4 +1,7 @@
-﻿namespace StackExchange.Redis
+﻿using System.Diagnostics.CodeAnalysis;
+using RESPite;
+
+namespace StackExchange.Redis
 {
     /// <summary>
     /// Specifies how elements should be aggregated when combining sorted sets.
@@ -19,5 +22,11 @@
         /// The greatest value of the combined elements is used.
         /// </summary>
         Max,
+
+        /// <summary>
+        /// The number of combined element scores is used.
+        /// </summary>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        Count,
     }
 }

@@ -4629,6 +4629,10 @@ namespace StackExchange.Redis
                     values[i++] = RedisLiterals.AGGREGATE;
                     values[i++] = RedisLiterals.MAX;
                     break;
+                case Aggregate.Count:
+                    values[i++] = RedisLiterals.AGGREGATE;
+                    values[i++] = RedisLiterals.COUNT;
+                    break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(aggregate));
             }

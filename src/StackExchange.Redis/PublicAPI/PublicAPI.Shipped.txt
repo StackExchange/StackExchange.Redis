@@ -61,6 +61,7 @@ override StackExchange.Redis.SortedSetEntry.Equals(object? obj) -> bool
 override StackExchange.Redis.SortedSetEntry.GetHashCode() -> int
 override StackExchange.Redis.SortedSetEntry.ToString() -> string!
 StackExchange.Redis.Aggregate
+[SER006]StackExchange.Redis.Aggregate.Count = 3 -> StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Max = 2 -> StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Min = 1 -> StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Sum = 0 -> StackExchange.Redis.Aggregate
