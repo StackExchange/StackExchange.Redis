@@ -591,11 +591,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public StreamTrimResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledgeAndDelete(ToInner(key), groupName, mode, messageIds, flags);
 
-        public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
-            Inner.StreamNegativeAcknowledge(ToInner(key), groupName, consumerName, mode, messageId, flags);
+        public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamNegativeAcknowledge(ToInner(key), groupName, mode, messageId, flags);
 
-        public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
-            Inner.StreamNegativeAcknowledge(ToInner(key), groupName, consumerName, mode, messageIds, flags);
+        public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamNegativeAcknowledge(ToInner(key), groupName, mode, messageIds, flags);
 
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
             Inner.StreamAdd(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, flags);

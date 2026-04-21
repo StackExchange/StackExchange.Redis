@@ -29,7 +29,7 @@ public class GcraIntegrationTests(ITestOutputHelper output, SharedConnectionFixt
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
-        var key = Me();
+        var key = Me() + Guid.NewGuid();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         for (int i = 0; i < 15; i++)
         {

@@ -644,13 +644,13 @@ namespace StackExchange.Redis
         Task<StreamTrimResult[]> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
-        /// <inheritdoc cref="IDatabase.StreamNegativeAcknowledge(RedisKey, RedisValue, RedisValue, StreamNackMode, RedisValue, CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.StreamNegativeAcknowledge(RedisKey, RedisValue, StreamNackMode, RedisValue, CommandFlags)"/>
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
+        Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.StreamNegativeAcknowledge(RedisKey, RedisValue, RedisValue, StreamNackMode, RedisValue[], CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.StreamNegativeAcknowledge(RedisKey, RedisValue, StreamNackMode, RedisValue[], CommandFlags)"/>
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+        Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, RedisValue, RedisValue, RedisValue?, int?, bool, CommandFlags)"/>
         Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags);

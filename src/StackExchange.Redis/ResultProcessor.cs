@@ -193,6 +193,10 @@ namespace StackExchange.Redis
         public static readonly HashEntryArrayProcessor
             HashEntryArray = new HashEntryArrayProcessor();
 
+        // If the server reports max (i.e. FATAL), use int.MinValue as a similarly obviously bad value.
+        private static int ParseStreamDeliveryCount(long deliveryCount)
+            => deliveryCount == long.MaxValue ? int.MinValue : checked((int)deliveryCount);
+
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception? innerException, string? annotation, ConnectionMultiplexer? muxer)
         {
@@ -2715,7 +2719,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         messageId: details.GetNext().AsRedisValue(),
                         consumerName: details.GetNext().AsRedisValue(),
                         idleTimeInMs: (long)details.GetNext().AsRedisValue(),
-                        deliveryCount: (int)details.GetNext().AsRedisValue());
+                        deliveryCount: ParseStreamDeliveryCount((long)details.GetNext().AsRedisValue()));
                 });
 
                 SetResult(message, messageInfoArray);
@@ -2763,7 +2767,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         id: id,
                         values: values,
                         idleTime: TimeSpan.FromMilliseconds(idleTimeInMs),
-                        deliveryCount: checked((int)deliveryCount));
+                        deliveryCount: ParseStreamDeliveryCount(deliveryCount));
                 }
                 return new StreamEntry(
                     id: id,
