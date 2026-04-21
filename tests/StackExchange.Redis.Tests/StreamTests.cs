@@ -968,6 +968,63 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(id2, notAcknowledged[0].Id);
     }
 
+    [Theory]
+    [InlineData(StreamNackMode.Silent, false)]
+    [InlineData(StreamNackMode.Silent, true)]
+    [InlineData(StreamNackMode.Fail, false)]
+    [InlineData(StreamNackMode.Fail, true)]
+    [InlineData(StreamNackMode.Fatal, false)]
+    [InlineData(StreamNackMode.Fatal, true)]
+    public async Task StreamConsumerGroupNegativeAcknowledgeMessage(StreamNackMode mode, bool async)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_8_0);
+
+        var db = conn.GetDatabase();
+        var key = Me() + ":" + mode + ":" + async;
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+        const string groupName = "test_group",
+                     consumer = "test_consumer";
+
+        var id1 = db.StreamAdd(key, "field1", "value1");
+        var id2 = db.StreamAdd(key, "field2", "value2");
+        var id3 = db.StreamAdd(key, "field3", "value3");
+        RedisValue notexist = "0-0";
+
+        db.StreamCreateConsumerGroup(key, groupName, StreamPosition.Beginning, flags: CommandFlags.FireAndForget);
+
+        var entries = db.StreamReadGroup(key, groupName, consumer, StreamPosition.NewMessages);
+        Assert.Equal(3, entries.Length);
+
+        long oneNack = async
+            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, consumer, mode, id1)
+            : db.StreamNegativeAcknowledge(key, groupName, consumer, mode, id1);
+        Assert.Equal(1, oneNack);
+
+        long zeroNack = async
+            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, consumer, mode, notexist)
+            : db.StreamNegativeAcknowledge(key, groupName, consumer, mode, notexist);
+        Assert.Equal(0, zeroNack);
+
+        long oneArrayNack = async
+            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, consumer, mode, [id2])
+            : db.StreamNegativeAcknowledge(key, groupName, consumer, mode, [id2]);
+        Assert.Equal(1, oneArrayNack);
+
+        long multiArrayNack = async
+            ? await db.StreamNegativeAcknowledgeAsync(key, groupName, consumer, mode, [id3, notexist])
+            : db.StreamNegativeAcknowledge(key, groupName, consumer, mode, [id3, notexist]);
+        Assert.Equal(1, multiArrayNack);
+
+        var consumerPending = db.StreamPendingMessages(key, groupName, 10, consumer);
+        Assert.Empty(consumerPending);
+
+        var allPending = db.StreamPendingMessages(key, groupName, 10, RedisValue.Null);
+        Assert.Equal(3, allPending.Length);
+        Assert.Contains(allPending, x => x.MessageId == id1 && x.ConsumerName.IsNullOrEmpty);
+        Assert.Contains(allPending, x => x.MessageId == id2 && x.ConsumerName.IsNullOrEmpty);
+        Assert.Contains(allPending, x => x.MessageId == id3 && x.ConsumerName.IsNullOrEmpty);
+    }
+
     [Fact]
     public async Task StreamConsumerGroupClaimMessages()
     {

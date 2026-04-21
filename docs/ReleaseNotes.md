@@ -9,6 +9,7 @@ Current package versions:
 ## Unreleased
 
 - Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
+- Add Redis 8.8 stream negative acknowledgements (`XNACK`) ([#xxxx by @mgravell](https://github.com/StackExchange/StackExchange.Redis/issues/xxxx))
 
 ## 2.12.14
 

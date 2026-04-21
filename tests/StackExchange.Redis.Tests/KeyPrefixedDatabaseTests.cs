@@ -1031,6 +1031,21 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void StreamNegativeAcknowledge_1()
+    {
+        prefixed.StreamNegativeAcknowledge("key", "group", "consumer", StreamNackMode.Fail, "0-0", CommandFlags.None);
+        mock.Received().StreamNegativeAcknowledge("prefix:key", "group", "consumer", StreamNackMode.Fail, "0-0", CommandFlags.None);
+    }
+
+    [Fact]
+    public void StreamNegativeAcknowledge_2()
+    {
+        var messageIds = new RedisValue[] { "0-0", "0-1", "0-2" };
+        prefixed.StreamNegativeAcknowledge("key", "group", "consumer", StreamNackMode.Fail, messageIds, CommandFlags.None);
+        mock.Received().StreamNegativeAcknowledge("prefix:key", "group", "consumer", StreamNackMode.Fail, messageIds, CommandFlags.None);
+    }
+
+    [Fact]
     public void StreamAdd_1()
     {
         prefixed.StreamAdd("key", "field1", "value1", "*", 1000, true, CommandFlags.None);

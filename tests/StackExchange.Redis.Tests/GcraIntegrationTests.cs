@@ -10,7 +10,7 @@ public class GcraIntegrationTests(ITestOutputHelper output, SharedConnectionFixt
     [Fact(Timeout = 5000)]
     public async Task GcraRateLimit_SmokeTest()
     {
-        await using var conn = Create(require: new Version(8, 8, 0));
+        await using var conn = Create(require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
