@@ -406,7 +406,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
         Assert.False(notification.IsType("del"u8));
         Assert.True(notification.GetKey().IsNull);
-        Assert.True(notification.GetSubKey().IsNull);
+        Assert.True(notification.GetSubKeys().FirstOrDefault().IsNull);
         Assert.Equal(0, notification.GetKeyByteCount());
         Assert.Equal(0, notification.GetKeyMaxByteCount());
         Assert.Equal(0, notification.GetKeyCharCount());
@@ -841,38 +841,85 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal("abc", clob.Slice(0, charsWritten).ToString());
     }
 
-    [Fact]
-    public void SubKeySpace_HSet_ParsesCorrectly()
+    [Theory]
+    [InlineData("hset|6:field1", "field1", "Single subkey")]
+    [InlineData("hset|6:field1|6:field2", "field1", "Multiple subkeys - returns first only")]
+    [InlineData("hset|6:field1|6:field2|6:field3", "field1", "Three subkeys - returns first only")]
+    public void SubKeySpace_HSet_ParsesCorrectly(string payload, string expectedFirstSubKey, string description)
     {
-        // __subkeyspace@4__:mykey with payload hset|6:field1
+        // __subkeyspace@4__:mykey with payload like hset|6:field1 or hset|6:field1|6:field2
         var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
-        RedisValue value = "hset|6:field1";
+        RedisValue value = payload;
 
-        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification), description);
 
         Assert.Equal(KeyNotificationKind.SubKeySpace, notification.Kind);
         Assert.Equal(4, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
-        Assert.Equal("field1", (string?)notification.GetSubKey());
+        Assert.Equal(expectedFirstSubKey, (string?)notification.GetSubKeys().First());
     }
 
-    [Fact]
-    public void SubKeyEvent_HSet_ParsesCorrectly()
+    [Theory]
+    [InlineData("hset|6:field1", new[] { "field1" })]
+    [InlineData("hset|6:field1|6:field2", new[] { "field1", "field2" })]
+    [InlineData("hset|6:field1|6:field2|6:field3", new[] { "field1", "field2", "field3" })]
+    [InlineData("hset|4:key1|5:key22|6:key333", new[] { "key1", "key22", "key333" })]
+    public void SubKeySpace_GetSubKeys(string payload, string[] expectedSubKeys)
     {
-        // __subkeyevent@4__:hset with payload 5:mykey|6:field1
-        var channel = RedisChannel.Literal("__subkeyevent@4__:hset");
-        RedisValue value = "5:mykey|6:field1";
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = payload;
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        var subKeys = new List<string?>();
+        foreach (var subKey in notification.GetSubKeys())
+        {
+            subKeys.Add((string?)subKey);
+        }
+
+        Assert.Equal(expectedSubKeys, subKeys);
+    }
+
+    [Theory]
+    [InlineData("5:mykey|6:field1", "field1", "Single subkey")]
+    [InlineData("5:mykey|6:field1|6:field2", "field1", "Multiple subkeys - returns first only")]
+    [InlineData("5:mykey|6:field1|6:field2|6:field3", "field1", "Three subkeys - returns first only")]
+    public void SubKeyEvent_HSet_ParsesCorrectly(string payload, string expectedFirstSubKey, string description)
+    {
+        // __subkeyevent@4__:hset with payload like 5:mykey|6:field1 or 5:mykey|6:field1|6:field2
+        var channel = RedisChannel.Literal("__subkeyevent@4__:hset");
+        RedisValue value = payload;
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification), description);
 
         Assert.Equal(KeyNotificationKind.SubKeyEvent, notification.Kind);
         Assert.Equal(4, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
-        Assert.Equal("field1", (string?)notification.GetSubKey());
+        Assert.Equal(expectedFirstSubKey, (string?)notification.GetSubKeys().First());
+    }
+
+    [Theory]
+    [InlineData("5:mykey|6:field1", new[] { "field1" })]
+    [InlineData("5:mykey|6:field1|6:field2", new[] { "field1", "field2" })]
+    [InlineData("5:mykey|6:field1|6:field2|6:field3", new[] { "field1", "field2", "field3" })]
+    public void SubKeyEvent_GetSubKeys(string payload, string[] expectedSubKeys)
+    {
+        var channel = RedisChannel.Literal("__subkeyevent@4__:hset");
+        RedisValue value = payload;
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        var subKeys = new List<string?>();
+        foreach (var subKey in notification.GetSubKeys())
+        {
+            subKeys.Add((string?)subKey);
+        }
+
+        Assert.Equal(expectedSubKeys, subKeys);
     }
 
     [Fact]
@@ -889,24 +936,237 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
-        Assert.Equal("field1", (string?)notification.GetSubKey());
+        Assert.Equal("field1", (string?)notification.GetSubKeys().First());
     }
 
-    [Fact]
-    public void SubKeySpaceEvent_HSet_ParsesCorrectly()
+    [Theory]
+    [InlineData("6:field1", "field1", "Single subkey")]
+    [InlineData("6:field1|6:field2", "field1", "Multiple subkeys - returns first only")]
+    [InlineData("6:field1|6:field2|6:field3", "field1", "Three subkeys - returns first only")]
+    public void SubKeySpaceEvent_HSet_ParsesCorrectly(string payload, string expectedFirstSubKey, string description)
     {
-        // __subkeyspaceevent@4__:hset|mykey with payload 6:field1
+        // __subkeyspaceevent@4__:hset|mykey with payload like 6:field1 or 6:field1|6:field2
         var channel = RedisChannel.Literal("__subkeyspaceevent@4__:hset|mykey");
-        RedisValue value = "6:field1";
+        RedisValue value = payload;
 
-        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification), description);
 
         Assert.Equal(KeyNotificationKind.SubKeySpaceEvent, notification.Kind);
         Assert.Equal(4, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
-        Assert.Equal("field1", (string?)notification.GetSubKey());
+        Assert.Equal(expectedFirstSubKey, (string?)notification.GetSubKeys().First());
+    }
+
+    [Theory]
+    [InlineData("6:field1", new[] { "field1" })]
+    [InlineData("6:field1|6:field2", new[] { "field1", "field2" })]
+    [InlineData("6:field1|6:field2|6:field3", new[] { "field1", "field2", "field3" })]
+    public void SubKeySpaceEvent_GetSubKeys(string payload, string[] expectedSubKeys)
+    {
+        var channel = RedisChannel.Literal("__subkeyspaceevent@4__:hset|mykey");
+        RedisValue value = payload;
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        var subKeys = new List<string?>();
+        foreach (var subKey in notification.GetSubKeys())
+        {
+            subKeys.Add((string?)subKey);
+        }
+
+        Assert.Equal(expectedSubKeys, subKeys);
+    }
+
+    [Fact]
+    public void SubKeySpaceItem_GetSingleSubKey()
+    {
+        // __subkeyspaceitem@4__:mykey\nfield1
+        var channel = RedisChannel.Literal("__subkeyspaceitem@4__:mykey\nfield1");
+        RedisValue value = RedisValue.EmptyString;
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        var subKeys = new List<string?>();
+        foreach (var subKey in notification.GetSubKeys())
+        {
+            subKeys.Add((string?)subKey);
+        }
+
+        Assert.Single(subKeys);
+        Assert.Equal("field1", subKeys[0]);
+    }
+
+    [Fact]
+    public void GetSubKeys_DefaultEnumerable_ReturnsEmpty()
+    {
+        // Test that default SubKeyEnumerable returns empty set
+        var enumerable = default(KeyNotification.SubKeyEnumerable);
+
+        var subKeys = new List<string?>();
+        foreach (var subKey in enumerable)
+        {
+            subKeys.Add((string?)subKey);
+        }
+
+        Assert.Empty(subKeys);
+    }
+
+    [Fact]
+    public void GetSubKeys_DefaultEnumerator_MoveNextReturnsFalse()
+    {
+        // Test that default SubKeyEnumerator's MoveNext returns false
+        var enumerator = default(KeyNotification.SubKeyEnumerator);
+
+        Assert.False(enumerator.MoveNext());
+    }
+
+    [Fact]
+    public void GetSubKeys_NonSubKeyNotification_ReturnsEmpty()
+    {
+        // Regular keyspace notification (not sub-key) should return empty
+        var channel = RedisChannel.Literal("__keyspace@4__:mykey");
+        RedisValue value = "set";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
+
+        var subKeys = new List<string?>();
+        foreach (var subKey in notification.GetSubKeys())
+        {
+            subKeys.Add((string?)subKey);
+        }
+
+        Assert.Empty(subKeys);
+    }
+
+    [Fact]
+    public void GetSubKeys_Count_ReturnsCorrectCount()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1|6:field2|6:field3";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.Equal(3, notification.GetSubKeys().Count());
+    }
+
+    [Fact]
+    public void GetSubKeys_First_ReturnsFirstElement()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1|6:field2|6:field3";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.Equal("field1", (string?)notification.GetSubKeys().First());
+    }
+
+    [Fact]
+    public void GetSubKeys_First_ThrowsOnEmpty()
+    {
+        var channel = RedisChannel.Literal("__keyspace@4__:mykey");
+        RedisValue value = "set";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        try
+        {
+            notification.GetSubKeys().First();
+            Assert.Fail("Expected InvalidOperationException");
+        }
+        catch (InvalidOperationException)
+        {
+            // Expected
+        }
+    }
+
+    [Fact]
+    public void GetSubKeys_FirstOrDefault_ReturnsFirstElement()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1|6:field2|6:field3";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.Equal("field1", (string?)notification.GetSubKeys().FirstOrDefault());
+    }
+
+    [Fact]
+    public void GetSubKeys_FirstOrDefault_ReturnsNullOnEmpty()
+    {
+        var channel = RedisChannel.Literal("__keyspace@4__:mykey");
+        RedisValue value = "set";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.True(notification.GetSubKeys().FirstOrDefault().IsNull);
+    }
+
+    [Fact]
+    public void GetSubKeys_CopyTo_CopiesAllElements()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1|6:field2|6:field3";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        var destination = new RedisValue[5];
+        var count = notification.GetSubKeys().CopyTo(destination);
+
+        Assert.Equal(3, count);
+        Assert.Equal("field1", (string?)destination[0]);
+        Assert.Equal("field2", (string?)destination[1]);
+        Assert.Equal("field3", (string?)destination[2]);
+    }
+
+    [Fact]
+    public void GetSubKeys_CopyTo_TruncatesWhenTooSmall()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1|6:field2|6:field3";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        var destination = new RedisValue[2];
+        var count = notification.GetSubKeys().CopyTo(destination);
+
+        Assert.Equal(2, count);
+        Assert.Equal("field1", (string?)destination[0]);
+        Assert.Equal("field2", (string?)destination[1]);
+    }
+
+    [Fact]
+    public void GetSubKeys_ToArray_ReturnsArray()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1|6:field2|6:field3";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        var array = notification.GetSubKeys().ToArray();
+
+        Assert.Equal(3, array.Length);
+        Assert.Equal("field1", (string?)array[0]);
+        Assert.Equal("field2", (string?)array[1]);
+        Assert.Equal("field3", (string?)array[2]);
+    }
+
+    [Fact]
+    public void GetSubKeys_ToList_ReturnsList()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1|6:field2|6:field3";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        var list = notification.GetSubKeys().ToList();
+
+        Assert.Equal(3, list.Count);
+        Assert.Equal("field1", (string?)list[0]);
+        Assert.Equal("field2", (string?)list[1]);
+        Assert.Equal("field3", (string?)list[2]);
     }
 
     [Fact]
@@ -940,7 +1200,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
         Assert.Equal(KeyNotificationKind.SubKeySpace, notification.Kind);
 
-        var subKey = notification.GetSubKey();
+        var subKey = notification.GetSubKeys().First();
         Assert.False(subKey.IsNull, $"SubKey should not be null. Value: {value}");
         Assert.Equal("field1", (string?)subKey);
     }
@@ -977,7 +1237,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal(KeyNotificationType.HExpire, notification.Type);
         Assert.True(notification.IsType("hexpire"u8));
         Assert.Equal("hash", (string?)notification.GetKey());
-        Assert.Equal("field", (string?)notification.GetSubKey());
+        Assert.Equal("field", (string?)notification.GetSubKeys().First());
     }
 
     [Fact]
@@ -989,7 +1249,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
         Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
-        Assert.True(notification.GetSubKey().IsNull);
+        Assert.True(notification.GetSubKeys().FirstOrDefault().IsNull);
 
         // Regular keyevent notification
         channel = RedisChannel.Literal("__keyevent@4__:del");
@@ -997,7 +1257,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(channel, value, out notification));
         Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
-        Assert.True(notification.GetSubKey().IsNull);
+        Assert.True(notification.GetSubKeys().FirstOrDefault().IsNull);
     }
 
     [Fact]
@@ -1297,7 +1557,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal("123", (string?)notification.GetKey());
 
         // The subkey should be returned as-is with its own "email:" prefix intact
-        var subkey = notification.GetSubKey();
+        var subkey = notification.GetSubKeys().First();
         Assert.Equal("email:123456", (string?)subkey);
         Assert.Equal(12, subkey.GetByteCount());
     }
@@ -1316,7 +1576,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal("123", (string?)notification.GetKey());
 
         // The subkey should be returned as-is with its own "email:" prefix intact
-        var subkey = notification.GetSubKey();
+        var subkey = notification.GetSubKeys().First();
         Assert.Equal("email:123456", (string?)subkey);
         Assert.Equal(12, subkey.GetByteCount());
     }
@@ -1335,7 +1595,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal("123", (string?)notification.GetKey());
 
         // The subkey should be returned as-is with its own "email:" prefix intact
-        var subkey = notification.GetSubKey();
+        var subkey = notification.GetSubKeys().First();
         Assert.Equal("email:123456", (string?)subkey);
     }
 
@@ -1353,7 +1613,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal("123", (string?)notification.GetKey());
 
         // The subkey should be returned as-is with its own "email:" prefix intact
-        var subkey = notification.GetSubKey();
+        var subkey = notification.GetSubKeys().First();
         Assert.Equal("email:123456", (string?)subkey);
         Assert.Equal(12, subkey.GetByteCount());
     }

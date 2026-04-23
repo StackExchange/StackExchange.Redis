@@ -107,11 +107,18 @@ sub.Subscribe(channel, (recvChannel, recvValue) =>
         Console.WriteLine($"Database: {notification.Database}");
         Console.WriteLine($"Kind: {notification.Kind}");
 
-        // For sub-key notifications (Redis 8.8+), you can access the subkey in a uniform way,
+        // For sub-key notifications (Redis 8.8+), you can access sub-keys in a uniform way,
         // regardless of the notification type
         if (notification.HasSubKey)
         {
-            Console.WriteLine($"SubKey: {notification.GetSubKey()}");
+            // Get the first sub-key
+            Console.WriteLine($"First SubKey: {notification.GetSubKeys().First()}");
+
+            // Or iterate all sub-keys (for notifications with multiple fields)
+            foreach (var subKey in notification.GetSubKeys())
+            {
+                Console.WriteLine($"SubKey: {subKey}");
+            }
         }
     }
 });
@@ -156,7 +163,7 @@ There are four sub-key notification kinds, analogous to the two key-level notifi
 
 In most cases, the application code already knows the kind of event being consumed, but if that logic is centralized,
 you can determine the notification family using  the `notification.Kind` property (which returns a
-`KeyNotificationKind` enum value), and optionally extract the sub-key using `notification.GetSubKey()`.
+`KeyNotificationKind` enum value), and optionally extract sub-keys using `notification.GetSubKeys()`.
 
 ### Example: Monitoring Hash Field Changes
 
@@ -169,9 +176,24 @@ sub.Subscribe(channel, (recvChannel, recvValue) =>
     if (KeyNotification.TryParse(recvChannel, recvValue, out var notification))
     {
         Console.WriteLine($"Hash Key: {notification.GetKey()}");
-        Console.WriteLine($"Field: {notification.GetSubKey()}");
         Console.WriteLine($"Operation: {notification.Type}");
         Console.WriteLine($"Kind: {notification.Kind}");
+
+        // Process all affected fields
+        foreach (var field in notification.GetSubKeys())
+        {
+            Console.WriteLine($"Field: {field}");
+        }
+
+        // Or get just the first field for single-field operations
+        var firstField = notification.GetSubKeys().FirstOrDefault();
+
+        // Utility methods available:
+        // - Count() - get the number of fields
+        // - First() / FirstOrDefault() - get the first field
+        // - Single() / SingleOrDefault() - get the only field (throws if multiple)
+        // - ToArray() / ToList() - convert to collection
+        // - CopyTo(Span<RedisValue>) - copy to a span (allocation-free)
     }
 });
 
