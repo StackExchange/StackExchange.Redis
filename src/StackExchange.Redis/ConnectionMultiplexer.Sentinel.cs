@@ -166,7 +166,8 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The writer to log to, if any.</param>
     public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter? log = null)
     {
-        if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
+        if (ServerSelectionStrategy.ServerType != ServerType.Sentinel
+            && (RawConfig.AbortOnConnectFail || IsConnected))
         {
             throw new RedisConnectionException(
                 ConnectionFailureType.UnableToConnect,
@@ -203,6 +204,18 @@ public partial class ConnectionMultiplexer
 
             if (newPrimaryEndPoint is null)
             {
+                if (!config.AbortOnConnectFail)
+                {
+                    connection = ConnectImpl(config, log, endpoints: config.EndPoints);
+                    connection.ConnectionRestored += OnManagedConnectionRestored;
+                    connection.ConnectionFailed += OnManagedConnectionFailed;
+                    lock (sentinelConnectionChildren)
+                    {
+                        sentinelConnectionChildren[serviceName] = connection;
+                    }
+                    return connection;
+                }
+
                 throw new RedisConnectionException(
                     ConnectionFailureType.UnableToConnect,
                     $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
