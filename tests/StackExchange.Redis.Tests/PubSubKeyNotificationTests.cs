@@ -142,7 +142,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         {
             callbackCount.Increment();
             if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                 && notification is { IsKeyEvent: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
             {
                 OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
             }
@@ -183,7 +185,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             {
                 callbackCount.Increment();
                 if (msg.TryParseKeyNotification(out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                     && notification is { IsKeyEvent: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
                 {
                     OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
                 }
@@ -225,7 +229,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             {
                 callbackCount.Increment();
                 if (msg.TryParseKeyNotification(out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                     && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
                 {
                     OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
                 }
@@ -264,7 +270,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         {
             callbackCount.Increment();
             if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                 && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
             {
                 OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
             }
@@ -312,7 +320,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             {
                 callbackCount.Increment();
                 if (msg.TryParseKeyNotification(keyPrefixBytes, out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                     && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
                 {
                     OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
                 }

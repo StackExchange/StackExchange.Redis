@@ -287,10 +287,10 @@ namespace StackExchange.Redis
             if (database is null) options |= RedisChannelOptions.Pattern;
             var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);
 
-            // __keyevent@{db}__:{type}
-            var arr = new byte[14 + db.Length + type.Length];
+            // __keyevent@{db}__:{type} or __subkeyevent@{db}__:{type}
+            var arr = new byte[(subkey ? 17 : 14) + db.Length + type.Length];
 
-            var target = AppendAndAdvance(arr.AsSpan(), "__keyevent@"u8);
+            var target = AppendAndAdvance(arr.AsSpan(), subkey ? "__subkeyevent@"u8 : "__keyevent@"u8);
             target = AppendAndAdvance(target, db);
             target = AppendAndAdvance(target, "__:"u8);
             target = AppendAndAdvance(target, type);
@@ -355,6 +355,76 @@ namespace StackExchange.Redis
         public static RedisChannel SubKeyEvent(ReadOnlySpan<byte> type, int? database)
             => CreateKeyEvent(type, database, subkey: true);
 
+        /// <summary>
+        /// Create a subkey (hash) notification channel for a specific key and subkey in a single database.
+        /// </summary>
+        /// <remarks>Format: __subkeyspaceitem@{db}__:{key}\n{subkey}.</remarks>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeySpaceItem(in RedisKey key, in RedisKey subkey, int database)
+        {
+            if (key.IsEmpty) throw new ArgumentNullException(nameof(key));
+            if (subkey.IsEmpty) throw new ArgumentNullException(nameof(subkey));
+
+            var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, RedisChannelOptions.None);
+
+            // __subkeyspaceitem@{db}__:{key}\n{subkey}
+            var arr = new byte[21 + db.Length + key.TotalLength() + 1 + subkey.TotalLength()];
+
+            var target = AppendAndAdvance(arr.AsSpan(), "__subkeyspaceitem@"u8);
+            target = AppendAndAdvance(target, db);
+            target = AppendAndAdvance(target, "__:"u8);
+            var keyLen = key.CopyTo(target);
+            target = target.Slice(keyLen);
+            target[0] = (byte)'\n';
+            target = target.Slice(1);
+            var subkeyLen = subkey.CopyTo(target);
+            target = target.Slice(subkeyLen);
+            Debug.Assert(target.IsEmpty, "length calculated incorrectly");
+
+            return new RedisChannel(arr, RedisChannelOptions.KeyRouted | RedisChannelOptions.IgnoreChannelPrefix);
+        }
+
+        /// <summary>
+        /// Create a subkey (hash) event-notification channel for a specific event type and key, optionally in a specified database.
+        /// </summary>
+        /// <remarks>Format: __subkeyspaceevent@{db}__:{event}|{key}.</remarks>
+#pragma warning disable RS0027 // competing overloads - disambiguated via parameter types
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeySpaceEvent(KeyNotificationType type, in RedisKey key, int? database = null)
+#pragma warning restore RS0027
+            => SubKeySpaceEvent(KeyNotificationTypeMetadata.GetRawBytes(type), key, database);
+
+        /// <summary>
+        /// Create a subkey (hash) event-notification channel for a specific event type and key, optionally in a specified database.
+        /// </summary>
+        /// <remarks>This API is intended for use with custom/unknown event types; for well-known types, use <see cref="SubKeySpaceEvent(KeyNotificationType, in RedisKey, int?)"/>.</remarks>
+        /// <remarks>Format: __subkeyspaceevent@{db}__:{event}|{key}.</remarks>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeySpaceEvent(ReadOnlySpan<byte> type, in RedisKey key, int? database)
+        {
+            if (type.IsEmpty) throw new ArgumentNullException(nameof(type));
+            if (key.IsEmpty) throw new ArgumentNullException(nameof(key));
+
+            RedisChannelOptions options = RedisChannelOptions.MultiNode;
+            if (database is null) options |= RedisChannelOptions.Pattern;
+            var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);
+
+            // __subkeyspaceevent@{db}__:{event}|{key}
+            var arr = new byte[22 + db.Length + type.Length + 1 + key.TotalLength()];
+
+            var target = AppendAndAdvance(arr.AsSpan(), "__subkeyspaceevent@"u8);
+            target = AppendAndAdvance(target, db);
+            target = AppendAndAdvance(target, "__:"u8);
+            target = AppendAndAdvance(target, type);
+            target[0] = (byte)'|';
+            target = target.Slice(1);
+            var keyLen = key.CopyTo(target);
+            target = target.Slice(keyLen);
+            Debug.Assert(target.IsEmpty, "length calculated incorrectly");
+
+            return new RedisChannel(arr, options | RedisChannelOptions.IgnoreChannelPrefix);
+        }
+
         private static Span<byte> AppendAndAdvance(Span<byte> target, scoped ReadOnlySpan<byte> value)
         {
             value.CopyTo(target);
@@ -369,8 +439,8 @@ namespace StackExchange.Redis
 
             var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);
 
-            // __keyspace@{db}__:{key}[*]
-            var arr = new byte[14 + db.Length + fullKeyLength];
+            // __keyspace@{db}__:{key}[*] or __subkeyspace@{db}__:{key}[*]
+            var arr = new byte[(subkey ? 17 : 14) + db.Length + fullKeyLength];
 
             var target = AppendAndAdvance(arr.AsSpan(), subkey ? "__subkeyspace@"u8 : "__keyspace@"u8);
             target = AppendAndAdvance(target, db);

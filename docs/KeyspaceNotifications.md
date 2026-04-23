@@ -21,6 +21,21 @@ notify-keyspace-events AKE
 The two types of event (keyspace and keyevent) encode the same information, but in different formats.
 To simplify consumption, StackExchange.Redis provides a unified API for both types of event, via the `KeyNotification` type.
 
+**From Redis 8.8**, you can also optionally enable sub-key (hash field) notifications, using additional tokens:
+
+``` conf
+notify-keyspace-events AKESTIV
+```
+
+- **S** - SubKeySpace notifications (`__subkeyspace@<db>__:<key>`)
+- **T** - SubKeyEvent notifications (`__subkeyevent@<db>__:<event>`)
+- **I** - SubKeySpaceItem notifications (`__subkeyspaceitem@<db>__:<key>\n<subkey>`)
+- **V** - SubKeySpaceEvent notifications (`__subkeyspaceevent@<db>__:<event>|<key>`)
+
+These sub-key notification types allow you to monitor operations on hash fields (subkeys) in addition to key-level operations.
+The different formats provide the same information but organized differently, and StackExchange.Redis provides a unified API
+via the same `KeyNotification` type.
+
 ### Event Broadcasting in Redis Cluster
 
 Importantly, in Redis Cluster, keyspace notifications are **not** broadcast to all nodes - they are only received by clients connecting to the
@@ -47,6 +62,17 @@ Note that there are a range of other `KeySpace...` and `KeyEvent...` methods for
 - `KeyEvent` - subscribe to notifications for a specific event type, optionally in a specific database
 
 The `KeySpace*` methods are similar, and are presented separately to make the intent clear. For example, `KeySpacePattern("foo*")` is equivalent to `KeySpacePrefix("foo")`, and will subscribe to all keys beginning with `"foo"`.
+
+**From Redis 8.8**, there are corresponding `SubKeySpace...` and `SubKeyEvent...` methods for sub-key (hash field) notifications:
+
+- `SubKeySpaceSingleKey` - subscribe to sub-key notifications for a single key in a specific database
+- `SubKeySpacePattern` - subscribe to sub-key notifications for a key pattern, optionally in a specific database
+- `SubKeySpacePrefix` - subscribe to sub-key notifications for all keys with a specific prefix, optionally in a specific database
+- `SubKeySpaceItem` - subscribe to sub-key notifications for a specific key and field combination in a specific database
+- `SubKeyEvent` - subscribe to sub-key notifications for a specific event type, optionally in a specific database
+- `SubKeySpaceEvent` - subscribe to sub-key notifications for a specific event type and key, optionally in a specific database
+
+These work similarly to their key-level counterparts, but monitor hash field operations instead of key operations.
 
 Next, we subscribe to the channel and process the notifications using the normal pub/sub subscription API; there are two
 main approaches: queue-based and callback-based.
@@ -79,6 +105,14 @@ sub.Subscribe(channel, (recvChannel, recvValue) =>
         Console.WriteLine($"Key: {notification.GetKey()}");
         Console.WriteLine($"Type: {notification.Type}");
         Console.WriteLine($"Database: {notification.Database}");
+        Console.WriteLine($"Kind: {notification.Kind}");
+
+        // For sub-key notifications (Redis 8.8+), you can access the subkey in a uniform way,
+        // regardless of the notification type
+        if (notification.HasSubKey)
+        {
+            Console.WriteLine($"SubKey: {notification.GetSubKey()}");
+        }
     }
 });
 ```
@@ -86,12 +120,12 @@ sub.Subscribe(channel, (recvChannel, recvValue) =>
 Note that the channels created by the `KeySpace...` and `KeyEvent...` methods cannot be used to manually *publish* events,
 only to subscribe to them. The events are published automatically by the Redis server when keys are modified. If you
 want to simulate keyspace notifications by publishing events manually, you should use regular pub/sub channels that avoid
-the `__keyspace@` and `__keyevent@` prefixes.
+the `__keyspace@` and `__keyevent@` prefixes (and similarly for sub-key events).
 
 ## Performance considerations for KeyNotification
 
 The `KeyNotification` struct provides parsed notification data, including (as already shown) the key, event type,
-database, etc. Note that using `GetKey()` will allocate a copy of the key bytes; to avoid allocations,
+database, kind, etc. Note that using `GetKey()` will allocate a copy of the key bytes; to avoid allocations,
 you can use `TryCopyKey()` to copy the key bytes into a provided buffer (potentially with `GetKeyByteCount()`,
 `GetKeyMaxCharCount()`, etc in order to size the buffer appropriately). Similarly, `KeyStartsWith()` can be used to
 efficiently check the key prefix without allocating a string. This approach is designed to be efficient for high-volume
@@ -104,6 +138,51 @@ the key bytes into a buffer, and then use the alt-lookup API to find the value. 
 for the key entirely, and instead just copy the bytes into a buffer. If we consider that commonly a local cache will *not*
 contain the key for the majority of notifications (since they are for cache invalidation), this can be a significant
 performance win.
+
+## Working with Sub-Key (Hash Field) Notifications
+
+**From Redis 8.8**, Redis supports notifications for hash field (sub-key) operations. These notifications provide
+more granular monitoring of hash operations, allowing you to observe changes to individual hash fields rather than
+just key-level operations.
+
+### Understanding Sub-Key Notification Types
+
+There are four sub-key notification kinds, analogous to the two key-level notification kinds:
+
+- **SubKeySpace** (`__subkeyspace@<db>__:<key>`) - Notifications for a specific hash key, with the event type and sub-key in the payload
+- **SubKeyEvent** (`__subkeyevent@<db>__:<event>`) - Notifications for a specific event type, with the key and sub-key in the payload
+- **SubKeySpaceItem** (`__subkeyspaceitem@<db>__:<key>\n<subkey>`) - Notifications for a specific hash key and field combination
+- **SubKeySpaceEvent** (`__subkeyspaceevent@<db>__:<event>|<key>`) - Notifications for a specific event and key, with the sub-key in the payload
+
+In most cases, the application code already knows the kind of event being consumed, but if that logic is centralized,
+you can determine the notification family using  the `notification.Kind` property (which returns a
+`KeyNotificationKind` enum value), and optionally extract the sub-key using `notification.GetSubKey()`.
+
+### Example: Monitoring Hash Field Changes
+
+```csharp
+// Subscribe to all sub-key changes for hashes with prefix "user:"
+var channel = RedisChannel.SubKeySpacePrefix("user:", database: 0);
+
+sub.Subscribe(channel, (recvChannel, recvValue) =>
+{
+    if (KeyNotification.TryParse(recvChannel, recvValue, out var notification))
+    {
+        Console.WriteLine($"Hash Key: {notification.GetKey()}");
+        Console.WriteLine($"Field: {notification.GetSubKey()}");
+        Console.WriteLine($"Operation: {notification.Type}");
+        Console.WriteLine($"Kind: {notification.Kind}");
+    }
+});
+
+// Or subscribe to specific hash field events (e.g., HSET operations)
+var eventChannel = RedisChannel.SubKeyEvent(KeyNotificationType.HSet, database: 0);
+```
+
+### Sub-Key and Key Prefix Filtering
+
+When using key-prefix filtering with sub-key notifications, the prefix is applied to the **key** only, not to the
+sub-key (hash field). The sub-key is always returned as-is from the notification, without any prefix stripping.
 
 ## Considerations when using database isolation
 
@@ -122,6 +201,14 @@ For example:
 - `RedisChannel.KeySpacePrefix("foo")` maps to `PSUBSCRIBE __keyspace@*__:foo*`
 - `RedisChannel.KeyEvent(KeyNotificationType.Set, 0)` maps to `SUBSCRIBE __keyevent@0__:set`
 - `RedisChannel.KeyEvent(KeyNotificationType.Set)` maps to `PSUBSCRIBE __keyevent@*__:set`
+
+**From Redis 8.8**, the sub-key notification methods work similarly:
+
+- `RedisChannel.SubKeySpaceSingleKey("myhash", 0)` maps to `SUBSCRIBE __subkeyspace@0__:myhash`
+- `RedisChannel.SubKeySpacePrefix("hash:", 0)` maps to `PSUBSCRIBE __subkeyspace@0__:hash:*`
+- `RedisChannel.SubKeySpaceItem("myhash", "field1", 0)` maps to `SUBSCRIBE __subkeyspaceitem@0__:myhash\nfield1`
+- `RedisChannel.SubKeyEvent(KeyNotificationType.HSet, 0)` maps to `SUBSCRIBE __subkeyevent@0__:hset`
+- `RedisChannel.SubKeySpaceEvent(KeyNotificationType.HSet, "myhash", 0)` maps to `SUBSCRIBE __subkeyspaceevent@0__:hset|myhash`
 
 Additionally, note that while most of these examples require multi-node subscriptions on Redis Cluster, `KeySpaceSingleKey`
 is an exception, and will only subscribe to the single node that owns the key `foo`.

@@ -604,6 +604,139 @@ public class KeyNotificationTests(ITestOutputHelper log)
         }
     }
 
+    [Fact]
+    public void CreateSubKeySpaceNotification_Valid()
+    {
+        var channel = RedisChannel.SubKeySpaceSingleKey("myhash", 42);
+        Assert.Equal("__subkeyspace@42__:myhash", channel.ToString());
+        Assert.False(channel.IsMultiNode);
+        Assert.True(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.False(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
+    }
+
+    [Theory]
+    [InlineData(null, null, "__subkeyspace@*__:*")]
+    [InlineData("hash*", null, "__subkeyspace@*__:hash*")]
+    [InlineData(null, 42, "__subkeyspace@42__:*")]
+    [InlineData("hash*", 42, "__subkeyspace@42__:hash*")]
+    public void CreateSubKeySpaceNotificationPattern(string? pattern, int? database, string expected)
+    {
+        var channel = RedisChannel.SubKeySpacePattern(pattern, database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.True(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
+    }
+
+    [Theory]
+    [InlineData("hash:", null, "__subkeyspace@*__:hash:*")]
+    [InlineData("hash:", 42, "__subkeyspace@42__:hash:*")]
+    public void CreateSubKeySpaceNotificationPrefix_Key(string prefix, int? database, string expected)
+    {
+        var channel = RedisChannel.SubKeySpacePrefix((RedisKey)prefix, database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.True(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
+    }
+
+    [Theory]
+    [InlineData("hash:", null, "__subkeyspace@*__:hash:*")]
+    [InlineData("hash:", 42, "__subkeyspace@42__:hash:*")]
+    public void CreateSubKeySpaceNotificationPrefix_Span(string prefix, int? database, string expected)
+    {
+        var channel = RedisChannel.SubKeySpacePrefix((ReadOnlySpan<byte>)Encoding.UTF8.GetBytes(prefix), database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.True(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
+    }
+
+    [Theory]
+    [InlineData("hash?", null)]
+    [InlineData("hash?", 42)]
+    [InlineData("hash*", null)]
+    [InlineData("hash*", 42)]
+    [InlineData("hash[", null)]
+    [InlineData("hash[", 42)]
+    public void CreateSubKeySpaceNotificationPrefix_DisallowGlob(string prefix, int? database)
+    {
+        var bytes = Encoding.UTF8.GetBytes(prefix);
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RedisChannel.SubKeySpacePrefix((RedisKey)bytes, database));
+        Assert.StartsWith("The supplied key contains pattern characters, but patterns are not supported in this context.", ex.Message);
+
+        ex = Assert.Throws<ArgumentException>(() =>
+            RedisChannel.SubKeySpacePrefix((ReadOnlySpan<byte>)bytes, database));
+        Assert.StartsWith("The supplied key contains pattern characters, but patterns are not supported in this context.", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(KeyNotificationType.HSet, null, "__subkeyevent@*__:hset", true)]
+    [InlineData(KeyNotificationType.HDel, null, "__subkeyevent@*__:hdel", true)]
+    [InlineData(KeyNotificationType.HSet, 42, "__subkeyevent@42__:hset", false)]
+    [InlineData(KeyNotificationType.HDel, 42, "__subkeyevent@42__:hdel", false)]
+    public void CreateSubKeyEventNotification(KeyNotificationType type, int? database, string expected, bool isPattern)
+    {
+        var channel = RedisChannel.SubKeyEvent(type, database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.True(channel.IgnoreChannelPrefix);
+        if (isPattern)
+        {
+            Assert.True(channel.IsPattern);
+        }
+        else
+        {
+            Assert.False(channel.IsPattern);
+        }
+    }
+
+    [Fact]
+    public void CreateSubKeySpaceItemNotification_Valid()
+    {
+        var channel = RedisChannel.SubKeySpaceItem("myhash", "field1", 42);
+        Assert.Equal("__subkeyspaceitem@42__:myhash\nfield1", channel.ToString());
+        Assert.False(channel.IsMultiNode);
+        Assert.True(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.False(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix);
+    }
+
+    [Theory]
+    [InlineData(KeyNotificationType.HSet, "myhash", null, "__subkeyspaceevent@*__:hset|myhash", true)]
+    [InlineData(KeyNotificationType.HDel, "myhash", null, "__subkeyspaceevent@*__:hdel|myhash", true)]
+    [InlineData(KeyNotificationType.HSet, "myhash", 42, "__subkeyspaceevent@42__:hset|myhash", false)]
+    [InlineData(KeyNotificationType.HDel, "myhash", 42, "__subkeyspaceevent@42__:hdel|myhash", false)]
+    public void CreateSubKeySpaceEventNotification(KeyNotificationType type, string key, int? database, string expected, bool isPattern)
+    {
+        var channel = RedisChannel.SubKeySpaceEvent(type, key, database);
+        Assert.Equal(expected, channel.ToString());
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsKeyRouted);
+        Assert.False(channel.IsSharded);
+        Assert.True(channel.IgnoreChannelPrefix);
+        if (isPattern)
+        {
+            Assert.True(channel.IsPattern);
+        }
+        else
+        {
+            Assert.False(channel.IsPattern);
+        }
+    }
+
     [Theory]
     [InlineData("abc", "__keyspace@42__:abc")]
     [InlineData("a*bc", "__keyspace@42__:a*bc")] // pattern-like is allowed, since not using PSUBSCRIBE

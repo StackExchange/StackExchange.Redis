@@ -1,11 +1,15 @@
 ﻿#nullable enable
 [SER006]static StackExchange.Redis.RedisChannel.SubKeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel
 [SER006]static StackExchange.Redis.RedisChannel.SubKeyEvent(System.ReadOnlySpan<byte> type, int? database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceEvent(StackExchange.Redis.KeyNotificationType type, in StackExchange.Redis.RedisKey key, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceEvent(System.ReadOnlySpan<byte> type, in StackExchange.Redis.RedisKey key, int? database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceItem(in StackExchange.Redis.RedisKey key, in StackExchange.Redis.RedisKey subkey, int database) -> StackExchange.Redis.RedisChannel
 [SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePattern(in StackExchange.Redis.RedisKey pattern, int? database = null) -> StackExchange.Redis.RedisChannel
 [SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(in StackExchange.Redis.RedisKey prefix, int? database = null) -> StackExchange.Redis.RedisChannel
 [SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(System.ReadOnlySpan<byte> prefix, int? database = null) -> StackExchange.Redis.RedisChannel
 [SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceSingleKey(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel
 [SER006]StackExchange.Redis.KeyNotification.GetSubKey() -> StackExchange.Redis.RedisValue
+StackExchange.Redis.KeyNotification.HasSubKey.get -> bool
 StackExchange.Redis.KeyNotification.Kind.get -> StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationKind.KeyEvent = 2 -> StackExchange.Redis.KeyNotificationKind
