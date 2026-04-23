@@ -206,7 +206,7 @@ public partial class ConnectionMultiplexer
             {
                 if (!config.AbortOnConnectFail)
                 {
-                    connection = ConnectImpl(config, log, endpoints: config.EndPoints);
+                    connection = ConnectImpl(config, log, endpoints: config.EndPoints.Clone());
                     connection.ConnectionRestored += OnManagedConnectionRestored;
                     connection.ConnectionFailed += OnManagedConnectionFailed;
                     lock (sentinelConnectionChildren)
