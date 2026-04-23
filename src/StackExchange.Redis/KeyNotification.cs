@@ -1,11 +1,58 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Text;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
 using RESPite;
 using static StackExchange.Redis.KeyNotificationChannels;
+
 namespace StackExchange.Redis;
+
+/// <summary>
+/// Represents the type of keyspace notification channel.
+/// </summary>
+public enum KeyNotificationKind
+{
+    /// <summary>
+    /// Unknown or invalid notification type.
+    /// </summary>
+    Unknown = 0,
+
+    /// <summary>
+    /// Standard keyspace notification: __keyspace@{db}__:{key} with payload containing the event.
+    /// </summary>
+    KeySpace = 1,
+
+    /// <summary>
+    /// Standard keyevent notification: __keyevent@{db}__:{event} with payload containing the key.
+    /// </summary>
+    KeyEvent = 2,
+
+    /// <summary>
+    /// Subkey keyspace notification: __subkeyspace@{db}__:{key} with payload containing event|subkey.
+    /// </summary>
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    SubKeySpace = 3,
+
+    /// <summary>
+    /// Subkey keyevent notification: __subkeyevent@{db}__:{event} with payload containing key|subkey.
+    /// </summary>
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    SubKeyEvent = 4,
+
+    /// <summary>
+    /// Subkey keyspaceitem notification: __subkeyspaceitem@{db}__:{key}\n{subkey} with payload containing the event.
+    /// </summary>
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    SubKeySpaceItem = 5,
+
+    /// <summary>
+    /// Subkey keyspaceevent notification: __subkeyspaceevent@{db}__:{event}|{key} with payload containing the subkey.
+    /// </summary>
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    SubKeySpaceEvent = 6,
+}
 
 /// <summary>
 /// Represents keyspace and keyevent notifications, with utility methods for accessing the component data. Additionally,
@@ -19,36 +66,108 @@ public readonly ref struct KeyNotification
     private readonly RedisChannel _channel;
     private readonly RedisValue _value;
     private readonly int _keyOffset; // used to efficiently strip key prefixes
+    private readonly KeyNotificationKind _kind; // the type of notification
 
     // this type has been designed with the intent of being able to move the entire thing alloc-free in some future
     // high-throughput callback, potentially with a ReadOnlySpan<byte> field for the key fragment; this is
     // not implemented currently, but is why this is a ref struct
 
     /// <summary>
-    /// If the channel is either a keyspace or keyevent notification, resolve the key and event type.
+    /// Gets the kind of keyspace notification this represents.
+    /// </summary>
+    public KeyNotificationKind Kind => _kind;
+
+    /// <summary>
+    /// If the channel is a keyspace, keyevent, subkeyspace, subkeyevent, subkeyspaceitem, or subkeyeventitem notification, resolve the key and event type.
     /// </summary>
     public static bool TryParse(scoped in RedisChannel channel, scoped in RedisValue value, out KeyNotification notification)
     {
         // validate that it looks reasonable
         var span = channel.Span;
 
-        // KeySpaceStart and KeyEventStart are the same size, see KeyEventPrefix_KeySpacePrefix_Length_Matches
+        // Check for SubKeySpaceEvent prefix first (it's the longest: 20 chars)
+        if (span.Length >= SubKeySpaceEventPrefix.Length + MinSuffixBytes)
+        {
+            var prefix = span.Slice(0, SubKeySpaceEventPrefix.Length);
+            var hashCS = AsciiHash.HashCS(prefix);
+            if (SubKeySpaceEventPrefix.IsCS(prefix, hashCS))
+            {
+                // __subkeyspaceevent@<db>__:<event>|<key> - check for __: followed by something
+                if (span.Slice(SubKeySpaceEventPrefix.Length).IndexOf("__:"u8) > 0)
+                {
+                    notification = new KeyNotification(in channel, in value, KeyNotificationKind.SubKeySpaceEvent);
+                    return true;
+                }
+            }
+        }
+
+        // Check for SubKeySpaceItem prefix (19 chars)
+        if (span.Length >= SubKeySpaceItemPrefix.Length + MinSuffixBytes)
+        {
+            var prefix = span.Slice(0, SubKeySpaceItemPrefix.Length);
+            var hashCS = AsciiHash.HashCS(prefix);
+            if (SubKeySpaceItemPrefix.IsCS(prefix, hashCS))
+            {
+                // __subkeyspaceitem@<db>__:<key>\n<subkey> - check for __: followed by something
+                if (span.Slice(SubKeySpaceItemPrefix.Length).IndexOf("__:"u8) > 0)
+                {
+                    notification = new KeyNotification(in channel, in value, KeyNotificationKind.SubKeySpaceItem);
+                    return true;
+                }
+            }
+        }
+
+        // Check for the subkey prefixes (14 chars: __subkeyspace@, __subkeyevent@)
+        if (span.Length >= SubKeySpacePrefix.Length + MinSuffixBytes)
+        {
+            var prefix = span.Slice(0, SubKeySpacePrefix.Length);
+            var hashCS = AsciiHash.HashCS(prefix);
+            switch (hashCS)
+            {
+                case SubKeySpacePrefix.HashCS when SubKeySpacePrefix.IsCS(prefix, hashCS):
+                    // check that there is *something* non-empty after the prefix, with __: as the suffix
+                    if (span.Slice(SubKeySpacePrefix.Length).IndexOf("__:"u8) > 0)
+                    {
+                        notification = new KeyNotification(in channel, in value, KeyNotificationKind.SubKeySpace);
+                        return true;
+                    }
+                    break;
+
+                case SubKeyEventPrefix.HashCS when SubKeyEventPrefix.IsCS(prefix, hashCS):
+                    // check that there is *something* non-empty after the prefix, with __: as the suffix
+                    if (span.Slice(SubKeySpacePrefix.Length).IndexOf("__:"u8) > 0)
+                    {
+                        notification = new KeyNotification(in channel, in value, KeyNotificationKind.SubKeyEvent);
+                        return true;
+                    }
+                    break;
+            }
+        }
+
+        // Check for basic keyspace/keyevent prefixes (11 chars: __keyspace@, __keyevent@)
         if (span.Length >= KeySpacePrefix.Length + MinSuffixBytes)
         {
-            // check that the prefix is valid, i.e. "__keyspace@" or "__keyevent@"
+            // check that the prefix is valid, i.e. "__keyspace@", "__keyevent@"
             var prefix = span.Slice(0, KeySpacePrefix.Length);
             var hashCS = AsciiHash.HashCS(prefix);
             switch (hashCS)
             {
                 case KeyEventPrefix.HashCS when KeyEventPrefix.IsCS(prefix, hashCS):
+                    // check that there is *something* non-empty after the prefix, with __: as the suffix (we don't verify *what*)
+                    if (span.Slice(KeySpacePrefix.Length).IndexOf("__:"u8) > 0)
+                    {
+                        notification = new KeyNotification(in channel, in value, KeyNotificationKind.KeyEvent);
+                        return true;
+                    }
+                    break;
+
                 case KeySpacePrefix.HashCS when KeySpacePrefix.IsCS(prefix, hashCS):
                     // check that there is *something* non-empty after the prefix, with __: as the suffix (we don't verify *what*)
                     if (span.Slice(KeySpacePrefix.Length).IndexOf("__:"u8) > 0)
                     {
-                        notification = new KeyNotification(in channel, in value);
+                        notification = new KeyNotification(in channel, in value, KeyNotificationKind.KeySpace);
                         return true;
                     }
-
                     break;
             }
         }
@@ -92,11 +211,12 @@ public readonly ref struct KeyNotification
     /// </summary>
     public RedisValue GetValue() => _value;
 
-    internal KeyNotification(scoped in RedisChannel channel, scoped in RedisValue value)
+    internal KeyNotification(scoped in RedisChannel channel, scoped in RedisValue value, KeyNotificationKind kind)
     {
         _channel = channel;
         _value = value;
         _keyOffset = 0;
+        _kind = kind;
     }
 
     internal int KeyOffset => _keyOffset;
@@ -110,7 +230,32 @@ public readonly ref struct KeyNotification
         {
             // prevalidated format, so we can just skip past the prefix (except for the default value)
             if (_channel.IsNull) return -1;
-            var span = _channel.Span.Slice(KeySpacePrefix.Length); // also works for KeyEventPrefix
+
+            // Determine the prefix length based on the channel type
+            var fullSpan = _channel.Span;
+            int prefixLength;
+            if (fullSpan.Length >= SubKeySpaceEventPrefix.Length &&
+                SubKeySpaceEventPrefix.IsCS(fullSpan.Slice(0, SubKeySpaceEventPrefix.Length), AsciiHash.HashCS(fullSpan)))
+            {
+                prefixLength = SubKeySpaceEventPrefix.Length;
+            }
+            else if (fullSpan.Length >= SubKeySpaceItemPrefix.Length &&
+                     SubKeySpaceItemPrefix.IsCS(fullSpan.Slice(0, SubKeySpaceItemPrefix.Length), AsciiHash.HashCS(fullSpan)))
+            {
+                prefixLength = SubKeySpaceItemPrefix.Length;
+            }
+            else if (fullSpan.Length >= SubKeySpacePrefix.Length &&
+                     (SubKeySpacePrefix.IsCS(fullSpan.Slice(0, SubKeySpacePrefix.Length), AsciiHash.HashCS(fullSpan)) ||
+                      SubKeyEventPrefix.IsCS(fullSpan.Slice(0, SubKeyEventPrefix.Length), AsciiHash.HashCS(fullSpan))))
+            {
+                prefixLength = SubKeySpacePrefix.Length;
+            }
+            else
+            {
+                prefixLength = KeySpacePrefix.Length; // also works for KeyEventPrefix
+            }
+
+            var span = fullSpan.Slice(prefixLength);
             var end = span.IndexOf((byte)'_'); // expecting "__:foo" - we'll just stop at the underscore
             if (end <= 0) return -1;
 
@@ -144,7 +289,158 @@ public readonly ref struct KeyNotification
             return blob;
         }
 
+        if (IsSubKeySpace)
+        {
+            // __subkeyspace@<db>__:<key> with payload <event>|<len>:<subkey>
+            // channel contains the key
+            return ChannelSuffix.Slice(_keyOffset).ToArray();
+        }
+
+        if (IsSubKeyEvent)
+        {
+            // __subkeyevent@<db>__:<event> with payload <key_len>:<key>|<len>:<subkey>
+            // payload contains <key_len>:<key>|...
+            var value = ExtractLengthPrefixedValue(_value, _keyOffset);
+            if (value.IsNull) return RedisKey.Null;
+            // Convert RedisValue to RedisKey via byte array
+            byte[]? bytes = value;
+            return bytes;
+        }
+
+        if (IsSubKeySpaceItem)
+        {
+            // __subkeyspaceitem@<db>__:<key>\n<subkey> with payload <event>
+            // channel contains key\nsubkey - extract just the key part
+            var suffix = ChannelSuffix;
+            var newlineIndex = suffix.IndexOf((byte)'\n');
+            if (newlineIndex > 0)
+            {
+                return suffix.Slice(_keyOffset, newlineIndex - _keyOffset).ToArray();
+            }
+            return RedisKey.Null;
+        }
+
+        if (IsSubKeySpaceEvent)
+        {
+            // __subkeyspaceevent@<db>__:<event>|<key> with payload <len>:<subkey>
+            // channel contains event|key - extract the key part after the pipe
+            var suffix = ChannelSuffix;
+            var pipeIndex = suffix.IndexOf((byte)'|');
+            if (pipeIndex >= 0 && pipeIndex + 1 < suffix.Length)
+            {
+                return suffix.Slice(pipeIndex + 1 + _keyOffset).ToArray();
+            }
+            return RedisKey.Null;
+        }
+
         return RedisKey.Null;
+    }
+
+    /// <summary>
+    /// The subkey associated with this event, if applicable. Returns <see cref="RedisValue.Null"/> for non-subkey notification types.
+    /// </summary>
+    /// <remarks>For notifications with multiple subkeys, only the first subkey is returned.</remarks>
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    public RedisValue GetSubKey()
+    {
+        if (IsSubKeySpace)
+        {
+            // __subkeyspace@<db>__:<key> with payload <event>|<len>:<subkey>[,...]
+            // payload contains <event>|<len>:<subkey>
+            if (_value.TryGetSpan(out var span))
+            {
+                var pipeIndex = span.IndexOf((byte)'|');
+                if (pipeIndex >= 0 && pipeIndex + 1 < span.Length)
+                {
+                    return ExtractLengthPrefixedValue(span.Slice(pipeIndex + 1));
+                }
+            }
+            else
+            {
+                // Fallback for non-contiguous values
+                Span<byte> buffer = stackalloc byte[256];
+                var bytesWritten = _value.CopyTo(buffer);
+                var pipeIndex = buffer.Slice(0, bytesWritten).IndexOf((byte)'|');
+                if (pipeIndex >= 0 && pipeIndex + 1 < bytesWritten)
+                {
+                    return ExtractLengthPrefixedValue(buffer.Slice(pipeIndex + 1, bytesWritten - pipeIndex - 1));
+                }
+            }
+        }
+
+        if (IsSubKeyEvent)
+        {
+            // __subkeyevent@<db>__:<event> with payload <key_len>:<key>|<len>:<subkey>[,...]
+            // payload contains <key_len>:<key>|<len>:<subkey>
+            if (_value.TryGetSpan(out var span))
+            {
+                var pipeIndex = span.IndexOf((byte)'|');
+                if (pipeIndex >= 0 && pipeIndex + 1 < span.Length)
+                {
+                    return ExtractLengthPrefixedValue(span.Slice(pipeIndex + 1));
+                }
+            }
+            else
+            {
+                // Fallback for non-contiguous values
+                Span<byte> buffer = stackalloc byte[256];
+                var bytesWritten = _value.CopyTo(buffer);
+                var pipeIndex = buffer.Slice(0, bytesWritten).IndexOf((byte)'|');
+                if (pipeIndex >= 0 && pipeIndex + 1 < bytesWritten)
+                {
+                    return ExtractLengthPrefixedValue(buffer.Slice(pipeIndex + 1, bytesWritten - pipeIndex - 1));
+                }
+            }
+        }
+
+        if (IsSubKeySpaceItem)
+        {
+            // __subkeyspaceitem@<db>__:<key>\n<subkey> with payload <event>
+            // channel contains key\nsubkey
+            var suffix = ChannelSuffix;
+            var newlineIndex = suffix.IndexOf((byte)'\n');
+            if (newlineIndex >= 0 && newlineIndex + 1 < suffix.Length)
+            {
+                return suffix.Slice(newlineIndex + 1).ToArray();
+            }
+        }
+
+        if (IsSubKeySpaceEvent)
+        {
+            // __subkeyspaceevent@<db>__:<event>|<key> with payload <len>:<subkey>[,...]
+            // payload contains <len>:<subkey>
+            return ExtractLengthPrefixedValue(_value, 0);
+        }
+
+        return RedisValue.Null;
+    }
+
+    // Helper to extract a value prefixed with its length, e.g., "5:hello" -> "hello"
+    internal static RedisValue ExtractLengthPrefixedValue(in RedisValue value, int offset)
+    {
+        if (value.TryGetSpan(out var span))
+        {
+            return ExtractLengthPrefixedValue(span.Slice(offset));
+        }
+
+        // Slower path for non-contiguous values
+        Span<byte> buffer = stackalloc byte[256];
+        var bytesWritten = value.CopyTo(buffer);
+        return ExtractLengthPrefixedValue(buffer.Slice(offset, bytesWritten - offset));
+    }
+
+    internal static RedisValue ExtractLengthPrefixedValue(ReadOnlySpan<byte> span)
+    {
+        var colonIndex = span.IndexOf((byte)':');
+        if (colonIndex > 0 && Utf8Parser.TryParse(span.Slice(0, colonIndex), out int length, out _))
+        {
+            var startIndex = colonIndex + 1;
+            if (startIndex + length <= span.Length)
+            {
+                return span.Slice(startIndex, length).ToArray();
+            }
+        }
+        return RedisValue.Null;
     }
 
     /// <summary>
@@ -355,7 +651,7 @@ public readonly ref struct KeyNotification
     /// <summary>
     /// Get the portion of the channel after the "__{keyspace|keyevent}@{db}__:".
     /// </summary>
-    private ReadOnlySpan<byte> ChannelSuffix
+    internal ReadOnlySpan<byte> ChannelSuffix
     {
         get
         {
@@ -396,6 +692,69 @@ public readonly ref struct KeyNotification
             return ChannelSuffix.SequenceEqual(type);
         }
 
+        if (IsSubKeySpace)
+        {
+            // For SubKeySpace, the type is before the | in the payload
+            if (_value.TryGetSpan(out var direct))
+            {
+                var pipeIndex = direct.IndexOf((byte)'|');
+                if (pipeIndex > 0)
+                {
+                    return direct.Slice(0, pipeIndex).SequenceEqual(type);
+                }
+            }
+
+            const int MAX_STACK = 64;
+            byte[]? lease = null;
+            var maxCount = _value.GetMaxByteCount();
+            Span<byte> localCopy = maxCount <= MAX_STACK
+                ? stackalloc byte[MAX_STACK]
+                : (lease = ArrayPool<byte>.Shared.Rent(maxCount));
+            var count = _value.CopyTo(localCopy);
+            var pipeIndex2 = localCopy.Slice(0, count).IndexOf((byte)'|');
+            bool result = pipeIndex2 > 0 && localCopy.Slice(0, pipeIndex2).SequenceEqual(type);
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+            return result;
+        }
+
+        if (IsSubKeySpaceEvent)
+        {
+            // For SubKeySpaceEvent, the type is in the channel suffix before the |
+            var suffix = ChannelSuffix;
+            var pipeIndex = suffix.IndexOf((byte)'|');
+            if (pipeIndex > 0)
+            {
+                return suffix.Slice(0, pipeIndex).SequenceEqual(type);
+            }
+            return false;
+        }
+
+        if (IsSubKeyEvent)
+        {
+            // For SubKeyEvent, the type is in the channel suffix
+            return ChannelSuffix.SequenceEqual(type);
+        }
+
+        if (IsSubKeySpaceItem)
+        {
+            // For SubKeySpaceItem, the type is in the payload/value
+            if (_value.TryGetSpan(out var direct))
+            {
+                return direct.SequenceEqual(type);
+            }
+
+            const int MAX_STACK = 64;
+            byte[]? lease = null;
+            var maxCount = _value.GetMaxByteCount();
+            Span<byte> localCopy = maxCount <= MAX_STACK
+                ? stackalloc byte[MAX_STACK]
+                : (lease = ArrayPool<byte>.Shared.Rent(maxCount));
+            var count = _value.CopyTo(localCopy);
+            bool result = localCopy.Slice(0, count).SequenceEqual(type);
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+            return result;
+        }
+
         return false;
     }
 
@@ -427,6 +786,64 @@ public readonly ref struct KeyNotification
                 // then the channel contains the event-type, and the payload contains the key
                 return KeyNotificationTypeMetadata.Parse(ChannelSuffix);
             }
+            else if (IsSubKeySpace)
+            {
+                // __subkeyspace@<db>__:<key> with payload <event>|<len>:<subkey>
+                // payload contains <event>|...
+                if (_value.TryGetSpan(out var direct))
+                {
+                    var pipeIndex = direct.IndexOf((byte)'|');
+                    if (pipeIndex > 0)
+                    {
+                        return KeyNotificationTypeMetadata.Parse(direct.Slice(0, pipeIndex));
+                    }
+                }
+
+                // Fallback: copy to stack and try again
+                if (_value.GetByteCount() <= KeyNotificationTypeMetadata.BufferBytes)
+                {
+                    Span<byte> localCopy = stackalloc byte[KeyNotificationTypeMetadata.BufferBytes];
+                    var len = _value.CopyTo(localCopy);
+                    var pipeIndex = localCopy.Slice(0, len).IndexOf((byte)'|');
+                    if (pipeIndex > 0)
+                    {
+                        return KeyNotificationTypeMetadata.Parse(localCopy.Slice(0, pipeIndex));
+                    }
+                }
+            }
+            else if (IsSubKeyEvent)
+            {
+                // __subkeyevent@<db>__:<event> with payload <key_len>:<key>|<len>:<subkey>
+                // channel contains the event-type
+                return KeyNotificationTypeMetadata.Parse(ChannelSuffix);
+            }
+            else if (IsSubKeySpaceItem)
+            {
+                // __subkeyspaceitem@<db>__:<key>\n<subkey> with payload <event>
+                // payload contains the event-type
+                if (_value.TryGetSpan(out var direct))
+                {
+                    return KeyNotificationTypeMetadata.Parse(direct);
+                }
+
+                if (_value.GetByteCount() <= KeyNotificationTypeMetadata.BufferBytes)
+                {
+                    Span<byte> localCopy = stackalloc byte[KeyNotificationTypeMetadata.BufferBytes];
+                    var len = _value.CopyTo(localCopy);
+                    return KeyNotificationTypeMetadata.Parse(localCopy.Slice(0, len));
+                }
+            }
+            else if (IsSubKeySpaceEvent)
+            {
+                // __subkeyspaceevent@<db>__:<event>|<key> with payload <len>:<subkey>
+                // channel contains event|key - extract the event part before the pipe
+                var suffix = ChannelSuffix;
+                var pipeIndex = suffix.IndexOf((byte)'|');
+                if (pipeIndex > 0)
+                {
+                    return KeyNotificationTypeMetadata.Parse(suffix.Slice(0, pipeIndex));
+                }
+            }
             return KeyNotificationType.Unknown;
         }
     }
@@ -434,25 +851,47 @@ public readonly ref struct KeyNotification
     /// <summary>
     /// Indicates whether this notification originated from a keyspace notification, for example <c>__keyspace@4__:mykey</c> with payload <c>set</c>.
     /// </summary>
-    public bool IsKeySpace
-    {
-        get
-        {
-            var span = _channel.Span;
-            return span.Length >= KeySpacePrefix.Length + MinSuffixBytes && KeySpacePrefix.IsCS(span.Slice(0, KeySpacePrefix.Length), AsciiHash.HashCS(span));
-        }
-    }
+    public bool IsKeySpace => _kind == KeyNotificationKind.KeySpace;
 
     /// <summary>
     /// Indicates whether this notification originated from a keyevent notification, for example <c>__keyevent@4__:set</c> with payload <c>mykey</c>.
     /// </summary>
-    public bool IsKeyEvent
+    public bool IsKeyEvent => _kind == KeyNotificationKind.KeyEvent;
+
+    /// <summary>
+    /// Indicates whether this notification originated from a subkeyspace notification, for example <c>__subkeyspace@4__:mykey</c> with payload <c>hset|5:field</c>.
+    /// </summary>
+    public bool IsSubKeySpace
     {
-        get
-        {
-            var span = _channel.Span;
-            return span.Length >= KeyEventPrefix.Length + MinSuffixBytes && KeyEventPrefix.IsCS(span.Slice(0, KeyEventPrefix.Length), AsciiHash.HashCS(span));
-        }
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        get => _kind == KeyNotificationKind.SubKeySpace;
+    }
+
+    /// <summary>
+    /// Indicates whether this notification originated from a subkeyevent notification, for example <c>__subkeyevent@4__:hset</c> with payload <c>5:mykey|5:field</c>.
+    /// </summary>
+    public bool IsSubKeyEvent
+    {
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        get => _kind == KeyNotificationKind.SubKeyEvent;
+    }
+
+    /// <summary>
+    /// Indicates whether this notification originated from a subkeyspaceitem notification, for example <c>__subkeyspaceitem@4__:mykey\nfield</c> with payload <c>hset</c>.
+    /// </summary>
+    public bool IsSubKeySpaceItem
+    {
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        get => _kind == KeyNotificationKind.SubKeySpaceItem;
+    }
+
+    /// <summary>
+    /// Indicates whether this notification originated from a subkeyspaceevent notification, for example <c>__subkeyspaceevent@4__:hset|mykey</c> with payload <c>5:field</c>.
+    /// </summary>
+    public bool IsSubKeySpaceEvent
+    {
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        get => _kind == KeyNotificationKind.SubKeySpaceEvent;
     }
 
     /// <summary>
@@ -489,6 +928,26 @@ internal static partial class KeyNotificationChannels
 
     [AsciiHash("__keyevent@")]
     internal static partial class KeyEventPrefix
+    {
+    }
+
+    [AsciiHash("__subkeyspace@")]
+    internal static partial class SubKeySpacePrefix
+    {
+    }
+
+    [AsciiHash("__subkeyevent@")]
+    internal static partial class SubKeyEventPrefix
+    {
+    }
+
+    [AsciiHash("__subkeyspaceitem@")]
+    internal static partial class SubKeySpaceItemPrefix
+    {
+    }
+
+    [AsciiHash("__subkeyspaceevent@")]
+    internal static partial class SubKeySpaceEventPrefix
     {
     }
 }

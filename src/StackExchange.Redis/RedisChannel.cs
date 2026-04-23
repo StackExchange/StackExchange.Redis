@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
+using RESPite;
 
 namespace StackExchange.Redis
 {
@@ -213,13 +215,13 @@ namespace StackExchange.Redis
         /// </summary>
         public static RedisChannel KeySpaceSingleKey(in RedisKey key, int database)
             // note we can allow patterns, because we aren't using PSUBSCRIBE
-            => BuildKeySpaceChannel(key, database, RedisChannelOptions.KeyRouted, default, false, true);
+            => BuildKeySpaceChannel(key, database, RedisChannelOptions.KeyRouted, default, false, true, subkey: false);
 
         /// <summary>
         /// Create a key-notification channel for a pattern, optionally in a specified database.
         /// </summary>
         public static RedisChannel KeySpacePattern(in RedisKey pattern, int? database = null)
-            => BuildKeySpaceChannel(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, appendStar: pattern.IsNull, allowKeyPatterns: true);
+            => BuildKeySpaceChannel(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, appendStar: pattern.IsNull, allowKeyPatterns: true, subkey: false);
 
 #pragma  warning disable RS0026 // competing overloads - disambiguated via OverloadResolutionPriority
         /// <summary>
@@ -228,7 +230,7 @@ namespace StackExchange.Redis
         public static RedisChannel KeySpacePrefix(in RedisKey prefix, int? database = null)
         {
             if (prefix.IsEmpty) Throw();
-            return BuildKeySpaceChannel(prefix, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, true, false);
+            return BuildKeySpaceChannel(prefix, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, true, false, subkey: false);
             static void Throw() => throw new ArgumentNullException(nameof(prefix));
         }
 
@@ -239,7 +241,7 @@ namespace StackExchange.Redis
         public static RedisChannel KeySpacePrefix(ReadOnlySpan<byte> prefix, int? database = null)
         {
             if (prefix.IsEmpty) Throw();
-            return BuildKeySpaceChannel(RedisKey.Null, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, prefix, true, false);
+            return BuildKeySpaceChannel(RedisKey.Null, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, prefix, true, false, subkey: false);
             static void Throw() => throw new ArgumentNullException(nameof(prefix));
         }
 #pragma  warning restore RS0026 // competing overloads - disambiguated via OverloadResolutionPriority
@@ -268,13 +270,16 @@ namespace StackExchange.Redis
 #pragma warning disable RS0027
         public static RedisChannel KeyEvent(KeyNotificationType type, int? database = null)
 #pragma warning restore RS0027
-            => KeyEvent(KeyNotificationTypeMetadata.GetRawBytes(type), database);
+            => CreateKeyEvent(KeyNotificationTypeMetadata.GetRawBytes(type), database, subkey: false);
 
         /// <summary>
         /// Create an event-notification channel for a given event type, optionally in a specified database.
         /// </summary>
         /// <remarks>This API is intended for use with custom/unknown event types; for well-known types, use <see cref="KeyEvent(KeyNotificationType, int?)"/>.</remarks>
         public static RedisChannel KeyEvent(ReadOnlySpan<byte> type, int? database)
+            => CreateKeyEvent(type, database, subkey: false);
+
+        private static RedisChannel CreateKeyEvent(ReadOnlySpan<byte> type, int? database, bool subkey)
         {
             if (type.IsEmpty) throw new ArgumentNullException(nameof(type));
 
@@ -294,13 +299,69 @@ namespace StackExchange.Redis
             return new RedisChannel(arr, options | RedisChannelOptions.IgnoreChannelPrefix);
         }
 
+        /// <summary>
+        /// Create a subkey (hash) notification channel for a single key in a single database.
+        /// </summary>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeySpaceSingleKey(in RedisKey key, int database)
+            // note we can allow patterns, because we aren't using PSUBSCRIBE
+            => BuildKeySpaceChannel(key, database, RedisChannelOptions.KeyRouted, default, false, true, subkey: true);
+
+        /// <summary>
+        /// Create a subkey (hash) notification channel for a pattern, optionally in a specified database.
+        /// </summary>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeySpacePattern(in RedisKey pattern, int? database = null)
+            => BuildKeySpaceChannel(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, appendStar: pattern.IsNull, allowKeyPatterns: true, subkey: true);
+
+#pragma  warning disable RS0026 // competing overloads - disambiguated via OverloadResolutionPriority
+        /// <summary>
+        /// Create a subkey (hash) notification channel using a raw prefix, optionally in a specified database.
+        /// </summary>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeySpacePrefix(in RedisKey prefix, int? database = null)
+        {
+            if (prefix.IsEmpty) Throw();
+            return BuildKeySpaceChannel(prefix, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, true, false, subkey: true);
+            static void Throw() => throw new ArgumentNullException(nameof(prefix));
+        }
+
+        /// <summary>
+        /// Create a key-notification channel using a raw prefix, optionally in a specified database.
+        /// </summary>
+        [OverloadResolutionPriority(1)]
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeySpacePrefix(ReadOnlySpan<byte> prefix, int? database = null)
+        {
+            if (prefix.IsEmpty) Throw();
+            return BuildKeySpaceChannel(RedisKey.Null, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, prefix, true, false, subkey: true);
+            static void Throw() => throw new ArgumentNullException(nameof(prefix));
+        }
+
+        /// <summary>
+        /// Create a subkey (hash) event-notification channel for a given event type, optionally in a specified database.
+        /// </summary>
+#pragma warning disable RS0027
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeyEvent(KeyNotificationType type, int? database = null)
+#pragma warning restore RS0027
+            => CreateKeyEvent(KeyNotificationTypeMetadata.GetRawBytes(type), database, subkey: true);
+
+        /// <summary>
+        /// Create a subkey (hash) event-notification channel for a given event type, optionally in a specified database.
+        /// </summary>
+        /// <remarks>This API is intended for use with custom/unknown event types; for well-known types, use <see cref="KeyEvent(KeyNotificationType, int?)"/>.</remarks>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        public static RedisChannel SubKeyEvent(ReadOnlySpan<byte> type, int? database)
+            => CreateKeyEvent(type, database, subkey: true);
+
         private static Span<byte> AppendAndAdvance(Span<byte> target, scoped ReadOnlySpan<byte> value)
         {
             value.CopyTo(target);
             return target.Slice(value.Length);
         }
 
-        private static RedisChannel BuildKeySpaceChannel(in RedisKey key, int? database, RedisChannelOptions options, ReadOnlySpan<byte> suffix, bool appendStar, bool allowKeyPatterns)
+        private static RedisChannel BuildKeySpaceChannel(in RedisKey key, int? database, RedisChannelOptions options, ReadOnlySpan<byte> suffix, bool appendStar, bool allowKeyPatterns, bool subkey)
         {
             int fullKeyLength = key.TotalLength() + suffix.Length + (appendStar ? 1 : 0);
             if (appendStar & (options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(key));
@@ -311,7 +372,7 @@ namespace StackExchange.Redis
             // __keyspace@{db}__:{key}[*]
             var arr = new byte[14 + db.Length + fullKeyLength];
 
-            var target = AppendAndAdvance(arr.AsSpan(), "__keyspace@"u8);
+            var target = AppendAndAdvance(arr.AsSpan(), subkey ? "__subkeyspace@"u8 : "__keyspace@"u8);
             target = AppendAndAdvance(target, db);
             target = AppendAndAdvance(target, "__:"u8);
             var keySpan = target; // remember this for if we need to check for patterns

@@ -1,1 +1,22 @@
 ﻿#nullable enable
+[SER006]static StackExchange.Redis.RedisChannel.SubKeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeyEvent(System.ReadOnlySpan<byte> type, int? database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePattern(in StackExchange.Redis.RedisKey pattern, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(in StackExchange.Redis.RedisKey prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(System.ReadOnlySpan<byte> prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceSingleKey(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel
+[SER006]StackExchange.Redis.KeyNotification.GetSubKey() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.IsSubKeyEvent.get -> bool
+[SER006]StackExchange.Redis.KeyNotification.IsSubKeySpace.get -> bool
+[SER006]StackExchange.Redis.KeyNotification.IsSubKeySpaceEvent.get -> bool
+[SER006]StackExchange.Redis.KeyNotification.IsSubKeySpaceItem.get -> bool
+StackExchange.Redis.KeyNotification.Kind.get -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.KeyEvent = 2 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.KeySpace = 1 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeyEvent = 4 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpace = 3 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpaceEvent = 6 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpaceItem = 5 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.Unknown = 0 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationType.HExpire = 50 -> StackExchange.Redis.KeyNotificationType

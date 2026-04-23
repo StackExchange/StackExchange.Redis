@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Text;
 using Xunit;
 using Xunit.Sdk;
@@ -392,10 +393,15 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.False(notification.IsKeySpace);
         Assert.False(notification.IsKeyEvent);
+        Assert.False(notification.IsSubKeySpace);
+        Assert.False(notification.IsSubKeyEvent);
+        Assert.False(notification.IsSubKeySpaceItem);
+        Assert.False(notification.IsSubKeySpaceEvent);
         Assert.Equal(-1, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
         Assert.False(notification.IsType("del"u8));
         Assert.True(notification.GetKey().IsNull);
+        Assert.True(notification.GetSubKey().IsNull);
         Assert.Equal(0, notification.GetKeyByteCount());
         Assert.Equal(0, notification.GetKeyMaxByteCount());
         Assert.Equal(0, notification.GetKeyCharCount());
@@ -459,6 +465,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
     [InlineData("zrembyrank", KeyNotificationType.ZRemByRank)]
     [InlineData("zrembyscore", KeyNotificationType.ZRemByScore)]
     [InlineData("zrem", KeyNotificationType.ZRem)]
+    [InlineData("hexpire", KeyNotificationType.HExpire)]
     [InlineData("expired", KeyNotificationType.Expired)]
     [InlineData("evicted", KeyNotificationType.Evicted)]
     [InlineData("new", KeyNotificationType.New)]
@@ -694,5 +701,340 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.True(notification.TryCopyKey(clob, out charsWritten));
         Assert.Equal(3, charsWritten);
         Assert.Equal("abc", clob.Slice(0, charsWritten).ToString());
+    }
+
+    [Fact]
+    public void SubKeySpace_HSet_ParsesCorrectly()
+    {
+        // __subkeyspace@4__:mykey with payload hset|6:field1
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.False(notification.IsKeySpace);
+        Assert.False(notification.IsKeyEvent);
+        Assert.True(notification.IsSubKeySpace);
+        Assert.False(notification.IsSubKeyEvent);
+        Assert.False(notification.IsSubKeySpaceItem);
+        Assert.False(notification.IsSubKeySpaceEvent);
+
+        Assert.Equal(4, notification.Database);
+        Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.True(notification.IsType("hset"u8));
+        Assert.Equal("mykey", (string?)notification.GetKey());
+        Assert.Equal("field1", (string?)notification.GetSubKey());
+    }
+
+    [Fact]
+    public void SubKeyEvent_HSet_ParsesCorrectly()
+    {
+        // __subkeyevent@4__:hset with payload 5:mykey|6:field1
+        var channel = RedisChannel.Literal("__subkeyevent@4__:hset");
+        RedisValue value = "5:mykey|6:field1";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.False(notification.IsKeySpace);
+        Assert.False(notification.IsKeyEvent);
+        Assert.False(notification.IsSubKeySpace);
+        Assert.True(notification.IsSubKeyEvent);
+        Assert.False(notification.IsSubKeySpaceItem);
+        Assert.False(notification.IsSubKeySpaceEvent);
+
+        Assert.Equal(4, notification.Database);
+        Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.True(notification.IsType("hset"u8));
+        Assert.Equal("mykey", (string?)notification.GetKey());
+        Assert.Equal("field1", (string?)notification.GetSubKey());
+    }
+
+    [Fact]
+    public void SubKeySpaceItem_HSet_ParsesCorrectly()
+    {
+        // __subkeyspaceitem@4__:mykey\nfield1 with payload hset
+        var channel = RedisChannel.Literal("__subkeyspaceitem@4__:mykey\nfield1");
+        RedisValue value = "hset";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.False(notification.IsKeySpace);
+        Assert.False(notification.IsKeyEvent);
+        Assert.False(notification.IsSubKeySpace);
+        Assert.False(notification.IsSubKeyEvent);
+        Assert.True(notification.IsSubKeySpaceItem);
+        Assert.False(notification.IsSubKeySpaceEvent);
+
+        Assert.Equal(4, notification.Database);
+        Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.True(notification.IsType("hset"u8));
+        Assert.Equal("mykey", (string?)notification.GetKey());
+        Assert.Equal("field1", (string?)notification.GetSubKey());
+    }
+
+    [Fact]
+    public void SubKeySpaceEvent_HSet_ParsesCorrectly()
+    {
+        // __subkeyspaceevent@4__:hset|mykey with payload 6:field1
+        var channel = RedisChannel.Literal("__subkeyspaceevent@4__:hset|mykey");
+        RedisValue value = "6:field1";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.False(notification.IsKeySpace);
+        Assert.False(notification.IsKeyEvent);
+        Assert.False(notification.IsSubKeySpace);
+        Assert.False(notification.IsSubKeyEvent);
+        Assert.False(notification.IsSubKeySpaceItem);
+        Assert.True(notification.IsSubKeySpaceEvent);
+
+        Assert.Equal(4, notification.Database);
+        Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.True(notification.IsType("hset"u8));
+        Assert.Equal("mykey", (string?)notification.GetKey());
+        Assert.Equal("field1", (string?)notification.GetSubKey());
+    }
+
+    [Fact]
+    public void ExtractLengthPrefixedValue_ParsesCorrectly()
+    {
+        // Test the length-prefixed value extraction helper
+        var result1 = KeyNotification.ExtractLengthPrefixedValue("6:field1"u8);
+        Assert.Equal("field1", (string?)result1);
+
+        var result2 = KeyNotification.ExtractLengthPrefixedValue("5:mykey"u8);
+        Assert.Equal("mykey", (string?)result2);
+
+        var result3 = KeyNotification.ExtractLengthPrefixedValue("11:hello world"u8);
+        Assert.Equal("hello world", (string?)result3);
+
+        // Test invalid formats
+        var result4 = KeyNotification.ExtractLengthPrefixedValue("invalid"u8);
+        Assert.True(result4.IsNull);
+
+        var result5 = KeyNotification.ExtractLengthPrefixedValue("10:short"u8); // Length mismatch
+        Assert.True(result5.IsNull);
+    }
+
+    [Fact]
+    public void SubKeySpace_GetSubKey_ReturnsCorrectValue()
+    {
+        // Test that GetSubKey returns the expected value for SubKeySpace
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+        Assert.True(notification.IsSubKeySpace, "IsSubKeySpace should be true");
+
+        var subKey = notification.GetSubKey();
+        Assert.False(subKey.IsNull, $"SubKey should not be null. Value: {value}");
+        Assert.Equal("field1", (string?)subKey);
+    }
+
+    [Fact]
+    public void ChannelSuffix_SubKeyEvent_ReturnsCorrectValue()
+    {
+        // Test that ChannelSuffix returns the expected value for SubKeyEvent
+        var channel = RedisChannel.Literal("__subkeyevent@4__:hset");
+        RedisValue value = "5:mykey|6:field1";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        // Verify the correct Is* property is true
+        Assert.False(notification.IsKeySpace, "IsKeySpace should be false");
+        Assert.False(notification.IsKeyEvent, "IsKeyEvent should be false");
+        Assert.False(notification.IsSubKeySpace, "IsSubKeySpace should be false");
+        Assert.True(notification.IsSubKeyEvent, "IsSubKeyEvent should be true");
+        Assert.False(notification.IsSubKeySpaceItem, "IsSubKeySpaceItem should be false");
+        Assert.False(notification.IsSubKeySpaceEvent, "IsSubKeySpaceEvent should be false");
+
+        var suffix = notification.ChannelSuffix;
+        var expected = "hset"u8;
+
+        Assert.Equal(expected.Length, suffix.Length);
+        Assert.True(suffix.SequenceEqual(expected), "ChannelSuffix should equal 'hset'");
+    }
+
+    [Fact]
+    public void SubKeySpace_HExpire_ParsesCorrectly()
+    {
+        // __subkeyspace@0__:hash with payload hexpire|5:field
+        var channel = RedisChannel.Literal("__subkeyspace@0__:hash");
+        RedisValue value = "hexpire|5:field";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.True(notification.IsSubKeySpace);
+        Assert.Equal(0, notification.Database);
+        Assert.Equal(KeyNotificationType.HExpire, notification.Type);
+        Assert.True(notification.IsType("hexpire"u8));
+        Assert.Equal("hash", (string?)notification.GetKey());
+        Assert.Equal("field", (string?)notification.GetSubKey());
+    }
+
+    [Fact]
+    public void NonSubKeyNotifications_ReturnNullSubKey()
+    {
+        // Regular keyspace notification
+        var channel = RedisChannel.Literal("__keyspace@4__:mykey");
+        RedisValue value = "set";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+        Assert.True(notification.IsKeySpace);
+        Assert.True(notification.GetSubKey().IsNull);
+
+        // Regular keyevent notification
+        channel = RedisChannel.Literal("__keyevent@4__:del");
+        value = "mykey";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out notification));
+        Assert.True(notification.IsKeyEvent);
+        Assert.True(notification.GetSubKey().IsNull);
+    }
+
+    [Fact]
+    public void KeyPrefix_KeySpace_MatchingPrefix_ParsesAndStrips()
+    {
+        // __keyspace@1__:foo:bar with payload "set"
+        // Key prefix is "foo:"
+        var channel = RedisChannel.Literal("__keyspace@1__:foo:bar");
+        RedisValue value = "set";
+        ReadOnlySpan<byte> keyPrefix = "foo:"u8;
+
+        Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+
+        Assert.True(notification.IsKeySpace);
+        Assert.Equal(1, notification.Database);
+        Assert.Equal(KeyNotificationType.Set, notification.Type);
+
+        // The key should NOT include the prefix
+        Assert.Equal("bar", (string?)notification.GetKey());
+        Assert.Equal(3, notification.GetKeyByteCount());
+        Assert.Equal(3, notification.GetKeyCharCount());
+    }
+
+    [Fact]
+    public void KeyPrefix_KeySpace_NonMatchingPrefix_ReturnsFalse()
+    {
+        // __keyspace@1__:other:bar with payload "set"
+        // Key prefix is "foo:"
+        var channel = RedisChannel.Literal("__keyspace@1__:other:bar");
+        RedisValue value = "set";
+        ReadOnlySpan<byte> keyPrefix = "foo:"u8;
+
+        // Should return false because the key doesn't start with "foo:"
+        Assert.False(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+    }
+
+    [Fact]
+    public void KeyPrefix_KeyEvent_MatchingPrefix_ParsesAndStrips()
+    {
+        // __keyevent@1__:set with payload "foo:bar"
+        // Key prefix is "foo:"
+        var channel = RedisChannel.Literal("__keyevent@1__:set");
+        RedisValue value = "foo:bar";
+        ReadOnlySpan<byte> keyPrefix = "foo:"u8;
+
+        Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+
+        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(1, notification.Database);
+        Assert.Equal(KeyNotificationType.Set, notification.Type);
+
+        // The key should NOT include the prefix
+        Assert.Equal("bar", (string?)notification.GetKey());
+        Assert.Equal(3, notification.GetKeyByteCount());
+        Assert.Equal(3, notification.GetKeyCharCount());
+    }
+
+    [Fact]
+    public void KeyPrefix_KeyEvent_NonMatchingPrefix_ReturnsFalse()
+    {
+        // __keyevent@1__:set with payload "other:bar"
+        // Key prefix is "foo:"
+        var channel = RedisChannel.Literal("__keyevent@1__:set");
+        RedisValue value = "other:bar";
+        ReadOnlySpan<byte> keyPrefix = "foo:"u8;
+
+        // Should return false because the key doesn't start with "foo:"
+        Assert.False(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+    }
+
+    [Fact]
+    public void KeyPrefix_KeySpace_EmptyPrefix_ParsesWithoutStripping()
+    {
+        // __keyspace@1__:mykey with payload "set"
+        // Empty prefix
+        var channel = RedisChannel.Literal("__keyspace@1__:mykey");
+        RedisValue value = "set";
+        ReadOnlySpan<byte> keyPrefix = ""u8;
+
+        Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+
+        Assert.True(notification.IsKeySpace);
+
+        // The key should be unchanged
+        Assert.Equal("mykey", (string?)notification.GetKey());
+        Assert.Equal(5, notification.GetKeyByteCount());
+    }
+
+    [Fact]
+    public void KeyPrefix_KeySpace_PrefixLongerThanKey_ReturnsFalse()
+    {
+        // __keyspace@1__:foo with payload "set"
+        // Key prefix is "foo:bar" which is longer than the actual key
+        var channel = RedisChannel.Literal("__keyspace@1__:foo");
+        RedisValue value = "set";
+        ReadOnlySpan<byte> keyPrefix = "foo:bar"u8;
+
+        // Should return false because prefix is longer than the key
+        Assert.False(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+    }
+
+    [Fact]
+    public void KeyPrefix_KeySpace_ExactMatch_ReturnsEmptyKey()
+    {
+        // __keyspace@1__:foo with payload "set"
+        // Key prefix is exactly "foo"
+        var channel = RedisChannel.Literal("__keyspace@1__:foo");
+        RedisValue value = "set";
+        ReadOnlySpan<byte> keyPrefix = "foo"u8;
+
+        Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+
+        Assert.True(notification.IsKeySpace);
+
+        // The key should be empty after stripping the prefix
+        Assert.Equal("", (string?)notification.GetKey());
+        Assert.Equal(0, notification.GetKeyByteCount());
+        Assert.Equal(0, notification.GetKeyCharCount());
+    }
+
+    [Fact]
+    public void KeyPrefix_MultiTenantScenario_IsolatesCorrectly()
+    {
+        // Simulate a multi-tenant scenario with client prefixes
+        ReadOnlySpan<byte> client1Prefix = "client1234:"u8;
+        ReadOnlySpan<byte> client5678Prefix = "client5678:"u8;
+
+        // Client 1's notification
+        var channel1 = RedisChannel.Literal("__keyspace@0__:client1234:order/123");
+        RedisValue value1 = "set";
+
+        // Client 2's notification (different client)
+        var channel2 = RedisChannel.Literal("__keyspace@0__:client5678:order/456");
+        RedisValue value2 = "set";
+
+        // Client 1 should only see their own notifications
+        Assert.True(KeyNotification.TryParse(client1Prefix, in channel1, in value1, out var notification1));
+        Assert.Equal("order/123", (string?)notification1.GetKey());
+
+        Assert.False(KeyNotification.TryParse(client1Prefix, in channel2, in value2, out _));
+
+        // Client 2 should only see their own notifications
+        Assert.True(KeyNotification.TryParse(client5678Prefix, in channel2, in value2, out var notification2));
+        Assert.Equal("order/456", (string?)notification2.GetKey());
+
+        Assert.False(KeyNotification.TryParse(client5678Prefix, in channel1, in value1, out _));
     }
 }
