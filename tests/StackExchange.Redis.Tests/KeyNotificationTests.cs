@@ -37,8 +37,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
-        Assert.False(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(1, notification.Database);
         Assert.Equal(KeyNotificationType.Del, notification.Type);
         Assert.True(notification.IsType("del"u8));
@@ -47,6 +46,18 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal(5, notification.GetKeyMaxByteCount());
         Assert.Equal(5, notification.GetKeyCharCount());
         Assert.Equal(6, notification.GetKeyMaxCharCount());
+
+        // Test TryCopyKey (bytes)
+        Span<byte> keyBuffer = stackalloc byte[10];
+        Assert.True(notification.TryCopyKey(keyBuffer, out var bytesWritten));
+        Assert.Equal(5, bytesWritten);
+        Assert.Equal("mykey", Encoding.UTF8.GetString(keyBuffer.Slice(0, bytesWritten)));
+
+        // Test TryCopyKey (chars)
+        Span<char> charBuffer = stackalloc char[10];
+        Assert.True(notification.TryCopyKey(charBuffer, out var charsWritten));
+        Assert.Equal(5, charsWritten);
+        Assert.Equal("mykey", new string(charBuffer.Slice(0, charsWritten).ToArray()));
     }
 
     [Fact]
@@ -58,8 +69,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.False(notification.IsKeySpace);
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(42, notification.Database);
         Assert.Equal(KeyNotificationType.Del, notification.Type);
         Assert.True(notification.IsType("del"u8));
@@ -78,7 +88,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.Set, notification.Type);
         Assert.True(notification.IsType("set"u8));
@@ -97,7 +107,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(5, notification.Database);
         Assert.Equal(KeyNotificationType.Expire, notification.Type);
         Assert.True(notification.IsType("expire"u8));
@@ -116,7 +126,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(3, notification.Database);
         Assert.Equal(KeyNotificationType.Expired, notification.Type);
         Assert.True(notification.IsType("expired"u8));
@@ -135,7 +145,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.LPush, notification.Type);
         Assert.True(notification.IsType("lpush"u8));
@@ -154,7 +164,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(2, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
@@ -173,7 +183,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(7, notification.Database);
         Assert.Equal(KeyNotificationType.ZAdd, notification.Type);
         Assert.True(notification.IsType("zadd"u8));
@@ -192,7 +202,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(7, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
         Assert.False(notification.IsType("zadd"u8));
@@ -230,7 +240,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Span<byte> buffer = stackalloc byte[3]; // too small
         Assert.False(notification.TryCopyKey(buffer, out var bytesWritten));
-        Assert.Equal(0, bytesWritten);
+        Assert.Equal(7, bytesWritten); // Should report the actual size needed (length of "testkey")
     }
 
     [Fact]
@@ -259,7 +269,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
         Assert.False(notification.IsType("del"u8));
@@ -274,7 +284,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
         Assert.False(notification.IsType("del"u8));
@@ -289,7 +299,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.Del, notification.Type);
         Assert.True(notification.IsType("del"u8));
@@ -304,7 +314,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(1, notification.Database);
         Assert.Equal(KeyNotificationType.Evicted, notification.Type);
         Assert.True(notification.IsType("evicted"u8));
@@ -319,7 +329,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.New, notification.Type);
         Assert.True(notification.IsType("new"u8));
@@ -334,7 +344,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.XGroupCreate, notification.Type);
         Assert.True(notification.IsType("xgroup-create"u8));
@@ -349,7 +359,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.TypeChanged, notification.Type);
         Assert.True(notification.IsType("type_changed"u8));
@@ -364,7 +374,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(999, notification.Database);
         Assert.Equal(KeyNotificationType.Set, notification.Type);
         Assert.True(notification.IsType("set"u8));
@@ -379,7 +389,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(-1, notification.Database);
         Assert.Equal(KeyNotificationType.Set, notification.Type);
         Assert.True(notification.IsType("set"u8));
@@ -391,12 +401,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
     {
         var notification = default(KeyNotification);
 
-        Assert.False(notification.IsKeySpace);
-        Assert.False(notification.IsKeyEvent);
-        Assert.False(notification.IsSubKeySpace);
-        Assert.False(notification.IsSubKeyEvent);
-        Assert.False(notification.IsSubKeySpaceItem);
-        Assert.False(notification.IsSubKeySpaceEvent);
+        Assert.Equal(KeyNotificationKind.Unknown, notification.Kind);
         Assert.Equal(-1, notification.Database);
         Assert.Equal(KeyNotificationType.Unknown, notification.Type);
         Assert.False(notification.IsType("del"u8));
@@ -712,13 +717,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
 
-        Assert.False(notification.IsKeySpace);
-        Assert.False(notification.IsKeyEvent);
-        Assert.True(notification.IsSubKeySpace);
-        Assert.False(notification.IsSubKeyEvent);
-        Assert.False(notification.IsSubKeySpaceItem);
-        Assert.False(notification.IsSubKeySpaceEvent);
-
+        Assert.Equal(KeyNotificationKind.SubKeySpace, notification.Kind);
         Assert.Equal(4, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
@@ -735,13 +734,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
 
-        Assert.False(notification.IsKeySpace);
-        Assert.False(notification.IsKeyEvent);
-        Assert.False(notification.IsSubKeySpace);
-        Assert.True(notification.IsSubKeyEvent);
-        Assert.False(notification.IsSubKeySpaceItem);
-        Assert.False(notification.IsSubKeySpaceEvent);
-
+        Assert.Equal(KeyNotificationKind.SubKeyEvent, notification.Kind);
         Assert.Equal(4, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
@@ -758,13 +751,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
 
-        Assert.False(notification.IsKeySpace);
-        Assert.False(notification.IsKeyEvent);
-        Assert.False(notification.IsSubKeySpace);
-        Assert.False(notification.IsSubKeyEvent);
-        Assert.True(notification.IsSubKeySpaceItem);
-        Assert.False(notification.IsSubKeySpaceEvent);
-
+        Assert.Equal(KeyNotificationKind.SubKeySpaceItem, notification.Kind);
         Assert.Equal(4, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
@@ -781,13 +768,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
 
-        Assert.False(notification.IsKeySpace);
-        Assert.False(notification.IsKeyEvent);
-        Assert.False(notification.IsSubKeySpace);
-        Assert.False(notification.IsSubKeyEvent);
-        Assert.False(notification.IsSubKeySpaceItem);
-        Assert.True(notification.IsSubKeySpaceEvent);
-
+        Assert.Equal(KeyNotificationKind.SubKeySpaceEvent, notification.Kind);
         Assert.Equal(4, notification.Database);
         Assert.Equal(KeyNotificationType.HSet, notification.Type);
         Assert.True(notification.IsType("hset"u8));
@@ -824,7 +805,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         RedisValue value = "hset|6:field1";
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
-        Assert.True(notification.IsSubKeySpace, "IsSubKeySpace should be true");
+        Assert.Equal(KeyNotificationKind.SubKeySpace, notification.Kind);
 
         var subKey = notification.GetSubKey();
         Assert.False(subKey.IsNull, $"SubKey should not be null. Value: {value}");
@@ -840,13 +821,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
 
-        // Verify the correct Is* property is true
-        Assert.False(notification.IsKeySpace, "IsKeySpace should be false");
-        Assert.False(notification.IsKeyEvent, "IsKeyEvent should be false");
-        Assert.False(notification.IsSubKeySpace, "IsSubKeySpace should be false");
-        Assert.True(notification.IsSubKeyEvent, "IsSubKeyEvent should be true");
-        Assert.False(notification.IsSubKeySpaceItem, "IsSubKeySpaceItem should be false");
-        Assert.False(notification.IsSubKeySpaceEvent, "IsSubKeySpaceEvent should be false");
+        Assert.Equal(KeyNotificationKind.SubKeyEvent, notification.Kind);
 
         var suffix = notification.ChannelSuffix;
         var expected = "hset"u8;
@@ -864,7 +839,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
 
-        Assert.True(notification.IsSubKeySpace);
+        Assert.Equal(KeyNotificationKind.SubKeySpace, notification.Kind);
         Assert.Equal(0, notification.Database);
         Assert.Equal(KeyNotificationType.HExpire, notification.Type);
         Assert.True(notification.IsType("hexpire"u8));
@@ -880,7 +855,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         RedisValue value = "set";
 
         Assert.True(KeyNotification.TryParse(channel, value, out var notification));
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.True(notification.GetSubKey().IsNull);
 
         // Regular keyevent notification
@@ -888,7 +863,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
         value = "mykey";
 
         Assert.True(KeyNotification.TryParse(channel, value, out notification));
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.True(notification.GetSubKey().IsNull);
     }
 
@@ -903,7 +878,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
         Assert.Equal(1, notification.Database);
         Assert.Equal(KeyNotificationType.Set, notification.Type);
 
@@ -937,7 +912,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeyEvent);
+        Assert.Equal(KeyNotificationKind.KeyEvent, notification.Kind);
         Assert.Equal(1, notification.Database);
         Assert.Equal(KeyNotificationType.Set, notification.Type);
 
@@ -971,7 +946,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
 
         // The key should be unchanged
         Assert.Equal("mykey", (string?)notification.GetKey());
@@ -1002,7 +977,7 @@ public class KeyNotificationTests(ITestOutputHelper log)
 
         Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
 
-        Assert.True(notification.IsKeySpace);
+        Assert.Equal(KeyNotificationKind.KeySpace, notification.Kind);
 
         // The key should be empty after stripping the prefix
         Assert.Equal("", (string?)notification.GetKey());
@@ -1036,5 +1011,217 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal("order/456", (string?)notification2.GetKey());
 
         Assert.False(KeyNotification.TryParse(client5678Prefix, in channel1, in value1, out _));
+    }
+
+    [Fact]
+    public void TryCopyKey_KeySpace_Works()
+    {
+        var channel = RedisChannel.Literal("__keyspace@1__:testkey");
+        RedisValue value = "set";
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        // Test byte copy
+        Span<byte> byteBuffer = stackalloc byte[20];
+        Assert.True(notification.TryCopyKey(byteBuffer, out var bytesWritten));
+        Assert.Equal(7, bytesWritten);
+        Assert.Equal("testkey", Encoding.UTF8.GetString(byteBuffer.Slice(0, bytesWritten)));
+
+        // Test char copy
+        Span<char> charBuffer = stackalloc char[20];
+        Assert.True(notification.TryCopyKey(charBuffer, out var charsWritten));
+        Assert.Equal(7, charsWritten);
+        Assert.Equal("testkey", new string(charBuffer.Slice(0, charsWritten).ToArray()));
+    }
+
+    [Fact]
+    public void TryCopyKey_KeyEvent_Works()
+    {
+        var channel = RedisChannel.Literal("__keyevent@1__:set");
+        RedisValue value = "testkey";
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        // Test byte copy
+        Span<byte> byteBuffer = stackalloc byte[20];
+        Assert.True(notification.TryCopyKey(byteBuffer, out var bytesWritten));
+        Assert.Equal(7, bytesWritten);
+        Assert.Equal("testkey", Encoding.UTF8.GetString(byteBuffer.Slice(0, bytesWritten)));
+
+        // Test char copy
+        Span<char> charBuffer = stackalloc char[20];
+        Assert.True(notification.TryCopyKey(charBuffer, out var charsWritten));
+        Assert.Equal(7, charsWritten);
+        Assert.Equal("testkey", new string(charBuffer.Slice(0, charsWritten).ToArray()));
+    }
+
+    [Fact]
+    public void TryCopyKey_SubKeySpace_Works()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@1__:mykey");
+        RedisValue value = "hset|6:field1";
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        // Test byte copy
+        Span<byte> byteBuffer = stackalloc byte[20];
+        Assert.True(notification.TryCopyKey(byteBuffer, out var bytesWritten));
+        Assert.Equal(5, bytesWritten);
+        Assert.Equal("mykey", Encoding.UTF8.GetString(byteBuffer.Slice(0, bytesWritten)));
+
+        // Test char copy
+        Span<char> charBuffer = stackalloc char[20];
+        Assert.True(notification.TryCopyKey(charBuffer, out var charsWritten));
+        Assert.Equal(5, charsWritten);
+        Assert.Equal("mykey", new string(charBuffer.Slice(0, charsWritten).ToArray()));
+    }
+
+    [Fact]
+    public void TryCopyKey_SubKeyEvent_Works()
+    {
+        var channel = RedisChannel.Literal("__subkeyevent@1__:hset");
+        RedisValue value = "5:mykey|6:field1";
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        // Test byte copy
+        Span<byte> byteBuffer = stackalloc byte[20];
+        Assert.True(notification.TryCopyKey(byteBuffer, out var bytesWritten));
+        Assert.Equal(5, bytesWritten);
+        Assert.Equal("mykey", Encoding.UTF8.GetString(byteBuffer.Slice(0, bytesWritten)));
+
+        // Test char copy
+        Span<char> charBuffer = stackalloc char[20];
+        Assert.True(notification.TryCopyKey(charBuffer, out var charsWritten));
+        Assert.Equal(5, charsWritten);
+        Assert.Equal("mykey", new string(charBuffer.Slice(0, charsWritten).ToArray()));
+    }
+
+    [Fact]
+    public void TryCopyKey_SubKeySpaceItem_Works()
+    {
+        var channel = RedisChannel.Literal("__subkeyspaceitem@1__:mykey\nfield1");
+        RedisValue value = "hset";
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        // Test byte copy
+        Span<byte> byteBuffer = stackalloc byte[20];
+        Assert.True(notification.TryCopyKey(byteBuffer, out var bytesWritten));
+        Assert.Equal(5, bytesWritten);
+        Assert.Equal("mykey", Encoding.UTF8.GetString(byteBuffer.Slice(0, bytesWritten)));
+
+        // Test char copy
+        Span<char> charBuffer = stackalloc char[20];
+        Assert.True(notification.TryCopyKey(charBuffer, out var charsWritten));
+        Assert.Equal(5, charsWritten);
+        Assert.Equal("mykey", new string(charBuffer.Slice(0, charsWritten).ToArray()));
+    }
+
+    [Fact]
+    public void TryCopyKey_SubKeySpaceEvent_Works()
+    {
+        var channel = RedisChannel.Literal("__subkeyspaceevent@1__:hset|mykey");
+        RedisValue value = "6:field1";
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        // Test byte copy
+        Span<byte> byteBuffer = stackalloc byte[20];
+        Assert.True(notification.TryCopyKey(byteBuffer, out var bytesWritten));
+        Assert.Equal(5, bytesWritten);
+        Assert.Equal("mykey", Encoding.UTF8.GetString(byteBuffer.Slice(0, bytesWritten)));
+
+        // Test char copy
+        Span<char> charBuffer = stackalloc char[20];
+        Assert.True(notification.TryCopyKey(charBuffer, out var charsWritten));
+        Assert.Equal(5, charsWritten);
+        Assert.Equal("mykey", new string(charBuffer.Slice(0, charsWritten).ToArray()));
+    }
+
+    [Fact]
+    public void TryCopyKey_BufferTooSmall_ReturnsFalse()
+    {
+        var channel = RedisChannel.Literal("__keyspace@1__:verylongkeyname");
+        RedisValue value = "set";
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        // Test with buffer that's too small
+        Span<byte> tinyBuffer = stackalloc byte[5];
+        Assert.False(notification.TryCopyKey(tinyBuffer, out var bytesWritten));
+        Assert.Equal(15, bytesWritten); // Should report the actual size needed
+
+        // Test char buffer too small
+        Span<char> tinyCharBuffer = stackalloc char[5];
+        Assert.False(notification.TryCopyKey(tinyCharBuffer, out var charsWritten));
+    }
+
+    [Fact]
+    public void SubKey_SubKeySpace_SubkeyNotAffectedByKeyPrefix()
+    {
+        // Test that subkey contains its own prefix and is not affected by the key prefix
+        var channel = RedisChannel.Literal("__subkeyspace@1__:user:123");
+        RedisValue value = "hset|12:email:123456";  // subkey has different prefix "email:"
+        ReadOnlySpan<byte> keyPrefix = "user:"u8;  // key prefix is "user:"
+
+        Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+
+        // The key should have the "user:" prefix stripped
+        Assert.Equal("123", (string?)notification.GetKey());
+
+        // The subkey should be returned as-is with its own "email:" prefix intact
+        var subkey = notification.GetSubKey();
+        Assert.Equal("email:123456", (string?)subkey);
+        Assert.Equal(12, subkey.GetByteCount());
+    }
+
+    [Fact]
+    public void SubKey_SubKeyEvent_SubkeyNotAffectedByKeyPrefix()
+    {
+        // Test that subkey is independent of key prefix
+        var channel = RedisChannel.Literal("__subkeyevent@1__:hset");
+        RedisValue value = "8:user:123|12:email:123456";  // key has "user:" prefix, subkey has "email:" prefix
+        ReadOnlySpan<byte> keyPrefix = "user:"u8;
+
+        Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+
+        // The key should have the "user:" prefix stripped
+        Assert.Equal("123", (string?)notification.GetKey());
+
+        // The subkey should be returned as-is with its own "email:" prefix intact
+        var subkey = notification.GetSubKey();
+        Assert.Equal("email:123456", (string?)subkey);
+        Assert.Equal(12, subkey.GetByteCount());
+    }
+
+    [Fact]
+    public void SubKey_SubKeySpaceItem_SubkeyNotAffectedByKeyPrefix()
+    {
+        // Test that subkey in channel is independent of key prefix
+        var channel = RedisChannel.Literal("__subkeyspaceitem@1__:user:123\nemail:123456");
+        RedisValue value = "hset";
+        ReadOnlySpan<byte> keyPrefix = "user:"u8;
+
+        Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+
+        // The key should have the "user:" prefix stripped
+        Assert.Equal("123", (string?)notification.GetKey());
+
+        // The subkey should be returned as-is with its own "email:" prefix intact
+        var subkey = notification.GetSubKey();
+        Assert.Equal("email:123456", (string?)subkey);
+    }
+
+    [Fact]
+    public void SubKey_SubKeySpaceEvent_SubkeyNotAffectedByKeyPrefix()
+    {
+        // Test that subkey in payload is independent of key prefix
+        var channel = RedisChannel.Literal("__subkeyspaceevent@1__:hset|user:123");
+        RedisValue value = "12:email:123456";
+        ReadOnlySpan<byte> keyPrefix = "user:"u8;
+
+        Assert.True(KeyNotification.TryParse(keyPrefix, in channel, in value, out var notification));
+
+        // The key should have the "user:" prefix stripped
+        Assert.Equal("123", (string?)notification.GetKey());
+
+        // The subkey should be returned as-is with its own "email:" prefix intact
+        var subkey = notification.GetSubKey();
+        Assert.Equal("email:123456", (string?)subkey);
+        Assert.Equal(12, subkey.GetByteCount());
     }
 }

@@ -6,10 +6,6 @@
 [SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(System.ReadOnlySpan<byte> prefix, int? database = null) -> StackExchange.Redis.RedisChannel
 [SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceSingleKey(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel
 [SER006]StackExchange.Redis.KeyNotification.GetSubKey() -> StackExchange.Redis.RedisValue
-[SER006]StackExchange.Redis.KeyNotification.IsSubKeyEvent.get -> bool
-[SER006]StackExchange.Redis.KeyNotification.IsSubKeySpace.get -> bool
-[SER006]StackExchange.Redis.KeyNotification.IsSubKeySpaceEvent.get -> bool
-[SER006]StackExchange.Redis.KeyNotification.IsSubKeySpaceItem.get -> bool
 StackExchange.Redis.KeyNotification.Kind.get -> StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationKind.KeyEvent = 2 -> StackExchange.Redis.KeyNotificationKind

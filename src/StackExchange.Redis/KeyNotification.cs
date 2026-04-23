@@ -231,29 +231,15 @@ public readonly ref struct KeyNotification
             // prevalidated format, so we can just skip past the prefix (except for the default value)
             if (_channel.IsNull) return -1;
 
-            // Determine the prefix length based on the channel type
+            // Determine the prefix length based on the notification kind
             var fullSpan = _channel.Span;
-            int prefixLength;
-            if (fullSpan.Length >= SubKeySpaceEventPrefix.Length &&
-                SubKeySpaceEventPrefix.IsCS(fullSpan.Slice(0, SubKeySpaceEventPrefix.Length), AsciiHash.HashCS(fullSpan)))
+            int prefixLength = _kind switch
             {
-                prefixLength = SubKeySpaceEventPrefix.Length;
-            }
-            else if (fullSpan.Length >= SubKeySpaceItemPrefix.Length &&
-                     SubKeySpaceItemPrefix.IsCS(fullSpan.Slice(0, SubKeySpaceItemPrefix.Length), AsciiHash.HashCS(fullSpan)))
-            {
-                prefixLength = SubKeySpaceItemPrefix.Length;
-            }
-            else if (fullSpan.Length >= SubKeySpacePrefix.Length &&
-                     (SubKeySpacePrefix.IsCS(fullSpan.Slice(0, SubKeySpacePrefix.Length), AsciiHash.HashCS(fullSpan)) ||
-                      SubKeyEventPrefix.IsCS(fullSpan.Slice(0, SubKeyEventPrefix.Length), AsciiHash.HashCS(fullSpan))))
-            {
-                prefixLength = SubKeySpacePrefix.Length;
-            }
-            else
-            {
-                prefixLength = KeySpacePrefix.Length; // also works for KeyEventPrefix
-            }
+                KeyNotificationKind.SubKeySpaceEvent => SubKeySpaceEventPrefix.Length,
+                KeyNotificationKind.SubKeySpaceItem => SubKeySpaceItemPrefix.Length,
+                KeyNotificationKind.SubKeySpace or KeyNotificationKind.SubKeyEvent => SubKeySpacePrefix.Length,
+                _ => KeySpacePrefix.Length, // KeySpace, KeyEvent, and Unknown
+            };
 
             var span = fullSpan.Slice(prefixLength);
             var end = span.IndexOf((byte)'_'); // expecting "__:foo" - we'll just stop at the underscore
@@ -272,68 +258,56 @@ public readonly ref struct KeyNotification
     /// the <see cref="GetKeyByteCount"/>, <see cref="GetKeyMaxCharCount"/>, and <see cref="TryCopyKey(Span{byte}, out int)"/> APIs can be used.</remarks>
     public RedisKey GetKey()
     {
-        if (IsKeySpace)
+        switch (_kind)
         {
-            // then the channel contains the key, and the payload contains the event-type
-            return ChannelSuffix.Slice(_keyOffset).ToArray(); // create an isolated copy
-        }
+            case KeyNotificationKind.KeySpace:
+            case KeyNotificationKind.SubKeySpace:
+                // Channel contains the key, payload contains the event-type
+                return ChannelSuffix.Slice(_keyOffset).ToArray();
 
-        if (IsKeyEvent)
-        {
-            // then the channel contains the event-type, and the payload contains the key
-            byte[]? blob = _value;
-            if (_keyOffset != 0 & blob is not null)
-            {
-                return blob.AsSpan(_keyOffset).ToArray();
-            }
-            return blob;
-        }
+            case KeyNotificationKind.KeyEvent:
+                // Channel contains the event-type, payload contains the key
+                byte[]? blob = _value;
+                if (_keyOffset != 0 & blob is not null)
+                {
+                    return blob.AsSpan(_keyOffset).ToArray();
+                }
+                return blob;
 
-        if (IsSubKeySpace)
-        {
-            // __subkeyspace@<db>__:<key> with payload <event>|<len>:<subkey>
-            // channel contains the key
-            return ChannelSuffix.Slice(_keyOffset).ToArray();
-        }
+            case KeyNotificationKind.SubKeyEvent:
+                // __subkeyevent@<db>__:<event> with payload <key_len>:<key>|<len>:<subkey>
+                var value = ExtractLengthPrefixedValue(_value, 0);
+                if (value.IsNull) return RedisKey.Null;
+                byte[]? bytes = value;
+                if (_keyOffset != 0 && bytes is not null)
+                {
+                    return bytes.AsSpan(_keyOffset).ToArray();
+                }
+                return bytes;
 
-        if (IsSubKeyEvent)
-        {
-            // __subkeyevent@<db>__:<event> with payload <key_len>:<key>|<len>:<subkey>
-            // payload contains <key_len>:<key>|...
-            var value = ExtractLengthPrefixedValue(_value, _keyOffset);
-            if (value.IsNull) return RedisKey.Null;
-            // Convert RedisValue to RedisKey via byte array
-            byte[]? bytes = value;
-            return bytes;
-        }
+            case KeyNotificationKind.SubKeySpaceItem:
+                // __subkeyspaceitem@<db>__:<key>\n<subkey> with payload <event>
+                var suffix = ChannelSuffix;
+                var newlineIndex = suffix.IndexOf((byte)'\n');
+                if (newlineIndex > 0)
+                {
+                    return suffix.Slice(_keyOffset, newlineIndex - _keyOffset).ToArray();
+                }
+                return RedisKey.Null;
 
-        if (IsSubKeySpaceItem)
-        {
-            // __subkeyspaceitem@<db>__:<key>\n<subkey> with payload <event>
-            // channel contains key\nsubkey - extract just the key part
-            var suffix = ChannelSuffix;
-            var newlineIndex = suffix.IndexOf((byte)'\n');
-            if (newlineIndex > 0)
-            {
-                return suffix.Slice(_keyOffset, newlineIndex - _keyOffset).ToArray();
-            }
-            return RedisKey.Null;
-        }
+            case KeyNotificationKind.SubKeySpaceEvent:
+                // __subkeyspaceevent@<db>__:<event>|<key> with payload <len>:<subkey>
+                var suffixEvent = ChannelSuffix;
+                var pipeIndex = suffixEvent.IndexOf((byte)'|');
+                if (pipeIndex >= 0 && pipeIndex + 1 < suffixEvent.Length)
+                {
+                    return suffixEvent.Slice(pipeIndex + 1 + _keyOffset).ToArray();
+                }
+                return RedisKey.Null;
 
-        if (IsSubKeySpaceEvent)
-        {
-            // __subkeyspaceevent@<db>__:<event>|<key> with payload <len>:<subkey>
-            // channel contains event|key - extract the key part after the pipe
-            var suffix = ChannelSuffix;
-            var pipeIndex = suffix.IndexOf((byte)'|');
-            if (pipeIndex >= 0 && pipeIndex + 1 < suffix.Length)
-            {
-                return suffix.Slice(pipeIndex + 1 + _keyOffset).ToArray();
-            }
-            return RedisKey.Null;
+            default:
+                return RedisKey.Null;
         }
-
-        return RedisKey.Null;
     }
 
     /// <summary>
@@ -343,76 +317,49 @@ public readonly ref struct KeyNotification
     [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     public RedisValue GetSubKey()
     {
-        if (IsSubKeySpace)
+        switch (_kind)
         {
-            // __subkeyspace@<db>__:<key> with payload <event>|<len>:<subkey>[,...]
-            // payload contains <event>|<len>:<subkey>
-            if (_value.TryGetSpan(out var span))
-            {
-                var pipeIndex = span.IndexOf((byte)'|');
-                if (pipeIndex >= 0 && pipeIndex + 1 < span.Length)
+            case KeyNotificationKind.SubKeySpace:
+            case KeyNotificationKind.SubKeyEvent:
+                // Payload contains <event>|<len>:<subkey> or <key_len>:<key>|<len>:<subkey>
+                if (_value.TryGetSpan(out var span))
                 {
-                    return ExtractLengthPrefixedValue(span.Slice(pipeIndex + 1));
+                    var pipeIndex = span.IndexOf((byte)'|');
+                    if (pipeIndex >= 0 && pipeIndex + 1 < span.Length)
+                    {
+                        return ExtractLengthPrefixedValue(span.Slice(pipeIndex + 1));
+                    }
                 }
-            }
-            else
-            {
-                // Fallback for non-contiguous values
-                Span<byte> buffer = stackalloc byte[256];
-                var bytesWritten = _value.CopyTo(buffer);
-                var pipeIndex = buffer.Slice(0, bytesWritten).IndexOf((byte)'|');
-                if (pipeIndex >= 0 && pipeIndex + 1 < bytesWritten)
+                else
                 {
-                    return ExtractLengthPrefixedValue(buffer.Slice(pipeIndex + 1, bytesWritten - pipeIndex - 1));
+                    // Fallback for non-contiguous values
+                    Span<byte> buffer = stackalloc byte[256];
+                    var bytesWritten = _value.CopyTo(buffer);
+                    var pipeIndex = buffer.Slice(0, bytesWritten).IndexOf((byte)'|');
+                    if (pipeIndex >= 0 && pipeIndex + 1 < bytesWritten)
+                    {
+                        return ExtractLengthPrefixedValue(buffer.Slice(pipeIndex + 1, bytesWritten - pipeIndex - 1));
+                    }
                 }
-            }
-        }
+                return RedisValue.Null;
 
-        if (IsSubKeyEvent)
-        {
-            // __subkeyevent@<db>__:<event> with payload <key_len>:<key>|<len>:<subkey>[,...]
-            // payload contains <key_len>:<key>|<len>:<subkey>
-            if (_value.TryGetSpan(out var span))
-            {
-                var pipeIndex = span.IndexOf((byte)'|');
-                if (pipeIndex >= 0 && pipeIndex + 1 < span.Length)
+            case KeyNotificationKind.SubKeySpaceItem:
+                // __subkeyspaceitem@<db>__:<key>\n<subkey> with payload <event>
+                var suffix = ChannelSuffix;
+                var newlineIndex = suffix.IndexOf((byte)'\n');
+                if (newlineIndex >= 0 && newlineIndex + 1 < suffix.Length)
                 {
-                    return ExtractLengthPrefixedValue(span.Slice(pipeIndex + 1));
+                    return suffix.Slice(newlineIndex + 1).ToArray();
                 }
-            }
-            else
-            {
-                // Fallback for non-contiguous values
-                Span<byte> buffer = stackalloc byte[256];
-                var bytesWritten = _value.CopyTo(buffer);
-                var pipeIndex = buffer.Slice(0, bytesWritten).IndexOf((byte)'|');
-                if (pipeIndex >= 0 && pipeIndex + 1 < bytesWritten)
-                {
-                    return ExtractLengthPrefixedValue(buffer.Slice(pipeIndex + 1, bytesWritten - pipeIndex - 1));
-                }
-            }
-        }
+                return RedisValue.Null;
 
-        if (IsSubKeySpaceItem)
-        {
-            // __subkeyspaceitem@<db>__:<key>\n<subkey> with payload <event>
-            // channel contains key\nsubkey
-            var suffix = ChannelSuffix;
-            var newlineIndex = suffix.IndexOf((byte)'\n');
-            if (newlineIndex >= 0 && newlineIndex + 1 < suffix.Length)
-            {
-                return suffix.Slice(newlineIndex + 1).ToArray();
-            }
-        }
+            case KeyNotificationKind.SubKeySpaceEvent:
+                // __subkeyspaceevent@<db>__:<event>|<key> with payload <len>:<subkey>[,...]
+                return ExtractLengthPrefixedValue(_value, 0);
 
-        if (IsSubKeySpaceEvent)
-        {
-            // __subkeyspaceevent@<db>__:<event>|<key> with payload <len>:<subkey>[,...]
-            // payload contains <len>:<subkey>
-            return ExtractLengthPrefixedValue(_value, 0);
+            default:
+                return RedisValue.Null;
         }
-
-        return RedisValue.Null;
     }
 
     // Helper to extract a value prefixed with its length, e.g., "5:hello" -> "hello"
@@ -447,56 +394,32 @@ public readonly ref struct KeyNotification
     /// Get the number of bytes in the key.
     /// </summary>
     /// <remarks>If a scratch-buffer is required, it may be preferable to use <see cref="GetKeyMaxByteCount"/>, which is less expensive.</remarks>
-    public int GetKeyByteCount()
+    public int GetKeyByteCount() => _kind switch
     {
-        if (IsKeySpace)
-        {
-            return ChannelSuffix.Length - _keyOffset;
-        }
-
-        if (IsKeyEvent)
-        {
-            return _value.GetByteCount() - _keyOffset;
-        }
-
-        return 0;
-    }
+        KeyNotificationKind.KeySpace or KeyNotificationKind.SubKeySpace => ChannelSuffix.Length - _keyOffset,
+        KeyNotificationKind.KeyEvent or KeyNotificationKind.SubKeyEvent => _value.GetByteCount() - _keyOffset,
+        _ => 0,
+    };
 
     /// <summary>
     /// Get the maximum number of bytes in the key.
     /// </summary>
-    public int GetKeyMaxByteCount()
+    public int GetKeyMaxByteCount() => _kind switch
     {
-        if (IsKeySpace)
-        {
-            return ChannelSuffix.Length - _keyOffset;
-        }
-
-        if (IsKeyEvent)
-        {
-            return _value.GetMaxByteCount() - _keyOffset;
-        }
-
-        return 0;
-    }
+        KeyNotificationKind.KeySpace or KeyNotificationKind.SubKeySpace => ChannelSuffix.Length - _keyOffset,
+        KeyNotificationKind.KeyEvent or KeyNotificationKind.SubKeyEvent => _value.GetMaxByteCount() - _keyOffset,
+        _ => 0,
+    };
 
     /// <summary>
     /// Get the maximum number of characters in the key, interpreting as UTF8.
     /// </summary>
-    public int GetKeyMaxCharCount()
+    public int GetKeyMaxCharCount() => _kind switch
     {
-        if (IsKeySpace)
-        {
-            return Encoding.UTF8.GetMaxCharCount(ChannelSuffix.Length - _keyOffset);
-        }
-
-        if (IsKeyEvent)
-        {
-            return _value.GetMaxCharCount() - _keyOffset;
-        }
-
-        return 0;
-    }
+        KeyNotificationKind.KeySpace or KeyNotificationKind.SubKeySpace => Encoding.UTF8.GetMaxCharCount(ChannelSuffix.Length - _keyOffset),
+        KeyNotificationKind.KeyEvent or KeyNotificationKind.SubKeyEvent => _value.GetMaxCharCount() - _keyOffset,
+        _ => 0,
+    };
 
     /// <summary>
     /// Get the number of characters in the key, interpreting as UTF8.
@@ -504,17 +427,19 @@ public readonly ref struct KeyNotification
     /// <remarks>If a scratch-buffer is required, it may be preferable to use <see cref="GetKeyMaxCharCount"/>, which is less expensive.</remarks>
     public int GetKeyCharCount()
     {
-        if (IsKeySpace)
+        switch (_kind)
         {
-            return Encoding.UTF8.GetCharCount(ChannelSuffix.Slice(_keyOffset));
-        }
+            case KeyNotificationKind.KeySpace:
+            case KeyNotificationKind.SubKeySpace:
+                return Encoding.UTF8.GetCharCount(ChannelSuffix.Slice(_keyOffset));
 
-        if (IsKeyEvent)
-        {
-            return _keyOffset == 0 ? _value.GetCharCount() : SlowMeasure(in this);
-        }
+            case KeyNotificationKind.KeyEvent:
+            case KeyNotificationKind.SubKeyEvent:
+                return _keyOffset == 0 ? _value.GetCharCount() : SlowMeasure(in this);
 
-        return 0;
+            default:
+                return 0;
+        }
 
         static int SlowMeasure(in KeyNotification value)
         {
@@ -551,58 +476,139 @@ public readonly ref struct KeyNotification
     /// </summary>
     public bool TryCopyKey(Span<byte> destination, out int bytesWritten)
     {
-        if (IsKeySpace)
+        switch (_kind)
         {
-            var suffix = ChannelSuffix.Slice(_keyOffset);
-            bytesWritten = suffix.Length; // assume success
-            if (bytesWritten <= destination.Length)
-            {
-                suffix.CopyTo(destination);
-                return true;
-            }
-        }
-
-        if (IsKeyEvent)
-        {
-            if (_value.TryGetSpan(out var direct))
-            {
-                bytesWritten = direct.Length - _keyOffset; // assume success
+            case KeyNotificationKind.KeySpace:
+            case KeyNotificationKind.SubKeySpace:
+                // Key is in the channel suffix
+                var suffix = ChannelSuffix.Slice(_keyOffset);
+                bytesWritten = suffix.Length; // assume success
                 if (bytesWritten <= destination.Length)
                 {
-                    direct.Slice(_keyOffset).CopyTo(destination);
+                    suffix.CopyTo(destination);
+                    return true;
+                }
+                return false;
+
+            case KeyNotificationKind.KeyEvent:
+                // Key is in the value/payload (plain key, not length-prefixed)
+                if (_value.TryGetSpan(out var direct))
+                {
+                    bytesWritten = direct.Length - _keyOffset;
+                    if (bytesWritten <= destination.Length)
+                    {
+                        direct.Slice(_keyOffset).CopyTo(destination);
+                        return true;
+                    }
+                    bytesWritten = 0;
+                    return false;
+                }
+
+                if (_keyOffset == 0)
+                {
+                    bytesWritten = _value.GetByteCount();
+                    if (bytesWritten <= destination.Length)
+                    {
+                        _value.CopyTo(destination);
+                        return true;
+                    }
+                    bytesWritten = 0;
+                    return false;
+                }
+
+                return SlowCopy(in this, destination, out bytesWritten);
+
+            case KeyNotificationKind.SubKeyEvent:
+                // Key is length-prefixed in payload: <key_len>:<key>|<len>:<subkey>
+                var keyValue = ExtractLengthPrefixedValue(_value, 0);
+                if (keyValue.IsNull)
+                {
+                    bytesWritten = 0;
+                    return false;
+                }
+
+                if (keyValue.TryGetSpan(out var keySpan))
+                {
+                    var slicedSpan = keySpan.Slice(_keyOffset);
+                    bytesWritten = slicedSpan.Length;
+                    if (bytesWritten <= destination.Length)
+                    {
+                        slicedSpan.CopyTo(destination);
+                        return true;
+                    }
+                    return false;
+                }
+
+                byte[]? keyBytes = keyValue;
+                if (_keyOffset != 0 && keyBytes is not null)
+                {
+                    bytesWritten = keyBytes.Length - _keyOffset;
+                    if (bytesWritten <= destination.Length)
+                    {
+                        keyBytes.AsSpan(_keyOffset).CopyTo(destination);
+                        return true;
+                    }
+                    return false;
+                }
+
+                bytesWritten = keyValue.GetByteCount();
+                if (bytesWritten <= destination.Length)
+                {
+                    keyValue.CopyTo(destination);
                     return true;
                 }
                 bytesWritten = 0;
                 return false;
-            }
 
-            if (_keyOffset == 0)
-            {
-                // get the value to do the hard work
-                bytesWritten = _value.GetByteCount();
-                if (bytesWritten <= destination.Length)
+            case KeyNotificationKind.SubKeySpaceItem:
+                // Key is in channel: __subkeyspaceitem@<db>__:<key>\n<subkey>
+                var suffixItem = ChannelSuffix;
+                var newlineIndex = suffixItem.IndexOf((byte)'\n');
+                if (newlineIndex > 0)
                 {
-                    _value.CopyTo(destination);
-                    return true;
+                    var keySpanItem = suffixItem.Slice(_keyOffset, newlineIndex - _keyOffset);
+                    bytesWritten = keySpanItem.Length;
+                    if (bytesWritten <= destination.Length)
+                    {
+                        keySpanItem.CopyTo(destination);
+                        return true;
+                    }
+                    return false;
                 }
                 bytesWritten = 0;
                 return false;
-            }
 
-            return SlowCopy(in this, destination, out bytesWritten);
+            case KeyNotificationKind.SubKeySpaceEvent:
+                // Key is in channel: __subkeyspaceevent@<db>__:<event>|<key>
+                var suffixEvent = ChannelSuffix;
+                var pipeIndex = suffixEvent.IndexOf((byte)'|');
+                if (pipeIndex >= 0 && pipeIndex + 1 < suffixEvent.Length)
+                {
+                    var keySpanEvent = suffixEvent.Slice(pipeIndex + 1 + _keyOffset);
+                    bytesWritten = keySpanEvent.Length;
+                    if (bytesWritten <= destination.Length)
+                    {
+                        keySpanEvent.CopyTo(destination);
+                        return true;
+                    }
+                    return false;
+                }
+                bytesWritten = 0;
+                return false;
 
-            static bool SlowCopy(in KeyNotification value, Span<byte> destination, out int bytesWritten)
-            {
-                var span = value.GetKeySpan(out var lease, stackalloc byte[128]);
-                bool result = span.TryCopyTo(destination);
-                bytesWritten = result ? span.Length : 0;
-                Return(lease);
-                return result;
-            }
+            default:
+                bytesWritten = 0;
+                return false;
         }
 
-        bytesWritten = 0;
-        return false;
+        static bool SlowCopy(in KeyNotification value, Span<byte> destination, out int bytesWritten)
+        {
+            var span = value.GetKeySpan(out var lease, stackalloc byte[128]);
+            bool result = span.TryCopyTo(destination);
+            bytesWritten = result ? span.Length : 0;
+            Return(lease);
+            return result;
+        }
     }
 
     /// <summary>
@@ -610,42 +616,116 @@ public readonly ref struct KeyNotification
     /// </summary>
     public bool TryCopyKey(Span<char> destination, out int charsWritten)
     {
-        if (IsKeySpace)
+        switch (_kind)
         {
-            var suffix = ChannelSuffix.Slice(_keyOffset);
-            if (Encoding.UTF8.GetMaxCharCount(suffix.Length) <= destination.Length ||
-                Encoding.UTF8.GetCharCount(suffix) <= destination.Length)
-            {
-                charsWritten = Encoding.UTF8.GetChars(suffix, destination);
-                return true;
-            }
-        }
-
-        if (IsKeyEvent)
-        {
-            if (_keyOffset == 0) // can use short-cut
-            {
-                if (_value.GetMaxCharCount() <= destination.Length || _value.GetCharCount() <= destination.Length)
+            case KeyNotificationKind.KeySpace:
+            case KeyNotificationKind.SubKeySpace:
+                // Key is in the channel suffix
+                var suffix = ChannelSuffix.Slice(_keyOffset);
+                if (Encoding.UTF8.GetMaxCharCount(suffix.Length) <= destination.Length ||
+                    Encoding.UTF8.GetCharCount(suffix) <= destination.Length)
                 {
-                    charsWritten = _value.CopyTo(destination);
+                    charsWritten = Encoding.UTF8.GetChars(suffix, destination);
                     return true;
                 }
-            }
-            var span = GetKeySpan(out var lease, stackalloc byte[128]);
-            charsWritten = 0;
-            bool result = false;
-            if (Encoding.UTF8.GetMaxCharCount(span.Length) <= destination.Length ||
-                Encoding.UTF8.GetCharCount(span) <= destination.Length)
-            {
-                charsWritten = Encoding.UTF8.GetChars(span, destination);
-                result = true;
-            }
-            Return(lease);
-            return result;
-        }
+                charsWritten = 0;
+                return false;
 
-        charsWritten = 0;
-        return false;
+            case KeyNotificationKind.KeyEvent:
+                // Key is in the value/payload (plain key, not length-prefixed)
+                if (_keyOffset == 0) // can use short-cut
+                {
+                    if (_value.GetMaxCharCount() <= destination.Length || _value.GetCharCount() <= destination.Length)
+                    {
+                        charsWritten = _value.CopyTo(destination);
+                        return true;
+                    }
+                }
+                var span = GetKeySpan(out var lease, stackalloc byte[128]);
+                charsWritten = 0;
+                bool result = false;
+                if (Encoding.UTF8.GetMaxCharCount(span.Length) <= destination.Length ||
+                    Encoding.UTF8.GetCharCount(span) <= destination.Length)
+                {
+                    charsWritten = Encoding.UTF8.GetChars(span, destination);
+                    result = true;
+                }
+                Return(lease);
+                return result;
+
+            case KeyNotificationKind.SubKeyEvent:
+                // Key is length-prefixed in payload: <key_len>:<key>|<len>:<subkey>
+                var keyValue = ExtractLengthPrefixedValue(_value, 0);
+                if (keyValue.IsNull)
+                {
+                    charsWritten = 0;
+                    return false;
+                }
+
+                if (_keyOffset == 0)
+                {
+                    if (keyValue.GetMaxCharCount() <= destination.Length || keyValue.GetCharCount() <= destination.Length)
+                    {
+                        charsWritten = keyValue.CopyTo(destination);
+                        return true;
+                    }
+                }
+                else
+                {
+                    // Need to slice the extracted key value
+                    byte[]? keyBytes = keyValue;
+                    if (keyBytes is not null)
+                    {
+                        var keySpan = keyBytes.AsSpan(_keyOffset);
+                        if (Encoding.UTF8.GetMaxCharCount(keySpan.Length) <= destination.Length ||
+                            Encoding.UTF8.GetCharCount(keySpan) <= destination.Length)
+                        {
+                            charsWritten = Encoding.UTF8.GetChars(keySpan, destination);
+                            return true;
+                        }
+                    }
+                }
+                charsWritten = 0;
+                return false;
+
+            case KeyNotificationKind.SubKeySpaceItem:
+                // Key is in channel: __subkeyspaceitem@<db>__:<key>\n<subkey>
+                var suffixItem = ChannelSuffix;
+                var newlineIndex = suffixItem.IndexOf((byte)'\n');
+                if (newlineIndex > 0)
+                {
+                    var keyBytes = suffixItem.Slice(_keyOffset, newlineIndex - _keyOffset);
+                    if (Encoding.UTF8.GetMaxCharCount(keyBytes.Length) <= destination.Length ||
+                        Encoding.UTF8.GetCharCount(keyBytes) <= destination.Length)
+                    {
+                        charsWritten = Encoding.UTF8.GetChars(keyBytes, destination);
+                        return true;
+                    }
+                }
+                charsWritten = 0;
+                return false;
+
+            case KeyNotificationKind.SubKeySpaceEvent:
+                // Key is in channel: __subkeyspaceevent@<db>__:<event>|<key>
+                var suffixEvent = ChannelSuffix;
+                var pipeIndex = suffixEvent.IndexOf((byte)'|');
+                if (pipeIndex >= 0 && pipeIndex + 1 < suffixEvent.Length)
+                {
+                    var keyBytes = suffixEvent.Slice(pipeIndex + 1 + _keyOffset);
+                    if (Encoding.UTF8.GetMaxCharCount(keyBytes.Length) <= destination.Length ||
+                        Encoding.UTF8.GetCharCount(keyBytes) <= destination.Length)
+                    {
+                        charsWritten = Encoding.UTF8.GetChars(keyBytes, destination);
+                        return true;
+                    }
+                }
+                charsWritten = 0;
+                return false;
+
+            default:
+                charsWritten = 0;
+                return false;
+        }
     }
 
     /// <summary>
@@ -668,94 +748,67 @@ public readonly ref struct KeyNotification
     /// a single successful call to <see cref="Type"/>.</remarks>
     public bool IsType(ReadOnlySpan<byte> type)
     {
-        if (IsKeySpace)
+        switch (_kind)
         {
-            if (_value.TryGetSpan(out var direct))
-            {
-                return direct.SequenceEqual(type);
-            }
-
-            const int MAX_STACK = 64;
-            byte[]? lease = null;
-            var maxCount = _value.GetMaxByteCount();
-            Span<byte> localCopy = maxCount <= MAX_STACK
-                ? stackalloc byte[MAX_STACK]
-                : (lease = ArrayPool<byte>.Shared.Rent(maxCount));
-            var count = _value.CopyTo(localCopy);
-            bool result = localCopy.Slice(0, count).SequenceEqual(type);
-            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
-            return result;
-        }
-
-        if (IsKeyEvent)
-        {
-            return ChannelSuffix.SequenceEqual(type);
-        }
-
-        if (IsSubKeySpace)
-        {
-            // For SubKeySpace, the type is before the | in the payload
-            if (_value.TryGetSpan(out var direct))
-            {
-                var pipeIndex = direct.IndexOf((byte)'|');
-                if (pipeIndex > 0)
+            case KeyNotificationKind.KeySpace:
+            case KeyNotificationKind.SubKeySpaceItem:
+                // Type is in the payload/value
+                if (_value.TryGetSpan(out var direct))
                 {
-                    return direct.Slice(0, pipeIndex).SequenceEqual(type);
+                    return direct.SequenceEqual(type);
                 }
-            }
 
-            const int MAX_STACK = 64;
-            byte[]? lease = null;
-            var maxCount = _value.GetMaxByteCount();
-            Span<byte> localCopy = maxCount <= MAX_STACK
-                ? stackalloc byte[MAX_STACK]
-                : (lease = ArrayPool<byte>.Shared.Rent(maxCount));
-            var count = _value.CopyTo(localCopy);
-            var pipeIndex2 = localCopy.Slice(0, count).IndexOf((byte)'|');
-            bool result = pipeIndex2 > 0 && localCopy.Slice(0, pipeIndex2).SequenceEqual(type);
-            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
-            return result;
+                const int MAX_STACK = 64;
+                byte[]? lease = null;
+                var maxCount = _value.GetMaxByteCount();
+                Span<byte> localCopy = maxCount <= MAX_STACK
+                    ? stackalloc byte[MAX_STACK]
+                    : (lease = ArrayPool<byte>.Shared.Rent(maxCount));
+                var count = _value.CopyTo(localCopy);
+                bool result = localCopy.Slice(0, count).SequenceEqual(type);
+                if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+                return result;
+
+            case KeyNotificationKind.KeyEvent:
+            case KeyNotificationKind.SubKeyEvent:
+                // Type is in the channel suffix
+                return ChannelSuffix.SequenceEqual(type);
+
+            case KeyNotificationKind.SubKeySpace:
+                // Type is before the | in the payload
+                if (_value.TryGetSpan(out var directSub))
+                {
+                    var pipeIndex = directSub.IndexOf((byte)'|');
+                    if (pipeIndex > 0)
+                    {
+                        return directSub.Slice(0, pipeIndex).SequenceEqual(type);
+                    }
+                }
+
+                byte[]? leaseSub = null;
+                var maxCountSub = _value.GetMaxByteCount();
+                Span<byte> localCopySub = maxCountSub <= MAX_STACK
+                    ? stackalloc byte[MAX_STACK]
+                    : (leaseSub = ArrayPool<byte>.Shared.Rent(maxCountSub));
+                var countSub = _value.CopyTo(localCopySub);
+                var pipeIndexSub = localCopySub.Slice(0, countSub).IndexOf((byte)'|');
+                bool resultSub = pipeIndexSub > 0 && localCopySub.Slice(0, pipeIndexSub).SequenceEqual(type);
+                if (leaseSub is not null) ArrayPool<byte>.Shared.Return(leaseSub);
+                return resultSub;
+
+            case KeyNotificationKind.SubKeySpaceEvent:
+                // Type is in the channel suffix before the |
+                var suffix = ChannelSuffix;
+                var pipeIndexEvent = suffix.IndexOf((byte)'|');
+                if (pipeIndexEvent > 0)
+                {
+                    return suffix.Slice(0, pipeIndexEvent).SequenceEqual(type);
+                }
+                return false;
+
+            default:
+                return false;
         }
-
-        if (IsSubKeySpaceEvent)
-        {
-            // For SubKeySpaceEvent, the type is in the channel suffix before the |
-            var suffix = ChannelSuffix;
-            var pipeIndex = suffix.IndexOf((byte)'|');
-            if (pipeIndex > 0)
-            {
-                return suffix.Slice(0, pipeIndex).SequenceEqual(type);
-            }
-            return false;
-        }
-
-        if (IsSubKeyEvent)
-        {
-            // For SubKeyEvent, the type is in the channel suffix
-            return ChannelSuffix.SequenceEqual(type);
-        }
-
-        if (IsSubKeySpaceItem)
-        {
-            // For SubKeySpaceItem, the type is in the payload/value
-            if (_value.TryGetSpan(out var direct))
-            {
-                return direct.SequenceEqual(type);
-            }
-
-            const int MAX_STACK = 64;
-            byte[]? lease = null;
-            var maxCount = _value.GetMaxByteCount();
-            Span<byte> localCopy = maxCount <= MAX_STACK
-                ? stackalloc byte[MAX_STACK]
-                : (lease = ArrayPool<byte>.Shared.Rent(maxCount));
-            var count = _value.CopyTo(localCopy);
-            bool result = localCopy.Slice(0, count).SequenceEqual(type);
-            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
-            return result;
-        }
-
-        return false;
     }
 
     /// <summary>
@@ -766,133 +819,79 @@ public readonly ref struct KeyNotification
     {
         get
         {
-            if (IsKeySpace)
+            switch (_kind)
             {
-                // then the channel contains the key, and the payload contains the event-type
-                if (_value.TryGetSpan(out var direct))
-                {
-                    return KeyNotificationTypeMetadata.Parse(direct);
-                }
-
-                if (_value.GetByteCount() <= KeyNotificationTypeMetadata.BufferBytes)
-                {
-                    Span<byte> localCopy = stackalloc byte[KeyNotificationTypeMetadata.BufferBytes];
-                    var len = _value.CopyTo(localCopy);
-                    return KeyNotificationTypeMetadata.Parse(localCopy.Slice(0, len));
-                }
-            }
-            else if (IsKeyEvent)
-            {
-                // then the channel contains the event-type, and the payload contains the key
-                return KeyNotificationTypeMetadata.Parse(ChannelSuffix);
-            }
-            else if (IsSubKeySpace)
-            {
-                // __subkeyspace@<db>__:<key> with payload <event>|<len>:<subkey>
-                // payload contains <event>|...
-                if (_value.TryGetSpan(out var direct))
-                {
-                    var pipeIndex = direct.IndexOf((byte)'|');
-                    if (pipeIndex > 0)
+                case KeyNotificationKind.KeySpace:
+                case KeyNotificationKind.SubKeySpaceItem:
+                    // Payload contains the event-type
+                    if (_value.TryGetSpan(out var direct))
                     {
-                        return KeyNotificationTypeMetadata.Parse(direct.Slice(0, pipeIndex));
+                        return KeyNotificationTypeMetadata.Parse(direct);
                     }
-                }
 
-                // Fallback: copy to stack and try again
-                if (_value.GetByteCount() <= KeyNotificationTypeMetadata.BufferBytes)
-                {
-                    Span<byte> localCopy = stackalloc byte[KeyNotificationTypeMetadata.BufferBytes];
-                    var len = _value.CopyTo(localCopy);
-                    var pipeIndex = localCopy.Slice(0, len).IndexOf((byte)'|');
-                    if (pipeIndex > 0)
+                    if (_value.GetByteCount() <= KeyNotificationTypeMetadata.BufferBytes)
                     {
-                        return KeyNotificationTypeMetadata.Parse(localCopy.Slice(0, pipeIndex));
+                        Span<byte> localCopy = stackalloc byte[KeyNotificationTypeMetadata.BufferBytes];
+                        var len = _value.CopyTo(localCopy);
+                        return KeyNotificationTypeMetadata.Parse(localCopy.Slice(0, len));
                     }
-                }
-            }
-            else if (IsSubKeyEvent)
-            {
-                // __subkeyevent@<db>__:<event> with payload <key_len>:<key>|<len>:<subkey>
-                // channel contains the event-type
-                return KeyNotificationTypeMetadata.Parse(ChannelSuffix);
-            }
-            else if (IsSubKeySpaceItem)
-            {
-                // __subkeyspaceitem@<db>__:<key>\n<subkey> with payload <event>
-                // payload contains the event-type
-                if (_value.TryGetSpan(out var direct))
-                {
-                    return KeyNotificationTypeMetadata.Parse(direct);
-                }
+                    return KeyNotificationType.Unknown;
 
-                if (_value.GetByteCount() <= KeyNotificationTypeMetadata.BufferBytes)
-                {
-                    Span<byte> localCopy = stackalloc byte[KeyNotificationTypeMetadata.BufferBytes];
-                    var len = _value.CopyTo(localCopy);
-                    return KeyNotificationTypeMetadata.Parse(localCopy.Slice(0, len));
-                }
+                case KeyNotificationKind.KeyEvent:
+                case KeyNotificationKind.SubKeyEvent:
+                    // Channel contains the event-type
+                    return KeyNotificationTypeMetadata.Parse(ChannelSuffix);
+
+                case KeyNotificationKind.SubKeySpace:
+                    // Payload contains <event>|<len>:<subkey>
+                    if (_value.TryGetSpan(out var directSub))
+                    {
+                        var pipeIndex = directSub.IndexOf((byte)'|');
+                        if (pipeIndex > 0)
+                        {
+                            return KeyNotificationTypeMetadata.Parse(directSub.Slice(0, pipeIndex));
+                        }
+                    }
+
+                    if (_value.GetByteCount() <= KeyNotificationTypeMetadata.BufferBytes)
+                    {
+                        Span<byte> localCopy = stackalloc byte[KeyNotificationTypeMetadata.BufferBytes];
+                        var len = _value.CopyTo(localCopy);
+                        var pipeIndex = localCopy.Slice(0, len).IndexOf((byte)'|');
+                        if (pipeIndex > 0)
+                        {
+                            return KeyNotificationTypeMetadata.Parse(localCopy.Slice(0, pipeIndex));
+                        }
+                    }
+                    return KeyNotificationType.Unknown;
+
+                case KeyNotificationKind.SubKeySpaceEvent:
+                    // Channel contains event|key - extract the event part before the pipe
+                    var suffix = ChannelSuffix;
+                    var pipeIndexEvent = suffix.IndexOf((byte)'|');
+                    if (pipeIndexEvent > 0)
+                    {
+                        return KeyNotificationTypeMetadata.Parse(suffix.Slice(0, pipeIndexEvent));
+                    }
+                    return KeyNotificationType.Unknown;
+
+                default:
+                    return KeyNotificationType.Unknown;
             }
-            else if (IsSubKeySpaceEvent)
-            {
-                // __subkeyspaceevent@<db>__:<event>|<key> with payload <len>:<subkey>
-                // channel contains event|key - extract the event part before the pipe
-                var suffix = ChannelSuffix;
-                var pipeIndex = suffix.IndexOf((byte)'|');
-                if (pipeIndex > 0)
-                {
-                    return KeyNotificationTypeMetadata.Parse(suffix.Slice(0, pipeIndex));
-                }
-            }
-            return KeyNotificationType.Unknown;
         }
     }
 
     /// <summary>
     /// Indicates whether this notification originated from a keyspace notification, for example <c>__keyspace@4__:mykey</c> with payload <c>set</c>.
     /// </summary>
+    [Obsolete($"Prefer {nameof(KeyNotification)}.{nameof(Kind)}", error: false)]
     public bool IsKeySpace => _kind == KeyNotificationKind.KeySpace;
 
     /// <summary>
     /// Indicates whether this notification originated from a keyevent notification, for example <c>__keyevent@4__:set</c> with payload <c>mykey</c>.
     /// </summary>
+    [Obsolete($"Prefer {nameof(KeyNotification)}.{nameof(Kind)}", error: false)]
     public bool IsKeyEvent => _kind == KeyNotificationKind.KeyEvent;
-
-    /// <summary>
-    /// Indicates whether this notification originated from a subkeyspace notification, for example <c>__subkeyspace@4__:mykey</c> with payload <c>hset|5:field</c>.
-    /// </summary>
-    public bool IsSubKeySpace
-    {
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        get => _kind == KeyNotificationKind.SubKeySpace;
-    }
-
-    /// <summary>
-    /// Indicates whether this notification originated from a subkeyevent notification, for example <c>__subkeyevent@4__:hset</c> with payload <c>5:mykey|5:field</c>.
-    /// </summary>
-    public bool IsSubKeyEvent
-    {
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        get => _kind == KeyNotificationKind.SubKeyEvent;
-    }
-
-    /// <summary>
-    /// Indicates whether this notification originated from a subkeyspaceitem notification, for example <c>__subkeyspaceitem@4__:mykey\nfield</c> with payload <c>hset</c>.
-    /// </summary>
-    public bool IsSubKeySpaceItem
-    {
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        get => _kind == KeyNotificationKind.SubKeySpaceItem;
-    }
-
-    /// <summary>
-    /// Indicates whether this notification originated from a subkeyspaceevent notification, for example <c>__subkeyspaceevent@4__:hset|mykey</c> with payload <c>5:field</c>.
-    /// </summary>
-    public bool IsSubKeySpaceEvent
-    {
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        get => _kind == KeyNotificationKind.SubKeySpaceEvent;
-    }
 
     /// <summary>
     /// Indicates whether the key associated with this notification starts with the specified prefix.
@@ -900,22 +899,61 @@ public readonly ref struct KeyNotification
     /// <returns>This API is intended as a high-throughput filter API.</returns>
     public bool KeyStartsWith(ReadOnlySpan<byte> prefix) // intentionally leading people to the BLOB API
     {
-        if (IsKeySpace)
+        switch (_kind)
         {
-            return ChannelSuffix.Slice(_keyOffset).StartsWith(prefix);
+            case KeyNotificationKind.KeySpace:
+            case KeyNotificationKind.SubKeySpace:
+                // Key is in the channel suffix
+                return ChannelSuffix.Slice(_keyOffset).StartsWith(prefix);
+
+            case KeyNotificationKind.KeyEvent:
+                // Key is in the value/payload (plain key, not length-prefixed)
+                if (_keyOffset == 0) return _value.StartsWith(prefix);
+
+                var span = GetKeySpan(out var lease, stackalloc byte[128]);
+                bool result = span.StartsWith(prefix);
+                Return(lease);
+                return result;
+
+            case KeyNotificationKind.SubKeyEvent:
+                // Key is length-prefixed in payload: <key_len>:<key>|<len>:<subkey>
+                var keyValue = ExtractLengthPrefixedValue(_value, 0);
+                if (keyValue.IsNull) return false;
+                if (_keyOffset == 0) return keyValue.StartsWith(prefix);
+
+                // Need to check the sliced portion
+                byte[]? keyBytes = keyValue;
+                if (keyBytes is not null && _keyOffset < keyBytes.Length)
+                {
+                    return keyBytes.AsSpan(_keyOffset).StartsWith(prefix);
+                }
+                return false;
+
+            case KeyNotificationKind.SubKeySpaceItem:
+                // Key is in channel: __subkeyspaceitem@<db>__:<key>\n<subkey>
+                var suffixItem = ChannelSuffix;
+                var newlineIndex = suffixItem.IndexOf((byte)'\n');
+                if (newlineIndex > 0)
+                {
+                    var keySpan = suffixItem.Slice(_keyOffset, newlineIndex - _keyOffset);
+                    return keySpan.StartsWith(prefix);
+                }
+                return false;
+
+            case KeyNotificationKind.SubKeySpaceEvent:
+                // Key is in channel: __subkeyspaceevent@<db>__:<event>|<key>
+                var suffixEvent = ChannelSuffix;
+                var pipeIndex = suffixEvent.IndexOf((byte)'|');
+                if (pipeIndex >= 0 && pipeIndex + 1 < suffixEvent.Length)
+                {
+                    var keySpan = suffixEvent.Slice(pipeIndex + 1 + _keyOffset);
+                    return keySpan.StartsWith(prefix);
+                }
+                return false;
+
+            default:
+                return false;
         }
-
-        if (IsKeyEvent)
-        {
-            if (_keyOffset == 0) return _value.StartsWith(prefix);
-
-            var span = GetKeySpan(out var lease, stackalloc byte[128]);
-            bool result = span.StartsWith(prefix);
-            Return(lease);
-            return result;
-        }
-
-        return false;
     }
 }
 
