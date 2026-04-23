@@ -332,9 +332,16 @@ public readonly ref partial struct KeyNotification
         }
 
         // Slower path for non-contiguous values
-        Span<byte> buffer = stackalloc byte[256];
+        const int MAX_STACK = 256;
+        byte[]? lease = null;
+        var maxCount = value.GetMaxByteCount();
+        Span<byte> buffer = maxCount <= MAX_STACK
+            ? stackalloc byte[MAX_STACK]
+            : (lease = ArrayPool<byte>.Shared.Rent(maxCount));
         var bytesWritten = value.CopyTo(buffer);
-        return ExtractLengthPrefixedValue(buffer.Slice(offset, bytesWritten - offset));
+        var result = ExtractLengthPrefixedValue(buffer.Slice(offset, bytesWritten - offset));
+        if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+        return result;
     }
 
     internal static RedisValue ExtractLengthPrefixedValue(ReadOnlySpan<byte> span)
