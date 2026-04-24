@@ -7,7 +7,7 @@ using Xunit.Sdk;
 
 namespace StackExchange.Redis.Tests;
 
-public class KeyNotificationTests(ITestOutputHelper log)
+public class KeyNotificationUnitTests(ITestOutputHelper log)
 {
     [Theory]
     [InlineData("foo", "foo")]
@@ -1677,9 +1677,10 @@ public class KeyNotificationTests(ITestOutputHelper log)
     [Fact]
     public void SubKeySpace_MultipleFields_ParsesCorrectly()
     {
-        // __subkeyspace@0__:mykey with payload "4:hset|6:field1,6:field2"
+        // __subkeyspace@0__:mykey with payload "hset|6:field1,6:field2"
+        // Format: <event>|<len>:<subkey>,<len>:<subkey>...
         var channel = RedisChannel.Literal("__subkeyspace@0__:mykey");
-        RedisValue value = "4:hset|6:field1,6:field2";
+        RedisValue value = "hset|6:field1,6:field2";
 
         Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
 

@@ -204,8 +204,8 @@ public readonly ref partial struct KeyNotification
             {
                 case KeyNotificationKind.SubKeySpace:
                 case KeyNotificationKind.SubKeyEvent:
-                    // Payload: <event>|<len>:<subkey>[|<len>:<subkey>...] or <key_len>:<key>|<len>:<subkey>[|<len>:<subkey>...]
-                    // We need to skip to the first | and then iterate through length-prefixed subkeys
+                    // Payload: <event>|<len>:<subkey>,<len>:<subkey>,... or <key_len>:<key>|<len>:<subkey>,<len>:<subkey>,...
+                    // We need to skip to the first | and then iterate through comma-separated length-prefixed subkeys
                     _data = CopyAndLeaseValue(notification._value, out _lease);
 
                     // Find the first pipe to skip the event/key part
@@ -242,7 +242,7 @@ public readonly ref partial struct KeyNotification
                     break;
 
                 case KeyNotificationKind.SubKeySpaceEvent:
-                    // Payload: <len>:<subkey>[|<len>:<subkey>...]
+                    // Payload: <len>:<subkey>,<len>:<subkey>,...
                     _data = CopyAndLeaseValue(notification._value, out _lease);
                     _position = 0;
                     break;

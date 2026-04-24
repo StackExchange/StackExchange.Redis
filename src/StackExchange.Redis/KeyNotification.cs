@@ -811,7 +811,7 @@ public readonly ref partial struct KeyNotification
                     return KeyNotificationTypeMetadata.Parse(ChannelSuffix);
 
                 case KeyNotificationKind.SubKeySpace:
-                    // Payload contains <event>|<len>:<subkey>[|<len>:<subkey>...]
+                    // Payload contains <event>|<len>:<subkey>,<len>:<subkey>,...
                     if (_value.TryGetSpan(out var directSub))
                     {
                         var pipeIndexSub = directSub.IndexOf((byte)'|');
