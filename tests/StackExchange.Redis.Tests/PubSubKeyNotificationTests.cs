@@ -624,12 +624,21 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         Assert.False(channel.IsPattern);
         Log($"Monitoring channel: {channel}");
 
+        // Use seeded random to get deterministic field selection
+        int seed = SharedRandom.Next();
+        var countRandom = new Random(seed);
+        int expectedCount = 0;
+        for (int i = 0; i < DefaultEventCount; i++)
+        {
+            var field = fields[countRandom.Next(0, fields.Length)];
+            if (field == targetField) expectedCount++;
+        }
+        Log($"Using seed {seed}, expecting exactly {expectedCount} hits on '{targetField}' out of {DefaultEventCount} operations");
+
         var sub = conn.GetSubscriber();
         await sub.UnsubscribeAsync(channel);
         Counter callbackCount = new(), targetFieldCount = new();
         TaskCompletionSource<bool> allDone = new();
-
-        int expectedCount = (DefaultEventCount / fields.Length) + 2; // Approximate expected hits for target field
 
         await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
         {
@@ -643,7 +652,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
                 var fieldName = subKey.ToString();
                 Assert.Equal(targetField, fieldName); // Should only observe the specific field
                 targetFieldCount.Increment();
-                Log($"Observed target field: '{fieldName}' ({targetFieldCount.Count} times)");
+                Log($"Observed target field: '{fieldName}' ({targetFieldCount.Count} of exactly {expectedCount} times)");
 
                 if (targetFieldCount.Count >= expectedCount)
                 {
@@ -652,17 +661,27 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             }
         });
 
-        await Task.Delay(300).ForAwait(); // give it a moment to settle
+        // Verify subscription is active by doing a test operation on a DIFFERENT field
+        // This ensures subscription is ready without affecting the target field count
+        Log("Verifying subscription is active...");
+        var testField = "test_field_verify";
+        await db.HashSetAsync(hashKey, testField, "test");
+        await Task.Delay(300).ForAwait(); // Give subscription time to activate
 
-        // Set various fields, but only targetField should trigger notifications
+        Log($"Subscription verified. Starting {DefaultEventCount} HSET operations, expecting exactly {expectedCount} notifications for '{targetField}'");
+
+        // Set various fields using the same seeded random, but only targetField should trigger notifications
+        var operationRandom = new Random(seed);
         for (int i = 0; i < DefaultEventCount; i++)
         {
-            var field = fields[SharedRandom.Next(0, fields.Length)];
+            var field = fields[operationRandom.Next(0, fields.Length)];
             await db.HashSetAsync(hashKey, field, i);
         }
 
-        Assert.True(await allDone.Task.WithTimeout(5000));
-        Assert.True(targetFieldCount.Count >= expectedCount / 2); // At least some hits on target field
+        Log($"Completed all HSET operations, waiting for notifications...");
+        Assert.True(await allDone.Task.WithTimeout(5000), $"Timed out waiting for notifications. Received {targetFieldCount.Count} of expected {expectedCount}");
+        Assert.Equal(expectedCount, targetFieldCount.Count); // Exact match since we used seeded random
+        Log($"Test completed successfully with {targetFieldCount.Count} notifications (exactly as expected)");
 
         await sub.UnsubscribeAsync(channel);
     }
@@ -778,5 +797,312 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         Assert.Contains("field3", observedFields);
 
         await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeyEvent_HandlesNewlineInKey(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeyEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/key\nwith\nnewlines";
+        var fields = new[] { "field1", "field2" };
+        var channel = RedisChannel.SubKeyEvent(KeyNotificationType.HSet, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter callbackCount = new();
+        HashSet<string> observedKeys = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            Log($"SubKeyEvent_HandlesNewlineInKey: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeyEvent
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var key = notification.GetKey().ToString();
+                Log($"  Parsed key: '{key}'");
+                observedKeys.Add(key!);
+                if (key == hashKey) allDone.TrySetResult(true);
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fields[0], "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for key with newlines");
+        Assert.Contains(hashKey, observedKeys);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeyEvent_HandlesNewlineInField(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeyEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fieldWithNewline = "field\nwith\nnewlines";
+        var channel = RedisChannel.SubKeyEvent(KeyNotificationType.HSet, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter callbackCount = new();
+        HashSet<string> observedFields = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            Log($"SubKeyEvent_HandlesNewlineInField: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeyEvent
+                && notification.Type == KeyNotificationType.HSet
+                && notification.GetKey() == hashKey)
+            {
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var field = subKey.ToString();
+                    Log($"  Parsed field: '{field}'");
+                    observedFields.Add(field!);
+                    if (field == fieldWithNewline) allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fieldWithNewline, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for field with newlines");
+        Assert.Contains(fieldWithNewline, observedFields);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeySpace_HandlesNewlineInKey(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpace, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/key\nwith\nnewlines";
+        var field = "field1";
+        var channel = RedisChannel.SubKeySpaceSingleKey(hashKey, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter receivedCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            receivedCount.Increment();
+            Log($"SubKeySpace_HandlesNewlineInKey: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpace
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                Log($"  Parsed successfully, Type={notification.Type}");
+                allDone.TrySetResult(true);
+            }
+        });
+
+        await db.HashSetAsync(hashKey, field, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for key with newlines");
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeySpace_HandlesNewlineInField(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpace, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fieldWithNewline = "field\nwith\nnewlines";
+        var channel = RedisChannel.SubKeySpaceSingleKey(hashKey, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        HashSet<string> observedFields = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            Log($"SubKeySpace_HandlesNewlineInField: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpace
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                Log($"  Parsed successfully, Type={notification.Type}, Key='{notification.GetKey()}'");
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var field = subKey.ToString();
+                    Log($"  Parsed field: '{field}'");
+                    observedFields.Add(field!);
+                    if (field == fieldWithNewline) allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fieldWithNewline, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for field with newlines");
+        Assert.Contains(fieldWithNewline, observedFields);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeySpaceEvent_HandlesNewlineInKey(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpaceEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/key\nwith\nnewlines";
+        var field = "field1";
+        var channel = RedisChannel.SubKeySpaceEvent(KeyNotificationType.HSet, hashKey, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter receivedCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            receivedCount.Increment();
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpaceEvent
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                allDone.TrySetResult(true);
+            }
+        });
+
+        await db.HashSetAsync(hashKey, field, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for key with newlines");
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeySpaceEvent_HandlesNewlineInField(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpaceEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fieldWithNewline = "field\nwith\nnewlines";
+        var channel = RedisChannel.SubKeySpaceEvent(KeyNotificationType.HSet, hashKey, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        HashSet<string> observedFields = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpaceEvent
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var field = subKey.ToString();
+                    observedFields.Add(field!);
+                    if (field == fieldWithNewline) allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fieldWithNewline, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for field with newlines");
+        Assert.Contains(fieldWithNewline, observedFields);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Fact]
+    public async Task SubKeySpaceItem_HandlesNewlineInField()
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpaceItem, withChannelPrefix: false);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fieldWithNewline = "field\nwith\nnewlines";
+        var channel = RedisChannel.SubKeySpaceItem(hashKey, fieldWithNewline, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter receivedCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            receivedCount.Increment();
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpaceItem
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var subKey = notification.GetSubKeys().FirstOrDefault();
+                if (subKey.ToString() == fieldWithNewline)
+                {
+                    allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fieldWithNewline, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for field with newlines");
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Fact]
+    public void SubKeySpaceItem_RejectsKeyWithNewline()
+    {
+        var keyWithNewline = (RedisKey)"key\nwith\nnewlines";
+        var field = (RedisKey)"field1";
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RedisChannel.SubKeySpaceItem(keyWithNewline, field, 0));
+
+        Assert.Contains("newline", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("key", ex.ParamName);
+    }
+
+    [Fact]
+    public void SubKeySpaceEvent_RejectsEventWithPipe()
+    {
+        byte[] eventWithPipe = "event|with|pipes"u8.ToArray();
+        var key = (RedisKey)"mykey";
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RedisChannel.SubKeySpaceEvent(eventWithPipe, key, 0));
+
+        Assert.Contains("pipe", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("type", ex.ParamName);
     }
 }

@@ -41,6 +41,43 @@ namespace StackExchange.Redis
                 int end = subspan.IndexOf("__:"u8);
                 if (end >= 0) return subspan.Slice(end + 3);
             }
+            else if (span.Length >= 19 && span.StartsWith("__subkeyspace@"u8))
+            {
+                // Format: __subkeyspace@{db}__:{key}
+                // We want to extract {key} for routing
+                var subspan = span.Slice(14); // Skip "__subkeyspace@"
+                int end = subspan.IndexOf("__:"u8);
+                if (end >= 0) return subspan.Slice(end + 3);
+            }
+            else if (span.Length >= 20 && span.StartsWith("__subkeyspaceitem@"u8))
+            {
+                // Format: __subkeyspaceitem@{db}__:{key}\n{field}
+                // We want to extract {key} for routing
+                var subspan = span.Slice(18); // Skip "__subkeyspaceitem@"
+                int end = subspan.IndexOf("__:"u8);
+                if (end >= 0)
+                {
+                    subspan = subspan.Slice(end + 3); // Skip "{db}__:"
+                    // Find the newline that separates key from field
+                    int newline = subspan.IndexOf((byte)'\n');
+                    if (newline >= 0) return subspan.Slice(0, newline); // Return just the key
+                    return subspan; // No newline found, return rest
+                }
+            }
+            else if (span.Length >= 23 && span.StartsWith("__subkeyspaceevent@"u8))
+            {
+                // Format: __subkeyspaceevent@{db}__:{event}|{key}
+                // We want to extract {key} for routing
+                var subspan = span.Slice(19); // Skip "__subkeyspaceevent@"
+                int end = subspan.IndexOf("__:"u8);
+                if (end >= 0)
+                {
+                    subspan = subspan.Slice(end + 3); // Skip "{db}__:"
+                    // Find the pipe that separates event from key
+                    int pipe = subspan.IndexOf((byte)'|');
+                    if (pipe >= 0) return subspan.Slice(pipe + 1); // Return just the key
+                }
+            }
             return span;
         }
 
@@ -365,6 +402,14 @@ namespace StackExchange.Redis
             if (key.IsEmpty) throw new ArgumentNullException(nameof(key));
             if (subkey.IsEmpty) throw new ArgumentNullException(nameof(subkey));
 
+            // Redis does not issue notifications for keys containing \n to avoid ambiguity in SubKeySpaceItem format
+            // Check by converting to string and looking for \n
+            var keyString = key.ToString();
+            if (keyString?.IndexOf('\n') >= 0)
+            {
+                throw new ArgumentException("Keys containing newline characters are not supported for SubKeySpaceItem notifications", nameof(key));
+            }
+
             var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, RedisChannelOptions.None);
 
             // __subkeyspaceitem@{db}__:{key}\n{subkey}
@@ -404,6 +449,12 @@ namespace StackExchange.Redis
         {
             if (type.IsEmpty) throw new ArgumentNullException(nameof(type));
             if (key.IsEmpty) throw new ArgumentNullException(nameof(key));
+
+            // Redis rejects events containing | to avoid ambiguity in SubKeySpaceEvent format
+            if (type.IndexOf((byte)'|') >= 0)
+            {
+                throw new ArgumentException("Event types containing pipe characters are not supported for SubKeySpaceEvent notifications", nameof(type));
+            }
 
             RedisChannelOptions options = RedisChannelOptions.MultiNode;
             if (database is null) options |= RedisChannelOptions.Pattern;
