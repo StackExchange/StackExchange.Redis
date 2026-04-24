@@ -1,4 +1,4 @@
-ARG CLIENT_LIBS_TEST_IMAGE=redislabs/client-libs-test:unstable-2480570909-debian
+ARG CLIENT_LIBS_TEST_IMAGE=redislabs/client-libs-test:unstable-24805570909-debian
 FROM ${CLIENT_LIBS_TEST_IMAGE}
 
 COPY --from=configs ./Basic /data/Basic/
