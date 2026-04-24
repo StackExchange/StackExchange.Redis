@@ -502,6 +502,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         var channel = RedisChannel.SubKeyEvent(KeyNotificationType.HSet, db.Database);
         Assert.True(channel.IsMultiNode);
         Assert.False(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix); // Keyspace notifications should ignore channel prefix
         Log($"Monitoring channel: {channel}");
 
         var sub = conn.GetSubscriber();
@@ -514,7 +515,8 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         {
             observedFieldCounts[field] = new();
         }
-
+        // withChannelPrefix: true, "SUBSCRIBE" "__subkeyevent@0__:hset"
+        // withChannelPrefix: false, "SUBSCRIBE" "__subkeyevent@0__:hset"
         await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
         {
             callbackCount.Increment();
@@ -561,6 +563,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         var channel = RedisChannel.SubKeySpacePrefix(prefix, db.Database);
         Assert.True(channel.IsMultiNode);
         Assert.True(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix); // Keyspace notifications should ignore channel prefix
         Log($"Monitoring channel: {channel}");
 
         var sub = conn.GetSubscriber();
