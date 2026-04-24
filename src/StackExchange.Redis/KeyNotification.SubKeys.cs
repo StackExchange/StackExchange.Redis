@@ -1,9 +1,11 @@
 using System;
 using System.Buffers;
+using System.Buffers.Text;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Text;
 using RESPite;
 
 namespace StackExchange.Redis;
@@ -190,6 +192,9 @@ public readonly ref partial struct KeyNotification
         private ReadOnlySpan<byte> _data;
         private byte[]? _lease;
         private int _position;
+        private int _currentOffset;
+        private int _currentLength;
+        private bool _hasCurrent;
         private RedisValue _current;
 
         internal SubKeyEnumerator(scoped KeyNotification notification)
@@ -197,6 +202,9 @@ public readonly ref partial struct KeyNotification
             _kind = notification._kind;
             _lease = null;
             _position = 0;
+            _currentOffset = 0;
+            _currentLength = 0;
+            _hasCurrent = false;
             _current = default;
 
             // Always copy the relevant data to a leased buffer to avoid lifetime issues
@@ -265,10 +273,74 @@ public readonly ref partial struct KeyNotification
             return buffer.AsSpan(0, written);
         }
 
+        private ReadOnlySpan<byte> CurrentBytes => _hasCurrent ? _data.Slice(_currentOffset, _currentLength) : default;
+
         /// <summary>
         /// Gets the current sub-key.
         /// </summary>
-        public RedisValue Current => _current;
+        public RedisValue Current
+        {
+            get
+            {
+                if (!_hasCurrent) return default;
+                if (_current.IsNull)
+                {
+                    _current = CurrentBytes.ToArray();
+                }
+                return _current;
+            }
+        }
+
+        /// <summary>
+        /// Gets the raw bytes of the current sub-key.
+        /// </summary>
+        public ReadOnlySpan<byte> CurrentSpan => CurrentBytes;
+
+        /// <summary>
+        /// Gets the byte length of the current sub-key.
+        /// </summary>
+        public int CurrentByteCount => _hasCurrent ? _currentLength : 0;
+
+        /// <summary>
+        /// Gets the maximum number of UTF-8 characters in the current sub-key.
+        /// </summary>
+        public int CurrentMaxCharCount => _hasCurrent ? Encoding.UTF8.GetMaxCharCount(_currentLength) : 0;
+
+        /// <summary>
+        /// Gets the actual number of UTF-8 characters in the current sub-key.
+        /// </summary>
+        public int GetCurrentCharCount() => _hasCurrent ? Encoding.UTF8.GetCharCount(CurrentBytes) : 0;
+
+        /// <summary>
+        /// Attempts to copy the current sub-key bytes into the destination span.
+        /// </summary>
+        public bool TryCopyTo(scoped Span<byte> destination, out int bytesWritten)
+        {
+            var span = CurrentBytes;
+            bytesWritten = span.Length;
+            if (bytesWritten <= destination.Length)
+            {
+                span.CopyTo(destination);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to copy the current sub-key as UTF-8 characters into the destination span.
+        /// </summary>
+        public bool TryCopyTo(scoped Span<char> destination, out int charsWritten)
+        {
+            var span = CurrentBytes;
+            if (Encoding.UTF8.GetMaxCharCount(span.Length) <= destination.Length ||
+                Encoding.UTF8.GetCharCount(span) <= destination.Length)
+            {
+                charsWritten = Encoding.UTF8.GetChars(span, destination);
+                return true;
+            }
+            charsWritten = 0;
+            return false;
+        }
 
         /// <summary>
         /// Advances to the next sub-key.
@@ -277,6 +349,11 @@ public readonly ref partial struct KeyNotification
 
         internal bool TryMoveNext(bool setCurrent)
         {
+            _hasCurrent = false;
+            _current = default;
+            _currentOffset = 0;
+            _currentLength = 0;
+
             if (_position >= _data.Length)
             {
                 return false;
@@ -288,10 +365,9 @@ public readonly ref partial struct KeyNotification
                     // Single subkey - return it once
                     if (_position == 0)
                     {
-                        if (setCurrent)
-                        {
-                            _current = _data.ToArray();
-                        }
+                        _hasCurrent = true;
+                        _currentLength = _data.Length;
+                        if (setCurrent) _ = Current;
                         _position = _data.Length; // Mark as consumed
                         return true;
                     }
@@ -301,24 +377,19 @@ public readonly ref partial struct KeyNotification
                 case KeyNotificationKind.SubKeyEvent:
                 case KeyNotificationKind.SubKeySpaceEvent:
                     // Length-prefixed format: <len>:<subkey>
-                    var value = KeyNotification.ExtractLengthPrefixedValue(_data.Slice(_position));
-                    if (value.IsNull)
+                    var remaining = _data.Slice(_position);
+                    if (!TryGetLengthPrefixedRange(remaining, out var valueOffset, out var valueLength))
                     {
                         return false;
                     }
 
-                    if (setCurrent)
-                    {
-                        _current = value;
-                    }
+                    _hasCurrent = true;
+                    _currentOffset = _position + valueOffset;
+                    _currentLength = valueLength;
+                    if (setCurrent) _ = Current;
 
                     // Move position forward: skip the length prefix + colon + value + pipe (if present)
-                    var remaining = _data.Slice(_position);
-                    var colonIndex = remaining.IndexOf((byte)':');
-                    if (colonIndex < 0) return false;
-
-                    var valueLength = (int)value.Length();
-                    _position += colonIndex + 1 + valueLength;
+                    _position += valueOffset + valueLength;
 
                     // Skip the separator if present (| or ,)
                     if (_position < _data.Length && (_data[_position] == (byte)'|' || _data[_position] == (byte)','))
@@ -343,6 +414,22 @@ public readonly ref partial struct KeyNotification
                 ArrayPool<byte>.Shared.Return(_lease);
                 _lease = null;
             }
+        }
+
+        private static bool TryGetLengthPrefixedRange(ReadOnlySpan<byte> span, out int valueOffset, out int valueLength)
+        {
+            var colonIndex = span.IndexOf((byte)':');
+            if (colonIndex > 0 && Utf8Parser.TryParse(span.Slice(0, colonIndex), out int length, out _))
+            {
+                valueOffset = colonIndex + 1;
+                if (valueOffset + length <= span.Length)
+                {
+                    valueLength = length;
+                    return true;
+                }
+            }
+            valueOffset = valueLength = 0;
+            return false;
         }
     }
 }

@@ -23,9 +23,15 @@
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.TryCopyTo(System.Span<StackExchange.Redis.RedisValue> destination, out int count) -> bool
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.SubKeyEnumerator() -> void
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentByteCount.get -> int
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.Current.get -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentMaxCharCount.get -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentSpan.get -> System.ReadOnlySpan<byte>
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.Dispose() -> void
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.GetCurrentCharCount() -> int
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.MoveNext() -> bool
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.TryCopyTo(scoped System.Span<byte> destination, out int bytesWritten) -> bool
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.TryCopyTo(scoped System.Span<char> destination, out int charsWritten) -> bool
 StackExchange.Redis.KeyNotification.HasSubKey.get -> bool
 StackExchange.Redis.KeyNotification.Kind.get -> StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationKind

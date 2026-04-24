@@ -1170,6 +1170,54 @@ public class KeyNotificationUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public void GetSubKeys_Enumerator_CurrentSpanAndCopy_WorksWithoutCurrent()
+    {
+        var channel = RedisChannel.Literal("__subkeyspace@4__:mykey");
+        RedisValue value = "hset|6:field1|6:field2";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        using var enumerator = notification.GetSubKeys().GetEnumerator();
+        Assert.True(enumerator.MoveNext());
+
+        Assert.Equal(6, enumerator.CurrentByteCount);
+        Assert.Equal("field1"u8.ToArray(), enumerator.CurrentSpan.ToArray());
+        Assert.Equal(6, enumerator.GetCurrentCharCount());
+
+        Span<byte> byteBuffer = stackalloc byte[16];
+        Assert.True(enumerator.TryCopyTo(byteBuffer, out var bytesWritten));
+        Assert.Equal(6, bytesWritten);
+        Assert.Equal("field1", Encoding.UTF8.GetString(byteBuffer.Slice(0, bytesWritten)));
+
+        Span<char> charBuffer = stackalloc char[16];
+        Assert.True(enumerator.TryCopyTo(charBuffer, out var charsWritten));
+        Assert.Equal(6, charsWritten);
+        Assert.Equal("field1", charBuffer.Slice(0, charsWritten).ToString());
+
+        Assert.True(enumerator.MoveNext());
+        Assert.Equal("field2"u8.ToArray(), enumerator.CurrentSpan.ToArray());
+    }
+
+    [Fact]
+    public void GetSubKeys_Enumerator_CurrentSurvivesDispose()
+    {
+        var channel = RedisChannel.Literal("__subkeyspaceevent@4__:hset|mykey");
+        RedisValue value = "6:field1|6:field2";
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        RedisValue first;
+        using (var enumerator = notification.GetSubKeys().GetEnumerator())
+        {
+            Assert.True(enumerator.MoveNext());
+            first = enumerator.Current;
+            Assert.Equal("field1", (string?)enumerator.Current);
+        }
+
+        Assert.Equal("field1", (string?)first);
+    }
+
+    [Fact]
     public void ExtractLengthPrefixedValue_ParsesCorrectly()
     {
         // Test the length-prefixed value extraction helper
