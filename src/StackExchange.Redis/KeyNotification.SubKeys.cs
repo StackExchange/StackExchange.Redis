@@ -320,8 +320,8 @@ public readonly ref partial struct KeyNotification
                     var valueLength = (int)value.Length();
                     _position += colonIndex + 1 + valueLength;
 
-                    // Skip the | separator if present
-                    if (_position < _data.Length && _data[_position] == (byte)'|')
+                    // Skip the separator if present (| or ,)
+                    if (_position < _data.Length && (_data[_position] == (byte)'|' || _data[_position] == (byte)','))
                     {
                         _position++;
                     }

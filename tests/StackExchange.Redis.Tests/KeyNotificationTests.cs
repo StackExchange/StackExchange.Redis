@@ -1617,4 +1617,105 @@ public class KeyNotificationTests(ITestOutputHelper log)
         Assert.Equal("email:123456", (string?)subkey);
         Assert.Equal(12, subkey.GetByteCount());
     }
+
+    [Fact]
+    public void SubKeyEvent_MultipleFields_ParsesCorrectly()
+    {
+        // __subkeyevent@0__:hset with payload "1:k|6:field1,6:field2,6:field3"
+        // This represents an HSET on key "k" with fields "field1", "field2", "field3"
+        // Note: fields are separated by commas, not pipes (as per Redis 8.8 actual behavior)
+        var channel = RedisChannel.Literal("__subkeyevent@0__:hset");
+        RedisValue value = "1:k|6:field1,6:field2,6:field3";
+
+        log.WriteLine($"Testing channel: '{channel}', value: '{value}'");
+
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        Assert.Equal(KeyNotificationKind.SubKeyEvent, notification.Kind);
+        Assert.Equal(0, notification.Database);
+        Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.Equal("k", (string?)notification.GetKey());
+
+        // Test sub-keys
+        var subKeys = notification.GetSubKeys();
+        int count = subKeys.Count();
+        log.WriteLine($"Sub-key count: {count}");
+
+        Assert.Equal(3, count);
+
+        var fieldsList = subKeys.ToList();
+        Assert.Equal(3, fieldsList.Count);
+        Assert.Equal("field1", (string?)fieldsList[0]);
+        Assert.Equal("field2", (string?)fieldsList[1]);
+        Assert.Equal("field3", (string?)fieldsList[2]);
+    }
+
+    [Fact]
+    public void SubKeyEvent_RealWorldPayload_ParsesCorrectly()
+    {
+        // Real payload observed from Redis 8.8 server
+        var channel = RedisChannel.Literal("__subkeyevent@0__:hset");
+        RedisValue value = "41:d7213ec1-e834-4fb7-9a4d-a0d8d6bfbc7e/hash|6:field1,6:field2,6:field3";
+
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        Assert.Equal(KeyNotificationKind.SubKeyEvent, notification.Kind);
+        Assert.Equal(0, notification.Database);
+        Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.Equal("d7213ec1-e834-4fb7-9a4d-a0d8d6bfbc7e/hash", (string?)notification.GetKey());
+
+        // Test sub-keys
+        var subKeys = notification.GetSubKeys();
+        Assert.Equal(3, subKeys.Count());
+
+        var fieldsList = subKeys.ToArray();
+        Assert.Equal("field1", (string?)fieldsList[0]);
+        Assert.Equal("field2", (string?)fieldsList[1]);
+        Assert.Equal("field3", (string?)fieldsList[2]);
+    }
+
+    [Fact]
+    public void SubKeySpace_MultipleFields_ParsesCorrectly()
+    {
+        // __subkeyspace@0__:mykey with payload "4:hset|6:field1,6:field2"
+        var channel = RedisChannel.Literal("__subkeyspace@0__:mykey");
+        RedisValue value = "4:hset|6:field1,6:field2";
+
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        Assert.Equal(KeyNotificationKind.SubKeySpace, notification.Kind);
+        Assert.Equal(0, notification.Database);
+        Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.Equal("mykey", (string?)notification.GetKey());
+
+        var subKeys = notification.GetSubKeys();
+        Assert.Equal(2, subKeys.Count());
+
+        var fieldsList = subKeys.ToArray();
+        Assert.Equal("field1", (string?)fieldsList[0]);
+        Assert.Equal("field2", (string?)fieldsList[1]);
+    }
+
+    [Fact]
+    public void SubKeySpaceEvent_MultipleFields_ParsesCorrectly()
+    {
+        // __subkeyspaceevent@0__:hset|mykey with payload "6:field1,6:field2,6:field3"
+        var channel = RedisChannel.Literal("__subkeyspaceevent@0__:hset|mykey");
+        RedisValue value = "6:field1,6:field2,6:field3";
+
+        Assert.True(KeyNotification.TryParse(in channel, in value, out var notification));
+
+        Assert.Equal(KeyNotificationKind.SubKeySpaceEvent, notification.Kind);
+        Assert.Equal(0, notification.Database);
+        Assert.Equal(KeyNotificationType.HSet, notification.Type);
+        Assert.Equal("mykey", (string?)notification.GetKey());
+
+        var subKeys = notification.GetSubKeys();
+        Assert.Equal(3, subKeys.Count());
+
+        var fieldsList = subKeys.ToArray();
+        Assert.Equal("field1", (string?)fieldsList[0]);
+        Assert.Equal("field2", (string?)fieldsList[1]);
+        Assert.Equal("field3", (string?)fieldsList[2]);
+    }
 }
