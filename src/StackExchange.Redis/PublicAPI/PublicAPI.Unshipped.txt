@@ -1,1 +1,45 @@
 ﻿#nullable enable
+[SER006]static StackExchange.Redis.RedisChannel.SubKeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeyEvent(System.ReadOnlySpan<byte> type, int? database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceEvent(StackExchange.Redis.KeyNotificationType type, in StackExchange.Redis.RedisKey key, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceEvent(System.ReadOnlySpan<byte> type, in StackExchange.Redis.RedisKey key, int? database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceItem(in StackExchange.Redis.RedisKey key, in StackExchange.Redis.RedisKey subkey, int database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePattern(in StackExchange.Redis.RedisKey pattern, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(in StackExchange.Redis.RedisKey prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(System.ReadOnlySpan<byte> prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceSingleKey(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel
+[SER006]StackExchange.Redis.KeyNotification.GetSubKeys() -> StackExchange.Redis.KeyNotification.SubKeyEnumerable
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.SubKeyEnumerable() -> void
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.CopyTo(System.Span<StackExchange.Redis.RedisValue> destination) -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.Count() -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.First() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.FirstOrDefault() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.GetEnumerator() -> StackExchange.Redis.KeyNotification.SubKeyEnumerator
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.Single() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.SingleOrDefault() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.ToArray() -> StackExchange.Redis.RedisValue[]!
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.ToList() -> System.Collections.Generic.List<StackExchange.Redis.RedisValue>!
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.TryCopyTo(System.Span<StackExchange.Redis.RedisValue> destination, out int count) -> bool
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.SubKeyEnumerator() -> void
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentByteCount.get -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.Current.get -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentMaxCharCount.get -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentSpan.get -> System.ReadOnlySpan<byte>
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.Dispose() -> void
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.GetCurrentCharCount() -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.MoveNext() -> bool
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.TryCopyTo(scoped System.Span<byte> destination, out int bytesWritten) -> bool
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.TryCopyTo(scoped System.Span<char> destination, out int charsWritten) -> bool
+StackExchange.Redis.KeyNotification.HasSubKey.get -> bool
+StackExchange.Redis.KeyNotification.Kind.get -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.KeyEvent = 2 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.KeySpace = 1 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeyEvent = 4 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpace = 3 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpaceEvent = 6 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpaceItem = 5 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.Unknown = 0 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationType.HExpire = 50 -> StackExchange.Redis.KeyNotificationType
