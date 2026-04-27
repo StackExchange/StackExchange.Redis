@@ -42,7 +42,7 @@ internal partial class Message
         private readonly ValueCondition _when = when;
         private readonly Expiration _expiry = expiry;
 
-        public override int ArgCount => 2 + _expiry.TokenCount + _when.TokenCount;
+        public override int ArgCount => 2 + _expiry.GetTokenCount(allowEnx: false) + _when.TokenCount;
 
         protected override void WriteImpl(PhysicalConnection physical)
         {

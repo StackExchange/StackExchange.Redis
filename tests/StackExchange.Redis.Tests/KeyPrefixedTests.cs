@@ -104,6 +104,20 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StringIncrementAsync_3()
+        {
+            await prefixed.StringIncrementAsync("key", 123L, TimeSpan.FromSeconds(5), lowerBound: 10, upperBound: 200, flags: CommandFlags.None);
+            await mock.Received().StringIncrementAsync("prefix:key", 123L, TimeSpan.FromSeconds(5), 10, 200, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringIncrementAsync_4()
+        {
+            await prefixed.StringIncrementAsync("key", 1.23, TimeSpan.FromSeconds(5), lowerBound: -1.0, upperBound: 2.0, flags: CommandFlags.None);
+            await mock.Received().StringIncrementAsync("prefix:key", 1.23, TimeSpan.FromSeconds(5), -1.0, 2.0, CommandFlags.None);
+        }
+
+        [Fact]
         public async Task HashKeysAsync()
         {
             await prefixed.HashKeysAsync("key", CommandFlags.None);

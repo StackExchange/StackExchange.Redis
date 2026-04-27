@@ -1394,6 +1394,20 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void StringIncrement_3()
+    {
+        prefixed.StringIncrement("key", 123L, TimeSpan.FromSeconds(5), lowerBound: 10, upperBound: 200, flags: CommandFlags.None);
+        mock.Received().StringIncrement("prefix:key", 123L, TimeSpan.FromSeconds(5), 10, 200, CommandFlags.None);
+    }
+
+    [Fact]
+    public void StringIncrement_4()
+    {
+        prefixed.StringIncrement("key", 1.23, TimeSpan.FromSeconds(5), lowerBound: -1.0, upperBound: 2.0, flags: CommandFlags.None);
+        mock.Received().StringIncrement("prefix:key", 1.23, TimeSpan.FromSeconds(5), -1.0, 2.0, CommandFlags.None);
+    }
+
+    [Fact]
     public void StringLength()
     {
         prefixed.StringLength("key", CommandFlags.None);
