@@ -195,7 +195,7 @@ public readonly ref partial struct KeyNotification
         private int _currentOffset;
         private int _currentLength;
         private bool _hasCurrent;
-        private RedisValue _current;
+        private byte[]? _current;
 
         internal SubKeyEnumerator(scoped KeyNotification notification)
         {
@@ -283,11 +283,7 @@ public readonly ref partial struct KeyNotification
             get
             {
                 if (!_hasCurrent) return default;
-                if (_current.IsNull)
-                {
-                    _current = CurrentBytes.ToArray();
-                }
-                return _current;
+                return _current ??= CurrentBytes.ToArray();
             }
         }
 
