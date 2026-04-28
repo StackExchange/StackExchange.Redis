@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
-using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -54,7 +53,7 @@ namespace StackExchange.Redis.Configuration
 
         /// <inheritdoc/>
         public override Task AfterConnectAsync(ConnectionMultiplexer muxer, Action<string> log)
-            => AzureMaintenanceEvent.AddListenerAsync(muxer, log);
+            => Task.CompletedTask;
 
         /// <inheritdoc/>
         public override bool GetDefaultSsl(EndPointCollection endPoints) => true;

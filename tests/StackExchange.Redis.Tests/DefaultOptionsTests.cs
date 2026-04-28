@@ -96,8 +96,51 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
 
         var server = conn.GetServer(conn.GetEndPoints().Single());
+        var interactiveId = ((IInternalConnectionMultiplexer)conn).GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+        var clients = server.ClientList();
+        var namedClients = clients.Where(x => x.Name == conn.ClientName).ToArray();
+
         Assert.Equal(RedisProtocol.Resp3, server.Protocol);
         Assert.Equal(1, serverObj.ClientCount);
+        Assert.NotNull(interactiveId);
+        Assert.Single(namedClients);
+        var self = Assert.Single(clients, x => x.Id == interactiveId);
+        Assert.Equal(ClientType.Normal, self.ClientType);
+        Assert.Equal(0, self.SubscriptionCount);
+        Assert.Equal(0, self.PatternSubscriptionCount);
+        Assert.Equal(0, self.ShardedSubscriptionCount);
+    }
+
+    [Fact]
+    public async Task VanillaResp2ConnectsWithSeparatePubSubConnection()
+    {
+        using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("redis.contoso.com", 10000), useSsl: true);
+        var config = serverObj.GetClientConfig();
+        config.Protocol = RedisProtocol.Resp2;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+        var sub = conn.GetSubscriber();
+        await sub.SubscribeAsync(RedisChannel.Literal(nameof(VanillaResp2ConnectsWithSeparatePubSubConnection)), (_, _) => { });
+
+        var server = conn.GetServer(conn.GetEndPoints().Single());
+        var mux = (IInternalConnectionMultiplexer)conn;
+        var interactiveId = mux.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+        var subscriptionId = mux.GetConnectionId(server.EndPoint, ConnectionType.Subscription);
+        var clients = server.ClientList();
+        var namedClients = clients.Where(x => x.Name == conn.ClientName).ToArray();
+
+        Assert.Equal(RedisProtocol.Resp2, server.Protocol);
+        Assert.Equal(2, serverObj.ClientCount);
+        Assert.NotNull(interactiveId);
+        Assert.NotNull(subscriptionId);
+        Assert.NotEqual(interactiveId, subscriptionId);
+        Assert.Equal(2, namedClients.Length);
+
+        var interactive = Assert.Single(clients, x => x.Id == interactiveId);
+        var subscription = Assert.Single(clients, x => x.Id == subscriptionId);
+        Assert.Equal(ClientType.Normal, interactive.ClientType);
+        Assert.Equal(ClientType.PubSub, subscription.ClientType);
+        Assert.True(subscription.SubscriptionCount > 0);
     }
 
     [Fact]
