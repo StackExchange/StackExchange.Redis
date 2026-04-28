@@ -87,6 +87,21 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
+    public async Task AzureManagedRedisConnectsViaResp3WithoutSubscriptionConnection()
+    {
+        using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("contoso.redis.azure.net", 10000));
+        var config = serverObj.GetClientConfig();
+        config.Protocol = null;
+        config.Ssl = false;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+
+        var server = conn.GetServer(conn.GetEndPoints().Single());
+        Assert.Equal(RedisProtocol.Resp3, server.Protocol);
+        Assert.Equal(1, serverObj.ClientCount);
+    }
+
+    [Fact]
     public void AllOverridesFromDefaultsProp()
     {
         var options = ConfigurationOptions.Parse("localhost");
