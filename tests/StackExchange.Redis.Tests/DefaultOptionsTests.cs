@@ -89,10 +89,9 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task AzureManagedRedisConnectsViaResp3WithoutSubscriptionConnection()
     {
-        using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("contoso.redis.azure.net", 10000));
+        using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("contoso.redis.azure.net", 10000), useSsl: true);
         var config = serverObj.GetClientConfig();
         config.Protocol = null;
-        config.Ssl = false;
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
 
