@@ -11,7 +11,26 @@ internal partial class RedisDatabase
         protected RedisKey Key => key;
         protected Expiration Expiry => expiry;
 
-        protected int GetArgCount(int coreArgs) => 1 + coreArgs + Expiry.GetTokenCount(allowEnx: true);
+        public override int ArgCount
+        {
+            get
+            {
+                return 3 + BoundsArgCount + Expiry.GetTokenCount(allowEnx: true); // key, BYINT/BYFLOAT, value, bounds, expiry
+            }
+        }
+
+        protected abstract int BoundsArgCount { get; }
+        protected abstract void WriteIncrementKindAndValue(PhysicalConnection physical);
+        protected abstract void WriteBounds(PhysicalConnection physical);
+
+        protected override void WriteImpl(PhysicalConnection physical)
+        {
+            physical.WriteHeader(Command, ArgCount);
+            physical.WriteBulkString(Key);
+            WriteIncrementKindAndValue(physical);
+            WriteBounds(physical);
+            Expiry.WriteTo(physical);
+        }
     }
 
     internal sealed class IncrexInt64Message(
@@ -23,23 +42,16 @@ internal partial class RedisDatabase
         long? upperBound,
         Expiration expiry) : IncrexMessageBase(database, flags, key, expiry)
     {
-        public override int ArgCount
-        {
-            get
-            {
-                int coreArgs = 2; // BYINT value
-                if (lowerBound.HasValue) coreArgs += 2;
-                if (upperBound.HasValue) coreArgs += 2;
-                return GetArgCount(coreArgs);
-            }
-        }
+        protected override int BoundsArgCount => (lowerBound.HasValue ? 2 : 0) + (upperBound.HasValue ? 2 : 0);
 
-        protected override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteIncrementKindAndValue(PhysicalConnection physical)
         {
-            physical.WriteHeader(Command, ArgCount);
-            physical.WriteBulkString(Key);
             physical.WriteBulkString("BYINT"u8);
             physical.WriteBulkString(value);
+        }
+
+        protected override void WriteBounds(PhysicalConnection physical)
+        {
             if (lowerBound.HasValue)
             {
                 physical.WriteBulkString("LBOUND"u8);
@@ -50,7 +62,6 @@ internal partial class RedisDatabase
                 physical.WriteBulkString("UBOUND"u8);
                 physical.WriteBulkString(upperBound.GetValueOrDefault());
             }
-            Expiry.WriteTo(physical);
         }
     }
 
@@ -63,23 +74,16 @@ internal partial class RedisDatabase
         double? upperBound,
         Expiration expiry) : IncrexMessageBase(database, flags, key, expiry)
     {
-        public override int ArgCount
-        {
-            get
-            {
-                int coreArgs = 2; // BYFLOAT value
-                if (lowerBound.HasValue) coreArgs += 2;
-                if (upperBound.HasValue) coreArgs += 2;
-                return GetArgCount(coreArgs);
-            }
-        }
+        protected override int BoundsArgCount => (lowerBound.HasValue ? 2 : 0) + (upperBound.HasValue ? 2 : 0);
 
-        protected override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteIncrementKindAndValue(PhysicalConnection physical)
         {
-            physical.WriteHeader(Command, ArgCount);
-            physical.WriteBulkString(Key);
             physical.WriteBulkString("BYFLOAT"u8);
             physical.WriteBulkString(value);
+        }
+
+        protected override void WriteBounds(PhysicalConnection physical)
+        {
             if (lowerBound.HasValue)
             {
                 physical.WriteBulkString("LBOUND"u8);
@@ -90,7 +94,6 @@ internal partial class RedisDatabase
                 physical.WriteBulkString("UBOUND"u8);
                 physical.WriteBulkString(upperBound.GetValueOrDefault());
             }
-            Expiry.WriteTo(physical);
         }
     }
 }
