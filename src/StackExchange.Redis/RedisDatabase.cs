@@ -489,7 +489,7 @@ namespace StackExchange.Redis
         }
 
         private Message HashFieldGetAndSetExpiryMessage(in RedisKey key, in RedisValue hashField, Expiration expiry, CommandFlags flags) =>
-            expiry.TokenCount switch
+            expiry.GetTokenCount(allowEnx: false) switch
             {
                 // expiry, for example EX 10
                 2 => Message.Create(Database, flags, RedisCommand.HGETEX, key, expiry.Operand, expiry.Value,  RedisLiterals.FIELDS, 1, hashField),
@@ -508,12 +508,13 @@ namespace StackExchange.Redis
             }
 
             // precision, time, FIELDS, hashFields.Length, {N x fields}
-            int extraTokens = expiry.TokenCount + 2;
+            int expiryTokenCount = expiry.GetTokenCount(allowEnx: false);
+            int extraTokens = expiryTokenCount + 2;
             RedisValue[] values = new RedisValue[extraTokens + hashFields.Length];
 
             int index = 0;
             // add PERSIST or expiry values
-            switch (expiry.TokenCount)
+            switch (expiryTokenCount)
             {
                 case 2:
                     values[index++] = expiry.Operand;
@@ -617,9 +618,10 @@ namespace StackExchange.Redis
 
         private Message HashFieldSetAndSetExpiryMessage(in RedisKey key, in RedisValue field, in RedisValue value, Expiration expiry, When when, CommandFlags flags)
         {
+            int expiryTokenCount = expiry.GetTokenCount(allowEnx: false);
             if (when == When.Always)
             {
-                return expiry.TokenCount switch
+                return expiryTokenCount switch
                 {
                     2 => Message.Create(Database, flags, RedisCommand.HSETEX, key, expiry.Operand, expiry.Value, RedisLiterals.FIELDS, 1, field, value),
                     1 => Message.Create(Database, flags, RedisCommand.HSETEX, key, expiry.Operand, RedisLiterals.FIELDS, 1, field, value),
@@ -636,7 +638,7 @@ namespace StackExchange.Redis
                     _ => throw new ArgumentOutOfRangeException(nameof(when)),
                 };
 
-                return expiry.TokenCount switch
+                return expiryTokenCount switch
                 {
                     2 => Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, expiry.Operand, expiry.Value, RedisLiterals.FIELDS, 1, field, value),
                     1 => Message.Create(Database, flags, RedisCommand.HSETEX, key, existance, expiry.Operand, RedisLiterals.FIELDS, 1, field, value),
@@ -653,7 +655,8 @@ namespace StackExchange.Redis
                 return HashFieldSetAndSetExpiryMessage(key, field.Name, field.Value, expiry, when, flags);
             }
             // Determine the base array size
-            var extraTokens = expiry.TokenCount + (when == When.Always ? 2 : 3); // [FXX|FNX] {expiry} FIELDS {length}
+            int expiryTokenCount = expiry.GetTokenCount(allowEnx: false);
+            var extraTokens = expiryTokenCount + (when == When.Always ? 2 : 3); // [FXX|FNX] {expiry} FIELDS {length}
             RedisValue[] values = new RedisValue[(hashFields.Length * 2) + extraTokens];
 
             int index = 0;
@@ -670,7 +673,7 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentOutOfRangeException(nameof(when));
             }
-            switch (expiry.TokenCount)
+            switch (expiryTokenCount)
             {
                 case 2:
                     values[index++] = expiry.Operand;
@@ -5221,7 +5224,7 @@ namespace StackExchange.Redis
 
         private Message GetStringGetExMessage(in RedisKey key, Expiration expiry, CommandFlags flags = CommandFlags.None)
         {
-            return expiry.TokenCount switch
+            return expiry.GetTokenCount(allowEnx: false) switch
             {
                 0 => Message.Create(Database, flags, RedisCommand.GETEX, key),
                 1 => Message.Create(Database, flags, RedisCommand.GETEX, key, expiry.Operand),
@@ -5303,6 +5306,8 @@ namespace StackExchange.Redis
                     _ => ThrowWhen(),
                 };
             }
+
+            expiry.GetTokenCount(allowEnx: false);
 
             if (when is When.Always & expiry.IsRelative)
             {

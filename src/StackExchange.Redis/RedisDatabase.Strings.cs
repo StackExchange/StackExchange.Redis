@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
@@ -57,6 +58,45 @@ internal partial class RedisDatabase
     {
         var msg = new GcraMessage(Database, flags, key, maxBurst, tokensPerPeriod, periodSeconds, count);
         return ExecuteAsync(msg, ResultProcessor.GcraRateLimit);
+    }
+
+    public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None)
+    {
+        ValidateStringIncrementExpiry(expiry);
+        var msg = new IncrexInt64Message(Database, flags, key, value, lowerBound, upperBound, expiry);
+        return ExecuteSync(msg, IncrexResultProcessor.Int64);
+    }
+
+    public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None)
+    {
+        ValidateStringIncrementExpiry(expiry);
+        var msg = new IncrexInt64Message(Database, flags, key, value, lowerBound, upperBound, expiry);
+        return ExecuteAsync(msg, IncrexResultProcessor.Int64);
+    }
+
+    public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None)
+    {
+        ValidateStringIncrementExpiry(expiry);
+        var msg = new IncrexDoubleMessage(Database, flags, key, value, lowerBound, upperBound, expiry);
+        return ExecuteSync(msg, IncrexResultProcessor.Double);
+    }
+
+    public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None)
+    {
+        ValidateStringIncrementExpiry(expiry);
+        var msg = new IncrexDoubleMessage(Database, flags, key, value, lowerBound, upperBound, expiry);
+        return ExecuteAsync(msg, IncrexResultProcessor.Double);
+    }
+
+    private static void ValidateStringIncrementExpiry(Expiration expiry)
+    {
+        if (expiry.IsKeepTtl) ThrowKeepTtl();
+        if (expiry.IsPersist) ThrowPersist();
+        if (expiry.IsExpireIfNotExists && !(expiry.IsAbsolute || expiry.IsRelative)) ThrowEnxWithoutExpiry();
+
+        static void ThrowKeepTtl() => throw new ArgumentException("KEEPTTL is not supported by this operation.", nameof(expiry));
+        static void ThrowPersist() => throw new ArgumentException("PERSIST is not supported by this operation; use Expiration.Default to clear the existing TTL.", nameof(expiry));
+        static void ThrowEnxWithoutExpiry() => throw new ArgumentException("ENX requires EX, PX, EXAT, or PXAT.", nameof(expiry));
     }
 
     public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
