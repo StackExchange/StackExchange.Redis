@@ -1169,13 +1169,18 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specify the redis protocol type.
         /// </summary>
-        public RedisProtocol? Protocol { get; set; }
+        public RedisProtocol? Protocol
+        {
+            get => field ?? Defaults.Protocol;
+            set;
+        }
 
         internal bool TryResp3()
         {
+            var protocol = Protocol;
             // note: deliberately leaving the IsAvailable duplicated to use short-circuit
 
-            // if (Protocol is null)
+            // if (protocol is null)
             // {
             //     // if not specified, lean on the server version and whether HELLO is available
             //     return new RedisFeatures(DefaultVersion).Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
@@ -1187,7 +1192,7 @@ namespace StackExchange.Redis
             // edge case in the library itself, the break is still visible to external callers via Execute[Async]; with an
             // abundance of caution, we are therefore making RESP3 explicit opt-in only for now; we may revisit this in a major
             {
-                return Protocol.GetValueOrDefault() >= RedisProtocol.Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
+                return protocol.GetValueOrDefault() >= RedisProtocol.Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
             }
         }
 

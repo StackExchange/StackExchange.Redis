@@ -260,6 +260,11 @@ namespace StackExchange.Redis.Configuration
         public virtual bool SetClientLibrary => true;
 
         /// <summary>
+        /// Gets the preferred protocol to use for the connection.
+        /// </summary>
+        public virtual RedisProtocol? Protocol => null;
+
+        /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
         /// In case of any failure, swallows the exception and returns null.
         /// </summary>
