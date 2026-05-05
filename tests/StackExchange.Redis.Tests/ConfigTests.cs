@@ -135,6 +135,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("contoso.redis.cache.usgovcloudapi.net:6380", true)]
     [InlineData("contoso.redis.cache.sovcloud-api.de:6380", true)]
     [InlineData("contoso.redis.cache.sovcloud-api.fr:6380", true)]
+    [InlineData("contoso.redis.cache.windows.net:6379", false)] // non-SSL port
+    [InlineData("contoso.redis.cache.windows.net:10000", false)] // wrong port
+    [InlineData("contoso.redis.cache.windows.net", false)] // no port
     public void ConfigurationOptionsDefaultForAzure(string hostAndPort, bool sslShouldBeEnabled)
     {
         Version defaultAzureVersion = new(6, 0, 0);
@@ -149,11 +152,16 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("contoso.redis.chinacloudapi.cn:10000", true)]
     [InlineData("contoso.redis.usgovcloudapi.net:10000", true)]
     [InlineData("contoso.redisenterprise.cache.azure.net:10000", true)]
+    [InlineData("contoso.REDIS.sovcloud-api.de:10000", true)] // added a few upper case chars to validate comparison
+    [InlineData("contoso.redis.sovcloud-api.fr:10000", true)]
+    [InlineData("contoso.redis.azure.net:6379", true)] // AMR port is usually 10000, assume SSL regardless
+    [InlineData("contoso.redis.azure.net:6380", true)] // AMR port is usually 10000, assume SSL regardless
+    [InlineData("contoso.redis.azure.net", true)] // no port, assume SSL
     public void ConfigurationOptionsDefaultForAzureManagedRedis(string hostAndPort, bool sslShouldBeEnabled)
     {
-        Version defaultAzureVersion = new(7, 4, 0);
+        Version defaultAzureManagedRedisVersion = new(7, 4, 0);
         var options = ConfigurationOptions.Parse(hostAndPort);
-        Assert.True(options.DefaultVersion.Equals(defaultAzureVersion));
+        Assert.True(options.DefaultVersion.Equals(defaultAzureManagedRedisVersion));
         Assert.False(options.AbortOnConnectFail);
         Assert.Equal(sslShouldBeEnabled, options.Ssl);
     }
@@ -166,12 +174,26 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.True(options.AbortOnConnectFail);
     }
 
-    [Fact]
-    public void ConfigurationOptionsDefaultForNonAzure()
+    [Theory]
+    [InlineData("redis.contoso.com")] // no port
+    [InlineData("redis.contoso.com:xx")] // invalid port
+    [InlineData("redis.contoso.com:6379")] // valid port
+    [InlineData("contoso.Xredis.cache.windows.net:6380")] // almost an Azure Cache for Redis host name
+    [InlineData("contoso.redis.cache.windows.netX:6380")] // almost an Azure Cache for Redis host name
+    [InlineData("contoso.redis.cache.windows.net.X:6380")] // almost an Azure Cache for Redis host name
+    [InlineData("contoso.Xredis.azure.net:10000")] // almost an Azure Managed Redis host name
+    [InlineData("contoso.redis.azure.netX:10000")] // almost an Azure Managed Redis host name
+    [InlineData("contoso.redis.azure.net.X:10000")] // almost an Azure Managed Redis host name
+    [InlineData("contoso.redis.cache.windows.net:xx")] // Azure Cache for Redis host name with invalid port
+    [InlineData("contoso.redis.cache.windows.net:")] // Azure Cache for Redis host name with missing port
+    [InlineData("contoso.redis.azure.net:xx")] // AMR host name with invalid port
+    [InlineData("contoso.redis.azure.net:")] // AMR host name with missing port
+    public void ConfigurationOptionsDefaultForNonAzure(string hostAndPort)
     {
-        var options = ConfigurationOptions.Parse("redis.contoso.com");
+        var options = ConfigurationOptions.Parse(hostAndPort);
         Assert.True(options.DefaultVersion.Equals(DefaultVersion));
         Assert.True(options.AbortOnConnectFail);
+        Assert.False(options.Ssl);
     }
 
     [Fact]
