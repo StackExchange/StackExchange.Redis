@@ -158,6 +158,26 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(sslShouldBeEnabled, options.Ssl);
     }
 
+    [Theory]
+    // azure managed redis, no overrides
+    [InlineData("contoso.redis.azure.net:10000", RedisProtocol.Resp3, true)] // default
+    [InlineData("contoso.redis.azure.net:10000,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
+    [InlineData("contoso.redis.azure.net:10000,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
+    // azure redis cache, no overrides (we expect this to change in v3)
+    [InlineData("contoso.redis.cache.windows.net:6380", null, false)] // default
+    [InlineData("contoso.redis.cache.windows.net:6380,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
+    [InlineData("contoso.redis.cache.windows.net:6380,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
+    // arbitrary endpoint (we expect this to change in v3)
+    [InlineData("myserver:6379", null, false)] // default
+    [InlineData("myserver:6379,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
+    [InlineData("myserver:6379,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
+    public void CorrectRespProtocol(string config, RedisProtocol? expected, bool useResp3)
+    {
+        var options = ConfigurationOptions.Parse(config);
+        Assert.Equal(expected, options.Protocol);
+        Assert.Equal(useResp3, options.TryResp3());
+    }
+
     [Fact]
     public void ConfigurationOptionsForAzureWhenSpecified()
     {

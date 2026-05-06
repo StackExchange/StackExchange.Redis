@@ -462,6 +462,32 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue ClientId(RedisClient client, in RedisRequest request)
             => TypedRedisValue.Integer(client.Id);
 
+        [RedisCommand(2, nameof(RedisCommand.CLIENT), "list", LockFree = true)]
+        protected virtual TypedRedisValue ClientList(RedisClient client, in RedisRequest request)
+        {
+            var sb = new StringBuilder();
+            ForAllClients(
+                sb,
+                static (other, state) =>
+                {
+                    if (state.Length != 0) state.AppendLine();
+                    state.Append("id=").Append(other.Id)
+                        .Append(" addr=").Append(other.Node.Host).Append(':').Append(other.Node.Port)
+                        .Append(" age=0 idle=0")
+                        .Append(" db=").Append(other.Database)
+                        .Append(" sub=").Append(other.SubscriptionCount)
+                        .Append(" psub=").Append(other.PatternSubscriptionCount)
+                        .Append(" ssub=").Append(other.ShardedSubscriptionCount)
+                        .Append(" multi=0")
+                        .Append(" cmd=NULL")
+                        .Append(" name=").Append(other.Name ?? "")
+                        .Append(" resp=").Append(other.Protocol is RedisProtocol.Resp3 ? 3 : 2)
+                        .Append(" flags=").Append(other.IsSubscriber ? "P" : "N");
+                    return 1;
+                });
+            return TypedRedisValue.BulkString(sb.ToString());
+        }
+
         [RedisCommand(4, nameof(RedisCommand.CLIENT), "setinfo", LockFree = true)]
         protected virtual TypedRedisValue ClientSetInfo(RedisClient client, in RedisRequest request)
             => TypedRedisValue.OK; // only exists to keep logs clean

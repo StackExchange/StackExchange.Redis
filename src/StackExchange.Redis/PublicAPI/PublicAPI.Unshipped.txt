@@ -1,1 +1,4 @@
 ﻿#nullable enable
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.ConfigurationChannel.get -> string!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?

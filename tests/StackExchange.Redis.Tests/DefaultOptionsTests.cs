@@ -86,6 +86,93 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.IsType<AzureManagedRedisOptionsProvider>(provider);
     }
 
+    [Theory]
+    [InlineData(RedisProtocol.Resp2)]
+    [InlineData(RedisProtocol.Resp3)]
+    public async Task AzureManagedRedisConnectsWithoutSubscriptionConnection(RedisProtocol protocol)
+    {
+        using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("contoso.redis.azure.net", 10000), useSsl: true);
+        var config = serverObj.GetClientConfig();
+        config.ClientName = Guid.NewGuid().ToString().Replace("-", "");
+        config.Protocol = protocol;
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+
+        var server = conn.GetServer(conn.GetEndPoints().Single());
+        var interactiveId = ((IInternalConnectionMultiplexer)conn).GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+        var clients = await server.ClientListAsync();
+        var namedClients = clients.Where(x => x.Name == config.ClientName).ToArray();
+
+        Assert.Equal(protocol, server.Protocol);
+        Assert.Equal(1, serverObj.ClientCount);
+        Assert.NotNull(interactiveId);
+        Assert.Single(namedClients);
+        var self = Assert.Single(clients, x => x.Id == interactiveId);
+        Assert.Equal(ClientType.Normal, self.ClientType);
+        Assert.Equal(0, self.SubscriptionCount);
+        Assert.Equal(0, self.PatternSubscriptionCount);
+        Assert.Equal(0, self.ShardedSubscriptionCount);
+        Assert.Equal(protocol, self.Protocol);
+
+        await AssertCanPubSubAsync(conn, $"{nameof(AzureManagedRedisConnectsWithoutSubscriptionConnection)}:{protocol}");
+    }
+
+    [Fact]
+    public async Task VanillaResp2ConnectsWithSeparatePubSubConnection()
+    {
+        using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("redis.contoso.com", 10000), useSsl: true);
+        var config = serverObj.GetClientConfig();
+        config.Protocol = RedisProtocol.Resp2;
+        Log($"QueueWhileDisconnected: {config.BacklogPolicy.QueueWhileDisconnected}");
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+        var sub = conn.GetSubscriber();
+        await sub.SubscribeAsync(RedisChannel.Literal(nameof(VanillaResp2ConnectsWithSeparatePubSubConnection)), (_, _) => { });
+
+        var server = conn.GetServer(conn.GetEndPoints().Single());
+        var mux = (IInternalConnectionMultiplexer)conn;
+        var interactiveId = mux.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+        var subscriptionId = mux.GetConnectionId(server.EndPoint, ConnectionType.Subscription);
+        var clients = server.ClientList();
+        var namedClients = clients.Where(x => x.Name == conn.ClientName).ToArray();
+
+        Assert.Equal(RedisProtocol.Resp2, server.Protocol);
+        Assert.Equal(2, serverObj.ClientCount);
+        Assert.NotNull(interactiveId);
+        Assert.NotNull(subscriptionId);
+        Assert.NotEqual(interactiveId, subscriptionId);
+        Assert.Equal(2, namedClients.Length);
+
+        var interactive = Assert.Single(clients, x => x.Id == interactiveId);
+        var subscription = Assert.Single(clients, x => x.Id == subscriptionId);
+        Assert.Equal(ClientType.Normal, interactive.ClientType);
+        Assert.Equal(ClientType.PubSub, subscription.ClientType);
+        Assert.True(subscription.SubscriptionCount > 0);
+
+        await AssertCanPubSubAsync(conn, nameof(VanillaResp2ConnectsWithSeparatePubSubConnection));
+    }
+
+    private static async Task AssertCanPubSubAsync(ConnectionMultiplexer conn, string channelName)
+    {
+        var sub = conn.GetSubscriber();
+        var channel = RedisChannel.Literal(channelName);
+        var payload = (RedisValue)("payload:" + channelName);
+        TaskCompletionSource<RedisValue> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await sub.SubscribeAsync(channel, (_, message) => tcs.TrySetResult(message));
+        try
+        {
+            await sub.PublishAsync(channel, payload);
+            var completed = await Task.WhenAny(tcs.Task, Task.Delay(5000, TestContext.Current.CancellationToken));
+            Assert.Same(tcs.Task, completed);
+            Assert.Equal(payload, await tcs.Task);
+        }
+        finally
+        {
+            await sub.UnsubscribeAsync(channel);
+        }
+    }
+
     [Fact]
     public void AllOverridesFromDefaultsProp()
     {

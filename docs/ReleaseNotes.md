@@ -8,10 +8,13 @@ Current package versions:
 
 ## Unreleased
 
+IMPORTANT: for AMR users, this changes the default protocol to RESP3. In some cases, this may require code changes. Please see [this topic](https://stackexchange.github.io/StackExchange.Redis/Resp3) for more information.
+
 - Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
 - Add Redis 8.8 stream negative acknowledgements (`XNACK`) ([#3058 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3058))
 - Update experimental `GCRA` APIs and wire protocol terminology from "requests" to "tokens", to match server change ([#3051 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3051))
 - Add experimental `Aggregate.Count` support for sorted-set combination operations against Redis 8.8 ([#3059 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3059))
+- Prefer RESP3 and avoid opening a separate subscription connection for Azure Managed Redis endpoints ([#3067 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3067))
 
 ## 2.12.14
 
