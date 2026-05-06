@@ -5,9 +5,11 @@ using System.IO.Pipelines;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+#if !NETFRAMEWORK
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+#endif
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,15 +23,20 @@ namespace StackExchange.Redis.Tests;
 public class InProcessTestServer : MemoryCacheRedisServer
 {
     private readonly ITestOutputHelper? _log;
+#if !NETFRAMEWORK
     private readonly X509Certificate2? _serverCertificate;
     private readonly string? _serverCertificateThumbprint;
     private readonly RemoteCertificateValidationCallback? _certificateValidationCallback;
+#endif
 
     public InProcessTestServer(ITestOutputHelper? log = null, EndPoint? endpoint = null, bool useSsl = false)
         : base(endpoint)
     {
         RedisVersion = RedisFeatures.v6_0_0; // for client to expect RESP3
         _log = log;
+#if NETFRAMEWORK
+        UseSsl = false;
+#else
         UseSsl = useSsl;
         if (useSsl)
         {
@@ -37,6 +44,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             _serverCertificateThumbprint = _serverCertificate.Thumbprint;
             _certificateValidationCallback = ValidateServerCertificate;
         }
+#endif
         // ReSharper disable once VirtualMemberCallInConstructor
         _log?.WriteLine($"Creating in-process server: {ToString()}");
         Tunnel = new InProcTunnel(this);
@@ -105,10 +113,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
             // WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
         };
         if (!string.IsNullOrEmpty(Password)) config.Password = Password;
+        config.Ssl = UseSsl; // explicitly, ignore provider defaults
         if (UseSsl)
         {
-            config.Ssl = true;
+#if !NETFRAMEWORK
             config.CertificateValidation += _certificateValidationCallback;
+#endif
         }
 
         /* useful for viewing *outbound* data in the log
@@ -223,13 +233,16 @@ public class InProcessTestServer : MemoryCacheRedisServer
 
     protected override void Dispose(bool disposing)
     {
+#if !NETFRAMEWORK
         if (disposing)
         {
             _serverCertificate?.Dispose();
         }
+#endif
         base.Dispose(disposing);
     }
 
+#if !NETFRAMEWORK
     private bool ValidateServerCertificate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors)
     {
         if (errors == SslPolicyErrors.None)
@@ -280,6 +293,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
             _ => "localhost",
         };
     }
+#endif
 
     private sealed class InProcTunnel(
         InProcessTestServer server,
@@ -316,6 +330,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
 
                 if (server.UseSsl)
                 {
+#if !NETFRAMEWORK
                     Task.Run(
                         async () =>
                         {
@@ -329,6 +344,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
                             await server.RunClientAsync(serverSide, node: node, state: null).ConfigureAwait(false);
                         },
                         cancellationToken).RedisFireAndForget();
+#endif
                 }
                 else
                 {
