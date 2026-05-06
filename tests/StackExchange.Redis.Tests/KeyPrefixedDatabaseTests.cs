@@ -852,6 +852,13 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void SortedSetIncrement_When()
+    {
+        prefixed.SortedSetIncrement("key", "member", 1.23, ValueCondition.Exists, CommandFlags.None);
+        mock.Received().SortedSetIncrement("prefix:key", "member", 1.23, ValueCondition.Exists, CommandFlags.None);
+    }
+
+    [Fact]
     public void SortedSetIntersectionLength()
     {
         prefixed.SortedSetIntersectionLength(["a", "b"], 1, CommandFlags.None);
