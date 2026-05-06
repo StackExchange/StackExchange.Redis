@@ -12,6 +12,7 @@ Current package versions:
 - Add Redis 8.8 stream negative acknowledgements (`XNACK`) ([#3058 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3058))
 - Update experimental `GCRA` APIs and wire protocol terminology from "requests" to "tokens", to match server change ([#3051 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3051))
 - Add experimental `Aggregate.Count` support for sorted-set combination operations against Redis 8.8 ([#3059 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3059))
+- Add `ValueCondition` overloads for `SortedSetIncrement`/`SortedSetIncrementAsync`, supporting `ZADD INCR` with existence conditions
 
 ## 2.12.14
 

@@ -776,6 +776,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task SortedSetIncrementAsync_When()
+        {
+            await prefixed.SortedSetIncrementAsync("key", "member", 1.23, ValueCondition.Exists, CommandFlags.None);
+            await mock.Received().SortedSetIncrementAsync("prefix:key", "member", 1.23, ValueCondition.Exists, CommandFlags.None);
+        }
+
+        [Fact]
         public async Task SortedSetIntersectionLengthAsync()
         {
             await prefixed.SortedSetIntersectionLengthAsync(["a", "b"], 1, CommandFlags.None);
