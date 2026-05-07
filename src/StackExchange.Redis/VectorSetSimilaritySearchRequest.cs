@@ -26,7 +26,8 @@ public abstract class VectorSetSimilaritySearchRequest
                 _epsilon,
                 _searchExplorationFactor,
                 _filterExpression,
-                _maxFilteringEffort);
+                _maxFilteringEffort,
+                UseFp32);
     }
 
     private sealed class VectorSetSimilarityVectorSingleSearchRequest(ReadOnlyMemory<float> vector)
@@ -43,8 +44,11 @@ public abstract class VectorSetSimilaritySearchRequest
                 _epsilon,
                 _searchExplorationFactor,
                 _filterExpression,
-                _maxFilteringEffort);
+                _maxFilteringEffort,
+                UseFp32);
     }
+
+    internal bool UseFp32 { get; set; } = true; // for testing
 
     // snapshot the values; I don't trust people not to mutate the object behind my back
     internal abstract VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags);

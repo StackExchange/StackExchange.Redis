@@ -16,7 +16,7 @@ public sealed class VectorSetUnitTests(ITestOutputHelper output)
     [InlineData(VectorSetQuantization.Int8, true)]
     [InlineData(VectorSetQuantization.None, true)]
     [InlineData(VectorSetQuantization.Binary, true)]
-    public async Task VectorSetAdd_WithEverything(VectorSetQuantization quantization, bool disableFp32)
+    public async Task VectorSetAdd_WithEverything(VectorSetQuantization quantization, bool useFp32)
     {
         using var server = new VectorServer(output);
         await using var conn = await server.ConnectAsync();
@@ -28,29 +28,21 @@ public sealed class VectorSetUnitTests(ITestOutputHelper output)
         var vector = new[] { 1.0f, 2.0f, 3.0f, 4.0f };
         var attributes = """{"category":"test","id":123}""";
 
-        try
-        {
-            if (disableFp32) VectorSetAddMessage.SuppressFp32();
-            Assert.Equal(!disableFp32, VectorSetAddMessage.UseFp32);
-            var request = VectorSetAddRequest.Member(
-                "element1",
-                vector.AsMemory(),
-                attributes);
-            request.Quantization = quantization;
-            request.ReducedDimensions = 64;
-            request.BuildExplorationFactor = 300;
-            request.MaxConnections = 32;
-            request.UseCheckAndSet = true;
-            output.WriteLine("Storing...");
-            var result = await db.VectorSetAddAsync(
-                key,
-                request);
-            Assert.True(result);
-        }
-        finally
-        {
-            if (disableFp32) VectorSetAddMessage.RestoreFp32();
-        }
+        var request = VectorSetAddRequest.Member(
+            "element1",
+            vector.AsMemory(),
+            attributes);
+        request.UseFp32 = useFp32;
+        request.Quantization = quantization;
+        request.ReducedDimensions = 64;
+        request.BuildExplorationFactor = 300;
+        request.MaxConnections = 32;
+        request.UseCheckAndSet = true;
+        output.WriteLine("Storing...");
+        var result = await db.VectorSetAddAsync(
+            key,
+            request);
+        Assert.True(result);
 
         // now: what did we send?
         var req = server.LastRequest.ReadRequest().AsSpan();
@@ -67,7 +59,13 @@ public sealed class VectorSetUnitTests(ITestOutputHelper output)
         Assert.Equal(64, req[3]);
         req = req.Slice(4);
 
-        if (disableFp32)
+        if (useFp32)
+        {
+            Assert.Equal("FP32", req[0]);
+            Assert.Equal("00-00-80-3F-00-00-00-40-00-00-40-40-00-00-80-40", BitConverter.ToString(req[1]!));
+            req = req.Slice(2);
+        }
+        else
         {
             Assert.Equal("VALUES", req[0]);
             Assert.Equal(4, req[1]);
@@ -76,12 +74,6 @@ public sealed class VectorSetUnitTests(ITestOutputHelper output)
             Assert.Equal(3.0f, (float)req[4], precision: 3);
             Assert.Equal(4.0f, (float)req[5], precision: 3);
             req = req.Slice(6);
-        }
-        else
-        {
-            Assert.Equal("FP32", req[0]);
-            Assert.Equal("00-00-80-3F-00-00-00-40-00-00-40-40-00-00-80-40", BitConverter.ToString(req[1]!));
-            req = req.Slice(2);
         }
 
         Assert.Equal("element1", req[0]);

@@ -38,6 +38,8 @@ public abstract class VectorSetAddRequest
     /// </summary>
     public int? ReducedDimensions { get; set; }
 
+    internal bool UseFp32 { get; set; } = true; // for testing
+
     /// <summary>
     /// Quantization type - Int8 (Q8), None (NOQUANT), or Binary (BIN). Default: Int8.
     /// </summary>
@@ -74,6 +76,7 @@ public abstract class VectorSetAddRequest
                 UseCheckAndSet,
                 element,
                 values,
-                attributesJson);
+                attributesJson,
+                UseFp32);
     }
 }
