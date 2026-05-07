@@ -64,7 +64,9 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     [InlineData(VectorSetQuantization.Binary, true)]
     public async Task VectorSetAdd_WithEverything(VectorSetQuantization quantization, bool useFp32)
     {
-        Assert.SkipWhen(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), "CI oddness on Windows; needs attention");
+#if RELEASE // CI runs as Release
+        Assert.SkipWhen(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), "CI oddness on Windows; needs attention - logged #3072");
+#endif
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
         var key = Me() + "/" + quantization;
