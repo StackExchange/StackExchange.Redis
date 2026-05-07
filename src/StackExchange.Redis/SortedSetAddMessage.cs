@@ -14,10 +14,10 @@ internal partial class RedisDatabase
     {
         private const SortedSetWhen KnownWhen =
             SortedSetWhen.Exists | SortedSetWhen.GreaterThan | SortedSetWhen.LessThan | SortedSetWhen.NotExists;
+        private const SortedSetWhen Change = (SortedSetWhen)(1 << 30);
+        private const SortedSetWhen Increment = (SortedSetWhen)(1 << 29);
 
-        private readonly SortedSetWhen _when = ValidateWhen(when);
-        private readonly bool _change = change;
-        private readonly bool _increment = increment;
+        private readonly SortedSetWhen _when = GetWhen(when, change, increment);
 
         public override int ArgCount => 1 + GetOptionCount() + (2 * EntryCount);
 
@@ -40,17 +40,19 @@ internal partial class RedisDatabase
             if ((_when & SortedSetWhen.Exists) != 0) count++;
             if ((_when & SortedSetWhen.GreaterThan) != 0) count++;
             if ((_when & SortedSetWhen.LessThan) != 0) count++;
-            if (_change) count++;
-            if (_increment) count++;
+            if ((_when & Change) != 0) count++;
+            if ((_when & Increment) != 0) count++;
             return count;
         }
 
-        private static SortedSetWhen ValidateWhen(SortedSetWhen when)
+        private static SortedSetWhen GetWhen(SortedSetWhen when, bool change, bool increment)
         {
             if ((when & ~KnownWhen) != 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(when));
             }
+            if (change) when |= Change;
+            if (increment) when |= Increment;
             return when;
         }
 
@@ -72,11 +74,11 @@ internal partial class RedisDatabase
             {
                 physical.WriteBulkString("LT"u8);
             }
-            if (_change)
+            if ((_when & Change) != 0)
             {
                 physical.WriteBulkString("CH"u8);
             }
-            if (_increment)
+            if ((_when & Increment) != 0)
             {
                 physical.WriteBulkString("INCR"u8);
             }
