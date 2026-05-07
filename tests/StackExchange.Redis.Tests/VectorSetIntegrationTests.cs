@@ -8,6 +8,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+[Collection(NonParallelCollection.Name)] // because of the FP32 suppression
 [RunPerProtocol]
 public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBase(output)
 {
@@ -62,10 +63,13 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     }
 
     [Theory]
-    [InlineData(VectorSetQuantization.Int8)]
-    [InlineData(VectorSetQuantization.None)]
-    [InlineData(VectorSetQuantization.Binary)]
-    public async Task VectorSetAdd_WithEverything(VectorSetQuantization quantization)
+    [InlineData(VectorSetQuantization.Int8, false)]
+    [InlineData(VectorSetQuantization.None, false)]
+    [InlineData(VectorSetQuantization.Binary, false)]
+    [InlineData(VectorSetQuantization.Int8, true)]
+    [InlineData(VectorSetQuantization.None, true)]
+    [InlineData(VectorSetQuantization.Binary, true)]
+    public async Task VectorSetAdd_WithEverything(VectorSetQuantization quantization, bool disableFp32)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
@@ -76,21 +80,31 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         var vector = new[] { 1.0f, 2.0f, 3.0f, 4.0f };
         var attributes = """{"category":"test","id":123}""";
 
-        var request = VectorSetAddRequest.Member(
-            "element1",
-            vector.AsMemory(),
-            attributes);
-        request.Quantization = quantization;
-        request.ReducedDimensions = 64;
-        request.BuildExplorationFactor = 300;
-        request.MaxConnections = 32;
-        request.UseCheckAndSet = true;
-        Log("Storing...");
-        var result = await db.VectorSetAddAsync(
-            key,
-            request);
+        try
+        {
+            if (disableFp32) VectorSetAddMessage.SuppressFp32();
+            Assert.Equal(!disableFp32, VectorSetAddMessage.UseFp32);
+            var request = VectorSetAddRequest.Member(
+                "element1",
+                vector.AsMemory(),
+                attributes);
+            request.Quantization = quantization;
+            request.ReducedDimensions = 64;
+            request.BuildExplorationFactor = 300;
+            request.MaxConnections = 32;
+            request.UseCheckAndSet = true;
+            Log("Storing...");
+            var result = await db.VectorSetAddAsync(
+                key,
+                request);
 
-        Assert.True(result);
+            Assert.True(result);
+        }
+        finally
+        {
+            if (disableFp32) VectorSetAddMessage.RestoreFp32();
+        }
+
         Log("Stored successfully; fetching attributes...");
         // Verify attributes were stored
         var retrievedAttributes = await db.VectorSetGetAttributesJsonAsync(key, "element1");
