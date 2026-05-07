@@ -1,4 +1,3 @@
-extern alias respite;
 using System;
 using System.Threading.Tasks;
 using StackExchange.Redis.Server;
