@@ -13,6 +13,7 @@ Current package versions:
 - Update experimental `GCRA` APIs and wire protocol terminology from "requests" to "tokens", to match server change ([#3051 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3051))
 - Add experimental `Aggregate.Count` support for sorted-set combination operations against Redis 8.8 ([#3059 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3059))
 - Add `ValueCondition` overloads for `SortedSetIncrement`/`SortedSetIncrementAsync`, supporting `ZADD INCR` with existence conditions ([#3071 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3071))
+- Recognize Azure Managed Redis (AMR) resources in new Azure clouds ([#3068 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3068))
 
 ## 2.12.14
 
