@@ -69,7 +69,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var db = conn.GetDatabase();
-        var key = Me();
+        var key = Me() + "/" + quantization;
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
