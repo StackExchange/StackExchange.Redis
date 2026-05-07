@@ -85,12 +85,13 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         request.BuildExplorationFactor = 300;
         request.MaxConnections = 32;
         request.UseCheckAndSet = true;
+        Log("Storing...");
         var result = await db.VectorSetAddAsync(
             key,
             request);
 
         Assert.True(result);
-
+        Log("Stored successfully; fetching attributes...");
         // Verify attributes were stored
         var retrievedAttributes = await db.VectorSetGetAttributesJsonAsync(key, "element1");
         Assert.Equal(attributes, retrievedAttributes);
