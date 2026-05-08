@@ -24,70 +24,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.github\workflows\codeql.yml = .github\workflows\codeql.yml
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfigs", "{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}"
-	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\cli-master.cmd = tests\RedisConfigs\cli-master.cmd
-		tests\RedisConfigs\cli-secure.cmd = tests\RedisConfigs\cli-secure.cmd
-		tests\RedisConfigs\cli-slave.cmd = tests\RedisConfigs\cli-slave.cmd
-		tests\RedisConfigs\docker-compose.yml = tests\RedisConfigs\docker-compose.yml
-		tests\RedisConfigs\Dockerfile = tests\RedisConfigs\Dockerfile
-		tests\RedisConfigs\start-all.cmd = tests\RedisConfigs\start-all.cmd
-		tests\RedisConfigs\start-all.sh = tests\RedisConfigs\start-all.sh
-		tests\RedisConfigs\start-basic.cmd = tests\RedisConfigs\start-basic.cmd
-		tests\RedisConfigs\start-basic.sh = tests\RedisConfigs\start-basic.sh
-		tests\RedisConfigs\start-cluster.cmd = tests\RedisConfigs\start-cluster.cmd
-		tests\RedisConfigs\start-sentinel.cmd = tests\RedisConfigs\start-sentinel.cmd
-		tests\RedisConfigs\wsl2.md = tests\RedisConfigs\wsl2.md
-	EndProjectSection
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis", "src\StackExchange.Redis\StackExchange.Redis.csproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Tests", "tests\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj", "{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTest", "tests\BasicTest\BasicTest.csproj", "{939FA5F7-16AA-4847-812B-6EBC3748A86D}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sentinel", "Sentinel", "{36255A0A-89EC-43C8-A642-F4C1ACAEF5BC}"
-	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Sentinel\redis-7010.conf = tests\RedisConfigs\Sentinel\redis-7010.conf
-		tests\RedisConfigs\Sentinel\redis-7011.conf = tests\RedisConfigs\Sentinel\redis-7011.conf
-		tests\RedisConfigs\Sentinel\sentinel-26379.conf = tests\RedisConfigs\Sentinel\sentinel-26379.conf
-		tests\RedisConfigs\Sentinel\sentinel-26380.conf = tests\RedisConfigs\Sentinel\sentinel-26380.conf
-		tests\RedisConfigs\Sentinel\sentinel-26381.conf = tests\RedisConfigs\Sentinel\sentinel-26381.conf
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Cluster", "Cluster", "{A3B4B972-5BD2-4D90-981F-7E51E350E628}"
-	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Cluster\cluster-7000.conf = tests\RedisConfigs\Cluster\cluster-7000.conf
-		tests\RedisConfigs\Cluster\cluster-7001.conf = tests\RedisConfigs\Cluster\cluster-7001.conf
-		tests\RedisConfigs\Cluster\cluster-7002.conf = tests\RedisConfigs\Cluster\cluster-7002.conf
-		tests\RedisConfigs\Cluster\cluster-7003.conf = tests\RedisConfigs\Cluster\cluster-7003.conf
-		tests\RedisConfigs\Cluster\cluster-7004.conf = tests\RedisConfigs\Cluster\cluster-7004.conf
-		tests\RedisConfigs\Cluster\cluster-7005.conf = tests\RedisConfigs\Cluster\cluster-7005.conf
-		tests\RedisConfigs\Cluster\nodes-7000.conf = tests\RedisConfigs\Cluster\nodes-7000.conf
-		tests\RedisConfigs\Cluster\nodes-7001.conf = tests\RedisConfigs\Cluster\nodes-7001.conf
-		tests\RedisConfigs\Cluster\nodes-7002.conf = tests\RedisConfigs\Cluster\nodes-7002.conf
-		tests\RedisConfigs\Cluster\nodes-7003.conf = tests\RedisConfigs\Cluster\nodes-7003.conf
-		tests\RedisConfigs\Cluster\nodes-7004.conf = tests\RedisConfigs\Cluster\nodes-7004.conf
-		tests\RedisConfigs\Cluster\nodes-7005.conf = tests\RedisConfigs\Cluster\nodes-7005.conf
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED-7BEB-4B1F-9CE0-256D63F9C502}"
-	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Basic\primary-6379.conf = tests\RedisConfigs\Basic\primary-6379.conf
-		tests\RedisConfigs\Basic\replica-6380.conf = tests\RedisConfigs\Basic\replica-6380.conf
-		tests\RedisConfigs\Basic\secure-6381.conf = tests\RedisConfigs\Basic\secure-6381.conf
-		tests\RedisConfigs\Basic\tls-ciphers-6384.conf = tests\RedisConfigs\Basic\tls-ciphers-6384.conf
-	EndProjectSection
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "tests\BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "toys\TestConsole\TestConsole.csproj", "{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D082703F-1652-4C35-840D-7D377F6B9979}"
-	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Failover\primary-6382.conf = tests\RedisConfigs\Failover\primary-6382.conf
-		tests\RedisConfigs\Failover\replica-6383.conf = tests\RedisConfigs\Failover\replica-6383.conf
-	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Server", "toys\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj", "{8375813E-FBAF-4DA3-A2C7-E4645B39B931}"
 EndProject
@@ -110,12 +55,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleBaseline", "toys
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = ".github", ".github\.github.csproj", "{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docker", "Docker", "{A9F81DA3-DA82-423E-A5DD-B11C37548E06}"
-	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Docker\docker-entrypoint.sh = tests\RedisConfigs\Docker\docker-entrypoint.sh
-		tests\RedisConfigs\Docker\supervisord.conf = tests\RedisConfigs\Docker\supervisord.conf
-	EndProjectSection
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleTest", "tests\ConsoleTest\ConsoleTest.csproj", "{A0F89B8B-32A3-4C28-8F1B-ADE343F16137}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleTestBaseline", "tests\ConsoleTestBaseline\ConsoleTestBaseline.csproj", "{69A0ACF2-DF1F-4F49-B554-F732DCA938A3}"
@@ -133,6 +72,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RESPite.Tests", "tests\RESPite.Tests\RESPite.Tests.csproj", "{CA67D8CA-6CC9-40E2-8CAC-F0B1401BEF7B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpBench", "toys\OpBench\OpBench.csproj", "{43D3CD21-1E7E-4D28-B1BA-B6DAB3E19183}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisConfigs", "tests\RedisConfigs\RedisConfigs.csproj", "{CAE96C6D-145B-489B-9DC8-5CFBA4CC5076}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "docker", "tests\RedisConfigs\.docker\docker.csproj", "{8ECDE6D4-37B0-4A54-8E21-B0BB3666378D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -208,25 +151,27 @@ Global
 		{43D3CD21-1E7E-4D28-B1BA-B6DAB3E19183}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{43D3CD21-1E7E-4D28-B1BA-B6DAB3E19183}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{43D3CD21-1E7E-4D28-B1BA-B6DAB3E19183}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CAE96C6D-145B-489B-9DC8-5CFBA4CC5076}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CAE96C6D-145B-489B-9DC8-5CFBA4CC5076}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CAE96C6D-145B-489B-9DC8-5CFBA4CC5076}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CAE96C6D-145B-489B-9DC8-5CFBA4CC5076}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8ECDE6D4-37B0-4A54-8E21-B0BB3666378D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8ECDE6D4-37B0-4A54-8E21-B0BB3666378D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8ECDE6D4-37B0-4A54-8E21-B0BB3666378D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8ECDE6D4-37B0-4A54-8E21-B0BB3666378D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{EF84877F-59BE-41BE-9013-E765AF0BB72E} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
 		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{939FA5F7-16AA-4847-812B-6EBC3748A86D} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
-		{36255A0A-89EC-43C8-A642-F4C1ACAEF5BC} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
-		{A3B4B972-5BD2-4D90-981F-7E51E350E628} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
-		{38BDEEED-7BEB-4B1F-9CE0-256D63F9C502} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{8FDB623D-779B-4A84-BC6B-75106E41D8A4} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A} = {E25031D3-5C64-430D-B86F-697B66816FD8}
-		{D082703F-1652-4C35-840D-7D377F6B9979} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{8375813E-FBAF-4DA3-A2C7-E4645B39B931} = {E25031D3-5C64-430D-B86F-697B66816FD8}
 		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A} = {E25031D3-5C64-430D-B86F-697B66816FD8}
 		{D58114AE-4998-4647-AFCA-9353D20495AE} = {E25031D3-5C64-430D-B86F-697B66816FD8}
-		{A9F81DA3-DA82-423E-A5DD-B11C37548E06} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{A0F89B8B-32A3-4C28-8F1B-ADE343F16137} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{69A0ACF2-DF1F-4F49-B554-F732DCA938A3} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{59889284-FFEE-82E7-94CB-3B43E87DA6CF} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
@@ -234,6 +179,8 @@ Global
 		{05761CF5-CC46-43A6-814B-6BD2ECC1F0ED} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
 		{CA67D8CA-6CC9-40E2-8CAC-F0B1401BEF7B} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{43D3CD21-1E7E-4D28-B1BA-B6DAB3E19183} = {E25031D3-5C64-430D-B86F-697B66816FD8}
+		{CAE96C6D-145B-489B-9DC8-5CFBA4CC5076} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{8ECDE6D4-37B0-4A54-8E21-B0BB3666378D} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {193AA352-6748-47C1-A5FC-C9AA6B5F000B}
