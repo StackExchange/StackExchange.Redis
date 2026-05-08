@@ -47,18 +47,6 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Digest);
     }
 
-    public GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int tokensPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
-    {
-        var msg = new GcraMessage(Database, flags, key, maxBurst, tokensPerPeriod, periodSeconds, count);
-        return ExecuteSync(msg, ResultProcessor.GcraRateLimit);
-    }
-
-    public Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int tokensPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
-    {
-        var msg = new GcraMessage(Database, flags, key, maxBurst, tokensPerPeriod, periodSeconds, count);
-        return ExecuteAsync(msg, ResultProcessor.GcraRateLimit);
-    }
-
     public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetStringSetMessage(key, value, expiry, when, flags);

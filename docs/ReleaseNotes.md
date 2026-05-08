@@ -10,14 +10,14 @@ Current package versions:
 
 IMPORTANT: for AMR users, this changes the default protocol to RESP3. In some cases, this may require code changes. Please see [this topic](https://stackexchange.github.io/StackExchange.Redis/Resp3) for more information.
 
+- Remove experimental Redis 8.8 `GCRA` feature ([#3074 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3074))
+- Recognize Azure Managed Redis (AMR) resources in new Azure clouds ([#3068 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3068))
+- Prefer RESP3 and avoid opening a separate subscription connection for Azure Managed Redis endpoints ([#3067 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3067))
 - Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
 - Add Redis 8.8 stream negative acknowledgements (`XNACK`) ([#3058 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3058))
-- Update experimental `GCRA` APIs and wire protocol terminology from "requests" to "tokens", to match server change ([#3051 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3051))
 - Add experimental `Aggregate.Count` support for sorted-set combination operations against Redis 8.8 ([#3059 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3059))
-- Prefer RESP3 and avoid opening a separate subscription connection for Azure Managed Redis endpoints ([#3067 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3067))
-- Support sub-key (hash field) notifications ([#3062 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3062))
+- Support Redis 8.8 sub-key (hash field) notifications ([#3062 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3062))
 - Add `ValueCondition` overloads for `SortedSetIncrement`/`SortedSetIncrementAsync`, supporting `ZADD INCR` with existence conditions ([#3071 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3071))
-- Recognize Azure Managed Redis (AMR) resources in new Azure clouds ([#3068 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3068))
 
 ## 2.12.14
 
@@ -25,7 +25,8 @@ IMPORTANT: for AMR users, this changes the default protocol to RESP3. In some ca
 
 ## 2.12.8
 
-- Add [`GCRA`](https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm) support (and remove experimental flag on `VSIM`) ([#3041 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3041))
+- (this release also includes experimental 8.8 `GCRA` support; this feature is not being shipped yet, and it is being removed from later releases)
+- Remove experimental flag on `VSIM` ([#3041 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3041))
 - Add `IServer.GetProductVariant` to detect the product variant and version of the connected server, and use that internally
   to enable multi-DB operations on Valkey clusters ([#3040 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3040))
 - Ignore cluster nodes with the `handshake` flag ([#3043 by @TimLovellSmith](https://github.com/StackExchange/StackExchange.Redis/pull/3043))
