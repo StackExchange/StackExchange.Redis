@@ -34,7 +34,7 @@ public sealed class VectorSetUnitTests(ITestOutputHelper output)
             attributes);
         request.UseFp32 = useFp32;
         request.Quantization = quantization;
-        request.ReducedDimensions = 64;
+        request.ReducedDimensions = 4;
         request.BuildExplorationFactor = 300;
         request.MaxConnections = 32;
         request.UseCheckAndSet = true;
@@ -56,7 +56,7 @@ public sealed class VectorSetUnitTests(ITestOutputHelper output)
         Assert.Equal("VADD", req[0]);
         Assert.Equal("mykey", req[1]);
         Assert.Equal("REDUCE", req[2]);
-        Assert.Equal(64, req[3]);
+        Assert.Equal(4, req[3]);
         req = req.Slice(4);
 
         if (useFp32)

@@ -82,7 +82,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
             attributes);
         request.UseFp32 = useFp32;
         request.Quantization = quantization;
-        request.ReducedDimensions = 64;
+        request.ReducedDimensions = 4;
         request.BuildExplorationFactor = 300;
         request.MaxConnections = 32;
         request.UseCheckAndSet = true;
