@@ -65,6 +65,8 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetAdd_WithEverything(VectorSetQuantization quantization, bool useFp32)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
+        var server = conn.GetServer(RedisKey.Null);
+        Log($"Server version: {server.Version}");
         var db = conn.GetDatabase();
         var key = Me() + "/" + quantization;
 
@@ -79,7 +81,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
             attributes);
         request.UseFp32 = useFp32;
         request.Quantization = quantization;
-        request.ReducedDimensions = 64;
+        request.ReducedDimensions = 4;
         request.BuildExplorationFactor = 300;
         request.MaxConnections = 32;
         request.UseCheckAndSet = true;
