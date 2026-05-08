@@ -506,6 +506,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIncrementAsync(ToInner(key), member, value, flags);
 
+        public Task<double?> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags) =>
+            Inner.SortedSetIncrementAsync(ToInner(key), member, value, when, flags);
+
         public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIntersectionLengthAsync(ToInner(keys), limit, flags);
 
@@ -803,9 +806,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLengthAsync(ToInner(key), flags);
-
-        public Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int tokensPerPeriod, double period = 1.0, int count = 1, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringGcraRateLimitAsync(ToInner(key), maxBurst, tokensPerPeriod, period, count, flags);
 
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
             => Inner.StringSetAsync(ToInner(key), value, expiry, when, flags);

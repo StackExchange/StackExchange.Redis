@@ -113,9 +113,6 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<GeoPosition?>
             RedisGeoPosition = new RedisValueGeoPositionProcessor();
 
-        public static readonly ResultProcessor<GcraRateLimitResult>
-            GcraRateLimit = GcraRateLimitResult.Processor;
-
         public static readonly ResultProcessor<TimeSpan>
             ResponseTimer = new TimingProcessor();
 

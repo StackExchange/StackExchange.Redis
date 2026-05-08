@@ -500,7 +500,12 @@ namespace StackExchange.Redis
         Task<double> SortedSetDecrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.SortedSetIncrement(RedisKey, RedisValue, double, CommandFlags)"/>
+#pragma warning disable RS0027 // conditional overload needs an additional required ValueCondition parameter
         Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0027
+
+        /// <inheritdoc cref="IDatabase.SortedSetIncrement(RedisKey, RedisValue, double, ValueCondition, CommandFlags)"/>
+        Task<double?> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags);
 
         /// <inheritdoc cref="IDatabase.SortedSetIntersectionLength(RedisKey[], long, CommandFlags)"/>
         Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
@@ -802,10 +807,6 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StringDigest(RedisKey, CommandFlags)"/>
         [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         Task<ValueCondition?> StringDigestAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <inheritdoc cref="IDatabase.StringGcraRateLimit(RedisKey, int, int, double, int, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int tokensPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringGet(RedisKey, CommandFlags)"/>
         Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None);

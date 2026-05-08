@@ -6,6 +6,8 @@
 #else
 // To support { get; init; } properties
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace System.Runtime.CompilerServices
@@ -35,9 +37,9 @@ namespace System.Text
     {
         public static unsafe int GetBytes(this Encoding encoding, ReadOnlySpan<char> source, Span<byte> destination)
         {
-            fixed (byte* bPtr = destination)
+            fixed (byte* bPtr = &MemoryMarshal.GetReference(destination))
             {
-                fixed (char* cPtr = source)
+                fixed (char* cPtr = &MemoryMarshal.GetReference(source))
                 {
                     return encoding.GetBytes(cPtr, source.Length, bPtr, destination.Length);
                 }
@@ -46,9 +48,9 @@ namespace System.Text
 
         public static unsafe int GetChars(this Encoding encoding, ReadOnlySpan<byte> source, Span<char> destination)
         {
-            fixed (byte* bPtr = source)
+            fixed (byte* bPtr = &MemoryMarshal.GetReference(source))
             {
-                fixed (char* cPtr = destination)
+                fixed (char* cPtr = &MemoryMarshal.GetReference(destination))
                 {
                     return encoding.GetChars(bPtr, source.Length, cPtr, destination.Length);
                 }
@@ -57,7 +59,7 @@ namespace System.Text
 
         public static unsafe int GetCharCount(this Encoding encoding, ReadOnlySpan<byte> source)
         {
-            fixed (byte* bPtr = source)
+            fixed (byte* bPtr = &MemoryMarshal.GetReference(source))
             {
                 return encoding.GetCharCount(bPtr, source.Length);
             }
@@ -65,7 +67,7 @@ namespace System.Text
 
         public static unsafe string GetString(this Encoding encoding, ReadOnlySpan<byte> source)
         {
-            fixed (byte* bPtr = source)
+            fixed (byte* bPtr = &MemoryMarshal.GetReference(source))
             {
                 return encoding.GetString(bPtr, source.Length);
             }

@@ -491,6 +491,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIncrement(ToInner(key), member, value, flags);
 
+        public double? SortedSetIncrement(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags) =>
+            Inner.SortedSetIncrement(ToInner(key), member, value, when, flags);
+
         public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIntersectionLength(ToInner(keys), limit, flags);
 
@@ -785,9 +788,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLength(ToInner(key), flags);
-
-        public GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int tokensPerPeriod, double period = 1.0, int count = 1, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringGcraRateLimit(ToInner(key), maxBurst, tokensPerPeriod, period, count, flags);
 
         public bool StringSet(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
             => Inner.StringSet(ToInner(key), value, expiry, when, flags);

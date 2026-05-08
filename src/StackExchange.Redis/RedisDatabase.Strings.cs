@@ -48,6 +48,7 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Digest);
     }
 
+<<<<<<< marc/increx
     public GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int tokensPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None)
     {
         var msg = new GcraMessage(Database, flags, key, maxBurst, tokensPerPeriod, periodSeconds, count);
@@ -99,6 +100,8 @@ internal partial class RedisDatabase
         static void ThrowEnxWithoutExpiry() => throw new ArgumentException("ENX requires EX, PX, EXAT, or PXAT.", nameof(expiry));
     }
 
+=======
+>>>>>>> main
     public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetStringSetMessage(key, value, expiry, when, flags);

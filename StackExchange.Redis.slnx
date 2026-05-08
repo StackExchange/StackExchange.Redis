@@ -1,0 +1,52 @@
+<Solution>
+  <Folder Name="/eng/">
+    <Project Path="eng/StackExchange.Redis.Build/StackExchange.Redis.Build.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".github/workflows/CI.yml" />
+    <File Path=".github/workflows/codeql.yml" />
+    <File Path="appveyor.yml" />
+    <File Path="build.cmd" />
+    <File Path="Build.csproj" />
+    <File Path="build.ps1" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="docs/ReleaseNotes.md" />
+    <File Path="global.json" />
+    <File Path="NuGet.Config" />
+    <File Path="README.md" />
+    <File Path="Shared.ruleset" />
+    <File Path="tests/RedisConfigs/.docker/Redis/Dockerfile" />
+    <File Path="tests/RedisConfigs/docker-compose.yml" />
+    <File Path="version.json" />
+  </Folder>
+  <Folder Name="/src/">
+    <File Path="src/Directory.Build.props" />
+    <Project Path="src/RESPite/RESPite.csproj" />
+    <Project Path="src/StackExchange.Redis/StackExchange.Redis.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <File Path="tests/.editorconfig" />
+    <File Path="tests/Directory.Build.targets" />
+    <Project Path="tests/BasicTest/BasicTest.csproj" />
+    <Project Path="tests/BasicTestBaseline/BasicTestBaseline.csproj" />
+    <Project Path="tests/ConsoleTest/ConsoleTest.csproj" />
+    <Project Path="tests/ConsoleTestBaseline/ConsoleTestBaseline.csproj" />
+    <Project Path="tests/RedisConfigs/.docker/docker.csproj" />
+    <Project Path="tests/RedisConfigs/RedisConfigs.csproj" />
+    <Project Path="tests/RESPite.Tests/RESPite.Tests.csproj" />
+    <Project Path="tests/StackExchange.Redis.Benchmarks/StackExchange.Redis.Benchmarks.csproj" />
+    <Project Path="tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj" />
+  </Folder>
+  <Folder Name="/toys/">
+    <Project Path="toys/KestrelRedisServer/KestrelRedisServer.csproj" />
+    <Project Path="toys/OpBench/OpBench.csproj" />
+    <Project Path="toys/StackExchange.Redis.Server/StackExchange.Redis.Server.csproj" />
+    <Project Path="toys/TestConsole/TestConsole.csproj" />
+    <Project Path="toys/TestConsoleBaseline/TestConsoleBaseline.csproj" />
+  </Folder>
+  <Project Path=".github/.github.csproj" />
+  <Project Path="docs/docs.csproj" />
+</Solution>
