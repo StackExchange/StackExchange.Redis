@@ -506,6 +506,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIncrementAsync(ToInner(key), member, value, flags);
 
+        public Task<double?> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags) =>
+            Inner.SortedSetIncrementAsync(ToInner(key), member, value, when, flags);
+
         public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIntersectionLengthAsync(ToInner(keys), limit, flags);
 

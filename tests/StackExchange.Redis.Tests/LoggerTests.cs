@@ -119,11 +119,21 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
 
             Interlocked.Increment(ref _callCount);
             var logLine = $"{_logLevel}> [LogLevel: {logLevel}, EventId: {eventId}]: {formatter?.Invoke(state, exception)}";
-            sb.AppendLine(logLine);
+            lock (sb)
+            {
+                sb.AppendLine(logLine);
+            }
+
             _output.WriteLine(logLine);
         }
 
         public long CallCount => Interlocked.Read(ref _callCount);
-        public override string ToString() => sb.ToString();
+        public override string ToString()
+        {
+            lock (sb)
+            {
+                return sb.ToString();
+            }
+        }
     }
 }

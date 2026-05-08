@@ -491,6 +491,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIncrement(ToInner(key), member, value, flags);
 
+        public double? SortedSetIncrement(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags) =>
+            Inner.SortedSetIncrement(ToInner(key), member, value, when, flags);
+
         public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIntersectionLength(ToInner(keys), limit, flags);
 
