@@ -1,4 +1,5 @@
-﻿using RESPite;
+﻿using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 namespace StackExchange.Redis;
 
@@ -111,6 +112,8 @@ public enum KeyNotificationType
     ZRemByScore = 48,
     [AsciiHash("zrem")]
     ZRem = 49,
+    [AsciiHash("hexpire")]
+    HExpire = 50,
 
     // side-effect notifications
     [AsciiHash("expired")]

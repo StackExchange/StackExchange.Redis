@@ -56,26 +56,43 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     private static Random SharedRandom { get; } = new();
 #endif
 
-    [Fact]
-    public async Task KeySpace_Events_Enabled()
+    /// <summary>
+    /// Creates a connection for notification tests and asserts that the required notification tokens are available.
+    /// Uses Assert.SkipUnless to skip the test if the configuration is not available.
+    /// </summary>
+    /// <param name="kind">The kind of notification to check support for.</param>
+    /// <param name="withChannelPrefix">Whether to use a channel prefix.</param>
+    /// <returns>A connection multiplexer configured for the specified notification kind.</returns>
+    private async Task<IInternalConnectionMultiplexer> ConnectAsync(KeyNotificationKind kind, bool withChannelPrefix = false)
     {
-        // see https://redis.io/docs/latest/develop/pubsub/keyspace-notifications/#configuration
-        await using var conn = Create(allowAdmin: true);
-        int failures = 0;
-        foreach (var ep in conn.GetEndPoints())
-        {
-            var server = conn.GetServer(ep);
-            var config = (await server.ConfigGetAsync("notify-keyspace-events")).Single();
-            Log($"[{Format.ToString(ep)}] notify-keyspace-events: '{config.Value}'");
+        var conn = Create(channelPrefix: withChannelPrefix ? "prefix:" : null, allowAdmin: true);
+        var muxer = conn;
 
-            // this is a very broad config, but it's what we use in CI (and probably a common basic config)
-            if (config.Value != "AKE")
+        var requiredTokens = kind switch
+        {
+            KeyNotificationKind.KeySpace => "AK", // A = all events, K = keyspace
+            KeyNotificationKind.KeyEvent => "AE", // A = all events, E = keyevent
+            KeyNotificationKind.SubKeySpace => "AS", // A = all events, S = sub-keyspace
+            KeyNotificationKind.SubKeyEvent => "AT", // A = all events, T = sub-keyevent
+            KeyNotificationKind.SubKeySpaceItem => "AI", // A = all events, I = sub-keyspace-item
+            KeyNotificationKind.SubKeySpaceEvent => "AV", // A = all events, V = sub-keyspace-event
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported KeyNotificationKind"),
+        };
+
+        foreach (var ep in muxer.GetEndPoints())
+        {
+            var server = muxer.GetServer(ep);
+            var config = (await server.ConfigGetAsync("notify-keyspace-events")).Single();
+            var value = config.Value.ToString() ?? "";
+
+            // Check that the config contains all required tokens
+            foreach (var token in requiredTokens)
             {
-                failures++;
+                Assert.SkipUnless(value.Contains(token), $"Server {ep} notify-keyspace-events config '{value}' missing required token '{token}' for {kind}");
             }
         }
-        // for details, check the log output
-        Assert.Equal(0, failures);
+
+        return conn;
     }
 
     [Fact]
@@ -119,7 +136,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     [InlineData(false)]
     public async Task KeyEvent_CanObserveSimple_ViaCallbackHandler(bool withChannelPrefix)
     {
-        await using var conn = Create(withChannelPrefix);
+        await using var conn = await ConnectAsync(KeyNotificationKind.KeyEvent, withChannelPrefix);
         var db = conn.GetDatabase();
 
         var keys = InventKeys(out var prefix);
@@ -142,7 +159,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         {
             callbackCount.Increment();
             if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                 && notification is { IsKeyEvent: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
             {
                 OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
             }
@@ -157,7 +176,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     [InlineData(false)]
     public async Task KeyEvent_CanObserveSimple_ViaQueue(bool withChannelPrefix)
     {
-        await using var conn = Create(withChannelPrefix);
+        await using var conn = await ConnectAsync(KeyNotificationKind.KeyEvent, withChannelPrefix);
         var db = conn.GetDatabase();
 
         var keys = InventKeys(out var prefix);
@@ -183,7 +202,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             {
                 callbackCount.Increment();
                 if (msg.TryParseKeyNotification(out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                     && notification is { IsKeyEvent: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
                 {
                     OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
                 }
@@ -199,7 +220,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     [InlineData(false)]
     public async Task KeyNotification_CanObserveSimple_ViaCallbackHandler(bool withChannelPrefix)
     {
-        await using var conn = Create(withChannelPrefix);
+        await using var conn = await ConnectAsync(KeyNotificationKind.KeySpace, withChannelPrefix);
         var db = conn.GetDatabase();
 
         var keys = InventKeys(out var prefix);
@@ -225,7 +246,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             {
                 callbackCount.Increment();
                 if (msg.TryParseKeyNotification(out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                     && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
                 {
                     OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
                 }
@@ -241,7 +264,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     [InlineData(false)]
     public async Task KeyNotification_CanObserveSimple_ViaQueue(bool withChannelPrefix)
     {
-        await using var conn = Create(withChannelPrefix);
+        await using var conn = await ConnectAsync(KeyNotificationKind.KeySpace, withChannelPrefix);
         var db = conn.GetDatabase();
 
         var keys = InventKeys(out var prefix);
@@ -264,7 +287,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         {
             callbackCount.Increment();
             if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                 && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
             {
                 OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
             }
@@ -281,7 +306,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
     [InlineData(false, true)]
     public async Task KeyNotification_CanObserveSingleKey_ViaQueue(bool withChannelPrefix, bool withKeyPrefix)
     {
-        await using var conn = Create(withChannelPrefix);
+        await using var conn = await ConnectAsync(KeyNotificationKind.KeySpace, withChannelPrefix);
         string keyPrefix = withKeyPrefix ? "isolated:" : "";
         byte[] keyPrefixBytes = Encoding.UTF8.GetBytes(keyPrefix);
         var db = conn.GetDatabase().WithKeyPrefix(keyPrefix);
@@ -312,7 +337,9 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             {
                 callbackCount.Increment();
                 if (msg.TryParseKeyNotification(keyPrefixBytes, out var notification)
+#pragma warning disable CS0618 // Type or member is obsolete
                     && notification is { IsKeySpace: true, Type: KeyNotificationType.SAdd })
+#pragma warning restore CS0618 // Type or member is obsolete
                 {
                     OnNotification(notification, prefix, matchingEventCount, observedCounts, allDone);
                 }
@@ -416,4 +443,666 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
         return counter;
     }
 #endif
+
+    // ========== Sub-Key (Hash Field) Notification Tests ==========
+
+    /// <summary>
+    /// Helper to send hash operations and observe field-level notifications.
+    /// </summary>
+    private async Task SendHashOperationsAndObserveAsync(
+        RedisKey hashKey,
+        string[] fields,
+        IDatabase db,
+        TaskCompletionSource<bool> allDone,
+        Counter callbackCount,
+        ConcurrentDictionary<string, Counter> observedFieldCounts,
+        int operationCount = DefaultEventCount)
+    {
+        await Task.Delay(300).ForAwait(); // give it a moment to settle
+
+        Dictionary<string, Counter> sentCounts = new(fields.Length);
+        foreach (var field in fields)
+        {
+            sentCounts[field] = new();
+        }
+
+        for (int i = 0; i < operationCount; i++)
+        {
+            var field = fields[SharedRandom.Next(0, fields.Length)];
+            sentCounts[field].Increment();
+            await db.HashSetAsync(hashKey, field, i);
+        }
+
+        // Wait for all events to be observed
+        try
+        {
+            Assert.True(await allDone.Task.WithTimeout(5000));
+        }
+        catch (TimeoutException) when (callbackCount.Count == 0)
+        {
+            Assert.Fail($"Timeout with zero events; are sub-keyspace events enabled?");
+        }
+
+        foreach (var field in fields)
+        {
+            Assert.Equal(sentCounts[field].Count, observedFieldCounts[field].Count);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SubKeyEvent_CanObserveHashFields_ViaCallback(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeyEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fields = new[] { "field1", "field2", "field3", "field4", "field5" };
+        var channel = RedisChannel.SubKeyEvent(KeyNotificationType.HSet, db.Database);
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix); // Keyspace notifications should ignore channel prefix
+        Log($"Monitoring channel: {channel}");
+
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+        Counter callbackCount = new(), matchingEventCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        ConcurrentDictionary<string, Counter> observedFieldCounts = new();
+        foreach (var field in fields)
+        {
+            observedFieldCounts[field] = new();
+        }
+        // withChannelPrefix: true, "SUBSCRIBE" "__subkeyevent@0__:hset"
+        // withChannelPrefix: false, "SUBSCRIBE" "__subkeyevent@0__:hset"
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            Log($"SubKeyEvent: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeyEvent
+                && notification.Type == KeyNotificationType.HSet
+                && notification.GetKey() == hashKey)
+            {
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var fieldName = subKey.ToString();
+                    if (observedFieldCounts.TryGetValue(fieldName, out var counter))
+                    {
+                        int currentCount = matchingEventCount.Increment();
+                        counter.Increment();
+                        Log($"Observed field: '{fieldName}' after {currentCount} events");
+
+                        if (currentCount == DefaultEventCount)
+                        {
+                            allDone.TrySetResult(true);
+                        }
+                    }
+                }
+            }
+        });
+
+        await SendHashOperationsAndObserveAsync(hashKey, fields, db, allDone, callbackCount, observedFieldCounts);
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SubKeySpace_CanObserveHashFields_ViaPrefix(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpace, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var prefix = $"{Guid.NewGuid()}/";
+        var hashKey = $"{prefix}myhash";
+        var fields = new[] { "field1", "field2", "field3" };
+        var channel = RedisChannel.SubKeySpacePrefix(prefix, db.Database);
+        Assert.True(channel.IsMultiNode);
+        Assert.True(channel.IsPattern);
+        Assert.True(channel.IgnoreChannelPrefix); // Keyspace notifications should ignore channel prefix
+        Log($"Monitoring channel: {channel}");
+
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+        Counter callbackCount = new(), matchingEventCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        ConcurrentDictionary<string, Counter> observedFieldCounts = new();
+        foreach (var field in fields)
+        {
+            observedFieldCounts[field] = new();
+        }
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            Log($"SubKeySpace: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpace
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var fieldName = subKey.ToString();
+                    if (observedFieldCounts.TryGetValue(fieldName, out var counter))
+                    {
+                        int currentCount = matchingEventCount.Increment();
+                        counter.Increment();
+                        Log($"Observed field: '{fieldName}' in key '{notification.GetKey()}' after {currentCount} events");
+
+                        if (currentCount == DefaultEventCount)
+                        {
+                            allDone.TrySetResult(true);
+                        }
+                    }
+                }
+            }
+        });
+
+        await SendHashOperationsAndObserveAsync(hashKey, fields, db, allDone, callbackCount, observedFieldCounts);
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SubKeySpaceItem_CanObserveSpecificHashField(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpaceItem, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var targetField = "field2";
+        var fields = new[] { "field1", targetField, "field3" };
+        var channel = RedisChannel.SubKeySpaceItem(hashKey, targetField, db.Database);
+        Assert.False(channel.IsMultiNode); // Single key subscription can route to specific node
+        Assert.False(channel.IsPattern);
+        Log($"Monitoring channel: {channel}");
+
+        // Use seeded random to get deterministic field selection
+        int seed = SharedRandom.Next();
+        var countRandom = new Random(seed);
+        int expectedCount = 0;
+        for (int i = 0; i < DefaultEventCount; i++)
+        {
+            var field = fields[countRandom.Next(0, fields.Length)];
+            if (field == targetField) expectedCount++;
+        }
+        Log($"Using seed {seed}, expecting exactly {expectedCount} hits on '{targetField}' out of {DefaultEventCount} operations");
+
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+        Counter callbackCount = new(), targetFieldCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            Log($"SubKeySpaceItem: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpaceItem
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var subKey = notification.GetSubKeys().FirstOrDefault();
+                var fieldName = subKey.ToString();
+                Assert.Equal(targetField, fieldName); // Should only observe the specific field
+                targetFieldCount.Increment();
+                Log($"Observed target field: '{fieldName}' ({targetFieldCount.Count} of exactly {expectedCount} times)");
+
+                if (targetFieldCount.Count >= expectedCount)
+                {
+                    allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        // Verify subscription is active by doing a test operation on a DIFFERENT field
+        // This ensures subscription is ready without affecting the target field count
+        Log("Verifying subscription is active...");
+        var testField = "test_field_verify";
+        await db.HashSetAsync(hashKey, testField, "test");
+        await Task.Delay(300).ForAwait(); // Give subscription time to activate
+
+        Log($"Subscription verified. Starting {DefaultEventCount} HSET operations, expecting exactly {expectedCount} notifications for '{targetField}'");
+
+        // Set various fields using the same seeded random, but only targetField should trigger notifications
+        var operationRandom = new Random(seed);
+        for (int i = 0; i < DefaultEventCount; i++)
+        {
+            var field = fields[operationRandom.Next(0, fields.Length)];
+            await db.HashSetAsync(hashKey, field, i);
+        }
+
+        Log($"Completed all HSET operations, waiting for notifications...");
+        Assert.True(await allDone.Task.WithTimeout(5000), $"Timed out waiting for notifications. Received {targetFieldCount.Count} of expected {expectedCount}");
+        Assert.Equal(expectedCount, targetFieldCount.Count); // Exact match since we used seeded random
+        Log($"Test completed successfully with {targetFieldCount.Count} notifications (exactly as expected)");
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SubKeySpaceEvent_CanObserveHashFields_SingleKey_SpecificEvent(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpaceEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fields = new[] { "field1", "field2", "field3" };
+        var channel = RedisChannel.SubKeySpaceEvent(KeyNotificationType.HSet, hashKey, db.Database);
+        Assert.True(channel.IsMultiNode);
+        Assert.False(channel.IsPattern);
+        Log($"Monitoring channel: {channel}");
+
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+        Counter callbackCount = new(), matchingEventCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        ConcurrentDictionary<string, Counter> observedFieldCounts = new();
+        foreach (var field in fields)
+        {
+            observedFieldCounts[field] = new();
+        }
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            Log($"SubKeySpaceEvent: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpaceEvent
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var fieldName = subKey.ToString();
+                    if (observedFieldCounts.TryGetValue(fieldName, out var counter))
+                    {
+                        int currentCount = matchingEventCount.Increment();
+                        counter.Increment();
+                        Log($"Observed field: '{fieldName}' after {currentCount} events");
+
+                        if (currentCount == DefaultEventCount)
+                        {
+                            allDone.TrySetResult(true);
+                        }
+                    }
+                }
+            }
+        });
+
+        await SendHashOperationsAndObserveAsync(hashKey, fields, db, allDone, callbackCount, observedFieldCounts);
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Fact]
+    public async Task SubKeyEvent_MultipleFields_SingleOperation()
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeyEvent);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var channel = RedisChannel.SubKeyEvent(KeyNotificationType.HSet, db.Database);
+        Log($"Monitoring channel: {channel}");
+
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+        Counter callbackCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        HashSet<string> observedFields = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeyEvent
+                && notification.Type == KeyNotificationType.HSet
+                && notification.GetKey() == hashKey)
+            {
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    observedFields.Add(subKey.ToString());
+                }
+
+                if (observedFields.Count >= 3)
+                {
+                    allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await Task.Delay(300).ForAwait(); // give it a moment to settle
+
+        // Set multiple fields in a single operation
+        await db.HashSetAsync(hashKey, new HashEntry[]
+        {
+            new("field1", "value1"),
+            new("field2", "value2"),
+            new("field3", "value3"),
+        });
+
+        Assert.True(await allDone.Task.WithTimeout(5000));
+        Assert.Contains("field1", observedFields);
+        Assert.Contains("field2", observedFields);
+        Assert.Contains("field3", observedFields);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeyEvent_HandlesNewlineInKey(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeyEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/key\nwith\nnewlines";
+        var fields = new[] { "field1", "field2" };
+        var channel = RedisChannel.SubKeyEvent(KeyNotificationType.HSet, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter callbackCount = new();
+        HashSet<string> observedKeys = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            Log($"SubKeyEvent_HandlesNewlineInKey: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeyEvent
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var key = notification.GetKey().ToString();
+                Log($"  Parsed key: '{key}'");
+                observedKeys.Add(key!);
+                if (key == hashKey) allDone.TrySetResult(true);
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fields[0], "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for key with newlines");
+        Assert.Contains(hashKey, observedKeys);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeyEvent_HandlesNewlineInField(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeyEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fieldWithNewline = "field\nwith\nnewlines";
+        var channel = RedisChannel.SubKeyEvent(KeyNotificationType.HSet, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter callbackCount = new();
+        HashSet<string> observedFields = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            callbackCount.Increment();
+            Log($"SubKeyEvent_HandlesNewlineInField: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeyEvent
+                && notification.Type == KeyNotificationType.HSet
+                && notification.GetKey() == hashKey)
+            {
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var field = subKey.ToString();
+                    Log($"  Parsed field: '{field}'");
+                    observedFields.Add(field!);
+                    if (field == fieldWithNewline) allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fieldWithNewline, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for field with newlines");
+        Assert.Contains(fieldWithNewline, observedFields);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeySpace_HandlesNewlineInKey(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpace, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/key\nwith\nnewlines";
+        var field = "field1";
+        var channel = RedisChannel.SubKeySpaceSingleKey(hashKey, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter receivedCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            receivedCount.Increment();
+            Log($"SubKeySpace_HandlesNewlineInKey: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpace
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                Log($"  Parsed successfully, Type={notification.Type}");
+                allDone.TrySetResult(true);
+            }
+        });
+
+        await db.HashSetAsync(hashKey, field, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for key with newlines");
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeySpace_HandlesNewlineInField(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpace, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fieldWithNewline = "field\nwith\nnewlines";
+        var channel = RedisChannel.SubKeySpaceSingleKey(hashKey, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        HashSet<string> observedFields = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            Log($"SubKeySpace_HandlesNewlineInField: Received on '{recvChannel}', value: '{recvValue}'");
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpace
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                Log($"  Parsed successfully, Type={notification.Type}, Key='{notification.GetKey()}'");
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var field = subKey.ToString();
+                    Log($"  Parsed field: '{field}'");
+                    observedFields.Add(field!);
+                    if (field == fieldWithNewline) allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fieldWithNewline, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for field with newlines");
+        Assert.Contains(fieldWithNewline, observedFields);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeySpaceEvent_HandlesNewlineInKey(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpaceEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/key\nwith\nnewlines";
+        var field = "field1";
+        var channel = RedisChannel.SubKeySpaceEvent(KeyNotificationType.HSet, hashKey, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter receivedCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            receivedCount.Increment();
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpaceEvent
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                allDone.TrySetResult(true);
+            }
+        });
+
+        await db.HashSetAsync(hashKey, field, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for key with newlines");
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubKeySpaceEvent_HandlesNewlineInField(bool withChannelPrefix)
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpaceEvent, withChannelPrefix);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fieldWithNewline = "field\nwith\nnewlines";
+        var channel = RedisChannel.SubKeySpaceEvent(KeyNotificationType.HSet, hashKey, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        HashSet<string> observedFields = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpaceEvent
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var subKeys = notification.GetSubKeys();
+                foreach (var subKey in subKeys)
+                {
+                    var field = subKey.ToString();
+                    observedFields.Add(field!);
+                    if (field == fieldWithNewline) allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fieldWithNewline, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for field with newlines");
+        Assert.Contains(fieldWithNewline, observedFields);
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Fact]
+    public async Task SubKeySpaceItem_HandlesNewlineInField()
+    {
+        await using var conn = await ConnectAsync(KeyNotificationKind.SubKeySpaceItem, withChannelPrefix: false);
+        var db = conn.GetDatabase();
+
+        var hashKey = $"{Guid.NewGuid()}/hash";
+        var fieldWithNewline = "field\nwith\nnewlines";
+        var channel = RedisChannel.SubKeySpaceItem(hashKey, fieldWithNewline, db.Database);
+        var sub = conn.GetSubscriber();
+        await sub.UnsubscribeAsync(channel);
+
+        Counter receivedCount = new();
+        TaskCompletionSource<bool> allDone = new();
+
+        await sub.SubscribeAsync(channel, (recvChannel, recvValue) =>
+        {
+            receivedCount.Increment();
+            if (KeyNotification.TryParse(in recvChannel, in recvValue, out var notification)
+                && notification.Kind == KeyNotificationKind.SubKeySpaceItem
+                && notification.Type == KeyNotificationType.HSet)
+            {
+                var subKey = notification.GetSubKeys().FirstOrDefault();
+                if (subKey.ToString() == fieldWithNewline)
+                {
+                    allDone.TrySetResult(true);
+                }
+            }
+        });
+
+        await db.HashSetAsync(hashKey, fieldWithNewline, "value1");
+
+        Assert.True(await allDone.Task.WithTimeout(5000), "Did not receive notification for field with newlines");
+
+        await sub.UnsubscribeAsync(channel);
+    }
+
+    [Fact]
+    public void SubKeySpaceItem_RejectsKeyWithNewline()
+    {
+        var keyWithNewline = (RedisKey)"key\nwith\nnewlines";
+        var field = (RedisKey)"field1";
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RedisChannel.SubKeySpaceItem(keyWithNewline, field, 0));
+
+        Assert.Contains("newline", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("key", ex.ParamName);
+    }
+
+    [Fact]
+    public void SubKeySpaceEvent_RejectsEventWithPipe()
+    {
+        byte[] eventWithPipe = "event|with|pipes"u8.ToArray();
+        var key = (RedisKey)"mykey";
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RedisChannel.SubKeySpaceEvent(eventWithPipe, key, 0));
+
+        Assert.Contains("pipe", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("type", ex.ParamName);
+    }
 }
