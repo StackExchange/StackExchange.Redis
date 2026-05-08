@@ -137,6 +137,17 @@ namespace StackExchange.Redis.Server
         internal RedisRequest(in ReadOnlySequence<byte> payload, ref byte[] commandLease) : this(new RespReader(payload), ref commandLease) { }
 
         public byte[] Serialize() => _rootReader.Serialize();
+
+        public TypedRedisValue AsResponse(bool rent = false)
+        {
+            var response = rent ? TypedRedisValue.Rent(Count, out var span, RespPrefix.Array) : TypedRedisValue.Standalone(Count, out span, RespPrefix.Array);
+
+            for (int i = 0; i < span.Length; i++)
+            {
+                span[i] = TypedRedisValue.BulkString(GetReader(i).ReadRedisValue());
+            }
+            return response;
+        }
     }
 
     [Flags]

@@ -2101,7 +2101,25 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The new score of member.</returns>
         /// <remarks><seealso href="https://redis.io/commands/zincrby"/></remarks>
+#pragma warning disable RS0027 // conditional overload needs an additional required ValueCondition parameter
         double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0027
+
+        /// <summary>
+        /// Increments the score of member in the sorted set stored at key by increment, when the specified condition is met.
+        /// If member does not exist in the sorted set and the condition permits it, it is added with increment as its score (as if its previous score was 0.0).
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="member">The member to increment.</param>
+        /// <param name="value">The amount to increment by.</param>
+        /// <param name="when">The condition to increment the element under; only existence conditions are currently supported.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The new score of member, or <see langword="null"/> when the condition was not met.</returns>
+        /// <remarks>
+        /// <para>Uses <c>ZINCRBY</c> when <paramref name="when"/> is <see cref="ValueCondition.Always"/>, and <c>ZADD INCR</c> for <see cref="ValueCondition.Exists"/> and <see cref="ValueCondition.NotExists"/>.</para>
+        /// <para><seealso href="https://redis.io/commands/zadd"/></para>
+        /// </remarks>
+        double? SortedSetIncrement(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags);
 
         /// <summary>
         /// Returns the cardinality of the intersection of the sorted sets at <paramref name="keys"/>.
