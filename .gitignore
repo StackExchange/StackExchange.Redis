@@ -19,6 +19,7 @@ StackExchange.Redis.*.zip
 .idea/
 .vs/
 .vscode/
+.codex
 *.lock.json
 test-results*.xml
 packages/
