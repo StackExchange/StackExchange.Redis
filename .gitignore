@@ -29,3 +29,4 @@ launchSettings.json
 *.diagsession
 TestResults/
 BenchmarkDotNet.Artifacts/
+.codex

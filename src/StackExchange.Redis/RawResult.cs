@@ -209,7 +209,9 @@ namespace StackExchange.Redis
                     // we shouldn't get unexpected events, so to get here: we've received a notification
                     // on a channel that doesn't match our prefix; this *should* be limited to
                     // key notifications (see: IgnoreChannelPrefix), but: we need to be sure
-                    if (StartsWith("__keyspace@"u8) || StartsWith("__keyevent@"u8))
+                    if (StartsWith("__"u8) && (StartsWith("__keyspace@"u8) || StartsWith("__keyevent@"u8) ||
+                        StartsWith("__subkeyspace@"u8) || StartsWith("__subkeyevent@"u8) ||
+                        StartsWith("__subkeyspaceitem@"u8) || StartsWith("__subkeyspaceevent@"u8)))
                     {
                         // use as-is
                         return new RedisChannel(GetBlob(), options);
