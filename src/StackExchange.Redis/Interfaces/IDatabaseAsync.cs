@@ -500,7 +500,12 @@ namespace StackExchange.Redis
         Task<double> SortedSetDecrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.SortedSetIncrement(RedisKey, RedisValue, double, CommandFlags)"/>
+#pragma warning disable RS0027 // conditional overload needs an additional required ValueCondition parameter
         Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0027
+
+        /// <inheritdoc cref="IDatabase.SortedSetIncrement(RedisKey, RedisValue, double, ValueCondition, CommandFlags)"/>
+        Task<double?> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags);
 
         /// <inheritdoc cref="IDatabase.SortedSetIntersectionLength(RedisKey[], long, CommandFlags)"/>
         Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);

@@ -12,13 +12,14 @@ internal abstract class VectorSetAddMessage(
     VectorSetQuantization quantization,
     int? buildExplorationFactor,
     int? maxConnections,
-    bool useCheckAndSet) : Message(db, flags, RedisCommand.VADD)
+    bool useCheckAndSet,
+    bool useFp32) : Message(db, flags, RedisCommand.VADD)
 {
-    public override int ArgCount => GetArgCount(UseFp32);
+    public override int ArgCount => GetArgCount();
 
-    private int GetArgCount(bool packed)
+    private int GetArgCount()
     {
-        var count = 2 + GetElementArgCount(packed); // key, element and either "FP32 {vector}" or VALUES {num}"
+        var count = 2 + GetElementArgCount(); // key, element and either "FP32 {vector}" or VALUES {num}"
         if (reducedDimensions.HasValue) count += 2; // [REDUCE {dim}]
 
         if (useCheckAndSet) count++; // [CAS]
@@ -35,13 +36,14 @@ internal abstract class VectorSetAddMessage(
         return count;
     }
 
-    public abstract int GetElementArgCount(bool packed);
+    public abstract int GetElementArgCount();
     public abstract int GetAttributeArgCount();
 
     public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
         => serverSelectionStrategy.HashSlot(key);
 
-    private static readonly bool CanUseFp32 = BitConverter.IsLittleEndian && CheckFp32();
+    internal static readonly bool CanUseFp32 = BitConverter.IsLittleEndian && CheckFp32();
+    internal bool UseFp32 { get; } = useFp32 & CanUseFp32; // evaluated during .ctor
 
     private static bool CheckFp32() // check endianness with a known value
     {
@@ -49,23 +51,11 @@ internal abstract class VectorSetAddMessage(
         return MemoryMarshal.Cast<byte, float>("\0\0(B"u8)[0] == 42;
     }
 
-#if DEBUG
-    private static int _fp32Disabled;
-    internal static bool UseFp32 => CanUseFp32 & Volatile.Read(ref _fp32Disabled) == 0;
-    internal static void SuppressFp32() => Interlocked.Increment(ref _fp32Disabled);
-    internal static void RestoreFp32() => Interlocked.Decrement(ref _fp32Disabled);
-#else
-    internal static bool UseFp32 => CanUseFp32;
-    internal static void SuppressFp32() { }
-    internal static void RestoreFp32() { }
-#endif
-
-    protected abstract void WriteElement(bool packed, PhysicalConnection physical);
+    protected abstract void WriteElement(PhysicalConnection physical);
 
     protected override void WriteImpl(PhysicalConnection physical)
     {
-        bool packed = UseFp32; // snapshot to avoid race in debug scenarios
-        physical.WriteHeader(Command, GetArgCount(packed));
+        physical.WriteHeader(Command, GetArgCount());
         physical.Write(key);
         if (reducedDimensions.HasValue)
         {
@@ -73,7 +63,7 @@ internal abstract class VectorSetAddMessage(
             physical.WriteBulkString(reducedDimensions.GetValueOrDefault());
         }
 
-        WriteElement(packed, physical);
+        WriteElement(physical);
         if (useCheckAndSet) physical.WriteBulkString("CAS"u8);
 
         switch (quantization)
@@ -118,7 +108,8 @@ internal abstract class VectorSetAddMessage(
         bool useCheckAndSet,
         RedisValue element,
         ReadOnlyMemory<float> values,
-        string? attributesJson) : VectorSetAddMessage(
+        string? attributesJson,
+        bool useFp32) : VectorSetAddMessage(
         db,
         flags,
         key,
@@ -126,19 +117,20 @@ internal abstract class VectorSetAddMessage(
         quantization,
         buildExplorationFactor,
         maxConnections,
-        useCheckAndSet)
+        useCheckAndSet,
+        useFp32)
     {
         private readonly string? _attributesJson = string.IsNullOrWhiteSpace(attributesJson) ? null : attributesJson;
-        public override int GetElementArgCount(bool packed)
+        public override int GetElementArgCount()
             => 2 // "FP32 {vector}" or "VALUES {num}"
-               + (packed ? 0 : values.Length); // {vector...}"
+               + (UseFp32 ? 0 : values.Length); // {vector...}"
 
         public override int GetAttributeArgCount()
             => _attributesJson is null ? 0 : 2; // [SETATTR {attributes}]
 
-        protected override void WriteElement(bool packed, PhysicalConnection physical)
+        protected override void WriteElement(PhysicalConnection physical)
         {
-            if (packed)
+            if (UseFp32)
             {
                 physical.WriteBulkString("FP32"u8);
                 physical.WriteBulkString(MemoryMarshal.AsBytes(values.Span));

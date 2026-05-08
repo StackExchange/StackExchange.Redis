@@ -2435,10 +2435,22 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Double);
         }
 
+        public double? SortedSetIncrement(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags)
+        {
+            var msg = GetSortedSetIncrementMessage(key, member, value, when, flags);
+            return ExecuteSync(msg, ResultProcessor.NullableDouble);
+        }
+
         public Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.ZINCRBY, key, value, member);
             return ExecuteAsync(msg, ResultProcessor.Double);
+        }
+
+        public Task<double?> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags)
+        {
+            var msg = GetSortedSetIncrementMessage(key, member, value, when, flags);
+            return ExecuteAsync(msg, ResultProcessor.NullableDouble);
         }
 
         public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
@@ -4399,33 +4411,7 @@ namespace StackExchange.Redis
         }
 
         private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, SortedSetWhen when, bool change, CommandFlags flags)
-        {
-            RedisValue[] arr = new RedisValue[2 + when.CountBits() + (change ? 1 : 0)];
-            int index = 0;
-            if ((when & SortedSetWhen.NotExists) != 0)
-            {
-                arr[index++] = RedisLiterals.NX;
-            }
-            if ((when & SortedSetWhen.Exists) != 0)
-            {
-                arr[index++] = RedisLiterals.XX;
-            }
-            if ((when & SortedSetWhen.GreaterThan) != 0)
-            {
-                arr[index++] = RedisLiterals.GT;
-            }
-            if ((when & SortedSetWhen.LessThan) != 0)
-            {
-                arr[index++] = RedisLiterals.LT;
-            }
-            if (change)
-            {
-                arr[index++] = RedisLiterals.CH;
-            }
-            arr[index++] = score;
-            arr[index++] = member;
-            return Message.Create(Database, flags, RedisCommand.ZADD, key, arr);
-        }
+            => new SingleSortedSetAddMessage(Database, flags, key, member, score, when, change, increment: false);
 
         private Message? GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, SortedSetWhen when, bool change, CommandFlags flags)
         {
@@ -4436,35 +4422,23 @@ namespace StackExchange.Redis
                 case 1:
                     return GetSortedSetAddMessage(key, values[0].element, values[0].score, when, change, flags);
                 default:
-                    RedisValue[] arr = new RedisValue[(values.Length * 2) + when.CountBits() + (change ? 1 : 0)];
-                    int index = 0;
-                    if ((when & SortedSetWhen.NotExists) != 0)
-                    {
-                        arr[index++] = RedisLiterals.NX;
-                    }
-                    if ((when & SortedSetWhen.Exists) != 0)
-                    {
-                        arr[index++] = RedisLiterals.XX;
-                    }
-                    if ((when & SortedSetWhen.GreaterThan) != 0)
-                    {
-                        arr[index++] = RedisLiterals.GT;
-                    }
-                    if ((when & SortedSetWhen.LessThan) != 0)
-                    {
-                        arr[index++] = RedisLiterals.LT;
-                    }
-                    if (change)
-                    {
-                        arr[index++] = RedisLiterals.CH;
-                    }
+                    return new MultipleSortedSetAddMessage(Database, flags, key, values, when, change);
+            }
+        }
 
-                    for (int i = 0; i < values.Length; i++)
-                    {
-                        arr[index++] = values[i].score;
-                        arr[index++] = values[i].element;
-                    }
-                    return Message.Create(Database, flags, RedisCommand.ZADD, key, arr);
+        private Message GetSortedSetIncrementMessage(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags)
+        {
+            switch (when.Kind)
+            {
+                case ValueCondition.ConditionKind.Always:
+                    return Message.Create(Database, flags, RedisCommand.ZINCRBY, key, value, member);
+                case ValueCondition.ConditionKind.Exists:
+                    return new SingleSortedSetAddMessage(Database, flags, key, member, value, SortedSetWhen.Exists, change: false, increment: true);
+                case ValueCondition.ConditionKind.NotExists:
+                    return new SingleSortedSetAddMessage(Database, flags, key, member, value, SortedSetWhen.NotExists, change: false, increment: true);
+                default:
+                    when.ThrowInvalidOperation(nameof(SortedSetIncrement));
+                    goto case ValueCondition.ConditionKind.Always; // not reached
             }
         }
 

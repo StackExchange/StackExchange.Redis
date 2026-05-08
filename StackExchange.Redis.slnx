@@ -1,0 +1,99 @@
+<Solution>
+  <Folder Name="/eng/">
+    <Project Path="eng/StackExchange.Redis.Build/StackExchange.Redis.Build.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".github/workflows/CI.yml" />
+    <File Path=".github/workflows/codeql.yml" />
+    <File Path="appveyor.yml" />
+    <File Path="build.cmd" />
+    <File Path="Build.csproj" />
+    <File Path="build.ps1" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="docs/ReleaseNotes.md" />
+    <File Path="global.json" />
+    <File Path="NuGet.Config" />
+    <File Path="README.md" />
+    <File Path="Shared.ruleset" />
+    <File Path="tests/RedisConfigs/.docker/Redis/Dockerfile" />
+    <File Path="tests/RedisConfigs/docker-compose.yml" />
+    <File Path="version.json" />
+  </Folder>
+  <Folder Name="/src/">
+    <File Path="src/Directory.Build.props" />
+    <Project Path="src/RESPite/RESPite.csproj" />
+    <Project Path="src/StackExchange.Redis/StackExchange.Redis.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <File Path="tests/.editorconfig" />
+    <File Path="tests/Directory.Build.targets" />
+    <Project Path="tests/BasicTest/BasicTest.csproj" />
+    <Project Path="tests/BasicTestBaseline/BasicTestBaseline.csproj" />
+    <Project Path="tests/ConsoleTest/ConsoleTest.csproj" />
+    <Project Path="tests/ConsoleTestBaseline/ConsoleTestBaseline.csproj" />
+    <Project Path="tests/RESPite.Tests/RESPite.Tests.csproj" />
+    <Project Path="tests/StackExchange.Redis.Benchmarks/StackExchange.Redis.Benchmarks.csproj" />
+    <Project Path="tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/RedisConfigs/">
+    <File Path="tests/RedisConfigs/cli-master.cmd" />
+    <File Path="tests/RedisConfigs/cli-secure.cmd" />
+    <File Path="tests/RedisConfigs/cli-slave.cmd" />
+    <File Path="tests/RedisConfigs/docker-compose.yml" />
+    <File Path="tests/RedisConfigs/Dockerfile" />
+    <File Path="tests/RedisConfigs/start-all.cmd" />
+    <File Path="tests/RedisConfigs/start-all.sh" />
+    <File Path="tests/RedisConfigs/start-basic.cmd" />
+    <File Path="tests/RedisConfigs/start-basic.sh" />
+    <File Path="tests/RedisConfigs/start-cluster.cmd" />
+    <File Path="tests/RedisConfigs/start-sentinel.cmd" />
+    <File Path="tests/RedisConfigs/wsl2.md" />
+  </Folder>
+  <Folder Name="/tests/RedisConfigs/Basic/">
+    <File Path="tests/RedisConfigs/Basic/primary-6379.conf" />
+    <File Path="tests/RedisConfigs/Basic/replica-6380.conf" />
+    <File Path="tests/RedisConfigs/Basic/secure-6381.conf" />
+    <File Path="tests/RedisConfigs/Basic/tls-ciphers-6384.conf" />
+  </Folder>
+  <Folder Name="/tests/RedisConfigs/Cluster/">
+    <File Path="tests/RedisConfigs/Cluster/cluster-7000.conf" />
+    <File Path="tests/RedisConfigs/Cluster/cluster-7001.conf" />
+    <File Path="tests/RedisConfigs/Cluster/cluster-7002.conf" />
+    <File Path="tests/RedisConfigs/Cluster/cluster-7003.conf" />
+    <File Path="tests/RedisConfigs/Cluster/cluster-7004.conf" />
+    <File Path="tests/RedisConfigs/Cluster/cluster-7005.conf" />
+    <File Path="tests/RedisConfigs/Cluster/nodes-7000.conf" />
+    <File Path="tests/RedisConfigs/Cluster/nodes-7001.conf" />
+    <File Path="tests/RedisConfigs/Cluster/nodes-7002.conf" />
+    <File Path="tests/RedisConfigs/Cluster/nodes-7003.conf" />
+    <File Path="tests/RedisConfigs/Cluster/nodes-7004.conf" />
+    <File Path="tests/RedisConfigs/Cluster/nodes-7005.conf" />
+  </Folder>
+  <Folder Name="/tests/RedisConfigs/Docker/">
+    <File Path="tests/RedisConfigs/Docker/docker-entrypoint.sh" />
+    <File Path="tests/RedisConfigs/Docker/supervisord.conf" />
+  </Folder>
+  <Folder Name="/tests/RedisConfigs/Failover/">
+    <File Path="tests/RedisConfigs/Failover/primary-6382.conf" />
+    <File Path="tests/RedisConfigs/Failover/replica-6383.conf" />
+  </Folder>
+  <Folder Name="/tests/RedisConfigs/Sentinel/">
+    <File Path="tests/RedisConfigs/Sentinel/redis-7010.conf" />
+    <File Path="tests/RedisConfigs/Sentinel/redis-7011.conf" />
+    <File Path="tests/RedisConfigs/Sentinel/sentinel-26379.conf" />
+    <File Path="tests/RedisConfigs/Sentinel/sentinel-26380.conf" />
+    <File Path="tests/RedisConfigs/Sentinel/sentinel-26381.conf" />
+  </Folder>
+  <Folder Name="/toys/">
+    <Project Path="toys/KestrelRedisServer/KestrelRedisServer.csproj" />
+    <Project Path="toys/OpBench/OpBench.csproj" />
+    <Project Path="toys/StackExchange.Redis.Server/StackExchange.Redis.Server.csproj" />
+    <Project Path="toys/TestConsole/TestConsole.csproj" />
+    <Project Path="toys/TestConsoleBaseline/TestConsoleBaseline.csproj" />
+  </Folder>
+  <Project Path=".github/.github.csproj" />
+  <Project Path="docs/docs.csproj" />
+</Solution>

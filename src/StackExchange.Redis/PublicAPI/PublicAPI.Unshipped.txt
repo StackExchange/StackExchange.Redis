@@ -43,3 +43,5 @@ StackExchange.Redis.KeyNotificationKind.KeySpace = 1 -> StackExchange.Redis.KeyN
 [SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpaceItem = 5 -> StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationKind.Unknown = 0 -> StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationType.HExpire = 50 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.IDatabase.SortedSetIncrement(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, double value, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags) -> double?
+StackExchange.Redis.IDatabaseAsync.SortedSetIncrementAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, double value, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<double?>!

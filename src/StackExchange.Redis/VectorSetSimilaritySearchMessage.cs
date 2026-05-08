@@ -11,7 +11,8 @@ internal abstract class VectorSetSimilaritySearchMessage(
     double epsilon,
     int searchExplorationFactor,
     string? filterExpression,
-    int maxFilteringEffort) : Message(db, flags, RedisCommand.VSIM)
+    int maxFilteringEffort,
+    bool useFp32) : Message(db, flags, RedisCommand.VSIM)
 {
     // For "FP32" and "VALUES" scenarios; in the future we might want other vector sizes / encodings - for
     // example, there could be some "FP16" or "FP8" transport that requires a ROM-short or ROM-sbyte from
@@ -27,15 +28,16 @@ internal abstract class VectorSetSimilaritySearchMessage(
         double epsilon,
         int searchExplorationFactor,
         string? filterExpression,
-        int maxFilteringEffort) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon,
-        searchExplorationFactor, filterExpression, maxFilteringEffort)
+        int maxFilteringEffort,
+        bool useFp32) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon,
+        searchExplorationFactor, filterExpression, maxFilteringEffort, useFp32)
     {
-        internal override int GetSearchTargetArgCount(bool packed) =>
-            packed ? 2 : 2 + vector.Length; // FP32 {vector} or VALUES {num} {vector}
+        internal override int GetSearchTargetArgCount() =>
+            UseFp32 ? 2 : (2 + vector.Length); // FP32 {vector} or VALUES {num} {vector}
 
-        internal override void WriteSearchTarget(bool packed, PhysicalConnection physical)
+        internal override void WriteSearchTarget(PhysicalConnection physical)
         {
-            if (packed)
+            if (UseFp32)
             {
                 physical.WriteBulkString("FP32"u8);
                 physical.WriteBulkString(System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.Span));
@@ -63,20 +65,21 @@ internal abstract class VectorSetSimilaritySearchMessage(
         double epsilon,
         int searchExplorationFactor,
         string? filterExpression,
-        int maxFilteringEffort) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon,
-        searchExplorationFactor, filterExpression, maxFilteringEffort)
+        int maxFilteringEffort,
+        bool useFp32) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon,
+        searchExplorationFactor, filterExpression, maxFilteringEffort, useFp32)
     {
-        internal override int GetSearchTargetArgCount(bool packed) => 2; // ELE {member}
+        internal override int GetSearchTargetArgCount() => 2; // ELE {member}
 
-        internal override void WriteSearchTarget(bool packed, PhysicalConnection physical)
+        internal override void WriteSearchTarget(PhysicalConnection physical)
         {
             physical.WriteBulkString("ELE"u8);
             physical.WriteBulkString(member);
         }
     }
 
-    internal abstract int GetSearchTargetArgCount(bool packed);
-    internal abstract void WriteSearchTarget(bool packed, PhysicalConnection physical);
+    internal abstract int GetSearchTargetArgCount();
+    internal abstract void WriteSearchTarget(PhysicalConnection physical);
 
     public ResultProcessor<Lease<VectorSetSimilaritySearchResult>?> GetResultProcessor() =>
         VectorSetSimilaritySearchProcessor.Instance;
@@ -177,11 +180,11 @@ internal abstract class VectorSetSimilaritySearchMessage(
 
     private bool HasFlag(VsimFlags flag) => (vsimFlags & flag) != 0;
 
-    public override int ArgCount => GetArgCount(VectorSetAddMessage.UseFp32);
+    public override int ArgCount => GetArgCount();
 
-    private int GetArgCount(bool packed)
+    private int GetArgCount()
     {
-        int argCount = 1 + GetSearchTargetArgCount(packed); // {key} and whatever we need for the vector/element portion
+        int argCount = 1 + GetSearchTargetArgCount(); // {key} and whatever we need for the vector/element portion
         if (HasFlag(VsimFlags.WithScores)) argCount++; // [WITHSCORES]
         if (HasFlag(VsimFlags.WithAttributes)) argCount++; // [WITHATTRIBS]
         if (HasFlag(VsimFlags.Count)) argCount += 2; // [COUNT {count}]
@@ -194,17 +197,18 @@ internal abstract class VectorSetSimilaritySearchMessage(
         return argCount;
     }
 
+    internal bool UseFp32 { get; } = useFp32 & VectorSetAddMessage.CanUseFp32; // evaluated during .ctor
+
     protected override void WriteImpl(PhysicalConnection physical)
     {
         // snapshot to avoid race in debug scenarios
-        bool packed = VectorSetAddMessage.UseFp32;
-        physical.WriteHeader(Command, GetArgCount(packed));
+        physical.WriteHeader(Command, GetArgCount());
 
         // Write key
         physical.Write(key);
 
         // Write search target: either "ELE {member}" or vector data
-        WriteSearchTarget(packed, physical);
+        WriteSearchTarget(physical);
 
         if (HasFlag(VsimFlags.WithScores))
         {
