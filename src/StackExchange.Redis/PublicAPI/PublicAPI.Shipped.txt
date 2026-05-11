@@ -483,22 +483,11 @@ StackExchange.Redis.GeoUnit.Feet = 3 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Kilometers = 1 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Meters = 0 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
-<<<<<<< marc/increx
-[SER006]StackExchange.Redis.GcraRateLimitResult
-[SER006]StackExchange.Redis.GcraRateLimitResult.AvailableTokens.get -> int
-[SER006]StackExchange.Redis.GcraRateLimitResult.FullBurstAfterSeconds.get -> int
-[SER006]StackExchange.Redis.GcraRateLimitResult.GcraRateLimitResult() -> void
-[SER006]StackExchange.Redis.GcraRateLimitResult.GcraRateLimitResult(bool limited, int maxTokens, int availableTokens, int retryAfterSeconds, int fullBurstAfterSeconds) -> void
-[SER006]StackExchange.Redis.GcraRateLimitResult.Limited.get -> bool
-[SER006]StackExchange.Redis.GcraRateLimitResult.MaxTokens.get -> int
-[SER006]StackExchange.Redis.GcraRateLimitResult.RetryAfterSeconds.get -> int
 [SER006]StackExchange.Redis.StringIncrementResult<T>
 [SER006]StackExchange.Redis.StringIncrementResult<T>.AppliedIncrement.get -> T
 [SER006]StackExchange.Redis.StringIncrementResult<T>.StringIncrementResult() -> void
 [SER006]StackExchange.Redis.StringIncrementResult<T>.StringIncrementResult(T value, T appliedIncrement) -> void
 [SER006]StackExchange.Redis.StringIncrementResult<T>.Value.get -> T
-=======
->>>>>>> main
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void
@@ -795,11 +784,7 @@ StackExchange.Redis.IDatabase.StringGetSet(StackExchange.Redis.RedisKey key, Sta
 StackExchange.Redis.IDatabase.StringGetSetExpiry(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringGetSetExpiry(StackExchange.Redis.RedisKey key, System.DateTime expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringGetWithExpiry(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValueWithExpiry
-<<<<<<< marc/increx
-[SER006]StackExchange.Redis.IDatabase.StringGcraRateLimit(StackExchange.Redis.RedisKey key, int maxBurst, int tokensPerPeriod, double periodSeconds = 1, int count = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.GcraRateLimitResult
 [SER006]StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.Expiration expiry, double? lowerBound = null, double? upperBound = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StringIncrementResult<double>
-=======
->>>>>>> main
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> double
 [SER006]StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, long value, StackExchange.Redis.Expiration expiry, long? lowerBound = null, long? upperBound = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StringIncrementResult<long>
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
@@ -1045,11 +1030,7 @@ StackExchange.Redis.IDatabaseAsync.StringGetSetAsync(StackExchange.Redis.RedisKe
 StackExchange.Redis.IDatabaseAsync.StringGetSetExpiryAsync(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringGetSetExpiryAsync(StackExchange.Redis.RedisKey key, System.DateTime expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringGetWithExpiryAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValueWithExpiry>!
-<<<<<<< marc/increx
-[SER006]StackExchange.Redis.IDatabaseAsync.StringGcraRateLimitAsync(StackExchange.Redis.RedisKey key, int maxBurst, int tokensPerPeriod, double periodSeconds = 1, int count = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.GcraRateLimitResult>!
 [SER006]StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.Expiration expiry, double? lowerBound = null, double? upperBound = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StringIncrementResult<double>>!
-=======
->>>>>>> main
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<double>!
 [SER006]StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, long value, StackExchange.Redis.Expiration expiry, long? lowerBound = null, long? upperBound = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StringIncrementResult<long>>!
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
