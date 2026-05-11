@@ -114,6 +114,10 @@ public enum KeyNotificationType
     ZRem = 49,
     [AsciiHash("hexpire")]
     HExpire = 50,
+    [AsciiHash("ardel")]
+    ArDel = 51,
+    [AsciiHash("ardelrange")]
+    ArDelRange = 52,
 
     // side-effect notifications
     [AsciiHash("expired")]

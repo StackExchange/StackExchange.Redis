@@ -71,5 +71,10 @@
         /// vector set elements have a string representation of a vector.
         /// </summary>
         VectorSet,
+
+        /// <summary>
+        /// Redis Arrays are sparse arrays of arbitrary values with a notional write head.
+        /// </summary>
+        Array,
     }
 }
