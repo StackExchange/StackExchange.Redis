@@ -8,6 +8,10 @@ Current package versions:
 
 ## Unreleased
 
+- (none)
+
+## 2.12.27
+
 - Remove `[Experimental]` 8.8 `GCRA` feature ([#3074 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3074))
 - Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
 - Add Redis 8.8 stream negative acknowledgements (`XNACK`) ([#3058 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3058))
