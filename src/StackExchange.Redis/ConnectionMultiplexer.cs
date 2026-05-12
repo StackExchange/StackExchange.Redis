@@ -1370,11 +1370,12 @@ namespace StackExchange.Redis
 
         private void ActivateAllServers(ILogger? log)
         {
-            bool hasSubscriptions = GetSubscriptionsCount() != 0;
+            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             foreach (var server in GetServerSnapshot())
             {
                 server.Activate(ConnectionType.Interactive, log);
-                if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+                //if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+                if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
                 {
                     // Intentionally not logging the sub connection
                     server.Activate(ConnectionType.Subscription, null);
