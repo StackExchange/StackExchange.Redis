@@ -184,13 +184,6 @@ bool moved = await db.ArraySeekAsync(key, 1_000);
 RedisArrayIndex written = await db.ArrayInsertAsync(key, "later");
 ```
 
-`ArrayLastItemsAsync` reads recent values from the array tail:
-
-```csharp
-RedisValue[] last = await db.ArrayLastItemsAsync(key, count: 10);
-RedisValue[] lastReversed = await db.ArrayLastItemsAsync(key, count: 10, reverse: true);
-```
-
 ## Ring Buffers
 
 Use `ArrayRingAsync` to keep at most a fixed number of cells and wrap writes around that capacity:
@@ -202,6 +195,13 @@ for (int i = 0; i < 10; i++)
 }
 
 RedisArrayIndex count = await db.ArrayCountAsync(key); // 5
+```
+
+`ArrayLastItemsAsync` is intended for this capped ring-buffer model. It reads the last values in the ring-buffer sense, where "last" relates to the retained values after wrap-around and trimming:
+
+```csharp
+RedisValue[] last = await db.ArrayLastItemsAsync(key, count: 10);
+RedisValue[] lastReversed = await db.ArrayLastItemsAsync(key, count: 10, reverse: true);
 ```
 
 ## Operations and Info
