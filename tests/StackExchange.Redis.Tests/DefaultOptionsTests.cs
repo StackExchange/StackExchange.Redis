@@ -104,15 +104,17 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         var namedClients = clients.Where(x => x.Name == config.ClientName).ToArray();
 
         Assert.Equal(protocol, server.Protocol);
-        Assert.Equal(1, serverObj.ClientCount);
         Assert.NotNull(interactiveId);
-        Assert.Single(namedClients);
         var self = Assert.Single(clients, x => x.Id == interactiveId);
         Assert.Equal(ClientType.Normal, self.ClientType);
         Assert.Equal(0, self.SubscriptionCount);
         Assert.Equal(0, self.PatternSubscriptionCount);
         Assert.Equal(0, self.ShardedSubscriptionCount);
         Assert.Equal(protocol, self.Protocol);
+
+        var expectedCount = protocol is RedisProtocol.Resp3 ? 1 : 2;
+        Assert.Equal(expectedCount, serverObj.ClientCount);
+        Assert.Equal(expectedCount, namedClients.Length);
 
         await AssertCanPubSubAsync(conn, $"{nameof(AzureManagedRedisConnectsWithoutSubscriptionConnection)}:{protocol}");
     }
