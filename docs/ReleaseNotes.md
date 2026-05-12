@@ -8,7 +8,23 @@ Current package versions:
 
 ## Unreleased
 
-- Prefer RESP3 and avoid opening a separate subscription connection for Azure Managed Redis endpoints ([#3067 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3067))
+- (none)
+
+## 2.13.1
+
+***IMPORTANT:*** This release changes the default protocol from RESP2 to RESP3; this
+has scalability and feature advantages, but if you are using modules or ad-hoc commands,
+*[please see the RESP3 notes](https://stackexchange.github.io/StackExchange.Redis/Resp3)*,
+which includes:
+
+- the purpose of RESP3
+- scenarios where RESP2 vs RESP3 may be visible
+- how to explicitly choose to remain on RESP2
+- notes on additional libraries such as NRedisStack
+
+Changes:
+
+- Prefer RESP3 for Azure Managed Redis endpoints ([#3067 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3067))
 
 ## 2.12.27
 
