@@ -12,16 +12,16 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
-    public long ArraySet(RedisKey key, RedisArrayIndex index, RedisValue[] values, CommandFlags flags = CommandFlags.None)
+    public int ArraySet(RedisKey key, RedisArrayIndex index, RedisValue[] values, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArraySetMessage(key, index, values, flags);
-        return msg is null ? 0 : ExecuteSync(msg, ResultProcessor.Int64);
+        return msg is null ? 0 : ExecuteSync(msg, ResultProcessor.Int32);
     }
 
-    public long ArraySet(RedisKey key, RedisArrayEntry[] values, CommandFlags flags = CommandFlags.None)
+    public int ArraySet(RedisKey key, RedisArrayEntry[] values, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArraySetMessage(key, values, flags);
-        return msg is null ? 0 : ExecuteSync(msg, ResultProcessor.Int64);
+        return msg is null ? 0 : ExecuteSync(msg, ResultProcessor.Int32);
     }
 
     public RedisValue ArrayGet(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
@@ -42,16 +42,16 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
     }
 
-    public long ArrayLength(RedisKey key, CommandFlags flags = CommandFlags.None)
+    public RedisArrayIndex ArrayLength(RedisKey key, CommandFlags flags = CommandFlags.None)
     {
         var msg = Message.Create(Database, flags, RedisCommand.ARLEN, key);
-        return ExecuteSync(msg, ResultProcessor.Int64);
+        return ExecuteSync(msg, ResultProcessor.RedisArrayIndex);
     }
 
-    public long ArrayCount(RedisKey key, CommandFlags flags = CommandFlags.None)
+    public RedisArrayIndex ArrayCount(RedisKey key, CommandFlags flags = CommandFlags.None)
     {
         var msg = Message.Create(Database, flags, RedisCommand.ARCOUNT, key);
-        return ExecuteSync(msg, ResultProcessor.Int64);
+        return ExecuteSync(msg, ResultProcessor.RedisArrayIndex);
     }
 
     public bool ArrayDelete(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
@@ -60,25 +60,25 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
-    public long ArrayDelete(RedisKey key, RedisArrayIndex[] indices, CommandFlags flags = CommandFlags.None)
+    public int ArrayDelete(RedisKey key, RedisArrayIndex[] indices, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayIndicesMessage(RedisCommand.ARDEL, key, indices, flags);
-        return msg is null ? 0 : ExecuteSync(msg, ResultProcessor.Int64);
+        return msg is null ? 0 : ExecuteSync(msg, ResultProcessor.Int32);
     }
 
-    public long ArrayDeleteRange(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
+    public RedisArrayIndex ArrayDeleteRange(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
     {
         var msg = Message.Create(Database, flags, RedisCommand.ARDELRANGE, key, start.ToRedisValue(), end.ToRedisValue());
-        return ExecuteSync(msg, ResultProcessor.Int64);
+        return ExecuteSync(msg, ResultProcessor.RedisArrayIndex);
     }
 
-    public long ArrayDeleteRange(RedisKey key, RedisArrayRange[] ranges, CommandFlags flags = CommandFlags.None)
+    public RedisArrayIndex ArrayDeleteRange(RedisKey key, RedisArrayRange[] ranges, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayRangesMessage(key, ranges, flags);
-        return msg is null ? 0 : ExecuteSync(msg, ResultProcessor.Int64);
+        return msg is null ? default : ExecuteSync(msg, ResultProcessor.RedisArrayIndex);
     }
 
-    public RedisArrayEntry[] ArrayScan(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, long limit = 0, CommandFlags flags = CommandFlags.None)
+    public RedisArrayEntry[] ArrayScan(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit = 0, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayScanMessage(key, start, end, limit, flags);
         return ExecuteSync(msg, ResultProcessor.RedisArrayEntryArray, defaultValue: Array.Empty<RedisArrayEntry>());
@@ -98,14 +98,13 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, ResultProcessor.RedisValue);
     }
 
-    public RedisArrayIndex ArrayRing(RedisKey key, long maxLength, RedisValue value, CommandFlags flags = CommandFlags.None)
+    public RedisArrayIndex ArrayRing(RedisKey key, RedisArrayIndex maxLength, RedisValue value, CommandFlags flags = CommandFlags.None)
     {
-        CheckNonNegative(maxLength, nameof(maxLength));
-        var msg = Message.Create(Database, flags, RedisCommand.ARRING, key, maxLength, value);
+        var msg = Message.Create(Database, flags, RedisCommand.ARRING, key, maxLength.ToRedisValue(), value);
         return ExecuteSync(msg, ResultProcessor.RedisArrayIndex);
     }
 
-    public RedisArrayIndex ArrayRing(RedisKey key, long maxLength, RedisValue[] values, CommandFlags flags = CommandFlags.None)
+    public RedisArrayIndex ArrayRing(RedisKey key, RedisArrayIndex maxLength, RedisValue[] values, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayRingMessage(key, maxLength, values, flags);
         return ExecuteSync(msg, ResultProcessor.RedisArrayIndex);
@@ -135,7 +134,7 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
-    public RedisValue[] ArrayLastItems(RedisKey key, long count, bool reverse = false, CommandFlags flags = CommandFlags.None)
+    public RedisValue[] ArrayLastItems(RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayLastItemsMessage(key, count, reverse, flags);
         return msg is null ? Array.Empty<RedisValue>() : ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
@@ -153,16 +152,16 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 
-    public Task<long> ArraySetAsync(RedisKey key, RedisArrayIndex index, RedisValue[] values, CommandFlags flags = CommandFlags.None)
+    public Task<int> ArraySetAsync(RedisKey key, RedisArrayIndex index, RedisValue[] values, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArraySetMessage(key, index, values, flags);
-        return msg is null ? CompletedTask<long>.FromDefault(0, asyncState) : ExecuteAsync(msg, ResultProcessor.Int64);
+        return msg is null ? CompletedTask<int>.FromDefault(0, asyncState) : ExecuteAsync(msg, ResultProcessor.Int32);
     }
 
-    public Task<long> ArraySetAsync(RedisKey key, RedisArrayEntry[] values, CommandFlags flags = CommandFlags.None)
+    public Task<int> ArraySetAsync(RedisKey key, RedisArrayEntry[] values, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArraySetMessage(key, values, flags);
-        return msg is null ? CompletedTask<long>.FromDefault(0, asyncState) : ExecuteAsync(msg, ResultProcessor.Int64);
+        return msg is null ? CompletedTask<int>.FromDefault(0, asyncState) : ExecuteAsync(msg, ResultProcessor.Int32);
     }
 
     public Task<RedisValue> ArrayGetAsync(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
@@ -185,16 +184,16 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
     }
 
-    public Task<long> ArrayLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+    public Task<RedisArrayIndex> ArrayLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
     {
         var msg = Message.Create(Database, flags, RedisCommand.ARLEN, key);
-        return ExecuteAsync(msg, ResultProcessor.Int64);
+        return ExecuteAsync(msg, ResultProcessor.RedisArrayIndex);
     }
 
-    public Task<long> ArrayCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+    public Task<RedisArrayIndex> ArrayCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
     {
         var msg = Message.Create(Database, flags, RedisCommand.ARCOUNT, key);
-        return ExecuteAsync(msg, ResultProcessor.Int64);
+        return ExecuteAsync(msg, ResultProcessor.RedisArrayIndex);
     }
 
     public Task<bool> ArrayDeleteAsync(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
@@ -203,25 +202,25 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 
-    public Task<long> ArrayDeleteAsync(RedisKey key, RedisArrayIndex[] indices, CommandFlags flags = CommandFlags.None)
+    public Task<int> ArrayDeleteAsync(RedisKey key, RedisArrayIndex[] indices, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayIndicesMessage(RedisCommand.ARDEL, key, indices, flags);
-        return msg is null ? CompletedTask<long>.FromDefault(0, asyncState) : ExecuteAsync(msg, ResultProcessor.Int64);
+        return msg is null ? CompletedTask<int>.FromDefault(0, asyncState) : ExecuteAsync(msg, ResultProcessor.Int32);
     }
 
-    public Task<long> ArrayDeleteRangeAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
+    public Task<RedisArrayIndex> ArrayDeleteRangeAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
     {
         var msg = Message.Create(Database, flags, RedisCommand.ARDELRANGE, key, start.ToRedisValue(), end.ToRedisValue());
-        return ExecuteAsync(msg, ResultProcessor.Int64);
+        return ExecuteAsync(msg, ResultProcessor.RedisArrayIndex);
     }
 
-    public Task<long> ArrayDeleteRangeAsync(RedisKey key, RedisArrayRange[] ranges, CommandFlags flags = CommandFlags.None)
+    public Task<RedisArrayIndex> ArrayDeleteRangeAsync(RedisKey key, RedisArrayRange[] ranges, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayRangesMessage(key, ranges, flags);
-        return msg is null ? CompletedTask<long>.FromDefault(0, asyncState) : ExecuteAsync(msg, ResultProcessor.Int64);
+        return msg is null ? CompletedTask<RedisArrayIndex>.FromDefault(default, asyncState) : ExecuteAsync(msg, ResultProcessor.RedisArrayIndex);
     }
 
-    public Task<RedisArrayEntry[]> ArrayScanAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, long limit = 0, CommandFlags flags = CommandFlags.None)
+    public Task<RedisArrayEntry[]> ArrayScanAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit = 0, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayScanMessage(key, start, end, limit, flags);
         return ExecuteAsync(msg, ResultProcessor.RedisArrayEntryArray, defaultValue: Array.Empty<RedisArrayEntry>());
@@ -241,14 +240,13 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.RedisValue);
     }
 
-    public Task<RedisArrayIndex> ArrayRingAsync(RedisKey key, long maxLength, RedisValue value, CommandFlags flags = CommandFlags.None)
+    public Task<RedisArrayIndex> ArrayRingAsync(RedisKey key, RedisArrayIndex maxLength, RedisValue value, CommandFlags flags = CommandFlags.None)
     {
-        CheckNonNegative(maxLength, nameof(maxLength));
-        var msg = Message.Create(Database, flags, RedisCommand.ARRING, key, maxLength, value);
+        var msg = Message.Create(Database, flags, RedisCommand.ARRING, key, maxLength.ToRedisValue(), value);
         return ExecuteAsync(msg, ResultProcessor.RedisArrayIndex);
     }
 
-    public Task<RedisArrayIndex> ArrayRingAsync(RedisKey key, long maxLength, RedisValue[] values, CommandFlags flags = CommandFlags.None)
+    public Task<RedisArrayIndex> ArrayRingAsync(RedisKey key, RedisArrayIndex maxLength, RedisValue[] values, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayRingMessage(key, maxLength, values, flags);
         return ExecuteAsync(msg, ResultProcessor.RedisArrayIndex);
@@ -278,7 +276,7 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 
-    public Task<RedisValue[]> ArrayLastItemsAsync(RedisKey key, long count, bool reverse = false, CommandFlags flags = CommandFlags.None)
+    public Task<RedisValue[]> ArrayLastItemsAsync(RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None)
     {
         var msg = GetArrayLastItemsMessage(key, count, reverse, flags);
         return msg is null
@@ -290,11 +288,6 @@ internal partial class RedisDatabase
     {
         var msg = Message.Create(Database, flags, RedisCommand.ARINFO, key);
         return ExecuteAsync(msg, ResultProcessor.ArrayInfo);
-    }
-
-    private static void CheckNonNegative(long value, string parameterName)
-    {
-        if (value < 0) throw new ArgumentOutOfRangeException(parameterName, "The value must be non-negative.");
     }
 
     private Message? GetArraySetMessage(RedisKey key, RedisArrayIndex index, RedisValue[] values, CommandFlags flags)
@@ -317,8 +310,8 @@ internal partial class RedisDatabase
         int offset = 0;
         foreach (var value in values)
         {
-            args[offset++] = value.index.ToRedisValue();
-            args[offset++] = value.value;
+            args[offset++] = value.Index.ToRedisValue();
+            args[offset++] = value.Value;
         }
         return Message.Create(Database, flags, RedisCommand.ARMSET, key, args);
     }
@@ -345,13 +338,18 @@ internal partial class RedisDatabase
         int offset = 0;
         foreach (var range in ranges)
         {
-            args[offset++] = range.start.ToRedisValue();
-            args[offset++] = range.end.ToRedisValue();
+            args[offset++] = range.Start.ToRedisValue();
+            args[offset++] = range.End.ToRedisValue();
         }
         return Message.Create(Database, flags, RedisCommand.ARDELRANGE, key, args);
     }
 
-    private Message GetArrayScanMessage(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, long limit, CommandFlags flags)
+    private static void CheckNonNegative(int value, string parameterName)
+    {
+        if (value < 0) throw new ArgumentOutOfRangeException(parameterName, "The value must be non-negative.");
+    }
+
+    private Message GetArrayScanMessage(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit, CommandFlags flags)
     {
         CheckNonNegative(limit, nameof(limit));
         return limit == 0
@@ -393,10 +391,9 @@ internal partial class RedisDatabase
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
-    private Message GetArrayRingMessage(RedisKey key, long maxLength, RedisValue[] values, CommandFlags flags)
+    private Message GetArrayRingMessage(RedisKey key, RedisArrayIndex maxLength, RedisValue[] values, CommandFlags flags)
     {
-        CheckNonNegative(maxLength, nameof(maxLength));
-        return GetArrayValuesMessage(RedisCommand.ARRING, key, values, flags, maxLength);
+        return GetArrayValuesMessage(RedisCommand.ARRING, key, values, flags, maxLength.ToRedisValue());
     }
 
     private Message GetArrayValuesMessage(RedisCommand command, RedisKey key, RedisValue[] values, CommandFlags flags, RedisValue? prefix = null)
@@ -415,7 +412,7 @@ internal partial class RedisDatabase
         return Message.Create(Database, flags, command, key, values);
     }
 
-    private Message? GetArrayLastItemsMessage(RedisKey key, long count, bool reverse, CommandFlags flags)
+    private Message? GetArrayLastItemsMessage(RedisKey key, int count, bool reverse, CommandFlags flags)
     {
         CheckNonNegative(count, nameof(count));
         if (count == 0) return null;

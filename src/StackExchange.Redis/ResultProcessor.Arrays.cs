@@ -155,7 +155,7 @@ internal abstract partial class ResultProcessor
                 return false;
             }
 
-            long count = 0, length = 0, nextInsertIndex = 0, slices = 0, directorySize = 0, superDirEntries = 0, sliceSize = 0;
+            RedisArrayIndex count = default, length = default, nextInsertIndex = default, slices = default, directorySize = default, superDirEntries = default, sliceSize = default;
             var iter = result.GetItems().GetEnumerator();
             while (iter.MoveNext())
             {
@@ -170,7 +170,7 @@ internal abstract partial class ResultProcessor
                 }
 
                 ref readonly RawResult value = ref iter.Current;
-                if (!value.TryGetInt64(out var i64))
+                if (!TryParseArrayIndex(value, out RedisArrayIndex index))
                 {
                     continue;
                 }
@@ -178,25 +178,25 @@ internal abstract partial class ResultProcessor
                 switch (field)
                 {
                     case ArrayInfoField.Count:
-                        count = i64;
+                        count = index;
                         break;
                     case ArrayInfoField.Length:
-                        length = i64;
+                        length = index;
                         break;
                     case ArrayInfoField.NextInsertIndex:
-                        nextInsertIndex = i64;
+                        nextInsertIndex = index;
                         break;
                     case ArrayInfoField.Slices:
-                        slices = i64;
+                        slices = index;
                         break;
                     case ArrayInfoField.DirectorySize:
-                        directorySize = i64;
+                        directorySize = index;
                         break;
                     case ArrayInfoField.SuperDirEntries:
-                        superDirEntries = i64;
+                        superDirEntries = index;
                         break;
                     case ArrayInfoField.SliceSize:
-                        sliceSize = i64;
+                        sliceSize = index;
                         break;
                 }
             }

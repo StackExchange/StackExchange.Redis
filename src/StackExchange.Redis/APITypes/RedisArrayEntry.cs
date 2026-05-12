@@ -1,49 +1,42 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Describes an array entry at a specific index.
 /// </summary>
-public readonly struct RedisArrayEntry : IEquatable<RedisArrayEntry>
+/// <param name="index">The array index.</param>
+/// <param name="value">The value at this index.</param>
+[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) : IEquatable<RedisArrayEntry>
 {
-    internal readonly RedisArrayIndex index;
-    internal readonly RedisValue value;
+    private readonly RedisArrayIndex _index = index;
+    private readonly RedisValue _value = value;
 
     internal RedisArrayEntry(RedisArrayIndex index)
+        : this(index, default)
     {
-        this.index = index;
-        value = default;
-    }
-
-    /// <summary>
-    /// Initializes a <see cref="RedisArrayEntry"/> value.
-    /// </summary>
-    /// <param name="index">The array index.</param>
-    /// <param name="value">The value at this index.</param>
-    public RedisArrayEntry(RedisArrayIndex index, RedisValue value)
-    {
-        this.index = index;
-        this.value = value;
     }
 
     /// <summary>
     /// The array index.
     /// </summary>
-    public RedisArrayIndex Index => index;
+    public RedisArrayIndex Index => _index;
 
     /// <summary>
     /// The value at this index.
     /// </summary>
-    public RedisValue Value => value;
+    public RedisValue Value => _value;
 
     /// <summary>
     /// Converts to a key/value pair.
     /// </summary>
     /// <param name="value">The <see cref="RedisArrayEntry"/> to create a <see cref="KeyValuePair{TKey, TValue}"/> from.</param>
     public static implicit operator KeyValuePair<RedisArrayIndex, RedisValue>(RedisArrayEntry value) =>
-        new KeyValuePair<RedisArrayIndex, RedisValue>(value.index, value.value);
+        new KeyValuePair<RedisArrayIndex, RedisValue>(value._index, value._value);
 
     /// <summary>
     /// Converts from a key/value pair.
@@ -55,10 +48,10 @@ public readonly struct RedisArrayEntry : IEquatable<RedisArrayEntry>
     /// <summary>
     /// The "{index}: {value}" string representation.
     /// </summary>
-    public override string ToString() => index + ": " + value;
+    public override string ToString() => _index + ": " + _value;
 
     /// <inheritdoc />
-    public override int GetHashCode() => index.GetHashCode() ^ value.GetHashCode();
+    public override int GetHashCode() => _index.GetHashCode() ^ _value.GetHashCode();
 
     /// <summary>
     /// Compares two values for equality.
@@ -70,19 +63,19 @@ public readonly struct RedisArrayEntry : IEquatable<RedisArrayEntry>
     /// Compares two values for equality.
     /// </summary>
     /// <param name="other">The <see cref="RedisArrayEntry"/> to compare to.</param>
-    public bool Equals(RedisArrayEntry other) => index == other.index && value == other.value;
+    public bool Equals(RedisArrayEntry other) => _index == other._index && _value == other._value;
 
     /// <summary>
     /// Compares two values for equality.
     /// </summary>
     /// <param name="x">The first <see cref="RedisArrayEntry"/> to compare.</param>
     /// <param name="y">The second <see cref="RedisArrayEntry"/> to compare.</param>
-    public static bool operator ==(RedisArrayEntry x, RedisArrayEntry y) => x.index == y.index && x.value == y.value;
+    public static bool operator ==(RedisArrayEntry x, RedisArrayEntry y) => x._index == y._index && x._value == y._value;
 
     /// <summary>
     /// Compares two values for non-equality.
     /// </summary>
     /// <param name="x">The first <see cref="RedisArrayEntry"/> to compare.</param>
     /// <param name="y">The second <see cref="RedisArrayEntry"/> to compare.</param>
-    public static bool operator !=(RedisArrayEntry x, RedisArrayEntry y) => x.index != y.index || x.value != y.value;
+    public static bool operator !=(RedisArrayEntry x, RedisArrayEntry y) => x._index != y._index || x._value != y._value;
 }

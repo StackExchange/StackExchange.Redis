@@ -1,49 +1,53 @@
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
+
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Contains metadata information about an array returned by the ARINFO command.
 /// </summary>
+[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public readonly struct ArrayInfo(
-    long count,
-    long length,
-    long nextInsertIndex,
-    long slices,
-    long directorySize,
-    long superDirEntries,
-    long sliceSize)
+    RedisArrayIndex count,
+    RedisArrayIndex length,
+    RedisArrayIndex nextInsertIndex,
+    RedisArrayIndex slices,
+    RedisArrayIndex directorySize,
+    RedisArrayIndex superDirEntries,
+    RedisArrayIndex sliceSize)
 {
     /// <summary>
     /// The number of array cells that have values.
     /// </summary>
-    public long Count { get; } = count;
+    public RedisArrayIndex Count { get; } = count;
 
     /// <summary>
     /// The notional length of the array.
     /// </summary>
-    public long Length { get; } = length;
+    public RedisArrayIndex Length { get; } = length;
 
     /// <summary>
     /// The current array write-head.
     /// </summary>
-    public long NextInsertIndex { get; } = nextInsertIndex;
+    public RedisArrayIndex NextInsertIndex { get; } = nextInsertIndex;
 
     /// <summary>
     /// The number of slices used by the array.
     /// </summary>
-    public long Slices { get; } = slices;
+    public RedisArrayIndex Slices { get; } = slices;
 
     /// <summary>
     /// The size of the array directory.
     /// </summary>
-    public long DirectorySize { get; } = directorySize;
+    public RedisArrayIndex DirectorySize { get; } = directorySize;
 
     /// <summary>
     /// The number of super-directory entries.
     /// </summary>
-    public long SuperDirEntries { get; } = superDirEntries;
+    public RedisArrayIndex SuperDirEntries { get; } = superDirEntries;
 
     /// <summary>
     /// The configured slice size.
     /// </summary>
-    public long SliceSize { get; } = sliceSize;
+    public RedisArrayIndex SliceSize { get; } = sliceSize;
 }

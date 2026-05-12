@@ -53,20 +53,20 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         RedisKey key = Me();
         await db.KeyDeleteAsync(key);
 
-        Assert.Equal(0, await db.ArrayLengthAsync(key));
-        Assert.Equal(0, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayLengthAsync(key), 0);
+        AssertIndex(await db.ArrayCountAsync(key), 0);
 
         Assert.True(await db.ArraySetAsync(key, 0, "a"));
-        Assert.Equal(1, await db.ArrayLengthAsync(key));
-        Assert.Equal(1, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayLengthAsync(key), 1);
+        AssertIndex(await db.ArrayCountAsync(key), 1);
 
         Assert.True(await db.ArraySetAsync(key, 5, "b"));
-        Assert.Equal(6, await db.ArrayLengthAsync(key));
-        Assert.Equal(2, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayLengthAsync(key), 6);
+        AssertIndex(await db.ArrayCountAsync(key), 2);
 
         Assert.True(await db.ArraySetAsync(key, 100, "c"));
-        Assert.Equal(101, await db.ArrayLengthAsync(key));
-        Assert.Equal(3, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayLengthAsync(key), 101);
+        AssertIndex(await db.ArrayCountAsync(key), 3);
 
         await db.KeyDeleteAsync(key);
         Assert.True(await db.ArraySetAsync(key, 0, "a"));
@@ -76,8 +76,8 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         Assert.Equal("a", await db.ArrayGetAsync(key, 0));
         Assert.Equal("b", await db.ArrayGetAsync(key, 10000));
         Assert.Equal("c", await db.ArrayGetAsync(key, 1000000));
-        Assert.Equal(3, await db.ArrayCountAsync(key));
-        Assert.Equal(1000001, await db.ArrayLengthAsync(key));
+        AssertIndex(await db.ArrayCountAsync(key), 3);
+        AssertIndex(await db.ArrayLengthAsync(key), 1000001);
     }
 
     [Fact]
@@ -91,13 +91,13 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         Assert.Equal(3, await db.ArraySetAsync(key, 0, ["a", "b", "c"]));
         Assert.True(await db.ArrayDeleteAsync(key, 1));
         Assert.Equal(RedisValue.Null, await db.ArrayGetAsync(key, 1));
-        Assert.Equal(2, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayCountAsync(key), 2);
         Assert.False(await db.ArrayDeleteAsync(key, 1));
 
         await db.KeyDeleteAsync(key);
         Assert.Equal(4, await db.ArraySetAsync(key, 0, ["a", "b", "c", "d"]));
         Assert.Equal(3, await db.ArrayDeleteAsync(key, [0, 1, 2]));
-        Assert.Equal(1, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayCountAsync(key), 1);
 
         await db.KeyDeleteAsync(key);
         Assert.True(await db.ArraySetAsync(key, 0, "a"));
@@ -106,19 +106,48 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
 
         await db.KeyDeleteAsync(key);
         await SetNumericValuesAsync(db, key, 10);
-        Assert.Equal(10, await db.ArrayCountAsync(key));
-        Assert.Equal(5, await db.ArrayDeleteRangeAsync(key, 2, 6));
-        Assert.Equal(5, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayCountAsync(key), 10);
+        AssertIndex(await db.ArrayDeleteRangeAsync(key, 2, 6), 5);
+        AssertIndex(await db.ArrayCountAsync(key), 5);
 
         await db.KeyDeleteAsync(key);
         await SetNumericValuesAsync(db, key, 10);
-        Assert.Equal(5, await db.ArrayDeleteRangeAsync(key, 6, 2));
-        Assert.Equal(5, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayDeleteRangeAsync(key, 6, 2), 5);
+        AssertIndex(await db.ArrayCountAsync(key), 5);
 
         await db.KeyDeleteAsync(key);
         Assert.Equal(6, await db.ArraySetAsync(key, 0, ["a", "b", "c", "d", "e", "f"]));
-        Assert.Equal(4, await db.ArrayDeleteRangeAsync(key, [new RedisArrayRange(0, 1), new RedisArrayRange(4, 5)]));
+        AssertIndex(await db.ArrayDeleteRangeAsync(key, [new RedisArrayRange(0, 1), new RedisArrayRange(4, 5)]), 4);
         AssertValues(await db.ArrayGetRangeAsync(key, 0, 5), RedisValue.Null, RedisValue.Null, "c", "d", RedisValue.Null, RedisValue.Null);
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task DeleteLastElementPublishesArrayDeleteBeforeKeyDeleteNotifications()
+    {
+        await using var conn = Create(allowAdmin: true, require: RedisFeatures.v8_8_0);
+        var db = conn.GetDatabase();
+        await AssertArrayKeyspaceNotificationsEnabledAsync(conn);
+
+        RedisKey key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var sub = conn.GetSubscriber();
+        var channel = RedisChannel.Pattern($"__key*@{db.Database}__:*");
+        var queue = await sub.SubscribeAsync(channel);
+        try
+        {
+            Assert.True(await db.ArraySetAsync(key, 0, "a"));
+            Assert.True(await db.ArrayDeleteAsync(key, 0));
+
+            AssertNotification(await ReadNotificationAsync(queue, key), KeyNotificationKind.KeySpace, KeyNotificationType.ArDel);
+            AssertNotification(await ReadNotificationAsync(queue, key), KeyNotificationKind.KeyEvent, KeyNotificationType.ArDel);
+            AssertNotification(await ReadNotificationAsync(queue, key), KeyNotificationKind.KeySpace, KeyNotificationType.Del);
+            AssertNotification(await ReadNotificationAsync(queue, key), KeyNotificationKind.KeyEvent, KeyNotificationType.Del);
+        }
+        finally
+        {
+            await queue.UnsubscribeAsync();
+        }
     }
 
     [Fact]
@@ -326,7 +355,7 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         Assert.Equal("7", await db.ArrayGetAsync(key, 2));
         Assert.Equal("8", await db.ArrayGetAsync(key, 3));
         Assert.Equal("9", await db.ArrayGetAsync(key, 4));
-        Assert.Equal(5, await db.ArrayCountAsync(key));
+        AssertIndex(await db.ArrayCountAsync(key), 5);
 
         await db.KeyDeleteAsync(key);
         AssertIndex(await db.ArrayNextAsync(key), 0);
@@ -413,13 +442,13 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
 
         Assert.Equal(3, await db.ArraySetAsync(key, [Entry(0, "a"), Entry(1, "b"), Entry(100, "c")]));
         var info = await db.ArrayInfoAsync(key);
-        Assert.Equal(3, info.Count);
-        Assert.Equal(101, info.Length);
-        Assert.Equal(0, info.NextInsertIndex);
-        Assert.Equal(1, info.Slices);
-        Assert.Equal(1, info.DirectorySize);
-        Assert.Equal(0, info.SuperDirEntries);
-        Assert.Equal(4096, info.SliceSize);
+        AssertIndex(info.Count, 3);
+        AssertIndex(info.Length, 101);
+        AssertIndex(info.NextInsertIndex, 0);
+        AssertIndex(info.Slices, 1);
+        AssertIndex(info.DirectorySize, 1);
+        AssertIndex(info.SuperDirEntries, 0);
+        AssertIndex(info.SliceSize, 4096);
 
         Assert.Equal(RedisType.Array, await db.KeyTypeAsync(key));
         Assert.Equal("sliced-array", await db.KeyEncodingAsync(key));
@@ -503,6 +532,49 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         for (int i = 0; i < expected.Length; i++)
         {
             Assert.Equal(expected[i], actual[i]);
+        }
+    }
+
+    private static async Task<(KeyNotificationKind Kind, KeyNotificationType Type)> ReadNotificationAsync(ChannelMessageQueue queue, RedisKey key)
+    {
+        for (int i = 0; i < 64; i++)
+        {
+            var message = await queue.ReadAsync(TestContext.Current.CancellationToken);
+            if (message.TryParseKeyNotification(out var notification)
+                && notification.GetKey() == key
+                && notification.Type is KeyNotificationType.ArDel or KeyNotificationType.Del)
+            {
+                return (notification.Kind, notification.Type);
+            }
+        }
+
+        Assert.Fail($"Timed out waiting for array keyspace notifications for '{key}'.");
+        return default;
+    }
+
+    private static void AssertNotification(
+        (KeyNotificationKind Kind, KeyNotificationType Type) actual,
+        KeyNotificationKind expectedKind,
+        KeyNotificationType expectedType)
+    {
+        Assert.Equal(expectedKind, actual.Kind);
+        Assert.Equal(expectedType, actual.Type);
+    }
+
+    private static async Task AssertArrayKeyspaceNotificationsEnabledAsync(IConnectionMultiplexer muxer)
+    {
+        foreach (var ep in muxer.GetEndPoints())
+        {
+            var server = muxer.GetServer(ep);
+            var config = await server.ConfigGetAsync("notify-keyspace-events");
+            var value = config.Length == 0 ? "" : config[0].Value.ToString() ?? "";
+
+            foreach (var token in "AKE")
+            {
+                Assert.SkipUnless(
+                    value.Contains(token),
+                    $"Server {ep} notify-keyspace-events config '{value}' missing required token '{token}' for array keyspace notifications.");
+            }
         }
     }
 

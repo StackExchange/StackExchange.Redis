@@ -1,13 +1,19 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 namespace StackExchange.Redis;
 
 /// <summary>
-/// Represents an array index.
+/// Represents an array index or length; conceptually this can be considered a <see cref="ulong"/>,
+/// but wrapped for convenience from languages that do not work well with unsigned values.
 /// </summary>
-public readonly struct RedisArrayIndex : IEquatable<RedisArrayIndex>
+/// <param name="value">The array index.</param>
+[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+[method: CLSCompliant(false)]
+public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex>
 {
-    private readonly ulong value;
+    private readonly ulong value = value;
 
     /// <summary>
     /// The minimum array index value.
@@ -35,16 +41,6 @@ public readonly struct RedisArrayIndex : IEquatable<RedisArrayIndex>
     public RedisArrayIndex(long value)
         : this(CheckedNonNegative(value))
     {
-    }
-
-    /// <summary>
-    /// Initializes a <see cref="RedisArrayIndex"/> value.
-    /// </summary>
-    /// <param name="value">The array index.</param>
-    [CLSCompliant(false)]
-    public RedisArrayIndex(ulong value)
-    {
-        this.value = value;
     }
 
     /// <summary>
