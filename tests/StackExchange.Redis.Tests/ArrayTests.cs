@@ -572,7 +572,7 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
             foreach (var token in "AKE")
             {
                 Assert.SkipUnless(
-                    value.Contains(token),
+                    value.IndexOf(token) >= 0,
                     $"Server {ep} notify-keyspace-events config '{value}' missing required token '{token}' for array keyspace notifications.");
             }
         }
