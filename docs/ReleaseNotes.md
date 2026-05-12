@@ -12,7 +12,7 @@ Current package versions:
 
 ## 2.13.1
 
-***IMPORTANT:*** This release changes the default protocol from RESP2 to RESP3; this
+***IMPORTANT:*** This release changes the default protocol from RESP2 to RESP3 for Azure Managed Redis endpoints (only) ; this
 has scalability and feature advantages, but if you are using modules or ad-hoc commands,
 *[please see the RESP3 notes](https://stackexchange.github.io/StackExchange.Redis/Resp3)*,
 which includes:
