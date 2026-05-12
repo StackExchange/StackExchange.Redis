@@ -1374,7 +1374,7 @@ namespace StackExchange.Redis
             foreach (var server in GetServerSnapshot())
             {
                 server.Activate(ConnectionType.Interactive, log);
-                //if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+                // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
                 if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
                 {
                     // Intentionally not logging the sub connection
