@@ -3,7 +3,13 @@ using System;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+#if !NETFRAMEWORK
+using System.Security.Authentication;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+#endif
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,11 +23,28 @@ namespace StackExchange.Redis.Tests;
 public class InProcessTestServer : MemoryCacheRedisServer
 {
     private readonly ITestOutputHelper? _log;
-    public InProcessTestServer(ITestOutputHelper? log = null, EndPoint? endpoint = null)
+#if !NETFRAMEWORK
+    private readonly X509Certificate2? _serverCertificate;
+    private readonly string? _serverCertificateThumbprint;
+    private readonly RemoteCertificateValidationCallback? _certificateValidationCallback;
+#endif
+
+    public InProcessTestServer(ITestOutputHelper? log = null, EndPoint? endpoint = null, bool useSsl = false)
         : base(endpoint)
     {
         RedisVersion = RedisFeatures.v6_0_0; // for client to expect RESP3
         _log = log;
+#if NETFRAMEWORK
+        UseSsl = false;
+#else
+        UseSsl = useSsl;
+        if (useSsl)
+        {
+            _serverCertificate = CreateServerCertificate(DefaultEndPoint);
+            _serverCertificateThumbprint = _serverCertificate.Thumbprint;
+            _certificateValidationCallback = ValidateServerCertificate;
+        }
+#endif
         // ReSharper disable once VirtualMemberCallInConstructor
         _log?.WriteLine($"Creating in-process server: {ToString()}");
         Tunnel = new InProcTunnel(this);
@@ -90,6 +113,13 @@ public class InProcessTestServer : MemoryCacheRedisServer
             // WriteMode = (BufferedStreamWriter.WriteMode)writeMode,
         };
         if (!string.IsNullOrEmpty(Password)) config.Password = Password;
+        config.Ssl = UseSsl; // explicitly, ignore provider defaults
+        if (UseSsl)
+        {
+#if !NETFRAMEWORK
+            config.CertificateValidation += _certificateValidationCallback;
+#endif
+        }
 
         /* useful for viewing *outbound* data in the log
 #if DEBUG
@@ -121,6 +151,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
     }
 
     public Tunnel Tunnel { get; }
+    public bool UseSsl { get; }
 
     public override void Log(string message)
     {
@@ -200,6 +231,70 @@ public class InProcessTestServer : MemoryCacheRedisServer
         base.OnSkippedReply(client);
     }
 
+    protected override void Dispose(bool disposing)
+    {
+#if !NETFRAMEWORK
+        if (disposing)
+        {
+            _serverCertificate?.Dispose();
+        }
+#endif
+        base.Dispose(disposing);
+    }
+
+#if !NETFRAMEWORK
+    private bool ValidateServerCertificate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors)
+    {
+        if (errors == SslPolicyErrors.None)
+        {
+            return true;
+        }
+
+        return certificate is not null
+            && _serverCertificateThumbprint is not null
+            && string.Equals(certificate.GetCertHashString(), _serverCertificateThumbprint, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static X509Certificate2 CreateServerCertificate(EndPoint endpoint)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var subjectName = GetCertificateSubjectName(endpoint);
+
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest($"CN={subjectName}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, false));
+        request.CertificateExtensions.Add(
+            new X509EnhancedKeyUsageExtension(
+                new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") },
+                false));
+
+        var san = new SubjectAlternativeNameBuilder();
+        switch (endpoint)
+        {
+            case DnsEndPoint dns:
+                san.AddDnsName(dns.Host);
+                break;
+            case IPEndPoint ip:
+                san.AddIpAddress(ip.Address);
+                break;
+        }
+        request.CertificateExtensions.Add(san.Build());
+
+        using var certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(7));
+#pragma warning disable SYSLIB0057
+        return new X509Certificate2(certificate.Export(X509ContentType.Pfx));
+#pragma warning restore SYSLIB0057
+
+        static string GetCertificateSubjectName(EndPoint endpoint) => endpoint switch
+        {
+            DnsEndPoint dns => dns.Host,
+            IPEndPoint ip => ip.Address.ToString(),
+            _ => "localhost",
+        };
+    }
+#endif
+
     private sealed class InProcTunnel(
         InProcessTestServer server,
         PipeOptions? pipeOptions = null) : Tunnel
@@ -225,16 +320,40 @@ public class InProcessTestServer : MemoryCacheRedisServer
             if (server.TryGetNode(endpoint, out var node))
             {
                 await server.OnAcceptClientAsync(endpoint);
+                server._log?.WriteLine(
+                    $"[{endpoint}] accepting {connectionType} mapped to {server.ServerType} node {node} via {(server.UseSsl ? "TLS" : "plaintext")}");
                 var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
                 var serverToClient = new Pipe(pipeOptions ?? PipeOptions.Default);
-                var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
+                var serverInput = clientToServer.Reader.AsStream();
+                var serverOutput = serverToClient.Writer.AsStream();
+                var serverTransport = new DuplexStream(serverInput, serverOutput);
 
-                TaskCompletionSource<RedisClient> clientTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-                Task.Run(async () => await server.RunClientAsync(serverSide, node: node, state: clientTcs), cancellationToken).RedisFireAndForget();
-                if (!clientTcs.Task.Wait(1000)) throw new TimeoutException("Client not connected");
-                var client = clientTcs.Task.Result;
-                server._log?.WriteLine(
-                    $"[{client}] connected ({connectionType} mapped to {server.ServerType} node {node})");
+                if (server.UseSsl)
+                {
+#if !NETFRAMEWORK
+                    Task.Run(
+                        async () =>
+                        {
+                            using var ssl = new SslStream(serverTransport, leaveInnerStreamOpen: false);
+                            await ssl.AuthenticateAsServerAsync(
+                                server._serverCertificate!,
+                                clientCertificateRequired: false,
+                                enabledSslProtocols: SslProtocols.None,
+                                checkCertificateRevocation: false).ConfigureAwait(false);
+                            var serverSide = new StreamDuplexPipe(ssl);
+                            await server.RunClientAsync(serverSide, node: node, state: null).ConfigureAwait(false);
+                        },
+                        cancellationToken).RedisFireAndForget();
+#endif
+                }
+                else
+                {
+                    var serverSide = new Duplex(clientToServer.Reader, serverToClient.Writer);
+                    TaskCompletionSource<RedisClient> clientTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    Task.Run(async () => await server.RunClientAsync(serverSide, node: node, state: clientTcs), cancellationToken).RedisFireAndForget();
+                    if (!clientTcs.Task.Wait(1000)) throw new TimeoutException("Client not connected");
+                    _ = clientTcs.Task.Result;
+                }
 
                 var readStream = serverToClient.Reader.AsStream();
                 var writeStream = clientToServer.Writer.AsStream();
@@ -255,6 +374,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
                 output.Complete();
                 return default;
             }
+        }
+
+        private sealed class StreamDuplexPipe(Stream stream) : IDuplexPipe
+        {
+            public PipeReader Input { get; } = PipeReader.Create(stream);
+            public PipeWriter Output { get; } = PipeWriter.Create(stream);
         }
     }
 

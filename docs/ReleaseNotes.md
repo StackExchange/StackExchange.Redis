@@ -8,17 +8,17 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Prefer RESP3 and avoid opening a separate subscription connection for Azure Managed Redis endpoints ([#3067 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3067))
 
 ## 2.12.27
 
+- Recognize Azure Managed Redis (AMR) resources in new Azure clouds ([#3068 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3068))
 - Remove `[Experimental]` 8.8 `GCRA` feature ([#3074 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3074))
 - Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
 - Add Redis 8.8 stream negative acknowledgements (`XNACK`) ([#3058 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3058))
 - Add experimental `Aggregate.Count` support for sorted-set combination operations against Redis 8.8 ([#3059 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3059))
-- Support sub-key (hash field) notifications ([#3062 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3062))
+- Support Redis 8.8 sub-key (hash field) notifications ([#3062 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3062))
 - Add `ValueCondition` overloads for `SortedSetIncrement`/`SortedSetIncrementAsync`, supporting `ZADD INCR` with existence conditions ([#3071 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3071))
-- Recognize Azure Managed Redis (AMR) resources in new Azure clouds ([#3068 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3068))
 
 ## 2.12.14
 
