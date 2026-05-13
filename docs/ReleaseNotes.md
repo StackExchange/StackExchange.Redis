@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Enable TCP keep-alives
 
 ## 2.13.1
 
