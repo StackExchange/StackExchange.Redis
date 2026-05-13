@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
@@ -223,7 +224,19 @@ namespace StackExchange.Redis
                 ? new Socket(SocketType.Stream, protocolType)
                 : new Socket(addressFamily, SocketType.Stream, protocolType);
             SocketConnection.SetRecommendedClientOptions(socket);
-            // socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
+            if (protocolType is ProtocolType.Tcp)
+            {
+                try
+                {
+                    // enable TCP keep-alive (best effort only)
+                    socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex.Message);
+                }
+            }
+
             return socket;
         }
 
