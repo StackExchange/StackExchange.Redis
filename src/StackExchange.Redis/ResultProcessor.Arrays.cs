@@ -75,22 +75,6 @@ internal abstract partial class ResultProcessor
 
     private sealed class RedisArrayEntryArrayProcessor : ValuePairInterleavedProcessorBase<RedisArrayEntry>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-        {
-            if (result.Resp2TypeArray != ResultType.Array)
-            {
-                return false;
-            }
-
-            if (result.IsNull)
-            {
-                SetResult(message, Array.Empty<RedisArrayEntry>());
-                return true;
-            }
-
-            return base.SetResultCore(connection, message, result);
-        }
-
         protected override RedisArrayEntry Parse(in RawResult first, in RawResult second, object? state)
         {
             TryParseArrayIndex(first, out RedisArrayIndex index);
@@ -98,37 +82,18 @@ internal abstract partial class ResultProcessor
         }
     }
 
-    private sealed class RedisArrayIndexEntryArrayProcessor : ResultProcessor<RedisArrayEntry[]>
+    private sealed class RedisArrayIndexEntryArrayProcessor : ArrayResultProcessor<RedisArrayEntry>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool TryParse(in RawResult raw, out RedisArrayEntry parsed)
         {
-            if (result.Resp2TypeArray != ResultType.Array)
+            if (TryParseArrayIndex(raw, out RedisArrayIndex index))
             {
-                return false;
-            }
-
-            if (result.IsNull)
-            {
-                SetResult(message, Array.Empty<RedisArrayEntry>());
+                parsed = new RedisArrayEntry(index);
                 return true;
             }
 
-            var items = result.GetItems();
-            var count = checked((int)items.Length);
-            var entries = new RedisArrayEntry[count];
-            var iter = items.GetEnumerator();
-            for (int i = 0; i < entries.Length; i++)
-            {
-                if (!iter.MoveNext() || !TryParseArrayIndex(iter.Current, out RedisArrayIndex index))
-                {
-                    return false;
-                }
-
-                entries[i] = new RedisArrayEntry(index);
-            }
-
-            SetResult(message, entries);
-            return true;
+            parsed = default;
+            return false;
         }
     }
 
