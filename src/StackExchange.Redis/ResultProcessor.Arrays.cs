@@ -73,7 +73,7 @@ internal abstract partial class ResultProcessor
         }
     }
 
-    private sealed class RedisArrayEntryArrayProcessor : ResultProcessor<RedisArrayEntry[]>
+    private sealed class RedisArrayEntryArrayProcessor : ValuePairInterleavedProcessorBase<RedisArrayEntry>
     {
         protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
         {
@@ -88,27 +88,13 @@ internal abstract partial class ResultProcessor
                 return true;
             }
 
-            var items = result.GetItems();
-            if ((items.Length & 1) != 0)
-            {
-                return false;
-            }
+            return base.SetResultCore(connection, message, result);
+        }
 
-            var count = checked((int)items.Length) / 2;
-            var entries = new RedisArrayEntry[count];
-            var iter = items.GetEnumerator();
-            for (int i = 0; i < entries.Length; i++)
-            {
-                if (!iter.MoveNext() || !TryParseArrayIndex(iter.Current, out RedisArrayIndex index) || !iter.MoveNext())
-                {
-                    return false;
-                }
-
-                entries[i] = new RedisArrayEntry(index, iter.Current.AsRedisValue());
-            }
-
-            SetResult(message, entries);
-            return true;
+        protected override RedisArrayEntry Parse(in RawResult first, in RawResult second, object? state)
+        {
+            TryParseArrayIndex(first, out RedisArrayIndex index);
+            return new RedisArrayEntry(index, second.AsRedisValue());
         }
     }
 
