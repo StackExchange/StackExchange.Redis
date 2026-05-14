@@ -63,6 +63,9 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "keepAlive",
                 "LibraryName",
                 "loggerFactory",
+#if DEBUG
+                "OutputLog",
+#endif
                 "password",
                 "Protocol",
                 "proxy",
