@@ -40,12 +40,12 @@ internal abstract class VectorSetSimilaritySearchMessage(
         {
             if (UseFp32)
             {
-                writer.WriteBulkString("FP32"u8);
+                writer.WriteRaw("$4\r\nFP32\r\n"u8);
                 writer.WriteBulkString(System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.Span));
             }
             else
             {
-                writer.WriteBulkString("VALUES"u8);
+                writer.WriteRaw("$6\r\nVALUES\r\n"u8);
                 writer.WriteBulkString(vector.Length);
                 foreach (var val in vector.Span)
                 {
@@ -74,7 +74,7 @@ internal abstract class VectorSetSimilaritySearchMessage(
 
         internal override void WriteSearchTarget(in MessageWriter writer)
         {
-            writer.WriteBulkString("ELE"u8);
+            writer.WriteRaw("$3\r\nELE\r\n"u8);
             writer.WriteBulkString(member);
         }
     }
@@ -214,53 +214,53 @@ internal abstract class VectorSetSimilaritySearchMessage(
 
         if (HasFlag(VsimFlags.WithScores))
         {
-            writer.WriteBulkString("WITHSCORES"u8);
+            writer.WriteRaw("$10\r\nWITHSCORES\r\n"u8);
         }
 
         if (HasFlag(VsimFlags.WithAttributes))
         {
-            writer.WriteBulkString("WITHATTRIBS"u8);
+            writer.WriteRaw("$11\r\nWITHATTRIBS\r\n"u8);
         }
 
         // Write optional parameters
         if (HasFlag(VsimFlags.Count))
         {
-            writer.WriteBulkString("COUNT"u8);
+            writer.WriteRaw("$5\r\nCOUNT\r\n"u8);
             writer.WriteBulkString(count);
         }
 
         if (HasFlag(VsimFlags.Epsilon))
         {
-            writer.WriteBulkString("EPSILON"u8);
+            writer.WriteRaw("$7\r\nEPSILON\r\n"u8);
             writer.WriteBulkString(epsilon);
         }
 
         if (HasFlag(VsimFlags.SearchExplorationFactor))
         {
-            writer.WriteBulkString("EF"u8);
+            writer.WriteRaw("$2\r\nEF\r\n"u8);
             writer.WriteBulkString(searchExplorationFactor);
         }
 
         if (HasFlag(VsimFlags.FilterExpression))
         {
-            writer.WriteBulkString("FILTER"u8);
+            writer.WriteRaw("$6\r\nFILTER\r\n"u8);
             writer.WriteBulkString(filterExpression);
         }
 
         if (HasFlag(VsimFlags.MaxFilteringEffort))
         {
-            writer.WriteBulkString("FILTER-EF"u8);
+            writer.WriteRaw("$9\r\nFILTER-EF\r\n"u8);
             writer.WriteBulkString(maxFilteringEffort);
         }
 
         if (HasFlag(VsimFlags.UseExactSearch))
         {
-            writer.WriteBulkString("TRUTH"u8);
+            writer.WriteRaw("$5\r\nTRUTH\r\n"u8);
         }
 
         if (HasFlag(VsimFlags.DisableThreading))
         {
-            writer.WriteBulkString("NOTHREAD"u8);
+            writer.WriteRaw("$8\r\nNOTHREAD\r\n"u8);
         }
     }
 

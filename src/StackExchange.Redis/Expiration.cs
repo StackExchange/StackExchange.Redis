@@ -252,19 +252,19 @@ public readonly struct Expiration
             case ExpirationMode.Default or ExpirationMode.NotUsed:
                 break;
             case ExpirationMode.KeepTtl:
-                writer.WriteBulkString("KEEPTTL"u8);
+                writer.WriteRaw("$7\r\nKEEPTTL\r\n"u8);
                 break;
             case ExpirationMode.Persist:
-                writer.WriteBulkString("PERSIST"u8);
+                writer.WriteRaw("$7\r\nPERSIST\r\n"u8);
                 break;
             default:
-                writer.WriteBulkString(mode switch
+                writer.WriteRaw(mode switch
                 {
-                    ExpirationMode.RelativeSeconds => "EX"u8,
-                    ExpirationMode.RelativeMilliseconds => "PX"u8,
-                    ExpirationMode.AbsoluteSeconds => "EXAT"u8,
-                    ExpirationMode.AbsoluteMilliseconds => "PXAT"u8,
-                    _ => default,
+                    ExpirationMode.RelativeSeconds => "$2\r\nEX\r\n"u8,
+                    ExpirationMode.RelativeMilliseconds => "$2\r\nPX\r\n"u8,
+                    ExpirationMode.AbsoluteSeconds => "$4\r\nEXAT\r\n"u8,
+                    ExpirationMode.AbsoluteMilliseconds => "$4\r\nPXAT\r\n"u8,
+                    _ => "$0\r\n\r\n"u8,
                 });
                 writer.WriteBulkString(Value);
                 break;

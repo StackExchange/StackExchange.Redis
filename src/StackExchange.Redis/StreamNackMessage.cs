@@ -59,13 +59,13 @@ internal partial class RedisDatabase
             switch (mode)
             {
                 case StreamNackMode.Silent:
-                    writer.WriteBulkString("SILENT"u8);
+                    writer.WriteRaw("$6\r\nSILENT\r\n"u8);
                     break;
                 case StreamNackMode.Fail:
-                    writer.WriteBulkString("FAIL"u8);
+                    writer.WriteRaw("$4\r\nFAIL\r\n"u8);
                     break;
                 case StreamNackMode.Fatal:
-                    writer.WriteBulkString("FATAL"u8);
+                    writer.WriteRaw("$5\r\nFATAL\r\n"u8);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode));

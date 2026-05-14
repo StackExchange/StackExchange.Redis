@@ -60,27 +60,27 @@ internal partial class RedisDatabase
         {
             if ((_when & SortedSetWhen.NotExists) != 0)
             {
-                physical.WriteBulkString("NX"u8);
+                physical.WriteRaw("$2\r\nNX\r\n"u8);
             }
             if ((_when & SortedSetWhen.Exists) != 0)
             {
-                physical.WriteBulkString("XX"u8);
+                physical.WriteRaw("$2\r\nXX\r\n"u8);
             }
             if ((_when & SortedSetWhen.GreaterThan) != 0)
             {
-                physical.WriteBulkString("GT"u8);
+                physical.WriteRaw("$2\r\nGT\r\n"u8);
             }
             if ((_when & SortedSetWhen.LessThan) != 0)
             {
-                physical.WriteBulkString("LT"u8);
+                physical.WriteRaw("$2\r\nLT\r\n"u8);
             }
             if ((_when & Change) != 0)
             {
-                physical.WriteBulkString("CH"u8);
+                physical.WriteRaw("$2\r\nCH\r\n"u8);
             }
             if ((_when & Increment) != 0)
             {
-                physical.WriteBulkString("INCR"u8);
+                physical.WriteRaw("$4\r\nINCR\r\n"u8);
             }
         }
     }

@@ -59,22 +59,22 @@ internal abstract class VectorSetAddMessage(
         writer.Write(key);
         if (reducedDimensions.HasValue)
         {
-            writer.WriteBulkString("REDUCE"u8);
+            writer.WriteRaw("$6\r\nREDUCE\r\n"u8);
             writer.WriteBulkString(reducedDimensions.GetValueOrDefault());
         }
 
         WriteElement(writer);
-        if (useCheckAndSet) writer.WriteBulkString("CAS"u8);
+        if (useCheckAndSet) writer.WriteRaw("$3\r\nCAS\r\n"u8);
 
         switch (quantization)
         {
             case VectorSetQuantization.Int8:
                 break;
             case VectorSetQuantization.None:
-                writer.WriteBulkString("NOQUANT"u8);
+                writer.WriteRaw("$7\r\nNOQUANT\r\n"u8);
                 break;
             case VectorSetQuantization.Binary:
-                writer.WriteBulkString("BIN"u8);
+                writer.WriteRaw("$3\r\nBIN\r\n"u8);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(quantization));
@@ -82,7 +82,7 @@ internal abstract class VectorSetAddMessage(
 
         if (buildExplorationFactor.HasValue)
         {
-            writer.WriteBulkString("EF"u8);
+            writer.WriteRaw("$2\r\nEF\r\n"u8);
             writer.WriteBulkString(buildExplorationFactor.GetValueOrDefault());
         }
 
@@ -90,7 +90,7 @@ internal abstract class VectorSetAddMessage(
 
         if (maxConnections.HasValue)
         {
-            writer.WriteBulkString("M"u8);
+            writer.WriteRaw("$1\r\nM\r\n"u8);
             writer.WriteBulkString(maxConnections.GetValueOrDefault());
         }
     }
@@ -132,12 +132,12 @@ internal abstract class VectorSetAddMessage(
         {
             if (UseFp32)
             {
-                writer.WriteBulkString("FP32"u8);
+                writer.WriteRaw("$4\r\nFP32\r\n"u8);
                 writer.WriteBulkString(MemoryMarshal.AsBytes(values.Span));
             }
             else
             {
-                writer.WriteBulkString("VALUES"u8);
+                writer.WriteRaw("$6\r\nVALUES\r\n"u8);
                 writer.WriteBulkString(values.Length);
                 foreach (var val in values.Span)
                 {
@@ -152,7 +152,7 @@ internal abstract class VectorSetAddMessage(
         {
             if (_attributesJson is not null)
             {
-                writer.WriteBulkString("SETATTR"u8);
+                writer.WriteRaw("$7\r\nSETATTR\r\n"u8);
                 writer.WriteBulkString(_attributesJson);
             }
         }

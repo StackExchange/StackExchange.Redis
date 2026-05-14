@@ -254,26 +254,26 @@ public readonly struct ValueCondition
         switch (_kind)
         {
             case ConditionKind.Exists:
-                writer.WriteBulkString("XX"u8);
+                writer.WriteRaw("$2\r\nXX\r\n"u8);
                 break;
             case ConditionKind.NotExists:
-                writer.WriteBulkString("NX"u8);
+                writer.WriteRaw("$2\r\nNX\r\n"u8);
                 break;
             case ConditionKind.ValueEquals:
-                writer.WriteBulkString("IFEQ"u8);
+                writer.WriteRaw("$4\r\nIFEQ\r\n"u8);
                 writer.WriteBulkString(_value);
                 break;
             case ConditionKind.ValueNotEquals:
-                writer.WriteBulkString("IFNE"u8);
+                writer.WriteRaw("$4\r\nIFNE\r\n"u8);
                 writer.WriteBulkString(_value);
                 break;
             case ConditionKind.DigestEquals:
-                writer.WriteBulkString("IFDEQ"u8);
+                writer.WriteRaw("$5\r\nIFDEQ\r\n"u8);
                 var written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
                 writer.WriteBulkString(written);
                 break;
             case ConditionKind.DigestNotEquals:
-                writer.WriteBulkString("IFDNE"u8);
+                writer.WriteRaw("$5\r\nIFDNE\r\n"u8);
                 written = WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]);
                 writer.WriteBulkString(written);
                 break;

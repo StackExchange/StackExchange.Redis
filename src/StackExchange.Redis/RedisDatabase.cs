@@ -1333,8 +1333,8 @@ namespace StackExchange.Redis
                 writer.Write(Key);
                 writer.WriteBulkString(toDatabase);
                 writer.WriteBulkString(timeoutMilliseconds);
-                if (isCopy) writer.WriteBulkString("COPY"u8);
-                if (isReplace) writer.WriteBulkString("REPLACE"u8);
+                if (isCopy) writer.WriteRaw("$4\r\nCOPY\r\n"u8);
+                if (isReplace) writer.WriteRaw("$7\r\nREPLACE\r\n"u8);
             }
 
             public override int ArgCount
@@ -4270,28 +4270,28 @@ namespace StackExchange.Redis
             protected override void WriteImpl(in MessageWriter writer)
             {
                 writer.WriteHeader(Command, argCount);
-                writer.WriteBulkString("GROUP"u8);
+                writer.WriteRaw("$5\r\nGROUP\r\n"u8);
                 writer.WriteBulkString(groupName);
                 writer.WriteBulkString(consumerName);
 
                 if (countPerStream.HasValue)
                 {
-                    writer.WriteBulkString("COUNT"u8);
+                    writer.WriteRaw("$5\r\nCOUNT\r\n"u8);
                     writer.WriteBulkString(countPerStream.Value);
                 }
 
                 if (noAck)
                 {
-                    writer.WriteBulkString("NOACK"u8);
+                    writer.WriteRaw("$5\r\nNOACK\r\n"u8);
                 }
 
                 if (claimMinIdleTime.HasValue)
                 {
-                    writer.WriteBulkString("CLAIM"u8);
+                    writer.WriteRaw("$5\r\nCLAIM\r\n"u8);
                     writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
-                writer.WriteBulkString("STREAMS"u8);
+                writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
                     writer.Write(streamPositions[i].Key);
@@ -4353,11 +4353,11 @@ namespace StackExchange.Redis
 
                 if (countPerStream.HasValue)
                 {
-                    writer.WriteBulkString("COUNT"u8);
+                    writer.WriteRaw("$5\r\nCOUNT\r\n"u8);
                     writer.WriteBulkString(countPerStream.Value);
                 }
 
-                writer.WriteBulkString("STREAMS"u8);
+                writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);
                 for (int i = 0; i < streamPositions.Length; i++)
                 {
                     writer.Write(streamPositions[i].Key);
@@ -5039,28 +5039,28 @@ namespace StackExchange.Redis
             protected override void WriteImpl(in MessageWriter writer)
             {
                 writer.WriteHeader(Command, argCount);
-                writer.WriteBulkString("GROUP"u8);
+                writer.WriteRaw("$5\r\nGROUP\r\n"u8);
                 writer.WriteBulkString(groupName);
                 writer.WriteBulkString(consumerName);
 
                 if (count.HasValue)
                 {
-                    writer.WriteBulkString("COUNT"u8);
+                    writer.WriteRaw("$5\r\nCOUNT\r\n"u8);
                     writer.WriteBulkString(count.Value);
                 }
 
                 if (noAck)
                 {
-                    writer.WriteBulkString("NOACK"u8);
+                    writer.WriteRaw("$5\r\nNOACK\r\n"u8);
                 }
 
                 if (claimMinIdleTime.HasValue)
                 {
-                    writer.WriteBulkString("CLAIM"u8);
+                    writer.WriteRaw("$5\r\nCLAIM\r\n"u8);
                     writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
-                writer.WriteBulkString("STREAMS"u8);
+                writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);
                 writer.Write(Key);
                 writer.WriteBulkString(afterId);
             }
@@ -5098,11 +5098,11 @@ namespace StackExchange.Redis
 
                 if (count.HasValue)
                 {
-                    writer.WriteBulkString("COUNT"u8);
+                    writer.WriteRaw("$5\r\nCOUNT\r\n"u8);
                     writer.WriteBulkString(count.Value);
                 }
 
-                writer.WriteBulkString("STREAMS"u8);
+                writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);
                 writer.Write(Key);
                 writer.WriteBulkString(afterId);
             }
@@ -5540,7 +5540,7 @@ namespace StackExchange.Redis
             protected override void WriteImpl(in MessageWriter writer)
             {
                 writer.WriteHeader(Command, 2);
-                writer.WriteBulkString("LOAD"u8);
+                writer.WriteRaw("$4\r\nLOAD\r\n"u8);
                 writer.WriteBulkString((RedisValue)Script);
             }
             public override int ArgCount => 2;

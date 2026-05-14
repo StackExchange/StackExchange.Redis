@@ -23,36 +23,36 @@ internal partial class RedisServer
                [SLOTS count slot…]
            */
             writer.WriteHeader(Command, ArgCount);
-            writer.WriteBulkString("START"u8);
-            writer.WriteBulkString("METRICS"u8);
+            writer.WriteRaw("$5\r\nSTART\r\n"u8);
+            writer.WriteRaw("$7\r\nMETRICS\r\n"u8);
             var metricCount = 0;
             if ((metrics & HotKeysMetrics.Cpu) != 0) metricCount++;
             if ((metrics & HotKeysMetrics.Network) != 0) metricCount++;
             writer.WriteBulkString(metricCount);
-            if ((metrics & HotKeysMetrics.Cpu) != 0) writer.WriteBulkString("CPU"u8);
-            if ((metrics & HotKeysMetrics.Network) != 0) writer.WriteBulkString("NET"u8);
+            if ((metrics & HotKeysMetrics.Cpu) != 0) writer.WriteRaw("$3\r\nCPU\r\n"u8);
+            if ((metrics & HotKeysMetrics.Network) != 0) writer.WriteRaw("$3\r\nNET\r\n"u8);
 
             if (count != 0)
             {
-                writer.WriteBulkString("COUNT"u8);
+                writer.WriteRaw("$5\r\nCOUNT\r\n"u8);
                 writer.WriteBulkString(count);
             }
 
             if (duration != TimeSpan.Zero)
             {
-                writer.WriteBulkString("DURATION"u8);
+                writer.WriteRaw("$8\r\nDURATION\r\n"u8);
                 writer.WriteBulkString(Math.Ceiling(duration.TotalSeconds));
             }
 
             if (sampleRatio != 1)
             {
-                writer.WriteBulkString("SAMPLE"u8);
+                writer.WriteRaw("$6\r\nSAMPLE\r\n"u8);
                 writer.WriteBulkString(sampleRatio);
             }
 
             if (slots is { Length: > 0 })
             {
-                writer.WriteBulkString("SLOTS"u8);
+                writer.WriteRaw("$5\r\nSLOTS\r\n"u8);
                 writer.WriteBulkString(slots.Length);
                 foreach (var slot in slots)
                 {
