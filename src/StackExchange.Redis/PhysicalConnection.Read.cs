@@ -733,7 +733,10 @@ internal sealed partial class PhysicalConnection
             // we have a channel-prefix, and it matches; strip it
             span = span.Slice(channelPrefix.Length);
         }
-        else if (span.StartsWith("__keyspace@"u8) || span.StartsWith("__keyevent@"u8))
+        else if (span.StartsWith("__"u8) && (
+             span.StartsWith("__keyspace@"u8) || span.StartsWith("__keyevent@"u8) ||
+             span.StartsWith("__subkeyspace@"u8) || span.StartsWith("__subkeyevent@"u8) ||
+             span.StartsWith("__subkeyspaceitem@"u8) || span.StartsWith("__subkeyspaceevent@"u8)))
         {
             // we shouldn't get unexpected events, so to get here: we've received a notification
             // on a channel that doesn't match our prefix; this *should* be limited to
