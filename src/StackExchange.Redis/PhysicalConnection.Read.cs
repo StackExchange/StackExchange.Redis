@@ -733,11 +733,9 @@ internal sealed partial class PhysicalConnection
             // we have a channel-prefix, and it matches; strip it
             span = span.Slice(channelPrefix.Length);
         }
-        else if (span.StartsWith("__"u8) && (
-             span.StartsWith("__keyspace@"u8) || span.StartsWith("__keyevent@"u8) ||
-             span.StartsWith("__subkeyspace@"u8) || span.StartsWith("__subkeyevent@"u8) ||
-             span.StartsWith("__subkeyspaceitem@"u8) || span.StartsWith("__subkeyspaceevent@"u8)))
+        else if (IsServerDefinedChannel(span))
         {
+            // Server-defined channels should ignore our channel-prefix rules.
             // we shouldn't get unexpected events, so to get here: we've received a notification
             // on a channel that doesn't match our prefix; this *should* be limited to
             // key notifications (see: IgnoreChannelPrefix), but: we need to be sure
@@ -754,6 +752,34 @@ internal sealed partial class PhysicalConnection
         if (lease.Length != 0) ArrayPool<byte>.Shared.Return(lease);
         return channel;
     }
+
+    private static bool IsServerDefinedChannel(ReadOnlySpan<byte> span)
+    {
+        var hash = AsciiHash.HashCS(span);
+        return hash switch
+        {
+            KeyspaceChannelPrefix.HashCS when span.StartsWith(KeyspaceChannelPrefix.U8) => true,
+            KeyeventChannelPrefix.HashCS when span.StartsWith(KeyeventChannelPrefix.U8) => true,
+            SubkeyspaceChannelPrefix.HashCS when span.StartsWith(SubkeyspaceChannelPrefix.U8) => true,
+            SubkeyeventChannelPrefix.HashCS when span.StartsWith(SubkeyeventChannelPrefix.U8) => true,
+            SubkeyspaceItemChannelPrefix.HashCS when span.StartsWith(SubkeyspaceItemChannelPrefix.U8) => true,
+            SubkeyspaceEventChannelPrefix.HashCS when span.StartsWith(SubkeyspaceEventChannelPrefix.U8) => true,
+            _ => false,
+        };
+    }
+
+    [AsciiHash("__keyspace@")]
+    private static partial class KeyspaceChannelPrefix { }
+    [AsciiHash("__keyevent@")]
+    private static partial class KeyeventChannelPrefix { }
+    [AsciiHash("__subkeyspace@")]
+    private static partial class SubkeyspaceChannelPrefix { }
+    [AsciiHash("__subkeyevent@")]
+    private static partial class SubkeyeventChannelPrefix { }
+    [AsciiHash("__subkeyspaceitem@")]
+    private static partial class SubkeyspaceItemChannelPrefix { }
+    [AsciiHash("__subkeyspaceevent@")]
+    private static partial class SubkeyspaceEventChannelPrefix { }
 
     [AsciiHash("*2\r\n$4\r\npong\r\n$")]
     private static partial class ArrayPong_LC_Bulk { }
