@@ -3442,27 +3442,29 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the string.</param>
         /// <param name="value">The amount to increment by.</param>
-        /// <param name="expiry">The expiration to apply. Use <see cref="Expiration.Default"/> to clear the existing TTL.</param>
+        /// <param name="expiry">The expiration to apply. Use <see cref="Expiration.Default"/> to retain the existing TTL.</param>
         /// <param name="lowerBound">The optional lower bound for the resulting value.</param>
         /// <param name="upperBound">The optional upper bound for the resulting value.</param>
         /// <param name="flags">The flags to use for this operation.</param>
+        /// <param name="overflow">The behavior when the increment would exceed a configured bound.</param>
         /// <returns>The resulting value and the increment actually applied.</returns>
 #pragma warning disable RS0026 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None);
+        StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail);
 
         /// <summary>
         /// Atomically increments the floating point value stored at key, optionally constraining the result and applying expiration semantics.
         /// </summary>
         /// <param name="key">The key of the string.</param>
         /// <param name="value">The amount to increment by.</param>
-        /// <param name="expiry">The expiration to apply. Use <see cref="Expiration.Default"/> to clear the existing TTL.</param>
+        /// <param name="expiry">The expiration to apply. Use <see cref="Expiration.Default"/> to retain the existing TTL.</param>
         /// <param name="lowerBound">The optional lower bound for the resulting value.</param>
         /// <param name="upperBound">The optional upper bound for the resulting value.</param>
         /// <param name="flags">The flags to use for this operation.</param>
+        /// <param name="overflow">The behavior when the increment would exceed a configured bound.</param>
         /// <returns>The resulting value and the increment actually applied.</returns>
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None);
+        StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail);
 #pragma warning restore RS0026
 
         /// <summary>

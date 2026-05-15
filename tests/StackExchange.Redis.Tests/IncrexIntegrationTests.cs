@@ -63,7 +63,7 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     }
 
     [Fact(Timeout = 5000)]
-    public async Task StringIncrementIncrex_SkipStillAppliesExpiry()
+    public async Task StringIncrementIncrex_FailThrowsWhenBoundExceeded()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
@@ -71,26 +71,64 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, 5);
 
-        var result = await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10);
+        await Assert.ThrowsAsync<RedisServerException>(async () => await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10));
+
+        Assert.Equal(5, (long)db.StringGet(key));
+        Assert.Null(await db.KeyTimeToLiveAsync(key));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StringIncrementIncrex_RejectIgnoresIncrementAndExpiry()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_8_0);
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, 5);
+
+        var result = await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10, overflow: IncrementOverflow.Reject);
 
         Assert.Equal(5, result.Value);
         Assert.Equal(0, result.AppliedIncrement);
+        Assert.Equal(5, (long)db.StringGet(key));
+        Assert.Null(await db.KeyTimeToLiveAsync(key));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StringIncrementIncrex_SaturateClampsToBound()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_8_0);
+        var db = conn.GetDatabase();
+        var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, 8);
+
+        var result = await db.StringIncrementAsync(key, 5L, TimeSpan.FromSeconds(5), upperBound: 10, overflow: IncrementOverflow.Saturate);
+
+        Assert.Equal(10, result.Value);
+        Assert.Equal(2, result.AppliedIncrement);
+        Assert.Equal(10, (long)db.StringGet(key));
         Assert.True((await db.KeyTimeToLiveAsync(key)) > TimeSpan.Zero);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task StringIncrementIncrex_DefaultClearsExistingTtl()
+    public async Task StringIncrementIncrex_DefaultRetainsExistingTtl()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, 5, TimeSpan.FromMinutes(5));
+        var beforeTtl = await db.KeyTimeToLiveAsync(key);
 
         var result = await db.StringIncrementAsync(key, 2L, Expiration.Default);
 
         Assert.Equal(7, result.Value);
         Assert.Equal(2, result.AppliedIncrement);
-        Assert.Null(await db.KeyTimeToLiveAsync(key));
+        var afterTtl = await db.KeyTimeToLiveAsync(key);
+        Assert.NotNull(beforeTtl);
+        Assert.NotNull(afterTtl);
+        Assert.True(afterTtl <= beforeTtl);
+        Assert.True(afterTtl > TimeSpan.FromMinutes(4));
     }
 }

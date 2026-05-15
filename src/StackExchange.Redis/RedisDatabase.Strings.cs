@@ -48,31 +48,35 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Digest);
     }
 
-    public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None)
+    public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail)
     {
         ValidateStringIncrementExpiry(expiry);
-        var msg = new IncrexInt64Message(Database, flags, key, value, lowerBound, upperBound, expiry);
+        ValidateIncrementOverflow(overflow);
+        var msg = new IncrexInt64Message(Database, flags, key, value, lowerBound, upperBound, expiry, overflow);
         return ExecuteSync(msg, IncrexResultProcessor.Int64);
     }
 
-    public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None)
+    public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail)
     {
         ValidateStringIncrementExpiry(expiry);
-        var msg = new IncrexInt64Message(Database, flags, key, value, lowerBound, upperBound, expiry);
+        ValidateIncrementOverflow(overflow);
+        var msg = new IncrexInt64Message(Database, flags, key, value, lowerBound, upperBound, expiry, overflow);
         return ExecuteAsync(msg, IncrexResultProcessor.Int64);
     }
 
-    public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None)
+    public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail)
     {
         ValidateStringIncrementExpiry(expiry);
-        var msg = new IncrexDoubleMessage(Database, flags, key, value, lowerBound, upperBound, expiry);
+        ValidateIncrementOverflow(overflow);
+        var msg = new IncrexDoubleMessage(Database, flags, key, value, lowerBound, upperBound, expiry, overflow);
         return ExecuteSync(msg, IncrexResultProcessor.Double);
     }
 
-    public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None)
+    public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail)
     {
         ValidateStringIncrementExpiry(expiry);
-        var msg = new IncrexDoubleMessage(Database, flags, key, value, lowerBound, upperBound, expiry);
+        ValidateIncrementOverflow(overflow);
+        var msg = new IncrexDoubleMessage(Database, flags, key, value, lowerBound, upperBound, expiry, overflow);
         return ExecuteAsync(msg, IncrexResultProcessor.Double);
     }
 
@@ -83,8 +87,21 @@ internal partial class RedisDatabase
         if (expiry.IsExpireIfNotExists && !(expiry.IsAbsolute || expiry.IsRelative)) ThrowEnxWithoutExpiry();
 
         static void ThrowKeepTtl() => throw new ArgumentException("KEEPTTL is not supported by this operation.", nameof(expiry));
-        static void ThrowPersist() => throw new ArgumentException("PERSIST is not supported by this operation; use Expiration.Default to clear the existing TTL.", nameof(expiry));
+        static void ThrowPersist() => throw new ArgumentException("PERSIST is not supported by this operation.", nameof(expiry));
         static void ThrowEnxWithoutExpiry() => throw new ArgumentException("ENX requires EX, PX, EXAT, or PXAT.", nameof(expiry));
+    }
+
+    private static void ValidateIncrementOverflow(IncrementOverflow overflow)
+    {
+        switch (overflow)
+        {
+            case IncrementOverflow.Fail:
+            case IncrementOverflow.Reject:
+            case IncrementOverflow.Saturate:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(overflow));
+        }
     }
 
     public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)

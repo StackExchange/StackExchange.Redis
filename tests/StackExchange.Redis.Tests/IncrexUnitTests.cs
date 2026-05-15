@@ -32,6 +32,8 @@ public class IncrexUnitTests(ITestOutputHelper log)
         Assert.Equal("2", request.Increment);
         Assert.Equal("0", request.LowerBound);
         Assert.Equal("20", request.UpperBound);
+        Assert.Equal("FAIL", request.Overflow);
+        Assert.False(request.HasOverflowToken);
         Assert.Equal("EX", request.ExpiryMode);
         Assert.Equal("5", request.ExpiryValue);
         Assert.False(request.Enx);
@@ -65,6 +67,8 @@ public class IncrexUnitTests(ITestOutputHelper log)
         Assert.Equal("1.25", request.Increment);
         Assert.Equal("-1.5", request.LowerBound);
         Assert.Equal("9.5", request.UpperBound);
+        Assert.Equal("FAIL", request.Overflow);
+        Assert.False(request.HasOverflowToken);
         Assert.Equal("PXAT", request.ExpiryMode);
         Assert.Equal("1753265054014", request.ExpiryValue);
         Assert.True(request.Enx);
@@ -84,7 +88,7 @@ public class IncrexUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task StringIncrementIncrex_SkipStillAppliesExpiry()
+    public async Task StringIncrementIncrex_FailThrowsWhenBoundExceeded()
     {
         using var server = new IncrexTestServer(log);
         await using var muxer = await server.ConnectAsync();
@@ -92,27 +96,71 @@ public class IncrexUnitTests(ITestOutputHelper log)
         var key = Me();
         db.StringSet(key, 5);
 
-        var result = await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10);
+        await Assert.ThrowsAsync<RedisServerException>(async () => await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10));
 
-        Assert.Equal(5, result.Value);
-        Assert.Equal(0, result.AppliedIncrement);
-        Assert.True((await db.KeyTimeToLiveAsync(key)) > TimeSpan.Zero);
+        Assert.Equal(5, (long)db.StringGet(key));
+        Assert.Null(await db.KeyTimeToLiveAsync(key));
+        Assert.Equal("FAIL", server.LastRequest!.Overflow);
+        Assert.False(server.LastRequest.HasOverflowToken);
     }
 
     [Fact]
-    public async Task StringIncrementIncrex_DefaultClearsExistingTtl()
+    public async Task StringIncrementIncrex_RejectIgnoresIncrementAndExpiry()
+    {
+        using var server = new IncrexTestServer(log);
+        await using var muxer = await server.ConnectAsync();
+        var db = muxer.GetDatabase();
+        var key = Me();
+        db.StringSet(key, 5);
+
+        var result = await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10, overflow: IncrementOverflow.Reject);
+
+        Assert.Equal(5, result.Value);
+        Assert.Equal(0, result.AppliedIncrement);
+        Assert.Equal(5, (long)db.StringGet(key));
+        Assert.Null(await db.KeyTimeToLiveAsync(key));
+        Assert.Equal("REJECT", server.LastRequest!.Overflow);
+        Assert.True(server.LastRequest.HasOverflowToken);
+    }
+
+    [Fact]
+    public async Task StringIncrementIncrex_SaturateClampsToBound()
+    {
+        using var server = new IncrexTestServer(log);
+        await using var muxer = await server.ConnectAsync();
+        var db = muxer.GetDatabase();
+        var key = Me();
+        db.StringSet(key, 8);
+
+        var result = await db.StringIncrementAsync(key, 5L, TimeSpan.FromSeconds(5), upperBound: 10, overflow: IncrementOverflow.Saturate);
+
+        Assert.Equal(10, result.Value);
+        Assert.Equal(2, result.AppliedIncrement);
+        Assert.Equal(10, (long)db.StringGet(key));
+        Assert.True((await db.KeyTimeToLiveAsync(key)) > TimeSpan.Zero);
+        Assert.Equal("SAT", server.LastRequest!.Overflow);
+        Assert.True(server.LastRequest.HasOverflowToken);
+    }
+
+    [Fact]
+    public async Task StringIncrementIncrex_DefaultRetainsExistingTtl()
     {
         using var server = new IncrexTestServer(log);
         await using var muxer = await server.ConnectAsync();
         var db = muxer.GetDatabase();
         var key = Me();
         db.StringSet(key, 5, TimeSpan.FromMinutes(5));
+        var beforeTtl = await db.KeyTimeToLiveAsync(key);
 
         var result = await db.StringIncrementAsync(key, 2L, Expiration.Default);
 
         Assert.Equal(7, result.Value);
         Assert.Equal(2, result.AppliedIncrement);
-        Assert.Null(await db.KeyTimeToLiveAsync(key));
+        var afterTtl = await db.KeyTimeToLiveAsync(key);
+        Assert.NotNull(beforeTtl);
+        Assert.NotNull(afterTtl);
+        Assert.True(afterTtl <= beforeTtl);
+        Assert.True(afterTtl > TimeSpan.FromMinutes(4));
     }
 
     [Fact]

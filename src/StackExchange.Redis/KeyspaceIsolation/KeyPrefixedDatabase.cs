@@ -780,11 +780,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringIncrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringIncrement(ToInner(key), value, flags);
 
-        public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringIncrement(ToInner(key), value, expiry, lowerBound, upperBound, flags);
+        public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail) =>
+            Inner.StringIncrement(ToInner(key), value, expiry, lowerBound, upperBound, flags, overflow);
 
-        public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringIncrement(ToInner(key), value, expiry, lowerBound, upperBound, flags);
+        public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail) =>
+            Inner.StringIncrement(ToInner(key), value, expiry, lowerBound, upperBound, flags, overflow);
 
         public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLength(ToInner(key), flags);
