@@ -15,7 +15,8 @@ From 3.0, [release notes will be maintained in GitHub only](https://github.com/S
 
 ## 2.12.14
 
-- (none)
+- Add experimental Redis 8.8 array support, including array APIs on `IDatabase`/`IDatabaseAsync`,
+  array helper types, `RedisType.Array`, and array delete keyspace notification event types.
 
 ## 2.13.1
 

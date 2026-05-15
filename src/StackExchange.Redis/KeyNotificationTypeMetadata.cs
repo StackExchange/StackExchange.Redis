@@ -68,6 +68,8 @@ internal static partial class KeyNotificationTypeMetadata
         KeyNotificationType.ZRemByScore => "zrembyscore"u8,
         KeyNotificationType.ZRem => "zrem"u8,
         KeyNotificationType.HExpire => "hexpire"u8,
+        KeyNotificationType.ArDel => "ardel"u8,
+        KeyNotificationType.ArDelRange => "ardelrange"u8,
         KeyNotificationType.Expired => "expired"u8,
         KeyNotificationType.Evicted => "evicted"u8,
         KeyNotificationType.New => "new"u8,

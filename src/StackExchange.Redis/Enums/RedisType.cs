@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
 namespace StackExchange.Redis
@@ -82,6 +83,13 @@ namespace StackExchange.Redis
         /// </summary>
         [AsciiHash("vectorset")]
         VectorSet,
+
+        /// <summary>
+        /// Redis Arrays are sparse arrays of arbitrary values with a notional write head.
+        /// </summary>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        [AsciiHash("array")]
+        Array,
     }
 
     /// <summary>

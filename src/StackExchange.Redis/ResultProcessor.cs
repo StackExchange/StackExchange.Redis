@@ -749,7 +749,7 @@ namespace StackExchange.Redis
             // happened, and we need to handle that; thus, by default, we'll detect jagged data
             // and handle it automatically; this virtual is included so we can turn it off
             // on a per-processor basis if needed
-            protected virtual bool AllowJaggedPairs => true;
+            protected virtual bool AllowJaggedPairs(RedisProtocol protocol) => protocol >= RedisProtocol.Resp3;
 
             private static bool IsAllJaggedPairsReader(in RespReader reader)
             {
@@ -783,7 +783,7 @@ namespace StackExchange.Redis
                 }
 
                 // Check if we have jagged pairs (RESP3 style) or interleaved (RESP2 style)
-                bool isJagged = protocol == RedisProtocol.Resp3 && AllowJaggedPairs && IsAllJaggedPairsReader(reader);
+                bool isJagged = AllowJaggedPairs(protocol) && IsAllJaggedPairsReader(reader);
 
                 if (isJagged)
                 {
@@ -2472,7 +2472,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class RedisStreamInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisStream>
         {
-            protected override bool AllowJaggedPairs => false; // we only use this on a flattened map
+            protected override bool AllowJaggedPairs(RedisProtocol protocol) => false; // we only use this on a flattened map
 
             public static readonly RedisStreamInterleavedProcessor Resp2 = new(RedisProtocol.Resp2);
             public static readonly RedisStreamInterleavedProcessor Resp3 = new(RedisProtocol.Resp3);

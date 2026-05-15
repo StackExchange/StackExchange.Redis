@@ -12,6 +12,25 @@ internal enum RedisCommand
     ASKING,
     AUTH,
 
+    ARCOUNT,
+    ARDEL,
+    ARDELRANGE,
+    ARGET,
+    ARGETRANGE,
+    ARGREP,
+    ARINFO,
+    ARINSERT,
+    ARLASTITEMS,
+    ARLEN,
+    ARMGET,
+    ARMSET,
+    ARNEXT,
+    AROP,
+    ARRING,
+    ARSCAN,
+    ARSEEK,
+    ARSET,
+
     BGREWRITEAOF,
     BGSAVE,
     BITCOUNT,
@@ -311,6 +330,13 @@ internal static class RedisCommandExtensions
             //   for example spreading load via a .DemandReplica flag in the caller.
             // Basically: would it fail on a read-only replica in 100% of cases? Then it goes in the list.
             case RedisCommand.APPEND:
+            case RedisCommand.ARDEL:
+            case RedisCommand.ARDELRANGE:
+            case RedisCommand.ARINSERT:
+            case RedisCommand.ARMSET:
+            case RedisCommand.ARRING:
+            case RedisCommand.ARSEEK:
+            case RedisCommand.ARSET:
             case RedisCommand.BITOP:
             case RedisCommand.BLPOP:
             case RedisCommand.BRPOP:
@@ -410,6 +436,17 @@ internal static class RedisCommandExtensions
             case RedisCommand.NONE:
             case RedisCommand.ASKING:
             case RedisCommand.AUTH:
+            case RedisCommand.ARCOUNT:
+            case RedisCommand.ARGET:
+            case RedisCommand.ARGETRANGE:
+            case RedisCommand.ARGREP:
+            case RedisCommand.ARINFO:
+            case RedisCommand.ARLASTITEMS:
+            case RedisCommand.ARLEN:
+            case RedisCommand.ARMGET:
+            case RedisCommand.ARNEXT:
+            case RedisCommand.AROP:
+            case RedisCommand.ARSCAN:
             case RedisCommand.BGREWRITEAOF:
             case RedisCommand.BGSAVE:
             case RedisCommand.BITCOUNT:
