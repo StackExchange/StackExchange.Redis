@@ -1,4 +1,7 @@
-﻿namespace StackExchange.Redis
+﻿using System.Diagnostics.CodeAnalysis;
+using RESPite;
+
+namespace StackExchange.Redis
 {
     /// <summary>
     /// The intrinsic data-types supported by redis.
@@ -71,5 +74,11 @@
         /// vector set elements have a string representation of a vector.
         /// </summary>
         VectorSet,
+
+        /// <summary>
+        /// Redis Arrays are sparse arrays of arbitrary values with a notional write head.
+        /// </summary>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        Array,
     }
 }

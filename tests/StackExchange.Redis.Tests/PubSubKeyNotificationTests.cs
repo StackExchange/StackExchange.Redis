@@ -89,7 +89,7 @@ public abstract class PubSubKeyNotificationTests(ITestOutputHelper output, ITest
             // Check that the config contains all required tokens
             foreach (var token in requiredTokens)
             {
-                Assert.SkipUnless(value.Contains(token), $"Server {ep} notify-keyspace-events config '{value}' missing required token '{token}' for {kind}");
+                Assert.SkipUnless(value.IndexOf(token) >= 0, $"Server {ep} notify-keyspace-events config '{value}' missing required token '{token}' for {kind}");
             }
         }
 
