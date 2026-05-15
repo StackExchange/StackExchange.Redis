@@ -75,6 +75,8 @@ internal abstract partial class ResultProcessor
 
     private sealed class RedisArrayEntryArrayProcessor : ValuePairInterleavedProcessorBase<RedisArrayEntry>
     {
+        protected override bool AllowJaggedPairs(in RawResult result) => true; // i.e. even in RESP2
+
         protected override RedisArrayEntry Parse(in RawResult first, in RawResult second, object? state)
         {
             TryParseArrayIndex(first, out RedisArrayIndex index);
