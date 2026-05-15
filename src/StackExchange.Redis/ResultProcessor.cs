@@ -699,7 +699,7 @@ namespace StackExchange.Redis
             // happened, and we need to handle that; thus, by default, we'll detect jagged data
             // and handle it automatically; this virtual is included so we can turn it off
             // on a per-processor basis if needed
-            protected virtual bool AllowJaggedPairs => true;
+            protected virtual bool AllowJaggedPairs(in RawResult result) => result.IsResp3;
 
             public bool TryParse(in RawResult result, out T[]? pairs)
                 => TryParse(result, out pairs, false, out _);
@@ -719,7 +719,7 @@ namespace StackExchange.Redis
                     return [];
                 }
 
-                bool interleaved = !(result.IsResp3 && AllowJaggedPairs && IsAllJaggedPairs(arr));
+                bool interleaved = !(AllowJaggedPairs(result) && IsAllJaggedPairs(arr));
                 if (interleaved) count >>= 1; // so: half of that
                 var pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
 
@@ -2287,7 +2287,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private sealed class RedisStreamInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisStream>
         {
-            protected override bool AllowJaggedPairs => false; // we only use this on a flattened map
+            protected override bool AllowJaggedPairs(in RawResult result) => false; // we only use this on a flattened map
 
             public static readonly RedisStreamInterleavedProcessor Instance = new();
             private RedisStreamInterleavedProcessor()

@@ -8,13 +8,34 @@ Current package versions:
 
 ## Unreleased
 
+- Add experimental Redis 8.8 array support, including array APIs on `IDatabase`/`IDatabaseAsync`,
+  array helper types, `RedisType.Array`, and array delete keyspace notification event types.
+
+## 2.13.1
+
+***IMPORTANT:*** This release changes the default protocol from RESP2 to RESP3 for Azure Managed Redis endpoints (only) ; this
+has scalability and feature advantages, but if you are using modules or ad-hoc commands,
+*[please see the RESP3 notes](https://stackexchange.github.io/StackExchange.Redis/Resp3)*,
+which includes:
+
+- the purpose of RESP3
+- scenarios where RESP2 vs RESP3 may be visible
+- how to explicitly choose to remain on RESP2
+- notes on additional libraries such as NRedisStack
+
+Changes:
+
+- Prefer RESP3 for Azure Managed Redis endpoints ([#3067 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3067))
+
+## 2.12.27
+
+- Recognize Azure Managed Redis (AMR) resources in new Azure clouds ([#3068 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3068))
 - Remove `[Experimental]` 8.8 `GCRA` feature ([#3074 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3074))
 - Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
 - Add Redis 8.8 stream negative acknowledgements (`XNACK`) ([#3058 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3058))
 - Add experimental `Aggregate.Count` support for sorted-set combination operations against Redis 8.8 ([#3059 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3059))
-- Support sub-key (hash field) notifications ([#3062 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3062))
+- Support Redis 8.8 sub-key (hash field) notifications ([#3062 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3062))
 - Add `ValueCondition` overloads for `SortedSetIncrement`/`SortedSetIncrementAsync`, supporting `ZADD INCR` with existence conditions ([#3071 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3071))
-- Recognize Azure Managed Redis (AMR) resources in new Azure clouds ([#3068 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3068))
 
 ## 2.12.14
 

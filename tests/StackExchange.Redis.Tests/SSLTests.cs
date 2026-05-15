@@ -416,6 +416,8 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
                     Ssl = true,
                     AbortOnConnectFail = false,
                 };
+                _ = a.Defaults;
+                _ = b.Defaults; // ensure the lazily materialized provider matches the parsed shape
                 Log($"computed: {b.ToString(true)}");
 
                 Log("Checking endpoints...");
@@ -429,6 +431,14 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
                 Array.Sort(fields, (x, y) => string.CompareOrdinal(x.Name, y.Name));
                 foreach (var field in fields)
                 {
+                    if (field.Name == "defaultOptions")
+                    {
+                        var x = field.GetValue(a);
+                        var y = field.GetValue(b);
+                        Log($"{field.Name}: {(x == null ? "(null)" : x.GetType().Name)} vs {(y == null ? "(null)" : y.GetType().Name)}");
+                        Check(field.Name + ".Type", x?.GetType(), y?.GetType());
+                        continue;
+                    }
                     Check(field.Name, field.GetValue(a), field.GetValue(b));
                 }
             }

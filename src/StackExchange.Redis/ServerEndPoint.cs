@@ -107,7 +107,6 @@ namespace StackExchange.Redis
         public bool IsConnecting => interactive?.IsConnecting == true;
         public bool IsConnected => interactive?.IsConnected == true;
         public bool IsSubscriberConnected => KnowOrAssumeResp3() ? IsConnected : subscription?.IsConnected == true;
-
         public bool KnowOrAssumeResp3()
         {
             var protocol = interactive?.Protocol;
@@ -627,7 +626,7 @@ namespace StackExchange.Redis
         {
             // Until we've connected at least once, we're going to have a DidNotRespond unselectable reason present
             var bridge = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond)
-                ? GetBridge(command, false)
+                ? GetBridge(command, true)
                 : null;
 
             return bridge != null && (allowDisconnected || bridge.IsConnected);
