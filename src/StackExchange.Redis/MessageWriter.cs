@@ -131,7 +131,28 @@ internal readonly ref struct MessageWriter
         }
     }
 
-    internal void WriteHeader(RedisCommand command, int arguments) => WriteHeader(command, arguments, _map.GetBytes(command).Span);
+    internal void WriteHeader(RedisCommand command, int arguments)
+    {
+        // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+        if (arguments >= REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(command.ToString(), arguments);
+
+        // in theory we should never see this; CheckMessage dealt with "regular" messages, and
+        // ExecuteMessage should have dealt with everything else
+        var commandBytes = _map.GetResp(command);
+        if (commandBytes.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+
+        // *{argCount}\r\n      = 3 + MaxInt32TextLen
+        // ${cmd-len}\r\n       = precomputed
+        // {cmd}\r\n            = precomputed
+        var span = _writer.GetSpan(commandBytes.Length + 3 + Format.MaxInt32TextLen);
+        span[0] = (byte)'*';
+
+        int offset = WriteRaw(span, arguments + 1, offset: 1);
+        commandBytes.CopyTo(span.Slice(offset));
+        offset += commandBytes.Length;
+
+        _writer.Advance(offset);
+    }
 
     internal void WriteHeader(RedisCommand command, int arguments, ReadOnlySpan<byte> commandBytes)
     {

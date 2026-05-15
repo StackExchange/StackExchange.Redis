@@ -54,6 +54,15 @@ public class TestHarnessTests
     }
 
     [Fact]
+    public void CommandMapDeltas()
+    {
+        Assert.Equal("", CommandMap.Default.ToString());
+        Assert.Equal("", CommandMap.Create(new() { ["sEt"] = "set" }).ToString());
+        Assert.Equal("$SET=PUT", CommandMap.Create(new() { ["sEt"] = "put" }).ToString());
+        Assert.Equal("$ECHO=", CommandMap.Create(new() { "echo" }, available: false).ToString());
+    }
+
+    [Fact]
     public void WithKeyPrefix_DetectIncorrectUsage()
     {
         string key = "mykey"; // incorrectly not a key
