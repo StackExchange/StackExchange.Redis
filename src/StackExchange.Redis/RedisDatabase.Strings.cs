@@ -48,7 +48,7 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, ResultProcessor.Digest);
     }
 
-    public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail)
+    public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOverflow overflow = IncrementOverflow.Fail, CommandFlags flags = CommandFlags.None)
     {
         ValidateStringIncrementExpiry(expiry);
         ValidateIncrementOverflow(overflow);
@@ -56,7 +56,7 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, IncrexResultProcessor.Int64);
     }
 
-    public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail)
+    public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOverflow overflow = IncrementOverflow.Fail, CommandFlags flags = CommandFlags.None)
     {
         ValidateStringIncrementExpiry(expiry);
         ValidateIncrementOverflow(overflow);
@@ -64,7 +64,7 @@ internal partial class RedisDatabase
         return ExecuteAsync(msg, IncrexResultProcessor.Int64);
     }
 
-    public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail)
+    public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOverflow overflow = IncrementOverflow.Fail, CommandFlags flags = CommandFlags.None)
     {
         ValidateStringIncrementExpiry(expiry);
         ValidateIncrementOverflow(overflow);
@@ -72,7 +72,7 @@ internal partial class RedisDatabase
         return ExecuteSync(msg, IncrexResultProcessor.Double);
     }
 
-    public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, CommandFlags flags = CommandFlags.None, IncrementOverflow overflow = IncrementOverflow.Fail)
+    public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOverflow overflow = IncrementOverflow.Fail, CommandFlags flags = CommandFlags.None)
     {
         ValidateStringIncrementExpiry(expiry);
         ValidateIncrementOverflow(overflow);
