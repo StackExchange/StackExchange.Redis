@@ -280,6 +280,17 @@ namespace StackExchange.Redis
             return oldSlot == newSlot ? oldSlot : MultipleSlots;
         }
 
+        internal int HashSlot(RedisKey[] keys) => CombineSlot(NoSlot, keys);
+
+        internal int CombineSlot(int oldSlot, RedisKey[] keys)
+        {
+            for (int i = 0; i < keys.Length; i++)
+            {
+                oldSlot = CombineSlot(oldSlot, keys[i]);
+            }
+            return oldSlot;
+        }
+
         internal int CountCoveredSlots()
         {
             var arr = map;

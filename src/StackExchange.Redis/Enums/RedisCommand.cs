@@ -270,6 +270,7 @@ internal enum RedisCommand
     ZCARD,
     ZCOUNT,
     ZDIFF,
+    ZDIFFCARD,
     ZDIFFSTORE,
     ZINCRBY,
     ZINTER,
@@ -297,6 +298,7 @@ internal enum RedisCommand
     ZSCAN,
     ZSCORE,
     ZUNION,
+    ZUNIONCARD,
     ZUNIONSTORE,
 
     UNKNOWN,
@@ -559,6 +561,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.ZCARD:
             case RedisCommand.ZCOUNT:
             case RedisCommand.ZDIFF:
+            case RedisCommand.ZDIFFCARD:
             case RedisCommand.ZINTER:
             case RedisCommand.ZINTERCARD:
             case RedisCommand.ZLEXCOUNT:
@@ -575,6 +578,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.ZSCAN:
             case RedisCommand.ZSCORE:
             case RedisCommand.ZUNION:
+            case RedisCommand.ZUNIONCARD:
             case RedisCommand.UNKNOWN:
             case RedisCommand.VCARD:
             case RedisCommand.VDIM:

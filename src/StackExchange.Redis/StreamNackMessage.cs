@@ -104,13 +104,7 @@ internal partial class RedisDatabase
             if (messageIds == null) throw new ArgumentNullException(nameof(messageIds));
 #endif
             if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
-
-            for (int i = 0; i < messageIds.Length; i++)
-            {
-                messageIds[i].AssertNotNull();
-            }
-
-            this.messageIds = messageIds;
+            this.messageIds = messageIds.AssertAllNonNull();
         }
 
         protected override int Count => messageIds.Length;

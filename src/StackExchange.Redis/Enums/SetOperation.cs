@@ -25,15 +25,31 @@ namespace StackExchange.Redis
 
     internal static class SetOperationExtensions
     {
-        internal static RedisCommand ToCommand(this SetOperation operation, bool store) => operation switch
+        internal static RedisCommand ToBasicCommand(this SetOperation operation) => operation switch
         {
-            SetOperation.Intersect when store => RedisCommand.ZINTERSTORE,
-            SetOperation.Intersect => RedisCommand.ZINTER,
-            SetOperation.Union when store => RedisCommand.ZUNIONSTORE,
             SetOperation.Union => RedisCommand.ZUNION,
-            SetOperation.Difference when store => RedisCommand.ZDIFFSTORE,
+            SetOperation.Intersect => RedisCommand.ZINTER,
             SetOperation.Difference => RedisCommand.ZDIFF,
-            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+            _ => OutOfRange(operation),
         };
+
+        internal static RedisCommand ToStoreCommand(this SetOperation operation) => operation switch
+        {
+            SetOperation.Union => RedisCommand.ZUNIONSTORE,
+            SetOperation.Intersect => RedisCommand.ZINTERSTORE,
+            SetOperation.Difference => RedisCommand.ZDIFFSTORE,
+            _ => OutOfRange(operation),
+        };
+
+        internal static RedisCommand ToCardinalityCommand(this SetOperation operation) => operation switch
+        {
+            SetOperation.Union => RedisCommand.ZUNIONCARD,
+            SetOperation.Intersect => RedisCommand.ZINTERCARD,
+            SetOperation.Difference => RedisCommand.ZDIFFCARD,
+            _ => OutOfRange(operation),
+        };
+
+        private static RedisCommand OutOfRange(SetOperation operation) =>
+            throw new ArgumentOutOfRangeException(nameof(operation), operation, null);
     }
 }
