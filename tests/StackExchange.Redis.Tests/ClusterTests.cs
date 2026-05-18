@@ -216,9 +216,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             RedisValue group = $"group-{i}";
             Log("Probe {0}: key={1}, slot={2}", i, key, conn.HashSlot(key));
 
-            db.KeyDelete(key);
+            await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
-            Assert.True(db.StreamCreateConsumerGroup(
+            Assert.True(await db.StreamCreateConsumerGroupAsync(
                 key,
                 group,
                 StreamPosition.NewMessages,
@@ -245,25 +245,25 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             RedisValue consumer = $"consumer-{i}";
             Log("Probe {0}: key={1}, slot={2}", i, key, conn.HashSlot(key));
 
-            db.KeyDelete(key);
-            db.StreamAdd(key, "field", "value");
-            db.StreamCreateConsumerGroup(key, group, StreamPosition.Beginning);
-            db.StreamReadGroup(key, group, consumer, StreamPosition.NewMessages);
+            await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+            await db.StreamAddAsync(key, "field", "value", flags: CommandFlags.FireAndForget);
+            await db.StreamCreateConsumerGroupAsync(key, group, StreamPosition.Beginning, flags: CommandFlags.FireAndForget);
+            await db.StreamReadGroupAsync(key, group, consumer, StreamPosition.NewMessages, flags: CommandFlags.FireAndForget);
 
             switch (operation)
             {
                 case StreamConsumerGroupRoutingOperation.SetPosition:
-                    Assert.True(db.StreamConsumerGroupSetPosition(key, group, StreamPosition.Beginning, CommandFlags.NoRedirect));
+                    Assert.True(await db.StreamConsumerGroupSetPositionAsync(key, group, StreamPosition.Beginning, CommandFlags.NoRedirect));
                     break;
                 case StreamConsumerGroupRoutingOperation.ConsumerInfo:
-                    var consumers = db.StreamConsumerInfo(key, group, CommandFlags.NoRedirect);
+                    var consumers = await db.StreamConsumerInfoAsync(key, group, CommandFlags.NoRedirect);
                     Assert.Contains(consumers, consumerInfo => consumerInfo.Name == consumer);
                     break;
                 case StreamConsumerGroupRoutingOperation.DeleteConsumer:
-                    Assert.Equal(1, db.StreamDeleteConsumer(key, group, consumer, CommandFlags.NoRedirect));
+                    Assert.Equal(1, await db.StreamDeleteConsumerAsync(key, group, consumer, CommandFlags.NoRedirect));
                     break;
                 case StreamConsumerGroupRoutingOperation.DeleteConsumerGroup:
-                    Assert.True(db.StreamDeleteConsumerGroup(key, group, CommandFlags.NoRedirect));
+                    Assert.True(await db.StreamDeleteConsumerGroupAsync(key, group, CommandFlags.NoRedirect));
                     break;
             }
         }
@@ -283,12 +283,11 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             Log("Probe {0}: key={1}, slot={2}", i, key1, conn.HashSlot(key1));
             Assert.Equal(conn.HashSlot(key1), conn.HashSlot(key2));
 
-            db.KeyDelete(key1);
-            db.KeyDelete(key2);
-            db.SetAdd(key1, ["shared", "key1-only"]);
-            db.SetAdd(key2, ["shared", "key2-only"]);
+            await db.KeyDeleteAsync([key1, key2], CommandFlags.FireAndForget);
+            await db.SetAddAsync(key1, ["shared", "key1-only"], CommandFlags.FireAndForget);
+            await db.SetAddAsync(key2, ["shared", "key2-only"], CommandFlags.FireAndForget);
 
-            Assert.Equal(1, db.SetIntersectionLength([key1, key2], flags: CommandFlags.NoRedirect));
+            Assert.Equal(1, await db.SetIntersectionLengthAsync([key1, key2], flags: CommandFlags.NoRedirect));
         }
     }
 
@@ -309,12 +308,11 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             Log("Probe {0}: key={1}, slot={2}", i, key1, conn.HashSlot(key1));
             Assert.Equal(conn.HashSlot(key1), conn.HashSlot(key2));
 
-            db.KeyDelete(key1);
-            db.KeyDelete(key2);
-            db.SortedSetAdd(key1, [new("shared", 1), new("key1-only", 2)]);
-            db.SortedSetAdd(key2, [new("shared", 1), new("key2-only", 3)]);
+            await db.KeyDeleteAsync([key1, key2], CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(key1, [new("shared", 1), new("key1-only", 2)], CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(key2, [new("shared", 1), new("key2-only", 3)], CommandFlags.FireAndForget);
 
-            var result = db.SortedSetCombine(operation, [key1, key2], flags: CommandFlags.NoRedirect);
+            var result = await db.SortedSetCombineAsync(operation, [key1, key2], flags: CommandFlags.NoRedirect);
             switch (operation)
             {
                 case SetOperation.Difference:
@@ -347,11 +345,10 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             Log("Probe {0}: key={1}, slot={2}", i, key1, conn.HashSlot(key1));
             Assert.Equal(conn.HashSlot(key1), conn.HashSlot(key2));
 
-            db.KeyDelete(key1);
-            db.KeyDelete(key2);
-            db.SortedSetAdd(key1, [new("shared", 1), new("key1-only", 2)]);
-            db.SortedSetAdd(key2, [new("shared", 1), new("key2-only", 3)]);
-            Assert.Equal(1, db.SortedSetIntersectionLength([key1, key2], flags: CommandFlags.NoRedirect));
+            await db.KeyDeleteAsync([key1, key2], CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(key1, [new("shared", 1), new("key1-only", 2)], CommandFlags.FireAndForget);
+            await db.SortedSetAddAsync(key2, [new("shared", 1), new("key2-only", 3)], CommandFlags.FireAndForget);
+            Assert.Equal(1, await db.SortedSetIntersectionLengthAsync([key1, key2], flags: CommandFlags.NoRedirect));
         }
     }
 
