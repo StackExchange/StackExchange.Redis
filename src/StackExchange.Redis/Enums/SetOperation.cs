@@ -25,7 +25,23 @@ namespace StackExchange.Redis
 
     internal static class SetOperationExtensions
     {
-        internal static RedisCommand ToBasicCommand(this SetOperation operation) => operation switch
+        internal static RedisCommand ToSetCommand(this SetOperation operation) => operation switch
+        {
+            SetOperation.Union => RedisCommand.SUNION,
+            SetOperation.Intersect => RedisCommand.SINTER,
+            SetOperation.Difference => RedisCommand.SDIFF,
+            _ => OutOfRange(operation),
+        };
+
+        internal static RedisCommand ToSetStoreCommand(this SetOperation operation) => operation switch
+        {
+            SetOperation.Union => RedisCommand.SUNIONSTORE,
+            SetOperation.Intersect => RedisCommand.SINTERSTORE,
+            SetOperation.Difference => RedisCommand.SDIFFSTORE,
+            _ => OutOfRange(operation),
+        };
+
+        internal static RedisCommand ToSortedSetCommand(this SetOperation operation) => operation switch
         {
             SetOperation.Union => RedisCommand.ZUNION,
             SetOperation.Intersect => RedisCommand.ZINTER,
@@ -33,19 +49,11 @@ namespace StackExchange.Redis
             _ => OutOfRange(operation),
         };
 
-        internal static RedisCommand ToStoreCommand(this SetOperation operation) => operation switch
+        internal static RedisCommand ToSortedSetStoreCommand(this SetOperation operation) => operation switch
         {
             SetOperation.Union => RedisCommand.ZUNIONSTORE,
             SetOperation.Intersect => RedisCommand.ZINTERSTORE,
             SetOperation.Difference => RedisCommand.ZDIFFSTORE,
-            _ => OutOfRange(operation),
-        };
-
-        internal static RedisCommand ToCardinalityCommand(this SetOperation operation) => operation switch
-        {
-            SetOperation.Union => RedisCommand.ZUNIONCARD,
-            SetOperation.Intersect => RedisCommand.ZINTERCARD,
-            SetOperation.Difference => RedisCommand.ZDIFFCARD,
             _ => OutOfRange(operation),
         };
 

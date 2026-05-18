@@ -9,15 +9,6 @@ internal sealed class SetOperationCardinalityMessage(
 {
     private readonly RedisKey[] _keys = keys.AssertAllNonNull();
 
-    public SetOperationCardinalityMessage(
-        int db,
-        CommandFlags flags,
-        SetOperation operation,
-        RedisKey[] keys,
-        long limit) : this(db, flags, operation.ToCardinalityCommand(), keys, limit)
-    {
-    }
-
     public override int ArgCount => 1 + _keys.Length + (limit > 0 ? 2 : 0);
 
     public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(_keys);

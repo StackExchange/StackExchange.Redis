@@ -16,7 +16,7 @@ internal sealed class SetOperationMessage : Message
         RedisKey[] keys,
         double[]? weights,
         Aggregate aggregate,
-        bool withScores) : base(db, flags, operation.ToBasicCommand())
+        bool withScores) : base(db, flags, operation.ToSortedSetCommand())
     {
         _keys = keys.AssertAllNonNull();
         if (operation == SetOperation.Difference && (weights != null || aggregate != Aggregate.Sum))

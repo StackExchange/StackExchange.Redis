@@ -2056,49 +2056,49 @@ namespace StackExchange.Redis
 
         public RedisValue[] SetCombine(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), first, second);
+            var msg = Message.Create(Database, flags, operation.ToSetCommand(), first, second);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
         public RedisValue[] SetCombine(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), keys);
+            var msg = Message.Create(Database, flags, operation.ToSetCommand(), keys);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, SetOperationCommand(operation, true), destination, first, second);
+            var msg = Message.Create(Database, flags, operation.ToSetStoreCommand(), destination, first, second);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, SetOperationCommand(operation, true), destination, keys);
+            var msg = Message.Create(Database, flags, operation.ToSetStoreCommand(), destination, keys);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, SetOperationCommand(operation, true), destination, first, second);
+            var msg = Message.Create(Database, flags, operation.ToSetStoreCommand(), destination, first, second);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, SetOperationCommand(operation, true), destination, keys);
+            var msg = Message.Create(Database, flags, operation.ToSetStoreCommand(), destination, keys);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), first, second);
+            var msg = Message.Create(Database, flags, operation.ToSetCommand(), first, second);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
         public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, SetOperationCommand(operation, false), keys);
+            var msg = Message.Create(Database, flags, operation.ToSetCommand(), keys);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
         }
 
@@ -4516,7 +4516,7 @@ namespace StackExchange.Redis
 
         private Message GetSortedSetCombineAndStoreCommandMessage(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights, Aggregate aggregate, CommandFlags flags)
         {
-            var command = operation.ToStoreCommand();
+            var command = operation.ToSortedSetStoreCommand();
             if (keys == null)
             {
                 throw new ArgumentNullException(nameof(keys));
@@ -4589,7 +4589,7 @@ namespace StackExchange.Redis
         }
 
         private Message GetSortedSetIntersectionLengthMessage(RedisKey[] keys, long limit, CommandFlags flags)
-            => new SetOperationCardinalityMessage(Database, flags, SetOperation.Intersect, keys, limit);
+            => new SetOperationCardinalityMessage(Database, flags, RedisCommand.ZINTERCARD, keys, limit);
 
         private Message GetSortedSetRangeByScoreMessage(RedisKey key, double start, double stop, Exclude exclude, Order order, long skip, long take, CommandFlags flags, bool withScores)
         {
@@ -5297,14 +5297,6 @@ namespace StackExchange.Redis
             -1 => Message.Create(Database, flags, RedisCommand.DECR, key),
             > 0 => Message.Create(Database, flags, RedisCommand.INCRBY, key, value),
             _ => Message.Create(Database, flags, RedisCommand.DECRBY, key, -value),
-        };
-
-        private static RedisCommand SetOperationCommand(SetOperation operation, bool store) => operation switch
-        {
-            SetOperation.Difference => store ? RedisCommand.SDIFFSTORE : RedisCommand.SDIFF,
-            SetOperation.Intersect => store ? RedisCommand.SINTERSTORE : RedisCommand.SINTER,
-            SetOperation.Union => store ? RedisCommand.SUNIONSTORE : RedisCommand.SUNION,
-            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
         private CursorEnumerable<T>? TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanEnumerable<T>.ScanResult> processor, out ServerEndPoint? server, bool noValues = false)
