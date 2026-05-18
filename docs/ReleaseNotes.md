@@ -10,6 +10,7 @@ Current package versions:
 
 - Add experimental Redis 8.8 array support, including array APIs on `IDatabase`/`IDatabaseAsync`,
   array helper types, `RedisType.Array`, and array delete keyspace notification event types.
+- Fix incorrect routing of some sorted-set and stream commands ([#3080 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3080))
 
 ## 2.13.1
 
