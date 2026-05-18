@@ -315,7 +315,13 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
     {
         var muxer = Create(protocol: protocol);
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
-        if (command == "debug" && args.Length > 0 && args[0] is "protocol" && !ep.GetFeatures().Resp3 /* v6 check */)
+        var usesDebugCommand = RedisCommandMetadata.TryParseCI(command, out var parsedCommand)
+            && parsedCommand == RedisCommand.DEBUG;
+        if (usesDebugCommand)
+        {
+            await AssertDebugCommandEnabledAsync(muxer);
+        }
+        if (usesDebugCommand && args.Length > 0 && args[0] is "protocol" && !ep.GetFeatures().Resp3 /* v6 check */)
         {
             Assert.Skip("debug protocol not available");
         }

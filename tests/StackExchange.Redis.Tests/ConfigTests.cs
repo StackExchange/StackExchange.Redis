@@ -461,6 +461,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task DebugObject()
     {
         await using var conn = Create(allowAdmin: true);
+        await AssertDebugCommandEnabledAsync(conn);
 
         var db = conn.GetDatabase();
         RedisKey key = Me();

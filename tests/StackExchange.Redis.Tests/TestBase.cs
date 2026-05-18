@@ -607,6 +607,21 @@ public abstract class TestBase : IDisposable
         Assert.SkipUnless(_inProcServerFixture != null || UseDedicatedInProcessServer, reason ?? "Real server is in use.");
     }
 
+    protected async Task AssertDebugCommandEnabledAsync(IConnectionMultiplexer muxer)
+    {
+        foreach (var ep in muxer.GetEndPoints())
+        {
+            var server = muxer.GetServer(ep);
+            var config = await server.ConfigGetAsync("enable-debug-command").ForAwait();
+
+            var value = config.Length == 0 ? "" : config[0].Value;
+            Log($"Server {ep} enable-debug-command config: {value}");
+            Assert.SkipUnless(
+                string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase),
+                $"Server {ep} enable-debug-command config is '{value}'; DEBUG OBJECT requires 'yes'.");
+        }
+    }
+
     internal sealed class ClientFactory : IDisposable, IAsyncDisposable
     {
         private readonly TestBase _testBase;
