@@ -45,6 +45,12 @@ namespace StackExchange.Redis
                 {
                     socket.NoDelay = true;
                 }
+
+                if (socket.ProtocolType is ProtocolType.Tcp)
+                {
+                    // enable TCP keep-alive (best effort only)
+                    socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                }
             }
             catch (Exception ex)
             {
