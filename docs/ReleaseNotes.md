@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Enable TCP keep-alives
+- Enable TCP keep-alives ([#3078 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3078))
 
 ## 2.13.1
 
