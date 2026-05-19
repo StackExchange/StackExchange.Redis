@@ -65,36 +65,46 @@ internal partial struct AwaitableMutex
 
         public bool TryTakeInstant()
         {
-            lock (_queue)
+            bool lockTaken = false;
+            try
             {
-                ThrowIfDisposed();
+                Monitor.TryEnter(_queue, 0, ref lockTaken);
+                if (!lockTaken) return false;
+
                 return TryTakeInsideLock();
+            }
+            finally
+            {
+                if (lockTaken) Monitor.Exit(_queue);
             }
         }
 
         public bool TryTakeSync()
         {
-            var start = GetTime();
-            SyncPendingCaller pending;
-            lock (_queue)
+            bool lockTaken = false;
+            try
             {
-                ThrowIfDisposed();
-                if (TryTakeInsideLock()) return true;
-                if (TimeoutMilliseconds == 0) return false;
-
-                pending = new(start, TimeoutMilliseconds);
-                _queue.Enqueue(pending);
+                Monitor.TryEnter(_queue, 0, ref lockTaken);
+                if (lockTaken && TryTakeInsideLock()) return true;
+            }
+            finally
+            {
+                if (lockTaken) Monitor.Exit(_queue);
             }
 
-            return pending.Wait();
+            return TryTakeSyncSlow();
         }
 
         public ValueTask<bool> TryTakeAsync(CancellationToken cancellationToken)
         {
             lock (_queue)
             {
-                ThrowIfDisposed();
-                if (cancellationToken.IsCancellationRequested) return AsyncPendingCaller.Canceled();
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    ThrowIfDisposed();
+                    return AsyncPendingCaller.Canceled();
+                }
+
                 if (TryTakeInsideLock()) return new ValueTask<bool>(true);
                 if (TimeoutMilliseconds == 0) return new ValueTask<bool>(false);
                 if (cancellationToken.IsCancellationRequested) return AsyncPendingCaller.Canceled();
@@ -125,18 +135,46 @@ internal partial struct AwaitableMutex
 
         private bool TryTakeInsideLock()
         {
+            ThrowIfDisposed();
             if (_isHeld || _queue.Count != 0) return false;
             _isHeld = true;
             return true;
         }
 
+        private bool TryTakeSyncSlow()
+        {
+            if (TimeoutMilliseconds == 0) return false;
+
+            var start = GetTime();
+            SyncPendingCaller? pending = null;
+            bool lockTaken = false;
+            try
+            {
+                Monitor.TryEnter(_queue, TimeoutMilliseconds, ref lockTaken);
+                if (!lockTaken) return false;
+                if (TryTakeInsideLock()) return true;
+
+                var remaining = GetRemainingTimeout(start, TimeoutMilliseconds);
+                if (remaining == 0) return false;
+
+                pending = new SyncPendingCaller(start, TimeoutMilliseconds);
+                _queue.Enqueue(pending);
+            }
+            finally
+            {
+                if (lockTaken) Monitor.Exit(_queue);
+            }
+
+            return pending!.Wait();
+        }
+
         public void Dispose()
         {
+            if (_isDisposed) return;
+            _isDisposed = true;
+
             lock (_queue)
             {
-                if (_isDisposed) return;
-
-                _isDisposed = true;
                 _isHeld = false;
                 while (_queue.Count != 0)
                 {
