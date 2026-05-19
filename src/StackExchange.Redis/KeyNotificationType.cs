@@ -114,6 +114,12 @@ public enum KeyNotificationType
     ZRem = 49,
     [AsciiHash("hexpire")]
     HExpire = 50,
+    [AsciiHash("ardel")]
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    ArDel = 51,
+    [AsciiHash("ardelrange")]
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    ArDelRange = 52,
 
     // side-effect notifications
     [AsciiHash("expired")]

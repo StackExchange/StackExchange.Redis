@@ -8,7 +8,10 @@ Current package versions:
 
 ## Unreleased
 
+- Add experimental Redis 8.8 array support, including array APIs on `IDatabase`/`IDatabaseAsync`,
+  array helper types, `RedisType.Array`, and array delete keyspace notification event types. ([#3076 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3076))
 - Enable TCP keep-alives ([#3078 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3078))
+- `ConfigurationOptions` : don't persist `Protocol` when it comes from the defaults-provider. ([#3082 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3082))
 
 ## 2.13.1
 

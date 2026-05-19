@@ -36,6 +36,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(
             new[]
             {
+                "_protocol",
                 "abortOnConnectFail",
                 "allowAdmin",
                 "asyncTimeout",
@@ -64,7 +65,6 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "LibraryName",
                 "loggerFactory",
                 "password",
-                "Protocol",
                 "proxy",
                 "reconnectRetryPolicy",
                 "resolveDns",
@@ -826,5 +826,19 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var parsed = ConfigurationOptions.Parse(cs);
         Assert.Equal(expected, parsed.HighIntegrity);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DefaultsProviderProtocolNotSerialized(bool clone)
+    {
+        var options = new ConfigurationOptions();
+        var provider = new AzureManagedRedisOptionsProvider();
+        options.Defaults = provider;
+        if (clone) options = options.Clone();
+        Assert.Equal(RedisProtocol.Resp3, options.Protocol);
+        Assert.Same(provider, options.Defaults);
+        Assert.Equal("", options.ToString());
     }
 }

@@ -194,7 +194,8 @@ public class NamingTests(ITestOutputHelper output) : TestBase(output)
                     || shortName.StartsWith("SortedSet")
                     || shortName.StartsWith("String")
                     || shortName.StartsWith("Stream")
-                    || shortName.StartsWith("VectorSet");
+                    || shortName.StartsWith("VectorSet")
+                    || shortName.StartsWith("Array");
                 Log(fullName + ": " + (isValid ? "valid" : "invalid"));
                 Assert.True(isValid, fullName + ":Prefix");
                 break;
