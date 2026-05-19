@@ -847,7 +847,7 @@ namespace StackExchange.Redis
             Tunnel = Tunnel,
             setClientLibrary = setClientLibrary,
             LibraryName = LibraryName,
-            Protocol = Protocol,
+            _protocol = _protocol,
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
@@ -936,7 +936,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
             Append(sb, OptionKeys.HighIntegrity, highIntegrity);
-            Append(sb, OptionKeys.Protocol, FormatProtocol(Protocol));
+            Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -1131,7 +1131,7 @@ namespace StackExchange.Redis
                             }
                             break;
                         case OptionKeys.Protocol:
-                            Protocol = OptionKeys.ParseRedisProtocol(key, value);
+                            _protocol = OptionKeys.ParseRedisProtocol(key, value);
                             break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
@@ -1181,8 +1181,8 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisProtocol? Protocol
         {
-            get => field ?? Defaults.Protocol;
-            set;
+            get => _protocol ?? Defaults.Protocol;
+            set => _protocol = value;
         }
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
@@ -1190,6 +1190,7 @@ namespace StackExchange.Redis
 #if DEBUG
         internal Action<string>? OutputLog;
 #endif
+        private RedisProtocol? _protocol;
 
         internal bool TryResp3()
         {
