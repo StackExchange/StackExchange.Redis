@@ -1,12 +1,17 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 
-// #if NET
+#if NET
 namespace StackExchange.Redis;
 
 internal partial struct AwaitableMutex
 {
     private readonly int _timeoutMilliseconds;
+
+    // note: this does not guarantee "fairness", but that's OK for our use-case - we mostly just want
+    // a sync+async awaitable mutex, which this does; the .NET Framework version has a hand-written
+    // implementation (see .netfx.cx for reasons), which *is* fair, but we'd rather not pay that overhead
+    // here. Good-enough-is.
     private readonly SemaphoreSlim _mutex;
 
     private partial AwaitableMutex(int timeoutMilliseconds)
@@ -28,4 +33,4 @@ internal partial struct AwaitableMutex
 
     public partial void Release() => _mutex.Release();
 }
-// #endif
+#endif
