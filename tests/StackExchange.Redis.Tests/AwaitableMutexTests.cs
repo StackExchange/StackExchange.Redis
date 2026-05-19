@@ -55,7 +55,7 @@ public class AwaitableMutexTests
     }
 
     [Fact]
-    public void DisposalPreventsNewAcquisitions()
+    public async Task DisposalPreventsNewAcquisitions()
     {
         var mutex = AwaitableMutex.Create(timeoutMilliseconds: 100);
         Assert.True(mutex.TryTakeInstant());
@@ -65,10 +65,7 @@ public class AwaitableMutexTests
         Assert.False(mutex.IsAvailable);
         Assert.Throws<ObjectDisposedException>(() => mutex.TryTakeInstant());
         Assert.Throws<ObjectDisposedException>(() => mutex.TryTakeSync());
-        Assert.Throws<ObjectDisposedException>(() =>
-        {
-            _ = mutex.TryTakeAsync();
-        });
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await mutex.TryTakeAsync().AsTask());
         Assert.Throws<ObjectDisposedException>(() => mutex.Release());
     }
 

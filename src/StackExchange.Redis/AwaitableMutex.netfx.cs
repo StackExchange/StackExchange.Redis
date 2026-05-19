@@ -98,17 +98,43 @@ internal partial struct AwaitableMutex
 
         public ValueTask<bool> TryTakeAsync(CancellationToken cancellationToken)
         {
+            bool lockTaken = false;
+            try
+            {
+                // try to acquire uncontested lock - that way we can avoid allocating the pending caller
+                Monitor.TryEnter(_queue, 0, ref lockTaken);
+                if (lockTaken)
+                {
+                    if (_isDisposed) return DisposedAsync();
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return CanceledAsync(cancellationToken);
+                    }
+
+                    if (TryTakeInsideLockCore()) return new ValueTask<bool>(true);
+                }
+            }
+            finally
+            {
+                if (lockTaken) Monitor.Exit(_queue);
+            }
+
+            return TryTakeAsyncSlow(cancellationToken);
+        }
+
+        private ValueTask<bool> TryTakeAsyncSlow(CancellationToken cancellationToken)
+        {
             lock (_queue)
             {
+                if (_isDisposed) return DisposedAsync();
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    ThrowIfDisposed();
-                    return AsyncPendingCaller.Canceled();
+                    return CanceledAsync(cancellationToken);
                 }
 
-                if (TryTakeInsideLock()) return new ValueTask<bool>(true);
+                if (TryTakeInsideLockCore()) return new ValueTask<bool>(true);
                 if (TimeoutMilliseconds == 0) return new ValueTask<bool>(false);
-                if (cancellationToken.IsCancellationRequested) return AsyncPendingCaller.Canceled();
+                if (cancellationToken.IsCancellationRequested) return CanceledAsync(cancellationToken);
 
                 var pending = new AsyncPendingCaller(TimeoutMilliseconds, cancellationToken);
                 _queue.Enqueue(pending);
@@ -137,6 +163,11 @@ internal partial struct AwaitableMutex
         private bool TryTakeInsideLock()
         {
             ThrowIfDisposed();
+            return TryTakeInsideLockCore();
+        }
+
+        private bool TryTakeInsideLockCore()
+        {
             if (_isHeld || _queue.Count != 0) return false;
             _isHeld = true;
             return true;
@@ -190,6 +221,12 @@ internal partial struct AwaitableMutex
         }
 
         private static void ThrowDisposed() => throw new ObjectDisposedException(nameof(AwaitableMutex));
+
+        private static ValueTask<bool> DisposedAsync()
+            => new(Task.FromException<bool>(new ObjectDisposedException(nameof(AwaitableMutex))));
+
+        private static ValueTask<bool> CanceledAsync(CancellationToken cancellationToken)
+            => new(Task.FromCanceled<bool>(cancellationToken));
 
         private static uint GetTime() => (uint)Environment.TickCount;
 
@@ -280,8 +317,8 @@ internal partial struct AwaitableMutex
         {
             private static readonly TimerCallback s_onTimeout = state => ((AsyncPendingCaller)state!).TryComplete(CompletionState.TimedOut);
             private static readonly Action<object?> s_onCanceled = state => ((AsyncPendingCaller)state!).TryComplete(CompletionState.Canceled);
-            private static readonly Task<bool> s_canceledTask = CreateCanceledTask();
 
+            private readonly CancellationToken _cancellationToken;
             private readonly CancellationTokenRegistration _cancellation;
             private readonly Timer? _timeout;
             private int _completionState;
@@ -289,6 +326,7 @@ internal partial struct AwaitableMutex
             public AsyncPendingCaller(int timeoutMilliseconds, CancellationToken cancellationToken)
                 : base(TaskCreationOptions.RunContinuationsAsynchronously)
             {
+                _cancellationToken = cancellationToken;
                 if (timeoutMilliseconds != Timeout.Infinite)
                 {
                     _timeout = new Timer(s_onTimeout, this, timeoutMilliseconds, Timeout.Infinite);
@@ -299,8 +337,6 @@ internal partial struct AwaitableMutex
                     _cancellation = cancellationToken.Register(s_onCanceled, this);
                 }
             }
-
-            public static ValueTask<bool> Canceled() => new(s_canceledTask);
 
             public bool TryGrant() => TryComplete(CompletionState.Granted);
 
@@ -331,19 +367,12 @@ internal partial struct AwaitableMutex
                         TrySetResult(false);
                         break;
                     case CompletionState.Canceled:
-                        TrySetCanceled();
+                        TrySetCanceled(_cancellationToken);
                         break;
                     case CompletionState.Disposed:
                         TrySetException(new ObjectDisposedException(nameof(AwaitableMutex)));
                         break;
                 }
-            }
-
-            private static Task<bool> CreateCanceledTask()
-            {
-                var source = new TaskCompletionSource<bool>();
-                source.SetCanceled();
-                return source.Task;
             }
 
             private enum CompletionState
