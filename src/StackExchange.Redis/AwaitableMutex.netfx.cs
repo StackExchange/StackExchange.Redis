@@ -84,6 +84,7 @@ internal partial struct AwaitableMutex
             bool lockTaken = false;
             try
             {
+                // try to acquire uncontested lock - that way we can avoid checking the time
                 Monitor.TryEnter(_queue, 0, ref lockTaken);
                 if (lockTaken && TryTakeInsideLock()) return true;
             }
