@@ -175,11 +175,11 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("contoso.redis.azure.net:10000,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
     [InlineData("contoso.redis.azure.net:10000,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
     // azure redis cache, no overrides (we expect this to change in v3)
-    [InlineData("contoso.redis.cache.windows.net:6380", null, false)] // default
+    [InlineData("contoso.redis.cache.windows.net:6380", RedisProtocol.Resp3, true)] // default
     [InlineData("contoso.redis.cache.windows.net:6380,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
     [InlineData("contoso.redis.cache.windows.net:6380,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
     // arbitrary endpoint (we expect this to change in v3)
-    [InlineData("myserver:6379", null, false)] // default
+    [InlineData("myserver:6379", RedisProtocol.Resp3, true)] // default
     [InlineData("myserver:6379,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
     [InlineData("myserver:6379,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
     public void CorrectRespProtocol(string config, RedisProtocol? expected, bool useResp3)
@@ -664,7 +664,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         };
         await using var conn = ConnectionMultiplexer.Connect(options);
         Assert.True(conn.IsConnected);
-        Assert.Equal(2, count);
+        Assert.Equal(options.Protocol is RedisProtocol.Resp3 ? 1 : 2, count);
 
         var endpoint = conn.GetServerSnapshot()[0];
         var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive)?.TryConnect(null);
@@ -678,7 +678,10 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.NotNull(subscriptionSocket);
 
         Assert.Equal(12, interactiveSocket.Ttl);
-        Assert.Equal(123, subscriptionSocket.Ttl);
+        if (!ReferenceEquals(interactiveSocket, subscriptionSocket))
+        {
+            Assert.Equal(123, subscriptionSocket.Ttl);
+        }
         Assert.True(interactiveSocket.DontFragment);
         Assert.True(subscriptionSocket.DontFragment);
     }

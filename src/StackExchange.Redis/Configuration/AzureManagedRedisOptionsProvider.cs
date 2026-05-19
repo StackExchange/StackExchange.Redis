@@ -61,9 +61,6 @@ namespace StackExchange.Redis.Configuration
         public override bool GetDefaultSsl(EndPointCollection endPoints) => true;
 
         /// <inheritdoc/>
-        public override RedisProtocol? Protocol => RedisProtocol.Resp3; // prefer RESP3 on AMR
-
-        /// <inheritdoc/>
         public override string ConfigurationChannel => ""; // disable on AMR
     }
 }

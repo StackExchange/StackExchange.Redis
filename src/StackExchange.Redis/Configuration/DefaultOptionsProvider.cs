@@ -262,7 +262,7 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// Gets the preferred protocol to use for the connection.
         /// </summary>
-        public virtual RedisProtocol? Protocol => null;
+        public virtual RedisProtocol? Protocol => RedisProtocol.Resp3;
 
         /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
