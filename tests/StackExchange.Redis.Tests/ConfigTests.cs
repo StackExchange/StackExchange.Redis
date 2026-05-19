@@ -36,6 +36,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(
             new[]
             {
+                "_protocol",
                 "abortOnConnectFail",
                 "allowAdmin",
                 "asyncTimeout",
@@ -64,7 +65,6 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "LibraryName",
                 "loggerFactory",
                 "password",
-                "Protocol",
                 "proxy",
                 "reconnectRetryPolicy",
                 "resolveDns",
