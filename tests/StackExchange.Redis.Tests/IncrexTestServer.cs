@@ -9,8 +9,6 @@ namespace StackExchange.Redis.Tests;
 
 public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServer(log)
 {
-    private const string ErrorValueIsOutOfBounds = "ERR value is out of bounds";
-
     public sealed class IncrexRequestSnapshot
     {
         public RedisKey Key { get; set; }
@@ -18,8 +16,7 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
         public string Increment { get; set; } = "";
         public string? LowerBound { get; set; }
         public string? UpperBound { get; set; }
-        public string Overflow { get; set; } = "FAIL";
-        public bool HasOverflowToken { get; set; }
+        public bool Saturate { get; set; }
         public string? ExpiryMode { get; set; }
         public string? ExpiryValue { get; set; }
         public bool Enx { get; set; }
@@ -60,15 +57,8 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
                 case "UBOUND":
                     snapshot.UpperBound = request.GetString(index++);
                     break;
-                case "OVERFLOW":
-                    snapshot.HasOverflowToken = true;
-                    snapshot.Overflow = request.GetString(index++);
-                    break;
-                case "FAIL":
-                case "REJECT":
-                case "SAT":
-                    snapshot.HasOverflowToken = true;
-                    snapshot.Overflow = request.GetString(index - 1);
+                case "SATURATE":
+                    snapshot.Saturate = true;
                     break;
                 case "EX":
                 case "PX":
@@ -80,6 +70,8 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
                 case "ENX":
                     snapshot.Enx = true;
                     break;
+                default:
+                    throw new InvalidOperationException("Unknown INCREX token: " + request.GetString(index - 1));
             }
         }
         return snapshot;
@@ -94,10 +86,7 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
         long? lowerBound = snapshot.LowerBound is null ? null : long.Parse(snapshot.LowerBound, CultureInfo.InvariantCulture);
         long? upperBound = snapshot.UpperBound is null ? null : long.Parse(snapshot.UpperBound, CultureInfo.InvariantCulture);
 
-        if (!TryGetInt64Result(current, delta, lowerBound, upperBound, snapshot.Overflow, out var next, out var applied, out var ignored, out var error))
-        {
-            return TypedRedisValue.Error(error);
-        }
+        GetInt64Result(current, delta, lowerBound, upperBound, snapshot.Saturate, out var next, out var applied, out var ignored);
 
         if (ignored)
         {
@@ -117,10 +106,7 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
         double? lowerBound = snapshot.LowerBound is null ? null : double.Parse(snapshot.LowerBound, CultureInfo.InvariantCulture);
         double? upperBound = snapshot.UpperBound is null ? null : double.Parse(snapshot.UpperBound, CultureInfo.InvariantCulture);
 
-        if (!TryGetDoubleResult(current, delta, lowerBound, upperBound, snapshot.Overflow, out var next, out var applied, out var ignored, out var error))
-        {
-            return TypedRedisValue.Error(error);
-        }
+        GetDoubleResult(current, delta, lowerBound, upperBound, snapshot.Saturate, out var next, out var applied, out var ignored);
 
         if (ignored)
         {
@@ -162,123 +148,97 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
         _ = Expire(database, snapshot.Key, ttl);
     }
 
-    private static bool TryGetInt64Result(
+    private static void GetInt64Result(
         long current,
         long delta,
         long? lowerBound,
         long? upperBound,
-        string overflow,
+        bool saturate,
         out long next,
         out long applied,
-        out bool ignored,
-        out string error)
+        out bool ignored)
     {
         ignored = false;
-        error = "";
 
         if (!TryAdd(current, delta, out var candidate))
         {
-            return HandleInt64Overflow(current, delta, lowerBound, upperBound, overflow, out next, out applied, out ignored, out error);
+            HandleInt64Overflow(current, delta, lowerBound, upperBound, saturate, out next, out applied, out ignored);
+            return;
         }
 
         if (IsInBounds(candidate, lowerBound, upperBound))
         {
             next = candidate;
             applied = delta;
-            return true;
+            return;
         }
 
-        switch (overflow)
+        if (saturate)
         {
-            case "REJECT":
-                next = current;
-                applied = 0;
-                ignored = true;
-                return true;
-            case "SAT":
-                next = Clamp(candidate, lowerBound, upperBound);
-                applied = next - current;
-                return true;
-            default:
-                next = current;
-                applied = 0;
-                error = ErrorValueIsOutOfBounds;
-                return false;
+            next = Clamp(candidate, lowerBound, upperBound);
+            applied = next - current;
+            return;
         }
+
+        next = current;
+        applied = 0;
+        ignored = true;
     }
 
-    private static bool HandleInt64Overflow(
+    private static void HandleInt64Overflow(
         long current,
         long delta,
         long? lowerBound,
         long? upperBound,
-        string overflow,
+        bool saturate,
         out long next,
         out long applied,
-        out bool ignored,
-        out string error)
+        out bool ignored)
     {
-        ignored = false;
-        error = "";
-        switch (overflow)
+        if (saturate)
         {
-            case "REJECT":
-                next = current;
-                applied = 0;
-                ignored = true;
-                return true;
-            case "SAT":
-                next = delta >= 0 ? upperBound ?? long.MaxValue : lowerBound ?? long.MinValue;
-                applied = next - current;
-                return true;
-            default:
-                next = current;
-                applied = 0;
-                error = ErrorValueIsOutOfBounds;
-                return false;
+            ignored = false;
+            next = delta >= 0 ? upperBound ?? long.MaxValue : lowerBound ?? long.MinValue;
+            applied = next - current;
+            return;
         }
+
+        next = current;
+        applied = 0;
+        ignored = true;
     }
 
-    private static bool TryGetDoubleResult(
+    private static void GetDoubleResult(
         double current,
         double delta,
         double? lowerBound,
         double? upperBound,
-        string overflow,
+        bool saturate,
         out double next,
         out double applied,
-        out bool ignored,
-        out string error)
+        out bool ignored)
     {
         ignored = false;
-        error = "";
         var candidate = current + delta;
         if (IsFinite(candidate) && IsInBounds(candidate, lowerBound, upperBound))
         {
             next = candidate;
             applied = delta;
-            return true;
+            return;
         }
 
-        switch (overflow)
+        if (saturate)
         {
-            case "REJECT":
-                next = current;
-                applied = 0;
-                ignored = true;
-                return true;
-            case "SAT":
-                next = IsFinite(candidate)
-                    ? Clamp(candidate, lowerBound, upperBound)
-                    : delta >= 0 ? upperBound.GetValueOrDefault(double.MaxValue) : lowerBound.GetValueOrDefault(double.MinValue);
-                applied = next - current;
-                return true;
-            default:
-                next = current;
-                applied = 0;
-                error = ErrorValueIsOutOfBounds;
-                return false;
+            next = IsFinite(candidate)
+                ? Clamp(candidate, lowerBound, upperBound)
+                : delta >= 0 ? upperBound.GetValueOrDefault(double.MaxValue) : lowerBound.GetValueOrDefault(double.MinValue);
+            applied = next - current;
+            return;
         }
+
+        next = current;
+        applied = 0;
+        ignored = true;
     }
 
     private static bool TryAdd(long left, long right, out long value)
@@ -322,16 +282,16 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
     private static TypedRedisValue MakeResult(long value, long appliedIncrement)
     {
         var result = TypedRedisValue.Rent(2, out var span, RespPrefix.Array);
-        span[0] = TypedRedisValue.BulkString((RedisValue)value);
-        span[1] = TypedRedisValue.BulkString((RedisValue)appliedIncrement);
+        span[0] = TypedRedisValue.Integer(value);
+        span[1] = TypedRedisValue.Integer(appliedIncrement);
         return result;
     }
 
     private static TypedRedisValue MakeResult(double value, double appliedIncrement)
     {
         var result = TypedRedisValue.Rent(2, out var span, RespPrefix.Array);
-        span[0] = TypedRedisValue.BulkString((RedisValue)value);
-        span[1] = TypedRedisValue.BulkString((RedisValue)appliedIncrement);
+        span[0] = TypedRedisValue.Number(value);
+        span[1] = TypedRedisValue.Number(appliedIncrement);
         return result;
     }
 

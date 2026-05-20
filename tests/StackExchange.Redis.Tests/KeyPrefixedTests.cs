@@ -106,15 +106,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task StringIncrementAsync_3()
         {
-            await prefixed.StringIncrementAsync("key", 123L, TimeSpan.FromSeconds(5), lowerBound: 10, upperBound: 200, flags: CommandFlags.None, overflow: IncrementOverflow.Reject);
-            await mock.Received().StringIncrementAsync("prefix:key", 123L, TimeSpan.FromSeconds(5), 10, 200, IncrementOverflow.Reject, CommandFlags.None);
+            await prefixed.StringIncrementAsync("key", 123L, TimeSpan.FromSeconds(5), lowerBound: 10, upperBound: 200, flags: CommandFlags.None, options: IncrementOptions.None);
+            await mock.Received().StringIncrementAsync("prefix:key", 123L, TimeSpan.FromSeconds(5), 10, 200, IncrementOptions.None, CommandFlags.None);
         }
 
         [Fact]
         public async Task StringIncrementAsync_4()
         {
-            await prefixed.StringIncrementAsync("key", 1.23, TimeSpan.FromSeconds(5), lowerBound: -1.0, upperBound: 2.0, flags: CommandFlags.None, overflow: IncrementOverflow.Saturate);
-            await mock.Received().StringIncrementAsync("prefix:key", 1.23, TimeSpan.FromSeconds(5), -1.0, 2.0, IncrementOverflow.Saturate, CommandFlags.None);
+            await prefixed.StringIncrementAsync("key", 1.23, TimeSpan.FromSeconds(5), lowerBound: -1.0, upperBound: 2.0, flags: CommandFlags.None, options: IncrementOptions.Saturate);
+            await mock.Received().StringIncrementAsync("prefix:key", 1.23, TimeSpan.FromSeconds(5), -1.0, 2.0, IncrementOptions.Saturate, CommandFlags.None);
         }
 
         [Fact]

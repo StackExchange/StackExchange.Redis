@@ -53,45 +53,42 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
-        var key = Me();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
+        var intKey = (RedisKey)(Me() + ":int");
+        var doubleKey = (RedisKey)(Me() + ":double");
+        db.KeyDelete([intKey, doubleKey], CommandFlags.FireAndForget);
 
-        var result = db.StringIncrement(key, 3L, Expiration.Default);
+        var intResult = db.StringIncrement(intKey, 3L, Expiration.Default);
+        var doubleResult = db.StringIncrement(doubleKey, 1.5, Expiration.Default);
 
-        Assert.Equal(3, result.Value);
-        Assert.Equal(3, result.AppliedIncrement);
+        Assert.Equal(3, intResult.Value);
+        Assert.Equal(3, intResult.AppliedIncrement);
+        Assert.Equal(1.5, doubleResult.Value);
+        Assert.Equal(1.5, doubleResult.AppliedIncrement);
     }
 
     [Fact(Timeout = 5000)]
-    public async Task StringIncrementIncrex_FailThrowsWhenBoundExceeded()
+    public async Task StringIncrementIncrex_DefaultRejectsWhenBoundExceeded()
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
-        var key = Me();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, 5);
+        var intKey = (RedisKey)(Me() + ":int");
+        var doubleKey = (RedisKey)(Me() + ":double");
+        db.KeyDelete([intKey, doubleKey], CommandFlags.FireAndForget);
+        db.StringSet(intKey, 5);
+        db.StringSet(doubleKey, 5.5);
 
-        await Assert.ThrowsAsync<RedisServerException>(async () => await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10));
+        var intResult = await db.StringIncrementAsync(intKey, 1L, TimeSpan.FromSeconds(5), lowerBound: 10);
+        var doubleResult = await db.StringIncrementAsync(doubleKey, 1.25, TimeSpan.FromSeconds(5), lowerBound: 10.25);
 
-        Assert.Equal(5, (long)db.StringGet(key));
-        Assert.Null(await db.KeyTimeToLiveAsync(key));
-    }
+        Assert.Equal(5, intResult.Value);
+        Assert.Equal(0, intResult.AppliedIncrement);
+        Assert.Equal(5, (long)db.StringGet(intKey));
+        Assert.Null(await db.KeyTimeToLiveAsync(intKey));
 
-    [Fact(Timeout = 5000)]
-    public async Task StringIncrementIncrex_RejectIgnoresIncrementAndExpiry()
-    {
-        await using var conn = Create(require: RedisFeatures.v8_8_0);
-        var db = conn.GetDatabase();
-        var key = Me();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, 5);
-
-        var result = await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10, overflow: IncrementOverflow.Reject);
-
-        Assert.Equal(5, result.Value);
-        Assert.Equal(0, result.AppliedIncrement);
-        Assert.Equal(5, (long)db.StringGet(key));
-        Assert.Null(await db.KeyTimeToLiveAsync(key));
+        Assert.Equal(5.5, doubleResult.Value);
+        Assert.Equal(0, doubleResult.AppliedIncrement);
+        Assert.Equal(5.5, (double)db.StringGet(doubleKey));
+        Assert.Null(await db.KeyTimeToLiveAsync(doubleKey));
     }
 
     [Fact(Timeout = 5000)]
@@ -99,16 +96,24 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
-        var key = Me();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, 8);
+        var intKey = (RedisKey)(Me() + ":int");
+        var doubleKey = (RedisKey)(Me() + ":double");
+        db.KeyDelete([intKey, doubleKey], CommandFlags.FireAndForget);
+        db.StringSet(intKey, 8);
+        db.StringSet(doubleKey, 8.25);
 
-        var result = await db.StringIncrementAsync(key, 5L, TimeSpan.FromSeconds(5), upperBound: 10, overflow: IncrementOverflow.Saturate);
+        var intResult = await db.StringIncrementAsync(intKey, 5L, TimeSpan.FromSeconds(5), upperBound: 10, options: IncrementOptions.Saturate);
+        var doubleResult = await db.StringIncrementAsync(doubleKey, 5.5, TimeSpan.FromSeconds(5), upperBound: 10.5, options: IncrementOptions.Saturate);
 
-        Assert.Equal(10, result.Value);
-        Assert.Equal(2, result.AppliedIncrement);
-        Assert.Equal(10, (long)db.StringGet(key));
-        Assert.True((await db.KeyTimeToLiveAsync(key)) > TimeSpan.Zero);
+        Assert.Equal(10, intResult.Value);
+        Assert.Equal(2, intResult.AppliedIncrement);
+        Assert.Equal(10, (long)db.StringGet(intKey));
+        Assert.True((await db.KeyTimeToLiveAsync(intKey)) > TimeSpan.Zero);
+
+        Assert.Equal(10.5, doubleResult.Value);
+        Assert.Equal(2.25, doubleResult.AppliedIncrement);
+        Assert.Equal(10.5, (double)db.StringGet(doubleKey));
+        Assert.True((await db.KeyTimeToLiveAsync(doubleKey)) > TimeSpan.Zero);
     }
 
     [Fact(Timeout = 5000)]
@@ -116,19 +121,31 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     {
         await using var conn = Create(require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
-        var key = Me();
-        db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, 5, TimeSpan.FromMinutes(5));
-        var beforeTtl = await db.KeyTimeToLiveAsync(key);
+        var intKey = (RedisKey)(Me() + ":int");
+        var doubleKey = (RedisKey)(Me() + ":double");
+        db.KeyDelete([intKey, doubleKey], CommandFlags.FireAndForget);
+        db.StringSet(intKey, 5, TimeSpan.FromMinutes(5));
+        db.StringSet(doubleKey, 5.5, TimeSpan.FromMinutes(5));
+        var beforeIntTtl = await db.KeyTimeToLiveAsync(intKey);
+        var beforeDoubleTtl = await db.KeyTimeToLiveAsync(doubleKey);
 
-        var result = await db.StringIncrementAsync(key, 2L, Expiration.Default);
+        var intResult = await db.StringIncrementAsync(intKey, 2L, Expiration.Default);
+        var doubleResult = await db.StringIncrementAsync(doubleKey, 2.25, Expiration.Default);
 
-        Assert.Equal(7, result.Value);
-        Assert.Equal(2, result.AppliedIncrement);
-        var afterTtl = await db.KeyTimeToLiveAsync(key);
-        Assert.NotNull(beforeTtl);
-        Assert.NotNull(afterTtl);
-        Assert.True(afterTtl <= beforeTtl);
-        Assert.True(afterTtl > TimeSpan.FromMinutes(4));
+        Assert.Equal(7, intResult.Value);
+        Assert.Equal(2, intResult.AppliedIncrement);
+        var afterIntTtl = await db.KeyTimeToLiveAsync(intKey);
+        Assert.NotNull(beforeIntTtl);
+        Assert.NotNull(afterIntTtl);
+        Assert.True(afterIntTtl <= beforeIntTtl);
+        Assert.True(afterIntTtl > TimeSpan.FromMinutes(4));
+
+        Assert.Equal(7.75, doubleResult.Value);
+        Assert.Equal(2.25, doubleResult.AppliedIncrement);
+        var afterDoubleTtl = await db.KeyTimeToLiveAsync(doubleKey);
+        Assert.NotNull(beforeDoubleTtl);
+        Assert.NotNull(afterDoubleTtl);
+        Assert.True(afterDoubleTtl <= beforeDoubleTtl);
+        Assert.True(afterDoubleTtl > TimeSpan.FromMinutes(4));
     }
 }

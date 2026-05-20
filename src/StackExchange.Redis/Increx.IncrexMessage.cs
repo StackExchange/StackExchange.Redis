@@ -9,21 +9,21 @@ internal partial class RedisDatabase
         CommandFlags flags,
         RedisKey key,
         Expiration expiry,
-        IncrementOverflow overflow) : Message(database, flags, RedisCommand.INCREX)
+        IncrementOptions options) : Message(database, flags, RedisCommand.INCREX)
     {
         protected RedisKey Key => key;
         protected Expiration Expiry => expiry;
-        protected IncrementOverflow Overflow => overflow;
+        protected IncrementOptions Options => options;
 
         public override int ArgCount
         {
             get
             {
-                return 3 + BoundsArgCount + OverflowArgCount + Expiry.GetTokenCount(allowEnx: true); // key, BYINT/BYFLOAT, value, bounds, overflow, expiry
+                return 3 + BoundsArgCount + OptionsArgCount + Expiry.GetTokenCount(allowEnx: true); // key, BYINT/BYFLOAT, value, bounds, options, expiry
             }
         }
 
-        private int OverflowArgCount => Overflow == IncrementOverflow.Fail ? 0 : 2;
+        private int OptionsArgCount => Options == IncrementOptions.Saturate ? 1 : 0;
 
         protected abstract int BoundsArgCount { get; }
         protected abstract void WriteIncrementKindAndValue(PhysicalConnection physical);
@@ -35,24 +35,21 @@ internal partial class RedisDatabase
             physical.WriteBulkString(Key);
             WriteIncrementKindAndValue(physical);
             WriteBounds(physical);
-            WriteOverflow(physical);
+            WriteOptions(physical);
             Expiry.WriteTo(physical);
         }
 
-        private void WriteOverflow(PhysicalConnection physical)
+        private void WriteOptions(PhysicalConnection physical)
         {
-            switch (Overflow)
+            switch (Options)
             {
-                case IncrementOverflow.Fail:
+                case IncrementOptions.None:
                     break;
-                case IncrementOverflow.Reject:
-                    physical.WriteRaw("$8\r\nOVERFLOW\r\n$6\r\nREJECT\r\n"u8);
-                    break;
-                case IncrementOverflow.Saturate:
-                    physical.WriteRaw("$8\r\nOVERFLOW\r\n$3\r\nSAT\r\n"u8);
+                case IncrementOptions.Saturate:
+                    physical.WriteRaw("$8\r\nSATURATE\r\n"u8);
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(Overflow));
+                    throw new ArgumentOutOfRangeException(nameof(Options));
             }
         }
     }
@@ -65,7 +62,7 @@ internal partial class RedisDatabase
         long? lowerBound,
         long? upperBound,
         Expiration expiry,
-        IncrementOverflow overflow) : IncrexMessageBase(database, flags, key, expiry, overflow)
+        IncrementOptions options) : IncrexMessageBase(database, flags, key, expiry, options)
     {
         protected override int BoundsArgCount => (lowerBound.HasValue ? 2 : 0) + (upperBound.HasValue ? 2 : 0);
 
@@ -98,7 +95,7 @@ internal partial class RedisDatabase
         double? lowerBound,
         double? upperBound,
         Expiration expiry,
-        IncrementOverflow overflow) : IncrexMessageBase(database, flags, key, expiry, overflow)
+        IncrementOptions options) : IncrexMessageBase(database, flags, key, expiry, options)
     {
         protected override int BoundsArgCount => (lowerBound.HasValue ? 2 : 0) + (upperBound.HasValue ? 2 : 0);
 

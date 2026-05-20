@@ -780,11 +780,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringIncrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringIncrement(ToInner(key), value, flags);
 
-        public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOverflow overflow = IncrementOverflow.Fail, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringIncrement(ToInner(key), value, expiry, lowerBound, upperBound, overflow, flags);
+        public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringIncrement(ToInner(key), value, expiry, lowerBound, upperBound, options, flags);
 
-        public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOverflow overflow = IncrementOverflow.Fail, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringIncrement(ToInner(key), value, expiry, lowerBound, upperBound, overflow, flags);
+        public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringIncrement(ToInner(key), value, expiry, lowerBound, upperBound, options, flags);
 
         public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLength(ToInner(key), flags);

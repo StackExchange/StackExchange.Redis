@@ -32,8 +32,7 @@ public class IncrexUnitTests(ITestOutputHelper log)
         Assert.Equal("2", request.Increment);
         Assert.Equal("0", request.LowerBound);
         Assert.Equal("20", request.UpperBound);
-        Assert.Equal("FAIL", request.Overflow);
-        Assert.False(request.HasOverflowToken);
+        Assert.False(request.Saturate);
         Assert.Equal("EX", request.ExpiryMode);
         Assert.Equal("5", request.ExpiryValue);
         Assert.False(request.Enx);
@@ -67,11 +66,37 @@ public class IncrexUnitTests(ITestOutputHelper log)
         Assert.Equal("1.25", request.Increment);
         Assert.Equal("-1.5", request.LowerBound);
         Assert.Equal("9.5", request.UpperBound);
-        Assert.Equal("FAIL", request.Overflow);
-        Assert.False(request.HasOverflowToken);
+        Assert.False(request.Saturate);
         Assert.Equal("PXAT", request.ExpiryMode);
         Assert.Equal("1753265054014", request.ExpiryValue);
         Assert.True(request.Enx);
+    }
+
+    [Fact]
+    [RunPerProtocol]
+    public async Task StringIncrementIncrex_ExecuteUsesNumberResultTypes()
+    {
+        using var server = new IncrexTestServer(log);
+        await using var muxer = await server.ConnectAsync();
+        var db = muxer.GetDatabase();
+        var key = nameof(StringIncrementIncrex_ExecuteUsesNumberResultTypes);
+        var expectedFractionalType = TestContext.Current.IsResp3() ? ResultType.Double : ResultType.BulkString;
+
+        var fractional = await db.ExecuteAsync("INCREX", (RedisKey)(key + ":fractional"), "BYFLOAT", 1.5);
+        var fractionalItems = (RedisResult[])fractional!;
+        Assert.Equal(2, fractionalItems.Length);
+        Assert.Equal(expectedFractionalType, fractionalItems[0].Resp3Type);
+        Assert.Equal(expectedFractionalType, fractionalItems[1].Resp3Type);
+        Assert.Equal(1.5, (double)fractionalItems[0]);
+        Assert.Equal(1.5, (double)fractionalItems[1]);
+
+        var integral = await db.ExecuteAsync("INCREX", (RedisKey)(key + ":integral"), "BYFLOAT", 2.0);
+        var integralItems = (RedisResult[])integral!;
+        Assert.Equal(2, integralItems.Length);
+        Assert.Equal(ResultType.Integer, integralItems[0].Resp3Type);
+        Assert.Equal(ResultType.Integer, integralItems[1].Resp3Type);
+        Assert.Equal(2, (long)integralItems[0]);
+        Assert.Equal(2, (long)integralItems[1]);
     }
 
     [Fact]
@@ -88,7 +113,7 @@ public class IncrexUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task StringIncrementIncrex_FailThrowsWhenBoundExceeded()
+    public async Task StringIncrementIncrex_DefaultRejectsWhenBoundExceeded()
     {
         using var server = new IncrexTestServer(log);
         await using var muxer = await server.ConnectAsync();
@@ -96,31 +121,24 @@ public class IncrexUnitTests(ITestOutputHelper log)
         var key = Me();
         db.StringSet(key, 5);
 
-        await Assert.ThrowsAsync<RedisServerException>(async () => await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10));
-
-        Assert.Equal(5, (long)db.StringGet(key));
-        Assert.Null(await db.KeyTimeToLiveAsync(key));
-        Assert.Equal("FAIL", server.LastRequest!.Overflow);
-        Assert.False(server.LastRequest.HasOverflowToken);
-    }
-
-    [Fact]
-    public async Task StringIncrementIncrex_RejectIgnoresIncrementAndExpiry()
-    {
-        using var server = new IncrexTestServer(log);
-        await using var muxer = await server.ConnectAsync();
-        var db = muxer.GetDatabase();
-        var key = Me();
-        db.StringSet(key, 5);
-
-        var result = await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10, overflow: IncrementOverflow.Reject);
+        var result = await db.StringIncrementAsync(key, 1L, TimeSpan.FromSeconds(5), lowerBound: 10);
 
         Assert.Equal(5, result.Value);
         Assert.Equal(0, result.AppliedIncrement);
         Assert.Equal(5, (long)db.StringGet(key));
         Assert.Null(await db.KeyTimeToLiveAsync(key));
-        Assert.Equal("REJECT", server.LastRequest!.Overflow);
-        Assert.True(server.LastRequest.HasOverflowToken);
+        Assert.False(server.LastRequest!.Saturate);
+    }
+
+    [Fact]
+    public async Task StringIncrementIncrex_InvalidOptionsThrow()
+    {
+        using var server = new IncrexTestServer(log);
+        await using var muxer = await server.ConnectAsync();
+        var db = muxer.GetDatabase();
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => db.StringIncrement(Me(), 1L, TimeSpan.FromSeconds(5), options: (IncrementOptions)2));
+        Assert.Equal("options", ex.ParamName);
     }
 
     [Fact]
@@ -132,14 +150,13 @@ public class IncrexUnitTests(ITestOutputHelper log)
         var key = Me();
         db.StringSet(key, 8);
 
-        var result = await db.StringIncrementAsync(key, 5L, TimeSpan.FromSeconds(5), upperBound: 10, overflow: IncrementOverflow.Saturate);
+        var result = await db.StringIncrementAsync(key, 5L, TimeSpan.FromSeconds(5), upperBound: 10, options: IncrementOptions.Saturate);
 
         Assert.Equal(10, result.Value);
         Assert.Equal(2, result.AppliedIncrement);
         Assert.Equal(10, (long)db.StringGet(key));
         Assert.True((await db.KeyTimeToLiveAsync(key)) > TimeSpan.Zero);
-        Assert.Equal("SAT", server.LastRequest!.Overflow);
-        Assert.True(server.LastRequest.HasOverflowToken);
+        Assert.True(server.LastRequest!.Saturate);
     }
 
     [Fact]

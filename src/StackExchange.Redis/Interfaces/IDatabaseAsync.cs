@@ -844,14 +844,14 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StringIncrement(RedisKey, double, CommandFlags)"/>
         Task<double> StringIncrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.StringIncrement(RedisKey, long, Expiration, long?, long?, IncrementOverflow, CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.StringIncrement(RedisKey, long, Expiration, long?, long?, IncrementOptions, CommandFlags)"/>
 #pragma warning disable RS0026 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOverflow overflow = IncrementOverflow.Fail, CommandFlags flags = CommandFlags.None);
+        Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
 
-        /// <inheritdoc cref="IDatabase.StringIncrement(RedisKey, double, Expiration, double?, double?, IncrementOverflow, CommandFlags)"/>
+        /// <inheritdoc cref="IDatabase.StringIncrement(RedisKey, double, Expiration, double?, double?, IncrementOptions, CommandFlags)"/>
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOverflow overflow = IncrementOverflow.Fail, CommandFlags flags = CommandFlags.None);
+        Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <inheritdoc cref="IDatabase.StringLength(RedisKey, CommandFlags)"/>
