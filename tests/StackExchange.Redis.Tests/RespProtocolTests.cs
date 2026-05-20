@@ -30,9 +30,9 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
     [InlineData("someserver,protocol=2,$HELLO=", false, "resp2")]
     [InlineData("someserver,protocol=2,$HELLO=BONJOUR", false, "resp2")]
     // specify a pre-6 version - only used if protocol specified
-    [InlineData("someserver,version=5.9", true)]
+    [InlineData("someserver,version=5.9", false)]
     [InlineData("someserver,version=5.9,$HELLO=", false)]
-    [InlineData("someserver,version=5.9,$HELLO=BONJOUR", true)]
+    [InlineData("someserver,version=5.9,$HELLO=BONJOUR", false)]
     [InlineData("someserver,version=5.9,protocol=resp3", true)]
     [InlineData("someserver,version=5.9,protocol=resp3,$HELLO=", false)]
     [InlineData("someserver,version=5.9,protocol=resp3,$HELLO=BONJOUR", true)]

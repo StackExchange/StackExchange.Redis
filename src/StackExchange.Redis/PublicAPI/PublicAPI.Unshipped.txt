@@ -1,4 +1,5 @@
 ﻿#nullable enable
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
 [SER005]StackExchange.Redis.TestHarness
 [SER005]StackExchange.Redis.TestHarness.BufferValidator
 [SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel
