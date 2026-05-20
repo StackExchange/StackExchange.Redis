@@ -1194,23 +1194,13 @@ namespace StackExchange.Redis
 
         internal bool TryResp3()
         {
+            // if Protocol specified: fine, otherwise lean on the server version
             var protocol = Protocol;
-            // note: deliberately leaving the IsAvailable duplicated to use short-circuit
-
-            // if (protocol is null)
-            // {
-            //     // if not specified, lean on the server version and whether HELLO is available
-            //     return new RedisFeatures(DefaultVersion).Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
-            // }
-            // else
-            // ^^^ left for context; originally our intention was to auto-enable RESP3 by default *if* the server version
-            // is >= 6; however, it turns out (see extensive conversation here https://github.com/StackExchange/StackExchange.Redis/pull/2396)
-            // that tangential undocumented API breaks were made at the same time; this means that even if we fix every
-            // edge case in the library itself, the break is still visible to external callers via Execute[Async]; with an
-            // abundance of caution, we are therefore making RESP3 explicit opt-in only for now; we may revisit this in a major
-            {
-                return protocol.GetValueOrDefault() >= RedisProtocol.Resp3 && CommandMap.IsAvailable(RedisCommand.HELLO);
-            }
+            bool use3 = protocol is null
+                ? new RedisFeatures(DefaultVersion).Resp3
+                : protocol.GetValueOrDefault() >= RedisProtocol.Resp3;
+            // either way, it requires HELLO
+            return use3 && CommandMap.IsAvailable(RedisCommand.HELLO);
         }
 
         internal static bool TryParseRedisProtocol(string? value, out RedisProtocol protocol)

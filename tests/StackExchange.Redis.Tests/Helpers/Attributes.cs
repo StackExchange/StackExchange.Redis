@@ -59,7 +59,7 @@ public class TheoryDiscoverer : Xunit.v3.TheoryDiscoverer
 }
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public class RunPerProtocol() : Attribute { }
+public class RunPerProtocolAttribute() : Attribute { }
 
 public interface IProtocolTestCase
 {
@@ -155,8 +155,8 @@ internal static class XUnitExtensions
         {
             var testMethod = testCase.TestMethod;
 
-            if ((testMethod.Method.GetCustomAttributes(typeof(RunPerProtocol)).FirstOrDefault()
-                 ?? testMethod.TestClass.Class.GetCustomAttributes(typeof(RunPerProtocol)).FirstOrDefault()) is RunPerProtocol)
+            if ((testMethod.Method.GetCustomAttributes(typeof(RunPerProtocolAttribute)).FirstOrDefault()
+                 ?? testMethod.TestClass.Class.GetCustomAttributes(typeof(RunPerProtocolAttribute)).FirstOrDefault()) is RunPerProtocolAttribute)
             {
                 result.Add(CreateTestCase(testCase, RedisProtocol.Resp2));
                 result.Add(CreateTestCase(testCase, RedisProtocol.Resp3));

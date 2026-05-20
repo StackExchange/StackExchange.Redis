@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -13,6 +14,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis.Configuration;
+using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -20,7 +22,31 @@ namespace StackExchange.Redis.Tests;
 [RunPerProtocol]
 public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    public Version DefaultVersion = new(3, 0, 0);
+    private static Version BaseDefaultVersion => DefaultOptionsProvider.BaseDefaultVersion;
+
+    private static void ApplyTestDefaults(ConfigurationOptions options, bool applyProtocol = true)
+    {
+        if (applyProtocol) options.Protocol = TestContext.Current.GetProtocol();
+    }
+
+    private static string RemoveTestDefaults(string configurationString)
+    {
+        var pattern = TestContext.Current.GetProtocol() switch
+        {
+            RedisProtocol.Resp2 => ",protocol=resp2(?=,|$)",
+            RedisProtocol.Resp3 => ",protocol=resp3(?=,|$)",
+            _ => null,
+        };
+        return pattern is null
+            ? configurationString
+            : Regex.Replace(configurationString, pattern, "");
+    }
+    private static ConfigurationOptions Parse(string configuration, bool applyProtocol = true)
+    {
+        var options = ConfigurationOptions.Parse(configuration);
+        ApplyTestDefaults(options, applyProtocol);
+        return options;
+    }
 
     [Fact]
     public void ExpectedFields()
@@ -92,14 +118,14 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public void SslProtocols_SingleValue()
     {
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12");
+        var options = Parse("myhost,sslProtocols=Tls12");
         Assert.Equal(SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
     }
 
     [Fact]
     public void SslProtocols_MultipleValues()
     {
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12|Tls13");
+        var options = Parse("myhost,sslProtocols=Tls12|Tls13");
         Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, options.SslProtocols.GetValueOrDefault());
     }
 
@@ -109,7 +135,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("", true)]
     public void ConfigurationOption_CheckCertificateRevocation(string conString, bool expectedValue)
     {
-        var options = ConfigurationOptions.Parse($"host,{conString}");
+        var options = Parse($"host,{conString}");
         Assert.Equal(expectedValue, options.CheckCertificateRevocation);
         var toString = options.ToString();
         Assert.Contains(conString, toString, StringComparison.CurrentCultureIgnoreCase);
@@ -122,14 +148,14 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
         // but the OS has been patched with support
         const int integerValue = (int)(SslProtocols.Tls12 | SslProtocols.Tls13);
-        var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
+        var options = Parse("myhost,sslProtocols=" + integerValue);
         Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, options.SslProtocols.GetValueOrDefault());
     }
 
     [Fact]
     public void SslProtocols_InvalidValue()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Parse("myhost,sslProtocols=InvalidSslProtocol"));
     }
 
     [Theory]
@@ -144,7 +170,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public void ConfigurationOptionsDefaultForAzure(string hostAndPort, bool sslShouldBeEnabled)
     {
         Version defaultAzureVersion = new(6, 0, 0);
-        var options = ConfigurationOptions.Parse(hostAndPort);
+        var options = Parse(hostAndPort);
         Assert.True(options.DefaultVersion.Equals(defaultAzureVersion));
         Assert.False(options.AbortOnConnectFail);
         Assert.Equal(sslShouldBeEnabled, options.Ssl);
@@ -163,7 +189,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public void ConfigurationOptionsDefaultForAzureManagedRedis(string hostAndPort, bool sslShouldBeEnabled)
     {
         Version defaultAzureManagedRedisVersion = new(7, 4, 0);
-        var options = ConfigurationOptions.Parse(hostAndPort);
+        var options = Parse(hostAndPort);
         Assert.True(options.DefaultVersion.Equals(defaultAzureManagedRedisVersion));
         Assert.False(options.AbortOnConnectFail);
         Assert.Equal(sslShouldBeEnabled, options.Ssl);
@@ -174,17 +200,20 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("contoso.redis.azure.net:10000", RedisProtocol.Resp3, true)] // default
     [InlineData("contoso.redis.azure.net:10000,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
     [InlineData("contoso.redis.azure.net:10000,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
+    [InlineData("contoso.redis.azure.net:10000,version=5", RedisProtocol.Resp3, true)] // low version *ignored* (provider wins)
     // azure redis cache, no overrides (we expect this to change in v3)
-    [InlineData("contoso.redis.cache.windows.net:6380", null, false)] // default
+    [InlineData("contoso.redis.cache.windows.net:6380", null, true)] // default
     [InlineData("contoso.redis.cache.windows.net:6380,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
     [InlineData("contoso.redis.cache.windows.net:6380,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
+    [InlineData("contoso.redis.cache.windows.net:6380,version=5", null, false)] // low version means resp2
     // arbitrary endpoint (we expect this to change in v3)
-    [InlineData("myserver:6379", null, false)] // default
+    [InlineData("myserver:6379", null, true)] // default
     [InlineData("myserver:6379,protocol=resp2", RedisProtocol.Resp2, false)] // opt-out
     [InlineData("myserver:6379,protocol=resp3", RedisProtocol.Resp3, true)] // opt-in
+    [InlineData("myserver:6379,version=5", null, false)] // low version means resp2
     public void CorrectRespProtocol(string config, RedisProtocol? expected, bool useResp3)
     {
-        var options = ConfigurationOptions.Parse(config);
+        var options = Parse(config, applyProtocol: false);
         Assert.Equal(expected, options.Protocol);
         Assert.Equal(useResp3, options.TryResp3());
     }
@@ -192,7 +221,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public void ConfigurationOptionsForAzureWhenSpecified()
     {
-        var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
+        var options = Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
         Assert.True(options.DefaultVersion.Equals(new Version(2, 1, 1)));
         Assert.True(options.AbortOnConnectFail);
     }
@@ -213,8 +242,8 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("contoso.redis.azure.net:")] // AMR host name with missing port
     public void ConfigurationOptionsDefaultForNonAzure(string hostAndPort)
     {
-        var options = ConfigurationOptions.Parse(hostAndPort);
-        Assert.True(options.DefaultVersion.Equals(DefaultVersion));
+        var options = Parse(hostAndPort);
+        Assert.True(options.DefaultVersion.Equals(BaseDefaultVersion));
         Assert.True(options.AbortOnConnectFail);
         Assert.False(options.Ssl);
     }
@@ -223,7 +252,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
     {
         var options = new ConfigurationOptions();
-        Assert.True(options.DefaultVersion.Equals(DefaultVersion));
+        Assert.True(options.DefaultVersion.Equals(BaseDefaultVersion));
         Assert.True(options.AbortOnConnectFail);
     }
 
@@ -234,7 +263,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var options = new ConfigurationOptions();
         Assert.Equal(5000, options.SyncTimeout);
 
-        options = ConfigurationOptions.Parse("syncTimeout=20");
+        options = Parse("syncTimeout=20");
         Assert.Equal(20, options.SyncTimeout);
     }
 
@@ -245,7 +274,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("[2a01:9820:1:24::1:1]:6379", AddressFamily.InterNetworkV6, "2a01:9820:1:24::1:1", 6379)]
     public void ConfigurationOptionsIPv6Parsing(string configString, AddressFamily family, string address, int port)
     {
-        var options = ConfigurationOptions.Parse(configString);
+        var options = Parse(configString);
         Assert.Single(options.EndPoints);
         var ep = Assert.IsType<IPEndPoint>(options.EndPoints[0]);
         Assert.Equal(family, ep.AddressFamily);
@@ -258,14 +287,14 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         const string ConfigString = "!/some/path,allowAdmin=True";
 #if NETFRAMEWORK
-        var ex = Assert.Throws<PlatformNotSupportedException>(() => ConfigurationOptions.Parse(ConfigString));
+        var ex = Assert.Throws<PlatformNotSupportedException>(() => Parse(ConfigString));
         Assert.Equal("Unix domain sockets require .NET Core 3 or above", ex.Message);
 #else
-        var config = ConfigurationOptions.Parse(ConfigString);
+        var config = Parse(ConfigString);
         Assert.True(config.AllowAdmin);
         var ep = Assert.IsType<UnixDomainSocketEndPoint>(Assert.Single(config.EndPoints));
         Assert.Equal("/some/path", ep.ToString());
-        Assert.Equal(ConfigString, config.ToString());
+        Assert.Equal(ConfigString, RemoveTestDefaults(config.ToString()));
 #endif
     }
 
@@ -281,6 +310,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             },
             ConnectTimeout = 200,
         };
+        ApplyTestDefaults(config);
         var log = new StringWriter();
         await using (var conn = ConnectionMultiplexer.Connect(config, log))
         {
@@ -292,7 +322,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task TestManualHeartbeat()
     {
-        var options = ConfigurationOptions.Parse(GetConfiguration());
+        var options = Parse(GetConfiguration());
         options.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
@@ -598,7 +628,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12 ", SslProtocols.Tls12)]
     public void ParseTlsWithoutTrailingComma(string configString, SslProtocols expected)
     {
-        var config = ConfigurationOptions.Parse(configString);
+        var config = Parse(configString);
         Assert.Equal(expected, config.SslProtocols);
     }
 
@@ -611,7 +641,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("foo,proxy=epoxy", "Keyword 'proxy' requires a proxy value; the value 'epoxy' is not recognised.", "proxy")]
     public void ConfigStringErrorsGiveMeaningfulMessages(string configString, string expected, string paramName)
     {
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse(configString));
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => Parse(configString));
         Assert.StartsWith(expected, ex.Message); // param name gets concatenated sometimes
         Assert.Equal(paramName, ex.ParamName); // param name gets concatenated sometimes
     }
@@ -619,7 +649,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public void ConfigStringInvalidOptionErrorGiveMeaningfulMessages()
     {
-        var ex = Assert.Throws<ArgumentException>(() => ConfigurationOptions.Parse("foo,flibble=value"));
+        var ex = Assert.Throws<ArgumentException>(() => Parse("foo,flibble=value"));
         Assert.StartsWith("Keyword 'flibble' is not supported.", ex.Message); // param name gets concatenated sometimes
         Assert.Equal("flibble", ex.ParamName);
     }
@@ -627,7 +657,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public void NullApply()
     {
-        var options = ConfigurationOptions.Parse("127.0.0.1,name=FooApply");
+        var options = Parse("127.0.0.1,name=FooApply");
         Assert.Equal("FooApply", options.ClientName);
 
         // Doesn't go boom
@@ -639,7 +669,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public void Apply()
     {
-        var options = ConfigurationOptions.Parse("127.0.0.1,name=FooApply");
+        var options = Parse("127.0.0.1,name=FooApply");
         Assert.Equal("FooApply", options.ClientName);
 
         var randomName = Guid.NewGuid().ToString();
@@ -653,7 +683,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task BeforeSocketConnect()
     {
-        var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
+        var options = Parse(TestConfig.Current.PrimaryServerAndPort);
         int count = 0;
         options.BeforeSocketConnect = (endpoint, connType, socket) =>
         {
@@ -664,7 +694,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         };
         await using var conn = ConnectionMultiplexer.Connect(options);
         Assert.True(conn.IsConnected);
-        Assert.Equal(2, count);
+        Assert.Equal(options.TryResp3() ? 1 : 2, count);
 
         var endpoint = conn.GetServerSnapshot()[0];
         var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive)?.TryConnect(null);
@@ -678,7 +708,10 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.NotNull(subscriptionSocket);
 
         Assert.Equal(12, interactiveSocket.Ttl);
-        Assert.Equal(123, subscriptionSocket.Ttl);
+        if (!ReferenceEquals(interactiveSocket, subscriptionSocket))
+        {
+            Assert.Equal(123, subscriptionSocket.Ttl);
+        }
         Assert.True(interactiveSocket.DontFragment);
         Assert.True(subscriptionSocket.DontFragment);
     }
@@ -686,13 +719,17 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task MutableOptions()
     {
-        var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort + ",name=Details");
+        var options = Parse(TestConfig.Current.PrimaryServerAndPort + ",name=Details");
         options.LoggerFactory = NullLoggerFactory.Instance;
         var originalConfigChannel = options.ConfigurationChannel = "originalConfig";
         var originalUser = options.User = "originalUser";
         var originalPassword = options.Password = "originalPassword";
         Assert.Equal("Details", options.ClientName);
-        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        Assert.SkipWhen(options.TryResp3(), "only validate RESP2");
+        Log(options.ToString());
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, log: Writer);
+        Assert.NotNull(conn.AuthException);
+        Log($"auth failure: {conn.AuthException.Message}");
 
         // Same instance
         Assert.Same(options, conn.RawConfig);
@@ -737,6 +774,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         var newPass = options.Password = "newPassword";
         Assert.Equal(newPass, conn.RawConfig.Password);
         Assert.Equal(options.LoggerFactory, conn.RawConfig.LoggerFactory);
+        Log("complete");
     }
 
     [Theory]
@@ -744,7 +782,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("http:somewhere:22", "http:somewhere:22")]
     public void HttpTunnelCanRoundtrip(string input, string expected)
     {
-        var config = ConfigurationOptions.Parse($"127.0.0.1:6380,tunnel={input}");
+        var config = Parse($"127.0.0.1:6380,tunnel={input}");
         var ip = Assert.IsType<IPEndPoint>(Assert.Single(config.EndPoints));
         Assert.Equal(6380, ip.Port);
         Assert.Equal("127.0.0.1", ip.Address.ToString());
@@ -753,7 +791,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(expected, config.Tunnel.ToString());
 
         var cs = config.ToString();
-        Assert.Equal($"127.0.0.1:6380,tunnel={expected}", cs);
+        Assert.Equal($"127.0.0.1:6380,tunnel={expected}", RemoveTestDefaults(cs));
     }
 
     private sealed class CustomTunnel : Tunnel { }
@@ -763,11 +801,11 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         // we don't expect to be able to parse custom tunnels, but we should still be able to round-trip
         // the rest of the config, which means ignoring them *in both directions* (unless first party)
-        var options = ConfigurationOptions.Parse("127.0.0.1,Ssl=true");
+        var options = Parse("127.0.0.1,Ssl=true");
         options.Tunnel = new CustomTunnel();
         var cs = options.ToString();
-        Assert.Equal("127.0.0.1,ssl=True", cs);
-        options = ConfigurationOptions.Parse(cs);
+        Assert.Equal("127.0.0.1,ssl=True", RemoveTestDefaults(cs));
+        options = Parse(cs);
         Assert.Null(options.Tunnel);
     }
 
@@ -777,12 +815,12 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData("server:6379,setlib=False", false)]
     public void DefaultConfigOptionsForSetLib(string configurationString, bool setlib)
     {
-        var options = ConfigurationOptions.Parse(configurationString);
+        var options = Parse(configurationString);
         Assert.Equal(setlib, options.SetClientLibrary);
-        Assert.Equal(configurationString, options.ToString());
+        Assert.Equal(configurationString, RemoveTestDefaults(options.ToString()));
         options = options.Clone();
         Assert.Equal(setlib, options.SetClientLibrary);
-        Assert.Equal(configurationString, options.ToString());
+        Assert.Equal(configurationString, RemoveTestDefaults(options.ToString()));
     }
 
     [Theory]
@@ -791,17 +829,17 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [InlineData(true, true, "dummy,highIntegrity=True")]
     public void CheckHighIntegrity(bool? assigned, bool expected, string cs)
     {
-        var options = ConfigurationOptions.Parse("dummy");
+        var options = Parse("dummy");
         if (assigned.HasValue) options.HighIntegrity = assigned.Value;
 
         Assert.Equal(expected, options.HighIntegrity);
-        Assert.Equal(cs, options.ToString());
+        Assert.Equal(cs, RemoveTestDefaults(options.ToString()));
 
         var clone = options.Clone();
         Assert.Equal(expected, clone.HighIntegrity);
-        Assert.Equal(cs, clone.ToString());
+        Assert.Equal(cs, RemoveTestDefaults(clone.ToString()));
 
-        var parsed = ConfigurationOptions.Parse(cs);
+        var parsed = Parse(cs);
         Assert.Equal(expected, parsed.HighIntegrity);
     }
 
