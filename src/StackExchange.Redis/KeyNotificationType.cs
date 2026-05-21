@@ -120,6 +120,9 @@ public enum KeyNotificationType
     [AsciiHash("ardelrange")]
     [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     ArDelRange = 52,
+    [AsciiHash("arset")]
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    ArSet = 53,
 
     // side-effect notifications
     [AsciiHash("expired")]

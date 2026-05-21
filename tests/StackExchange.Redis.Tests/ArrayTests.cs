@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Sdk;
 
 namespace StackExchange.Redis.Tests;
 
@@ -535,16 +536,23 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         }
     }
 
-    private static async Task<(KeyNotificationKind Kind, KeyNotificationType Type)> ReadNotificationAsync(ChannelMessageQueue queue, RedisKey key)
+    private async Task<(KeyNotificationKind Kind, KeyNotificationType Type)> ReadNotificationAsync(ChannelMessageQueue queue, RedisKey key)
     {
         for (int i = 0; i < 64; i++)
         {
             var message = await queue.ReadAsync(TestContext.Current.CancellationToken);
-            if (message.TryParseKeyNotification(out var notification)
-                && notification.GetKey() == key
-                && notification.Type is KeyNotificationType.ArDel or KeyNotificationType.Del)
+            if (message.TryParseKeyNotification(out var notification))
             {
-                return (notification.Kind, notification.Type);
+                Log($"{notification.Kind}, {notification.Type} {message}");
+                if (notification.GetKey() == key
+                    && notification.Type is KeyNotificationType.ArDel or KeyNotificationType.Del)
+                {
+                    return (notification.Kind, notification.Type);
+                }
+            }
+            else
+            {
+                Log($"Unable to parse: {message}");
             }
         }
 

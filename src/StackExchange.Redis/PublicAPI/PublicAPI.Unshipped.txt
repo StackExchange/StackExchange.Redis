@@ -103,6 +103,7 @@
 [SER006]StackExchange.Redis.IDatabaseAsync.ArraySetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<int>!
 [SER006]StackExchange.Redis.KeyNotificationType.ArDel = 51 -> StackExchange.Redis.KeyNotificationType
 [SER006]StackExchange.Redis.KeyNotificationType.ArDelRange = 52 -> StackExchange.Redis.KeyNotificationType
+[SER006]StackExchange.Redis.KeyNotificationType.ArSet = 53 -> StackExchange.Redis.KeyNotificationType
 [SER006]StackExchange.Redis.RedisArrayEntry
 [SER006]StackExchange.Redis.RedisArrayEntry.Equals(StackExchange.Redis.RedisArrayEntry other) -> bool
 [SER006]StackExchange.Redis.RedisArrayEntry.Index.get -> StackExchange.Redis.RedisArrayIndex
