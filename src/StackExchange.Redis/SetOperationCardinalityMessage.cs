@@ -13,19 +13,19 @@ internal sealed class SetOperationCardinalityMessage(
 
     public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(_keys);
 
-    protected override void WriteImpl(PhysicalConnection physical)
+    protected override void WriteImpl(in MessageWriter writer)
     {
-        physical.WriteHeader(Command, ArgCount);
-        physical.WriteBulkString(_keys.Length);
+        writer.WriteHeader(Command, ArgCount);
+        writer.WriteBulkString(_keys.Length);
         for (var i = 0; i < _keys.Length; i++)
         {
-            physical.Write(_keys[i]);
+            writer.Write(_keys[i]);
         }
 
         if (limit > 0)
         {
-            physical.WriteRaw("$5\r\nLIMIT\r\n"u8);
-            physical.WriteBulkString(limit);
+            writer.WriteRaw("$5\r\nLIMIT\r\n"u8);
+            writer.WriteBulkString(limit);
         }
     }
 }
