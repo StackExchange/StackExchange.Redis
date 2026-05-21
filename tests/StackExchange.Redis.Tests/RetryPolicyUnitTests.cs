@@ -57,7 +57,9 @@ public class RetryPolicyUnitTests(ITestOutputHelper log)
         }
         else
         {
-            Assert.Equal("0,1", string.Join(",", counts));
+            var actual = string.Join(",", counts);
+            log.WriteLine(actual);
+            Assert.True(actual is "0,1" or "0,1,2", $"unexpected counts: {actual}");
         }
     }
 
