@@ -430,6 +430,11 @@ namespace StackExchange.Redis
             RedisValue[] values) =>
             new CommandSlotValuesMessage(db, slot, flags, command, values);
 
+        // The key here is used only to route the message in cluster mode; it is not written as an argument.
+        // Use this for command shapes where the key appears in a non-standard position in the values payload.
+        public static Message CreateInKeySlot(int db, in RedisKey key, CommandFlags flags, RedisCommand command, RedisValue[] values) =>
+            new CommandKeySlotValuesMessage(db, flags, command, key, values);
+
         public static Message Create(int db, CommandFlags flags, RedisCommand command,
             KeyValuePair<RedisKey, RedisValue>[] values, Expiration expiry, When when)
             => new MultiSetMessage(db, flags, command, values, expiry, when);
@@ -1100,21 +1105,13 @@ namespace StackExchange.Redis
             private readonly RedisKey[] keys;
             public CommandKeyKeysMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys) : base(db, flags, command, key)
             {
-                for (int i = 0; i < keys.Length; i++)
-                {
-                    keys[i].AssertNotNull();
-                }
-                this.keys = keys;
+                this.keys = keys.AssertAllNonNull();
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 var slot = serverSelectionStrategy.HashSlot(Key);
-                for (int i = 0; i < keys.Length; i++)
-                {
-                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
-                }
-                return slot;
+                return serverSelectionStrategy.CombineSlot(slot, keys);
             }
 
             protected override void WriteImpl(in MessageWriter writer)
@@ -1166,11 +1163,7 @@ namespace StackExchange.Redis
             private readonly RedisValue[] values;
             public CommandValuesMessage(int db, CommandFlags flags, RedisCommand command, RedisValue[] values) : base(db, flags, command)
             {
-                for (int i = 0; i < values.Length; i++)
-                {
-                    values[i].AssertNotNull();
-                }
-                this.values = values;
+                this.values = values.AssertAllNonNull();
             }
 
             protected override void WriteImpl(in MessageWriter writer)
@@ -1189,22 +1182,10 @@ namespace StackExchange.Redis
             private readonly RedisKey[] keys;
             public CommandKeysMessage(int db, CommandFlags flags, RedisCommand command, RedisKey[] keys) : base(db, flags, command)
             {
-                for (int i = 0; i < keys.Length; i++)
-                {
-                    keys[i].AssertNotNull();
-                }
-                this.keys = keys;
+                this.keys = keys.AssertAllNonNull();
             }
 
-            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-            {
-                int slot = ServerSelectionStrategy.NoSlot;
-                for (int i = 0; i < keys.Length; i++)
-                {
-                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
-                }
-                return slot;
-            }
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(keys);
 
             protected override void WriteImpl(in MessageWriter writer)
             {
@@ -1241,11 +1222,7 @@ namespace StackExchange.Redis
             private readonly RedisValue[] values;
             public CommandKeyValuesKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, RedisValue[] values, in RedisKey key1) : base(db, flags, command, key0)
             {
-                for (int i = 0; i < values.Length; i++)
-                {
-                    values[i].AssertNotNull();
-                }
-                this.values = values;
+                this.values = values.AssertAllNonNull();
                 key1.AssertNotNull();
                 this.key1 = key1;
             }
@@ -1271,11 +1248,7 @@ namespace StackExchange.Redis
             private readonly RedisValue[] values;
             public CommandKeyValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue[] values) : base(db, flags, command, key)
             {
-                for (int i = 0; i < values.Length; i++)
-                {
-                    values[i].AssertNotNull();
-                }
-                this.values = values;
+                this.values = values.AssertAllNonNull();
             }
 
             protected override void WriteImpl(in MessageWriter writer)
@@ -1293,14 +1266,9 @@ namespace StackExchange.Redis
             private readonly RedisValue[] values;
             public CommandKeyKeyValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisKey key1, RedisValue[] values) : base(db, flags, command, key)
             {
-                for (int i = 0; i < values.Length; i++)
-                {
-                    values[i].AssertNotNull();
-                }
-
                 key1.AssertNotNull();
                 this.key1 = key1;
-                this.values = values;
+                this.values = values.AssertAllNonNull();
             }
 
             protected override void WriteImpl(in MessageWriter writer)
@@ -1320,16 +1288,11 @@ namespace StackExchange.Redis
             private readonly RedisValue[] values;
             public CommandKeyValueValueValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, RedisValue[] values) : base(db, flags, command, key)
             {
-                for (int i = 0; i < values.Length; i++)
-                {
-                    values[i].AssertNotNull();
-                }
-
                 value0.AssertNotNull();
                 value1.AssertNotNull();
                 this.value0 = value0;
                 this.value1 = value1;
-                this.values = values;
+                this.values = values.AssertAllNonNull();
             }
 
             protected override void WriteImpl(in MessageWriter writer)
@@ -1799,14 +1762,32 @@ namespace StackExchange.Redis
                 : base(db, flags, command)
             {
                 this.slot = slot;
-                for (int i = 0; i < values.Length; i++)
-                {
-                    values[i].AssertNotNull();
-                }
-                this.values = values;
+                this.values = values.AssertAllNonNull();
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => slot;
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                writer.WriteHeader(command, values.Length);
+                for (int i = 0; i < values.Length; i++)
+                {
+                    writer.WriteBulkString(values[i]);
+                }
+            }
+            public override int ArgCount => values.Length;
+        }
+
+        private sealed class CommandKeySlotValuesMessage : CommandKeyBase
+        {
+            private readonly RedisValue[] values;
+
+            public CommandKeySlotValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue[] values)
+                : base(db, flags, command, key)
+            {
+                // Key is captured by CommandKeyBase for routing only; values are the complete serialized arguments.
+                this.values = values.AssertAllNonNull();
+            }
 
             protected override void WriteImpl(in MessageWriter writer)
             {
