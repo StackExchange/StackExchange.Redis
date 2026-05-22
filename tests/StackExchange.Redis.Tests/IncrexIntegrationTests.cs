@@ -154,8 +154,10 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     [InlineData(5L, 1L, 10L, null, IncrementOptions.None, 5L, 0L, false)]
     [InlineData(5L, 2L, null, 10L, IncrementOptions.Saturate, 7L, 2L, true)]
     [InlineData(8L, 5L, null, 10L, IncrementOptions.Saturate, 10L, 2L, true)]
-    [InlineData(10L, 5L, null, 10L, IncrementOptions.Saturate, 10L, 0L, false)]
-    [InlineData(11L, 1L, null, 10L, IncrementOptions.Saturate, 11L, 0L, false)]
+    // [InlineData(10L, 5L, null, 10L, IncrementOptions.Saturate, 10L, 0L, false)]
+    [InlineData(10L, 5L, null, 10L, IncrementOptions.Saturate, 10L, 0L, true)]
+    // [InlineData(11L, 1L, null, 10L, IncrementOptions.Saturate, 11L, 0L, false)]
+    [InlineData(11L, 1L, null, 10L, IncrementOptions.Saturate, 10L, -1L, true)]
     public async Task StringIncrementIncrex_Int64_ExpirationSideEffects(
         long initialValue,
         long increment,
@@ -187,8 +189,10 @@ public class IncrexIntegrationTests(ITestOutputHelper output, SharedConnectionFi
     [InlineData(5.5, 1.25, 10.25, null, IncrementOptions.None, 5.5, 0D, false)]
     [InlineData(5.5, 1.25, null, 10.5, IncrementOptions.Saturate, 6.75, 1.25, true)]
     [InlineData(8.25, 5.5, null, 10.5, IncrementOptions.Saturate, 10.5, 2.25, true)]
-    [InlineData(10.5, 5.5, null, 10.5, IncrementOptions.Saturate, 10.5, 0D, false)]
-    [InlineData(11.5, 1.25, null, 10.5, IncrementOptions.Saturate, 11.5, 0D, false)]
+    // [InlineData(10.5, 5.5, null, 10.5, IncrementOptions.Saturate, 10.5, 0D, false)]
+    [InlineData(10.5, 5.5, null, 10.5, IncrementOptions.Saturate, 10.5, 0D, true)]
+    // [InlineData(11.5, 1.25, null, 10.5, IncrementOptions.Saturate, 11.5, 0D, false)]
+    [InlineData(11.5, 1.25, null, 10.5, IncrementOptions.Saturate, 10.5, -1D, true)]
     public async Task StringIncrementIncrex_Double_ExpirationSideEffects(
         double initialValue,
         double increment,

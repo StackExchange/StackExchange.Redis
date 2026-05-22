@@ -166,17 +166,17 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
             return;
         }
 
-        if (IsInBounds(candidate, lowerBound, upperBound))
-        {
-            next = candidate;
-            applied = delta;
-            return;
-        }
-
         if (saturate)
         {
             next = Clamp(candidate, lowerBound, upperBound);
             applied = next - current;
+            return;
+        }
+
+        if (IsInBounds(candidate, lowerBound, upperBound))
+        {
+            next = candidate;
+            applied = delta;
             return;
         }
 
@@ -220,12 +220,6 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
     {
         ignored = false;
         var candidate = current + delta;
-        if (IsFinite(candidate) && IsInBounds(candidate, lowerBound, upperBound))
-        {
-            next = candidate;
-            applied = delta;
-            return;
-        }
 
         if (saturate)
         {
@@ -233,6 +227,13 @@ public class IncrexTestServer(ITestOutputHelper? log = null) : InProcessTestServ
                 ? Clamp(candidate, lowerBound, upperBound)
                 : delta >= 0 ? upperBound.GetValueOrDefault(double.MaxValue) : lowerBound.GetValueOrDefault(double.MinValue);
             applied = next - current;
+            return;
+        }
+
+        if (IsFinite(candidate) && IsInBounds(candidate, lowerBound, upperBound))
+        {
+            next = candidate;
+            applied = delta;
             return;
         }
 

@@ -180,6 +180,76 @@ public class IncrexUnitTests(ITestOutputHelper log)
         Assert.True(afterTtl > TimeSpan.FromMinutes(4));
     }
 
+    [Theory]
+    [InlineData(5L, 2L, null, 10L, IncrementOptions.None, 7L, 2L, true)]
+    [InlineData(5L, 1L, 10L, null, IncrementOptions.None, 5L, 0L, false)]
+    [InlineData(5L, 2L, null, 10L, IncrementOptions.Saturate, 7L, 2L, true)]
+    [InlineData(8L, 5L, null, 10L, IncrementOptions.Saturate, 10L, 2L, true)]
+    // [InlineData(10L, 5L, null, 10L, IncrementOptions.Saturate, 10L, 0L, false)]
+    [InlineData(10L, 5L, null, 10L, IncrementOptions.Saturate, 10L, 0L, true)]
+    // [InlineData(11L, 1L, null, 10L, IncrementOptions.Saturate, 11L, 0L, false)]
+    [InlineData(11L, 1L, null, 10L, IncrementOptions.Saturate, 10L, -1L, true)]
+    public async Task StringIncrementIncrex_Int64_ExpirationSideEffects(
+        long initialValue,
+        long increment,
+        long? lowerBound,
+        long? upperBound,
+        IncrementOptions options,
+        long expectedValue,
+        long expectedAppliedIncrement,
+        bool expectExpiryChanged)
+    {
+        using var server = new IncrexTestServer(log);
+        await using var muxer = await server.ConnectAsync();
+        var db = muxer.GetDatabase();
+        var key = Me();
+
+        db.StringSet(key, initialValue, ExistingExpiry);
+        var beforeTtl = await db.KeyTimeToLiveAsync(key);
+
+        var result = await db.StringIncrementAsync(key, increment, NewExpiry, lowerBound, upperBound, options);
+
+        Assert.Equal(expectedValue, result.Value);
+        Assert.Equal(expectedAppliedIncrement, result.AppliedIncrement);
+        Assert.Equal(expectedValue, (long)db.StringGet(key));
+        await AssertExpiryAsync(db, key, beforeTtl, expectExpiryChanged);
+    }
+
+    [Theory]
+    [InlineData(5.5, 1.25, null, 10.5, IncrementOptions.None, 6.75, 1.25, true)]
+    [InlineData(5.5, 1.25, 10.25, null, IncrementOptions.None, 5.5, 0D, false)]
+    [InlineData(5.5, 1.25, null, 10.5, IncrementOptions.Saturate, 6.75, 1.25, true)]
+    [InlineData(8.25, 5.5, null, 10.5, IncrementOptions.Saturate, 10.5, 2.25, true)]
+    // [InlineData(10.5, 5.5, null, 10.5, IncrementOptions.Saturate, 10.5, 0D, false)]
+    [InlineData(10.5, 5.5, null, 10.5, IncrementOptions.Saturate, 10.5, 0D, true)]
+    // [InlineData(11.5, 1.25, null, 10.5, IncrementOptions.Saturate, 11.5, 0D, false)]
+    [InlineData(11.5, 1.25, null, 10.5, IncrementOptions.Saturate, 10.5, -1D, true)]
+    public async Task StringIncrementIncrex_Double_ExpirationSideEffects(
+        double initialValue,
+        double increment,
+        double? lowerBound,
+        double? upperBound,
+        IncrementOptions options,
+        double expectedValue,
+        double expectedAppliedIncrement,
+        bool expectExpiryChanged)
+    {
+        using var server = new IncrexTestServer(log);
+        await using var muxer = await server.ConnectAsync();
+        var db = muxer.GetDatabase();
+        var key = Me();
+
+        db.StringSet(key, initialValue, ExistingExpiry);
+        var beforeTtl = await db.KeyTimeToLiveAsync(key);
+
+        var result = await db.StringIncrementAsync(key, increment, NewExpiry, lowerBound, upperBound, options);
+
+        Assert.Equal(expectedValue, result.Value);
+        Assert.Equal(expectedAppliedIncrement, result.AppliedIncrement);
+        Assert.Equal(expectedValue, (double)db.StringGet(key));
+        await AssertExpiryAsync(db, key, beforeTtl, expectExpiryChanged);
+    }
+
     [Fact]
     public async Task StringIncrementIncrex_RejectsKeepTtl()
     {
@@ -190,4 +260,27 @@ public class IncrexUnitTests(ITestOutputHelper log)
         var ex = Assert.Throws<ArgumentException>(() => db.StringIncrement(Me(), 1L, Expiration.KeepTtl));
         Assert.Equal("expiry", ex.ParamName);
     }
+
+    private static async Task AssertExpiryAsync(IDatabase db, RedisKey key, TimeSpan? beforeTtl, bool expectExpiryChanged)
+    {
+        var afterTtl = await db.KeyTimeToLiveAsync(key);
+        Assert.NotNull(beforeTtl);
+        Assert.NotNull(afterTtl);
+
+        if (expectExpiryChanged)
+        {
+            Assert.True(afterTtl <= ChangedExpiryUpperBound, $"Expected {key} TTL to use the new expiry, but was {afterTtl}.");
+            Assert.True(afterTtl > TimeSpan.Zero, $"Expected {key} TTL to be positive, but was {afterTtl}.");
+        }
+        else
+        {
+            Assert.True(afterTtl > UnchangedExpiryLowerBound, $"Expected {key} TTL to retain the original expiry, but was {afterTtl}.");
+            Assert.True(afterTtl <= beforeTtl, $"Expected {key} TTL not to grow, but went from {beforeTtl} to {afterTtl}.");
+        }
+    }
+
+    private static readonly TimeSpan ExistingExpiry = TimeSpan.FromMinutes(20);
+    private static readonly TimeSpan NewExpiry = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ChangedExpiryUpperBound = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan UnchangedExpiryLowerBound = TimeSpan.FromMinutes(10);
 }
