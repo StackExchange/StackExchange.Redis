@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Sdk;
@@ -240,7 +241,7 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         Assert.Equal(4, await db.ArraySetAsync(key, [Entry(0, "RedisArray"), Entry(1, "redis-match"), Entry(2, "array-only"), Entry(3, "plain")]));
         var andNoCase = CreateGrep(ArrayGrepRequest.Predicate.Match("redis"), ArrayGrepRequest.Predicate.Glob("*array*"));
         andNoCase.IsIntersection = true;
-        andNoCase.IsCaseSensitive = true;
+        andNoCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, andNoCase), 0);
 
         await db.KeyDeleteAsync(key);
@@ -264,7 +265,7 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         AssertIndexEntries(await db.ArrayGrepAsync(key, CreateGrep(ArrayGrepRequest.Predicate.Regex("^.*[0-9]{3}$"))), 0, 2, 3);
 
         var noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("^foo[0-9]+$"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 3);
 
         await db.KeyDeleteAsync(key);
@@ -277,29 +278,35 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
 
         AssertIndexEntries(await db.ArrayGrepAsync(key, CreateGrep(ArrayGrepRequest.Predicate.Regex("foo|bar"))), 0, 1, 3, 5, 6);
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("foo|bar"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1, 3, 4, 5, 6);
 
+        // and same again, with reversed start/end
+        noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("foo|bar"));
+        noCase.IsCaseInsensitive = true;
+        noCase.IsReversed = true;
+        AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 6, 5, 4, 3, 1, 0);
+
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("^(foo|bar)$"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1, 4);
 
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("^(foo|bar)"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1, 3, 4);
 
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("(foo|bar)$"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1, 3, 4, 5, 6);
 
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("alpha|alps"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 8, 9);
 
         await db.KeyDeleteAsync(key);
         Assert.Equal(4, await db.ArraySetAsync(key, [Entry(0, "item-foo-123"), Entry(1, "ITEM-BAR-456"), Entry(2, "item-baz"), Entry(3, "plain")]));
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("^item-(foo|bar)-[0-9]{3}$"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1);
 
         await db.KeyDeleteAsync(key);
@@ -461,6 +468,42 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         await AssertServerErrorAsync("WRONGTYPE", async () => _ = await db.ArrayCountAsync(wrongType));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InfoToDictionary(bool full)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_8_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        await db.KeyDeleteAsync(key);
+
+        Assert.Equal(3, await db.ArraySetAsync(key, [Entry(0, "a"), Entry(1, "b"), Entry(100, "c")]));
+
+        var info = await db.ArrayInfoAsync(key, full);
+        var dictionary = info.ToDictionary();
+        LogDictionary(dictionary, $"ArrayInfo full={full}");
+
+        AssertArrayInfoDictionaryKnownFields(dictionary);
+        AssertIndex(info.Count, 3);
+        AssertIndex(info.Length, 101);
+        Assert.Equal(3, (long)dictionary["count"]);
+        Assert.Equal(101, (long)dictionary["len"]);
+
+        if (full)
+        {
+            Assert.Contains("sparse-slices", dictionary.Keys);
+
+            var basicDictionary = (await db.ArrayInfoAsync(key)).ToDictionary();
+            Assert.DoesNotContain("sparse-slices", basicDictionary.Keys);
+            LogFullOnlyFields(basicDictionary, dictionary);
+        }
+        else
+        {
+            Assert.DoesNotContain("sparse-slices", dictionary.Keys);
+        }
+    }
+
     private static RedisArrayEntry Entry(long index, RedisValue value) => new RedisArrayEntry(index, value);
 
     private static RedisKey WithSuffix(RedisKey key, string suffix) => (RedisKey)(key.ToString() + suffix);
@@ -505,6 +548,54 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
     {
         Assert.True(actual.HasValue);
         Assert.Equal(expected, actual.GetValueOrDefault().Value);
+    }
+
+    private static void AssertArrayInfoDictionaryKnownFields(Dictionary<string, RedisValue> dictionary)
+    {
+        Assert.Contains("count", dictionary.Keys);
+        Assert.Contains("len", dictionary.Keys);
+        Assert.Contains("next-insert-index", dictionary.Keys);
+        Assert.Contains("slices", dictionary.Keys);
+        Assert.Contains("directory-size", dictionary.Keys);
+        Assert.Contains("super-dir-entries", dictionary.Keys);
+        Assert.Contains("slice-size", dictionary.Keys);
+    }
+
+    private void LogDictionary(Dictionary<string, RedisValue> dictionary, string caption)
+    {
+        Log($"{caption}: {dictionary.Count} field(s)");
+        var keys = new List<string>(dictionary.Keys);
+        keys.Sort(StringComparer.Ordinal);
+        foreach (var key in keys)
+        {
+            Log($"  {key}: {dictionary[key]}");
+        }
+    }
+
+    private void LogFullOnlyFields(Dictionary<string, RedisValue> basicDictionary, Dictionary<string, RedisValue> fullDictionary)
+    {
+        var keys = new List<string>();
+        foreach (var key in fullDictionary.Keys)
+        {
+            if (!basicDictionary.ContainsKey(key))
+            {
+                keys.Add(key);
+            }
+        }
+
+        keys.Sort(StringComparer.Ordinal);
+        if (keys.Count == 0)
+        {
+            Log("ArrayInfo full-only fields: (none)");
+        }
+        else
+        {
+            Log($"ArrayInfo full-only fields: {keys.Count}");
+            foreach (var key in keys)
+            {
+                Log($"  {key}: {fullDictionary[key]}");
+            }
+        }
     }
 
     private static void AssertIndexEntries(RedisArrayEntry[] actual, params ulong[] expected)

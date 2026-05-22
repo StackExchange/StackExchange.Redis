@@ -69,6 +69,6 @@ internal sealed partial class KeyPrefixedDatabase
     public RedisValue[] ArrayLastItems(RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None) =>
         Inner.ArrayLastItems(ToInner(key), count, reverse, flags);
 
-    public ArrayInfo ArrayInfo(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        Inner.ArrayInfo(ToInner(key), flags);
+    public ArrayInfo ArrayInfo(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None) =>
+        Inner.ArrayInfo(ToInner(key), full, flags);
 }

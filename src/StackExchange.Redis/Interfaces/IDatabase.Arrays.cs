@@ -147,7 +147,7 @@ public partial interface IDatabase
     /// Gets array metadata.
     /// </summary>
     [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-    ArrayInfo ArrayInfo(RedisKey key, CommandFlags flags = CommandFlags.None);
+    ArrayInfo ArrayInfo(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None);
 }
 
 #pragma warning restore RS0026
