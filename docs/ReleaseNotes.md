@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Avoid sentinel issues if `ROLE` unavailable; fix #3064
 
 ## 2.13.10
 
