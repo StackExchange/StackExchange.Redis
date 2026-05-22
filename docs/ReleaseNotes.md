@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Fix logic inversion with `ARGREP NOCASE`, and add `IsReversed` to simplify ordering
+- Fix logic inversion with `ARGREP NOCASE`, and add `IsReversed` to simplify ordering. ([#3087 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3087))
 
 ## 2.13.10
 
