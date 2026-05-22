@@ -120,7 +120,7 @@ jobs:
         run: dotnet build Build.csproj -c Release /p:CI=true
       - name: StackExchange.Redis.Tests
         run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
-      - uses: dorny/test-reporter@v1
+      - uses: dorny/test-reporter@v3
         continue-on-error: true
         if: success() || failure()
         with:

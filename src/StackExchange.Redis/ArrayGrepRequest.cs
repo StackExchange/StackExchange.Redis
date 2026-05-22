@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
@@ -16,12 +17,14 @@ public class ArrayGrepRequest
     {
         None = 0,
         IsFrozen = 1 << 0,
-        CaseSensitive = 1 << 1,
+        CaseInsensitive = 1 << 1,
         IsIntersection = 1 << 2,
         StartSpecified = 1 << 3,
         EndSpecified = 1 << 4,
         LimitSpecified = 1 << 5,
         IncludeValues = 1 << 6,
+        Reversed = 1 << 7,
+        // warning: next flag needs : ushort
     }
 
     private void Freeze() => _flags |= LocalFlags.IsFrozen;
@@ -131,13 +134,37 @@ public class ArrayGrepRequest
     private long _limit;
 
     /// <summary>
+    /// Indicates whether matches are performed in a case-sensitive manner.
+    /// </summary>
+    /// <remarks>Corresponds to the <c>NOCASE</c> parameter.</remarks>
+    [Browsable(false)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [Obsolete("Prefer " + nameof(IsCaseInsensitive))]
+    public bool IsCaseSensitive
+    {
+        get => !IsCaseInsensitive;
+        set => IsCaseInsensitive = !value;
+    }
+
+    /// <summary>
     /// Indicates whether matches are performed in a case-insensitive manner.
     /// </summary>
     /// <remarks>Corresponds to the <c>NOCASE</c> parameter.</remarks>
-    public bool IsCaseSensitive
+    public bool IsCaseInsensitive
     {
-        get => GetFlag(LocalFlags.CaseSensitive);
-        set => SetFlag(LocalFlags.CaseSensitive, value);
+        get => GetFlag(LocalFlags.CaseInsensitive);
+        set => SetFlag(LocalFlags.CaseInsensitive, value);
+    }
+
+    /// <summary>
+    /// Indicates whether the query order should be reversed; this is equivalent to
+    /// reversing the order of <see cref="Start"/> and <see cref="End"/>.
+    /// </summary>
+    /// <remarks>Corresponds to the <c>NOCASE</c> parameter.</remarks>
+    public bool IsReversed
+    {
+        get => GetFlag(LocalFlags.Reversed);
+        set => SetFlag(LocalFlags.Reversed, value);
     }
 
     /// <summary>
@@ -317,7 +344,7 @@ public class ArrayGrepRequest
                 }
 
                 if (request.IsIntersection) count++;
-                if (request.IsCaseSensitive) count++;
+                if (request.IsCaseInsensitive) count++;
                 if (request.IncludeValues) count++;
                 var limit = request.Limit;
                 if (limit.HasValue) count += 2;
@@ -325,27 +352,31 @@ public class ArrayGrepRequest
             }
         }
 
+        private static void AddIndex(in MessageWriter writer, RedisArrayIndex? index, ReadOnlySpan<byte> fallback)
+        {
+            if (index.HasValue)
+            {
+                writer.WriteBulkString(index.GetValueOrDefault().Value);
+            }
+            else
+            {
+                writer.WriteRaw(fallback);
+            }
+        }
+
         protected override void WriteImpl(in MessageWriter writer)
         {
             writer.WriteHeader(Command, ArgCount);
             writer.WriteBulkString(key);
-            var index = request.Start;
-            if (index.HasValue)
+            if (request.IsReversed)
             {
-                writer.WriteBulkString(index.GetValueOrDefault().Value);
+                AddIndex(writer, request.End, "$1\r\n+\r\n"u8);
+                AddIndex(writer, request.Start, "$1\r\n-\r\n"u8);
             }
             else
             {
-                writer.WriteRaw("$1\r\n-\r\n"u8);
-            }
-            index = request.End;
-            if (index.HasValue)
-            {
-                writer.WriteBulkString(index.GetValueOrDefault().Value);
-            }
-            else
-            {
-                writer.WriteRaw("$1\r\n+\r\n"u8);
+                AddIndex(writer, request.Start, "$1\r\n-\r\n"u8);
+                AddIndex(writer, request.End, "$1\r\n+\r\n"u8);
             }
             var pCount = request.Count;
             for (int i = 0; i < pCount; i++)
@@ -354,7 +385,7 @@ public class ArrayGrepRequest
             }
 
             if (request.IsIntersection) writer.WriteRaw("$3\r\nAND\r\n"u8);
-            if (request.IsCaseSensitive) writer.WriteRaw("$6\r\nNOCASE\r\n"u8);
+            if (request.IsCaseInsensitive) writer.WriteRaw("$6\r\nNOCASE\r\n"u8);
             if (request.IncludeValues) writer.WriteRaw("$10\r\nWITHVALUES\r\n"u8);
             var limit = request.Limit;
             if (limit.HasValue)

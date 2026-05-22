@@ -42,6 +42,7 @@ namespace StackExchange.Redis
             FLUSH = RedisValue.FromRaw("FLUSH"u8),
             FNX = RedisValue.FromRaw("FNX"u8),
             FREQ = RedisValue.FromRaw("FREQ"u8),
+            FULL = RedisValue.FromRaw("FULL"u8),
             FXX = RedisValue.FromRaw("FXX"u8),
             GET = RedisValue.FromRaw("GET"u8),
             GETKEYS = RedisValue.FromRaw("GETKEYS"u8),

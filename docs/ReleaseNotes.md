@@ -15,7 +15,7 @@ From 3.0, [release notes will be maintained in GitHub only](https://github.com/S
 
 ## 2.12.14
 
-- (none)
+- Fix logic inversion with `ARGREP NOCASE`, add `IsReversed` to simplify ordering, and support `ARINFO FULL`. ([#3087 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3087))
 
 ## 2.13.10
 
