@@ -240,7 +240,7 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         Assert.Equal(4, await db.ArraySetAsync(key, [Entry(0, "RedisArray"), Entry(1, "redis-match"), Entry(2, "array-only"), Entry(3, "plain")]));
         var andNoCase = CreateGrep(ArrayGrepRequest.Predicate.Match("redis"), ArrayGrepRequest.Predicate.Glob("*array*"));
         andNoCase.IsIntersection = true;
-        andNoCase.IsCaseSensitive = true;
+        andNoCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, andNoCase), 0);
 
         await db.KeyDeleteAsync(key);
@@ -264,7 +264,7 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         AssertIndexEntries(await db.ArrayGrepAsync(key, CreateGrep(ArrayGrepRequest.Predicate.Regex("^.*[0-9]{3}$"))), 0, 2, 3);
 
         var noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("^foo[0-9]+$"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 3);
 
         await db.KeyDeleteAsync(key);
@@ -277,29 +277,35 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
 
         AssertIndexEntries(await db.ArrayGrepAsync(key, CreateGrep(ArrayGrepRequest.Predicate.Regex("foo|bar"))), 0, 1, 3, 5, 6);
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("foo|bar"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1, 3, 4, 5, 6);
 
+        // and same again, with reversed start/end
+        noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("foo|bar"));
+        noCase.IsCaseInsensitive = true;
+        noCase.IsReversed = true;
+        AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 6, 5, 4, 3, 1, 0);
+
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("^(foo|bar)$"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1, 4);
 
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("^(foo|bar)"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1, 3, 4);
 
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("(foo|bar)$"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1, 3, 4, 5, 6);
 
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("alpha|alps"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 8, 9);
 
         await db.KeyDeleteAsync(key);
         Assert.Equal(4, await db.ArraySetAsync(key, [Entry(0, "item-foo-123"), Entry(1, "ITEM-BAR-456"), Entry(2, "item-baz"), Entry(3, "plain")]));
         noCase = CreateGrep(ArrayGrepRequest.Predicate.Regex("^item-(foo|bar)-[0-9]{3}$"));
-        noCase.IsCaseSensitive = true;
+        noCase.IsCaseInsensitive = true;
         AssertIndexEntries(await db.ArrayGrepAsync(key, noCase), 0, 1);
 
         await db.KeyDeleteAsync(key);

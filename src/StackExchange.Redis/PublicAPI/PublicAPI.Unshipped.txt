@@ -1,1 +1,5 @@
 ﻿#nullable enable
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.set -> void

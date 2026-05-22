@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- (none)
+- Fix logic inversion with `ARGREP NOCASE`, and add `IsReversed` to simplify ordering
 
 ## 2.13.10
 
