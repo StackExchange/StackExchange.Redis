@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Sdk;
@@ -467,6 +468,42 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         await AssertServerErrorAsync("WRONGTYPE", async () => _ = await db.ArrayCountAsync(wrongType));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InfoToDictionary(bool full)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_8_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        await db.KeyDeleteAsync(key);
+
+        Assert.Equal(3, await db.ArraySetAsync(key, [Entry(0, "a"), Entry(1, "b"), Entry(100, "c")]));
+
+        var info = await db.ArrayInfoAsync(key, full);
+        var dictionary = info.ToDictionary();
+        LogDictionary(dictionary, $"ArrayInfo full={full}");
+
+        AssertArrayInfoDictionaryKnownFields(dictionary);
+        AssertIndex(info.Count, 3);
+        AssertIndex(info.Length, 101);
+        Assert.Equal(3, (long)dictionary["count"]);
+        Assert.Equal(101, (long)dictionary["len"]);
+
+        if (full)
+        {
+            Assert.Contains("sparse-slices", dictionary.Keys);
+
+            var basicDictionary = (await db.ArrayInfoAsync(key)).ToDictionary();
+            Assert.DoesNotContain("sparse-slices", basicDictionary.Keys);
+            LogFullOnlyFields(basicDictionary, dictionary);
+        }
+        else
+        {
+            Assert.DoesNotContain("sparse-slices", dictionary.Keys);
+        }
+    }
+
     private static RedisArrayEntry Entry(long index, RedisValue value) => new RedisArrayEntry(index, value);
 
     private static RedisKey WithSuffix(RedisKey key, string suffix) => (RedisKey)(key.ToString() + suffix);
@@ -511,6 +548,54 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
     {
         Assert.True(actual.HasValue);
         Assert.Equal(expected, actual.GetValueOrDefault().Value);
+    }
+
+    private static void AssertArrayInfoDictionaryKnownFields(Dictionary<string, RedisValue> dictionary)
+    {
+        Assert.Contains("count", dictionary.Keys);
+        Assert.Contains("len", dictionary.Keys);
+        Assert.Contains("next-insert-index", dictionary.Keys);
+        Assert.Contains("slices", dictionary.Keys);
+        Assert.Contains("directory-size", dictionary.Keys);
+        Assert.Contains("super-dir-entries", dictionary.Keys);
+        Assert.Contains("slice-size", dictionary.Keys);
+    }
+
+    private void LogDictionary(Dictionary<string, RedisValue> dictionary, string caption)
+    {
+        Log($"{caption}: {dictionary.Count} field(s)");
+        var keys = new List<string>(dictionary.Keys);
+        keys.Sort(StringComparer.Ordinal);
+        foreach (var key in keys)
+        {
+            Log($"  {key}: {dictionary[key]}");
+        }
+    }
+
+    private void LogFullOnlyFields(Dictionary<string, RedisValue> basicDictionary, Dictionary<string, RedisValue> fullDictionary)
+    {
+        var keys = new List<string>();
+        foreach (var key in fullDictionary.Keys)
+        {
+            if (!basicDictionary.ContainsKey(key))
+            {
+                keys.Add(key);
+            }
+        }
+
+        keys.Sort(StringComparer.Ordinal);
+        if (keys.Count == 0)
+        {
+            Log("ArrayInfo full-only fields: (none)");
+        }
+        else
+        {
+            Log($"ArrayInfo full-only fields: {keys.Count}");
+            foreach (var key in keys)
+            {
+                Log($"  {key}: {fullDictionary[key]}");
+            }
+        }
     }
 
     private static void AssertIndexEntries(RedisArrayEntry[] actual, params ulong[] expected)

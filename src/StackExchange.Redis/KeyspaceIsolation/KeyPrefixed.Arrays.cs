@@ -71,6 +71,6 @@ internal partial class KeyPrefixed<TInner>
     public Task<RedisValue[]> ArrayLastItemsAsync(RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None) =>
         Inner.ArrayLastItemsAsync(ToInner(key), count, reverse, flags);
 
-    public Task<ArrayInfo> ArrayInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
-        Inner.ArrayInfoAsync(ToInner(key), flags);
+    public Task<ArrayInfo> ArrayInfoAsync(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None) =>
+        Inner.ArrayInfoAsync(ToInner(key), full, flags);
 }

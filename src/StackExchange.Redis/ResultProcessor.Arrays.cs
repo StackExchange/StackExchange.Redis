@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Buffers;
+using System.Collections.Generic;
+using System.Diagnostics;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;
@@ -108,13 +111,16 @@ internal abstract partial class ResultProcessor
                 return false;
             }
 
-            RedisArrayIndex count = default, length = default, nextInsertIndex = default, slices = default, directorySize = default, superDirEntries = default, sliceSize = default;
+            var lease = ArrayPool<KeyValuePair<string, RedisValue>>.Shared.Rent(result.ItemsCount / 2);
+            int count = 0;
             var iter = result.GetItems().GetEnumerator();
             while (iter.MoveNext())
             {
-                if (!iter.Current.TryParse(ArrayInfoFieldMetadata.TryParse, out ArrayInfoField field))
+                // try to parse the field as a known enum, and get the known string for it, otherwise: alloc
+                if (!(iter.Current.TryParse(ArrayInfoFieldMetadata.TryParse, out ArrayInfoField field)
+                      && ArrayInfoFieldMetadata.TryFormat(field, out var key)))
                 {
-                    field = ArrayInfoField.Unknown;
+                    key = iter.Current.GetString() ?? "";
                 }
 
                 if (!iter.MoveNext())
@@ -122,39 +128,19 @@ internal abstract partial class ResultProcessor
                     break;
                 }
 
-                ref readonly RawResult value = ref iter.Current;
-                if (!TryParseArrayIndex(value, out RedisArrayIndex index))
+                try
                 {
-                    continue;
+                    lease[count++] = new(key, iter.Current.AsRedisValue());
                 }
-
-                switch (field)
+                catch (Exception ex)
                 {
-                    case ArrayInfoField.Count:
-                        count = index;
-                        break;
-                    case ArrayInfoField.Length:
-                        length = index;
-                        break;
-                    case ArrayInfoField.NextInsertIndex:
-                        nextInsertIndex = index;
-                        break;
-                    case ArrayInfoField.Slices:
-                        slices = index;
-                        break;
-                    case ArrayInfoField.DirectorySize:
-                        directorySize = index;
-                        break;
-                    case ArrayInfoField.SuperDirEntries:
-                        superDirEntries = index;
-                        break;
-                    case ArrayInfoField.SliceSize:
-                        sliceSize = index;
-                        break;
+                    // quietly ignore non-scalar results
+                    Debug.WriteLine(ex.Message);
                 }
             }
 
-            SetResult(message, new ArrayInfo(count, length, nextInsertIndex, slices, directorySize, superDirEntries, sliceSize));
+            SetResult(message, new ArrayInfo(new(lease, 0, count)));
+            ArrayPool<KeyValuePair<string, RedisValue>>.Shared.Return(lease);
             return true;
         }
     }

@@ -140,9 +140,9 @@ internal partial class RedisDatabase
         return msg is null ? Array.Empty<RedisValue>() : ExecuteSync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
     }
 
-    public ArrayInfo ArrayInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
+    public ArrayInfo ArrayInfo(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None)
     {
-        var msg = Message.Create(Database, flags, RedisCommand.ARINFO, key);
+        var msg = GetArrayInfoMessage(key, full, flags);
         return ExecuteSync(msg, ResultProcessor.ArrayInfo);
     }
 
@@ -284,10 +284,17 @@ internal partial class RedisDatabase
             : ExecuteAsync(msg, ResultProcessor.RedisValueArray, defaultValue: Array.Empty<RedisValue>());
     }
 
-    public Task<ArrayInfo> ArrayInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+    public Task<ArrayInfo> ArrayInfoAsync(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None)
     {
-        var msg = Message.Create(Database, flags, RedisCommand.ARINFO, key);
+        var msg = GetArrayInfoMessage(key, full, flags);
         return ExecuteAsync(msg, ResultProcessor.ArrayInfo);
+    }
+
+    private Message GetArrayInfoMessage(RedisKey key, bool full, CommandFlags flags)
+    {
+        return full
+            ? Message.Create(Database, flags, RedisCommand.ARINFO, key, RedisLiterals.FULL)
+            : Message.Create(Database, flags, RedisCommand.ARINFO, key);
     }
 
     private Message? GetArraySetMessage(RedisKey key, RedisArrayIndex index, RedisValue[] values, CommandFlags flags)

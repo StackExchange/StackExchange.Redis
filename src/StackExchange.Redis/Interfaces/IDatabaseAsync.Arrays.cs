@@ -96,9 +96,9 @@ public partial interface IDatabaseAsync
     [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     Task<RedisValue[]> ArrayLastItemsAsync(RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None);
 
-    /// <inheritdoc cref="IDatabase.ArrayInfo(RedisKey, CommandFlags)"/>
+    /// <inheritdoc cref="IDatabase.ArrayInfo(RedisKey, bool, CommandFlags)"/>
     [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-    Task<ArrayInfo> ArrayInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+    Task<ArrayInfo> ArrayInfoAsync(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None);
 }
 
 #pragma warning restore RS0026
