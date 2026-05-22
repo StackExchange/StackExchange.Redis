@@ -8,7 +8,7 @@ Current package versions:
 
 ## Unreleased
 
-- Avoid sentinel issues if `ROLE` unavailable; fix #3064
+- Avoid sentinel issues if `ROLE` unavailable; fix #3064 ([#3088 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3088))
 
 ## 2.13.10
 
