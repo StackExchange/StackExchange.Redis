@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- can also run fine in net8.0, but: don't want triplicate by default, and don't want competition between runs --> 
-    <TargetFrameworks>net481;net10.0</TargetFrameworks>
+    <TargetFrameworks>net481;net8.0;net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
@@ -33,5 +33,7 @@
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="System.IO.Compression" />
     <PackageReference Include="System.IO.Pipelines" />
+    <!-- to deal with package security warning -->
+    <PackageReference Include="System.Private.Uri" />
   </ItemGroup>
 </Project>
