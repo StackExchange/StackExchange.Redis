@@ -111,7 +111,8 @@ namespace StackExchange.Redis
                 Tunnel = "tunnel",
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
-                HighIntegrity = "highIntegrity";
+                HighIntegrity = "highIntegrity",
+                TcpKeepAlive = "tcpkeepalive";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -169,6 +170,7 @@ namespace StackExchange.Redis
         private Version? defaultVersion;
 
         private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, connectRetry, configCheckSeconds;
+        private bool? tcpKeepAlive;
 
         private Proxy? proxy;
 
@@ -597,6 +599,15 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Gets or sets whether to enable TCP keep-alive when appropriate (endpoint- and platform-dependent).
+        /// </summary>
+        public bool TcpKeepAlive
+        {
+            get => tcpKeepAlive ?? Defaults.TcpKeepAlive;
+            set => tcpKeepAlive = value;
+        }
+
+        /// <summary>
         /// The <see cref="ILoggerFactory"/> to get loggers for connection events.
         /// Note: changes here only affect <see cref="ConnectionMultiplexer"/>s created after.
         /// </summary>
@@ -847,6 +858,7 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             heartbeatConsistencyChecks = heartbeatConsistencyChecks,
             highIntegrity = highIntegrity,
+            tcpKeepAlive = tcpKeepAlive,
         };
 
         /// <summary>
@@ -929,6 +941,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
             Append(sb, OptionKeys.HighIntegrity, highIntegrity);
             Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
+            Append(sb, OptionKeys.TcpKeepAlive, tcpKeepAlive);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -1094,6 +1107,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.HighIntegrity:
                             HighIntegrity = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.TcpKeepAlive:
+                            TcpKeepAlive = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())

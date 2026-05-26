@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -20,13 +21,19 @@ public class TcpKeepAliveTests(ITestOutputHelper log, TcpTestFixture fixture) : 
     [InlineData(false, false)]
     public async Task Roundtrip(bool ip, bool keepAlive)
     {
+        #if NETFRAMEWORK
+        Assert.SkipWhen(
+            !ip && !RuntimeInformation.IsOSPlatform(OSPlatform.Windows),
+            "Mono has glitches with DNS endpoints");
+        #endif
         using var client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         EndPoint ep = ip ? fixture.IP : fixture.Dns;
-        log.WriteLine($"Connecting to {Format.ToString(ep)}, keepAlive: {keepAlive}");
+        log.WriteLine($"Connecting to {Format.ToString(ep)}, {ep.AddressFamily}, keepAlive: {keepAlive}");
         if (keepAlive)
         {
-            client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+            Assert.SkipUnless(SocketManager.TryEnableTcpKeepAlive(client, ep), "keep-alive not supported");
         }
+
         await client.ConnectAsync(ep);
 
         byte[] buffer = new byte[4];
@@ -64,9 +71,11 @@ public class TcpTestFixture : IDisposable
 #elif NET6_0_OR_GREATER
         port += 3;
 #endif
-        var ip = IPAddress.Parse("172.24.32.1");
+        var host = Environment.MachineName;
+        var ip = System.Net.Dns.GetHostEntry(host).AddressList.First(x => x.AddressFamily is AddressFamily.InterNetwork);
+
         IP = new(ip, port);
-        Dns = new("marc-z13", port);
+        Dns = new(host, port, AddressFamily.InterNetwork);
         server = new TcpListener(ip, port);
         server.Start();
         _ = Task.Run(async () =>

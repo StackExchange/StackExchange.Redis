@@ -79,6 +79,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "sslHost",
                 "SslProtocols",
                 "syncTimeout",
+                "tcpKeepAlive",
                 "tieBreaker",
                 "Tunnel",
                 "user",
