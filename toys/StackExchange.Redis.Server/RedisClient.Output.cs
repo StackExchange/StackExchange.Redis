@@ -178,6 +178,9 @@ public partial class RedisClient
                 case RespPrefix.Integer:
                     PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
                     break;
+                case RespPrefix.Double:
+                    WriteDouble(output, (double)value.AsRedisValue());
+                    break;
                 case RespPrefix.SimpleError:
                     prefix = '-';
                     goto BasicMessage;
@@ -230,6 +233,18 @@ public partial class RedisClient
             }
         }
 
+        static void WriteDouble(IBufferWriter<byte> output, double value)
+        {
+            Span<byte> valueSpan = stackalloc byte[Format.MaxDoubleTextLen];
+            var len = Format.FormatDouble(value, valueSpan);
+            var span = output.GetSpan(3 + len);
+            span[0] = (byte)',';
+            valueSpan.Slice(0, len).CopyTo(span.Slice(1));
+            span[1 + len] = (byte)'\r';
+            span[2 + len] = (byte)'\n';
+            output.Advance(3 + len);
+        }
+
         static ResultType ToResultType(RespPrefix type) =>
             type switch
             {
@@ -264,6 +279,7 @@ public partial class RedisClient
             case RespPrefix.Boolean:
                 return RespPrefix.Integer;
             case RespPrefix.Double:
+                return RespPrefix.BulkString;
             case RespPrefix.BigInteger:
                 return RespPrefix.SimpleString;
             case RespPrefix.BulkError:

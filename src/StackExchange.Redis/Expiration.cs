@@ -16,9 +16,11 @@ public readonly struct Expiration
     - PX {ms} - relative expiry in milliseconds
     - EXAT {s} - absolute expiry in seconds
     - PXAT {ms} - absolute expiry in milliseconds
+    - ENX - only apply the expiration if no expiration currently exists
 
-    We need to distinguish between these 6 scenarios, which we can logically do with 3 bits (8 options).
-    So; we'll use a ulong for the value, reserving the top 3 bits for the mode.
+    Historically this packed the mode and value into a single ulong. We now keep the raw long
+    separate from explicit flags so we can extend expiration behavior without stealing more bits
+    from the numeric payload.
     */
 
     /// <summary>
@@ -39,22 +41,29 @@ public readonly struct Expiration
     /// <summary>
     /// Expire at the specified absolute time.
     /// </summary>
-    public Expiration(DateTime when)
+    public Expiration(DateTime when) : this(when, ExpirationFlags.None) { }
+
+    /// <summary>
+    /// Expire at the specified absolute time.
+    /// </summary>
+    public Expiration(DateTime when, ExpirationFlags flags)
     {
         if (when == DateTime.MaxValue)
         {
-            _valueAndMode = s_Default._valueAndMode;
+            _value = s_Default._value;
+            _flags = s_Default._flags;
             return;
         }
 
         long millis = GetUnixTimeMilliseconds(when);
+        var extraFlags = ToStateFlags(flags);
         if ((millis % 1000) == 0)
         {
-            Init(ExpirationMode.AbsoluteSeconds, millis / 1000, out _valueAndMode);
+            Init(ExpirationState.HasExpiration | ExpirationState.IsAbsolute | extraFlags, millis / 1000, out _value, out _flags);
         }
         else
         {
-            Init(ExpirationMode.AbsoluteMilliseconds, millis, out _valueAndMode);
+            Init(ExpirationState.HasExpiration | ExpirationState.IsAbsolute | ExpirationState.IsMillis | extraFlags, millis, out _value, out _flags);
         }
     }
 
@@ -71,70 +80,88 @@ public readonly struct Expiration
     /// <summary>
     /// Expire at the specified relative time.
     /// </summary>
-    public Expiration(TimeSpan ttl)
+    public Expiration(TimeSpan ttl) : this(ttl, ExpirationFlags.None) { }
+
+    /// <summary>
+    /// Expire at the specified relative time.
+    /// </summary>
+    public Expiration(TimeSpan ttl, ExpirationFlags flags)
     {
         if (ttl == TimeSpan.MaxValue)
         {
-            _valueAndMode = s_Default._valueAndMode;
+            _value = s_Default._value;
+            _flags = s_Default._flags;
             return;
         }
 
         var millis = ttl.Ticks / TimeSpan.TicksPerMillisecond;
+        var extraFlags = ToStateFlags(flags);
         if ((millis % 1000) == 0)
         {
-            Init(ExpirationMode.RelativeSeconds, millis / 1000, out _valueAndMode);
+            Init(ExpirationState.HasExpiration | extraFlags, millis / 1000, out _value, out _flags);
         }
         else
         {
-            Init(ExpirationMode.RelativeMilliseconds, millis, out _valueAndMode);
+            Init(ExpirationState.HasExpiration | ExpirationState.IsMillis | extraFlags, millis, out _value, out _flags);
         }
     }
 
-    private readonly ulong _valueAndMode;
+    private readonly long _value;
+    private readonly ExpirationState _flags;
 
-    private static void Init(ExpirationMode mode, long value, out ulong valueAndMode)
+    [Flags]
+    private enum ExpirationState : byte
     {
-        // check the caller isn't using the top 3 bits that we have reserved; this includes checking for -ve values
-        ulong uValue = (ulong)value;
-        if ((uValue & ~ValueMask) != 0) Throw();
-        valueAndMode = (uValue & ValueMask) | ((ulong)mode << 61);
+        None = 0,
+        ExpireIfNotExists = (byte)ExpirationFlags.ExpireIfNotExists,
+        HasExpiration = 1 << 1,
+        IsMillis = 1 << 2,
+        IsAbsolute = 1 << 3,
+        KeepTtl = 1 << 4,
+        Persist = 1 << 5,
+    }
+
+    private static ExpirationState ToStateFlags(ExpirationFlags flags)
+    {
+        const ExpirationFlags validFlags = ExpirationFlags.ExpireIfNotExists;
+        if ((flags & ~validFlags) != 0) Throw();
+        return (ExpirationState)flags;
+
+        static void Throw() => throw new ArgumentOutOfRangeException(nameof(flags));
+    }
+
+    private static void Init(ExpirationState flags, long value, out long rawValue, out ExpirationState rawFlags)
+    {
+        if (value < 0) Throw();
+        rawValue = value;
+        rawFlags = flags;
         static void Throw() => throw new ArgumentOutOfRangeException(nameof(value));
     }
 
-    private Expiration(ExpirationMode mode, long value) => Init(mode, value, out _valueAndMode);
-
-    private enum ExpirationMode : byte
+    private Expiration(ExpirationState flags, long value)
     {
-        Default = 0,
-        RelativeSeconds = 1,
-        RelativeMilliseconds = 2,
-        AbsoluteSeconds = 3,
-        AbsoluteMilliseconds = 4,
-        KeepTtl = 5,
-        Persist = 6,
-        NotUsed = 7, // just to ensure all 8 possible values are covered
+        _value = value;
+        _flags = flags;
     }
 
-    private const ulong ValueMask = (~0UL) >> 3;
-    internal long Value => unchecked((long)(_valueAndMode & ValueMask));
-    private ExpirationMode Mode => (ExpirationMode)(_valueAndMode >> 61); // note unsigned, no need to mask
+    internal long Value => _value;
 
-    internal bool IsKeepTtl => Mode is ExpirationMode.KeepTtl;
-    internal bool IsPersist => Mode is ExpirationMode.Persist;
-    internal bool IsNone => Mode is ExpirationMode.Default;
-    internal bool IsNoneOrKeepTtl => Mode is ExpirationMode.Default or ExpirationMode.KeepTtl;
-    internal bool IsAbsolute => Mode is ExpirationMode.AbsoluteSeconds or ExpirationMode.AbsoluteMilliseconds;
-    internal bool IsRelative => Mode is ExpirationMode.RelativeSeconds or ExpirationMode.RelativeMilliseconds;
+    internal bool IsKeepTtl => (_flags & ExpirationState.KeepTtl) != 0;
+    internal bool IsPersist => (_flags & ExpirationState.Persist) != 0;
+    internal bool IsExpireIfNotExists => (_flags & ExpirationState.ExpireIfNotExists) != 0;
+    internal bool IsNone => _flags == ExpirationState.None;
+    internal bool IsNoneOrKeepTtl => IsNone || IsKeepTtl;
+    internal bool IsAbsolute => (_flags & ExpirationState.IsAbsolute) != 0;
+    internal bool IsRelative => (_flags & ExpirationState.HasExpiration) != 0 && !IsAbsolute;
 
-    internal bool IsMilliseconds =>
-        Mode is ExpirationMode.RelativeMilliseconds or ExpirationMode.AbsoluteMilliseconds;
+    internal bool IsMilliseconds => (_flags & ExpirationState.IsMillis) != 0;
 
-    internal bool IsSeconds => Mode is ExpirationMode.RelativeSeconds or ExpirationMode.AbsoluteSeconds;
+    internal bool IsSeconds => (_flags & (ExpirationState.HasExpiration | ExpirationState.IsMillis)) == ExpirationState.HasExpiration;
 
-    private static readonly Expiration s_Default = new(ExpirationMode.Default, 0);
+    private static readonly Expiration s_Default = new(ExpirationState.None, 0);
 
-    private static readonly Expiration s_KeepTtl = new(ExpirationMode.KeepTtl, 0),
-        s_Persist = new(ExpirationMode.Persist, 0);
+    private static readonly Expiration s_KeepTtl = new(ExpirationState.KeepTtl, 0),
+        s_Persist = new(ExpirationState.Persist, 0);
 
     private static void ThrowExpiryAndKeepTtl() =>
         // ReSharper disable once NotResolvedInText
@@ -206,68 +233,78 @@ public readonly struct Expiration
     internal RedisValue GetOperand(out long value)
     {
         value = Value;
-        var mode = Mode;
-        return mode switch
+        if (IsKeepTtl) return RedisLiterals.KEEPTTL;
+        if (IsPersist) return RedisLiterals.PERSIST;
+        if ((_flags & ExpirationState.HasExpiration) == 0) return RedisValue.Null;
+
+        return (IsAbsolute, IsMilliseconds) switch
         {
-            ExpirationMode.KeepTtl => RedisLiterals.KEEPTTL,
-            ExpirationMode.Persist => RedisLiterals.PERSIST,
-            ExpirationMode.RelativeSeconds => RedisLiterals.EX,
-            ExpirationMode.RelativeMilliseconds => RedisLiterals.PX,
-            ExpirationMode.AbsoluteSeconds => RedisLiterals.EXAT,
-            ExpirationMode.AbsoluteMilliseconds => RedisLiterals.PXAT,
-            _ => RedisValue.Null,
+            (false, false) => RedisLiterals.EX,
+            (false, true) => RedisLiterals.PX,
+            (true, false) => RedisLiterals.EXAT,
+            (true, true) => RedisLiterals.PXAT,
         };
     }
 
-    private static void ThrowMode(ExpirationMode mode) =>
-        throw new InvalidOperationException("Unknown mode: " + mode);
-
     /// <inheritdoc/>
-    public override string ToString() => Mode switch
+    public override string ToString()
     {
-        ExpirationMode.Default or ExpirationMode.NotUsed => "",
-        ExpirationMode.KeepTtl => "KEEPTTL",
-        ExpirationMode.Persist => "PERSIST",
-        _ => $"{Operand} {Value}",
-    };
+        if (IsNone) return "";
+        if (IsKeepTtl) return "KEEPTTL";
+        if (IsPersist) return "PERSIST";
+        return IsExpireIfNotExists ? $"{Operand} {Value} {RedisLiterals.ENX}" : $"{Operand} {Value}";
+    }
 
     /// <inheritdoc/>
-    public override int GetHashCode() => _valueAndMode.GetHashCode();
-
-    /// <inheritdoc/>
-    public override bool Equals(object? obj) => obj is Expiration other && _valueAndMode == other._valueAndMode;
-
-    internal int TokenCount => Mode switch
+    public override int GetHashCode()
     {
-        ExpirationMode.Default or ExpirationMode.NotUsed => 0,
-        ExpirationMode.KeepTtl or ExpirationMode.Persist => 1,
-        _ => 2,
-    };
+        unchecked
+        {
+            return (_value.GetHashCode() * 397) ^ (int)_flags;
+        }
+    }
+
+    /// <inheritdoc/>
+    public override bool Equals(object? obj) => obj is Expiration other && _value == other._value && _flags == other._flags;
+
+    internal int GetTokenCount(bool allowEnx)
+    {
+        if (!allowEnx && IsExpireIfNotExists) return ThrowEnxNotSupported();
+        return IsNone ? 0 : (IsKeepTtl || IsPersist ? 1 : (IsExpireIfNotExists ? 3 : 2));
+
+        static int ThrowEnxNotSupported() => throw new NotSupportedException("ENX is not supported for this command.");
+    }
 
     internal void WriteTo(PhysicalConnection physical)
     {
-        var mode = Mode;
-        switch (Mode)
+        if (IsNone)
         {
-            case ExpirationMode.Default or ExpirationMode.NotUsed:
-                break;
-            case ExpirationMode.KeepTtl:
-                physical.WriteBulkString("KEEPTTL"u8);
-                break;
-            case ExpirationMode.Persist:
-                physical.WriteBulkString("PERSIST"u8);
-                break;
-            default:
-                physical.WriteBulkString(mode switch
-                {
-                    ExpirationMode.RelativeSeconds => "EX"u8,
-                    ExpirationMode.RelativeMilliseconds => "PX"u8,
-                    ExpirationMode.AbsoluteSeconds => "EXAT"u8,
-                    ExpirationMode.AbsoluteMilliseconds => "PXAT"u8,
-                    _ => default,
-                });
-                physical.WriteBulkString(Value);
-                break;
+            return;
+        }
+
+        if (IsKeepTtl)
+        {
+            physical.WriteBulkString("KEEPTTL"u8);
+            return;
+        }
+
+        if (IsPersist)
+        {
+            physical.WriteBulkString("PERSIST"u8);
+            return;
+        }
+
+        physical.WriteBulkString((IsAbsolute, IsMilliseconds) switch
+        {
+            (false, false) => "EX"u8,
+            (false, true) => "PX"u8,
+            (true, false) => "EXAT"u8,
+            (true, true) => "PXAT"u8,
+        });
+        physical.WriteBulkString(Value);
+        if (IsExpireIfNotExists)
+        {
+            physical.WriteBulkString("ENX"u8);
         }
     }
 }

@@ -3,14 +3,33 @@ using Xunit;
 using static StackExchange.Redis.Expiration;
 namespace StackExchange.Redis.Tests;
 
-public class ExpirationTests // pure tests, no DB
+public class ExpirationUnitTests // pure tests, no DB
 {
+    [Fact]
+    public void ExpireIfNotExists_TimeSpan_Seconds()
+    {
+        var ex = new Expiration(TimeSpan.FromSeconds(5), ExpirationFlags.ExpireIfNotExists);
+        Assert.True(ex.IsExpireIfNotExists);
+        Assert.Equal(3, ex.GetTokenCount(allowEnx: true));
+        Assert.Equal("EX 5 ENX", ex.ToString());
+    }
+
+    [Fact]
+    public void ExpireIfNotExists_DateTime_Milliseconds()
+    {
+        var when = new DateTime(2025, 7, 23, 10, 4, 14, DateTimeKind.Utc).AddMilliseconds(14);
+        var ex = new Expiration(when, ExpirationFlags.ExpireIfNotExists);
+        Assert.True(ex.IsExpireIfNotExists);
+        Assert.Equal(3, ex.GetTokenCount(allowEnx: true));
+        Assert.Equal("PXAT 1753265054014 ENX", ex.ToString());
+    }
+
     [Fact]
     public void Persist_Seconds()
     {
         TimeSpan? time = TimeSpan.FromMilliseconds(5000);
         var ex = CreateOrPersist(time, false);
-        Assert.Equal(2, ex.TokenCount);
+        Assert.Equal(2, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("EX 5", ex.ToString());
     }
 
@@ -19,7 +38,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = TimeSpan.FromMilliseconds(5001);
         var ex = CreateOrPersist(time, false);
-        Assert.Equal(2, ex.TokenCount);
+        Assert.Equal(2, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("PX 5001", ex.ToString());
     }
 
@@ -28,7 +47,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = null;
         var ex = CreateOrPersist(time, false);
-        Assert.Equal(0, ex.TokenCount);
+        Assert.Equal(0, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("", ex.ToString());
     }
 
@@ -37,7 +56,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = null;
         var ex = CreateOrPersist(time, true);
-        Assert.Equal(1, ex.TokenCount);
+        Assert.Equal(1, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("PERSIST", ex.ToString());
     }
 
@@ -55,7 +74,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = TimeSpan.FromMilliseconds(5000);
         var ex = CreateOrKeepTtl(time, false);
-        Assert.Equal(2, ex.TokenCount);
+        Assert.Equal(2, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("EX 5", ex.ToString());
     }
 
@@ -64,7 +83,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = TimeSpan.FromMilliseconds(5001);
         var ex = CreateOrKeepTtl(time, false);
-        Assert.Equal(2, ex.TokenCount);
+        Assert.Equal(2, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("PX 5001", ex.ToString());
     }
 
@@ -73,7 +92,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = null;
         var ex = CreateOrKeepTtl(time, false);
-        Assert.Equal(0, ex.TokenCount);
+        Assert.Equal(0, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("", ex.ToString());
     }
 
@@ -82,7 +101,7 @@ public class ExpirationTests // pure tests, no DB
     {
         TimeSpan? time = null;
         var ex = CreateOrKeepTtl(time, true);
-        Assert.Equal(1, ex.TokenCount);
+        Assert.Equal(1, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("KEEPTTL", ex.ToString());
     }
 
@@ -100,7 +119,7 @@ public class ExpirationTests // pure tests, no DB
     {
         var when = new DateTime(2025, 7, 23, 10, 4, 14, DateTimeKind.Utc);
         var ex = new Expiration(when);
-        Assert.Equal(2, ex.TokenCount);
+        Assert.Equal(2, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("EXAT 1753265054", ex.ToString());
     }
 
@@ -110,7 +129,7 @@ public class ExpirationTests // pure tests, no DB
         var when = new DateTime(2025, 7, 23, 10, 4, 14, DateTimeKind.Utc);
         when = when.AddMilliseconds(14);
         var ex = new Expiration(when);
-        Assert.Equal(2, ex.TokenCount);
+        Assert.Equal(2, ex.GetTokenCount(allowEnx: false));
         Assert.Equal("PXAT 1753265054014", ex.ToString());
     }
 }

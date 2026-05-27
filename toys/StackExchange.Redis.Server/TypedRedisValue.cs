@@ -135,6 +135,16 @@ namespace StackExchange.Redis
             => new TypedRedisValue(value, RespPrefix.Integer);
 
         /// <summary>
+        /// Initialize a <see cref="TypedRedisValue"/> that represents a number.
+        /// </summary>
+        /// <param name="value">The value to initialize from.</param>
+        public static TypedRedisValue Number(double value)
+        {
+            var redisValue = (RedisValue)value;
+            return new TypedRedisValue(redisValue, redisValue.IsInteger ? RespPrefix.Integer : RespPrefix.Double);
+        }
+
+        /// <summary>
         /// Initialize a <see cref="TypedRedisValue"/> from a <see cref="ReadOnlySpan{TypedRedisValue}"/>.
         /// </summary>
         /// <param name="items">The items to intialize a value from.</param>
@@ -228,6 +238,7 @@ namespace StackExchange.Redis
                 case RespPrefix.BulkString:
                 case RespPrefix.SimpleString:
                 case RespPrefix.Integer:
+                case RespPrefix.Double:
                 case RespPrefix.SimpleError:
                     return $"{Type}:{_value}";
                 default:

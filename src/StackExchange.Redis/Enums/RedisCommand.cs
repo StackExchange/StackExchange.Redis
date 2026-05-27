@@ -119,6 +119,7 @@ internal enum RedisCommand
     INCR,
     INCRBY,
     INCRBYFLOAT,
+    INCREX,
     INFO,
 
     KEYS,
@@ -371,6 +372,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.INCR:
             case RedisCommand.INCRBY:
             case RedisCommand.INCRBYFLOAT:
+            case RedisCommand.INCREX:
             case RedisCommand.LINSERT:
             case RedisCommand.LMOVE:
             case RedisCommand.LMPOP:
