@@ -18,8 +18,8 @@ internal sealed partial class PhysicalConnection
 {
     private long totalBytesReceived;
 
-    internal static PhysicalConnection Dummy(BufferedStreamWriter.WriteMode writeMode = BufferedStreamWriter.WriteMode.Default)
-        => new(null!, writeMode);
+    internal static PhysicalConnection Dummy(Stream stream, BufferedStreamWriter.WriteMode writeMode = BufferedStreamWriter.WriteMode.Default)
+        => new(ioStream: stream, writeMode: writeMode);
 
     private volatile ReadStatus _readStatus = ReadStatus.NotStarted;
     internal ReadStatus GetReadStatus() => _readStatus;

@@ -898,6 +898,11 @@ namespace StackExchange.Redis
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
+                // Re-throw so the outer write path (PhysicalBridge.HandleWriteException) can tear down the
+                // connection. A partial write would otherwise leave bytes on the wire while the response
+                // queue still considers the slot healthy, allowing a subsequent reply to match the wrong
+                // in-flight message.
+                throw;
             }
         }
 
@@ -1822,7 +1827,7 @@ namespace StackExchange.Redis
             // - MSETNX {key1} {value1} [{key2} {value2}...]
             // - MSETEX {count} {key1} {value1} [{key2} {value2}...] [standard-expiry-tokens]
             public override int ArgCount => Command == RedisCommand.MSETEX
-                ? (1 + (2 * values.Length) + expiry.GetTokenCount(allowEnx: false) + (when is When.Exists or When.NotExists ? 1 : 0))
+                ? (1 + (2 * values.Length) + expiry.GetTokenCount(false) + (when is When.Exists or When.NotExists ? 1 : 0))
                 : (2 * values.Length); // MSET/MSETNX only support simple syntax
 
             protected override void WriteImpl(in MessageWriter writer)

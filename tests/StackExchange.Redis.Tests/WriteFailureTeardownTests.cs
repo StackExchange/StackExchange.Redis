@@ -1,36 +1,34 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Tests.RoundTripUnitTests;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
 public class WriteFailureTeardownTests(ITestOutputHelper output) : TestBase(output)
 {
-    private sealed class ThrowingMessage : Message
+    private sealed class ThrowingMessage(Exception toThrow, int db = -1, CommandFlags flags = CommandFlags.None, RedisCommand command = RedisCommand.PING)
+        : Message(db, flags, command)
     {
-        private readonly Exception _toThrow;
-        public ThrowingMessage(int db, CommandFlags flags, RedisCommand command, Exception toThrow)
-            : base(db, flags, command)
-        {
-            _toThrow = toThrow;
-        }
-
         public override int ArgCount => 0;
 
-        protected override void WriteImpl(in MessageWriter writer) => throw _toThrow;
+        protected override void WriteImpl(in MessageWriter writer) => throw toThrow;
     }
 
     [Fact]
     public void WriteTo_PropagatesWriteImplException()
     {
         var inner = new InvalidOperationException("simulated write failure");
-        var msg = new ThrowingMessage(-1, CommandFlags.None, RedisCommand.PING, inner);
+        var msg = new ThrowingMessage(inner);
 
         // The new behavior: WriteTo must rethrow so the bridge's outer catch can record a connection
         // failure. Passing null for physical is safe because WriteTo null-conditionals every member
         // access on it.
-        var thrown = Assert.Throws<InvalidOperationException>(() => msg.WriteTo(null!));
+        using var ms = new MemoryStream();
+        using var connection = PhysicalConnection.Dummy(ms);
+        var thrown = Assert.Throws<InvalidOperationException>(() => msg.WriteTo(connection));
         Assert.Same(inner, thrown);
     }
 
@@ -40,9 +38,10 @@ public class WriteFailureTeardownTests(ITestOutputHelper output) : TestBase(outp
         // RedisCommandException is excluded from the catch filter (it carries its own meaning),
         // so it must surface unchanged from WriteImpl through WriteTo.
         var inner = new RedisCommandException("intentional");
-        var msg = new ThrowingMessage(-1, CommandFlags.None, RedisCommand.PING, inner);
-
-        var thrown = Assert.Throws<RedisCommandException>(() => msg.WriteTo(null!));
+        var msg = new ThrowingMessage(inner);
+        using var ms = new MemoryStream();
+        using var connection = PhysicalConnection.Dummy(ms);
+        var thrown = Assert.Throws<RedisCommandException>(() => msg.WriteTo(connection));
         Assert.Same(inner, thrown);
     }
 
@@ -69,7 +68,7 @@ public class WriteFailureTeardownTests(ITestOutputHelper output) : TestBase(outp
         var server = muxer.GetServerSnapshot()[0];
 
         var boom = new InvalidOperationException("simulated WriteImpl failure");
-        var throwingMsg = new ThrowingMessage(-1, CommandFlags.None, RedisCommand.PING, boom);
+        var throwingMsg = new ThrowingMessage(boom);
         muxer.CheckMessage(throwingMsg);
 
         var sendTask = muxer.ExecuteAsyncImpl(throwingMsg, ResultProcessor.ResponseTimer, state: null, server);

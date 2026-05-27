@@ -132,9 +132,9 @@ internal abstract partial class ResultProcessor
 
                     try
                     {
-                        if (iter.Current.IsScalar)
+                        if (iter.Value.IsScalar)
                         {
-                            lease[count++] = new(key, iter.Current.ReadRedisValue());
+                            lease[count++] = new(key, iter.Value.ReadRedisValue());
                         }
                     }
                     catch (Exception ex)
