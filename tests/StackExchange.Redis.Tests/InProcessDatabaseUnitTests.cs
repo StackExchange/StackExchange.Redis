@@ -5,14 +5,14 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-public class InProcessDatabaseUnitTests(ITestOutputHelper output) : TestBase(output)
+public class InProcessDatabaseUnitTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task DatabasesAreIsolatedAndCanBeFlushed()
     {
-        NoConcurrentRuntime();
+        TestBase.NoConcurrentRuntime();
 
-        using var server = new InProcessTestServer(Output);
+        using var server = new InProcessTestServer(output);
         await using var conn = await server.ConnectAsync();
 
         var admin = conn.GetServer(conn.GetEndPoints()[0]);

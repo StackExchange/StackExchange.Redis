@@ -66,7 +66,7 @@ public abstract class TestBase : IDisposable
         }
     }
 
-    protected void NoConcurrentRuntime()
+    internal static void NoConcurrentRuntime()
     {
         // Some tests are not amenable to running concurrently in different runtimes - for
         // example they might do a script-flush or a flush-db; ensure it only runs against

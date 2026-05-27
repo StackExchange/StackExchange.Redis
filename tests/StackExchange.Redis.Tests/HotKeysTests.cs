@@ -15,6 +15,8 @@ public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixtu
     [InlineData(false)]
     public void CanUseClusterFilter(bool sample)
     {
+        NoConcurrentRuntime();
+
         var key = Me();
         using var muxer = GetServer(key, out var server);
         Log($"server: {Format.ToString(server.EndPoint)}, key: '{key}'");
@@ -129,6 +131,8 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public void CanStartStopReset()
     {
+        NoConcurrentRuntime();
+
         RedisKey key = Me();
         using var muxer = GetServer(key, out var server);
         server.HotKeysStart(duration: Duration);
@@ -215,6 +219,8 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task CanStartStopResetAsync()
     {
+        NoConcurrentRuntime();
+
         RedisKey key = Me();
         await using var muxer = GetServer(key, out var server);
         await server.HotKeysStartAsync(duration: Duration);
@@ -244,6 +250,8 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task DurationFilterAsync()
     {
+        NoConcurrentRuntime();
+
         Skip.UnlessLongRunning(); // time-based tests are horrible
 
         RedisKey key = Me();
@@ -276,6 +284,8 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [InlineData(HotKeysMetrics.Network | HotKeysMetrics.Cpu)]
     public async Task MetricsChoiceAsync(HotKeysMetrics metrics)
     {
+        NoConcurrentRuntime();
+
         RedisKey key = Me();
         await using var muxer = GetServer(key, out var server);
         await server.HotKeysStartAsync(metrics, duration: Duration);
@@ -305,6 +315,8 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task SampleRatioUsageAsync()
     {
+        NoConcurrentRuntime();
+
         RedisKey key = Me();
         await using var muxer = GetServer(key, out var server);
         await server.HotKeysStartAsync(sampleRatio: 3, duration: Duration);
