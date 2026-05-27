@@ -1,11 +1,1 @@
 ﻿#nullable enable
-StackExchange.Redis.ConfigurationOptions.TcpKeepAlive.get -> bool
-StackExchange.Redis.ConfigurationOptions.TcpKeepAlive.set -> void
-virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.TcpKeepAlive.get -> bool
-[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.get -> bool
-[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.set -> void
-[SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.get -> bool
-[SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.set -> void
-[SER006]StackExchange.Redis.ArrayInfo.ArrayInfo(scoped System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<string!, StackExchange.Redis.RedisValue>> values) -> void
-[SER006]StackExchange.Redis.ArrayInfo.ToDictionary() -> System.Collections.Generic.Dictionary<string!, StackExchange.Redis.RedisValue>!
-[SER006]StackExchange.Redis.ArrayInfo.this[string! key].get -> StackExchange.Redis.RedisValue

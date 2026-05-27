@@ -8,9 +8,15 @@ Current package versions:
 
 ## Unreleased
 
-- Fix logic inversion with `ARGREP NOCASE`, add `IsReversed` to simplify ordering, and support `ARINFO FULL`. ([#3087 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3087))
-- Avoid sentinel issues if `ROLE` unavailable; fix #3064 ([#3088 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3088))
+- (none)
+
+## 2.3.17
+
 - Fix TCP platform-dependent TCP keep-alive problems, and make an explicit option. ([#3090 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3090))
+- Tear down connection on write failure to prevent queue desync ([#3092 by @Pranish-Pantha](https://github.com/StackExchange/StackExchange.Redis/pull/3092)) 
+- Fix logic inversion with 8.8 `ARGREP NOCASE`, add `IsReversed` to simplify ordering, and support `ARINFO FULL`. ([#3087 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3087))
+- Avoid sentinel issues if `ROLE` unavailable; fix #3064 ([#3088 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3088))
+- Add 8.8 support for `INCREX` ([#3065 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3065))
 
 ## 2.13.10
 
