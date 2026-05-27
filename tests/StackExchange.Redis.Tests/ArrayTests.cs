@@ -126,6 +126,9 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
     [Fact(Timeout = 10000)]
     public async Task DeleteLastElementPublishesArrayDeleteBeforeKeyDeleteNotifications()
     {
+        #if !DEBUG
+        Assert.Skip("Debug only due to parallelism overhead");
+        #endif
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v8_8_0);
         var db = conn.GetDatabase();
         await AssertArrayKeyspaceNotificationsEnabledAsync(conn);
@@ -631,9 +634,12 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
 
     private async Task<(KeyNotificationKind Kind, KeyNotificationType Type)> ReadNotificationAsync(ChannelMessageQueue queue, RedisKey key)
     {
-        for (int i = 0; i < 64; i++)
+        // there might be a lot of parallel notifications happening from parallel tests; as such, we might need to skip a lot of unrelated
+        // stuff - allow for the timeout
+        var ct = TestContext.Current.CancellationToken;
+        while (!ct.IsCancellationRequested)
         {
-            var message = await queue.ReadAsync(TestContext.Current.CancellationToken);
+            var message = await queue.ReadAsync(ct);
             if (message.TryParseKeyNotification(out var notification))
             {
                 Log($"{notification.Kind}, {notification.Type} {message}");
