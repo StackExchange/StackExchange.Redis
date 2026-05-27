@@ -136,6 +136,8 @@ public class ArrayTests(SharedConnectionFixture fixture, ITestOutputHelper log)
         var sub = conn.GetSubscriber();
         var channel = RedisChannel.Pattern($"__key*@{db.Database}__:*");
         var queue = await sub.SubscribeAsync(channel);
+        await Task.Delay(100);
+        await sub.PingAsync();
         try
         {
             Assert.True(await db.ArraySetAsync(key, 0, "a"));
