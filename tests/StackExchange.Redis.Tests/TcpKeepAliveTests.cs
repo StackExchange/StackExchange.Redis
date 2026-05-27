@@ -64,7 +64,7 @@ public class TcpTestFixture : IDisposable
     public TcpTestFixture()
     {
         int port = 18000;
-#if NET10_OR_GREATER
+#if NET10_0_OR_GREATER
         port += 1;
 #elif NET8_0_OR_GREATER
         port += 2;
