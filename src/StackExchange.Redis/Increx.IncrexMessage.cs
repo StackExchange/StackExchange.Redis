@@ -26,27 +26,27 @@ internal partial class RedisDatabase
         private int OptionsArgCount => Options == IncrementOptions.Saturate ? 1 : 0;
 
         protected abstract int BoundsArgCount { get; }
-        protected abstract void WriteIncrementKindAndValue(PhysicalConnection physical);
-        protected abstract void WriteBounds(PhysicalConnection physical);
+        protected abstract void WriteIncrementKindAndValue(in MessageWriter writer);
+        protected abstract void WriteBounds(in MessageWriter writer);
 
-        protected override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteImpl(in MessageWriter writer)
         {
-            physical.WriteHeader(Command, ArgCount);
-            physical.WriteBulkString(Key);
-            WriteIncrementKindAndValue(physical);
-            WriteBounds(physical);
-            WriteOptions(physical);
-            Expiry.WriteTo(physical);
+            writer.WriteHeader(Command, ArgCount);
+            writer.WriteBulkString(Key);
+            WriteIncrementKindAndValue(writer);
+            WriteBounds(writer);
+            WriteOptions(writer);
+            Expiry.WriteTo(writer);
         }
 
-        private void WriteOptions(PhysicalConnection physical)
+        private void WriteOptions(in MessageWriter writer)
         {
             switch (Options)
             {
                 case IncrementOptions.None:
                     break;
                 case IncrementOptions.Saturate:
-                    physical.WriteRaw("$8\r\nSATURATE\r\n"u8);
+                    writer.WriteRaw("$8\r\nSATURATE\r\n"u8);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(Options));
@@ -66,23 +66,23 @@ internal partial class RedisDatabase
     {
         protected override int BoundsArgCount => (lowerBound.HasValue ? 2 : 0) + (upperBound.HasValue ? 2 : 0);
 
-        protected override void WriteIncrementKindAndValue(PhysicalConnection physical)
+        protected override void WriteIncrementKindAndValue(in MessageWriter writer)
         {
-            physical.WriteBulkString("BYINT"u8);
-            physical.WriteBulkString(value);
+            writer.WriteRaw("$5\r\nBYINT\r\n"u8);
+            writer.WriteBulkString(value);
         }
 
-        protected override void WriteBounds(PhysicalConnection physical)
+        protected override void WriteBounds(in MessageWriter writer)
         {
             if (lowerBound.HasValue)
             {
-                physical.WriteBulkString("LBOUND"u8);
-                physical.WriteBulkString(lowerBound.GetValueOrDefault());
+                writer.WriteRaw("$6\r\nLBOUND\r\n"u8);
+                writer.WriteBulkString(lowerBound.GetValueOrDefault());
             }
             if (upperBound.HasValue)
             {
-                physical.WriteBulkString("UBOUND"u8);
-                physical.WriteBulkString(upperBound.GetValueOrDefault());
+                writer.WriteRaw("$6\r\nUBOUND\r\n"u8);
+                writer.WriteBulkString(upperBound.GetValueOrDefault());
             }
         }
     }
@@ -99,23 +99,23 @@ internal partial class RedisDatabase
     {
         protected override int BoundsArgCount => (lowerBound.HasValue ? 2 : 0) + (upperBound.HasValue ? 2 : 0);
 
-        protected override void WriteIncrementKindAndValue(PhysicalConnection physical)
+        protected override void WriteIncrementKindAndValue(in MessageWriter writer)
         {
-            physical.WriteBulkString("BYFLOAT"u8);
-            physical.WriteBulkString(value);
+            writer.WriteRaw("$7\r\nBYFLOAT\r\n"u8);
+            writer.WriteBulkString(value);
         }
 
-        protected override void WriteBounds(PhysicalConnection physical)
+        protected override void WriteBounds(in MessageWriter writer)
         {
             if (lowerBound.HasValue)
             {
-                physical.WriteBulkString("LBOUND"u8);
-                physical.WriteBulkString(lowerBound.GetValueOrDefault());
+                writer.WriteRaw("$6\r\nLBOUND\r\n"u8);
+                writer.WriteBulkString(lowerBound.GetValueOrDefault());
             }
             if (upperBound.HasValue)
             {
-                physical.WriteBulkString("UBOUND"u8);
-                physical.WriteBulkString(upperBound.GetValueOrDefault());
+                writer.WriteRaw("$6\r\nUBOUND\r\n"u8);
+                writer.WriteBulkString(upperBound.GetValueOrDefault());
             }
         }
     }

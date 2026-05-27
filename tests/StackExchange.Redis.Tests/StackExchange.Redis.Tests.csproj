@@ -34,6 +34,7 @@
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" />
+    <PackageReference Include="System.Threading.Channels" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.v3.runner.console" PrivateAssets="all" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />

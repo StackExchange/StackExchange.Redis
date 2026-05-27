@@ -1,3 +1,5 @@
+using RESPite.Messages;
+
 namespace StackExchange.Redis;
 
 internal static class IncrexResultProcessor
@@ -7,16 +9,14 @@ internal static class IncrexResultProcessor
 
     private sealed class Int64ResultProcessor : ResultProcessor<StringIncrementResult<long>>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (result.Resp2TypeArray == ResultType.Array && result.ItemsCount >= 2)
+            if (reader.IsAggregate
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out long value)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out long appliedIncrement))
             {
-                var items = result.GetItems();
-                if (items[0].TryGetInt64(out long value) && items[1].TryGetInt64(out long appliedIncrement))
-                {
-                    SetResult(message, new StringIncrementResult<long>(value, appliedIncrement));
-                    return true;
-                }
+                SetResult(message, new StringIncrementResult<long>(value, appliedIncrement));
+                return true;
             }
             return false;
         }
@@ -24,16 +24,14 @@ internal static class IncrexResultProcessor
 
     private sealed class DoubleResultProcessor : ResultProcessor<StringIncrementResult<double>>
     {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (result.Resp2TypeArray == ResultType.Array && result.ItemsCount >= 2)
+            if (reader.IsAggregate
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out double value)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out double appliedIncrement))
             {
-                var items = result.GetItems();
-                if (items[0].TryGetDouble(out double value) && items[1].TryGetDouble(out double appliedIncrement))
-                {
-                    SetResult(message, new StringIncrementResult<double>(value, appliedIncrement));
-                    return true;
-                }
+                SetResult(message, new StringIncrementResult<double>(value, appliedIncrement));
+                return true;
             }
             return false;
         }

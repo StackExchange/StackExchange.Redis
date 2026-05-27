@@ -111,9 +111,27 @@ namespace StackExchange.Redis
             var socket = addressFamily == AddressFamily.Unspecified
                 ? new Socket(SocketType.Stream, protocolType)
                 : new Socket(addressFamily, SocketType.Stream, protocolType);
-            socket.SetRecommendedClientOptions();
+            TrySetNoDelay(socket);
             if (tcpKeepAlive) TryEnableTcpKeepAlive(socket, endpoint);
             return socket;
+        }
+
+        internal static bool TrySetNoDelay(Socket socket)
+        {
+            try
+            {
+                if (socket.AddressFamily is not AddressFamily.Unix)
+                {
+                    socket.NoDelay = true;
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message, nameof(Socket));
+            }
+
+            return false;
         }
 
         internal static bool TryEnableTcpKeepAlive(Socket socket, EndPoint endPoint)

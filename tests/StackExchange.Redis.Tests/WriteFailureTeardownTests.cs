@@ -18,7 +18,7 @@ public class WriteFailureTeardownTests(ITestOutputHelper output) : TestBase(outp
 
         public override int ArgCount => 0;
 
-        protected override void WriteImpl(PhysicalConnection physical) => throw _toThrow;
+        protected override void WriteImpl(in MessageWriter writer) => throw _toThrow;
     }
 
     [Fact]

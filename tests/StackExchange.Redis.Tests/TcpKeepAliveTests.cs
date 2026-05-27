@@ -31,7 +31,9 @@ public class TcpKeepAliveTests(ITestOutputHelper log, TcpTestFixture fixture) : 
         log.WriteLine($"Connecting to {Format.ToString(ep)}, {ep.AddressFamily}, keepAlive: {keepAlive}");
         if (keepAlive)
         {
+#pragma warning disable CS0618
             Assert.SkipUnless(SocketManager.TryEnableTcpKeepAlive(client, ep), "keep-alive not supported");
+#pragma warning restore CS0618
         }
 
         await client.ConnectAsync(ep);
