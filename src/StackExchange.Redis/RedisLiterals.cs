@@ -77,6 +77,7 @@ namespace StackExchange.Redis
             FLUSH = "FLUSH",
             FNX = "FNX",
             FREQ = "FREQ",
+            FULL = "FULL",
             FXX = "FXX",
             GET = "GET",
             GETKEYS = "GETKEYS",

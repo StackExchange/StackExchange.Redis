@@ -32,6 +32,15 @@ public class AsciiHashGenerator : IIncrementalGenerator
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
+        // looking for [AsciiHash] partial static bool TryFormat(enum input, out string/ReadOnlySpan<byte> output) { }
+        var formatMethods = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) => node is MethodDeclarationSyntax decl && IsStaticPartial(decl.Modifiers) &&
+                                    HasAsciiHash(decl.AttributeLists),
+                TransformFormatMethods)
+            .Where(pair => pair.Name is { Length: > 0 })
+            .Collect();
+
         // looking for [AsciiHash("some type")] enum Foo { }
         var enums = context.SyntaxProvider
             .CreateSyntaxProvider(
@@ -41,9 +50,9 @@ public class AsciiHashGenerator : IIncrementalGenerator
             .Collect();
 
         context.RegisterSourceOutput(
-            types.Combine(methods).Combine(enums),
+            types.Combine(methods).Combine(formatMethods).Combine(enums),
             (ctx, content) =>
-                Generate(ctx, content.Left.Left, content.Left.Right, content.Right));
+                Generate(ctx, content.Left.Left.Left, content.Left.Left.Right, content.Left.Right, content.Right));
 
         static bool IsStaticPartial(SyntaxTokenList tokens)
             => tokens.Any(SyntaxKind.StaticKeyword) && tokens.Any(SyntaxKind.PartialKeyword);
@@ -309,6 +318,80 @@ public class AsciiHashGenerator : IIncrementalGenerator
         return (ns, parentType, method.DeclaredAccessibility, method.Name, from, to, caseSensitive, builder.Build(), defaultValue);
     }
 
+    private (string Namespace, string ParentType, Accessibility Accessibility, string Name,
+        (string Type, string Name, RefKind RefKind) From, (string Type, string Name, RefKind RefKind, bool IsBytes) To,
+        BasicArray<(string EnumMember, string FormatText)> Members) TransformFormatMethods(
+            GeneratorSyntaxContext ctx,
+            CancellationToken cancellationToken)
+    {
+        if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not IMethodSymbol
+            {
+                IsStatic: true,
+                IsPartialDefinition: true,
+                PartialImplementationPart: null,
+                Arity: 0,
+                ReturnType.SpecialType: SpecialType.System_Boolean,
+                Parameters:
+                {
+                    IsDefaultOrEmpty: false,
+                    Length: 2,
+                },
+            } method) return default;
+
+        if (TryGetAsciiHashAttribute(method.GetAttributes()) is not { }) return default;
+
+        if (method.ContainingType is not { } containingType) return default;
+        var parentType = GetName(containingType);
+        var ns = containingType.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+
+        var arg = method.Parameters[0];
+        if (arg is not
+            {
+                IsOptional: false,
+                RefKind: RefKind.None or RefKind.In or RefKind.Ref or RefKind.RefReadOnlyParameter,
+                Type: INamedTypeSymbol { TypeKind: TypeKind.Enum },
+            }) return default;
+        var from = (arg.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), arg.Name, arg.RefKind);
+
+        var enumMembers = arg.Type.GetMembers();
+        var builder = new BasicArray<(string EnumMember, string FormatText)>.Builder(enumMembers.Length);
+        HashSet<object> values = new();
+        foreach (var member in enumMembers)
+        {
+            if (member is IFieldSymbol { IsStatic: true, IsConst: true } field)
+            {
+                var rawValue = GetRawValue(field.Name, TryGetAsciiHashAttribute(member.GetAttributes()));
+                if (string.IsNullOrWhiteSpace(rawValue)) continue;
+                if (field.ConstantValue is { } constValue && !values.Add(constValue)) continue;
+                builder.Add((field.Name, rawValue));
+            }
+        }
+
+        arg = method.Parameters[1];
+        if (arg is not
+            {
+                IsOptional: false,
+                RefKind: RefKind.Out,
+            }) return default;
+        bool toBytes = IsReadOnlySpanOfByte(arg.Type);
+        if (arg.Type.SpecialType != SpecialType.System_String && !toBytes) return default;
+        var to = (arg.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), arg.Name, arg.RefKind, toBytes);
+
+        return (ns, parentType, method.DeclaredAccessibility, method.Name, from, to, builder.Build());
+
+        static bool IsReadOnlySpanOfByte(ITypeSymbol type)
+        {
+            return type is INamedTypeSymbol
+            {
+                TypeKind: TypeKind.Struct,
+                Arity: 1,
+                Name: "ReadOnlySpan",
+                ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true },
+                TypeArguments: { Length: 1 } typeArguments,
+            } && typeArguments[0].SpecialType == SpecialType.System_Byte;
+        }
+    }
+
     private bool IsCaseSensitive(AttributeData attrib)
     {
         foreach (var member in attrib.NamedArguments)
@@ -343,9 +426,13 @@ public class AsciiHashGenerator : IIncrementalGenerator
             (string Type, string Name, bool IsBytes, RefKind RefKind) From, (string Type, string Name, RefKind RefKind) To,
             (string Name, bool Value, RefKind RefKind) CaseSensitive,
             BasicArray<(string EnumMember, string ParseText)> Members, int DefaultValue)> parseMethods,
+        ImmutableArray<(string Namespace, string ParentType, Accessibility Accessibility, string Name,
+            (string Type, string Name, RefKind RefKind) From,
+            (string Type, string Name, RefKind RefKind, bool IsBytes) To,
+            BasicArray<(string EnumMember, string FormatText)> Members)> formatMethods,
         ImmutableArray<(string Namespace, string ParentType, string Name, int Count, int MaxChars, int MaxBytes)> enums)
     {
-        if (types.IsDefaultOrEmpty & parseMethods.IsDefaultOrEmpty & enums.IsDefaultOrEmpty) return; // nothing to do
+        if (types.IsDefaultOrEmpty & parseMethods.IsDefaultOrEmpty & formatMethods.IsDefaultOrEmpty & enums.IsDefaultOrEmpty) return; // nothing to do
 
         var sb = new StringBuilder("// <auto-generated />")
             .AppendLine().Append("// ").Append(GetType().Name).Append(" v").Append(GetVersion()).AppendLine();
@@ -356,6 +443,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
 
         BuildTypeImplementations(sb, types);
         BuildEnumParsers(sb, parseMethods);
+        BuildEnumFormatters(sb, formatMethods);
         BuildEnumLengths(sb, enums);
         ctx.AddSource(nameof(AsciiHash) + ".generated.cs", sb.ToString());
     }
@@ -631,6 +719,102 @@ public class AsciiHashGenerator : IIncrementalGenerator
                     NewLine().Append("};");
                 }
 
+                indent--;
+                NewLine().Append("}");
+            }
+
+            // handle any closing braces
+            while (braces-- > 0)
+            {
+                indent--;
+                NewLine().Append("}");
+            }
+        }
+    }
+
+    private void BuildEnumFormatters(
+        StringBuilder sb,
+        in ImmutableArray<(string Namespace, string ParentType, Accessibility Accessibility, string Name,
+            (string Type, string Name, RefKind RefKind) From,
+            (string Type, string Name, RefKind RefKind, bool IsBytes) To,
+            BasicArray<(string EnumMember, string FormatText)> Members)> enums)
+    {
+        if (enums.IsDefaultOrEmpty) return; // nope
+
+        int indent = 0;
+        StringBuilder NewLine() => sb.AppendLine().Append(' ', indent * 4);
+
+        foreach (var grp in enums.GroupBy(l => (l.Namespace, l.ParentType)))
+        {
+            NewLine();
+            int braces = 0;
+            if (!string.IsNullOrWhiteSpace(grp.Key.Namespace))
+            {
+                NewLine().Append("namespace ").Append(grp.Key.Namespace);
+                NewLine().Append("{");
+                indent++;
+                braces++;
+            }
+
+            if (!string.IsNullOrWhiteSpace(grp.Key.ParentType))
+            {
+                if (grp.Key.ParentType.Contains('.')) // nested types
+                {
+                    foreach (var part in grp.Key.ParentType.Split('.'))
+                    {
+                        NewLine().Append("partial class ").Append(part);
+                        NewLine().Append("{");
+                        indent++;
+                        braces++;
+                    }
+                }
+                else
+                {
+                    NewLine().Append("partial class ").Append(grp.Key.ParentType);
+                    NewLine().Append("{");
+                    indent++;
+                    braces++;
+                }
+            }
+
+            foreach (var method in grp)
+            {
+                NewLine().Append(Format(method.Accessibility)).Append(" static partial bool ")
+                    .Append(method.Name).Append("(")
+                    .Append(Format(method.From.RefKind))
+                    .Append(method.From.Type).Append(" ").Append(method.From.Name).Append(", ")
+                    .Append(Format(method.To.RefKind))
+                    .Append(method.To.Type).Append(" ").Append(method.To.Name)
+                    .Append(")");
+
+                NewLine().Append("{");
+                indent++;
+                NewLine().Append("// ").Append(method.From.Type).Append(" has ").Append(method.Members.Length).Append(" formatted members");
+                NewLine().Append("switch (").Append(method.From.Name).Append(")");
+                NewLine().Append("{");
+                indent++;
+
+                foreach (var member in method.Members)
+                {
+                    var formatted = SyntaxFactory
+                        .LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(member.FormatText))
+                        .ToFullString();
+                    if (method.To.IsBytes) formatted += "u8";
+
+                    NewLine().Append("case ").Append(method.From.Type).Append(".").Append(member.EnumMember).Append(":");
+                    indent++;
+                    NewLine().Append(method.To.Name).Append(" = ").Append(formatted).Append(";");
+                    NewLine().Append("return true;");
+                    indent--;
+                }
+
+                NewLine().Append("default:");
+                indent++;
+                NewLine().Append(method.To.Name).Append(" = ").Append(method.To.IsBytes ? "default" : "default!").Append(";");
+                NewLine().Append("return false;");
+                indent--;
+                indent--;
+                NewLine().Append("}");
                 indent--;
                 NewLine().Append("}");
             }

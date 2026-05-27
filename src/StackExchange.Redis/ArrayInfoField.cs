@@ -64,4 +64,10 @@ internal static partial class ArrayInfoFieldMetadata
 {
     [AsciiHash]
     internal static partial bool TryParse(ReadOnlySpan<byte> value, out ArrayInfoField field);
+
+    [AsciiHash]
+    internal static partial bool TryParse(ReadOnlySpan<char> value, out ArrayInfoField field);
+
+    [AsciiHash]
+    public static partial bool TryFormat(ArrayInfoField value, out string key);
 }

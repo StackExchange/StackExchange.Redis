@@ -218,6 +218,7 @@ Use `ArrayInfoAsync` for metadata:
 
 ```csharp
 ArrayInfo info = await db.ArrayInfoAsync(key);
+ArrayInfo fullInfo = await db.ArrayInfoAsync(key, full: true);
 
 Console.WriteLine($"Count: {info.Count}");
 Console.WriteLine($"Length: {info.Length}");
