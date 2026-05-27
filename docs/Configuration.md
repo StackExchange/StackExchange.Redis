@@ -83,6 +83,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | configCheckSeconds={int} | `ConfigCheckSeconds` | `60`                         | Time (seconds) to check configuration. This serves as a keep-alive for interactive sockets, if it is supported.     |
 | defaultDatabase={int}  | `DefaultDatabase`      | `null`                       | Default database index, from `0` to `databases - 1`                                                       |
 | keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive (60 sec default)                     |
+| tcpKeepAlive={bool}    | `TcpKeepAlive`         | `true`                       | Enables TCP keep-alive when appropriate (endpoint- and platform-dependent)                                |
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
 | user={string}          | `User`                 | `null`                       | User for the redis server (for use with ACLs on redis 6 and above)                                        |

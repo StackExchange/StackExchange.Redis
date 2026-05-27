@@ -112,7 +112,7 @@ namespace StackExchange.Redis
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
                 HighIntegrity = "highIntegrity",
-                TcpKeepAlive = "tcpkeepalive";
+                TcpKeepAlive = "tcpKeepAlive";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -133,6 +133,7 @@ namespace StackExchange.Redis
                 PreserveAsyncOrder,
                 Proxy,
                 ResolveDns,
+                ResponseTimeout,
                 ServiceName,
                 Ssl,
                 SslHost,
@@ -142,8 +143,11 @@ namespace StackExchange.Redis
                 Version,
                 WriteBuffer,
                 CheckCertificateRevocation,
+                Tunnel,
+                SetClientLibrary,
                 Protocol,
                 HighIntegrity,
+                TcpKeepAlive,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)

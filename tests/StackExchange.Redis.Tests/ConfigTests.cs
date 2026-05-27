@@ -88,6 +88,25 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
+    public void OptionKeysAreAllNormalized()
+    {
+        var optionKeys = typeof(ConfigurationOptions).GetNestedType("OptionKeys", BindingFlags.NonPublic)!;
+        var constants = (
+            from field in optionKeys.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+            where field.IsLiteral && !field.IsInitOnly && field.FieldType == typeof(string)
+            orderby field.Name
+            select (string)field.GetRawConstantValue()!).ToArray();
+
+        var normalizedOptions = (System.Collections.Generic.IReadOnlyDictionary<string, string>)optionKeys
+            .GetField("normalizedOptions", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetValue(null)!;
+
+        Assert.Equal(
+            constants.OrderBy(x => x, StringComparer.Ordinal),
+            normalizedOptions.Keys.OrderBy(x => x, StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void SslProtocols_SingleValue()
     {
         var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls12");
