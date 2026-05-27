@@ -239,10 +239,28 @@ public partial class ConnectionMultiplexer
 
             // verify role is primary according to:
             // https://redis.io/topics/sentinel-clients
-            if (connection.GetServer(newPrimaryEndPoint)?.Role()?.Value == RedisLiterals.master)
+            bool isPrimary;
+            var server = connection.GetServer(newPrimaryEndPoint);
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (server is { })
             {
-                success = true;
-                break;
+                try
+                {
+                    isPrimary = connection.CommandMap.IsAvailable(RedisCommand.ROLE)
+                        ? server.Role()?.Value == RedisLiterals.master
+                        : !server.IsReplica;
+                }
+                catch
+                {
+                    // fallback if ROLE unavailable but not declared; see #3064
+                    isPrimary = !server.IsReplica;
+                }
+
+                if (isPrimary)
+                {
+                    success = true;
+                    break;
+                }
             }
 
             Thread.Sleep(100);

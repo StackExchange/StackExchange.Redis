@@ -483,6 +483,14 @@ StackExchange.Redis.GeoUnit.Feet = 3 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Kilometers = 1 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Meters = 0 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
+[SER006]StackExchange.Redis.IncrementOptions
+[SER006]StackExchange.Redis.IncrementOptions.None = 0 -> StackExchange.Redis.IncrementOptions
+[SER006]StackExchange.Redis.IncrementOptions.Saturate = 1 -> StackExchange.Redis.IncrementOptions
+[SER006]StackExchange.Redis.StringIncrementResult<T>
+[SER006]StackExchange.Redis.StringIncrementResult<T>.AppliedIncrement.get -> T
+[SER006]StackExchange.Redis.StringIncrementResult<T>.StringIncrementResult() -> void
+[SER006]StackExchange.Redis.StringIncrementResult<T>.StringIncrementResult(T value, T appliedIncrement) -> void
+[SER006]StackExchange.Redis.StringIncrementResult<T>.Value.get -> T
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void
@@ -779,7 +787,9 @@ StackExchange.Redis.IDatabase.StringGetSet(StackExchange.Redis.RedisKey key, Sta
 StackExchange.Redis.IDatabase.StringGetSetExpiry(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringGetSetExpiry(StackExchange.Redis.RedisKey key, System.DateTime expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringGetWithExpiry(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValueWithExpiry
+[SER006]StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.Expiration expiry, double? lowerBound = null, double? upperBound = null, StackExchange.Redis.IncrementOptions options = StackExchange.Redis.IncrementOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StringIncrementResult<double>
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> double
+[SER006]StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, long value, StackExchange.Redis.Expiration expiry, long? lowerBound = null, long? upperBound = null, StackExchange.Redis.IncrementOptions options = StackExchange.Redis.IncrementOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StringIncrementResult<long>
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringLength(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringLongestCommonSubsequence(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string?
@@ -1023,7 +1033,9 @@ StackExchange.Redis.IDatabaseAsync.StringGetSetAsync(StackExchange.Redis.RedisKe
 StackExchange.Redis.IDatabaseAsync.StringGetSetExpiryAsync(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringGetSetExpiryAsync(StackExchange.Redis.RedisKey key, System.DateTime expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringGetWithExpiryAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValueWithExpiry>!
+[SER006]StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.Expiration expiry, double? lowerBound = null, double? upperBound = null, StackExchange.Redis.IncrementOptions options = StackExchange.Redis.IncrementOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StringIncrementResult<double>>!
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<double>!
+[SER006]StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, long value, StackExchange.Redis.Expiration expiry, long? lowerBound = null, long? upperBound = null, StackExchange.Redis.IncrementOptions options = StackExchange.Redis.IncrementOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StringIncrementResult<long>>!
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringLengthAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringLongestCommonSubsequenceAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string?>!
@@ -2071,7 +2083,9 @@ StackExchange.Redis.IDatabaseAsync.StringSetAsync(System.Collections.Generic.Key
 StackExchange.Redis.Expiration
 StackExchange.Redis.Expiration.Expiration() -> void
 StackExchange.Redis.Expiration.Expiration(System.DateTime when) -> void
+StackExchange.Redis.Expiration.Expiration(System.DateTime when, StackExchange.Redis.ExpirationFlags flags) -> void
 StackExchange.Redis.Expiration.Expiration(System.TimeSpan ttl) -> void
+StackExchange.Redis.Expiration.Expiration(System.TimeSpan ttl, StackExchange.Redis.ExpirationFlags flags) -> void
 override StackExchange.Redis.Expiration.Equals(object? obj) -> bool
 override StackExchange.Redis.Expiration.GetHashCode() -> int
 override StackExchange.Redis.Expiration.ToString() -> string!
@@ -2080,6 +2094,9 @@ static StackExchange.Redis.Expiration.KeepTtl.get -> StackExchange.Redis.Expirat
 static StackExchange.Redis.Expiration.Persist.get -> StackExchange.Redis.Expiration
 static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.DateTime when) -> StackExchange.Redis.Expiration
 static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.TimeSpan ttl) -> StackExchange.Redis.Expiration
+StackExchange.Redis.ExpirationFlags
+StackExchange.Redis.ExpirationFlags.ExpireIfNotExists = 1 -> StackExchange.Redis.ExpirationFlags
+StackExchange.Redis.ExpirationFlags.None = 0 -> StackExchange.Redis.ExpirationFlags
 override StackExchange.Redis.ValueCondition.Equals(object? obj) -> bool
 override StackExchange.Redis.ValueCondition.GetHashCode() -> int
 override StackExchange.Redis.ValueCondition.ToString() -> string!
@@ -2490,3 +2507,13 @@ virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Protocol.get ->
 [SER006]static StackExchange.Redis.RedisArrayIndex.operator ==(StackExchange.Redis.RedisArrayIndex x, StackExchange.Redis.RedisArrayIndex y) -> bool
 [SER006]static StackExchange.Redis.RedisArrayRange.operator !=(StackExchange.Redis.RedisArrayRange x, StackExchange.Redis.RedisArrayRange y) -> bool
 [SER006]static StackExchange.Redis.RedisArrayRange.operator ==(StackExchange.Redis.RedisArrayRange x, StackExchange.Redis.RedisArrayRange y) -> bool
+StackExchange.Redis.ConfigurationOptions.TcpKeepAlive.get -> bool
+StackExchange.Redis.ConfigurationOptions.TcpKeepAlive.set -> void
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.TcpKeepAlive.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.set -> void
+[SER006]StackExchange.Redis.ArrayInfo.ArrayInfo(scoped System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<string!, StackExchange.Redis.RedisValue>> values) -> void
+[SER006]StackExchange.Redis.ArrayInfo.ToDictionary() -> System.Collections.Generic.Dictionary<string!, StackExchange.Redis.RedisValue>!
+[SER006]StackExchange.Redis.ArrayInfo.this[string! key].get -> StackExchange.Redis.RedisValue

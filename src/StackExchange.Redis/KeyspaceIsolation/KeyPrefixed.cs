@@ -798,6 +798,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringIncrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringIncrementAsync(ToInner(key), value, flags);
 
+        public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringIncrementAsync(ToInner(key), value, expiry, lowerBound, upperBound, options, flags);
+
+        public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringIncrementAsync(ToInner(key), value, expiry, lowerBound, upperBound, options, flags);
+
         public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLengthAsync(ToInner(key), flags);
 

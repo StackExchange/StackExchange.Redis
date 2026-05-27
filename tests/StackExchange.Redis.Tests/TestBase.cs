@@ -66,6 +66,16 @@ public abstract class TestBase : IDisposable
         }
     }
 
+    internal static void NoConcurrentRuntime()
+    {
+        // Some tests are not amenable to running concurrently in different runtimes - for
+        // example they might do a script-flush or a flush-db; ensure it only runs against
+        // our primary build target (or debug, which is local).
+        #if !(DEBUG || BUILD_CURRENT)
+        Assert.Skip("Avoiding concurrent runtime; this is not the primary build");
+        #endif
+    }
+
     protected void Log(string? message, params object[] args)
     {
         if (args is { Length: > 0 })

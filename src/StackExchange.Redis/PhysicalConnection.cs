@@ -177,7 +177,8 @@ namespace StackExchange.Redis
             }
 
             Trace("Connecting...");
-            var tunnel = bridge.Multiplexer.RawConfig.Tunnel;
+            var rawConfig = bridge.Multiplexer.RawConfig;
+            var tunnel = rawConfig.Tunnel;
             var connectTo = endpoint;
             if (tunnel is not null)
             {
@@ -185,20 +186,9 @@ namespace StackExchange.Redis
             }
             if (connectTo is not null)
             {
-                _socket = CreateSocket(connectTo);
-
-                static Socket CreateSocket(EndPoint endpoint)
-                {
-                    var addressFamily = endpoint.AddressFamily;
-                    var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
-
-                    var socket = addressFamily == AddressFamily.Unspecified
-                        ? new Socket(SocketType.Stream, protocolType)
-                        : new Socket(addressFamily, SocketType.Stream, protocolType);
-                    socket.SetRecommendedSocketOptions();
-                    // socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
-                    return socket;
-                }
+                #pragma warning disable CS0618
+                _socket = SocketManager.CreateSocket(connectTo, rawConfig.TcpKeepAlive);
+                #pragma warning restore CS0618
             }
 
             if (_socket is not null)

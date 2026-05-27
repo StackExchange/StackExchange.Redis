@@ -10,6 +10,8 @@ public class MassiveDeleteTests(ITestOutputHelper output) : TestBase(output)
 {
     private async Task Prep(int dbId, string key)
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true);
 
         var prefix = Me();
@@ -29,6 +31,8 @@ public class MassiveDeleteTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task ExecuteMassiveDelete()
     {
+        NoConcurrentRuntime();
+
         Skip.UnlessLongRunning();
         var dbId = TestConfig.GetDedicatedDB();
         var key = Me();

@@ -268,6 +268,11 @@ namespace StackExchange.Redis.Configuration
         public virtual RedisProtocol? Protocol => null;
 
         /// <summary>
+        /// Gets whether to enable TCP keep-alive when appropriate (endpoint- and platform-dependent).
+        /// </summary>
+        public virtual bool TcpKeepAlive => true;
+
+        /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
         /// In case of any failure, swallows the exception and returns null.
         /// </summary>

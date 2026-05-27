@@ -14,6 +14,8 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task TestScan()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
@@ -33,6 +35,8 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task FlushFetchRandomKey()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);

@@ -521,6 +521,8 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [InlineData("abc", 100)]
     public async Task Keys(string? pattern, int pageSize)
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
@@ -621,6 +623,8 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact(Skip = "FlushAllDatabases")]
     public async Task AccessRandomKeys()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true);
 
         var cluster = conn.GetDatabase();
