@@ -31,7 +31,6 @@
     <PackageVersion Include="System.Collections.Immutable" Version="10.0.5" />
     <PackageVersion Include="System.Reflection.Metadata" Version="10.0.5" />
     <!-- For binding redirect testing, main package gets this transitively -->
-    <PackageVersion Include="System.IO.Pipelines" Version="9.0.0" />
     <PackageVersion Include="System.Runtime.Caching" Version="10.0.5" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="xunit.v3.runner.console" Version="3.2.2" />
