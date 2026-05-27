@@ -865,7 +865,7 @@ namespace StackExchange.Redis
                 physical.SetIdle();
                 return result;
             }
-            catch (Exception ex) { return HandleWriteException(message, ex); }
+            catch (Exception ex) { return HandleWriteException(physical, message, ex); }
             finally
             {
                 UnmarkActiveMessage(message);
@@ -1215,13 +1215,13 @@ namespace StackExchange.Redis
                         {
                             _backlogStatus = BacklogStatus.RecordingWriteFailure;
                             var ex = Multiplexer.GetException(result, message, ServerEndPoint);
-                            HandleWriteException(message, ex);
+                            HandleWriteException(physical, message, ex);
                         }
                     }
                     catch (Exception ex)
                     {
                         _backlogStatus = BacklogStatus.RecordingFault;
-                        HandleWriteException(message, ex);
+                        HandleWriteException(physical, message, ex);
                     }
                     finally
                     {
@@ -1333,9 +1333,9 @@ namespace StackExchange.Redis
                     {
                         releaseLock = false; // so we don't release prematurely
 #if NET
-                        return CompleteWriteAndReleaseLockAsync(flush, message);
+                        return CompleteWriteAndReleaseLockAsync(physical, flush, message);
 #else
-                        return CompleteWriteAndReleaseLockAsync(token, flush, message);
+                        return CompleteWriteAndReleaseLockAsync(token, physical, flush, message);
 #endif
                     }
 
@@ -1348,7 +1348,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                return new ValueTask<WriteResult>(HandleWriteException(message, ex));
+                return new ValueTask<WriteResult>(HandleWriteException(physical, message, ex));
             }
             finally
             {
@@ -1406,7 +1406,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                return HandleWriteException(message, ex);
+                return HandleWriteException(physical, message, ex);
             }
             finally
             {
@@ -1425,6 +1425,7 @@ namespace StackExchange.Redis
 #if !NETCOREAPP
             LockToken lockToken,
 #endif
+            PhysicalConnection physical,
             ValueTask<WriteResult> flush,
             Message message)
         {
@@ -1439,7 +1440,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                return HandleWriteException(message, ex);
+                return HandleWriteException(physical, message, ex);
             }
             finally
             {
@@ -1449,10 +1450,15 @@ namespace StackExchange.Redis
             }
         }
 
-        private WriteResult HandleWriteException(Message message, Exception ex)
+        private WriteResult HandleWriteException(PhysicalConnection? physical, Message message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
             message.SetExceptionAndComplete(inner, this);
+            // Tear down the physical connection. A write that throws may have left a partial frame on the
+            // wire, and continuing to use the same socket would let the next reply match the wrong message
+            // in the response queue. Forcing a reconnect drains the in-flight queue with failures and
+            // restores wire-level synchronization.
+            physical?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, inner);
             return WriteResult.WriteFailure;
         }
 

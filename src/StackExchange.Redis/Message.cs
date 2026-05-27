@@ -797,6 +797,11 @@ namespace StackExchange.Redis
             {
                 physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex, null, physical?.BridgeCouldBeNull?.Multiplexer);
+                // Re-throw so the outer write path (PhysicalBridge.HandleWriteException) can tear down the
+                // connection. A partial write would otherwise leave bytes on the wire while the response
+                // queue still considers the slot healthy, allowing a subsequent reply to match the wrong
+                // in-flight message.
+                throw;
             }
         }
 
