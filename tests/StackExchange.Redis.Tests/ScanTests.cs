@@ -14,6 +14,8 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [InlineData(false)]
     public async Task KeysScan(bool supported)
     {
+        NoConcurrentRuntime();
+
         string[]? disabledCommands = supported ? null : ["scan"];
         await using var conn = Create(disabledCommands: disabledCommands, allowAdmin: true);
 
@@ -51,6 +53,8 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task ScansIScanning()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true);
 
         var prefix = Me() + Guid.NewGuid();
@@ -98,6 +102,8 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task ScanResume()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_8_0);
 
         var dbId = TestConfig.GetDedicatedDB(conn);
