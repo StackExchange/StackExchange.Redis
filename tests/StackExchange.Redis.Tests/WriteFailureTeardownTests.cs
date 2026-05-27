@@ -55,11 +55,11 @@ public class WriteFailureTeardownTests(ITestOutputHelper output) : TestBase(outp
         await using var conn = Create(shared: false, allowAdmin: true);
 
         int failedCount = 0;
-        ConnectionFailureType? observedFailure = null;
+        TaskCompletionSource<ConnectionFailureType> observedFailure = new();
         conn.ConnectionFailed += (_, e) =>
         {
             Interlocked.Increment(ref failedCount);
-            observedFailure ??= e.FailureType;
+            observedFailure.TrySetResult(e.FailureType);
         };
 
         await conn.GetDatabase().PingAsync();
@@ -84,6 +84,7 @@ public class WriteFailureTeardownTests(ITestOutputHelper output) : TestBase(outp
         // in-flight message.
         await UntilConditionAsync(TimeSpan.FromSeconds(3), () => Volatile.Read(ref failedCount) > 0);
         Assert.True(Volatile.Read(ref failedCount) > 0, "ConnectionFailed event did not fire after write failure");
-        Assert.Equal(ConnectionFailureType.InternalFailure, observedFailure);
+
+        Assert.Equal(ConnectionFailureType.InternalFailure, await observedFailure.Task.WithTimeout(5000));
     }
 }
