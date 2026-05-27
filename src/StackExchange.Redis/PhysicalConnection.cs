@@ -113,7 +113,8 @@ namespace StackExchange.Redis
             }
 
             Trace("Connecting...");
-            var tunnel = bridge.Multiplexer.RawConfig.Tunnel;
+            var rawConfig = bridge.Multiplexer.RawConfig;
+            var tunnel = rawConfig.Tunnel;
             var connectTo = endpoint;
             if (tunnel is not null)
             {
@@ -121,7 +122,7 @@ namespace StackExchange.Redis
             }
             if (connectTo is not null)
             {
-                _socket = SocketManager.CreateSocket(connectTo);
+                _socket = SocketManager.CreateSocket(connectTo, rawConfig.TcpKeepAlive);
             }
 
             if (_socket is not null)

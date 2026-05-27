@@ -1,4 +1,7 @@
 ﻿#nullable enable
+StackExchange.Redis.ConfigurationOptions.TcpKeepAlive.get -> bool
+StackExchange.Redis.ConfigurationOptions.TcpKeepAlive.set -> void
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.TcpKeepAlive.get -> bool
 [SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.get -> bool
 [SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.set -> void
 [SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.get -> bool

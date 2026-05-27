@@ -10,6 +10,8 @@ public class InProcessDatabaseUnitTests(ITestOutputHelper output)
     [Fact]
     public async Task DatabasesAreIsolatedAndCanBeFlushed()
     {
+        TestBase.NoConcurrentRuntime();
+
         using var server = new InProcessTestServer(output);
         await using var conn = await server.ConnectAsync();
 

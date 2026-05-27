@@ -67,6 +67,8 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
     [Fact]
     public async Task CountKeys()
     {
+        NoConcurrentRuntime();
+
         var db1Id = TestConfig.GetDedicatedDB();
         var db2Id = TestConfig.GetDedicatedDB();
         await using (var conn = Create(allowAdmin: true))

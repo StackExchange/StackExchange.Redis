@@ -38,7 +38,7 @@
     <SourceRoot Include="$(MSBuildThisFileDirectory)/"/>
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'StackExchange.Redis.Build' and '$(MSBuildProjectName)' != 'docker' and '$(MSBuildProjectName)' != 'docs' and '$(MSBuildProjectName)' != '.github'">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="all" />
     <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All" />
   </ItemGroup>

@@ -184,6 +184,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task FlushDetection()
     {
+        NoConcurrentRuntime();
+
         // we don't expect this to handle everything; we just expect it to be predictable
         await using var conn = GetScriptConn(allowAdmin: true);
 
@@ -206,6 +208,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task PrepareScript()
     {
+        NoConcurrentRuntime();
+
         string[] scripts = ["return redis.call('get', KEYS[1])", "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}"];
         await using (var conn = GetScriptConn(allowAdmin: true))
         {
@@ -389,6 +393,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [InlineData(false)]
     public async Task CheckLoads(bool async)
     {
+        NoConcurrentRuntime();
+
         await using var conn0 = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
         await using var conn1 = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
@@ -437,6 +443,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task CompareScriptToDirect()
     {
+        NoConcurrentRuntime();
+
         Skip.UnlessLongRunning();
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
@@ -484,6 +492,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task TestCallByHash()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return redis.call('incr', KEYS[1])";
@@ -501,16 +511,18 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
         string hexHash = string.Concat(hash.Select(x => x.ToString("X2")));
         Assert.Equal("2BAB3B661081DB58BD2341920E0BA7CF5DC77B25", hexHash);
 
-        db.ScriptEvaluate(script: hexHash, keys: keys, flags: CommandFlags.FireAndForget);
-        db.ScriptEvaluate(hash, keys, flags: CommandFlags.FireAndForget);
+        await db.ScriptEvaluateAsync(script: hexHash, keys: keys);
+        await db.ScriptEvaluateAsync(hash, keys);
 
-        var count = (int)db.StringGet(keys)[0];
+        var count = (int)db.StringGet(key);
         Assert.Equal(2, count);
     }
 
     [Fact]
     public async Task SimpleLuaScript()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return @ident";
@@ -565,6 +577,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SimpleRawScriptEvaluate()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return ARGV[1]";
@@ -617,6 +631,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task LuaScriptWithKeys()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
@@ -645,6 +661,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task NoInlineReplacement()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, 'hello@example')";
@@ -678,6 +696,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task SimpleLoadedLuaScript()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "return @ident";
@@ -733,6 +753,8 @@ public class ScriptingTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task LoadedLuaScriptWithKeys()
     {
+        NoConcurrentRuntime();
+
         await using var conn = Create(allowAdmin: true, require: RedisFeatures.v2_6_0);
 
         const string Script = "redis.call('set', @key, @value)";
