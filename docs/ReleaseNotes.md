@@ -9,6 +9,7 @@ Current package versions:
 ## Unreleased
 
 - Fix logic inversion with `ARGREP NOCASE`, add `IsReversed` to simplify ordering, and support `ARINFO FULL`. ([#3087 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3087))
+- Avoid sentinel issues if `ROLE` unavailable; fix #3064 ([#3088 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3088))
 - Fix TCP platform-dependent TCP keep-alive problems, and make an explicit option. ([#3090 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3090))
 
 ## 2.13.10
