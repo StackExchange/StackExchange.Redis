@@ -58,17 +58,11 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
     public static BufferedStreamWriter Create(WriteMode mode, ConnectionType connectionType, Stream target, CancellationToken cancellationToken)
     {
-        // TODO: change to Async when debugged
-        const WriteMode DefaultAsyncMode = WriteMode.Pipe;
-
-        if (connectionType is ConnectionType.Subscription)
+        if (connectionType is ConnectionType.Subscription | mode is WriteMode.Default)
         {
-            // sync-mode targets latency; pub/sub doesn't need that
-            mode = DefaultAsyncMode;
-        }
-        else if (mode is WriteMode.Default)
-        {
-            mode = DefaultAsyncMode;
+            // sync-mode targets latency; pub/sub never needs that;
+            // default write-mode should use async
+            mode = WriteMode.Async;
         }
         return mode switch
         {
