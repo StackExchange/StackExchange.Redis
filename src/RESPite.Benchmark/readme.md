@@ -51,5 +51,5 @@ These exist mostly for Marc's benefit:
 To build and run from source, `dotnet run` can be used with everything after `--` being args to the command:
 
 ```
-dotnet run -p:TargetVer=3 -f net10.0 -c Release -- -q +m --batch -n 500_000
+dotnet run -p:TargetVer=3 -f net10.0 -c Release -- -q +m --batch -n 500000
 ```
