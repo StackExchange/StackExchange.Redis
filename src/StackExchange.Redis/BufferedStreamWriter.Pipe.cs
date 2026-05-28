@@ -14,11 +14,24 @@ internal sealed class PipeStreamWriter : BufferedStreamWriter
         : base(target, cancellationToken)
     {
         var pipe = new Pipe();
-        WriteComplete = pipe.Reader.CopyToAsync(Target, cancellationToken);
         _writer = pipe.Writer;
+        WriteComplete = CopyToAsync(pipe.Reader, pipe.Writer, Target, cancellationToken);
     }
 
     public override Task WriteComplete { get; }
+
+    private static async Task CopyToAsync(PipeReader reader, PipeWriter writer, Stream target, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await reader.CopyToAsync(target, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            writer.Complete(ex);
+            throw;
+        }
+    }
 
     private long _nonFlushed;
     public override void Advance(int count)

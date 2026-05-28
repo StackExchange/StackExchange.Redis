@@ -21,6 +21,7 @@ internal sealed class BufferedAsyncStreamWriter : CycleBufferStreamWriter, IValu
 
     private async Task CopyOutAsync()
     {
+        bool lockTaken = false;
         try
         {
             while (true)
@@ -28,11 +29,10 @@ internal sealed class BufferedAsyncStreamWriter : CycleBufferStreamWriter, IValu
                 ValueTask pending = AwaitWake();
                 if (!pending.IsCompleted)
                 {
-                    lock (this)
-                    {
-                        // double-checked marking inactive
-                        if (!pending.IsCompleted) OnWriterInactive(); // update state flags
-                    }
+                    TakeLock(ref lockTaken);
+                    // double-checked marking inactive
+                    if (!pending.IsCompleted) RemoveStateFlagInsideLock(StateFlags.ActiveWriter);
+                    ReleaseLock(ref lockTaken);
                 }
                 // await activation and check status;
                 await pending.ConfigureAwait(false);
@@ -41,17 +41,18 @@ internal sealed class BufferedAsyncStreamWriter : CycleBufferStreamWriter, IValu
                 while (true)
                 {
                     ReadOnlyMemory<byte> memory;
-                    lock (this)
+                    TakeLock(ref lockTaken);
+                    stateFlags = State;
+                    var minBytes = (stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
+                    if (!GetFirstChunkInsideLock(minBytes, out memory))
                     {
+                        // out of data; remove flush flag and wait for more work
+                        RemoveStateFlagInsideLock(StateFlags.Flush | StateFlags.ActiveWriter);
                         stateFlags = State;
-                        var minBytes = (stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
-                        if (!GetFirstChunkInsideLock(minBytes, out memory))
-                        {
-                            // out of data; remove flush flag and wait for more work
-                            stateFlags &= ~StateFlags.Flush;
-                            break;
-                        }
+                        ReleaseLock(ref lockTaken);
+                        break;
                     }
+                    ReleaseLock(ref lockTaken);
 
                     if (IsFaulted) ThrowCompleteOrFaulted(); // this is cheap to check ongoing
                     if (!memory.IsEmpty)
@@ -62,10 +63,9 @@ internal sealed class BufferedAsyncStreamWriter : CycleBufferStreamWriter, IValu
                         await Target.WriteAsync(memory, CancellationToken).ConfigureAwait(false);
                     }
 
-                    lock (this)
-                    {
-                        DiscardCommitted(memory.Length);
-                    }
+                    TakeLock(ref lockTaken);
+                    DiscardCommitted(memory.Length);
+                    ReleaseLock(ref lockTaken);
                 }
                 await Target.FlushAsync(CancellationToken).ConfigureAwait(false);
 
@@ -73,40 +73,62 @@ internal sealed class BufferedAsyncStreamWriter : CycleBufferStreamWriter, IValu
             }
 
             // recycle on clean exit (only), since we know the buffers aren't being used
-            lock (this)
-            {
-                ReleaseBuffer();
-            }
+            TakeLock(ref lockTaken);
+            ReleaseBuffer();
+            ReleaseLock(ref lockTaken);
         }
         catch (Exception ex)
         {
             Complete(ex);
+            throw; // ensure visible via WriteComplete
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
         }
         // note we do *not* close the stream here - we have to settle for flushing; Close is explicit
     }
 
     private ValueTask AwaitWake()
     {
-        lock (this) // guard all transitions
+        bool lockTaken = false;
+        try
         {
+            TakeLock(ref lockTaken); // guard all transitions
             return new(this, _readerTask.Version);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
         }
     }
 
     void IValueTaskSource.GetResult(short token)
     {
-        lock (this) // guard all transitions
+        bool lockTaken = false;
+        try
         {
+            TakeLock(ref lockTaken); // guard all transitions
             _readerTask.GetResult(token); // may throw, note
             _readerTask.Reset();
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
         }
     }
 
     ValueTaskSourceStatus IValueTaskSource.GetStatus(short token)
     {
-        lock (this) // guard all transitions
+        bool lockTaken = false;
+        try
         {
+            TakeLock(ref lockTaken); // guard all transitions
             return _readerTask.GetStatus(token);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
         }
     }
 
@@ -116,17 +138,20 @@ internal sealed class BufferedAsyncStreamWriter : CycleBufferStreamWriter, IValu
         short token,
         ValueTaskSourceOnCompletedFlags flags)
     {
-        lock (this) // guard all transitions
+        bool lockTaken = false;
+        try
         {
+            TakeLock(ref lockTaken); // guard all transitions
             _readerTask.OnCompleted(continuation, state, token, flags);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
         }
     }
 
-    protected override void OnWakeReader()
+    protected override void OnWakeReaderInsideLock()
     {
-        lock (this) // guard all transitions
-        {
-            _readerTask.SetResult(true);
-        }
+        _readerTask.SetResult(true);
     }
 }

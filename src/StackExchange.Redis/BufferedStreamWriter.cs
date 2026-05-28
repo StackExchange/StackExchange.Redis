@@ -58,7 +58,7 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
         if (connectionType is ConnectionType.Subscription)
         {
-            // sync-mode targets latency; pub/sub doens't need that
+            // sync-mode targets latency; pub/sub doesn't need that
             mode = DefaultAsyncMode;
         }
         else if (mode is WriteMode.Default)
@@ -126,7 +126,7 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
     protected bool IsFaulted => _exception is not null;
 
     [Flags]
-    protected enum StateFlags
+    internal enum StateFlags
     {
         None = 0,
         Flush = 1 << 0, // allow reading incomplete pages
@@ -159,24 +159,31 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
 
     private void OnActivate(StateFlags newFlags)
     {
-        bool activate = false;
-        lock (this)
+        bool lockTaken = false;
+        try
         {
+            TakeLock(ref lockTaken);
             var state = _stateFlags;
             if ((state & StateFlags.Closed) != 0) return;
             state |= newFlags & ~StateFlags.ActiveWriter;
             if ((state & StateFlags.ActiveWriter) == 0)
             {
                 state |= StateFlags.ActiveWriter;
-                activate = true;
+                _stateFlags = state;
+                OnWakeReaderInsideLock();
             }
-            _stateFlags = state;
+            else
+            {
+                _stateFlags = state;
+            }
         }
-
-        if (activate) OnWakeReader();
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
     }
 
-    protected abstract void OnWakeReader();
+    protected abstract void OnWakeReaderInsideLock();
 
     [Conditional("DEBUG")]
     protected void OnDebugBufferLog(ReadOnlyMemory<byte> memory)
@@ -193,30 +200,67 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
 #endif
     }
 
+    protected void TakeLock(ref bool lockTaken)
+    {
+        if (!lockTaken)
+        {
+            Monitor.TryEnter(this, 10_000,  ref lockTaken);
+            if (!lockTaken) Throw();
+        }
+        static void Throw() => throw new TimeoutException("Unable to acquire writer lock");
+    }
+
+    protected void ReleaseLock(ref bool lockTaken)
+    {
+        if (lockTaken)
+        {
+            Monitor.Exit(this);
+            lockTaken = false;
+        }
+    }
+
     public override void Advance(int count)
     {
         ThrowIfComplete();
-        lock (this)
+        bool lockTaken = false;
+        try
         {
+            TakeLock(ref lockTaken);
             _buffer.Commit(count);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
         }
     }
 
     public override Memory<byte> GetMemory(int sizeHint = 0)
     {
         ThrowIfComplete();
-        lock (this)
+        bool lockTaken = false;
+        try
         {
+            TakeLock(ref lockTaken);
             return _buffer.GetUncommittedMemory(sizeHint);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
         }
     }
 
     public override Span<byte> GetSpan(int sizeHint = 0)
     {
         ThrowIfComplete();
-        lock (this)
+        bool lockTaken = false;
+        try
         {
+            TakeLock(ref lockTaken);
             return _buffer.GetUncommittedSpan(sizeHint);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
         }
     }
 
@@ -235,8 +279,8 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
         throw new InvalidOperationException($"Output has been completed with fault: " + ex.Message, ex);
     }
 
-    protected StateFlags State => _stateFlags;
-    protected void OnWriterInactive() => _stateFlags &= ~StateFlags.ActiveWriter;
+    internal StateFlags State => _stateFlags;
+    protected void RemoveStateFlagInsideLock(StateFlags flags) => _stateFlags &= ~flags;
 
 #if DEBUG
     private readonly int id = Interlocked.Increment(ref s_id);

@@ -26,40 +26,42 @@ internal sealed class BufferedSyncStreamWriter : CycleBufferStreamWriter
     public override Task WriteComplete => _completion.Task;
 
     private bool _signalled;
+
     private void CopyOutSync()
     {
+        bool lockTaken = false;
         try
         {
             while (true)
             {
                 CancellationToken.ThrowIfCancellationRequested();
-                lock (this)
+                TakeLock(ref lockTaken);
+                if (!_signalled)
                 {
-                    if (!_signalled)
-                    {
-                        OnWriterInactive();
-                        // even if not pulsed, wake periodically to check for hard exit
-                        Monitor.Wait(this, 10_000);
-                        CancellationToken.ThrowIfCancellationRequested();
-                    }
-                    _signalled = false;
+                    RemoveStateFlagInsideLock(StateFlags.ActiveWriter);
+                    // even if not pulsed, wake periodically to check for hard exit
+                    Monitor.Wait(this, 10_000);
+                    CancellationToken.ThrowIfCancellationRequested();
                 }
+                _signalled = false;
+                ReleaseLock(ref lockTaken);
 
                 StateFlags stateFlags;
                 while (true)
                 {
                     ReadOnlyMemory<byte> memory;
-                    lock (this)
+                    TakeLock(ref lockTaken);
+                    stateFlags = State;
+                    var minBytes = (stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
+                    if (!GetFirstChunkInsideLock(minBytes, out memory))
                     {
+                        // out of data; remove flush flag and wait for more work
+                        RemoveStateFlagInsideLock(StateFlags.Flush | StateFlags.ActiveWriter);
                         stateFlags = State;
-                        var minBytes = (stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
-                        if (!GetFirstChunkInsideLock(minBytes, out memory))
-                        {
-                            // out of data; remove flush flag and wait for more work
-                            stateFlags &= ~StateFlags.Flush;
-                            break;
-                        }
+                        ReleaseLock(ref lockTaken);
+                        break;
                     }
+                    ReleaseLock(ref lockTaken);
 
                     if (IsFaulted) ThrowCompleteOrFaulted(); // this is cheap to check ongoing
                     if (!memory.IsEmpty)
@@ -74,10 +76,9 @@ internal sealed class BufferedSyncStreamWriter : CycleBufferStreamWriter
 #endif
                     }
 
-                    lock (this)
-                    {
-                        DiscardCommitted(memory.Length);
-                    }
+                    TakeLock(ref lockTaken);
+                    DiscardCommitted(memory.Length);
+                    ReleaseLock(ref lockTaken);
                 }
 
                 Target.Flush();
@@ -86,10 +87,10 @@ internal sealed class BufferedSyncStreamWriter : CycleBufferStreamWriter
             }
 
             // recycle on clean exit (only), since we know the buffers aren't being used
-            lock (this)
-            {
-                ReleaseBuffer();
-            }
+            TakeLock(ref lockTaken);
+            ReleaseBuffer();
+            ReleaseLock(ref lockTaken);
+
             _completion.TrySetResult(true);
         }
         catch (Exception ex)
@@ -97,15 +98,16 @@ internal sealed class BufferedSyncStreamWriter : CycleBufferStreamWriter
             Complete(ex);
             _completion.TrySetException(ex);
         }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
         // note we do *not* close the stream here - we have to settle for flushing; Close is explicit
     }
 
-    protected override void OnWakeReader()
+    protected override void OnWakeReaderInsideLock()
     {
-        lock (this)
-        {
-            _signalled = true;
-            Monitor.Pulse(this);
-        }
+        _signalled = true;
+        Monitor.Pulse(this);
     }
 }
