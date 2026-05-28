@@ -1,0 +1,109 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+
+namespace RESPite.Benchmark;
+
+internal static class Program
+{
+    private static async Task<int> Main(string[] args)
+    {
+        bool basic = false;
+        try
+        {
+            List<BenchmarkBase> benchmarks = [];
+            foreach (var arg in args)
+            {
+                switch (arg)
+                {
+                    case "--old":
+                        benchmarks.Add(new OldCoreBenchmark(args));
+                        break;
+#if NEWCORE
+                    case "--bridge":
+                        benchmarks.Add(new BridgeBenchmark(args));
+                        break;
+                    case "--new":
+                        benchmarks.Add(new NewCoreBenchmark(args));
+                        break;
+#endif
+                    case "--basic":
+                        basic = true;
+                        break;
+                }
+            }
+
+            if (benchmarks.Count == 0)
+            {
+#if NEWCORE
+                benchmarks.Add(new NewCoreBenchmark(args));
+#else
+                benchmarks.Add(new OldCoreBenchmark(args));
+#endif
+            }
+
+#if DEBUG
+            Console.WriteLine("### Debug ###");
+#endif
+            bool isFirst = true;
+            do
+            {
+                foreach (var bench in benchmarks)
+                {
+                    if (benchmarks.Count > 1 || isFirst)
+                    {
+                        Console.WriteLine($"### {bench} ###");
+                        isFirst = false;
+                    }
+
+                    if (basic)
+                    {
+                        await bench.RunBasicLoopAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await bench.RunAll().ConfigureAwait(false);
+                    }
+                }
+            }
+            // ReSharper disable once LoopVariableIsNeverChangedInsideLoop
+            while (benchmarks[0].Loop);
+
+            foreach (var bench in benchmarks)
+            {
+                bench.Dispose();
+            }
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            WriteException(ex);
+            return -1;
+        }
+    }
+
+    internal static void WriteException(Exception? ex, [CallerMemberName] string operation = "")
+    {
+        Console.Error.WriteLine();
+        Console.Error.WriteLine($"### EXCEPTION: {operation}");
+        while (ex is not null)
+        {
+            Console.Error.WriteLine();
+            Console.Error.WriteLine($"{ex.GetType().Name}: {ex.Message}");
+            Console.Error.WriteLine($"\t{ex.StackTrace}");
+            var data = ex.Data;
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (data is not null)
+            {
+                foreach (var key in data.Keys)
+                {
+                    Console.Error.WriteLine($"\t{key}: {data[key]}");
+                }
+            }
+
+            ex = ex.InnerException;
+        }
+        Console.Error.WriteLine();
+    }
+}
