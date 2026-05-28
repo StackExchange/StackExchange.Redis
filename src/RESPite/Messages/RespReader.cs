@@ -1727,7 +1727,7 @@ public ref partial struct RespReader
               && Utf8Parser.TryParse(span, out value, out int bytes)
               && bytes == span.Length))
         {
-            ThrowFormatException();
+            ThrowFormatException(nameof(Int64));
             value = 0;
         }
 
@@ -1761,7 +1761,7 @@ public ref partial struct RespReader
               && Utf8Parser.TryParse(span, out value, out int bytes)
               && bytes == span.Length))
         {
-            ThrowFormatException();
+            ThrowFormatException(nameof(Int32));
             value = 0;
         }
 
@@ -1809,7 +1809,7 @@ public ref partial struct RespReader
                 return double.NegativeInfinity;
         }
 
-        ThrowFormatException();
+        ThrowFormatException(nameof(Double));
         return 0;
     }
 
@@ -1889,7 +1889,7 @@ public ref partial struct RespReader
               && Utf8Parser.TryParse(span, out value, out int bytes)
               && bytes == span.Length))
         {
-            ThrowFormatException();
+            ThrowFormatException(nameof(Decimal));
             value = 0;
         }
 
@@ -1940,7 +1940,7 @@ public ref partial struct RespReader
     {
         if (!TryReadBoolean(out var value))
         {
-            ThrowFormatException();
+            ThrowFormatException(nameof(Boolean));
         }
         return value;
     }
