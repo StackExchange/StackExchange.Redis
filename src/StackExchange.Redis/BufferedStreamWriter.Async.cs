@@ -152,6 +152,7 @@ internal sealed class BufferedAsyncStreamWriter : CycleBufferStreamWriter, IValu
 
     protected override void OnWakeReaderInsideLock()
     {
+        System.Diagnostics.Debug.Assert(Monitor.IsEntered(this), $"{nameof(OnWakeReaderInsideLock)} must be called while holding the writer lock.");
         _readerTask.SetResult(true);
     }
 }

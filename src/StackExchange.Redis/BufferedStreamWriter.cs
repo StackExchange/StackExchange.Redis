@@ -39,6 +39,11 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
      * there's a dangling bug where occasionally it will stall - presumably some edge-case where the wake logic
      * is borked. When I debug that, I'll make the other versions the defaults, but for now: Pipe is the default,
      * with the others only available to me for testing.
+     *
+     *  Threading model: this type assumes a single producer/writer and a single
+     *  consumer/reader. The monitor protects the non-thread-safe CycleBuffer and
+     *  shared state transitions between those two roles; it is not intended to
+     *  support multiple concurrent producers.
      */
 
     public enum WriteMode
@@ -81,10 +86,10 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
     public abstract Task WriteComplete { get; }
 
-    protected void OnWritten(long count) => _totalBytesWritten += count;
-    protected void OnWritten(int count) => _totalBytesWritten += count;
+    protected void OnWritten(long count) => _totalBytesWritten += count; // single-writer; this is fine
+    protected void OnWritten(int count) => _totalBytesWritten += count; // single-writer; this is fine
     private long _totalBytesWritten;
-    public long TotalBytesWritten => _totalBytesWritten;
+    public long TotalBytesWritten => Volatile.Read(ref _totalBytesWritten);
 
     public abstract void Complete(Exception? exception = null);
     public void Dispose() => Target.Dispose();
@@ -123,7 +128,7 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
     private StateFlags _stateFlags;
     private Exception? _exception;
 
-    protected bool IsFaulted => _exception is not null;
+    protected bool IsFaulted => Volatile.Read(ref _exception) is not null;
 
     [Flags]
     internal enum StateFlags
@@ -135,7 +140,10 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
     }
 
     protected bool GetFirstChunkInsideLock(int minBytes, out ReadOnlyMemory<byte> memory)
-        => _buffer.TryGetFirstCommittedMemory(minBytes, out memory);
+    {
+        Debug.Assert(Monitor.IsEntered(this), $"{nameof(GetFirstChunkInsideLock)} must be called while holding the writer lock.");
+        return _buffer.TryGetFirstCommittedMemory(minBytes, out memory);
+    }
 
     protected void ReleaseBuffer() => _buffer.Release();
 
@@ -153,7 +161,7 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
 
     public override void Complete(Exception? exception = null)
     {
-        _exception ??= exception;
+        if (exception is not null) Interlocked.CompareExchange(ref _exception, exception, null);
         OnActivate(StateFlags.Flush | StateFlags.Closed);
     }
 
@@ -221,11 +229,11 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
 
     public override void Advance(int count)
     {
-        ThrowIfComplete();
         bool lockTaken = false;
         try
         {
             TakeLock(ref lockTaken);
+            ThrowIfComplete();
             _buffer.Commit(count);
         }
         finally
@@ -236,11 +244,11 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
 
     public override Memory<byte> GetMemory(int sizeHint = 0)
     {
-        ThrowIfComplete();
         bool lockTaken = false;
         try
         {
             TakeLock(ref lockTaken);
+            ThrowIfComplete();
             return _buffer.GetUncommittedMemory(sizeHint);
         }
         finally
@@ -251,11 +259,11 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
 
     public override Span<byte> GetSpan(int sizeHint = 0)
     {
-        ThrowIfComplete();
         bool lockTaken = false;
         try
         {
             TakeLock(ref lockTaken);
+            ThrowIfComplete();
             return _buffer.GetUncommittedSpan(sizeHint);
         }
         finally
@@ -274,13 +282,17 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
     protected void ThrowCompleteOrFaulted()
     {
-        var ex = _exception;
+        var ex = Volatile.Read(ref _exception);
         if (ex is null) throw new InvalidOperationException("Output has been completed successfully.");
         throw new InvalidOperationException($"Output has been completed with fault: " + ex.Message, ex);
     }
 
     internal StateFlags State => _stateFlags;
-    protected void RemoveStateFlagInsideLock(StateFlags flags) => _stateFlags &= ~flags;
+    protected void RemoveStateFlagInsideLock(StateFlags flags)
+    {
+        Debug.Assert(Monitor.IsEntered(this), $"{nameof(RemoveStateFlagInsideLock)} must be called while holding the writer lock.");
+        _stateFlags &= ~flags;
+    }
 
 #if DEBUG
     private readonly int id = Interlocked.Increment(ref s_id);
