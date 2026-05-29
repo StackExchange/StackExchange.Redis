@@ -66,6 +66,7 @@ runs:
       run: >-
         dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj
         -c Release
+        -f net10.0
         --logger trx
         --logger "GitHubActions;summary-include-passed=false;summary-include-skipped=false"
         --results-directory ./test-results/
