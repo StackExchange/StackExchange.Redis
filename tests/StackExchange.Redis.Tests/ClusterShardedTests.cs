@@ -14,11 +14,12 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
     protected override string GetConfiguration() => TestConfig.Current.ClusterServersAndPorts + ",connectTimeout=10000";
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task TestShardedPubsubSubscriberAgainstReconnects()
     {
         Skip.UnlessLongRunning();
         var channel = RedisChannel.Sharded(Me());
-        await using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, shared: false, require: RedisFeatures.v7_0_0_rc1);
+        await using var conn = Create(allowAdmin: true, keepAlive: 1, connectTimeout: 3000, require: RedisFeatures.v7_0_0_rc1, allowSimulateConnectionFailure: true);
         Assert.True(conn.IsConnected);
         var db = conn.GetDatabase();
         Assert.Equal(0, await db.PublishAsync(channel, "noClientReceivesThis"));

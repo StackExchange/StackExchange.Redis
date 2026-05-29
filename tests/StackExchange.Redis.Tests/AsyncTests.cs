@@ -10,11 +10,12 @@ namespace StackExchange.Redis.Tests;
 public class AsyncTests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task AsyncTasksReportFailureIfServerUnavailable()
     {
         SetExpectedAmbientFailureCount(-1); // this will get messy
 
-        await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var conn = Create(allowAdmin: true, backlogPolicy: BacklogPolicy.FailFast, allowSimulateConnectionFailure: true);
         var server = conn.GetServer(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
         Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 

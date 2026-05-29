@@ -868,6 +868,7 @@ namespace StackExchange.Redis
             highIntegrity = highIntegrity,
             tcpKeepAlive = tcpKeepAlive,
             WriteMode = WriteMode,
+            AllowSimulateConnectionFailure = AllowSimulateConnectionFailure,
 #if DEBUG
             OutputLog = OutputLog,
 #endif
@@ -1206,6 +1207,7 @@ namespace StackExchange.Redis
         }
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
+        internal bool AllowSimulateConnectionFailure { get; set; } // for testing; **only** available via internal API
 
 #if DEBUG
         internal Action<string>? OutputLog;

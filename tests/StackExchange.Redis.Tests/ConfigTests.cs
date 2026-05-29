@@ -65,6 +65,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "_protocol",
                 "abortOnConnectFail",
                 "allowAdmin",
+                "AllowSimulateConnectionFailure",
                 "asyncTimeout",
                 "backlogPolicy",
                 "BeforeSocketConnect",

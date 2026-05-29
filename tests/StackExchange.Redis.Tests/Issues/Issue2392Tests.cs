@@ -7,6 +7,7 @@ namespace StackExchange.Redis.Tests.Issues
     public class Issue2392Tests(ITestOutputHelper output) : TestBase(output)
     {
         [Fact]
+        [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
         public async Task Execute()
         {
             var options = new ConfigurationOptions()
@@ -22,6 +23,7 @@ namespace StackExchange.Redis.Tests.Issues
                 AsyncTimeout = 1,
                 SyncTimeout = 1,
                 AllowAdmin = true,
+                AllowSimulateConnectionFailure = true,
             };
             options.EndPoints.Add("127.0.0.1:1234");
 

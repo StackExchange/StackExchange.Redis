@@ -34,6 +34,7 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task DisconnectAndReconnectThrowsConnectionExceptionSync()
     {
         await using var conn = GetWorkingBacklogConn();
@@ -59,6 +60,7 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task DisconnectAndNoReconnectThrowsConnectionExceptionAsync()
     {
         await using var conn = GetWorkingBacklogConn();
@@ -86,9 +88,9 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
         ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.FailFast, duration: 400, connectTimeout: 500).Apply(o => o.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379")), Writer);
 
     private ConnectionMultiplexer GetWorkingBacklogConn() =>
-        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.Default).Apply(o => o.EndPoints.Add(GetConfiguration())), Writer);
+        ConnectionMultiplexer.Connect(GetOptions(BacklogPolicy.Default, allowSimulateConnectionFailure: true).Apply(o => o.EndPoints.Add(GetConfiguration())), Writer);
 
-    private static ConfigurationOptions GetOptions(BacklogPolicy policy, int duration = 1000, int connectTimeout = 2000) => new ConfigurationOptions()
+    private static ConfigurationOptions GetOptions(BacklogPolicy policy, int duration = 1000, int connectTimeout = 2000, bool allowSimulateConnectionFailure = false) => new ConfigurationOptions()
     {
         AbortOnConnectFail = false,
         BacklogPolicy = policy,
@@ -96,5 +98,6 @@ public class AbortOnConnectFailTests(ITestOutputHelper output) : TestBase(output
         SyncTimeout = duration,
         KeepAlive = duration,
         AllowAdmin = true,
+        AllowSimulateConnectionFailure = allowSimulateConnectionFailure,
     }.WithoutSubscriptions();
 }

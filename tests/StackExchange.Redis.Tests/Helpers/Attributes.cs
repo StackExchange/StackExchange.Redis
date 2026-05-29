@@ -43,6 +43,12 @@ public class FactAttribute([CallerFilePath] string? sourceFilePath = null, [Call
 [XunitTestCaseDiscoverer(typeof(TheoryDiscoverer))]
 public class TheoryAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1) : Xunit.TheoryAttribute(sourceFilePath, sourceLineNumber) { }
 
+internal static class TestCategories
+{
+    public const string Category = "Category";
+    public const string SimulatedConnectionFailure = nameof(SimulatedConnectionFailure);
+}
+
 public class FactDiscoverer : Xunit.v3.FactDiscoverer
 {
     public override ValueTask<IReadOnlyCollection<IXunitTestCase>> Discover(ITestFrameworkDiscoveryOptions discoveryOptions, IXunitTestMethod testMethod, IFactAttribute factAttribute)

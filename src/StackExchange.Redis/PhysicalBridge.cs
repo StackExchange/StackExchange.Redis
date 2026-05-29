@@ -575,10 +575,15 @@ namespace StackExchange.Redis
                 long newSampleCount = Interlocked.Read(ref operationCount);
                 Interlocked.Exchange(ref profileLog[index % ProfileLogSamples], newSampleCount);
                 Interlocked.Exchange(ref profileLastLog, newSampleCount);
-                Trace("OnHeartbeat: " + (State)state);
+
+#pragma warning disable CS0420 // A reference to a volatile field will not be treated as volatile
+                // ReSharper disable once LocalVariableHidesMember
+                ref State state = ref Unsafe.As<int, State>(ref this.state);
+#pragma warning restore CS0420 // A reference to a volatile field will not be treated as volatile
+                Trace("OnHeartbeat: " + state);
                 switch (state)
                 {
-                    case (int)State.Connecting:
+                    case State.Connecting:
                         if (DueForConnectRetry())
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
@@ -593,17 +598,17 @@ namespace StackExchange.Redis
                             TryConnect(null);
                         }
                         break;
-                    case (int)State.ConnectedEstablishing:
+                    case State.ConnectedEstablishing:
                         // (Fall through) Happens when we successfully connected via TCP, but no Redis handshake completion yet.
                         // This can happen brief (usual) or when the server never answers (rare). When we're in this state,
                         // a socket is open and reader likely listening indefinitely for incoming data on an async background task.
                         // We need to time that out and cleanup the PhysicalConnection if needed, otherwise that reader and socket will remain open
                         // for the lifetime of the application due to being orphaned, yet still referenced by the active task doing the pipe read.
-                    case (int)State.ConnectedEstablished:
+                    case State.ConnectedEstablished:
                         var tmp = physical;
                         if (tmp != null)
                         {
-                            if (state == (int)State.ConnectedEstablished)
+                            if (state is State.ConnectedEstablished)
                             {
                                 // Track that we should reset the count on the next disconnect, but not do so in a loop, reset
                                 // the connect-retry-count (used for backoff decay etc), and remove any non-responsive flag.
@@ -615,7 +620,7 @@ namespace StackExchange.Redis
                             int writeEverySeconds = ServerEndPoint.WriteEverySeconds;
                             bool configCheckDue = ServerEndPoint.ConfigCheckSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= ServerEndPoint.ConfigCheckSeconds;
 
-                            if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
+                            if (state is State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
                                 && tmp.BridgeCouldBeNull?.Multiplexer.RawConfig.HeartbeatConsistencyChecks == true)
                             {
                                 // If HeartbeatConsistencyChecks are enabled, we're sending a PING (expecting PONG) or ECHO (expecting UniqueID back) every single
@@ -630,7 +635,7 @@ namespace StackExchange.Redis
                                     ServerEndPoint.CheckInfoReplication();
                                 }
                             }
-                            else if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
+                            else if (state is State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
                                 && configCheckDue
                                 && ServerEndPoint.CheckInfoReplication())
                             {
@@ -639,7 +644,7 @@ namespace StackExchange.Redis
                             else if (writeEverySeconds > 0 && tmp.LastWriteSecondsAgo >= writeEverySeconds)
                             {
                                 Trace("OnHeartbeat - overdue");
-                                if (state == (int)State.ConnectedEstablished)
+                                if (state is State.ConnectedEstablished)
                                 {
                                     KeepAlive();
                                 }
@@ -675,7 +680,7 @@ namespace StackExchange.Redis
                             }
                         }
                         break;
-                    case (int)State.Disconnected:
+                    case State.Disconnected:
                         // Only if we should reset the connection count
                         // This should only happen after a successful reconnection, and not every time we bounce from BeginConnectAsync -> Disconnected
                         // in a failure loop case that happens when a node goes missing forever.

@@ -26,11 +26,12 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
 
 #if DEBUG
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task MultipleEndpointsThrowConnectionException()
     {
         try
         {
-            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, allowSimulateConnectionFailure: true);
 
             conn.GetDatabase();
             conn.AllowConnect = false;
@@ -57,11 +58,12 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
 #endif
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task ServerTakesPrecendenceOverSnapshot()
     {
         try
         {
-            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, backlogPolicy: BacklogPolicy.FailFast, allowSimulateConnectionFailure: true);
 
             conn.GetDatabase();
             conn.AllowConnect = false;

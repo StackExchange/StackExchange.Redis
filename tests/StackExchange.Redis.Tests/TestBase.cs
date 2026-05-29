@@ -274,6 +274,7 @@ public abstract class TestBase : IDisposable
         BacklogPolicy? backlogPolicy = null,
         Version? require = null,
         RedisProtocol? protocol = null,
+        bool allowSimulateConnectionFailure = false,
         [CallerMemberName] string caller = "")
     {
         if (Output == null)
@@ -281,6 +282,7 @@ public abstract class TestBase : IDisposable
             Assert.Fail("Failure: Be sure to call the TestBase constructor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
         }
 
+        if (allowSimulateConnectionFailure) shared = false;
         // Default to protocol context if not explicitly passed in
         protocol ??= TestContext.Current.GetProtocol();
 
@@ -329,6 +331,7 @@ public abstract class TestBase : IDisposable
             protocol,
             highIntegrity,
             tunnel,
+            allowSimulateConnectionFailure,
             caller);
 
         TestBase.ThrowIfIncorrectProtocol(conn, protocol);
@@ -419,6 +422,7 @@ public abstract class TestBase : IDisposable
         RedisProtocol? protocol = null,
         bool highIntegrity = false,
         Tunnel? tunnel = null,
+        bool allowSimulateConnectionFailure = false,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
@@ -456,6 +460,7 @@ public abstract class TestBase : IDisposable
             if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
             if (protocol is not null) config.Protocol = protocol;
             if (highIntegrity) config.HighIntegrity = highIntegrity;
+            if (allowSimulateConnectionFailure) config.AllowSimulateConnectionFailure = allowSimulateConnectionFailure;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
@@ -583,15 +588,19 @@ public abstract class TestBase : IDisposable
     }
 
     private static readonly TimeSpan DefaultWaitPerLoop = TimeSpan.FromMilliseconds(50);
-    protected static async Task UntilConditionAsync(TimeSpan maxWaitTime, Func<bool> predicate, TimeSpan? waitPerLoop = null)
+    protected static async Task<TimeSpan> UntilConditionAsync(TimeSpan maxWaitTime, Func<bool> predicate, TimeSpan? waitPerLoop = null)
     {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        cancellationToken.ThrowIfCancellationRequested();
+        var watch = Stopwatch.StartNew();
         TimeSpan spent = TimeSpan.Zero;
         while (spent < maxWaitTime && !predicate())
         {
             var wait = waitPerLoop ?? DefaultWaitPerLoop;
-            await Task.Delay(wait).ForAwait();
+            await Task.Delay(wait, cancellationToken).ForAwait();
             spent += wait;
         }
+        return watch.Elapsed;
     }
 
     // simplified usage to get an interchangeable dedicated vs shared in-process server, useful for debugging

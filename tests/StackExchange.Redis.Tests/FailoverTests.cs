@@ -196,9 +196,10 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
 
 #if DEBUG
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task SubscriptionsSurviveConnectionFailureAsync()
     {
-        await using var conn = Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000);
+        await using var conn = Create(allowAdmin: true, log: Writer, syncTimeout: 1000, allowSimulateConnectionFailure: true);
 
         var profiler = conn.AddProfiler();
         RedisChannel channel = RedisChannel.Literal(Me());

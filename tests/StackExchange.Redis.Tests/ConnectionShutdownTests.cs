@@ -8,9 +8,10 @@ namespace StackExchange.Redis.Tests;
 public class ConnectionShutdownTests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact(Skip = "Unfriendly")]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task ShutdownRaisesConnectionFailedAndRestore()
     {
-        await using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, allowSimulateConnectionFailure: true);
 
         int failed = 0, restored = 0;
         Stopwatch watch = Stopwatch.StartNew();

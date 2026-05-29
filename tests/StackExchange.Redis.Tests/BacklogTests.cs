@@ -9,6 +9,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task FailFast()
     {
         void PrintSnapshot(ConnectionMultiplexer muxer)
@@ -43,6 +44,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
+                AllowSimulateConnectionFailure = true,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
@@ -103,6 +105,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task QueuesAndFlushesAfterReconnectingAsync()
     {
         try
@@ -117,10 +120,12 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
+                AllowSimulateConnectionFailure = true,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            Assert.SkipUnless(conn.IsConnected, "no initial connection");
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
             conn.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
             conn.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
@@ -194,6 +199,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task QueuesAndFlushesAfterReconnecting()
     {
         try
@@ -208,6 +214,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
+                AllowSimulateConnectionFailure = true,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 
@@ -297,6 +304,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task QueuesAndFlushesAfterReconnectingClusterAsync()
     {
         try
@@ -310,8 +318,10 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             options.KeepAlive = 10000;
             options.AsyncTimeout = 5000;
             options.AllowAdmin = true;
+            options.AllowSimulateConnectionFailure = true;
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+            Assert.SkipUnless(conn.IsConnected, "no initial connection");
             conn.ErrorMessage += (s, e) => Log($"Error Message {e.EndPoint}: {e.Message}");
             conn.InternalError += (s, e) => Log($"Internal Error {e.EndPoint}: {e.Exception.Message}");
             conn.ConnectionFailed += (s, a) => Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
@@ -402,6 +412,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task TotalOutstandingIncludesBacklogQueue()
     {
         try
@@ -416,6 +427,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 KeepAlive = 10000,
                 AsyncTimeout = 5000,
                 AllowAdmin = true,
+                AllowSimulateConnectionFailure = true,
             };
             options.EndPoints.Add(TestConfig.Current.PrimaryServerAndPort);
 

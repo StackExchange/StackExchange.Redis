@@ -21,26 +21,11 @@ namespace StackExchange.Redis
 {
     internal sealed partial class PhysicalConnection : IDisposable
     {
-        // infrastructure to simulate connection death, debug only
-        private partial bool CanCancel();
-        [Conditional("DEBUG")]
-        partial void OnCancel(bool input, bool output);
-#if DEBUG
-        private readonly CancellationTokenSource _inputCancel = new(), _outputCancel = new();
-        internal CancellationToken InputCancel => _inputCancel.Token;
-        internal CancellationToken OutputCancel => _outputCancel.Token;
+        // infrastructure to simulate connection death; opt-in only (for tests)
+        private readonly CancellationTokenSource? _inputCancel, _outputCancel;
 
-        partial void OnCancel(bool input, bool output)
-        {
-            if (input) _inputCancel.Cancel();
-            if (output) _outputCancel.Cancel();
-        }
-        private partial bool CanCancel() => true;
-#else
-        private partial bool CanCancel() => false;
-        internal CancellationToken InputCancel => CancellationToken.None;
-        internal CancellationToken OutputCancel => CancellationToken.None;
-#endif
+        internal CancellationToken InputCancel => _inputCancel?.Token ?? CancellationToken.None;
+        internal CancellationToken OutputCancel => _outputCancel?.Token ?? CancellationToken.None;
 
         internal readonly byte[]? ChannelPrefix;
 
@@ -123,7 +108,11 @@ namespace StackExchange.Redis
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
             _physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
-
+            if (bridge.Multiplexer.RawConfig.AllowSimulateConnectionFailure)
+            {
+                _inputCancel = new();
+                _outputCancel = new();
+            }
             OnCreateEcho();
         }
 
@@ -348,7 +337,7 @@ namespace StackExchange.Redis
 
         internal void UpdateLastWriteTime() => Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
 
-        internal bool CanSimulateConnectionFailure => false;
+        internal bool CanSimulateConnectionFailure => _inputCancel is not null | _outputCancel is not null;
 
         internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {
@@ -366,7 +355,8 @@ namespace StackExchange.Redis
             }
             if (killInput | killOutput)
             {
-                OnCancel(killInput, killOutput);
+                if (killInput) _inputCancel?.Cancel();
+                if (killOutput) _outputCancel?.Cancel();
                 RecordConnectionFailed(ConnectionFailureType.SocketFailure);
             }
         }

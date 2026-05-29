@@ -272,14 +272,15 @@ public abstract class BasicOpsTestsBase(ITestOutputHelper output, SharedConnecti
 
 #if DEBUG
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task TestSevered()
     {
-        await using var conn = ConnectFactory(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, allowSimulateConnectionFailure: true);
         var db = conn.GetDatabase();
         string key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
-        db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-        var server = GetServer(conn.DefaultClient);
+        db.StringSet(key, key);
+        var server = GetServer(conn);
         Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 
         SetExpectedAmbientFailureCount(2);
