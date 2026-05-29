@@ -461,6 +461,11 @@ public abstract class TestBase : IDisposable
             if (protocol is not null) config.Protocol = protocol;
             if (highIntegrity) config.HighIntegrity = highIntegrity;
             if (allowSimulateConnectionFailure) config.AllowSimulateConnectionFailure = allowSimulateConnectionFailure;
+            if (checkConnect)
+            {
+                config.AbortOnConnectFail = false;
+                config.ConnectRetry = 0;
+            }
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
@@ -483,11 +488,9 @@ public abstract class TestBase : IDisposable
                 Log(output, "Connect took: " + watch.ElapsedMilliseconds + "ms");
             }
             var conn = task.Result;
-            if (checkConnect && !conn.IsConnected)
+            if (checkConnect)
             {
-                // If fail is true, we throw.
-                Assert.False(fail, failMessage + "Server is not available");
-                Assert.Skip(failMessage + "Server is not available");
+                Assert.SkipUnless(conn.IsConnected, (failMessage ?? "") + "Unable to connect to server");
             }
             if (output != null)
             {

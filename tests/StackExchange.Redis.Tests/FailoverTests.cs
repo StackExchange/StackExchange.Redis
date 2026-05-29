@@ -16,7 +16,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
 
     public async ValueTask InitializeAsync()
     {
-        await using var conn = Create();
+        await using var conn = Create(connectTimeout: 10000);
 
         var shouldBePrimary = conn.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort);
         if (shouldBePrimary.IsReplica)
