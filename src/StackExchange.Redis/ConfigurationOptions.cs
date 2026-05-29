@@ -162,27 +162,121 @@ namespace StackExchange.Redis
 
         private DefaultOptionsProvider? defaultOptions;
 
-        private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl, checkCertificateRevocation, heartbeatConsistencyChecks,
-                      includeDetailInExceptions, includePerformanceCountersInExceptions, setClientLibrary, highIntegrity;
+        [Flags]
+        private enum OptionFlags : ulong
+        {
+            None = 0,
+            AllowAdminHasValue = 1UL << 0,
+            AllowAdminValue = 1UL << 1,
+            AbortOnConnectFailHasValue = 1UL << 2,
+            AbortOnConnectFailValue = 1UL << 3,
+            ResolveDnsHasValue = 1UL << 4,
+            ResolveDnsValue = 1UL << 5,
+            SslHasValue = 1UL << 6,
+            SslValue = 1UL << 7,
+            CheckCertificateRevocationHasValue = 1UL << 8,
+            CheckCertificateRevocationValue = 1UL << 9,
+            HeartbeatConsistencyChecksHasValue = 1UL << 10,
+            HeartbeatConsistencyChecksValue = 1UL << 11,
+            IncludeDetailInExceptionsHasValue = 1UL << 12,
+            IncludeDetailInExceptionsValue = 1UL << 13,
+            IncludePerformanceCountersInExceptionsHasValue = 1UL << 14,
+            IncludePerformanceCountersInExceptionsValue = 1UL << 15,
+            SetClientLibraryHasValue = 1UL << 16,
+            SetClientLibraryValue = 1UL << 17,
+            HighIntegrityHasValue = 1UL << 18,
+            HighIntegrityValue = 1UL << 19,
+            TcpKeepAliveHasValue = 1UL << 20,
+            TcpKeepAliveValue = 1UL << 21,
+            HeartbeatIntervalHasValue = 1UL << 22,
+            KeepAliveHasValue = 1UL << 23,
+            AsyncTimeoutHasValue = 1UL << 24,
+            SyncTimeoutHasValue = 1UL << 25,
+            ConnectTimeoutHasValue = 1UL << 26,
+            ResponseTimeoutHasValue = 1UL << 27,
+            ConnectRetryHasValue = 1UL << 28,
+            ConfigCheckSecondsHasValue = 1UL << 29,
+            ProxyHasValue = 1UL << 30,
+            DefaultDatabaseHasValue = 1UL << 31,
+            SslProtocolsHasValue = 1UL << 32,
+            ProtocolHasValue = 1UL << 33,
+            AllowSimulateConnectionFailure = 1UL << 34,
+        }
+
+        private OptionFlags optionFlags;
 
         private string? tieBreaker, sslHost, configChannel, user, password;
 
-        private TimeSpan? heartbeatInterval;
+        private TimeSpan heartbeatInterval;
 
         private CommandMap? commandMap;
 
         private Version? defaultVersion;
 
-        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, connectRetry, configCheckSeconds;
-        private bool? tcpKeepAlive;
+        private int keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, connectRetry, configCheckSeconds, defaultDatabase;
 
-        private Proxy? proxy;
+        private Proxy proxy;
 
         private IReconnectRetryPolicy? reconnectRetryPolicy;
 
         private BacklogPolicy? backlogPolicy;
 
         private ILoggerFactory? loggerFactory;
+
+        private SslProtocols sslProtocols;
+
+        private RedisProtocol _protocol;
+
+        private bool HasValue(OptionFlags hasValue) => (optionFlags & hasValue) != 0;
+
+        private bool IsSet(OptionFlags value) => (optionFlags & value) != 0;
+
+        private void SetBooleanWithValue(OptionFlags hasValue, OptionFlags valueFlag, bool value)
+        {
+            optionFlags |= hasValue;
+            if (value)
+            {
+                optionFlags |= valueFlag;
+            }
+            else
+            {
+                optionFlags &= ~valueFlag;
+            }
+        }
+
+        private void SetFlag(OptionFlags flag, bool value)
+        {
+            if (value)
+            {
+                optionFlags |= flag;
+            }
+            else
+            {
+                optionFlags &= ~flag;
+            }
+        }
+
+        private T? Get<T>(OptionFlags hasValue, in T value) where T : struct
+            => HasValue(hasValue) ? value : null;
+
+        private void Set<T>(OptionFlags hasValue, ref T storage, T? value) where T : struct
+        {
+            if (value.HasValue)
+            {
+                SetWithValue(hasValue, ref storage, value.GetValueOrDefault());
+            }
+            else
+            {
+                optionFlags &= ~hasValue;
+                storage = default;
+            }
+        }
+
+        private void SetWithValue<T>(OptionFlags hasValue, ref T storage, T value) where T : struct
+        {
+            optionFlags |= hasValue;
+            storage = value;
+        }
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -221,8 +315,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool AbortOnConnectFail
         {
-            get => abortOnConnectFail ?? Defaults.AbortOnConnectFail;
-            set => abortOnConnectFail = value;
+            get => HasValue(OptionFlags.AbortOnConnectFailHasValue) ? IsSet(OptionFlags.AbortOnConnectFailValue) : Defaults.AbortOnConnectFail;
+            set => SetBooleanWithValue(OptionFlags.AbortOnConnectFailHasValue, OptionFlags.AbortOnConnectFailValue, value);
         }
 
         /// <summary>
@@ -230,8 +324,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool AllowAdmin
         {
-            get => allowAdmin ?? Defaults.AllowAdmin;
-            set => allowAdmin = value;
+            get => HasValue(OptionFlags.AllowAdminHasValue) ? IsSet(OptionFlags.AllowAdminValue) : Defaults.AllowAdmin;
+            set => SetBooleanWithValue(OptionFlags.AllowAdminHasValue, OptionFlags.AllowAdminValue, value);
         }
 
         /// <summary>
@@ -239,8 +333,8 @@ namespace StackExchange.Redis
         /// </summary>
         public int AsyncTimeout
         {
-            get => asyncTimeout ?? SyncTimeout;
-            set => asyncTimeout = value;
+            get => HasValue(OptionFlags.AsyncTimeoutHasValue) ? asyncTimeout : SyncTimeout;
+            set => SetWithValue(OptionFlags.AsyncTimeoutHasValue, ref asyncTimeout, value);
         }
 
         /// <summary>
@@ -260,8 +354,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool SetClientLibrary
         {
-            get => setClientLibrary ?? Defaults.SetClientLibrary;
-            set => setClientLibrary = value;
+            get => HasValue(OptionFlags.SetClientLibraryHasValue) ? IsSet(OptionFlags.SetClientLibraryValue) : Defaults.SetClientLibrary;
+            set => SetBooleanWithValue(OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue, value);
         }
 
         /// <summary>
@@ -282,8 +376,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool CheckCertificateRevocation
         {
-            get => checkCertificateRevocation ?? Defaults.CheckCertificateRevocation;
-            set => checkCertificateRevocation = value;
+            get => HasValue(OptionFlags.CheckCertificateRevocationHasValue) ? IsSet(OptionFlags.CheckCertificateRevocationValue) : Defaults.CheckCertificateRevocation;
+            set => SetBooleanWithValue(OptionFlags.CheckCertificateRevocationHasValue, OptionFlags.CheckCertificateRevocationValue, value);
         }
 
         /// <summary>
@@ -297,8 +391,8 @@ namespace StackExchange.Redis
         /// </remarks>
         public bool HighIntegrity
         {
-            get => highIntegrity ?? Defaults.HighIntegrity;
-            set => highIntegrity = value;
+            get => HasValue(OptionFlags.HighIntegrityHasValue) ? IsSet(OptionFlags.HighIntegrityValue) : Defaults.HighIntegrity;
+            set => SetBooleanWithValue(OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue, value);
         }
 
         /// <summary>
@@ -456,8 +550,8 @@ namespace StackExchange.Redis
         /// </summary>
         public int ConnectRetry
         {
-            get => connectRetry ?? Defaults.ConnectRetry;
-            set => connectRetry = value;
+            get => HasValue(OptionFlags.ConnectRetryHasValue) ? connectRetry : Defaults.ConnectRetry;
+            set => SetWithValue(OptionFlags.ConnectRetryHasValue, ref connectRetry, value);
         }
 
         /// <summary>
@@ -505,14 +599,23 @@ namespace StackExchange.Redis
         /// </summary>
         public int ConnectTimeout
         {
-            get => connectTimeout ?? ((int?)Defaults.ConnectTimeout?.TotalMilliseconds) ?? Math.Max(5000, SyncTimeout);
-            set => connectTimeout = value;
+            get
+            {
+                if (HasValue(OptionFlags.ConnectTimeoutHasValue)) return connectTimeout;
+                var defaultTimeout = Defaults.ConnectTimeout;
+                return defaultTimeout.HasValue ? (int)defaultTimeout.GetValueOrDefault().TotalMilliseconds : Math.Max(5000, SyncTimeout);
+            }
+            set => SetWithValue(OptionFlags.ConnectTimeoutHasValue, ref connectTimeout, value);
         }
 
         /// <summary>
         /// Specifies the default database to be used when calling <see cref="ConnectionMultiplexer.GetDatabase(int, object)"/> without any parameters.
         /// </summary>
-        public int? DefaultDatabase { get; set; }
+        public int? DefaultDatabase
+        {
+            get => Get(OptionFlags.DefaultDatabaseHasValue, in defaultDatabase);
+            set => Set(OptionFlags.DefaultDatabaseHasValue, ref defaultDatabase, value);
+        }
 
         /// <summary>
         /// The server version to assume.
@@ -538,8 +641,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool HeartbeatConsistencyChecks
         {
-            get => heartbeatConsistencyChecks ?? Defaults.HeartbeatConsistencyChecks;
-            set => heartbeatConsistencyChecks = value;
+            get => HasValue(OptionFlags.HeartbeatConsistencyChecksHasValue) ? IsSet(OptionFlags.HeartbeatConsistencyChecksValue) : Defaults.HeartbeatConsistencyChecks;
+            set => SetBooleanWithValue(OptionFlags.HeartbeatConsistencyChecksHasValue, OptionFlags.HeartbeatConsistencyChecksValue, value);
         }
 
         /// <summary>
@@ -556,8 +659,8 @@ namespace StackExchange.Redis
         /// </remarks>
         public TimeSpan HeartbeatInterval
         {
-            get => heartbeatInterval ?? Defaults.HeartbeatInterval;
-            set => heartbeatInterval = value;
+            get => HasValue(OptionFlags.HeartbeatIntervalHasValue) ? heartbeatInterval : Defaults.HeartbeatInterval;
+            set => SetWithValue(OptionFlags.HeartbeatIntervalHasValue, ref heartbeatInterval, value);
         }
 
         /// <summary>
@@ -577,8 +680,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool IncludeDetailInExceptions
         {
-            get => includeDetailInExceptions ?? Defaults.IncludeDetailInExceptions;
-            set => includeDetailInExceptions = value;
+            get => HasValue(OptionFlags.IncludeDetailInExceptionsHasValue) ? IsSet(OptionFlags.IncludeDetailInExceptionsValue) : Defaults.IncludeDetailInExceptions;
+            set => SetBooleanWithValue(OptionFlags.IncludeDetailInExceptionsHasValue, OptionFlags.IncludeDetailInExceptionsValue, value);
         }
 
         /// <summary>
@@ -589,8 +692,8 @@ namespace StackExchange.Redis
         /// </remarks>
         public bool IncludePerformanceCountersInExceptions
         {
-            get => includePerformanceCountersInExceptions ?? Defaults.IncludePerformanceCountersInExceptions;
-            set => includePerformanceCountersInExceptions = value;
+            get => HasValue(OptionFlags.IncludePerformanceCountersInExceptionsHasValue) ? IsSet(OptionFlags.IncludePerformanceCountersInExceptionsValue) : Defaults.IncludePerformanceCountersInExceptions;
+            set => SetBooleanWithValue(OptionFlags.IncludePerformanceCountersInExceptionsHasValue, OptionFlags.IncludePerformanceCountersInExceptionsValue, value);
         }
 
         /// <summary>
@@ -599,8 +702,8 @@ namespace StackExchange.Redis
         /// </summary>
         public int KeepAlive
         {
-            get => keepAlive ?? (int)Defaults.KeepAliveInterval.TotalSeconds;
-            set => keepAlive = value;
+            get => HasValue(OptionFlags.KeepAliveHasValue) ? keepAlive : (int)Defaults.KeepAliveInterval.TotalSeconds;
+            set => SetWithValue(OptionFlags.KeepAliveHasValue, ref keepAlive, value);
         }
 
         /// <summary>
@@ -608,8 +711,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool TcpKeepAlive
         {
-            get => tcpKeepAlive ?? Defaults.TcpKeepAlive;
-            set => tcpKeepAlive = value;
+            get => HasValue(OptionFlags.TcpKeepAliveHasValue) ? IsSet(OptionFlags.TcpKeepAliveValue) : Defaults.TcpKeepAlive;
+            set => SetBooleanWithValue(OptionFlags.TcpKeepAliveHasValue, OptionFlags.TcpKeepAliveValue, value);
         }
 
         /// <summary>
@@ -656,8 +759,8 @@ namespace StackExchange.Redis
         /// </summary>
         public Proxy Proxy
         {
-            get => proxy ?? Defaults.Proxy;
-            set => proxy = value;
+            get => HasValue(OptionFlags.ProxyHasValue) ? proxy : Defaults.Proxy;
+            set => SetWithValue(OptionFlags.ProxyHasValue, ref proxy, value);
         }
 
         /// <summary>
@@ -684,8 +787,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool ResolveDns
         {
-            get => resolveDns ?? Defaults.ResolveDns;
-            set => resolveDns = value;
+            get => HasValue(OptionFlags.ResolveDnsHasValue) ? IsSet(OptionFlags.ResolveDnsValue) : Defaults.ResolveDns;
+            set => SetBooleanWithValue(OptionFlags.ResolveDnsHasValue, OptionFlags.ResolveDnsValue, value);
         }
 
         /// <summary>
@@ -728,8 +831,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Ssl
         {
-            get => ssl ?? Defaults.GetDefaultSsl(EndPoints);
-            set => ssl = value;
+            get => HasValue(OptionFlags.SslHasValue) ? IsSet(OptionFlags.SslValue) : Defaults.GetDefaultSsl(EndPoints);
+            set => SetBooleanWithValue(OptionFlags.SslHasValue, OptionFlags.SslValue, value);
         }
 
         /// <summary>
@@ -744,15 +847,19 @@ namespace StackExchange.Redis
         /// <summary>
         /// Configures which SSL/TLS protocols should be allowed.  If not set, defaults are chosen by the .NET framework.
         /// </summary>
-        public SslProtocols? SslProtocols { get; set; }
+        public SslProtocols? SslProtocols
+        {
+            get => Get(OptionFlags.SslProtocolsHasValue, in sslProtocols);
+            set => Set(OptionFlags.SslProtocolsHasValue, ref sslProtocols, value);
+        }
 
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 5 seconds).
         /// </summary>
         public int SyncTimeout
         {
-            get => syncTimeout ?? (int)Defaults.SyncTimeout.TotalMilliseconds;
-            set => syncTimeout = value;
+            get => HasValue(OptionFlags.SyncTimeoutHasValue) ? syncTimeout : (int)Defaults.SyncTimeout.TotalMilliseconds;
+            set => SetWithValue(OptionFlags.SyncTimeoutHasValue, ref syncTimeout, value);
         }
 
         /// <summary>
@@ -793,8 +900,8 @@ namespace StackExchange.Redis
         /// </summary>
         public int ConfigCheckSeconds
         {
-            get => configCheckSeconds ?? (int)Defaults.ConfigCheckInterval.TotalSeconds;
-            set => configCheckSeconds = value;
+            get => HasValue(OptionFlags.ConfigCheckSecondsHasValue) ? configCheckSeconds : (int)Defaults.ConfigCheckInterval.TotalSeconds;
+            set => SetWithValue(OptionFlags.ConfigCheckSecondsHasValue, ref configCheckSeconds, value);
         }
 
         /// <summary>
@@ -821,22 +928,19 @@ namespace StackExchange.Redis
         public ConfigurationOptions Clone() => new ConfigurationOptions
         {
             defaultOptions = defaultOptions,
+            optionFlags = this.optionFlags,
             ClientName = ClientName,
             ServiceName = ServiceName,
             keepAlive = keepAlive,
             syncTimeout = syncTimeout,
             asyncTimeout = asyncTimeout,
-            allowAdmin = allowAdmin,
             defaultVersion = defaultVersion,
             connectTimeout = connectTimeout,
             user = user,
             password = password,
             tieBreaker = tieBreaker,
-            ssl = ssl,
             sslHost = sslHost,
             configChannel = configChannel,
-            abortOnConnectFail = abortOnConnectFail,
-            resolveDns = resolveDns,
             proxy = proxy,
             commandMap = commandMap,
             CertificateValidationCallback = CertificateValidationCallback,
@@ -848,11 +952,10 @@ namespace StackExchange.Redis
             connectRetry = connectRetry,
             configCheckSeconds = configCheckSeconds,
             responseTimeout = responseTimeout,
-            DefaultDatabase = DefaultDatabase,
+            defaultDatabase = defaultDatabase,
             reconnectRetryPolicy = reconnectRetryPolicy,
             backlogPolicy = backlogPolicy,
-            SslProtocols = SslProtocols,
-            checkCertificateRevocation = checkCertificateRevocation,
+            sslProtocols = sslProtocols,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
             LoggerFactory = LoggerFactory,
@@ -860,15 +963,10 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
             Tunnel = Tunnel,
-            setClientLibrary = setClientLibrary,
             LibraryName = LibraryName,
             _protocol = _protocol,
             heartbeatInterval = heartbeatInterval,
-            heartbeatConsistencyChecks = heartbeatConsistencyChecks,
-            highIntegrity = highIntegrity,
-            tcpKeepAlive = tcpKeepAlive,
             WriteMode = WriteMode,
-            AllowSimulateConnectionFailure = AllowSimulateConnectionFailure,
 #if DEBUG
             OutputLog = OutputLog,
 #endif
@@ -929,32 +1027,32 @@ namespace StackExchange.Redis
             }
             Append(sb, OptionKeys.ClientName, ClientName);
             Append(sb, OptionKeys.ServiceName, ServiceName);
-            Append(sb, OptionKeys.KeepAlive, keepAlive);
-            Append(sb, OptionKeys.SyncTimeout, syncTimeout);
-            Append(sb, OptionKeys.AsyncTimeout, asyncTimeout);
-            Append(sb, OptionKeys.AllowAdmin, allowAdmin);
+            Append(sb, OptionKeys.KeepAlive, OptionFlags.KeepAliveHasValue, in keepAlive);
+            Append(sb, OptionKeys.SyncTimeout, OptionFlags.SyncTimeoutHasValue, in syncTimeout);
+            Append(sb, OptionKeys.AsyncTimeout, OptionFlags.AsyncTimeoutHasValue, in asyncTimeout);
+            Append(sb, OptionKeys.AllowAdmin, OptionFlags.AllowAdminHasValue, OptionFlags.AllowAdminValue);
             Append(sb, OptionKeys.Version, defaultVersion);
-            Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
+            Append(sb, OptionKeys.ConnectTimeout, OptionFlags.ConnectTimeoutHasValue, in connectTimeout);
             Append(sb, OptionKeys.User, user);
             Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(password)) ? password : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
-            Append(sb, OptionKeys.Ssl, ssl);
-            Append(sb, OptionKeys.SslProtocols, SslProtocols?.ToString().Replace(',', '|'));
-            Append(sb, OptionKeys.CheckCertificateRevocation, checkCertificateRevocation);
+            Append(sb, OptionKeys.Ssl, OptionFlags.SslHasValue, OptionFlags.SslValue);
+            if (HasValue(OptionFlags.SslProtocolsHasValue)) Append(sb, OptionKeys.SslProtocols, sslProtocols.ToString().Replace(',', '|'));
+            Append(sb, OptionKeys.CheckCertificateRevocation, OptionFlags.CheckCertificateRevocationHasValue, OptionFlags.CheckCertificateRevocationValue);
             Append(sb, OptionKeys.SslHost, sslHost);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
-            Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
-            Append(sb, OptionKeys.ResolveDns, resolveDns);
+            Append(sb, OptionKeys.AbortOnConnectFail, OptionFlags.AbortOnConnectFailHasValue, OptionFlags.AbortOnConnectFailValue);
+            Append(sb, OptionKeys.ResolveDns, OptionFlags.ResolveDnsHasValue, OptionFlags.ResolveDnsValue);
             Append(sb, OptionKeys.ChannelPrefix, (string?)ChannelPrefix);
-            Append(sb, OptionKeys.ConnectRetry, connectRetry);
-            Append(sb, OptionKeys.Proxy, proxy);
-            Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
-            Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
-            Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.SetClientLibrary, setClientLibrary);
-            Append(sb, OptionKeys.HighIntegrity, highIntegrity);
-            Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
-            Append(sb, OptionKeys.TcpKeepAlive, tcpKeepAlive);
+            Append(sb, OptionKeys.ConnectRetry, OptionFlags.ConnectRetryHasValue, in connectRetry);
+            Append(sb, OptionKeys.Proxy, OptionFlags.ProxyHasValue, in proxy);
+            Append(sb, OptionKeys.ConfigCheckSeconds, OptionFlags.ConfigCheckSecondsHasValue, in configCheckSeconds);
+            Append(sb, OptionKeys.ResponseTimeout, OptionFlags.ResponseTimeoutHasValue, in responseTimeout);
+            Append(sb, OptionKeys.DefaultDatabase, OptionFlags.DefaultDatabaseHasValue, in defaultDatabase);
+            Append(sb, OptionKeys.SetClientLibrary, OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue);
+            Append(sb, OptionKeys.HighIntegrity, OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue);
+            if (HasValue(OptionFlags.ProtocolHasValue)) Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
+            Append(sb, OptionKeys.TcpKeepAlive, OptionFlags.TcpKeepAliveHasValue, OptionFlags.TcpKeepAliveValue);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -962,56 +1060,117 @@ namespace StackExchange.Redis
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
 
-            static string? FormatProtocol(RedisProtocol? protocol) => protocol switch {
-                null => null,
+            static string FormatProtocol(RedisProtocol protocol) => protocol switch {
                 RedisProtocol.Resp2 => "resp2",
                 RedisProtocol.Resp3 => "resp3",
-                _ => protocol.GetValueOrDefault().ToString(),
+                _ => protocol.ToString(),
             };
         }
 
-        private static void Append(StringBuilder sb, object value)
+        private static void Append(StringBuilder sb, string? value)
         {
-            if (value == null) return;
-            string s = Format.ToString(value);
-            if (!string.IsNullOrWhiteSpace(s))
+            if (!string.IsNullOrWhiteSpace(value))
             {
                 if (sb.Length != 0) sb.Append(',');
-                sb.Append(s);
+                sb.Append(value);
             }
         }
 
-        private static void Append(StringBuilder sb, string prefix, object? value)
+        private static void Append(StringBuilder sb, string prefix, string? value)
         {
-            string? s = value?.ToString();
-            if (!string.IsNullOrWhiteSpace(s))
+            if (!string.IsNullOrWhiteSpace(value))
             {
-                if (sb.Length != 0) sb.Append(',');
-                if (!string.IsNullOrEmpty(prefix))
-                {
-                    sb.Append(prefix).Append('=');
-                }
-                sb.Append(s);
+                AppendPrefix(sb, prefix);
+                sb.Append(value);
+            }
+        }
+
+        private static void Append(StringBuilder sb, string prefix, int value)
+        {
+            AppendPrefix(sb, prefix);
+            sb.Append(Format.ToString(value));
+        }
+
+        private static void Append(StringBuilder sb, string prefix, bool value)
+        {
+            AppendPrefix(sb, prefix);
+            sb.Append(value);
+        }
+
+        private static void Append(StringBuilder sb, string prefix, Version? value)
+        {
+            if (value is not null)
+            {
+                Append(sb, prefix, Format.ToString(value));
+            }
+        }
+
+        private static void AppendPrefix(StringBuilder sb, string prefix)
+        {
+            if (sb.Length != 0) sb.Append(',');
+            if (!string.IsNullOrEmpty(prefix))
+            {
+                sb.Append(prefix).Append('=');
+            }
+        }
+
+        private void Append(StringBuilder sb, string prefix, OptionFlags hasValue, OptionFlags valueFlag)
+        {
+            if (HasValue(hasValue))
+            {
+                Append(sb, prefix, IsSet(valueFlag));
+            }
+        }
+
+        private void Append(StringBuilder sb, string prefix, OptionFlags hasValue, in int value)
+        {
+            if (HasValue(hasValue))
+            {
+                Append(sb, prefix, value);
+            }
+        }
+
+        private void Append(StringBuilder sb, string prefix, OptionFlags hasValue, in Proxy value)
+        {
+            if (HasValue(hasValue))
+            {
+                Append(sb, prefix, value.ToString());
             }
         }
 
         private void Clear()
         {
+            defaultOptions = null;
+            optionFlags = OptionFlags.None;
             ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = asyncTimeout = connectTimeout = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = resolveDns = ssl = setClientLibrary = highIntegrity = null;
-            SslProtocols = null;
+            keepAlive = syncTimeout = asyncTimeout = connectTimeout = responseTimeout = connectRetry = configCheckSeconds = defaultDatabase = 0;
+            sslProtocols = default;
             defaultVersion = null;
+            heartbeatInterval = default;
             EndPoints.Clear();
             commandMap = null;
+            proxy = default;
+            reconnectRetryPolicy = null;
+            backlogPolicy = null;
+            loggerFactory = null;
 
             CertificateSelection = null;
             CertificateValidation = null;
+            BeforeSocketConnect = null;
             ChannelPrefix = default;
+            LibraryName = null;
 #pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = null;
 #pragma warning restore CS0618 // Type or member is obsolete
+#if NET
+            SslClientAuthenticationOptions = null;
+#endif
             Tunnel = null;
+            _protocol = default;
+            WriteMode = default;
+#if DEBUG
+            OutputLog = null;
+#endif
         }
 
         object ICloneable.Clone() => Clone();
@@ -1152,7 +1311,7 @@ namespace StackExchange.Redis
                             }
                             break;
                         case OptionKeys.Protocol:
-                            _protocol = OptionKeys.ParseRedisProtocol(key, value);
+                            SetWithValue(OptionFlags.ProtocolHasValue, ref _protocol, OptionKeys.ParseRedisProtocol(key, value));
                             break;
                         // Deprecated options we ignore...
                         case OptionKeys.HighPrioritySocketThreads:
@@ -1202,18 +1361,20 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisProtocol? Protocol
         {
-            get => _protocol ?? Defaults.Protocol;
-            set => _protocol = value;
+            get => HasValue(OptionFlags.ProtocolHasValue) ? _protocol : Defaults.Protocol;
+            set => Set(OptionFlags.ProtocolHasValue, ref _protocol, value);
         }
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
-        internal bool AllowSimulateConnectionFailure { get; set; } // for testing; **only** available via internal API
+        internal bool AllowSimulateConnectionFailure
+        {
+            get => IsSet(OptionFlags.AllowSimulateConnectionFailure);
+            set => SetFlag(OptionFlags.AllowSimulateConnectionFailure, value);
+        } // for testing; **only** available via internal API
 
 #if DEBUG
         internal Action<string>? OutputLog;
 #endif
-        private RedisProtocol? _protocol;
-
         internal bool TryResp3()
         {
             // if Protocol specified: fine, otherwise lean on the server version
