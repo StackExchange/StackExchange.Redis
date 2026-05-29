@@ -128,7 +128,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
             Assert.Contains("sync-ops: ", ex.Message);
             Assert.Contains("async-ops: ", ex.Message);
             Assert.Contains("conn-sec: n/a", ex.Message);
-            Assert.Contains("aoc: 1", ex.Message);
+            Assert.Contains("aoc: 0", ex.Message);
 #if NET
             // ...POOL: (Threads=33,QueuedItems=0,CompletedItems=5547,Timers=60)...
             Assert.Contains("POOL: ", ex.Message);
