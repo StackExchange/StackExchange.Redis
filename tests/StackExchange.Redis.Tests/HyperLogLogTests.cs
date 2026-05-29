@@ -12,7 +12,7 @@ public class HyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         var db = conn.GetDatabase();
-        RedisKey key = "hll1";
+        RedisKey key = Me();
 
         db.HyperLogLogAdd(key, "a");
         db.HyperLogLogAdd(key, "b");
@@ -27,7 +27,8 @@ public class HyperLogLogTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         var db = conn.GetDatabase();
-        RedisKey[] keys = ["hll1", "hll2", "hll3"];
+        var prefix = Me();
+        RedisKey[] keys = [prefix + ":hll1", prefix + ":hll2", prefix + ":hll3"];
 
         db.HyperLogLogAdd(keys[0], "a");
         db.HyperLogLogAdd(keys[1], "b");

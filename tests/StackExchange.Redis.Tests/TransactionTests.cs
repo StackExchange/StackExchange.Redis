@@ -1339,10 +1339,10 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         Assert.False(db.KeyExists(key));
 
         var tran = db.CreateTransaction("state");
-        var a = tran.ExecuteAsync("SET", "foo", "bar");
+        var a = tran.ExecuteAsync("SET", key, "bar");
         Assert.True(await tran.ExecuteAsync());
         await a;
-        var setting = db.StringGet("foo");
+        var setting = db.StringGet(key);
         Assert.Equal("bar", setting);
     }
 
