@@ -97,6 +97,71 @@ public class BufferedStreamWriterTests
         }
     }
 
+    [Fact]
+    public async Task SyncWriterTransitionsToAsyncWhileIdleAndPreservesBufferedData()
+    {
+        var stream = new ObservedStream();
+        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, ConnectionType.Interactive, stream, CancellationToken.None);
+        try
+        {
+            Assert.True(writer.IsSync);
+            Write(writer, PageSize, 1);
+            writer.Flush();
+            await stream.WaitForBytesWrittenAsync(PageSize).ForAwait();
+            await WaitForInactiveAsync(writer).ForAwait();
+
+            Write(writer, 3, 2);
+            Assert.True(writer.TransitionToAsync());
+            await WaitUntilAsync(() => !writer.IsSync, "writer did not transition to async").ForAwait();
+            Assert.False(writer.TransitionToAsync());
+
+            writer.Flush();
+            await stream.WaitForBytesWrittenAsync(PageSize + 3).ForAwait();
+
+            Assert.True(stream.SyncWriteCount >= 1);
+            Assert.True(stream.AsyncWriteCount >= 1);
+            var expected = new byte[PageSize + 3];
+            for (int i = 0; i < PageSize; i++) expected[i] = 1;
+            for (int i = PageSize; i < expected.Length; i++) expected[i] = 2;
+            Assert.Equal(expected, stream.WrittenBytes);
+        }
+        finally
+        {
+            await CompleteAsync(writer, stream).ForAwait();
+        }
+    }
+
+    [Fact]
+    public async Task SyncWriterTransitionsToAsyncAfterActiveSyncDrain()
+    {
+        var stream = new ObservedStream();
+        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, ConnectionType.Interactive, stream, CancellationToken.None);
+        try
+        {
+            stream.BlockNextWrite();
+            Write(writer, PageSize, 1);
+            writer.Flush();
+            await stream.WaitForBlockedWriteAsync().ForAwait();
+
+            Assert.True(writer.TransitionToAsync());
+            Assert.True(writer.IsSync);
+
+            stream.ReleaseBlockedWrite();
+            await WaitUntilAsync(() => !writer.IsSync, "writer did not transition to async").ForAwait();
+
+            Write(writer, 1, 2);
+            writer.Flush();
+            await stream.WaitForBytesWrittenAsync(PageSize + 1).ForAwait();
+
+            Assert.True(stream.SyncWriteCount >= 1);
+            Assert.True(stream.AsyncWriteCount >= 1);
+        }
+        finally
+        {
+            await CompleteAsync(writer, stream).ForAwait();
+        }
+    }
+
     private static void Write(BufferedStreamWriter writer, int count, byte value)
     {
         var span = writer.GetSpan(count);
@@ -141,7 +206,9 @@ public class BufferedStreamWriterTests
     private sealed class ObservedStream : Stream
     {
         private readonly object _lock = new();
+        private readonly MemoryStream _written = new();
         private long _bytesWritten;
+        private int _syncWriteCount, _asyncWriteCount;
         private int _flushCount;
         private bool _blockNextWrite, _blockNextFlush;
         private TaskCompletionSource<bool>? _blockedWrite, _allowWrite;
@@ -149,6 +216,18 @@ public class BufferedStreamWriterTests
 
         public Exception? WriteException { get; set; }
         public long BytesWritten => Interlocked.Read(ref _bytesWritten);
+        public int SyncWriteCount => Volatile.Read(ref _syncWriteCount);
+        public int AsyncWriteCount => Volatile.Read(ref _asyncWriteCount);
+        public byte[] WrittenBytes
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _written.ToArray();
+                }
+            }
+        }
 
         public override bool CanRead => false;
         public override bool CanSeek => false;
@@ -223,6 +302,9 @@ public class BufferedStreamWriterTests
         public Task WaitForFlushCountAsync(int count)
             => WaitUntilAsync(() => Volatile.Read(ref _flushCount) >= count, $"flush count did not reach {count}");
 
+        public Task WaitForBytesWrittenAsync(long count)
+            => WaitUntilAsync(() => BytesWritten >= count, $"bytes written did not reach {count}");
+
         public override void Flush()
             => BeforeFlush();
 
@@ -232,36 +314,45 @@ public class BufferedStreamWriterTests
         public override void Write(byte[] buffer, int offset, int count)
         {
             BeforeWrite();
-            AfterWrite(count);
+            AfterWrite(buffer.AsSpan(offset, count));
+            Interlocked.Increment(ref _syncWriteCount);
         }
 
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-            => WriteAsync(count).AsTask();
+            => WriteAsync(buffer.AsMemory(offset, count)).AsTask();
 
 #if NET
         public override void Write(ReadOnlySpan<byte> buffer)
         {
             BeforeWrite();
-            AfterWrite(buffer.Length);
+            AfterWrite(buffer);
+            Interlocked.Increment(ref _syncWriteCount);
         }
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-            => WriteAsync(buffer.Length);
+            => WriteAsync(buffer);
 #endif
 
         private void BeforeWrite()
             => GetBlockedOperation(ref _blockNextWrite, ref _blockedWrite, ref _allowWrite)?.GetAwaiter().GetResult();
 
-        private async ValueTask WriteAsync(int count)
+        private async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer)
         {
             var blocked = GetBlockedOperation(ref _blockNextWrite, ref _blockedWrite, ref _allowWrite);
             if (blocked is not null) await blocked.ForAwait();
-            AfterWrite(count);
+            AfterWrite(buffer.Span);
+            Interlocked.Increment(ref _asyncWriteCount);
         }
 
-        private void AfterWrite(int count)
+        private void AfterWrite(ReadOnlySpan<byte> buffer)
         {
             if (WriteException is not null) throw WriteException;
+            lock (_lock)
+            {
+                var arr = buffer.ToArray();
+                _written.Write(arr, 0, arr.Length);
+            }
+            var count = buffer.Length;
             Interlocked.Add(ref _bytesWritten, count);
         }
 

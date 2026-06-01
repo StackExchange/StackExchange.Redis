@@ -187,8 +187,13 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
 
     private async ValueTask<int> GetAndMeasureString(IDatabaseAsync client)
     {
+#if LEGACY_API
+        byte[]? data = (byte[]?)(await client.StringGetAsync(GetSetKey).ConfigureAwait(false));
+        return data?.Length ?? -1;
+#else
         using var lease = await client.StringGetLeaseAsync(GetSetKey).ConfigureAwait(false);
         return lease?.Length ?? -1;
+#endif
     }
 
     [DisplayName("SET")]
@@ -228,7 +233,14 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
         client.SortedSetAddAsync(SortedSetKey, "element:__rand_int__", 0).AsValueTask();
 
     [DisplayName("ZPOPMIN")]
-    private ValueTask<int> ZPopMin(IDatabaseAsync client) => HasSortedSetElement(client.SortedSetPopAsync(SortedSetKey));
+    private ValueTask<int> ZPopMin(IDatabaseAsync client)
+    {
+#if LEGACY_API
+        throw new NotSupportedException();
+#else
+        return HasSortedSetElement(client.SortedSetPopAsync(SortedSetKey));
+#endif
+    }
 
     private async ValueTask<int> HasSortedSetElement(Task<SortedSetEntry?> pending)
     {
@@ -240,8 +252,14 @@ public abstract class OldCoreBenchmarkBase : BenchmarkBase<IDatabaseAsync>
     private ValueTask<bool> MSet(IDatabaseAsync client) => client.StringSetAsync(_pairs).AsValueTask();
 
     [DisplayName("XADD")]
-    private ValueTask<RedisValue> XAdd(IDatabaseAsync client) =>
-        client.StreamAddAsync(StreamKey, "myfield", Payload).AsValueTask();
+    private ValueTask<RedisValue> XAdd(IDatabaseAsync client)
+    {
+#if LEGACY_API
+        throw new NotSupportedException();
+#else
+        return client.StreamAddAsync(StreamKey, "myfield", Payload).AsValueTask();
+#endif
+    }
 
     [DisplayName("LRANGE_100")]
     private ValueTask<int> LRange100(IDatabaseAsync client) => CountAsync(client.ListRangeAsync(ListKey, 0, 99));

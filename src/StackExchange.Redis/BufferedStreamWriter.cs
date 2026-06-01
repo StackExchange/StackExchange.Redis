@@ -24,21 +24,22 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
      * - implicit flush is implicit - i.e. when committed work fills a page, that page is flushed automatically
      * - the consumption API allows fully synchronous consumption, if desired
      *
-     * At the moment, 3 concrete implementations are provided:
-     * - BufferedAsyncStreamWriter: uses the thread-pool and async I/O to copy data to the target stream
-     * - BufferedSyncStreamWriter: uses a dedicated thread to copy data to the target stream using sync IO
-     * - PipeStreamWriter: uses the pre-existing Pipe API and pre-built PipeWriter.CopyTo(Stream)
+     * At the moment, 2 concrete implementations are provided:
+     * - SwitchableBufferedStreamWriter: combines a sync and async implementation, with the ability to
+     *   start sync and transition to async - or start fully async.
+     * - PipeStreamWriter: uses the pre-existing Pipe API and pre-built PipeWriter.CopyTo(Stream).
      *
-     * The intention is that:
-     * - pub/sub always uses BufferedAsyncStreamWriter
-     * - interactive uses BufferedSyncStreamWriter in low-connection-count scenarios,
-     *   and BufferedAsyncStreamWriter in high-connection-count scenarios (there's some missing work here in
+     * The eventual intention is that:
+     * - pub/sub always starts in async mode
+     * - interactive uses sync mode in low-connection-count scenarios,
+     *   and async mode in high-connection-count scenarios (there's some missing work here in
      *   tracking the count and transitioning from sync to async as we cross some threshold)
      *
-     * So why the Pipe version? and why not *just* use Pipe? The custom sync/async versions out-perform Pipe, but
-     * there's a dangling bug where occasionally it will stall - presumably some edge-case where the wake logic
-     * is borked. When I debug that, I'll make the other versions the defaults, but for now: Pipe is the default,
-     * with the others only available to me for testing.
+     * However! currently, the default is "always sync"; the only way to get sync is via private APIs; this may
+     * be reviewed later.
+     *
+     * So why the Pipe version? and why not *just* use Pipe? The custom writer out-performs Pipe, but Pipe remains
+     * useful as a separate implementation for comparison and troubleshooting.
      *
      *  Threading model: this type assumes a single producer/writer and a single
      *  consumer/reader. The monitor protects the non-thread-safe CycleBuffer and
@@ -66,8 +67,8 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
         }
         return mode switch
         {
-            WriteMode.Sync => new BufferedSyncStreamWriter(target, cancellationToken),
-            WriteMode.Async => new BufferedAsyncStreamWriter(target, cancellationToken),
+            WriteMode.Sync => new SwitchableBufferedStreamWriter(target, cancellationToken, initiallySync: true),
+            WriteMode.Async => new SwitchableBufferedStreamWriter(target, cancellationToken, initiallySync: false),
             WriteMode.Pipe => new PipeStreamWriter(target, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
@@ -108,18 +109,21 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
     public virtual void DebugSetLog(Action<string> log) { }
 
     public abstract void Flush();
+
+    public virtual bool TransitionToAsync() => false;
 }
 
 internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBufferCallback
 {
-    protected CycleBufferStreamWriter(Stream target, CancellationToken cancellationToken)
+    protected CycleBufferStreamWriter(Stream target, CancellationToken cancellationToken, StateFlags flags = StateFlags.None)
         : base(target, cancellationToken)
     {
         _buffer = CycleBuffer.Create(callback: this);
+        _stateFlags = flags;
     }
 
     private CycleBuffer _buffer;
-    private StateFlags _stateFlags;
+    private volatile StateFlags _stateFlags;
     private Exception? _exception;
 
     protected bool IsFaulted => Volatile.Read(ref _exception) is not null;
@@ -131,6 +135,8 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
         Flush = 1 << 0, // allow reading incomplete pages
         ActiveWriter = 1 << 1,
         Closed = 1 << 2,
+        TransitionToAsync = 1 << 3,
+        AsyncMode = 1 << 4,
     }
 
     protected bool GetFirstChunkInsideLock(int minBytes, out ReadOnlyMemory<byte> memory)
@@ -165,23 +171,30 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
         try
         {
             TakeLock(ref lockTaken);
-            var state = _stateFlags;
-            if ((state & StateFlags.Closed) != 0) return;
-            state |= newFlags & ~StateFlags.ActiveWriter;
-            if ((state & StateFlags.ActiveWriter) == 0)
-            {
-                state |= StateFlags.ActiveWriter;
-                _stateFlags = state;
-                OnWakeReaderInsideLock();
-            }
-            else
-            {
-                _stateFlags = state;
-            }
+            ActivateInsideLock(newFlags);
         }
         finally
         {
             ReleaseLock(ref lockTaken);
+        }
+    }
+
+    protected void ActivateInsideLock(StateFlags newFlags)
+    {
+        Debug.Assert(Monitor.IsEntered(this), $"{nameof(ActivateInsideLock)} must be called while holding the writer lock.");
+
+        var state = _stateFlags;
+        if ((state & StateFlags.Closed) != 0) return;
+        state |= newFlags & ~StateFlags.ActiveWriter;
+        if ((state & StateFlags.ActiveWriter) == 0)
+        {
+            state |= StateFlags.ActiveWriter;
+            _stateFlags = state;
+            OnWakeReaderInsideLock();
+        }
+        else
+        {
+            _stateFlags = state;
         }
     }
 
@@ -286,6 +299,12 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
     {
         Debug.Assert(Monitor.IsEntered(this), $"{nameof(RemoveStateFlagInsideLock)} must be called while holding the writer lock.");
         _stateFlags &= ~flags;
+    }
+
+    protected void AddStateFlagInsideLock(StateFlags flags)
+    {
+        Debug.Assert(Monitor.IsEntered(this), $"{nameof(AddStateFlagInsideLock)} must be called while holding the writer lock.");
+        _stateFlags |= flags;
     }
 
 #if DEBUG

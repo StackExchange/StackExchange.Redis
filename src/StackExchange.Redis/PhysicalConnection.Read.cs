@@ -51,23 +51,30 @@ internal sealed partial class PhysicalConnection
                 {
                     IsBackground = true,
                     Priority = ThreadPriority.AboveNormal,
-                    Name = "SE.Redis Sync Writer",
+                    Name = "SE.Redis Sync Reader",
                 };
                 thread.Start();
             }
         }
         else
         {
-            ReadAllAsync(cancellation).RedisFireAndForget();
+            StartReadAllAsync(cancellation);
         }
     }
+
+    private void StartReadAllAsync(CancellationToken cancellationToken)
+        => Task.Run(() => ReadAllAsync(cancellationToken)).RedisFireAndForget();
 
     private async Task ReadAllAsync(CancellationToken cancellationToken)
     {
         var tail = _ioStream ?? Stream.Null;
-        _readStatus = ReadStatus.Init;
-        _readState = default;
-        _readBuffer = CycleBuffer.Create();
+        if (_readStatus is not ReadStatus.TransitioningToAsync)
+        {
+            // preserve existing state if transitioning
+            _readStatus = ReadStatus.Init;
+            _readState = default;
+            _readBuffer = CycleBuffer.Create();
+        }
         try
         {
             int read;
@@ -129,7 +136,7 @@ internal sealed partial class PhysicalConnection
             int read;
             do
             {
-                _readStatus = ReadStatus.ReadAsync;
+                _readStatus = ReadStatus.ReadSync;
                 var buffer = _readBuffer.GetUncommittedMemory();
                 cancellationToken.ThrowIfCancellationRequested();
 #if NET
@@ -145,7 +152,9 @@ internal sealed partial class PhysicalConnection
                 _readStatus = ReadStatus.TryParseResult;
             }
             // another formatter glitch
-            while (CommitAndParseFrames(read) && !ForceReconnect);
+            while (CommitAndParseFrames(read) && !ForceReconnect && !ShouldTransitionToAsync());
+
+            if (_readStatus is ReadStatus.TransitioningToAsync) return;
 
             _readStatus = ReadStatus.ProcessBufferComplete;
 
@@ -154,12 +163,12 @@ internal sealed partial class PhysicalConnection
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
         }
-        catch (EndOfStreamException) when (_readStatus is ReadStatus.ReadAsync)
+        catch (EndOfStreamException) when (_readStatus is ReadStatus.ReadSync)
         {
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
         }
-        catch (OperationCanceledException) when (_readStatus is ReadStatus.ReadAsync)
+        catch (OperationCanceledException) when (_readStatus is ReadStatus.ReadSync)
         {
             _readStatus = ReadStatus.RanToCompletion;
             RecordConnectionFailed(ConnectionFailureType.SocketClosed);
@@ -171,8 +180,25 @@ internal sealed partial class PhysicalConnection
         }
         finally
         {
-            _readBuffer = default; // wipe, however we exited
+            if (_readStatus is ReadStatus.TransitioningToAsync)
+            {
+                StartReadAllAsync(cancellationToken);
+            }
+            else
+            {
+                _readBuffer = default; // wipe, however we exited
+            }
         }
+    }
+
+    private bool ShouldTransitionToAsync()
+    {
+        if (_output is { IsSync: false })
+        {
+            _readStatus = ReadStatus.TransitioningToAsync;
+            return true;
+        }
+        return false;
     }
 
     private bool ForceReconnect => BridgeCouldBeNull?.NeedsReconnect == true;

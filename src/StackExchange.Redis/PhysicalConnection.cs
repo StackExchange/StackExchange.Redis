@@ -1113,6 +1113,7 @@ namespace StackExchange.Redis
             Faulted,
             ReadSync,
             ReadAsync,
+            TransitioningToAsync,
             UpdateWriteTime,
             ProcessBuffer,
             MarkProcessed,
