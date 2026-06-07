@@ -180,7 +180,7 @@ namespace StackExchange.Redis
         internal State InteractiveConnectionState => interactive?.ConnectionState ?? State.Disconnected;
         internal State SubscriptionConnectionState => KnowOrAssumeResp3() ? InteractiveConnectionState : subscription?.ConnectionState ?? State.Disconnected;
 
-        public long OperationCount => interactive?.OperationCount ?? 0 + subscription?.OperationCount ?? 0;
+        public long OperationCount => (interactive?.OperationCount ?? 0) + (subscription?.OperationCount ?? 0);
 
         public bool RequiresReadMode => serverType == ServerType.Cluster && IsReplica;
 
