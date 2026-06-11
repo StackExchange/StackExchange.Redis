@@ -39,10 +39,10 @@ jobs:
       DOCKER_BUILDKIT: 1
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Fetch the full history
-      - uses: Vampire/setup-wsl@v2
+      - uses: Vampire/setup-wsl@v6
         with:
           distribution: Ubuntu-22.04
       - name: Install Redis
