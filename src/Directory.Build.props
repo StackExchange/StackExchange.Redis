@@ -12,5 +12,3 @@
     <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" Condition=" '$(DEVCONTAINER)' != 'true' " />
   </ItemGroup>
 </Project>
-
-
