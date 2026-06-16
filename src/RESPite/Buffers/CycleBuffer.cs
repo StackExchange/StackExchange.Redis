@@ -40,7 +40,7 @@ public partial struct CycleBuffer
     public static CycleBuffer Create(
         MemoryPool<byte>? pool = null,
         int pageSize = DefaultPageSize,
-        int pageGrow = DefaultPageGrow,
+        float pageGrow = DefaultPageGrow,
         ICycleBufferCallback? callback = null)
     {
         pool ??= DefaultPool;
@@ -50,7 +50,7 @@ public partial struct CycleBuffer
         return new CycleBuffer(pool, pageSize, pageGrow, callback);
     }
 
-    private CycleBuffer(MemoryPool<byte> pool, int pageSize, int pageGrow, ICycleBufferCallback? callback)
+    private CycleBuffer(MemoryPool<byte> pool, int pageSize, float pageGrow, ICycleBufferCallback? callback)
     {
         Pool = pool;
         _pageSize = pageSize;
@@ -60,12 +60,12 @@ public partial struct CycleBuffer
     }
 
     private const int DefaultPageSize = 8 * 1024;
-    private const int DefaultPageGrow = 2;
+    private const float DefaultPageGrow = 2f;
 
     public int PageSize => _pageSize;
     public MemoryPool<byte> Pool { get; }
     private readonly ICycleBufferCallback? _callback;
-    private readonly int _pageGrow;
+    private readonly float _pageGrow;
 
     private Segment? startSegment, endSegment;
 
@@ -392,9 +392,9 @@ public partial struct CycleBuffer
         return ros;
     }
 
-    private void SetNextPageSize(int size)
+    private void NextPageSize()
     {
-        var newSize = unchecked(size * _pageGrow);
+        var newSize = (int)Math.Floor(_pageSize * _pageGrow);
         var maxSize = Pool.MaxBufferSize;
         _pageSize = (uint)newSize > maxSize ? maxSize : newSize;
     }
@@ -425,10 +425,8 @@ public partial struct CycleBuffer
             }
         }
 
-        var memory = Pool.Rent(_pageSize);
-        SetNextPageSize(memory.Memory.Length);
-
-        Segment newSegment = Segment.Create(memory);
+        Segment newSegment = Segment.Create(Pool.Rent(_pageSize));
+        NextPageSize();
         if (endSegment is null)
         {
             // tabula rasa

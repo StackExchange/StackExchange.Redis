@@ -23,7 +23,7 @@ namespace StackExchange.Redis
 
         public int BufferSize { get; init; }
 
-        public int BufferSizeGrow { get; init; }
+        public float BufferGrowthFactor { get; init; }
     }
 
     /// <summary>
@@ -318,7 +318,9 @@ namespace StackExchange.Redis
         /// </summary>
         public Action<EndPoint, ConnectionType, Socket>? BeforeSocketConnect { get; set; }
 
-        public BufferOptions? BufferOptions { get; set; }
+        public BufferOptions? RequestBufferOptions { get; set; }
+
+        public BufferOptions? ResponseBufferOptions { get; set; }
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
@@ -968,7 +970,8 @@ namespace StackExchange.Redis
             reconnectRetryPolicy = reconnectRetryPolicy,
             backlogPolicy = backlogPolicy,
             sslProtocols = sslProtocols,
-            BufferOptions = BufferOptions,
+            RequestBufferOptions = RequestBufferOptions,
+            ResponseBufferOptions = ResponseBufferOptions,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
             LoggerFactory = LoggerFactory,
@@ -1169,7 +1172,8 @@ namespace StackExchange.Redis
 
             CertificateSelection = null;
             CertificateValidation = null;
-            BufferOptions = null;
+            RequestBufferOptions = null;
+            ResponseBufferOptions = null;
             BeforeSocketConnect = null;
             ChannelPrefix = default;
             LibraryName = null;

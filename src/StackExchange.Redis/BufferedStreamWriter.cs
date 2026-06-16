@@ -118,7 +118,7 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
     protected CycleBufferStreamWriter(Stream target, CancellationToken cancellationToken, BufferOptions? bufferOptions = null, StateFlags flags = StateFlags.None)
         : base(target, cancellationToken)
     {
-        _buffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0, bufferOptions?.BufferSizeGrow ?? 0, callback: this);
+        _buffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0, bufferOptions?.BufferGrowthFactor ?? 0, callback: this);
         _stateFlags = flags;
     }
 
