@@ -19,8 +19,6 @@ namespace StackExchange.Redis
 {
     public sealed class BufferOptions
     {
-        public ArrayPool<byte>? ArrayPool { get; init; }
-
         public MemoryPool<byte>? MemoryPool { get; init; }
 
         public int BufferSize { get; init; }
@@ -323,6 +321,8 @@ namespace StackExchange.Redis
         public BufferOptions? RequestBufferOptions { get; set; }
 
         public BufferOptions? ResponseBufferOptions { get; set; }
+
+        public ArrayPool<byte>? ResponseArrayPool { get; set; }
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
@@ -974,6 +974,7 @@ namespace StackExchange.Redis
             sslProtocols = sslProtocols,
             RequestBufferOptions = RequestBufferOptions,
             ResponseBufferOptions = ResponseBufferOptions,
+            ResponseArrayPool = ResponseArrayPool,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
             LoggerFactory = LoggerFactory,
@@ -1176,6 +1177,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             RequestBufferOptions = null;
             ResponseBufferOptions = null;
+            ResponseArrayPool = null;
             BeforeSocketConnect = null;
             ChannelPrefix = default;
             LibraryName = null;

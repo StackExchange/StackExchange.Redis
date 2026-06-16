@@ -403,8 +403,7 @@ internal sealed partial class PhysicalConnection
         else
         {
             var len = checked((int)payload.Length);
-            var bufferOptions = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseBufferOptions;
-            var arrayPool = bufferOptions?.ArrayPool ?? ArrayPool<byte>.Shared;
+            var arrayPool = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseArrayPool ?? ArrayPool<byte>.Shared;
 
             byte[]? oversized = arrayPool.Rent(len);
             payload.CopyTo(oversized);
