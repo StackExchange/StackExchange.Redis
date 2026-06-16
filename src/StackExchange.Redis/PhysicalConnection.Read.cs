@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
@@ -70,10 +70,12 @@ internal sealed partial class PhysicalConnection
         var tail = _ioStream ?? Stream.Null;
         if (_readStatus is not ReadStatus.TransitioningToAsync)
         {
+            var bufferOptions = BridgeCouldBeNull?.Multiplexer.RawConfig.BufferOptions;
+
             // preserve existing state if transitioning
             _readStatus = ReadStatus.Init;
             _readState = default;
-            _readBuffer = CycleBuffer.Create();
+            _readBuffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0);
         }
         try
         {
@@ -130,7 +132,9 @@ internal sealed partial class PhysicalConnection
         var tail = _ioStream ?? Stream.Null;
         _readStatus = ReadStatus.Init;
         _readState = default;
-        _readBuffer = CycleBuffer.Create();
+
+        var bufferOptions = BridgeCouldBeNull?.Multiplexer.RawConfig.BufferOptions;
+        _readBuffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0);
         try
         {
             int read;

@@ -14,8 +14,8 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
     private ManualResetValueTaskSourceCore<bool> _readerTask;
     private bool _syncSignalled;
 
-    public SwitchableBufferedStreamWriter(Stream target, CancellationToken cancellationToken, MemoryPool<byte>? memoryPool, bool initiallySync)
-        : base(target, cancellationToken, memoryPool, initiallySync ? StateFlags.None : StateFlags.AsyncMode)
+    public SwitchableBufferedStreamWriter(Stream target, CancellationToken cancellationToken, BufferOptions? bufferOptions, bool initiallySync)
+        : base(target, cancellationToken, bufferOptions, initiallySync ? StateFlags.None : StateFlags.AsyncMode)
     {
         _readerTask.RunContinuationsAsynchronously = true; // we never want the flusher to take over the copying
         if (initiallySync)

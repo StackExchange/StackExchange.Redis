@@ -22,7 +22,7 @@ internal partial class PhysicalConnection
     {
         if (stream is null) return;
         _ioStream = stream;
-        _output = BufferedStreamWriter.Create(WriteMode, connectionType, stream, BridgeCouldBeNull?.Multiplexer.RawConfig.MemoryPool, OutputCancel);
+        _output = BufferedStreamWriter.Create(WriteMode, connectionType, stream, BridgeCouldBeNull?.Multiplexer.RawConfig.BufferOptions, OutputCancel);
 
 #if DEBUG
         if (BridgeCouldBeNull?.Multiplexer.RawConfig.OutputLog is { } log)
