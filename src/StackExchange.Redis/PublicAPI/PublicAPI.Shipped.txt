@@ -213,6 +213,13 @@ StackExchange.Redis.Configuration.DefaultOptionsProvider.ClientName.get -> strin
 StackExchange.Redis.Configuration.DefaultOptionsProvider.DefaultOptionsProvider() -> void
 StackExchange.Redis.Configuration.Tunnel
 StackExchange.Redis.Configuration.Tunnel.Tunnel() -> void
+StackExchange.Redis.Configuration.BufferOptions
+StackExchange.Redis.Configuration.BufferOptions.MemoryPool.get -> System.Buffers.MemoryPool<byte>?
+StackExchange.Redis.Configuration.BufferOptions.MemoryPool.set -> void
+StackExchange.Redis.Configuration.BufferOptions.BufferSize.get -> int
+StackExchange.Redis.Configuration.BufferOptions.BufferSize.set -> void
+StackExchange.Redis.Configuration.BufferOptions.BufferGrowthFactor.get -> float
+StackExchange.Redis.Configuration.BufferOptions.BufferGrowthFactor.set -> void
 static StackExchange.Redis.Configuration.Tunnel.HttpProxy(System.Net.EndPoint! proxy) -> StackExchange.Redis.Configuration.Tunnel!
 virtual StackExchange.Redis.Configuration.Tunnel.BeforeAuthenticateAsync(System.Net.EndPoint! endpoint, StackExchange.Redis.ConnectionType connectionType, System.Net.Sockets.Socket? socket, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.IO.Stream?>
 virtual StackExchange.Redis.Configuration.Tunnel.BeforeSocketConnectAsync(System.Net.EndPoint! endPoint, StackExchange.Redis.ConnectionType connectionType, System.Net.Sockets.Socket? socket, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -227,6 +234,12 @@ StackExchange.Redis.ConfigurationOptions.AsyncTimeout.get -> int
 StackExchange.Redis.ConfigurationOptions.AsyncTimeout.set -> void
 StackExchange.Redis.ConfigurationOptions.BacklogPolicy.get -> StackExchange.Redis.BacklogPolicy!
 StackExchange.Redis.ConfigurationOptions.BacklogPolicy.set -> void
+StackExchange.Redis.ConfigurationOptions.RequestBufferOptions.get -> StackExchange.Redis.Configuration.BufferOptions?
+StackExchange.Redis.ConfigurationOptions.RequestBufferOptions.set -> void
+StackExchange.Redis.ConfigurationOptions.ResponseBufferOptions.get -> StackExchange.Redis.Configuration.BufferOptions?
+StackExchange.Redis.ConfigurationOptions.ResponseBufferOptions.set -> void
+StackExchange.Redis.ConfigurationOptions.ResponseArrayPool.get -> System.Buffers.ArrayPool<byte>?
+StackExchange.Redis.ConfigurationOptions.ResponseArrayPool.set -> void
 StackExchange.Redis.ConfigurationOptions.BeforeSocketConnect.get -> System.Action<System.Net.EndPoint!, StackExchange.Redis.ConnectionType, System.Net.Sockets.Socket!>?
 StackExchange.Redis.ConfigurationOptions.BeforeSocketConnect.set -> void
 StackExchange.Redis.ConfigurationOptions.CertificateSelection -> System.Net.Security.LocalCertificateSelectionCallback?

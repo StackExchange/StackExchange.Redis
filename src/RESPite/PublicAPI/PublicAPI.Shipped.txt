@@ -203,7 +203,7 @@
 [SER004]RESPite.Messages.RespScanState.TryRead(System.ReadOnlySpan<byte> value, out int bytesRead) -> bool
 [SER004]RESPite.RespException
 [SER004]RESPite.RespException.RespException(string! message) -> void
-[SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, int pageSize = 8192, RESPite.Buffers.ICycleBufferCallback? callback = null) -> RESPite.Buffers.CycleBuffer
+[SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, int pageSize = 8192, float pageGrow = 2, RESPite.Buffers.ICycleBufferCallback? callback = null) -> RESPite.Buffers.CycleBuffer
 [SER004]static RESPite.Messages.RespFrameScanner.Default.get -> RESPite.Messages.RespFrameScanner!
 [SER004]static RESPite.Messages.RespFrameScanner.Subscription.get -> RESPite.Messages.RespFrameScanner!
 [SER004]virtual RESPite.Messages.RespAttributeReader<T>.Read(ref RESPite.Messages.RespReader reader, ref T value) -> void

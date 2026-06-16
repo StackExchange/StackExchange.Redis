@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Buffers;
+using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis;
 

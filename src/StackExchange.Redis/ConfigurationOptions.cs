@@ -17,15 +17,6 @@ using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
 {
-    public sealed class BufferOptions
-    {
-        public MemoryPool<byte>? MemoryPool { get; init; }
-
-        public int BufferSize { get; init; }
-
-        public float BufferGrowthFactor { get; init; }
-    }
-
     /// <summary>
     /// The options relevant to a set of redis connections.
     /// </summary>
@@ -318,10 +309,19 @@ namespace StackExchange.Redis
         /// </summary>
         public Action<EndPoint, ConnectionType, Socket>? BeforeSocketConnect { get; set; }
 
+        /// <summary>
+        /// Request BufferOptions.
+        /// </summary>
         public BufferOptions? RequestBufferOptions { get; set; }
 
+        /// <summary>
+        /// Response BufferOptions.
+        /// </summary>
         public BufferOptions? ResponseBufferOptions { get; set; }
 
+        /// <summary>
+        /// Response ArrayPool.
+        /// </summary>
         public ArrayPool<byte>? ResponseArrayPool { get; set; }
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;

@@ -1,4 +1,5 @@
 ﻿#nullable enable
+StackExchange.Redis.Configuration.BufferOptions.BufferOptions() -> void
 [SER005]StackExchange.Redis.TestHarness
 [SER005]StackExchange.Redis.TestHarness.BufferValidator
 [SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel

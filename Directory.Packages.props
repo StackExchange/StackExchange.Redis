@@ -18,6 +18,7 @@
     <!-- Packages only used in the solution, upgrade at will -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="3.0.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="4.14.0" />
     <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.201" />

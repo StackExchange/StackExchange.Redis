@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis;
 
