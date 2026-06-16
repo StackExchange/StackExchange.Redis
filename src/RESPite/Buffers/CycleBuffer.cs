@@ -60,7 +60,7 @@ public partial struct CycleBuffer
     }
 
     private const int DefaultPageSize = 8 * 1024;
-    private const float DefaultPageGrow = 2f;
+    private const float DefaultPageGrow = 1f;
 
     public int PageSize => _pageSize;
     public MemoryPool<byte> Pool { get; }
