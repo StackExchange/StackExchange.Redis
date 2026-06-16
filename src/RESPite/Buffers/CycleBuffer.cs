@@ -53,7 +53,7 @@ public partial struct CycleBuffer
     private CycleBuffer(MemoryPool<byte> pool, int pageSize, float pageGrow, ICycleBufferCallback? callback)
     {
         Pool = pool;
-        _pageSize = pageSize;
+        _pageSizeStart = _pageSize = pageSize;
         _pageGrow = pageGrow;
         _callback = callback;
         leasedStart = -1;
@@ -65,6 +65,7 @@ public partial struct CycleBuffer
     public int PageSize => _pageSize;
     public MemoryPool<byte> Pool { get; }
     private readonly ICycleBufferCallback? _callback;
+    private readonly int _pageSizeStart;
     private readonly float _pageGrow;
 
     private Segment? startSegment, endSegment;
@@ -708,6 +709,7 @@ public partial struct CycleBuffer
             node.Recycle();
             node = next;
         }
+        _pageSize = _pageSizeStart;
     }
 
     /// <summary>
