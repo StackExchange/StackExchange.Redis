@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
@@ -10,10 +11,11 @@ internal sealed class PipeStreamWriter : BufferedStreamWriter
 {
     private readonly PipeWriter _writer;
 
-    public PipeStreamWriter(Stream target, CancellationToken cancellationToken = default)
+    public PipeStreamWriter(Stream target, CancellationToken cancellationToken = default, MemoryPool<byte>? memoryPool = null)
         : base(target, cancellationToken)
     {
-        var pipe = new Pipe();
+        var options = new PipeOptions(memoryPool);
+        var pipe = new Pipe(options);
         _writer = pipe.Writer;
         WriteComplete = CopyToAsync(pipe.Reader, pipe.Writer, Target, cancellationToken);
     }
