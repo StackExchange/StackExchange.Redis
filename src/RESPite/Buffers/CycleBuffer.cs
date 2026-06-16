@@ -40,32 +40,39 @@ public partial struct CycleBuffer
     public static CycleBuffer Create(
         MemoryPool<byte>? pool = null,
         int pageSize = DefaultPageSize,
+        float pageGrow = DefaultPageGrow,
         ICycleBufferCallback? callback = null)
     {
         pool ??= DefaultPool;
         if (pageSize <= 0) pageSize = DefaultPageSize;
+        if (pageGrow <= 0) pageGrow = DefaultPageGrow;
         if (pageSize > pool.MaxBufferSize) pageSize = pool.MaxBufferSize;
-        return new CycleBuffer(pool, pageSize, callback);
+        return new CycleBuffer(pool, pageSize, pageGrow, callback);
     }
 
-    private CycleBuffer(MemoryPool<byte> pool, int pageSize, ICycleBufferCallback? callback)
+    private CycleBuffer(MemoryPool<byte> pool, int pageSize, float pageGrow, ICycleBufferCallback? callback)
     {
         Pool = pool;
-        PageSize = pageSize;
+        _pageSizeStart = _pageSize = pageSize;
+        _pageGrow = pageGrow;
         _callback = callback;
         leasedStart = -1;
     }
 
     private const int DefaultPageSize = 8 * 1024;
+    private const float DefaultPageGrow = 2f;
 
-    public int PageSize { get; }
+    public int PageSize => _pageSize;
     public MemoryPool<byte> Pool { get; }
     private readonly ICycleBufferCallback? _callback;
+    private readonly int _pageSizeStart;
+    private readonly float _pageGrow;
 
     private Segment? startSegment, endSegment;
 
     private int endSegmentCommitted, endSegmentLength;
     private int leasedStart;
+    private int _pageSize;
 
     public bool TryGetCommitted(out ReadOnlySpan<byte> span)
     {
@@ -386,6 +393,13 @@ public partial struct CycleBuffer
         return ros;
     }
 
+    private void NextPageSize()
+    {
+        var newSize = (int)Math.Floor(_pageSize * _pageGrow);
+        var maxSize = Pool.MaxBufferSize;
+        _pageSize = (uint)newSize > maxSize ? maxSize : newSize;
+    }
+
     private Segment GetNextSegment()
     {
         DebugAssertValid();
@@ -412,7 +426,8 @@ public partial struct CycleBuffer
             }
         }
 
-        Segment newSegment = Segment.Create(Pool.Rent(PageSize));
+        Segment newSegment = Segment.Create(Pool.Rent(_pageSize));
+        NextPageSize();
         if (endSegment is null)
         {
             // tabula rasa
@@ -694,6 +709,7 @@ public partial struct CycleBuffer
             node.Recycle();
             node = next;
         }
+        _pageSize = _pageSizeStart;
     }
 
     /// <summary>

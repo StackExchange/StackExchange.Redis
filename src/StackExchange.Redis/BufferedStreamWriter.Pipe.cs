@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis;
 
@@ -10,10 +11,20 @@ internal sealed class PipeStreamWriter : BufferedStreamWriter
 {
     private readonly PipeWriter _writer;
 
-    public PipeStreamWriter(Stream target, CancellationToken cancellationToken = default)
+    public PipeStreamWriter(Stream target, CancellationToken cancellationToken = default, BufferOptions? bufferOptions = null)
         : base(target, cancellationToken)
     {
-        var pipe = new Pipe();
+        var options = PipeOptions.Default;
+
+        if (bufferOptions != null)
+        {
+            var bufferSize = bufferOptions.BufferSize;
+            if (bufferSize == 0) bufferSize = options.MinimumSegmentSize;
+
+            options = new PipeOptions(bufferOptions.MemoryPool, minimumSegmentSize: bufferSize);
+        }
+
+        var pipe = new Pipe(options);
         _writer = pipe.Writer;
         WriteComplete = CopyToAsync(pipe.Reader, pipe.Writer, Target, cancellationToken);
     }

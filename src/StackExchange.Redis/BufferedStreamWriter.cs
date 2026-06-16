@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Buffers;
+using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis;
 
@@ -57,7 +58,7 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
     public virtual bool IsSync => false;
 
-    public static BufferedStreamWriter Create(WriteMode mode, ConnectionType connectionType, Stream target, CancellationToken cancellationToken)
+    public static BufferedStreamWriter Create(WriteMode mode, ConnectionType connectionType, Stream target, BufferOptions? bufferOptions, CancellationToken cancellationToken)
     {
         if (connectionType is ConnectionType.Subscription | mode is WriteMode.Default)
         {
@@ -67,9 +68,9 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
         }
         return mode switch
         {
-            WriteMode.Sync => new SwitchableBufferedStreamWriter(target, cancellationToken, initiallySync: true),
-            WriteMode.Async => new SwitchableBufferedStreamWriter(target, cancellationToken, initiallySync: false),
-            WriteMode.Pipe => new PipeStreamWriter(target, cancellationToken),
+            WriteMode.Sync => new SwitchableBufferedStreamWriter(target, cancellationToken, bufferOptions, initiallySync: true),
+            WriteMode.Async => new SwitchableBufferedStreamWriter(target, cancellationToken, bufferOptions, initiallySync: false),
+            WriteMode.Pipe => new PipeStreamWriter(target, cancellationToken, bufferOptions),
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
     }
@@ -115,10 +116,10 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
 internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBufferCallback
 {
-    protected CycleBufferStreamWriter(Stream target, CancellationToken cancellationToken, StateFlags flags = StateFlags.None)
+    protected CycleBufferStreamWriter(Stream target, CancellationToken cancellationToken, BufferOptions? bufferOptions = null, StateFlags flags = StateFlags.None)
         : base(target, cancellationToken)
     {
-        _buffer = CycleBuffer.Create(callback: this);
+        _buffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0, bufferOptions?.BufferGrowthFactor ?? 0, callback: this);
         _stateFlags = flags;
     }
 

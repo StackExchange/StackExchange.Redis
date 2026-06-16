@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
@@ -70,10 +70,12 @@ internal sealed partial class PhysicalConnection
         var tail = _ioStream ?? Stream.Null;
         if (_readStatus is not ReadStatus.TransitioningToAsync)
         {
+            var bufferOptions = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseBufferOptions;
+
             // preserve existing state if transitioning
             _readStatus = ReadStatus.Init;
             _readState = default;
-            _readBuffer = CycleBuffer.Create();
+            _readBuffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0, bufferOptions?.BufferGrowthFactor ?? 0);
         }
         try
         {
@@ -130,7 +132,9 @@ internal sealed partial class PhysicalConnection
         var tail = _ioStream ?? Stream.Null;
         _readStatus = ReadStatus.Init;
         _readState = default;
-        _readBuffer = CycleBuffer.Create();
+
+        var bufferOptions = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseBufferOptions;
+        _readBuffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0, bufferOptions?.BufferGrowthFactor ?? 0);
         try
         {
             int read;
@@ -399,14 +403,16 @@ internal sealed partial class PhysicalConnection
         else
         {
             var len = checked((int)payload.Length);
-            byte[]? oversized = ArrayPool<byte>.Shared.Rent(len);
+            var arrayPool = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseArrayPool ?? ArrayPool<byte>.Shared;
+
+            byte[]? oversized = arrayPool.Rent(len);
             payload.CopyTo(oversized);
             OnResponseFrame(prefix, new(oversized, 0, len), ref oversized);
 
             // the lease could have been claimed by the activation code (to prevent another memcpy); otherwise, free
             if (oversized is not null)
             {
-                ArrayPool<byte>.Shared.Return(oversized);
+                arrayPool.Return(oversized);
             }
         }
     }

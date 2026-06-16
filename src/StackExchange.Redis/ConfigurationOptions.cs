@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -307,6 +308,21 @@ namespace StackExchange.Redis
         /// For example, a specific local IP endpoint could be bound, linger time altered, etc.
         /// </summary>
         public Action<EndPoint, ConnectionType, Socket>? BeforeSocketConnect { get; set; }
+
+        /// <summary>
+        /// Request BufferOptions.
+        /// </summary>
+        public BufferOptions? RequestBufferOptions { get; set; }
+
+        /// <summary>
+        /// Response BufferOptions.
+        /// </summary>
+        public BufferOptions? ResponseBufferOptions { get; set; }
+
+        /// <summary>
+        /// Response ArrayPool.
+        /// </summary>
+        public ArrayPool<byte>? ResponseArrayPool { get; set; }
 
         internal Func<ConnectionMultiplexer, Action<string>, Task> AfterConnectAsync => Defaults.AfterConnectAsync;
 
@@ -956,6 +972,9 @@ namespace StackExchange.Redis
             reconnectRetryPolicy = reconnectRetryPolicy,
             backlogPolicy = backlogPolicy,
             sslProtocols = sslProtocols,
+            RequestBufferOptions = RequestBufferOptions,
+            ResponseBufferOptions = ResponseBufferOptions,
+            ResponseArrayPool = ResponseArrayPool,
             BeforeSocketConnect = BeforeSocketConnect,
             EndPoints = EndPoints.Clone(),
             LoggerFactory = LoggerFactory,
@@ -1156,6 +1175,9 @@ namespace StackExchange.Redis
 
             CertificateSelection = null;
             CertificateValidation = null;
+            RequestBufferOptions = null;
+            ResponseBufferOptions = null;
+            ResponseArrayPool = null;
             BeforeSocketConnect = null;
             ChannelPrefix = default;
             LibraryName = null;
