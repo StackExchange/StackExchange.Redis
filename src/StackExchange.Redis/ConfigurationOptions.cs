@@ -19,6 +19,8 @@ namespace StackExchange.Redis
 {
     public sealed class BufferOptions
     {
+        public ArrayPool<byte>? ArrayPool { get; init; }
+
         public MemoryPool<byte>? MemoryPool { get; init; }
 
         public int BufferSize { get; init; }

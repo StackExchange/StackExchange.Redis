@@ -403,14 +403,17 @@ internal sealed partial class PhysicalConnection
         else
         {
             var len = checked((int)payload.Length);
-            byte[]? oversized = ArrayPool<byte>.Shared.Rent(len);
+            var bufferOptions = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseBufferOptions;
+            var arrayPool = bufferOptions?.ArrayPool ?? ArrayPool<byte>.Shared;
+
+            byte[]? oversized = arrayPool.Rent(len);
             payload.CopyTo(oversized);
             OnResponseFrame(prefix, new(oversized, 0, len), ref oversized);
 
             // the lease could have been claimed by the activation code (to prevent another memcpy); otherwise, free
             if (oversized is not null)
             {
-                ArrayPool<byte>.Shared.Return(oversized);
+                arrayPool.Return(oversized);
             }
         }
     }
