@@ -75,7 +75,7 @@ internal sealed partial class PhysicalConnection
             // preserve existing state if transitioning
             _readStatus = ReadStatus.Init;
             _readState = default;
-            _readBuffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0);
+            _readBuffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0, bufferOptions?.BufferSizeGrow ?? 0);
         }
         try
         {
@@ -134,7 +134,7 @@ internal sealed partial class PhysicalConnection
         _readState = default;
 
         var bufferOptions = BridgeCouldBeNull?.Multiplexer.RawConfig.BufferOptions;
-        _readBuffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0);
+        _readBuffer = CycleBuffer.Create(bufferOptions?.MemoryPool, bufferOptions?.BufferSize ?? 0, bufferOptions?.BufferSizeGrow ?? 0);
         try
         {
             int read;

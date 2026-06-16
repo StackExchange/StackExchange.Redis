@@ -22,6 +22,8 @@ namespace StackExchange.Redis
         public MemoryPool<byte>? MemoryPool { get; init; }
 
         public int BufferSize { get; init; }
+
+        public int BufferSizeGrow { get; init; }
     }
 
     /// <summary>

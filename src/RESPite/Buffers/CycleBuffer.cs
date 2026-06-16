@@ -40,32 +40,38 @@ public partial struct CycleBuffer
     public static CycleBuffer Create(
         MemoryPool<byte>? pool = null,
         int pageSize = DefaultPageSize,
+        int pageGrow = DefaultPageGrow,
         ICycleBufferCallback? callback = null)
     {
         pool ??= DefaultPool;
         if (pageSize <= 0) pageSize = DefaultPageSize;
+        if (pageGrow <= 0) pageGrow = DefaultPageGrow;
         if (pageSize > pool.MaxBufferSize) pageSize = pool.MaxBufferSize;
-        return new CycleBuffer(pool, pageSize, callback);
+        return new CycleBuffer(pool, pageSize, pageGrow, callback);
     }
 
-    private CycleBuffer(MemoryPool<byte> pool, int pageSize, ICycleBufferCallback? callback)
+    private CycleBuffer(MemoryPool<byte> pool, int pageSize, int pageGrow, ICycleBufferCallback? callback)
     {
         Pool = pool;
-        PageSize = pageSize;
+        _pageSize = pageSize;
+        _pageGrow = pageGrow;
         _callback = callback;
         leasedStart = -1;
     }
 
     private const int DefaultPageSize = 8 * 1024;
+    private const int DefaultPageGrow = 2;
 
-    public int PageSize { get; }
+    public int PageSize => _pageSize;
     public MemoryPool<byte> Pool { get; }
     private readonly ICycleBufferCallback? _callback;
+    private readonly int _pageGrow;
 
     private Segment? startSegment, endSegment;
 
     private int endSegmentCommitted, endSegmentLength;
     private int leasedStart;
+    private int _pageSize;
 
     public bool TryGetCommitted(out ReadOnlySpan<byte> span)
     {
@@ -386,6 +392,13 @@ public partial struct CycleBuffer
         return ros;
     }
 
+    private void SetNextPageSize(int size)
+    {
+        var newSize = unchecked(size * _pageGrow);
+        var maxSize = Pool.MaxBufferSize;
+        _pageSize = (uint)newSize > maxSize ? maxSize : newSize;
+    }
+
     private Segment GetNextSegment()
     {
         DebugAssertValid();
@@ -412,7 +425,10 @@ public partial struct CycleBuffer
             }
         }
 
-        Segment newSegment = Segment.Create(Pool.Rent(PageSize));
+        var memory = Pool.Rent(_pageSize);
+        SetNextPageSize(memory.Memory.Length);
+
+        Segment newSegment = Segment.Create(memory);
         if (endSegment is null)
         {
             // tabula rasa
