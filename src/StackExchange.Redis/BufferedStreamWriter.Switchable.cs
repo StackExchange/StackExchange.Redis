@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using RESPite.Buffers;
 
 namespace StackExchange.Redis;
 
@@ -13,8 +14,8 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
     private ManualResetValueTaskSourceCore<bool> _readerTask;
     private bool _syncSignalled;
 
-    public SwitchableBufferedStreamWriter(Stream target, CancellationToken cancellationToken, bool initiallySync)
-        : base(target, cancellationToken, initiallySync ? StateFlags.None : StateFlags.AsyncMode)
+    public SwitchableBufferedStreamWriter(CycleBufferPool? pool, Stream target, CancellationToken cancellationToken, bool initiallySync)
+        : base(pool, target, cancellationToken, initiallySync ? StateFlags.None : StateFlags.AsyncMode)
     {
         _readerTask.RunContinuationsAsynchronously = true; // we never want the flusher to take over the copying
         if (initiallySync)

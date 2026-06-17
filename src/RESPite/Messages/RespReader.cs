@@ -714,6 +714,7 @@ public ref partial struct RespReader
         }
     }
 
+    [CLSCompliant(false)]
     public readonly unsafe bool TryParseScalar<T>(
         delegate* managed<ReadOnlySpan<byte>, out T, bool> parser, out T value)
     {
