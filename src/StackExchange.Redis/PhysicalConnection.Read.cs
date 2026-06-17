@@ -65,6 +65,8 @@ internal sealed partial class PhysicalConnection
     private void StartReadAllAsync(CancellationToken cancellationToken)
         => Task.Run(() => ReadAllAsync(cancellationToken)).RedisFireAndForget();
 
+    private CycleBufferPool? ReaderBufferPool => BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseCycleBufferPool;
+
     private async Task ReadAllAsync(CancellationToken cancellationToken)
     {
         var tail = _ioStream ?? Stream.Null;
@@ -73,7 +75,7 @@ internal sealed partial class PhysicalConnection
             // preserve existing state if transitioning
             _readStatus = ReadStatus.Init;
             _readState = default;
-            _readBuffer = CycleBuffer.Create();
+            _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);
         }
         try
         {
@@ -130,7 +132,7 @@ internal sealed partial class PhysicalConnection
         var tail = _ioStream ?? Stream.Null;
         _readStatus = ReadStatus.Init;
         _readState = default;
-        _readBuffer = CycleBuffer.Create();
+        _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);
         try
         {
             int read;

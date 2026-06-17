@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -12,6 +13,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RESPite;
+using RESPite.Buffers;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -1412,6 +1415,28 @@ namespace StackExchange.Redis
             }
             protocol = default;
             return false;
+        }
+
+        /// <summary>
+        /// The buffer pool to use when buffering responses.
+        /// </summary>
+        public CycleBufferPool? ResponseCycleBufferPool
+        {
+            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+            get;
+            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+            set;
+        }
+
+        /// <summary>
+        /// The buffer pool to use when buffering requests.
+        /// </summary>
+        public CycleBufferPool? RequestCycleBufferPool
+        {
+            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+            get;
+            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+            set;
         }
     }
 }

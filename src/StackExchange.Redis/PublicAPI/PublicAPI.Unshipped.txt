@@ -1,4 +1,8 @@
 ﻿#nullable enable
+[SER004]StackExchange.Redis.ConfigurationOptions.RequestCycleBufferPool.get -> RESPite.Buffers.CycleBufferPool?
+[SER004]StackExchange.Redis.ConfigurationOptions.RequestCycleBufferPool.set -> void
+[SER004]StackExchange.Redis.ConfigurationOptions.ResponseCycleBufferPool.get -> RESPite.Buffers.CycleBufferPool?
+[SER004]StackExchange.Redis.ConfigurationOptions.ResponseCycleBufferPool.set -> void
 [SER005]StackExchange.Redis.TestHarness
 [SER005]StackExchange.Redis.TestHarness.BufferValidator
 [SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel
