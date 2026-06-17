@@ -152,7 +152,7 @@ internal abstract partial class ResultProcessor
         {
             if (reader.IsScalar)
             {
-                SetResult(message, reader.AsLease()!);
+                SetResult(message, reader.AsLease(connection.BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseArrayPool)!);
                 return true;
             }
             return false;
@@ -167,7 +167,7 @@ internal abstract partial class ResultProcessor
                 && reader.TryMoveNext() && reader.IsScalar)
             {
                 // treat an array of 1 like a single reply
-                SetResult(message, reader.AsLease()!);
+                SetResult(message, reader.AsLease(connection.BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseArrayPool)!);
                 return true;
             }
             return false;

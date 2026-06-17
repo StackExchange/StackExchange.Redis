@@ -16,6 +16,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Lease<T> Empty { get; } = new Lease<T>(System.Array.Empty<T>(), 0);
 
+        private readonly ArrayPool<T>? _pool;
         private T[]? _arr;
 
         /// <summary>
@@ -33,16 +34,18 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="length">The size required.</param>
         /// <param name="clear">Whether to erase the memory.</param>
-        public static Lease<T> Create(int length, bool clear = true)
+        /// <param name="pool">Pool.</param>
+        public static Lease<T> Create(int length, bool clear = true, ArrayPool<T>? pool = null)
         {
             if (length == 0) return Empty;
-            var arr = ArrayPool<T>.Shared.Rent(length);
+            var arr = (pool ?? ArrayPool<T>.Shared).Rent(length);
             if (clear) System.Array.Clear(arr, 0, length);
             return new Lease<T>(arr, length);
         }
 
-        private Lease(T[] arr, int length)
+        private Lease(T[] arr, int length, ArrayPool<T>? pool = null)
         {
+            _pool = pool;
             _arr = arr;
             Length = length;
         }
@@ -55,7 +58,7 @@ namespace StackExchange.Redis
             if (Length != 0)
             {
                 var arr = Interlocked.Exchange(ref _arr, null);
-                if (arr != null) ArrayPool<T>.Shared.Return(arr);
+                if (arr != null) (_pool ?? ArrayPool<T>.Shared).Return(arr);
             }
         }
 
