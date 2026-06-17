@@ -38,28 +38,18 @@ public partial struct CycleBuffer
 
     // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud
     public static CycleBuffer Create(
-        MemoryPool<byte>? pool = null,
-        int pageSize = DefaultPageSize,
-        ICycleBufferCallback? callback = null)
-    {
-        pool ??= DefaultPool;
-        if (pageSize <= 0) pageSize = DefaultPageSize;
-        if (pageSize > pool.MaxBufferSize) pageSize = pool.MaxBufferSize;
-        return new CycleBuffer(pool, pageSize, callback);
-    }
+        CycleBufferPool? pool = null,
+        ICycleBufferCallback? callback = null) => new(pool, callback);
 
-    private CycleBuffer(MemoryPool<byte> pool, int pageSize, ICycleBufferCallback? callback)
+    private CycleBuffer(CycleBufferPool? pool, ICycleBufferCallback? callback = null)
     {
-        Pool = pool;
-        PageSize = pageSize;
+        _pool = pool ?? CycleBufferPool.Default;
         _callback = callback;
         leasedStart = -1;
     }
 
-    private const int DefaultPageSize = 8 * 1024;
-
-    public int PageSize { get; }
-    public MemoryPool<byte> Pool { get; }
+    public CycleBufferPool Pool => _pool;
+    private readonly CycleBufferPool _pool;
     private readonly ICycleBufferCallback? _callback;
 
     private Segment? startSegment, endSegment;
@@ -412,7 +402,7 @@ public partial struct CycleBuffer
             }
         }
 
-        Segment newSegment = Segment.Create(Pool.Rent(PageSize));
+        Segment newSegment = Segment.Create(endSegment is null ? _pool.Rent() : _pool.Rent(GetAllCommitted()));
         if (endSegment is null)
         {
             // tabula rasa
@@ -452,7 +442,7 @@ public partial struct CycleBuffer
             {
                 if (!memory.IsEmpty) return MemoryMarshal.AsMemory(memory);
             }
-            else if (memory.Length >= Math.Min(hint, PageSize >> 2)) // respect the hint up to 1/4 of the page size
+            else if (memory.Length >= Math.Min(hint, 1024)) // respect the hint, or 1k (only relevant when large requests are made)
             {
                 return MemoryMarshal.AsMemory(memory);
             }

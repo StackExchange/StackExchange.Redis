@@ -59,7 +59,7 @@ public abstract class BenchmarkBase : IDisposable
 
     protected BenchmarkBase(string[] args)
     {
-        int operations = 100_000;
+        int operations = 100_000, payloadSize = -1;
 
         string tests = "";
         for (int i = 0; i < args.Length; i++)
@@ -80,6 +80,9 @@ public abstract class BenchmarkBase : IDisposable
                     break;
                 case "-P" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
                     PipelineDepth = tmp;
+                    break;
+                case "-d" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp) && tmp > 0:
+                    payloadSize = tmp;
                     break;
                 case "-w" when i != args.Length - 1 && int.TryParse(args[++i], out int tmp):
                     WriteMode = tmp;
@@ -125,7 +128,21 @@ public abstract class BenchmarkBase : IDisposable
 
         _operationsPerClient = operations / ClientCount;
 
-        Payload = "abc"u8.ToArray();
+        if (payloadSize < 0)
+        {
+            Payload = "abc"u8.ToArray();
+        }
+        else
+        {
+            var arr = new byte[payloadSize];
+            var rand = new Random(payloadSize); // use the size as the seed, for repeatability
+            for (int i = 0; i < arr.Length; i++)
+            {
+                arr[i] = (byte)rand.Next(32, 127); // space thru ~ (ignore DEL)
+            }
+
+            Payload = arr;
+        }
     }
 
     public abstract Task RunAll();
