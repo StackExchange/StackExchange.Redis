@@ -1441,9 +1441,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The array pool to use when buffering responses.
+        /// The memory pool to use when buffering responses.
         /// </summary>
-        public ArrayPool<byte>? ResponseArrayPool
+        public MemoryPool<byte>? ResponseMemoryPool
         {
             [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
             get;

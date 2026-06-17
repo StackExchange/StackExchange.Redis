@@ -401,7 +401,7 @@ internal sealed partial class PhysicalConnection
         else
         {
             var len = checked((int)payload.Length);
-            var arrayPool = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseArrayPool ?? ArrayPool<byte>.Shared;
+            var arrayPool = ArrayPool<byte>.Shared;
 
             byte[]? oversized = arrayPool.Rent(len);
             payload.CopyTo(oversized);
