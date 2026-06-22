@@ -65,7 +65,7 @@ internal sealed partial class PhysicalConnection
     private void StartReadAllAsync(CancellationToken cancellationToken)
         => Task.Run(() => ReadAllAsync(cancellationToken)).RedisFireAndForget();
 
-    private CycleBufferPool? ReaderBufferPool => BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseCycleBufferPool;
+    private MemoryPool<byte>? ReaderBufferPool => BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseBufferPool;
 
     private async Task ReadAllAsync(CancellationToken cancellationToken)
     {
@@ -401,7 +401,7 @@ internal sealed partial class PhysicalConnection
         else
         {
             var len = checked((int)payload.Length);
-            var memoryPool = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseMemoryPool ?? MemoryPool<byte>.Shared;
+            var memoryPool = BridgeCouldBeNull?.Multiplexer.RawConfig.RequestBufferPool ?? MemoryPool<byte>.Shared;
             var memoryOwner = memoryPool.Rent(len);
             Span<byte> oversized = memoryOwner.Memory.Span.Slice(0, len);
 

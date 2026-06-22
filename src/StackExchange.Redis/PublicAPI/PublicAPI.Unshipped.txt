@@ -1,10 +1,9 @@
 ﻿#nullable enable
-[SER004]StackExchange.Redis.ConfigurationOptions.ResponseMemoryPool.get -> System.Buffers.MemoryPool<byte>?
-[SER004]StackExchange.Redis.ConfigurationOptions.ResponseMemoryPool.set -> void
-[SER004]StackExchange.Redis.ConfigurationOptions.RequestCycleBufferPool.get -> RESPite.Buffers.CycleBufferPool?
-[SER004]StackExchange.Redis.ConfigurationOptions.RequestCycleBufferPool.set -> void
-[SER004]StackExchange.Redis.ConfigurationOptions.ResponseCycleBufferPool.get -> RESPite.Buffers.CycleBufferPool?
-[SER004]StackExchange.Redis.ConfigurationOptions.ResponseCycleBufferPool.set -> void
+StackExchange.Redis.ConfigurationOptions.RequestBufferPool.get -> System.Buffers.MemoryPool<byte>?
+StackExchange.Redis.ConfigurationOptions.RequestBufferPool.set -> void
+StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.get -> System.Buffers.MemoryPool<byte>?
+StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.set -> void
+static StackExchange.Redis.Lease<T>.Create(int length, System.Buffers.MemoryPool<T>? pool, bool clear = true) -> StackExchange.Redis.Lease<T>!
 [SER005]StackExchange.Redis.TestHarness
 [SER005]StackExchange.Redis.TestHarness.BufferValidator
 [SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel

@@ -1734,7 +1734,6 @@ static StackExchange.Redis.HashEntry.operator !=(StackExchange.Redis.HashEntry x
 static StackExchange.Redis.HashEntry.operator ==(StackExchange.Redis.HashEntry x, StackExchange.Redis.HashEntry y) -> bool
 static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(this StackExchange.Redis.IDatabase! database, StackExchange.Redis.RedisKey keyPrefix) -> StackExchange.Redis.IDatabase!
 static StackExchange.Redis.Lease<T>.Create(int length, bool clear = true) -> StackExchange.Redis.Lease<T>!
-static StackExchange.Redis.Lease<T>.Create(int length, System.Buffers.IMemoryOwner<T>! memoryOwner) -> StackExchange.Redis.Lease<T>!
 static StackExchange.Redis.Lease<T>.Empty.get -> StackExchange.Redis.Lease<T>!
 static StackExchange.Redis.ListPopResult.Null.get -> StackExchange.Redis.ListPopResult
 static StackExchange.Redis.LuaScript.GetCachedScriptCount() -> int

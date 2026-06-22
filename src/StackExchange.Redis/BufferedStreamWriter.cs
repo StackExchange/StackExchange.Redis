@@ -67,8 +67,8 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
         }
         return mode switch
         {
-            WriteMode.Sync => new SwitchableBufferedStreamWriter(options?.RequestCycleBufferPool, target, cancellationToken, initiallySync: true),
-            WriteMode.Async => new SwitchableBufferedStreamWriter(options?.RequestCycleBufferPool, target, cancellationToken, initiallySync: false),
+            WriteMode.Sync => new SwitchableBufferedStreamWriter(options?.RequestBufferPool, target, cancellationToken, initiallySync: true),
+            WriteMode.Async => new SwitchableBufferedStreamWriter(options?.RequestBufferPool, target, cancellationToken, initiallySync: false),
             WriteMode.Pipe => new PipeStreamWriter(target, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
@@ -115,7 +115,7 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
 internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBufferCallback
 {
-    protected CycleBufferStreamWriter(CycleBufferPool? pool, Stream target, CancellationToken cancellationToken, StateFlags flags = StateFlags.None)
+    protected CycleBufferStreamWriter(MemoryPool<byte>? pool, Stream target, CancellationToken cancellationToken, StateFlags flags = StateFlags.None)
         : base(target, cancellationToken)
     {
         _buffer = CycleBuffer.Create(pool: pool, callback: this);
