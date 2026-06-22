@@ -56,32 +56,6 @@ public abstract class CycleBufferPool<T> : MemoryPool<T>
     /// <summary>
     /// Create a buffer with knowledge of the existing leased data.
     /// </summary>
-    public abstract IMemoryOwner<T> Rent(in ReadOnlySequence<T> existing);
-
-    // new MemoryPool(...) would be a non-growing buffer pool.
-    public static CycleBufferPool<T> Default { get; } = new DefaultPool();
-
-    private class DefaultPool : CycleBufferPool<T>
-    {
-        private static readonly MemoryPool<T> Tail =
-#if TRACK_MEMORY
-            MemoryTrackedPool<T>.Shared;
-#else
-            MemoryPool<T>.Shared;
-#endif
-
-        // ReSharper disable once StaticMemberInGenericType - intentional to memoize, but can vary per T
-        private static readonly int MaxSize = Tail.MaxBufferSize;
-
-        protected override void Dispose(bool disposing) { }
-
-        /// <inheritdoc/>
-        public override IMemoryOwner<T> Rent(int minBufferSize = -1) => Tail.Rent(minBufferSize);
-
-        public override int MaxBufferSize => Tail.MaxBufferSize;
-
-        /// <inheritdoc/>
-        public override IMemoryOwner<T> Rent(in ReadOnlySequence<T> existing)
-            => Tail.Rent(Math.Min(MemoryPoolExtensions.NextSize(existing), MaxSize));
-    }
+    public virtual IMemoryOwner<T> Rent(in ReadOnlySequence<T> existing)
+        => Rent(Math.Min(MemoryPoolExtensions.NextSize(existing), MaxBufferSize));
 }

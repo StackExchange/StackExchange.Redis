@@ -1421,7 +1421,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The buffer pool to use when buffering responses, and for allocating <see cref="Lease{byte}"/> results.
+        /// The buffer pool to use when buffering responses, and for allocating <see cref="Lease{Byte}"/> results.
         /// </summary>
         public MemoryPool<byte>? ResponseBufferPool { get; set; }
 

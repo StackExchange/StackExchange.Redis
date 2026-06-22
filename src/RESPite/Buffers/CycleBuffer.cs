@@ -37,7 +37,7 @@ public partial struct CycleBuffer
 
     private CycleBuffer(MemoryPool<byte>? pool, ICycleBufferCallback? callback = null)
     {
-        _pool = pool ?? CycleBufferPool<byte>.Default;
+        _pool = pool ?? MemoryPool<byte>.Shared;
         _callback = callback;
         leasedStart = -1;
     }
