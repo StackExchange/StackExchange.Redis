@@ -974,6 +974,8 @@ namespace StackExchange.Redis
 #if DEBUG
             OutputLog = OutputLog,
 #endif
+            RequestBufferPool = RequestBufferPool,
+            ResponseBufferPool = ResponseBufferPool,
         };
 
         /// <summary>
@@ -1419,36 +1421,13 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The buffer pool to use when buffering responses.
+        /// The buffer pool to use when buffering responses, and for allocating <see cref="Lease{byte}"/> results.
         /// </summary>
-        public CycleBufferPool? ResponseCycleBufferPool
-        {
-            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-            get;
-            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-            set;
-        }
+        public MemoryPool<byte>? ResponseBufferPool { get; set; }
 
         /// <summary>
         /// The buffer pool to use when buffering requests.
         /// </summary>
-        public CycleBufferPool? RequestCycleBufferPool
-        {
-            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-            get;
-            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-            set;
-        }
-
-        /// <summary>
-        /// The memory pool to use when buffering responses.
-        /// </summary>
-        public MemoryPool<byte>? ResponseMemoryPool
-        {
-            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-            get;
-            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-            set;
-        }
+        public MemoryPool<byte>? RequestBufferPool { get; set; }
     }
 }

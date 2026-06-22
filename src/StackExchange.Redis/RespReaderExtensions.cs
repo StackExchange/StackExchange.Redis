@@ -136,7 +136,7 @@ internal static class RespReaderExtensions
         public RedisValue[]? ReadPastRedisValues()
             => reader.ReadPastArray(static (ref r) => r.ReadRedisValue(), scalar: true);
 
-        public Lease<byte>? AsLease()
+        public Lease<byte>? AsLease(PhysicalConnection? connection)
         {
             if (!reader.IsScalar) throw new InvalidCastException("Cannot convert to Lease: " + reader.Prefix);
             if (reader.IsNull) return null;
@@ -144,7 +144,8 @@ internal static class RespReaderExtensions
             var length = reader.ScalarLength();
             if (length == 0) return Lease<byte>.Empty;
 
-            var lease = Lease<byte>.Create(length, clear: false);
+            var pool = connection?.BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseBufferPool;
+            var lease = Lease<byte>.Create(length, pool, clear: false);
             if (reader.TryGetSpan(out var span))
             {
                 span.CopyTo(lease.Span);

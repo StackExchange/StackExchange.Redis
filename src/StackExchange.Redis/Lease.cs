@@ -34,26 +34,33 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="length">The size required.</param>
         /// <param name="clear">Whether to erase the memory.</param>
+#pragma  warning disable RS0026 // multiple overloads with optional args; not ambiguous in this case.
         public static Lease<T> Create(int length, bool clear = true)
+#pragma  warning restore RS0026
         {
-            if (length == 0) return Empty;
+            if (length is 0) return Empty;
             var arr = ArrayPool<T>.Shared.Rent(length);
-            if (clear) System.Array.Clear(arr, 0, length);
-            return new Lease<T>(arr, length);
+            var lease = new Lease<T>(arr, length);
+            if (clear) lease.Span.Clear();
+            return lease;
         }
 
         /// <summary>
         /// Create a new lease.
         /// </summary>
         /// <param name="length">The size required.</param>
-        /// <param name="memoryOwner">Buffer.</param>
-        public static Lease<T> Create(int length, IMemoryOwner<T> memoryOwner)
+        /// <param name="pool">The buffer source to use; if <c>null</c>, <see cref="ArrayPool{T}.Shared"/> is used.</param>
+        /// <param name="clear">Whether to erase the memory.</param>
+#pragma  warning disable RS0026 // multiple overloads with optional args; not ambiguous in this case.
+        public static Lease<T> Create(int length, MemoryPool<T>? pool, bool clear = true)
+#pragma  warning restore RS0026
         {
-            if (length == 0) return Empty;
-            if ((uint)length > memoryOwner.Memory.Length)
-                throw new ArgumentOutOfRangeException(nameof(length));
+            if (pool is null) return Create(length, clear);
+            if (length is 0) return Empty;
 
-            return new Lease<T>(memoryOwner, length);
+            var lease = new Lease<T>(pool.Rent(length), length);
+            if (clear) lease.Span.Clear();
+            return lease;
         }
 
         private Lease(T[] arr, int length)
