@@ -16,7 +16,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
 
     public async ValueTask InitializeAsync()
     {
-        await using var conn = Create();
+        await using var conn = Create(connectTimeout: 10000);
 
         var shouldBePrimary = conn.GetServer(TestConfig.Current.FailoverPrimaryServerAndPort);
         if (shouldBePrimary.IsReplica)
@@ -196,9 +196,10 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
 
 #if DEBUG
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task SubscriptionsSurviveConnectionFailureAsync()
     {
-        await using var conn = Create(allowAdmin: true, shared: false, log: Writer, syncTimeout: 1000);
+        await using var conn = Create(allowAdmin: true, log: Writer, syncTimeout: 1000, allowSimulateConnectionFailure: true);
 
         var profiler = conn.AddProfiler();
         RedisChannel channel = RedisChannel.Literal(Me());
@@ -222,6 +223,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         Assert.Equal(1, counter1);
 
         var server = GetServer(conn);
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
         var socketCount = server.GetCounters().Subscription.SocketCount;
         Log($"Expecting 1 socket, got {socketCount}");
         Assert.Equal(1, socketCount);

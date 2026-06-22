@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
 namespace StackExchange.Redis
@@ -12,6 +13,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The specified key does not exist.
         /// </summary>
+        [AsciiHash("")]
         None,
 
         /// <summary>
@@ -20,6 +22,7 @@ namespace StackExchange.Redis
         /// A String value can be at max 512 Megabytes in length.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#string"/></remarks>
+        [AsciiHash("string")]
         String,
 
         /// <summary>
@@ -28,6 +31,7 @@ namespace StackExchange.Redis
         /// on the tail (on the right) of the list.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#list"/></remarks>
+        [AsciiHash("list")]
         List,
 
         /// <summary>
@@ -38,6 +42,7 @@ namespace StackExchange.Redis
         /// Practically speaking this means that adding a member does not require a check if exists then add operation.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#set"/></remarks>
+        [AsciiHash("set")]
         Set,
 
         /// <summary>
@@ -47,6 +52,7 @@ namespace StackExchange.Redis
         /// While members are unique, scores may be repeated.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#sorted_set"/></remarks>
+        [AsciiHash("zset")]
         SortedSet,
 
         /// <summary>
@@ -54,6 +60,7 @@ namespace StackExchange.Redis
         /// to represent objects (e.g. A User with a number of fields like name, surname, age, and so forth).
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#hash"/></remarks>
+        [AsciiHash("hash")]
         Hash,
 
         /// <summary>
@@ -62,6 +69,7 @@ namespace StackExchange.Redis
         /// stream contains a unique message ID and a list of name/value pairs containing the entry's data.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/commands#stream"/></remarks>
+        [AsciiHash("stream")]
         Stream,
 
         /// <summary>
@@ -73,12 +81,23 @@ namespace StackExchange.Redis
         /// Vector sets are a data type similar to sorted sets, but instead of a score,
         /// vector set elements have a string representation of a vector.
         /// </summary>
+        [AsciiHash("vectorset")]
         VectorSet,
 
         /// <summary>
         /// Redis Arrays are sparse arrays of arbitrary values with a notional write head.
         /// </summary>
         [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        [AsciiHash("array")]
         Array,
+    }
+
+    /// <summary>
+    /// Metadata and parsing methods for RedisType.
+    /// </summary>
+    internal static partial class RedisTypeMetadata
+    {
+        [AsciiHash]
+        internal static partial bool TryParse(ReadOnlySpan<byte> value, out RedisType redisType);
     }
 }

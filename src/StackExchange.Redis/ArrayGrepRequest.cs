@@ -253,7 +253,7 @@ public class ArrayGrepRequest
     public abstract class Predicate
     {
         internal virtual int ArgCount => 2;
-        internal abstract void WriteTo(PhysicalConnection physical);
+        internal abstract void WriteTo(in MessageWriter writer);
         private protected Predicate() { }
 
         /// <summary>
@@ -288,10 +288,10 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"EXACT '{value}'";
 
-            internal override void WriteTo(PhysicalConnection physical)
+            internal override void WriteTo(in MessageWriter writer)
             {
-                physical.WriteRaw("$5\r\nEXACT\r\n"u8);
-                physical.WriteBulkString(value);
+                writer.WriteRaw("$5\r\nEXACT\r\n"u8);
+                writer.WriteBulkString(value);
             }
         }
 
@@ -299,10 +299,10 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"MATCH '{pattern}'";
 
-            internal override void WriteTo(PhysicalConnection physical)
+            internal override void WriteTo(in MessageWriter writer)
             {
-                physical.WriteRaw("$5\r\nMATCH\r\n"u8);
-                physical.WriteBulkString(pattern);
+                writer.WriteRaw("$5\r\nMATCH\r\n"u8);
+                writer.WriteBulkString(pattern);
             }
         }
 
@@ -310,10 +310,10 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"GLOB '{pattern}'";
 
-            internal override void WriteTo(PhysicalConnection physical)
+            internal override void WriteTo(in MessageWriter writer)
             {
-                physical.WriteRaw("$4\r\nGLOB\r\n"u8);
-                physical.WriteBulkString(pattern);
+                writer.WriteRaw("$4\r\nGLOB\r\n"u8);
+                writer.WriteBulkString(pattern);
             }
         }
 
@@ -321,10 +321,10 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"RE '{re}'";
 
-            internal override void WriteTo(PhysicalConnection physical)
+            internal override void WriteTo(in MessageWriter writer)
             {
-                physical.WriteRaw("$2\r\nRE\r\n"u8);
-                physical.WriteBulkString(re);
+                writer.WriteRaw("$2\r\nRE\r\n"u8);
+                writer.WriteBulkString(re);
             }
         }
     }
@@ -352,45 +352,46 @@ public class ArrayGrepRequest
             }
         }
 
-        private static void AddIndex(PhysicalConnection physical, RedisArrayIndex? index, ReadOnlySpan<byte> fallback)
+        private static void AddIndex(in MessageWriter writer, RedisArrayIndex? index, ReadOnlySpan<byte> fallback)
         {
             if (index.HasValue)
             {
-                physical.WriteBulkString(index.GetValueOrDefault().Value);
+                writer.WriteBulkString(index.GetValueOrDefault().Value);
             }
             else
             {
-                physical.WriteRaw(fallback);
+                writer.WriteRaw(fallback);
             }
         }
-        protected override void WriteImpl(PhysicalConnection physical)
+
+        protected override void WriteImpl(in MessageWriter writer)
         {
-            physical.WriteHeader(Command, ArgCount);
-            physical.WriteBulkString(key);
+            writer.WriteHeader(Command, ArgCount);
+            writer.WriteBulkString(key);
             if (request.IsReversed)
             {
-                AddIndex(physical, request.End, "$1\r\n+\r\n"u8);
-                AddIndex(physical, request.Start, "$1\r\n-\r\n"u8);
+                AddIndex(writer, request.End, "$1\r\n+\r\n"u8);
+                AddIndex(writer, request.Start, "$1\r\n-\r\n"u8);
             }
             else
             {
-                AddIndex(physical, request.Start, "$1\r\n-\r\n"u8);
-                AddIndex(physical, request.End, "$1\r\n+\r\n"u8);
+                AddIndex(writer, request.Start, "$1\r\n-\r\n"u8);
+                AddIndex(writer, request.End, "$1\r\n+\r\n"u8);
             }
             var pCount = request.Count;
             for (int i = 0; i < pCount; i++)
             {
-                request[i].WriteTo(physical);
+                request[i].WriteTo(in writer);
             }
 
-            if (request.IsIntersection) physical.WriteRaw("$3\r\nAND\r\n"u8);
-            if (request.IsCaseInsensitive) physical.WriteRaw("$6\r\nNOCASE\r\n"u8);
-            if (request.IncludeValues) physical.WriteRaw("$10\r\nWITHVALUES\r\n"u8);
+            if (request.IsIntersection) writer.WriteRaw("$3\r\nAND\r\n"u8);
+            if (request.IsCaseInsensitive) writer.WriteRaw("$6\r\nNOCASE\r\n"u8);
+            if (request.IncludeValues) writer.WriteRaw("$10\r\nWITHVALUES\r\n"u8);
             var limit = request.Limit;
             if (limit.HasValue)
             {
-                physical.WriteRaw("$5\r\nLIMIT\r\n"u8);
-                physical.WriteBulkString(limit.GetValueOrDefault());
+                writer.WriteRaw("$5\r\nLIMIT\r\n"u8);
+                writer.WriteBulkString(limit.GetValueOrDefault());
             }
         }
     }

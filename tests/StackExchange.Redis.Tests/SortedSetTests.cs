@@ -1123,7 +1123,8 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         var db = conn.GetDatabase();
         var key = Me();
-        db.KeyDelete(key);
+        RedisKey[] keys = [key + ":missing1", key, key + ":missing2"];
+        db.KeyDelete(keys);
 
         db.SortedSetAdd(
             key,
@@ -1135,14 +1136,14 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
                 new SortedSetEntry("orioles", 52),
             ]);
 
-        var highest = db.SortedSetPop(["not a real key", key, "yet another not a real key"], 1, order: Order.Descending);
+        var highest = db.SortedSetPop(keys, 1, order: Order.Descending);
         Assert.False(highest.IsNull);
         Assert.Equal(key, highest.Key);
         var entry = Assert.Single(highest.Entries);
         Assert.Equal("rays", entry.Element);
         Assert.Equal(100, entry.Score);
 
-        var bottom2 = db.SortedSetPop(["not a real key", key, "yet another not a real key"], 2);
+        var bottom2 = db.SortedSetPop(keys, 2);
         Assert.False(bottom2.IsNull);
         Assert.Equal(key, bottom2.Key);
         Assert.Equal(2, bottom2.Entries.Length);
@@ -1159,7 +1160,8 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         var db = conn.GetDatabase();
         var key = Me();
-        db.KeyDelete(key);
+        RedisKey[] keys = [key + ":missing1", key, key + ":missing2"];
+        db.KeyDelete(keys);
         var res = db.SortedSetPop([key], 1);
         Assert.True(res.IsNull);
     }
@@ -1183,7 +1185,8 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
 
         var db = conn.GetDatabase();
         var key = Me();
-        db.KeyDelete(key);
+        RedisKey[] keys = [key + ":missing1", key, key + ":missing2"];
+        db.KeyDelete(keys);
 
         db.SortedSetAdd(
             key,
@@ -1196,14 +1199,14 @@ public class SortedSetTests(ITestOutputHelper output, SharedConnectionFixture fi
             ]);
 
         var highest = await db.SortedSetPopAsync(
-            ["not a real key", key, "yet another not a real key"], 1, order: Order.Descending);
+            keys, 1, order: Order.Descending);
         Assert.False(highest.IsNull);
         Assert.Equal(key, highest.Key);
         var entry = Assert.Single(highest.Entries);
         Assert.Equal("rays", entry.Element);
         Assert.Equal(100, entry.Score);
 
-        var bottom2 = await db.SortedSetPopAsync(["not a real key", key, "yet another not a real key"], 2);
+        var bottom2 = await db.SortedSetPopAsync(keys, 2);
         Assert.False(bottom2.IsNull);
         Assert.Equal(key, bottom2.Key);
         Assert.Equal(2, bottom2.Entries.Length);

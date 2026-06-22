@@ -494,7 +494,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 71,
         Message = "Response from {BridgeName} / {CommandAndKey}: {Result}")]
-    internal static partial void LogInformationResponse(this ILogger logger, string? bridgeName, string commandAndKey, RawResult result);
+    internal static partial void LogInformationResponse(this ILogger logger, string? bridgeName, string commandAndKey, string result);
 
     [LoggerMessage(
         Level = LogLevel.Information,

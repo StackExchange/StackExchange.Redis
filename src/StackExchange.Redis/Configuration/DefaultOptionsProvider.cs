@@ -140,7 +140,10 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// The server version to assume.
         /// </summary>
-        public virtual Version DefaultVersion => RedisFeatures.v3_0_0;
+        public virtual Version DefaultVersion => BaseDefaultVersion;
+
+        // this exists primarily to be queryable from tests
+        internal static Version BaseDefaultVersion = RedisFeatures.v6_0_0;
 
         /// <summary>
         /// Controls how often the connection heartbeats. A heartbeat includes:

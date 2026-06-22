@@ -10,12 +10,14 @@ namespace StackExchange.Redis.Tests;
 public class AsyncTests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task AsyncTasksReportFailureIfServerUnavailable()
     {
         SetExpectedAmbientFailureCount(-1); // this will get messy
 
-        await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var conn = Create(allowAdmin: true, backlogPolicy: BacklogPolicy.FailFast, allowSimulateConnectionFailure: true);
         var server = conn.GetServer(TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort);
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 
         RedisKey key = Me();
         var db = conn.GetDatabase();
@@ -27,6 +29,7 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
         Assert.True(conn.Wait(b));
 
         conn.AllowConnect = false;
+
         server.SimulateConnectionFailure(SimulatedFailureType.All);
         var c = db.SetAddAsync(key, "c");
 
@@ -40,8 +43,8 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task AsyncTimeoutIsNoticed()
     {
-        await using var conn = Create(syncTimeout: 1000, asyncTimeout: 1000);
-        await using var pauseConn = Create();
+        await using var conn = Create(syncTimeout: 1000, asyncTimeout: 1000, allowAdmin: true);
+        await using var pauseConn = Create(allowAdmin: true);
         var opt = ConfigurationOptions.Parse(conn.Configuration);
         if (!Debugger.IsAttached)
         { // we max the timeouts if a debugger is detected

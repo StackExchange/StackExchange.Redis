@@ -126,7 +126,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
             {
                 conn.ExportConfiguration(file);
             }
-            RedisKey key = "SE.Redis";
+            RedisKey key = Me();
 
             const int AsyncLoop = 2000;
             // perf; async

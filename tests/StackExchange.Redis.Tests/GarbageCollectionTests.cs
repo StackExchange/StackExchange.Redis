@@ -57,6 +57,7 @@ public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task UnrootedBackloggedAsyncTaskIsCompletedOnTimeout()
     {
         Skip.UnlessLongRunning();
@@ -75,6 +76,7 @@ public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
                     ConnectTimeout = 50,
                     SyncTimeout = 1000,
                     AllowAdmin = true,
+                    AllowSimulateConnectionFailure = true,
                     EndPoints = { GetConfiguration() },
                 },
                 Writer);

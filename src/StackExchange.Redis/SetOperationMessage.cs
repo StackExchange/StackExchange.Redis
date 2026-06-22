@@ -42,21 +42,21 @@ internal sealed class SetOperationMessage : Message
 
     public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(_keys);
 
-    protected override void WriteImpl(PhysicalConnection physical)
+    protected override void WriteImpl(in MessageWriter writer)
     {
-        physical.WriteHeader(Command, ArgCount);
-        physical.WriteBulkString(_keys.Length);
+        writer.WriteHeader(Command, ArgCount);
+        writer.WriteBulkString(_keys.Length);
         for (var i = 0; i < _keys.Length; i++)
         {
-            physical.Write(_keys[i]);
+            writer.Write(_keys[i]);
         }
 
         if (_weights?.Length > 0)
         {
-            physical.WriteRaw("$7\r\nWEIGHTS\r\n"u8);
+            writer.WriteRaw("$7\r\nWEIGHTS\r\n"u8);
             for (var i = 0; i < _weights.Length; i++)
             {
-                physical.WriteBulkString(_weights[i]);
+                writer.WriteBulkString(_weights[i]);
             }
         }
 
@@ -65,19 +65,19 @@ internal sealed class SetOperationMessage : Message
             case Aggregate.Sum:
                 break;
             case Aggregate.Min:
-                physical.WriteRaw("$9\r\nAGGREGATE\r\n$3\r\nMIN\r\n"u8);
+                writer.WriteRaw("$9\r\nAGGREGATE\r\n$3\r\nMIN\r\n"u8);
                 break;
             case Aggregate.Max:
-                physical.WriteRaw("$9\r\nAGGREGATE\r\n$3\r\nMAX\r\n"u8);
+                writer.WriteRaw("$9\r\nAGGREGATE\r\n$3\r\nMAX\r\n"u8);
                 break;
             case Aggregate.Count:
-                physical.WriteRaw("$9\r\nAGGREGATE\r\n$5\r\nCOUNT\r\n"u8);
+                writer.WriteRaw("$9\r\nAGGREGATE\r\n$5\r\nCOUNT\r\n"u8);
                 break;
         }
 
         if (_withScores)
         {
-            physical.WriteRaw("$10\r\nWITHSCORES\r\n"u8);
+            writer.WriteRaw("$10\r\nWITHSCORES\r\n"u8);
         }
     }
 

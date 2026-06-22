@@ -237,12 +237,12 @@ public readonly struct Expiration
         if (IsPersist) return RedisLiterals.PERSIST;
         if ((_flags & ExpirationState.HasExpiration) == 0) return RedisValue.Null;
 
-        return (IsAbsolute, IsMilliseconds) switch
+        return (_flags & (ExpirationState.IsAbsolute | ExpirationState.IsMillis)) switch
         {
-            (false, false) => RedisLiterals.EX,
-            (false, true) => RedisLiterals.PX,
-            (true, false) => RedisLiterals.EXAT,
-            (true, true) => RedisLiterals.PXAT,
+            ExpirationState.IsAbsolute | ExpirationState.IsMillis => RedisLiterals.PXAT,
+            ExpirationState.IsAbsolute => RedisLiterals.EXAT,
+            ExpirationState.IsMillis => RedisLiterals.PX,
+            _ => RedisLiterals.EX,
         };
     }
 
@@ -252,7 +252,7 @@ public readonly struct Expiration
         if (IsNone) return "";
         if (IsKeepTtl) return "KEEPTTL";
         if (IsPersist) return "PERSIST";
-        return IsExpireIfNotExists ? $"{Operand} {Value} {RedisLiterals.ENX}" : $"{Operand} {Value}";
+        return IsExpireIfNotExists ? $"{Operand} {Value} ENX" : $"{Operand} {Value}";
     }
 
     /// <inheritdoc/>
@@ -275,7 +275,7 @@ public readonly struct Expiration
         static int ThrowEnxNotSupported() => throw new NotSupportedException("ENX is not supported for this command.");
     }
 
-    internal void WriteTo(PhysicalConnection physical)
+    internal void WriteTo(in MessageWriter writer)
     {
         if (IsNone)
         {
@@ -284,27 +284,27 @@ public readonly struct Expiration
 
         if (IsKeepTtl)
         {
-            physical.WriteBulkString("KEEPTTL"u8);
+            writer.WriteRaw("$7\r\nKEEPTTL\r\n"u8);
             return;
         }
 
         if (IsPersist)
         {
-            physical.WriteBulkString("PERSIST"u8);
+            writer.WriteRaw("$7\r\nPERSIST\r\n"u8);
             return;
         }
 
-        physical.WriteBulkString((IsAbsolute, IsMilliseconds) switch
+        writer.WriteRaw((_flags & (ExpirationState.IsAbsolute | ExpirationState.IsMillis)) switch
         {
-            (false, false) => "EX"u8,
-            (false, true) => "PX"u8,
-            (true, false) => "EXAT"u8,
-            (true, true) => "PXAT"u8,
+            ExpirationState.IsAbsolute | ExpirationState.IsMillis => "$4\r\nPXAT\r\n"u8,
+            ExpirationState.IsAbsolute => "$4\r\nEXAT\r\n"u8,
+            ExpirationState.IsMillis => "$2\r\nPX\r\n"u8,
+            _ => "$2\r\nEX\r\n"u8,
         });
-        physical.WriteBulkString(Value);
+        writer.WriteBulkString(Value);
         if (IsExpireIfNotExists)
         {
-            physical.WriteBulkString("ENX"u8);
+            writer.WriteRaw("$3\r\nENX\r\n"u8);
         }
     }
 }

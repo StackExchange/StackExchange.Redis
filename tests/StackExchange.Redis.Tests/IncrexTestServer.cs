@@ -1,7 +1,6 @@
-extern alias respite;
 using System;
 using System.Globalization;
-using respite::RESPite.Messages;
+using RESPite.Messages;
 using StackExchange.Redis.Server;
 using Xunit;
 

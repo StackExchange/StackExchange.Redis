@@ -179,9 +179,9 @@ namespace StackExchange.Redis.Server
             static bool IsAuthCommand(RedisCommand cmd) => cmd is RedisCommand.AUTH or RedisCommand.HELLO;
             static bool IsPubSubCommand(RedisCommand cmd)
                 => cmd is RedisCommand.SUBSCRIBE or RedisCommand.UNSUBSCRIBE
-                        or RedisCommand.SSUBSCRIBE or RedisCommand.SUNSUBSCRIBE
-                        or RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE
-                        or RedisCommand.PING or RedisCommand.QUIT;
+                    or RedisCommand.SSUBSCRIBE or RedisCommand.SUNSUBSCRIBE
+                    or RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE
+                    or RedisCommand.PING or RedisCommand.QUIT;
         }
 
         [RedisCommand(2)]

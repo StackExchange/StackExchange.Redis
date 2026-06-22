@@ -83,10 +83,10 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
         {
             Skip.IfMissingDatabase(conn, db1Id);
             Skip.IfMissingDatabase(conn, db2Id);
-            RedisKey key = Me();
+            var key = Me();
             var dba = conn.GetDatabase(db1Id);
             var dbb = conn.GetDatabase(db2Id);
-            dba.StringSet("abc", "def", flags: CommandFlags.FireAndForget);
+            dba.StringSet(key + ":abc", "def", flags: CommandFlags.FireAndForget);
             dba.StringIncrement(key, flags: CommandFlags.FireAndForget);
             dbb.StringIncrement(key, flags: CommandFlags.FireAndForget);
 

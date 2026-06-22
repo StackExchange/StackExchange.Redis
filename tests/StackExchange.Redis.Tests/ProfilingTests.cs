@@ -78,7 +78,7 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
 
         AssertProfiledCommandValues(eval2, conn, dbId);
 
-        AssertProfiledCommandValues(echo, conn, dbId);
+        AssertProfiledCommandValues(echo, conn, -1); // we recognize ECHO as db-free
     }
 
     private static void AssertProfiledCommandValues(IProfiledCommand command, IConnectionMultiplexer conn, int dbId)

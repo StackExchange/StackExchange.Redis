@@ -21,6 +21,7 @@ public class Issue1103Tests(ITestOutputHelper output) : TestBase(output)
         RedisKey key = Me();
         var db = conn.GetDatabase();
         RedisValue typed = value;
+        Assert.Equal(value.ToString(), typed.ToString());
 
         // only need UInt64 for 64-bits
         Assert.Equal((StorageType)storageType, typed.Type);
@@ -28,7 +29,7 @@ public class Issue1103Tests(ITestOutputHelper output) : TestBase(output)
         var fromRedis = db.StringGet(key);
 
         Log($"{fromRedis.Type}: {fromRedis}");
-        Assert.Equal(StorageType.Raw, fromRedis.Type);
+        Assert.Equal(StorageType.ByteArray, fromRedis.Type);
         Assert.Equal(value, (ulong)fromRedis);
         Assert.Equal(value.ToString(CultureInfo.InvariantCulture), fromRedis.ToString());
 

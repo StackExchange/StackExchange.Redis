@@ -163,6 +163,33 @@ public partial class AsciiHashUnitTests
     [InlineData("abcdefghij")] // length 10
     [InlineData("abcdefghijklmnop")] // length 16
     [InlineData("abcdefghijklmnopqrst")] // length 20
+    public void CaseInsensitiveEquality_MixedBytesAndChars(string text)
+    {
+        var lowerChars = text.AsSpan();
+        var upperBytes = Encoding.UTF8.GetBytes(text.ToUpperInvariant());
+
+        Assert.True(AsciiHash.EqualsCI(lowerChars, upperBytes), "CI: chars lower == bytes upper");
+        Assert.True(AsciiHash.EqualsCI(upperBytes, lowerChars), "CI: bytes upper == chars lower");
+
+        Assert.True(AsciiHash.SequenceEqualsCI(lowerChars, upperBytes), "CI sequence: chars lower == bytes upper");
+        Assert.True(AsciiHash.SequenceEqualsCI(upperBytes, lowerChars), "CI sequence: bytes upper == chars lower");
+
+        Assert.False(AsciiHash.EqualsCI((text + "x").AsSpan(), upperBytes), "CI: length mismatch");
+    }
+
+    [Theory]
+    [InlineData("a")] // length 1
+    [InlineData("ab")] // length 2
+    [InlineData("abc")] // length 3
+    [InlineData("abcd")] // length 4
+    [InlineData("abcde")] // length 5
+    [InlineData("abcdef")] // length 6
+    [InlineData("abcdefg")] // length 7
+    [InlineData("abcdefgh")] // length 8
+    [InlineData("abcdefghi")] // length 9
+    [InlineData("abcdefghij")] // length 10
+    [InlineData("abcdefghijklmnop")] // length 16
+    [InlineData("abcdefghijklmnopqrst")] // length 20
     [InlineData("foo-bar")] // foo_bar_hyphen
     [InlineData("foo_bar")] // foo_bar_underscore
     public void GeneratedTypes_CaseSensitive(string text)

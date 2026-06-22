@@ -167,7 +167,7 @@ public readonly ref partial struct KeyNotification
             {
                 case KeyEventPrefix.HashCS when KeyEventPrefix.IsCS(prefix, hashCS):
                     // check that there is *something* non-empty after the prefix, with __: as the suffix (we don't verify *what*)
-                    if (span.Slice(KeySpacePrefix.Length).IndexOf("__:"u8) > 0)
+                    if (span.Slice(KeyEventPrefix.Length).IndexOf("__:"u8) > 0)
                     {
                         notification = new KeyNotification(in channel, in value, KeyNotificationKind.KeyEvent);
                         return true;

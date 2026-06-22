@@ -27,7 +27,7 @@ namespace StackExchange.Redis.Tests
             await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
             var db = conn.GetDatabase();
             await db.PingAsync();
-            RedisKey key = "HttpTunnel";
+            RedisKey key = "HttpTunnel:" + Guid.NewGuid().ToString("N");
             await db.KeyDeleteAsync(key);
 
             // latency test

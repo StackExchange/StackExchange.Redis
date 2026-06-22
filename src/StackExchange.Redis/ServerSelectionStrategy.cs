@@ -2,6 +2,8 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace StackExchange.Redis
@@ -62,41 +64,42 @@ namespace StackExchange.Redis
         public ServerType ServerType { get; set; } = ServerType.Standalone;
         internal static int TotalSlots => RedisClusterSlotCount;
 
-        /// <summary>
-        /// Computes the hash-slot that would be used by the given key.
-        /// </summary>
-        /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
-        public int HashSlot(in RedisKey key)
+        internal static int GetHashSlot(in RedisKey key)
         {
-            if (ServerType == ServerType.Standalone || key.IsNull) return NoSlot;
+            if (key.IsNull) return NoSlot;
             if (key.TryGetSimpleBuffer(out var arr)) // key was constructed from a byte[]
             {
                 return GetClusterSlot(arr);
             }
+            var length = key.TotalLength();
+            if (length <= 256)
+            {
+                Span<byte> span = stackalloc byte[length];
+                var written = key.CopyTo(span);
+                Debug.Assert(written == length, "key length/write error");
+                return GetClusterSlot(span);
+            }
             else
             {
-                var length = key.TotalLength();
-                if (length <= 256)
-                {
-                    Span<byte> span = stackalloc byte[length];
-                    var written = key.CopyTo(span);
-                    Debug.Assert(written == length, "key length/write error");
-                    return GetClusterSlot(span);
-                }
-                else
-                {
-                    arr = ArrayPool<byte>.Shared.Rent(length);
-                    var span = new Span<byte>(arr, 0, length);
-                    var written = key.CopyTo(span);
-                    Debug.Assert(written == length, "key length/write error");
-                    var result = GetClusterSlot(span);
-                    ArrayPool<byte>.Shared.Return(arr);
-                    return result;
-                }
+                arr = ArrayPool<byte>.Shared.Rent(length);
+                var span = new Span<byte>(arr, 0, length);
+                var written = key.CopyTo(span);
+                Debug.Assert(written == length, "key length/write error");
+                var result = GetClusterSlot(span);
+                ArrayPool<byte>.Shared.Return(arr);
+                return result;
             }
         }
 
         private byte[] ChannelPrefix => multiplexer?.ChannelPrefix ?? [];
+
+        /// <summary>
+        /// Computes the hash-slot that would be used by the given key.
+        /// </summary>
+        /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int HashSlot(in RedisKey key)
+            => ServerType is ServerType.Standalone ? NoSlot : GetHashSlot(key);
 
         /// <summary>
         /// Computes the hash-slot that would be used by the given channel.
@@ -139,7 +142,7 @@ namespace StackExchange.Redis
         {
             unchecked
             {
-                fixed (byte* ptr = key)
+                fixed (byte* ptr = &MemoryMarshal.GetReference(key))
                 {
                     fixed (ushort* crc16tab = ServerSelectionStrategy.Crc16tab)
                     {

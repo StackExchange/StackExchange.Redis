@@ -7,12 +7,14 @@ namespace StackExchange.Redis.Tests;
 public class ConnectFailTimeoutTests(ITestOutputHelper output) : TestBase(output)
 {
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task NoticesConnectFail()
     {
         SetExpectedAmbientFailureCount(-1);
-        await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
+        await using var conn = Create(allowAdmin: true, backlogPolicy: BacklogPolicy.FailFast, allowSimulateConnectionFailure: true);
 
         var server = conn.GetServer(conn.GetEndPoints()[0]);
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 
         await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
 

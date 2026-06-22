@@ -18,7 +18,7 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
 
     [Theory]
     // specify nothing
-    [InlineData("someserver", false)]
+    [InlineData("someserver", true)]
     // specify *just* the protocol; sure, we'll believe you
     [InlineData("someserver,protocol=resp3", true)]
     [InlineData("someserver,protocol=resp3,$HELLO=", false)]
@@ -43,9 +43,9 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
     [InlineData("someserver,version=5.9,protocol=2,$HELLO=", false, "resp2")]
     [InlineData("someserver,version=5.9,protocol=2,$HELLO=BONJOUR", false, "resp2")]
     // specify a post-6 version; attempt by default
-    [InlineData("someserver,version=6.0", false)]
+    [InlineData("someserver,version=6.0", true)]
     [InlineData("someserver,version=6.0,$HELLO=", false)]
-    [InlineData("someserver,version=6.0,$HELLO=BONJOUR", false)]
+    [InlineData("someserver,version=6.0,$HELLO=BONJOUR", true)]
     [InlineData("someserver,version=6.0,protocol=resp3", true)]
     [InlineData("someserver,version=6.0,protocol=resp3,$HELLO=", false)]
     [InlineData("someserver,version=6.0,protocol=resp3,$HELLO=BONJOUR", true)]
@@ -55,9 +55,9 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
     [InlineData("someserver,version=6.0,protocol=2", false, "resp2")]
     [InlineData("someserver,version=6.0,protocol=2,$HELLO=", false, "resp2")]
     [InlineData("someserver,version=6.0,protocol=2,$HELLO=BONJOUR", false, "resp2")]
-    [InlineData("someserver,version=7.2", false)]
+    [InlineData("someserver,version=7.2", true)]
     [InlineData("someserver,version=7.2,$HELLO=", false)]
-    [InlineData("someserver,version=7.2,$HELLO=BONJOUR", false)]
+    [InlineData("someserver,version=7.2,$HELLO=BONJOUR", true)]
     public void ParseFormatConfigOptions(string configurationString, bool tryResp3, string? formatProtocol = null)
     {
         var config = ConfigurationOptions.Parse(configurationString);
@@ -315,7 +315,13 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
     {
         var muxer = Create(protocol: protocol);
         var ep = muxer.GetServerEndPoint(muxer.GetEndPoints().Single());
-        if (command == "debug" && args.Length > 0 && args[0] is "protocol" && !ep.GetFeatures().Resp3 /* v6 check */)
+        var usesDebugCommand = RedisCommandMetadata.TryParseCI(command, out var parsedCommand)
+            && parsedCommand == RedisCommand.DEBUG;
+        if (usesDebugCommand)
+        {
+            await AssertDebugCommandEnabledAsync(muxer);
+        }
+        if (usesDebugCommand && args.Length > 0 && args[0] is "protocol" && !ep.GetFeatures().Resp3 /* v6 check */)
         {
             Assert.Skip("debug protocol not available");
         }

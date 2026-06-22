@@ -147,7 +147,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     public async Task IntentionalWrongServer()
     {
         static string? StringGet(IServer server, RedisKey key, CommandFlags flags = CommandFlags.None)
-            => (string?)server.Execute("GET", [key], flags);
+            => (string?)server.Execute(0, "GET", [key], flags);
 
         await using var conn = Create();
 
@@ -577,7 +577,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create();
 
-        RedisKey key = "a";
+        RedisKey key = Me();
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -832,14 +832,14 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.NotNull(rightPrimaryNode);
 
         Assert.NotNull(rightPrimaryNode.EndPoint);
-        string? a = (string?)conn.GetServer(rightPrimaryNode.EndPoint).Execute("GET", key);
+        string? a = (string?)conn.GetServer(rightPrimaryNode.EndPoint).Execute(0, "GET", [key]);
         Assert.Equal(Value, a); // right primary
 
         var wrongPrimaryNode = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightPrimaryNode.NodeId);
         Assert.NotNull(wrongPrimaryNode);
 
         Assert.NotNull(wrongPrimaryNode.EndPoint);
-        string? b = (string?)conn.GetServer(wrongPrimaryNode.EndPoint).Execute("GET", key);
+        string? b = (string?)conn.GetServer(wrongPrimaryNode.EndPoint).Execute(0, "GET", [key]);
         Assert.Equal(Value, b); // wrong primary, allow redirect
 
         var msgs = profiler.GetSession().FinishProfiling().ToList();

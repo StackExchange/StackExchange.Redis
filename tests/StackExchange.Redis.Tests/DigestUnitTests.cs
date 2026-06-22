@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Hashing;
+using System.Runtime.InteropServices;
 using System.Text;
 using Xunit;
 
@@ -70,7 +71,7 @@ public class DigestUnitTests(ITestOutputHelper output) : TestBase(output)
         int bytes;
         unsafe
         {
-            fixed (byte* bPtr = oversized)
+            fixed (byte* bPtr = &MemoryMarshal.GetReference(oversized))
             {
                 fixed (char* cPtr = source)
                 {

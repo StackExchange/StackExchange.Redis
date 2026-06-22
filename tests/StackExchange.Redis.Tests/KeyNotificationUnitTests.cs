@@ -476,7 +476,7 @@ public class KeyNotificationUnitTests(ITestOutputHelper log)
     [InlineData("new", KeyNotificationType.New)]
     [InlineData("overwritten", KeyNotificationType.Overwritten)]
     [InlineData("type_changed", KeyNotificationType.TypeChanged)]
-    public unsafe void FastHashParse_AllKnownValues_ParseCorrectly(string raw, KeyNotificationType parsed)
+    public unsafe void AsciiHashParse_AllKnownValues_ParseCorrectly(string raw, KeyNotificationType parsed)
     {
         var arr = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(raw.Length));
         int bytes;

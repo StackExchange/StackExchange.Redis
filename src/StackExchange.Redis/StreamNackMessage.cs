@@ -41,31 +41,31 @@ internal partial class RedisDatabase
 
         protected abstract int Count { get; }
 
-        protected abstract void WriteIds(PhysicalConnection physical);
+        protected abstract void WriteIds(in MessageWriter writer);
 
-        protected override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteImpl(in MessageWriter writer)
         {
-            physical.WriteHeader(Command, ArgCount);
-            physical.Write(Key);
-            physical.WriteBulkString(groupName);
-            WriteMode(physical);
-            physical.WriteBulkString(StreamConstants.Ids);
-            physical.WriteBulkString(Count);
-            WriteIds(physical);
+            writer.WriteHeader(Command, ArgCount);
+            writer.Write(Key);
+            writer.WriteBulkString(groupName);
+            WriteMode(writer);
+            writer.WriteBulkString(StreamConstants.Ids);
+            writer.WriteBulkString(Count);
+            WriteIds(writer);
         }
 
-        private void WriteMode(PhysicalConnection physical)
+        private void WriteMode(in MessageWriter writer)
         {
             switch (mode)
             {
                 case StreamNackMode.Silent:
-                    physical.WriteBulkString("SILENT"u8);
+                    writer.WriteRaw("$6\r\nSILENT\r\n"u8);
                     break;
                 case StreamNackMode.Fail:
-                    physical.WriteBulkString("FAIL"u8);
+                    writer.WriteRaw("$4\r\nFAIL\r\n"u8);
                     break;
                 case StreamNackMode.Fatal:
-                    physical.WriteBulkString("FATAL"u8);
+                    writer.WriteRaw("$5\r\nFATAL\r\n"u8);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode));
@@ -88,7 +88,7 @@ internal partial class RedisDatabase
 
         protected override int Count => 1;
 
-        protected override void WriteIds(PhysicalConnection physical) => physical.WriteBulkString(messageId);
+        protected override void WriteIds(in MessageWriter writer) => writer.WriteBulkString(messageId);
     }
 
     internal sealed class StreamNackMessageMulti : StreamNackMessageBase
@@ -109,11 +109,11 @@ internal partial class RedisDatabase
 
         protected override int Count => messageIds.Length;
 
-        protected override void WriteIds(PhysicalConnection physical)
+        protected override void WriteIds(in MessageWriter writer)
         {
             for (int i = 0; i < messageIds.Length; i++)
             {
-                physical.WriteBulkString(messageIds[i]);
+                writer.WriteBulkString(messageIds[i]);
             }
         }
     }

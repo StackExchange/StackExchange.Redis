@@ -103,7 +103,21 @@ public ref partial struct RespReader
     internal static void ThrowEof() => throw new EndOfStreamException();
 
     [MethodImpl(MethodImplOptions.NoInlining), DoesNotReturn]
-    private static void ThrowFormatException() => throw new FormatException();
+    private readonly void ThrowFormatException(string type)
+    {
+        var msg = $"Invalid format parsing {Prefix} as {type}";
+#if DEBUG
+        if (IsScalar && ScalarLength() <= 64)
+        {
+            try { msg += $": '{ReadString()}'"; }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+        }
+#endif
+        throw new FormatException(msg);
+    }
 
     private int RawTryReadByte()
     {

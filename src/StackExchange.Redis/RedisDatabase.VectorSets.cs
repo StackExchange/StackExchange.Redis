@@ -280,7 +280,7 @@ internal partial class RedisDatabase
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                using var batch = await VectorSetRangeAsync(key, start, end, count, exclude, flags);
+                using var batch = await VectorSetRangeAsync(key, start, end, count, exclude, flags).ForAwait();
                 exclude |= Exclude.Start; // on subsequent iterations, exclude the start (we've already yielded it)
 
                 if (batch is null || batch.IsEmpty) yield break;

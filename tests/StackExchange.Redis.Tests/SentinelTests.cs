@@ -469,7 +469,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         await UntilConditionAsync(TimeSpan.FromSeconds(2), () => readonlyConn.IsConnected);
         Assert.True(readonlyConn.IsConnected);
         var db = readonlyConn.GetDatabase();
-        var s = db.StringGet("test");
+        var s = db.StringGet(Me());
         Assert.True(s.IsNullOrEmpty);
     }
 }

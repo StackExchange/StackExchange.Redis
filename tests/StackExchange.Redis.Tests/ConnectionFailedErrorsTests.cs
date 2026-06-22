@@ -167,19 +167,50 @@ public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(ou
         Assert.Null(DefaultOptionsProvider.TryGetAzureRoleInstanceIdNoThrow());
     }
 
-#if DEBUG
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task CheckFailureRecovered()
+    {
+        var options = ConfigurationOptions.Parse(GetConfiguration());
+        ConfigureFailureRecovery(options);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await CheckFailureRecoveredAsync(conn);
+    }
+
+    [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
+    public async Task CheckFailureRecoveredInProcess()
+    {
+        using var server = new InProcessTestServer(Output);
+        var options = server.GetClientConfig();
+        ConfigureFailureRecovery(options);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
+        await CheckFailureRecoveredAsync(conn);
+    }
+
+    private static void ConfigureFailureRecovery(ConfigurationOptions options)
+    {
+        options.ConnectTimeout = 10000;
+        options.AllowAdmin = true;
+        options.AllowSimulateConnectionFailure = true;
+        options.Protocol = TestContext.Current.GetProtocol();
+        options.KeepAlive = 1;
+        options.HeartbeatInterval = TimeSpan.FromSeconds(1);
+        options.ReconnectRetryPolicy = new LinearRetry((int)options.HeartbeatInterval.TotalMilliseconds);
+    }
+
+    private async Task CheckFailureRecoveredAsync(ConnectionMultiplexer conn)
     {
         try
         {
-            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, log: Writer, shared: false);
-
             await RunBlockingSynchronousWithExtraThreadAsync(InnerScenario).ForAwait();
             void InnerScenario()
             {
                 conn.GetDatabase();
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
+                Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
 
                 conn.AllowConnect = false;
 
@@ -192,7 +223,8 @@ public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(ou
                 // should reconnect within 1 keepalive interval
                 conn.AllowConnect = true;
             }
-            await Task.Delay(2000).ForAwait();
+            var recoveryTime = await UntilConditionAsync(TimeSpan.FromSeconds(10), () => conn.GetServerSnapshot()[0].LastException is null).ForAwait();
+            Log("Connection failure recovered after {0:N0}ms", recoveryTime.TotalMilliseconds);
 
             Assert.Null(conn.GetServerSnapshot()[0].LastException);
         }
@@ -201,5 +233,4 @@ public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(ou
             ClearAmbientFailures();
         }
     }
-#endif
 }

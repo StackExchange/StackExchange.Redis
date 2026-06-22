@@ -119,7 +119,15 @@ jobs:
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
       - name: StackExchange.Redis.Tests
-        run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+        run: |
+          $exitCode = 0
+          foreach ($tfm in @("net10.0", "net481")) {
+            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+            if ($LASTEXITCODE -ne 0) {
+              $exitCode = $LASTEXITCODE
+            }
+          }
+          exit $exitCode
       - uses: dorny/test-reporter@v3
         continue-on-error: true
         if: success() || failure()
@@ -127,10 +135,10 @@ jobs:
           name: Tests Results - Windows Server 2022
           path: 'test-results/*.trx'
           reporter: dotnet-trx
-      # Package and upload to MyGet only on pushes to main, not on PRs
+      # Package and upload to MyGet only on pushes to main/v3, not on PRs
       - name: .NET Pack
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3')
         run: dotnet pack Build.csproj --no-build -c Release /p:PackageOutputPath=${env:GITHUB_WORKSPACE}\.nupkgs /p:CI=true
       - name: Upload to MyGet
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3')
         run: dotnet nuget push ${env:GITHUB_WORKSPACE}\.nupkgs\*.nupkg -s https://www.myget.org/F/stackoverflow/api/v2/package -k ${{ secrets.MYGET_API_KEY }}

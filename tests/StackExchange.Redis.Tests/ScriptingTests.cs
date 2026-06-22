@@ -1081,11 +1081,12 @@ return arr;
         var db = conn.GetDatabase();
 
         string script = "return KEYS[1]";
-        RedisKey[] keys = ["key1"];
+        RedisKey key = Me();
+        RedisKey[] keys = [key];
         RedisValue[] values = ["first"];
 
         var result = db.ScriptEvaluateReadOnly(script, keys, values);
-        Assert.Equal("key1", result.ToString());
+        Assert.Equal(key.ToString(), result.ToString());
     }
 
     [Fact]
@@ -1095,11 +1096,12 @@ return arr;
         var db = conn.GetDatabase();
 
         string script = "return KEYS[1]";
-        RedisKey[] keys = ["key1"];
+        RedisKey key = Me();
+        RedisKey[] keys = [key];
         RedisValue[] values = ["first"];
 
         var result = await db.ScriptEvaluateReadOnlyAsync(script, keys, values);
-        Assert.Equal("key1", result.ToString());
+        Assert.Equal(key.ToString(), result.ToString());
     }
 
     [Fact]

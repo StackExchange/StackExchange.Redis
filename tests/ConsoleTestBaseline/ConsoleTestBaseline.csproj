@@ -14,5 +14,6 @@
 
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="System.IO.Compression" />
   </ItemGroup>
 </Project>
