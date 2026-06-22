@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
@@ -1432,6 +1433,17 @@ namespace StackExchange.Redis
         /// The buffer pool to use when buffering requests.
         /// </summary>
         public CycleBufferPool? RequestCycleBufferPool
+        {
+            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+            get;
+            [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
+            set;
+        }
+
+        /// <summary>
+        /// The memory pool to use when buffering responses.
+        /// </summary>
+        public MemoryPool<byte>? ResponseMemoryPool
         {
             [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
             get;
