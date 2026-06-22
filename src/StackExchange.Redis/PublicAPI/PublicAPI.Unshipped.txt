@@ -1,4 +1,6 @@
 ﻿#nullable enable
+[SER004]StackExchange.Redis.ConfigurationOptions.ResponseMemoryPool.get -> System.Buffers.MemoryPool<byte>?
+[SER004]StackExchange.Redis.ConfigurationOptions.ResponseMemoryPool.set -> void
 [SER004]StackExchange.Redis.ConfigurationOptions.RequestCycleBufferPool.get -> RESPite.Buffers.CycleBufferPool?
 [SER004]StackExchange.Redis.ConfigurationOptions.RequestCycleBufferPool.set -> void
 [SER004]StackExchange.Redis.ConfigurationOptions.ResponseCycleBufferPool.get -> RESPite.Buffers.CycleBufferPool?
