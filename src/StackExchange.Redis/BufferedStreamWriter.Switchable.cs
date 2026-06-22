@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -14,7 +15,7 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
     private ManualResetValueTaskSourceCore<bool> _readerTask;
     private bool _syncSignalled;
 
-    public SwitchableBufferedStreamWriter(CycleBufferPool? pool, Stream target, CancellationToken cancellationToken, bool initiallySync)
+    public SwitchableBufferedStreamWriter(MemoryPool<byte>? pool, Stream target, CancellationToken cancellationToken, bool initiallySync)
         : base(pool, target, cancellationToken, initiallySync ? StateFlags.None : StateFlags.AsyncMode)
     {
         _readerTask.RunContinuationsAsynchronously = true; // we never want the flusher to take over the copying

@@ -4,10 +4,9 @@
 [SER004]static RESPite.AsciiHash.EqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<byte> second) -> bool
 [SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<byte> first, System.ReadOnlySpan<char> second) -> bool
 [SER004]static RESPite.AsciiHash.SequenceEqualsCI(System.ReadOnlySpan<char> first, System.ReadOnlySpan<byte> second) -> bool
-[SER004]abstract RESPite.Buffers.CycleBufferPool.Rent(in System.Buffers.ReadOnlySequence<byte> existing) -> System.Buffers.IMemoryOwner<byte>!
-[SER004]RESPite.Buffers.CycleBufferPool
-[SER004]RESPite.Buffers.CycleBufferPool.CycleBufferPool() -> void
-[SER004]static RESPite.Buffers.CycleBufferPool.Default.get -> RESPite.Buffers.CycleBufferPool!
-[SER004]virtual RESPite.Buffers.CycleBufferPool.Rent() -> System.Buffers.IMemoryOwner<byte>!
-[SER004]static RESPite.Buffers.CycleBuffer.Create(RESPite.Buffers.CycleBufferPool? pool = null, RESPite.Buffers.ICycleBufferCallback? callback = null) -> RESPite.Buffers.CycleBuffer
-[SER004]RESPite.Buffers.CycleBuffer.Pool.get -> RESPite.Buffers.CycleBufferPool!
+[SER004]abstract RESPite.Buffers.CycleBufferPool<T>.Rent(in System.Buffers.ReadOnlySequence<T> existing) -> System.Buffers.IMemoryOwner<T>!
+[SER004]RESPite.Buffers.CycleBuffer.Pool.get -> System.Buffers.MemoryPool<byte>!
+[SER004]RESPite.Buffers.CycleBufferPool<T>
+[SER004]RESPite.Buffers.CycleBufferPool<T>.CycleBufferPool() -> void
+[SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, RESPite.Buffers.ICycleBufferCallback? callback = null) -> RESPite.Buffers.CycleBuffer
+[SER004]static RESPite.Buffers.CycleBufferPool<T>.Default.get -> RESPite.Buffers.CycleBufferPool<T>!

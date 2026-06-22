@@ -30,26 +30,20 @@ namespace RESPite.Buffers;
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
 public partial struct CycleBuffer
 {
-    #if TRACK_MEMORY
-    private static MemoryPool<byte> DefaultPool => MemoryTrackedPool<byte>.Shared;
-    #else
-    private static MemoryPool<byte> DefaultPool => MemoryPool<byte>.Shared;
-    #endif
-
     // note: if someone uses an uninitialized CycleBuffer (via default): that's a skills issue; git gud
     public static CycleBuffer Create(
-        CycleBufferPool? pool = null,
+        MemoryPool<byte>? pool = null,
         ICycleBufferCallback? callback = null) => new(pool, callback);
 
-    private CycleBuffer(CycleBufferPool? pool, ICycleBufferCallback? callback = null)
+    private CycleBuffer(MemoryPool<byte>? pool, ICycleBufferCallback? callback = null)
     {
-        _pool = pool ?? CycleBufferPool.Default;
+        _pool = pool ?? CycleBufferPool<byte>.Default;
         _callback = callback;
         leasedStart = -1;
     }
 
-    public CycleBufferPool Pool => _pool;
-    private readonly CycleBufferPool _pool;
+    public MemoryPool<byte> Pool => _pool;
+    private readonly MemoryPool<byte> _pool;
     private readonly ICycleBufferCallback? _callback;
 
     private Segment? startSegment, endSegment;
@@ -402,7 +396,8 @@ public partial struct CycleBuffer
             }
         }
 
-        Segment newSegment = Segment.Create(endSegment is null ? _pool.Rent() : _pool.Rent(GetAllCommitted()));
+        // note that here we're using our extended MemoryPool<T> API that allows sizing based on the existing buffers
+        Segment newSegment = Segment.Create(_pool.Rent(GetAllCommitted()));
         if (endSegment is null)
         {
             // tabula rasa
