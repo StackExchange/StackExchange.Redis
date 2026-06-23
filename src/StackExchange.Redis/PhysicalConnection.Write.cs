@@ -24,6 +24,11 @@ internal partial class PhysicalConnection
         _ioStream = stream;
         var config = BridgeCouldBeNull?.Multiplexer?.RawConfig;
         _output = BufferedStreamWriter.Create(WriteMode, connectionType, stream, config, OutputCancel);
+
+        // Nothing awaits WriteComplete in production (it is mostly a test affordance); observe it so a
+        // teardown-time (or any other) write fault never becomes an UnobservedTaskException. Applies to
+        // every BufferedStreamWriter implementation.
+        _output.WriteComplete.RedisFireAndForget();
 #if DEBUG
         if (config?.OutputLog is { } log)
         {
