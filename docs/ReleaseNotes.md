@@ -17,7 +17,7 @@ From 3.0, [release notes will be maintained in GitHub only](https://github.com/S
 
 - (none)
 
-## 2.3.17
+## 2.13.17
 
 - Fix TCP platform-dependent TCP keep-alive problems, and make an explicit option. ([#3090 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3090))
 - Tear down connection on write failure to prevent queue desync ([#3092 by @Pranish-Pantha](https://github.com/StackExchange/StackExchange.Redis/pull/3092)) 
