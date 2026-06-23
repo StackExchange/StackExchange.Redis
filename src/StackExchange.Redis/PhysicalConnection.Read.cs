@@ -401,7 +401,7 @@ internal sealed partial class PhysicalConnection
         else
         {
             var len = checked((int)payload.Length);
-            var memoryPool = BridgeCouldBeNull?.Multiplexer.RawConfig.RequestBufferPool ?? MemoryPool<byte>.Shared;
+            var memoryPool = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseBufferPool ?? MemoryPool<byte>.Shared;
             var memoryOwner = memoryPool.Rent(len);
             Span<byte> oversized = memoryOwner.Memory.Span.Slice(0, len);
 
