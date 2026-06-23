@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -55,6 +55,8 @@ namespace StackExchange.Redis
         private int profileLogIndex;
 
         private volatile bool reportNextFailure = true, reconfigureNextFailure = false;
+
+        private TaskCompletionSource<bool> _handshakeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private volatile int state = (int)State.Disconnected;
 
@@ -526,6 +528,7 @@ namespace StackExchange.Redis
             connection.SetIdle();
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
+                _handshakeCompletion.TrySetResult(true);
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
@@ -800,6 +803,10 @@ namespace StackExchange.Redis
         internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message)
         {
             Trace("Writing: " + message);
+            if (ConnectionState == State.ConnectedEstablishing)
+            {
+                _handshakeCompletion.Task.GetAwaiter().GetResult();
+            }
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
             // AVOID REORDERING MESSAGES
@@ -1235,6 +1242,10 @@ namespace StackExchange.Redis
         internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message, bool bypassBacklog = false)
         {
             Trace("Writing: " + message);
+            if (ConnectionState == State.ConnectedEstablishing && !_handshakeCompletion.Task.IsCompleted)
+            {
+                return WriteMessageTakingWriteLockAsync_Gate(physical, message, bypassBacklog);
+            }
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
             // AVOID REORDERING MESSAGES
@@ -1294,6 +1305,12 @@ namespace StackExchange.Redis
                     }
                 }
             }
+        }
+
+        private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Gate(PhysicalConnection physical, Message message, bool bypassBacklog)
+        {
+            await _handshakeCompletion.Task.ConfigureAwait(false);
+            return await WriteMessageTakingWriteLockAsync(physical, message, bypassBacklog).ConfigureAwait(false);
         }
 
         private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(
@@ -1404,6 +1421,7 @@ namespace StackExchange.Redis
                             Volatile.Write(ref _needsReconnect, false);
                             Interlocked.Increment(ref socketCount);
                             Interlocked.Exchange(ref connectStartTicks, Environment.TickCount);
+                            Interlocked.Exchange(ref _handshakeCompletion, new(TaskCreationOptions.RunContinuationsAsynchronously));
                             // separate creation and connection for case when connection completes synchronously
                             // in that case PhysicalConnection will call back to PhysicalBridge, and most PhysicalBridge methods assume that physical is not null;
                             physical = new PhysicalConnection(this, Multiplexer.RawConfig.WriteMode);
