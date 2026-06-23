@@ -9,7 +9,7 @@ public class ConnectionShutdownTests(ITestOutputHelper output) : TestBase(output
 {
     [Fact(Skip = "Unfriendly")]
     [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
-    public async Task ShutdownRaisesConnectionFailedAndRestore()
+    public async Task ShutdownRaisesConnectionFailureAndRestore()
     {
         await using var conn = Create(allowAdmin: true, allowSimulateConnectionFailure: true);
 
