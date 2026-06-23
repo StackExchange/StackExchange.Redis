@@ -38,6 +38,13 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
     public override bool IsSync
         => (State & StateFlags.AsyncMode) == 0;
 
+    // On a deliberate teardown the transport can be disposed (or the write cancelled) underneath an
+    // in-flight write; the resulting ObjectDisposedException/OperationCanceledException is expected noise,
+    // not a novel fault - the real failure is reported via the connection's disconnect path. Gate strictly
+    // on the Closed flag (set before the socket is disposed) so a genuine mid-operation fault still surfaces.
+    private bool IsExpectedDuringClose(Exception ex)
+        => (State & StateFlags.Closed) != 0 && ex is ObjectDisposedException or OperationCanceledException;
+
     public override Task WriteComplete => _completion.Task;
 
     public override bool TransitionToAsync()
@@ -142,6 +149,11 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
 
             _completion.TrySetResult(true);
         }
+        catch (Exception ex) when (IsExpectedDuringClose(ex))
+        {
+            Complete(); // ensure Closed; do not record teardown noise as the fault
+            _completion.TrySetResult(true);
+        }
         catch (Exception ex)
         {
             Complete(ex);
@@ -220,6 +232,11 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
             ReleaseBuffer();
             ReleaseLock(ref lockTaken);
 
+            _completion.TrySetResult(true);
+        }
+        catch (Exception ex) when (IsExpectedDuringClose(ex))
+        {
+            Complete(); // ensure Closed; do not record teardown noise as the fault
             _completion.TrySetResult(true);
         }
         catch (Exception ex)
