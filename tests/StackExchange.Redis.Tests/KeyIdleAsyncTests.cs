@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -38,12 +39,13 @@ public class KeyIdleAsyncTests(ITestOutputHelper output, SharedConnectionFixture
         var db = conn.GetDatabase();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+        var timer = Stopwatch.StartNew();
         await Task.Delay(2000).ForAwait();
         var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime > TimeSpan.Zero, "First check");
+        Assert.True(idleTime > TimeSpan.Zero, $"First check: {idleTime} should be > 0; elapsed: {timer.ElapsedMilliseconds}ms");
 
-        Assert.True(await db.KeyTouchAsync(key).ForAwait(), "Second check");
+        Assert.True(await db.KeyTouchAsync(key).ForAwait(), $"Second check: should be True; elapsed: {timer.ElapsedMilliseconds}ms");
         var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
-        Assert.True(idleTime1 < idleTime, "Third check");
+        Assert.True(idleTime1 < idleTime, $"Third check: {idleTime1} should be < {idleTime}; elapsed: {timer.ElapsedMilliseconds}ms");
     }
 }
