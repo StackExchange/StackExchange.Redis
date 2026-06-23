@@ -32,8 +32,6 @@
 [SER004]RESPite.Buffers.CycleBuffer.GetCommittedLength() -> long
 [SER004]RESPite.Buffers.CycleBuffer.GetUncommittedMemory(int hint = 0) -> System.Memory<byte>
 [SER004]RESPite.Buffers.CycleBuffer.GetUncommittedSpan(int hint = 0) -> System.Span<byte>
-[SER004]RESPite.Buffers.CycleBuffer.PageSize.get -> int
-[SER004]RESPite.Buffers.CycleBuffer.Pool.get -> System.Buffers.MemoryPool<byte>!
 [SER004]RESPite.Buffers.CycleBuffer.Release() -> void
 [SER004]RESPite.Buffers.CycleBuffer.TryGetCommitted(out System.ReadOnlySpan<byte> span) -> bool
 [SER004]RESPite.Buffers.CycleBuffer.TryGetFirstCommittedMemory(int minBytes, out System.ReadOnlyMemory<byte> memory) -> bool
@@ -203,7 +201,6 @@
 [SER004]RESPite.Messages.RespScanState.TryRead(System.ReadOnlySpan<byte> value, out int bytesRead) -> bool
 [SER004]RESPite.RespException
 [SER004]RESPite.RespException.RespException(string! message) -> void
-[SER004]static RESPite.Buffers.CycleBuffer.Create(System.Buffers.MemoryPool<byte>? pool = null, int pageSize = 8192, RESPite.Buffers.ICycleBufferCallback? callback = null) -> RESPite.Buffers.CycleBuffer
 [SER004]static RESPite.Messages.RespFrameScanner.Default.get -> RESPite.Messages.RespFrameScanner!
 [SER004]static RESPite.Messages.RespFrameScanner.Subscription.get -> RESPite.Messages.RespFrameScanner!
 [SER004]virtual RESPite.Messages.RespAttributeReader<T>.Read(ref RESPite.Messages.RespReader reader, ref T value) -> void

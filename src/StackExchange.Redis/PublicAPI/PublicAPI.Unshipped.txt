@@ -1,4 +1,9 @@
 ﻿#nullable enable
+StackExchange.Redis.ConfigurationOptions.RequestBufferPool.get -> System.Buffers.MemoryPool<byte>?
+StackExchange.Redis.ConfigurationOptions.RequestBufferPool.set -> void
+StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.get -> System.Buffers.MemoryPool<byte>?
+StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.set -> void
+static StackExchange.Redis.Lease<T>.Create(int length, System.Buffers.MemoryPool<T>? pool, bool clear = true) -> StackExchange.Redis.Lease<T>!
 [SER005]StackExchange.Redis.TestHarness
 [SER005]StackExchange.Redis.TestHarness.BufferValidator
 [SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel

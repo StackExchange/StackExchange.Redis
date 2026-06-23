@@ -57,7 +57,7 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
     public virtual bool IsSync => false;
 
-    public static BufferedStreamWriter Create(WriteMode mode, ConnectionType connectionType, Stream target, CancellationToken cancellationToken)
+    public static BufferedStreamWriter Create(WriteMode mode, ConnectionType connectionType, Stream target, ConfigurationOptions? options, CancellationToken cancellationToken)
     {
         if (connectionType is ConnectionType.Subscription | mode is WriteMode.Default)
         {
@@ -67,8 +67,8 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
         }
         return mode switch
         {
-            WriteMode.Sync => new SwitchableBufferedStreamWriter(target, cancellationToken, initiallySync: true),
-            WriteMode.Async => new SwitchableBufferedStreamWriter(target, cancellationToken, initiallySync: false),
+            WriteMode.Sync => new SwitchableBufferedStreamWriter(options?.RequestBufferPool, target, cancellationToken, initiallySync: true),
+            WriteMode.Async => new SwitchableBufferedStreamWriter(options?.RequestBufferPool, target, cancellationToken, initiallySync: false),
             WriteMode.Pipe => new PipeStreamWriter(target, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
@@ -115,10 +115,10 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
 internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBufferCallback
 {
-    protected CycleBufferStreamWriter(Stream target, CancellationToken cancellationToken, StateFlags flags = StateFlags.None)
+    protected CycleBufferStreamWriter(MemoryPool<byte>? pool, Stream target, CancellationToken cancellationToken, StateFlags flags = StateFlags.None)
         : base(target, cancellationToken)
     {
-        _buffer = CycleBuffer.Create(callback: this);
+        _buffer = CycleBuffer.Create(pool: pool, callback: this);
         _stateFlags = flags;
     }
 

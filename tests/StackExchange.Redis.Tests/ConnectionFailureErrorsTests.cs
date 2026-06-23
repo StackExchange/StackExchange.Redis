@@ -7,7 +7,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class ConnectionFailedErrorsTests(ITestOutputHelper output) : TestBase(output)
+public class ConnectionFailureErrorsTests(ITestOutputHelper output) : TestBase(output)
 {
     [Theory]
     [InlineData(true)]

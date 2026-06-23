@@ -90,6 +90,8 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "password",
                 "proxy",
                 "reconnectRetryPolicy",
+                "RequestBufferPool",
+                "ResponseBufferPool",
                 "responseTimeout",
                 "ServiceName",
                 "SocketManager",

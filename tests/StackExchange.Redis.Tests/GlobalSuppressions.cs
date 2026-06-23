@@ -5,11 +5,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("Redundancy", "RCS1163:Unused parameter.", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.ConnectionFailedErrorsTests.SSLCertificateValidationError(System.Boolean)")]
+[assembly: SuppressMessage("Redundancy", "RCS1163:Unused parameter.", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.ConnectionFailureErrorsTests.SSLCertificateValidationError(System.Boolean)")]
 [assembly: SuppressMessage("Redundancy", "RCS1163:Unused parameter.", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.PubSubTests.ExplicitPublishMode")]
 [assembly: SuppressMessage("Redundancy", "RCS1163:Unused parameter.", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.SSLTests.ConnectToSSLServer(System.Boolean,System.Boolean)")]
 [assembly: SuppressMessage("Redundancy", "RCS1163:Unused parameter.", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.SSLTests.ShowCertFailures(StackExchange.Redis.Tests.Helpers.TextWriterOutputHelper)~System.Net.Security.RemoteCertificateValidationCallback")]
-[assembly: SuppressMessage("Usage", "xUnit1004:Test methods should not be skipped", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.ConnectionShutdownTests.ShutdownRaisesConnectionFailedAndRestore")]
+[assembly: SuppressMessage("Usage", "xUnit1004:Test methods should not be skipped", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.ConnectionShutdownTests.ShutdownRaisesConnectionFailureAndRestore")]
 [assembly: SuppressMessage("Usage", "xUnit1004:Test methods should not be skipped", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.Issues.BgSaveResponseTests.ShouldntThrowException(StackExchange.Redis.SaveType)")]
 [assembly: SuppressMessage("Roslynator", "RCS1077:Optimize LINQ method call.", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.SentinelTests.PrimaryConnectTest~System.Threading.Tasks.Task")]
 [assembly: SuppressMessage("Roslynator", "RCS1077:Optimize LINQ method call.", Justification = "Pending", Scope = "member", Target = "~M:StackExchange.Redis.Tests.SentinelTests.PrimaryConnectAsyncTest~System.Threading.Tasks.Task")]

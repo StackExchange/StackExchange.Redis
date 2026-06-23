@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -12,6 +14,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RESPite;
+using RESPite.Buffers;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -970,6 +974,8 @@ namespace StackExchange.Redis
 #if DEBUG
             OutputLog = OutputLog,
 #endif
+            RequestBufferPool = RequestBufferPool,
+            ResponseBufferPool = ResponseBufferPool,
         };
 
         /// <summary>
@@ -1413,5 +1419,15 @@ namespace StackExchange.Redis
             protocol = default;
             return false;
         }
+
+        /// <summary>
+        /// The buffer pool to use when buffering responses, and for allocating <see cref="Lease{Byte}"/> results.
+        /// </summary>
+        public MemoryPool<byte>? ResponseBufferPool { get; set; }
+
+        /// <summary>
+        /// The buffer pool to use when buffering requests.
+        /// </summary>
+        public MemoryPool<byte>? RequestBufferPool { get; set; }
     }
 }

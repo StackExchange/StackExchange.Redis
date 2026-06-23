@@ -35,6 +35,7 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>
     public override bool Equals(object? other) => other is AsciiHash hash && Equals(hash);
 
     /// <inheritdoc cref="Equals(object)" />
+    [CLSCompliant(false)]
     public bool Equals(in AsciiHash other)
     {
         return (_length == other.Length & _hashCS == other._hashCS)

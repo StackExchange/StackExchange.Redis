@@ -21,35 +21,36 @@ Example usage:
 
 Basic options, for parity:
 
-- `-h <hostname>` Server hostname (default 127.0.0.1)
-- `-p <port>` Server port (default 6379)
+- `-h <hostname>` Server hostname (default 127.0.0.1).
+- `-p <port>` Server port (default 6379).
 - `-c <clients>` Number of parallel connections (default 50).
-- `-n <requests>` Total number of requests (default 100000)
+- `-n <requests>` Total number of requests (default 100000).
+- `-d <size>` Data size of SET/GET value in bytes (default 3).
 - `-P <numreq>` Pipeline <numreq> requests. Default 1 (no pipeline).
-- `-l` Loop. Run the tests forever
-- `-q` Quiet. Just show query/sec values
+- `-l` Loop. Run the tests forever.
+- `-q` Quiet. Just show query/sec values.
 - `-t <tests>` Only run the comma separated list of tests. The test names are the same as the ones produced as output.
 
 ## Custom options
 
 Additional options specific to this tool:
 
-- `+m` / `-m`: enable or disable (default) multiplexing: when enabled clients share a connection, otherwise each client has a separate connection
-- `--batch` / `--queue` pipelining should using batching (default) or queueing strategy
-- `--basic` : perform basic typical IO operations rather than synthetic benchmarks
+- `+m` / `-m`: enable or disable (default) multiplexing: when enabled clients share a connection, otherwise each client has a separate connection.
+- `--batch` / `--queue` pipelining should using batching (default) or queueing strategy.
+- `--basic` : perform basic typical IO operations rather than synthetic benchmarks.
 
 
 ## Internal options
 
 These exist mostly for Marc's benefit:
 
-- `-w <mode>` Specify the internal write-mode
-- `+x` / `-x`: enable or disable (default) cancellation support (irrelevant until later v3 tranche)
+- `-w <mode>` Specify the internal write-mode.
+- `+x` / `-x`: enable or disable (default) cancellation support (irrelevant until later v3 tranche).
 
 ## Local example
 
 To build and run from source, `dotnet run` can be used with everything after `--` being args to the command:
 
 ```
-dotnet run -p:TargetVer=3 -f net10.0 -c Release -- -q +m --batch -n 500000
+dotnet run -p:TargetVer=3 -f net10.0 -c Release -- -q -c 50 -P 100 +m --queue -n 500000 -q -l -t INCR
 ```

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
@@ -65,6 +65,8 @@ internal sealed partial class PhysicalConnection
     private void StartReadAllAsync(CancellationToken cancellationToken)
         => Task.Run(() => ReadAllAsync(cancellationToken)).RedisFireAndForget();
 
+    private MemoryPool<byte>? ReaderBufferPool => BridgeCouldBeNull?.Multiplexer?.RawConfig?.ResponseBufferPool;
+
     private async Task ReadAllAsync(CancellationToken cancellationToken)
     {
         var tail = _ioStream ?? Stream.Null;
@@ -73,7 +75,7 @@ internal sealed partial class PhysicalConnection
             // preserve existing state if transitioning
             _readStatus = ReadStatus.Init;
             _readState = default;
-            _readBuffer = CycleBuffer.Create();
+            _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);
         }
         try
         {
@@ -130,7 +132,7 @@ internal sealed partial class PhysicalConnection
         var tail = _ioStream ?? Stream.Null;
         _readStatus = ReadStatus.Init;
         _readState = default;
-        _readBuffer = CycleBuffer.Create();
+        _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);
         try
         {
             int read;
@@ -203,7 +205,7 @@ internal sealed partial class PhysicalConnection
 
     private bool ForceReconnect => BridgeCouldBeNull?.NeedsReconnect == true;
 
-    private static byte[]? SharedNoLease;
+    private static IMemoryOwner<byte>? SharedNoLease;
 
     private CycleBuffer _readBuffer;
     private RespScanState _readState = default;
@@ -399,15 +401,15 @@ internal sealed partial class PhysicalConnection
         else
         {
             var len = checked((int)payload.Length);
-            byte[]? oversized = ArrayPool<byte>.Shared.Rent(len);
-            payload.CopyTo(oversized);
-            OnResponseFrame(prefix, new(oversized, 0, len), ref oversized);
+            var memoryPool = BridgeCouldBeNull?.Multiplexer.RawConfig.ResponseBufferPool ?? MemoryPool<byte>.Shared;
+            var memoryOwner = memoryPool.Rent(len);
+            Span<byte> oversized = memoryOwner.Memory.Span.Slice(0, len);
 
-            // the lease could have been claimed by the activation code (to prevent another memcpy); otherwise, free
-            if (oversized is not null)
-            {
-                ArrayPool<byte>.Shared.Return(oversized);
-            }
+            payload.CopyTo(oversized);
+
+            OnResponseFrame(prefix, oversized, ref memoryOwner);
+
+            memoryOwner?.Dispose();
         }
     }
 
@@ -418,7 +420,7 @@ internal sealed partial class PhysicalConnection
         bytesLastResult = lastResult;
     }
 
-    private void OnResponseFrame(RespPrefix prefix, ReadOnlySpan<byte> frame, ref byte[]? lease)
+    private void OnResponseFrame(RespPrefix prefix, ReadOnlySpan<byte> frame, ref IMemoryOwner<byte>? memoryOwner)
     {
         DebugValidateSingleFrame(frame);
         _readStatus = ReadStatus.MatchResult;
@@ -429,7 +431,7 @@ internal sealed partial class PhysicalConnection
             case RespPrefix.Array when (_protocol is RedisProtocol.Resp2 & connectionType is ConnectionType.Subscription)
                                        && !IsArrayPong(frame): // could be a RESP2 pub/sub payload
                 // out-of-band; pub/sub etc
-                if (OnOutOfBand(frame, ref lease))
+                if (OnOutOfBand(frame, ref memoryOwner))
                 {
                     OnDetailLog($"out-of-band message, not dequeuing: {prefix}");
                     return;
@@ -500,7 +502,7 @@ internal sealed partial class PhysicalConnection
         return buffer.Slice(0, len);
     }
 
-    private bool OnOutOfBand(ReadOnlySpan<byte> payload, ref byte[]? lease)
+    private bool OnOutOfBand(ReadOnlySpan<byte> payload, ref IMemoryOwner<byte>? memoryOwner)
     {
         var muxer = BridgeCouldBeNull?.Multiplexer;
         if (muxer is null) return true; // consume it blindly
