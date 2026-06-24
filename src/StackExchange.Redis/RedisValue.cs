@@ -1063,6 +1063,7 @@ namespace StackExchange.Redis
         {
             StorageType.Null => 0,
             StorageType.MemoryManager or StorageType.ByteArray => Encoding.UTF8.GetCharCount(RawSpan()),
+            StorageType.Sequence => Encoding.UTF8.GetCharCount(RawSequence()),
             StorageType.String => _length,
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
@@ -1076,7 +1077,7 @@ namespace StackExchange.Redis
         internal int GetMaxCharCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray => Encoding.UTF8.GetMaxCharCount(_length),
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => Encoding.UTF8.GetMaxCharCount(_length),
             StorageType.String => _length,
             StorageType.Int64 => Format.MaxInt64TextLen,
             StorageType.UInt64 => Format.MaxInt64TextLen,
