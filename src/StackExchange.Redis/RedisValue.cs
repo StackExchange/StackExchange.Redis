@@ -352,6 +352,10 @@ namespace StackExchange.Redis
                 (xType == StorageType.ByteArray || xType == StorageType.MemoryManager))
                 return y.RawSequence().SequenceEqual(x.RawSpan());
 
+            if ((xType == StorageType.ByteArray && yType == StorageType.MemoryManager) ||
+                (xType == StorageType.MemoryManager && yType == StorageType.ByteArray))
+                return x.RawSpan().SequenceEqual(y.RawSpan());
+
             // otherwise, compare as strings
             return (string?)x == (string?)y;
         }
@@ -598,6 +602,9 @@ namespace StackExchange.Redis
                     case StorageType.UInt64:
                         if (yType == StorageType.Double) return ((double)x.OverlappedValueUInt64).CompareTo(y.OverlappedValueDouble);
                         if (yType == StorageType.Int64) return -1; // we only use unsigned if > int64, so: x is bigger
+                        break;
+                    case StorageType.MemoryManager or StorageType.ByteArray:
+                        if (yType == StorageType.MemoryManager || yType == StorageType.ByteArray) return x.RawSpan().SequenceCompareTo(y.RawSpan());
                         break;
                 }
 
@@ -1456,6 +1463,11 @@ namespace StackExchange.Redis
                 (thisType == StorageType.MemoryManager || thisType == StorageType.ByteArray))
             {
                 return RawSpan().StartsWith(value.RawSequence());
+            }
+            if ((thisType == StorageType.MemoryManager && otherType == StorageType.ByteArray) ||
+                (thisType == StorageType.ByteArray && otherType == StorageType.MemoryManager))
+            {
+                return RawSpan().StartsWith(value.RawSpan());
             }
             byte[]? arr0 = null, arr1 = null;
             try
