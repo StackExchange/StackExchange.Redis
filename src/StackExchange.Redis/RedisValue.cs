@@ -703,7 +703,7 @@ namespace StackExchange.Redis
             var length = checked((int)value.Length);
             var pos = value.Start;
             var segment = pos.GetObject() ?? throw new InvalidOperationException("StartSegment is null");
-            return new((ReadOnlySequenceSegment<byte>)segment, length, pos.GetInteger());
+            return new((ReadOnlySequenceSegment<byte>)segment, pos.GetInteger(), length);
         }
 
         /// <summary>
