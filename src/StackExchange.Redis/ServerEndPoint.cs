@@ -1144,6 +1144,20 @@ namespace StackExchange.Redis
             return subscription?.HasPendingCallerFacingItems() ?? false;
         }
 
+        public void SetLatency(DateTime startTime)
+        {
+            try
+            {
+                LatencyTicks = ConnectionGroupMember.ToLatencyTicks(DateTime.UtcNow - startTime);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+        }
+
+        internal uint LatencyTicks { get; private set; } = uint.MaxValue;
+
         private ProductVariant _productVariant = ProductVariant.Redis;
         private string _productVersion = "";
 
