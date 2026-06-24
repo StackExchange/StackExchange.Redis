@@ -8,7 +8,25 @@ internal static class ReadOnlySequenceExtensions
 {
     public static bool StartsWith(this in ReadOnlySequence<byte> sequence, in ReadOnlySequence<byte> value)
     {
-        throw new NotImplementedException();
+        if (sequence.IsSingleSegment) return sequence.First.Span.StartsWith(value);
+        if (value.IsSingleSegment) return sequence.StartsWith(value.First.Span);
+        if (value.Length > sequence.Length) return false;
+
+        return sequence.Slice(0, value.Length).SequenceEqual(value);
+    }
+
+    public static bool StartsWith(this ReadOnlySpan<byte> span, in ReadOnlySequence<byte> value)
+    {
+        if (value.IsSingleSegment) return span.StartsWith(value.First.Span);
+        if (value.Length > span.Length) return false;
+        foreach (var memory in value)
+        {
+            if (!memory.Span.SequenceEqual(span.Slice(0, memory.Length)))
+                return false;
+
+            span = span.Slice(memory.Length);
+        }
+        return true;
     }
 
     public static bool StartsWith(this in ReadOnlySequence<byte> sequence, ReadOnlySpan<byte> value)
