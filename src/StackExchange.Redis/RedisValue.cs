@@ -961,6 +961,7 @@ namespace StackExchange.Redis
                         return ToHex(span);
                     }
                 case StorageType.Sequence:
+                    if (value._length == 0) return "";
                     var seq = value.RawSequence();
                     if (seq.IsEmpty) return "";
                     return Format.GetString(seq);
