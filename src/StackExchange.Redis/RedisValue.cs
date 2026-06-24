@@ -556,8 +556,8 @@ namespace StackExchange.Redis
                             return string.CompareOrdinal(x.RawString(), y.RawString());
                         case StorageType.MemoryManager or StorageType.ByteArray:
                             return x.RawSpan().SequenceCompareTo(y.RawSpan());
-                        case StorageType.Sequence:
-                            return x.RawSequence().SequenceCompareTo(y.RawSequence());
+                        // case StorageType.Sequence:
+                        //    return x.RawSequence().SequenceCompareTo(y.RawSequence());
                     }
                 }
 

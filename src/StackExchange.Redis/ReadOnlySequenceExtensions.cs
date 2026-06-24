@@ -131,8 +131,8 @@ internal static class ReadOnlySequenceExtensions
         return true;
     }
 
-    public static int SequenceCompareTo(this in ReadOnlySequence<byte> first, in ReadOnlySequence<byte> other)
-    {
-        throw new NotImplementedException();
-    }
+    // public static int SequenceCompareTo(this in ReadOnlySequence<byte> first, in ReadOnlySequence<byte> other)
+    // {
+    //    throw new NotImplementedException();
+    // }
 }
