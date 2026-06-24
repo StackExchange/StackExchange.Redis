@@ -21,7 +21,6 @@ public class ConnectionRaceTests(ITestOutputHelper output) : TestBase(output)
             var options = new ConfigurationOptions
             {
                 EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } },
-                Password = TestConfig.Current.PrimaryPassword,
                 AbortOnConnectFail = false,
                 AllowAdmin = true
             };
@@ -35,7 +34,7 @@ public class ConnectionRaceTests(ITestOutputHelper output) : TestBase(output)
             {
                 for (int i = 0; i < 5; i++)
                 {
-                    server.SimulateConnectionFailure(SimulatedFailureType.AuthenticationFailure);
+                    server.SimulateConnectionFailure(SimulatedFailureType.All);
                     await Task.Delay(10);
                 }
             });
