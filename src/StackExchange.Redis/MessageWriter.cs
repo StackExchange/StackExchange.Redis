@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -101,6 +101,9 @@ internal readonly ref struct MessageWriter
                 break;
             case RedisValue.StorageType.MemoryManager or RedisValue.StorageType.ByteArray:
                 WriteUnifiedSpan(writer, value.RawSpan());
+                break;
+            case RedisValue.StorageType.Sequence:
+                WriteUnifiedSequence(writer, value.RawSequence());
                 break;
             default:
                 throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
@@ -566,6 +569,28 @@ internal readonly ref struct MessageWriter
             writer.Advance(bytes);
 
             writer.Write(value);
+
+            WriteCrlf(writer);
+        }
+    }
+
+    private static void WriteUnifiedSequence(IBufferWriter<byte> writer, in ReadOnlySequence<byte> value)
+    {
+        if (value.IsSingleSegment)
+        {
+            WriteUnifiedSpan(writer, value.First.Span);
+        }
+        else
+        {
+            var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+            span[0] = (byte)'$';
+            int bytes = WriteRaw(span, value.Length, offset: 1);
+            writer.Advance(bytes);
+
+            foreach (var memory in value)
+            {
+                writer.Write(memory.Span);
+            }
 
             WriteCrlf(writer);
         }

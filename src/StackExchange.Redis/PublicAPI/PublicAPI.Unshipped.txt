@@ -4,6 +4,9 @@ StackExchange.Redis.ConfigurationOptions.RequestBufferPool.set -> void
 StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.get -> System.Buffers.MemoryPool<byte>?
 StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.set -> void
 static StackExchange.Redis.Lease<T>.Create(int length, System.Buffers.MemoryPool<T>? pool, bool clear = true) -> StackExchange.Redis.Lease<T>!
+static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(System.Buffers.ReadOnlySequence<byte> value) -> StackExchange.Redis.RedisValue
+static StackExchange.Redis.RedisValue.implicit operator System.Buffers.ReadOnlySequence<byte>(StackExchange.Redis.RedisValue value) -> System.Buffers.ReadOnlySequence<byte>
+[SER002]static StackExchange.Redis.ValueCondition.CalculateDigest(in System.Buffers.ReadOnlySequence<byte> value) -> StackExchange.Redis.ValueCondition
 [SER005]StackExchange.Redis.TestHarness
 [SER005]StackExchange.Redis.TestHarness.BufferValidator
 [SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel
