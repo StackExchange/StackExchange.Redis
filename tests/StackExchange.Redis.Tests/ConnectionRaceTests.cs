@@ -22,7 +22,7 @@ public class ConnectionRaceTests(ITestOutputHelper output) : TestBase(output)
             {
                 EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } },
                 AbortOnConnectFail = false,
-                AllowAdmin = true
+                AllowAdmin = true,
             };
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
