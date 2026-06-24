@@ -1430,7 +1430,7 @@ namespace StackExchange.Redis
             if (otherType == StorageType.Sequence &&
                 (thisType == StorageType.MemoryManager || thisType == StorageType.ByteArray))
             {
-                return value.RawSequence().StartsWith(RawSpan());
+                return RawSpan().StartsWith(value.RawSequence());
             }
             byte[]? arr0 = null, arr1 = null;
             try
