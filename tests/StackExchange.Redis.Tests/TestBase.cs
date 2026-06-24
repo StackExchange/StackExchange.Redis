@@ -705,8 +705,8 @@ public abstract class TestBase : IDisposable
     }
 
     [Conditional("RELEASE")]
-    protected void SkipOnWindowsRelease() // typically used for tests that are super brittle on the Windows CI
+    protected void SkipOnWindowsRelease(string? message = null) // typically used for tests that are super brittle on the Windows CI
     {
-        Assert.SkipWhen(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), "skipping on Windows");
+        Assert.SkipWhen(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), message ?? "skipping on Windows");
     }
 }

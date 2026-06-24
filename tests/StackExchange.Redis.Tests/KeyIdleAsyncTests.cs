@@ -22,6 +22,7 @@ public class KeyIdleAsyncTests(ITestOutputHelper output, SharedConnectionFixture
     [Fact]
     public async Task IdleTimeAsync()
     {
+        SkipOnWindowsRelease("WSL exacerbates replication time");
         await using var conn = Create();
 
         RedisKey key = Me();
@@ -45,6 +46,7 @@ public class KeyIdleAsyncTests(ITestOutputHelper output, SharedConnectionFixture
     [Fact]
     public async Task TouchIdleTimeAsync()
     {
+        SkipOnWindowsRelease("WSL exacerbates replication time");
         await using var conn = Create(require: RedisFeatures.v3_2_1);
 
         RedisKey key = Me();
