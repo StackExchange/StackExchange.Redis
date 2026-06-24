@@ -80,7 +80,7 @@ internal static class ReadOnlySequenceExtensions
             other = other.Slice(span.Length);
         }
 
-        return true;
+        return other.IsEmpty;
     }
 
     public static bool SequenceEqual(this in ReadOnlySequence<byte> first, in ReadOnlySequence<byte> other)

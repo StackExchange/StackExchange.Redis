@@ -179,20 +179,13 @@ public readonly struct ValueCondition
 
         var xxh = _xxh;
         xxh ??= _xxh = new XxHash3();
-
-        try
+        xxh.Reset();
+        foreach (var memory in value)
         {
-            foreach (var memory in value)
-            {
-                xxh.Append(memory.Span);
-            }
-            var digest = unchecked((long)xxh.GetCurrentHashAsUInt64());
-            return new ValueCondition(ConditionKind.DigestEquals, digest);
+            xxh.Append(memory.Span);
         }
-        finally
-        {
-            xxh.Reset();
-        }
+        var digest = unchecked((long)xxh.GetCurrentHashAsUInt64());
+        return new ValueCondition(ConditionKind.DigestEquals, digest);
     }
 
     /// <summary>
