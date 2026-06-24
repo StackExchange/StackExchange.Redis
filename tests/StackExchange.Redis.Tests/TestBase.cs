@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Configuration;
@@ -701,5 +702,11 @@ public abstract class TestBase : IDisposable
             }
             return default;
         }
+    }
+
+    [Conditional("RELEASE")]
+    protected void SkipOnWindowsRelease(string? message = null) // typically used for tests that are super brittle on the Windows CI
+    {
+        Assert.SkipWhen(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), message ?? "skipping on Windows");
     }
 }

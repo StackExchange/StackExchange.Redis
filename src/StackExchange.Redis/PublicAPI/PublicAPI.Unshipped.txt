@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 StackExchange.Redis.ConfigurationOptions.RequestBufferPool.get -> System.Buffers.MemoryPool<byte>?
 StackExchange.Redis.ConfigurationOptions.RequestBufferPool.set -> void
 StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.get -> System.Buffers.MemoryPool<byte>?
