@@ -699,11 +699,13 @@ namespace StackExchange.Redis
         public static implicit operator RedisValue(ReadOnlySequence<byte> value)
         {
             if (value.IsSingleSegment) return new(value.First);
+            // what is the maximum length? Array.MaxLength? 512MB?
+            if (value.Length > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(value));
 
-            var length = checked((int)value.Length);
             var pos = value.Start;
             var segment = pos.GetObject() ?? throw new InvalidOperationException("StartSegment is null");
-            return new((ReadOnlySequenceSegment<byte>)segment, pos.GetInteger(), length);
+            return new((ReadOnlySequenceSegment<byte>)segment, pos.GetInteger(), checked((int)value.Length));
         }
 
         /// <summary>
