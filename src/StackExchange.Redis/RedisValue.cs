@@ -382,6 +382,8 @@ namespace StackExchange.Redis
             return x.Type switch
             {
                 StorageType.Null => -1,
+                StorageType.MemoryManager or StorageType.ByteArray => GetHashCode(x.RawSpan()),
+                StorageType.Sequence => GetHashCode(x.RawSequence()),
                 StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
                 StorageType.Int64 or StorageType.UInt64 => x._valueInt64.GetHashCode(),
                 StorageType.String => x.RawString().GetHashCode(),
@@ -418,14 +420,12 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal static unsafe int GetHashCode(ReadOnlySpan<byte> span)
+        private static int AddHashCode(ReadOnlySpan<byte> span, int acc)
         {
             unchecked
             {
                 int len = span.Length;
-                if (len == 0) return 0;
-
-                int acc = 728271210;
+                Debug.Assert(len > 0);
 
                 var span64 = MemoryMarshal.Cast<byte, long>(span);
                 for (int i = 0; i < span64.Length; i++)
@@ -441,6 +441,30 @@ namespace StackExchange.Redis
                 }
                 return acc;
             }
+        }
+
+        internal static int GetHashCode(ReadOnlySpan<byte> span)
+        {
+            if (span.Length == 0) return 0;
+
+            return AddHashCode(span, HashCodeStart);
+        }
+
+        private const int HashCodeStart = 728271210;
+
+        private static int GetHashCode(ReadOnlySequence<byte> seq)
+        {
+            if (seq.Length == 0) return 0;
+
+            int acc = HashCodeStart;
+
+            foreach (var memory in seq)
+            {
+                if (!memory.IsEmpty)
+                    acc = AddHashCode(memory.Span, acc);
+            }
+
+            return acc;
         }
 
         internal void AssertNotNull()
