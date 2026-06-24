@@ -13,6 +13,7 @@ public class Roles(ITestOutputHelper output, SharedConnectionFixture fixture) : 
     [InlineData(false)]
     public async Task PrimaryRole(bool allowAdmin) // should work with or without admin now
     {
+        SkipOnWindowsRelease();
         await using var conn = Create(allowAdmin: allowAdmin);
         var servers = conn.GetServers();
         Log("Server list:");

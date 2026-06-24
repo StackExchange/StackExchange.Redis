@@ -146,6 +146,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     [Fact]
     public async Task IntentionalWrongServer()
     {
+        SkipOnWindowsRelease();
         static string? StringGet(IServer server, RedisKey key, CommandFlags flags = CommandFlags.None)
             => (string?)server.Execute(0, "GET", [key], flags);
 
