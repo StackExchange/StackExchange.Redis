@@ -409,18 +409,38 @@ namespace StackExchange.Redis
         private static int GetHashCode(RedisValue x)
         {
             x = x.Simplify();
-            return x.Type switch
+            switch (x.Type)
             {
-                StorageType.Null => -1,
-                StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
-                StorageType.Int64 or StorageType.UInt64 => x._valueInt64.GetHashCode(),
-                // Everything else - strings *and* byte/memory/sequence buffers - compares to each other "as
-                // strings" (see operator ==): e.g. "inf" the string equals "inf" the bytes. A buffer that
-                // looked numeric has already been reduced to Int64/Double by Simplify() above, so the only
-                // equality-consistent hash for what remains is the hash of the string form. (Note we must NOT
-                // hash raw bytes here: that would give byte buffers a different hash from the equal string.)
-                _ => ((string)x!).GetHashCode(),
-            };
+                case StorageType.Null:
+                    return -1;
+                case StorageType.Double:
+                    return x.OverlappedValueDouble.GetHashCode();
+                case StorageType.Int64 or StorageType.UInt64:
+                    return x._valueInt64.GetHashCode();
+                case StorageType.String:
+                    return x.RawString().GetHashCode();
+            }
+
+            // Everything else - byte/memory/sequence buffers - compares to each other (and to strings) "as
+            // strings" (see operator ==): e.g. "inf" the bytes equals "inf" the string. Anything that looked
+            // numeric was already reduced to Int64/Double by Simplify() above, so the equality-consistent
+            // hash for what remains is the hash of the string form. (We must NOT hash raw bytes: that would
+            // give byte buffers a different hash from the equal string.)
+#if NET
+            // hash the decoded UTF8 chars directly, which avoids allocating a transient string; this matches
+            // string.GetHashCode() for the equivalent text
+            const int StackLimit = 256;
+            var maxChars = x.GetMaxCharCount();
+            char[]? leased = null;
+            Span<char> chars = maxChars <= StackLimit ? stackalloc char[StackLimit] : (leased = ArrayPool<char>.Shared.Rent(maxChars));
+            var written = x.CopyTo(chars);
+            var hashCode = string.GetHashCode(chars.Slice(0, written));
+            if (leased is not null) ArrayPool<char>.Shared.Return(leased);
+            return hashCode;
+#else
+            // no string.GetHashCode(ReadOnlySpan<char>) on these targets, so fall back to the string form
+            return ((string)x!).GetHashCode();
+#endif
         }
 
         /// <summary>
