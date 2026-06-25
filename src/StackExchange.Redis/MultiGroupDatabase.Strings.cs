@@ -74,6 +74,12 @@ internal sealed partial class MultiGroupDatabase
     public double StringIncrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StringIncrement(key, value, flags);
 
+    public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StringIncrement(key, value, expiry, lowerBound, upperBound, options, flags);
+
+    public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StringIncrement(key, value, expiry, lowerBound, upperBound, options, flags);
+
     public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StringLength(key, flags);
 

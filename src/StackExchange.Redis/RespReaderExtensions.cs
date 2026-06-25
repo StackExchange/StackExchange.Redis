@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using RESPite.Messages;
 
 namespace StackExchange.Redis;
@@ -201,11 +200,4 @@ internal static class RespReaderExtensions
             return false;
         }
     }
-
-#if !NET
-    extension(Task task)
-    {
-        public bool IsCompletedSuccessfully => task.Status is TaskStatus.RanToCompletion;
-    }
-#endif
 }

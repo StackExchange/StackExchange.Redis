@@ -75,6 +75,12 @@ internal sealed partial class MultiGroupDatabase
     public Task<double> StringIncrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StringIncrementAsync(key, value, flags);
 
+    public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StringIncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags);
+
+    public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StringIncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags);
+
     public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StringLengthAsync(key, flags);
 
