@@ -393,12 +393,14 @@ namespace StackExchange.Redis
             return x.Type switch
             {
                 StorageType.Null => -1,
-                StorageType.MemoryManager or StorageType.ByteArray => GetHashCode(x.RawSpan()),
-                StorageType.Sequence => GetHashCode(x.RawSequence()),
                 StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
                 StorageType.Int64 or StorageType.UInt64 => x._valueInt64.GetHashCode(),
-                StorageType.String => x.RawString().GetHashCode(),
-                _ => ((string)x!).GetHashCode(), // to match equality
+                // Everything else - strings *and* byte/memory/sequence buffers - compares to each other "as
+                // strings" (see operator ==): e.g. "inf" the string equals "inf" the bytes. A buffer that
+                // looked numeric has already been reduced to Int64/Double by Simplify() above, so the only
+                // equality-consistent hash for what remains is the hash of the string form. (Note we must NOT
+                // hash raw bytes here: that would give byte buffers a different hash from the equal string.)
+                _ => ((string)x!).GetHashCode(),
             };
         }
 
@@ -454,6 +456,8 @@ namespace StackExchange.Redis
             }
         }
 
+        // used by RedisKey, whose equality is byte-based (unlike RedisValue, which treats non-numeric
+        // buffers as strings - see GetHashCode(RedisValue))
         internal static int GetHashCode(ReadOnlySpan<byte> span)
         {
             if (span.Length == 0) return 0;
@@ -462,21 +466,6 @@ namespace StackExchange.Redis
         }
 
         private const int HashCodeStart = 728271210;
-
-        private static int GetHashCode(ReadOnlySequence<byte> seq)
-        {
-            if (seq.Length == 0) return 0;
-
-            int acc = HashCodeStart;
-
-            foreach (var memory in seq)
-            {
-                if (!memory.IsEmpty)
-                    acc = AddHashCode(memory.Span, acc);
-            }
-
-            return acc;
-        }
 
         internal void AssertNotNull()
         {
@@ -1285,14 +1274,19 @@ namespace StackExchange.Redis
                     if (Format.TryParseDouble(s, out var f64) && !IsSpecialDouble(f64)) return f64;
                     break;
                 case StorageType.MemoryManager or StorageType.ByteArray:
-                    var b = RawSpan();
-                    if (Format.CouldBeInteger(b))
+                    if (TrySimplify(RawSpan(), out var simplified)) return simplified;
+                    break;
+                case StorageType.Sequence:
+                    // numeric forms are short, so we only need to consider plausibly-numeric lengths;
+                    // copy into a small stack buffer so we can reuse the exact same byte-based parsing
+                    var seq = RawSequence();
+                    if (seq.Length <= Format.MaxDoubleTextLen)
                     {
-                        if (Format.TryParseInt64(b, out i64)) return i64;
-                        if (Format.TryParseUInt64(b, out u64)) return u64;
+                        Span<byte> tmp = stackalloc byte[Format.MaxDoubleTextLen];
+                        int len = (int)seq.Length;
+                        seq.CopyTo(tmp);
+                        if (TrySimplify(tmp.Slice(0, len), out simplified)) return simplified;
                     }
-                    // note: don't simplify inf/nan, as that causes equality semantic problems
-                    if (TryParseDouble(b, out f64) && !IsSpecialDouble(f64)) return f64;
                     break;
                 case StorageType.Double:
                     // is the double actually an integer?
@@ -1301,6 +1295,33 @@ namespace StackExchange.Redis
                     break;
             }
             return this;
+
+            // shared by the ByteArray/MemoryManager and Sequence cases, so that identical bytes
+            // simplify identically regardless of how they happen to be stored
+            static bool TrySimplify(ReadOnlySpan<byte> bytes, out RedisValue value)
+            {
+                if (Format.CouldBeInteger(bytes))
+                {
+                    if (Format.TryParseInt64(bytes, out var i64))
+                    {
+                        value = i64;
+                        return true;
+                    }
+                    if (Format.TryParseUInt64(bytes, out var u64))
+                    {
+                        value = u64;
+                        return true;
+                    }
+                }
+                // note: don't simplify inf/nan, as that causes equality semantic problems
+                if (TryParseDouble(bytes, out var f64) && !IsSpecialDouble(f64))
+                {
+                    value = f64;
+                    return true;
+                }
+                value = default;
+                return false;
+            }
         }
 
         private static bool IsSpecialDouble(double d) => double.IsNaN(d) || double.IsInfinity(d);

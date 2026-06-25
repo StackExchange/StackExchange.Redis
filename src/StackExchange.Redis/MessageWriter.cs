@@ -578,7 +578,7 @@ internal readonly ref struct MessageWriter
     {
         if (value.IsSingleSegment)
         {
-            WriteUnifiedSpan(writer, value.First.Span);
+            WriteUnifiedSpan(writer, value.FirstSpan);
         }
         else
         {

@@ -174,7 +174,7 @@ public readonly struct ValueCondition
     {
         if (value.IsSingleSegment)
         {
-            return CalculateDigest(value.First.Span);
+            return CalculateDigest(value.FirstSpan);
         }
 
         var xxh = _xxh;

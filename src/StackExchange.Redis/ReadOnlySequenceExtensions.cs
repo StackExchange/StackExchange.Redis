@@ -8,8 +8,8 @@ internal static class ReadOnlySequenceExtensions
 {
     public static bool StartsWith(this in ReadOnlySequence<byte> sequence, in ReadOnlySequence<byte> value)
     {
-        if (sequence.IsSingleSegment) return sequence.First.Span.StartsWith(value);
-        if (value.IsSingleSegment) return sequence.StartsWith(value.First.Span);
+        if (sequence.IsSingleSegment) return sequence.FirstSpan.StartsWith(value);
+        if (value.IsSingleSegment) return sequence.StartsWith(value.FirstSpan);
         if (value.Length > sequence.Length) return false;
 
         return sequence.Slice(0, value.Length).SequenceEqual(value);
@@ -17,7 +17,7 @@ internal static class ReadOnlySequenceExtensions
 
     public static bool StartsWith(this ReadOnlySpan<byte> span, in ReadOnlySequence<byte> value)
     {
-        if (value.IsSingleSegment) return span.StartsWith(value.First.Span);
+        if (value.IsSingleSegment) return span.StartsWith(value.FirstSpan);
         if (value.Length > span.Length) return false;
         foreach (var memory in value)
         {
@@ -85,7 +85,7 @@ internal static class ReadOnlySequenceExtensions
 
     public static bool SequenceEqual(this in ReadOnlySequence<byte> first, ReadOnlySpan<byte> other)
     {
-        if (first.IsSingleSegment) return first.First.Span.SequenceEqual(other);
+        if (first.IsSingleSegment) return first.FirstSpan.SequenceEqual(other);
         if (first.Length != other.Length) return false;
 
         var position = first.Start;
@@ -103,8 +103,8 @@ internal static class ReadOnlySequenceExtensions
 
     public static bool SequenceEqual(this in ReadOnlySequence<byte> first, in ReadOnlySequence<byte> other)
     {
-        if (first.IsSingleSegment) return other.SequenceEqual(first.First.Span);
-        if (other.IsSingleSegment) return first.SequenceEqual(other.First.Span);
+        if (first.IsSingleSegment) return other.SequenceEqual(first.FirstSpan);
+        if (other.IsSingleSegment) return first.SequenceEqual(other.FirstSpan);
         if (first.Length != other.Length) return false;
 
         var firstPosition = first.Start;

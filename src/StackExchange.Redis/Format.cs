@@ -394,7 +394,7 @@ namespace StackExchange.Redis
 
         internal static string GetString(ReadOnlySequence<byte> buffer)
         {
-            if (buffer.IsSingleSegment) return GetString(buffer.First.Span);
+            if (buffer.IsSingleSegment) return GetString(buffer.FirstSpan);
 
             var length = checked((int)buffer.Length);
             var arr = ArrayPool<byte>.Shared.Rent(length);
