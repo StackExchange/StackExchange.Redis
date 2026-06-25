@@ -25,12 +25,13 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task ClusterNodeSubscriptionFailover()
     {
         Skip.UnlessLongRunning();
         Log("Connecting...");
 
-        await using var conn = Create(allowAdmin: true, shared: false);
+        await using var conn = Create(allowAdmin: true, allowSimulateConnectionFailure: true);
 
         var sub = conn.GetSubscriber();
         var channel = RedisChannel.Literal(Me());
@@ -104,6 +105,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
     }
 
     [Theory(Skip="TODO: Hostile")]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     [InlineData(CommandFlags.PreferMaster, true)]
     [InlineData(CommandFlags.PreferReplica, true)]
     [InlineData(CommandFlags.DemandMaster, false)]
@@ -113,7 +115,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
         var config = TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
         Log("Connecting...");
 
-        await using var conn = Create(configuration: config, shared: false, allowAdmin: true);
+        await using var conn = Create(configuration: config, allowAdmin: true, allowSimulateConnectionFailure: true);
 
         var sub = conn.GetSubscriber();
         var channel = RedisChannel.Literal(Me() + flags.ToString()); // Individual channel per case to not overlap publishers

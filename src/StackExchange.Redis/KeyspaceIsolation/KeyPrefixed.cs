@@ -506,6 +506,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIncrementAsync(ToInner(key), member, value, flags);
 
+        public Task<double?> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags) =>
+            Inner.SortedSetIncrementAsync(ToInner(key), member, value, when, flags);
+
         public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetIntersectionLengthAsync(ToInner(keys), limit, flags);
 
@@ -608,6 +611,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<StreamTrimResult[]> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledgeAndDeleteAsync(ToInner(key), groupName, mode, messageIds, flags);
+
+        public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamNegativeAcknowledgeAsync(ToInner(key), groupName, mode, messageId, flags);
+
+        public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamNegativeAcknowledgeAsync(ToInner(key), groupName, mode, messageIds, flags);
 
         public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
             Inner.StreamAddAsync(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, flags);
@@ -789,11 +798,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringIncrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None) =>
             Inner.StringIncrementAsync(ToInner(key), value, flags);
 
+        public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringIncrementAsync(ToInner(key), value, expiry, lowerBound, upperBound, options, flags);
+
+        public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringIncrementAsync(ToInner(key), value, expiry, lowerBound, upperBound, options, flags);
+
         public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.StringLengthAsync(ToInner(key), flags);
-
-        public Task<GcraRateLimitResult> StringGcraRateLimitAsync(RedisKey key, int maxBurst, int requestsPerPeriod, double period = 1.0, int count = 1, CommandFlags flags = CommandFlags.None) =>
-            Inner.StringGcraRateLimitAsync(ToInner(key), maxBurst, requestsPerPeriod, period, count, flags);
 
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry, ValueCondition when, CommandFlags flags = CommandFlags.None)
             => Inner.StringSetAsync(ToInner(key), value, expiry, when, flags);

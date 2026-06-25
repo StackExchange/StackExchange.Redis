@@ -12,6 +12,25 @@ internal enum RedisCommand
     ASKING,
     AUTH,
 
+    ARCOUNT,
+    ARDEL,
+    ARDELRANGE,
+    ARGET,
+    ARGETRANGE,
+    ARGREP,
+    ARINFO,
+    ARINSERT,
+    ARLASTITEMS,
+    ARLEN,
+    ARMGET,
+    ARMSET,
+    ARNEXT,
+    AROP,
+    ARRING,
+    ARSCAN,
+    ARSEEK,
+    ARSET,
+
     BGREWRITEAOF,
     BGSAVE,
     BITCOUNT,
@@ -60,7 +79,6 @@ internal enum RedisCommand
     GEOSEARCH,
     GEOSEARCHSTORE,
 
-    GCRA,
     GET,
     GETBIT,
     GETDEL,
@@ -101,6 +119,7 @@ internal enum RedisCommand
     INCR,
     INCRBY,
     INCRBYFLOAT,
+    INCREX,
     INFO,
 
     KEYS,
@@ -240,6 +259,7 @@ internal enum RedisCommand
     XGROUP,
     XINFO,
     XLEN,
+    XNACK,
     XPENDING,
     XRANGE,
     XREAD,
@@ -311,6 +331,13 @@ internal static class RedisCommandExtensions
             //   for example spreading load via a .DemandReplica flag in the caller.
             // Basically: would it fail on a read-only replica in 100% of cases? Then it goes in the list.
             case RedisCommand.APPEND:
+            case RedisCommand.ARDEL:
+            case RedisCommand.ARDELRANGE:
+            case RedisCommand.ARINSERT:
+            case RedisCommand.ARMSET:
+            case RedisCommand.ARRING:
+            case RedisCommand.ARSEEK:
+            case RedisCommand.ARSET:
             case RedisCommand.BITOP:
             case RedisCommand.BLPOP:
             case RedisCommand.BRPOP:
@@ -324,7 +351,6 @@ internal static class RedisCommandExtensions
             case RedisCommand.EXPIREAT:
             case RedisCommand.FLUSHALL:
             case RedisCommand.FLUSHDB:
-            case RedisCommand.GCRA:
             case RedisCommand.GEOSEARCHSTORE:
             case RedisCommand.GETDEL:
             case RedisCommand.GETEX:
@@ -346,6 +372,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.INCR:
             case RedisCommand.INCRBY:
             case RedisCommand.INCRBYFLOAT:
+            case RedisCommand.INCREX:
             case RedisCommand.LINSERT:
             case RedisCommand.LMOVE:
             case RedisCommand.LMPOP:
@@ -411,6 +438,17 @@ internal static class RedisCommandExtensions
             case RedisCommand.NONE:
             case RedisCommand.ASKING:
             case RedisCommand.AUTH:
+            case RedisCommand.ARCOUNT:
+            case RedisCommand.ARGET:
+            case RedisCommand.ARGETRANGE:
+            case RedisCommand.ARGREP:
+            case RedisCommand.ARINFO:
+            case RedisCommand.ARLASTITEMS:
+            case RedisCommand.ARLEN:
+            case RedisCommand.ARMGET:
+            case RedisCommand.ARNEXT:
+            case RedisCommand.AROP:
+            case RedisCommand.ARSCAN:
             case RedisCommand.BGREWRITEAOF:
             case RedisCommand.BGSAVE:
             case RedisCommand.BITCOUNT:
@@ -561,6 +599,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.XDEL:
             case RedisCommand.XDELEX:
             case RedisCommand.XGROUP:
+            case RedisCommand.XNACK:
             case RedisCommand.XREADGROUP:
             case RedisCommand.XTRIM:
                 return false;

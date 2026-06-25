@@ -10,17 +10,19 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
     protected override string GetConfiguration() => TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task FastNoticesFailOnConnectingSyncCompletion()
     {
         try
         {
-            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, allowSimulateConnectionFailure: true);
             conn.RawConfig.ReconnectRetryPolicy = new LinearRetry(200);
 
             var db = conn.GetDatabase();
             await db.PingAsync();
 
             var server = conn.GetServer(conn.GetEndPoints()[0]);
+            Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
             var server2 = conn.GetServer(conn.GetEndPoints()[1]);
 
             conn.AllowConnect = false;
@@ -50,17 +52,19 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task FastNoticesFailOnConnectingAsyncCompletion()
     {
         try
         {
-            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false);
+            await using var conn = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, allowSimulateConnectionFailure: true);
             conn.RawConfig.ReconnectRetryPolicy = new LinearRetry(200);
 
             var db = conn.GetDatabase();
             await db.PingAsync();
 
             var server = conn.GetServer(conn.GetEndPoints()[0]);
+            Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
             var server2 = conn.GetServer(conn.GetEndPoints()[1]);
 
             conn.AllowConnect = false;
@@ -90,6 +94,7 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task Issue922_ReconnectRaised()
     {
         var config = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
@@ -99,6 +104,7 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
         config.AsyncTimeout = 1000;
         config.ReconnectRetryPolicy = new ExponentialRetry(5000);
         config.AllowAdmin = true;
+        config.AllowSimulateConnectionFailure = true;
         config.BacklogPolicy = BacklogPolicy.FailFast;
 
         int failCount = 0, restoreCount = 0;
@@ -121,16 +127,21 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
         Assert.Equal(0, Volatile.Read(ref restoreCount));
 
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
+        var protocol = server.Protocol;
+        // RESP2 has interactive+subscriber connections; RESP3 uses one connection for both.
+        var expectedCount = protocol is RedisProtocol.Resp3 ? 1 : 2;
+        Log($"Using {protocol.GetString()}; expecting {expectedCount} reconnect event(s)");
+
+        Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
         server.SimulateConnectionFailure(SimulatedFailureType.All);
 
-        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= 2 && Volatile.Read(ref restoreCount) >= 2);
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= expectedCount && Volatile.Read(ref restoreCount) >= expectedCount);
 
-        // interactive+subscriber = 2
         var failCountSnapshot = Volatile.Read(ref failCount);
-        Assert.True(failCountSnapshot >= 2, $"failCount {failCountSnapshot} >= 2");
+        Assert.True(failCountSnapshot >= expectedCount, $"failCount {failCountSnapshot} >= {expectedCount} ({protocol.GetString()})");
 
         var restoreCountSnapshot = Volatile.Read(ref restoreCount);
-        Assert.True(restoreCountSnapshot >= 2, $"restoreCount ({restoreCountSnapshot}) >= 2");
+        Assert.True(restoreCountSnapshot >= expectedCount, $"restoreCount ({restoreCountSnapshot}) >= {expectedCount} ({protocol.GetString()})");
     }
 
     [Fact]

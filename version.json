@@ -1,9 +1,11 @@
 {
-  "version": "2.12",
+  "version": "3.0",
   "versionHeightOffset": 0,
-  "assemblyVersion": "2.0",
+  "versionHeightOffsetAppliesTo": "3.0",
+  "assemblyVersion": "3.0",
   "publicReleaseRefSpec": [
     "^refs/heads/main$",
+    "^refs/heads/v[0-9]+$",
     "^refs/tags/v\\d+\\.\\d+"
   ],
   "nugetPackageVersion": {

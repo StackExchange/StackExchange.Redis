@@ -46,6 +46,4 @@
     <InternalsVisibleTo Include="StackExchange.Redis.Server" />
     <InternalsVisibleTo Include="StackExchange.Redis.Benchmarks" />
   </ItemGroup>
-
-
 </Project>

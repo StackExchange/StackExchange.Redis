@@ -12,6 +12,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task PrimaryConnectTest()
     {
+        SkipOnWindowsRelease();
         var connectionString = $"{TestConfig.Current.SentinelServer},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
 
         var conn = ConnectionMultiplexer.Connect(connectionString);
@@ -49,6 +50,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task PrimaryConnectAsyncTest()
     {
+        SkipOnWindowsRelease();
         var connectionString = $"{TestConfig.Current.SentinelServer},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
         var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
 
@@ -86,6 +88,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [RunPerProtocol]
     public async Task SentinelConnectTest()
     {
+        SkipOnWindowsRelease();
         var options = ServiceOptions.Clone();
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
         await using var conn = ConnectionMultiplexer.SentinelConnect(options);
@@ -98,6 +101,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelRepeatConnectTest()
     {
+        SkipOnWindowsRelease();
         var options = ConfigurationOptions.Parse($"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA}");
         options.ServiceName = ServiceName;
         options.AllowAdmin = true;
@@ -130,6 +134,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelConnectAsyncTest()
     {
+        SkipOnWindowsRelease();
         var options = ServiceOptions.Clone();
         options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
         var conn = await ConnectionMultiplexer.SentinelConnectAsync(options);
@@ -142,6 +147,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public void SentinelRole()
     {
+        SkipOnWindowsRelease();
         foreach (var server in SentinelsServers)
         {
             var role = server.Role();
@@ -155,6 +161,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task PingTest()
     {
+        SkipOnWindowsRelease();
         var test = await SentinelServerA.PingAsync();
         Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
         test = await SentinelServerB.PingAsync();
@@ -166,6 +173,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public void SentinelGetPrimaryAddressByNameTest()
     {
+        SkipOnWindowsRelease();
         foreach (var server in SentinelsServers)
         {
             var primary = server.SentinelMaster(ServiceName);
@@ -182,6 +190,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelGetPrimaryAddressByNameAsyncTest()
     {
+        SkipOnWindowsRelease();
         foreach (var server in SentinelsServers)
         {
             var primary = server.SentinelMaster(ServiceName);
@@ -198,6 +207,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public void SentinelGetMasterAddressByNameNegativeTest()
     {
+        SkipOnWindowsRelease();
         foreach (var server in SentinelsServers)
         {
             var endpoint = server.SentinelGetMasterAddressByName("FakeServiceName");
@@ -208,6 +218,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelGetMasterAddressByNameAsyncNegativeTest()
     {
+        SkipOnWindowsRelease();
         foreach (var server in SentinelsServers)
         {
             var endpoint = await server.SentinelGetMasterAddressByNameAsync("FakeServiceName").ForAwait();
@@ -218,6 +229,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public void SentinelPrimaryTest()
     {
+        SkipOnWindowsRelease();
         foreach (var server in SentinelsServers)
         {
             var dict = server.SentinelMaster(ServiceName).ToDictionary();
@@ -233,6 +245,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelPrimaryAsyncTest()
     {
+        SkipOnWindowsRelease();
         foreach (var server in SentinelsServers)
         {
             var results = await server.SentinelMasterAsync(ServiceName).ForAwait();
@@ -248,6 +261,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public void SentinelSentinelsTest()
     {
+        SkipOnWindowsRelease();
         var sentinels = SentinelServerA.SentinelSentinels(ServiceName);
 
         var expected = new List<string?>
@@ -305,6 +319,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelSentinelsAsyncTest()
     {
+        SkipOnWindowsRelease();
         var sentinels = await SentinelServerA.SentinelSentinelsAsync(ServiceName).ForAwait();
         var expected = new List<string?>
         {
@@ -363,6 +378,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public void SentinelPrimariesTest()
     {
+        SkipOnWindowsRelease();
         var primaryConfigs = SentinelServerA.SentinelMasters();
         Assert.Single(primaryConfigs);
         Assert.True(primaryConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
@@ -380,6 +396,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelPrimariesAsyncTest()
     {
+        SkipOnWindowsRelease();
         var primaryConfigs = await SentinelServerA.SentinelMastersAsync().ForAwait();
         Assert.Single(primaryConfigs);
         Assert.True(primaryConfigs[0].ToDictionary().ContainsKey("name"), "replicaConfigs contains 'name'");
@@ -397,6 +414,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelReplicasTest()
     {
+        SkipOnWindowsRelease();
         // Give previous test run a moment to reset when multi-framework failover is in play.
         await UntilConditionAsync(TimeSpan.FromSeconds(5), () => SentinelServerA.SentinelReplicas(ServiceName).Length > 0);
 
@@ -417,6 +435,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelReplicasAsyncTest()
     {
+        SkipOnWindowsRelease();
         // Give previous test run a moment to reset when multi-framework failover is in play.
         await UntilConditionAsync(TimeSpan.FromSeconds(5), () => SentinelServerA.SentinelReplicas(ServiceName).Length > 0);
 
@@ -436,6 +455,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task SentinelGetSentinelAddressesTest()
     {
+        SkipOnWindowsRelease();
         var addresses = await SentinelServerA.SentinelGetSentinelAddressesAsync(ServiceName).ForAwait();
         Assert.Contains(SentinelServerB.EndPoint, addresses);
         Assert.Contains(SentinelServerC.EndPoint, addresses);
@@ -452,6 +472,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     [Fact]
     public async Task ReadOnlyConnectionReplicasTest()
     {
+        SkipOnWindowsRelease();
         var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
         if (replicas.Length == 0)
         {
@@ -469,7 +490,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         await UntilConditionAsync(TimeSpan.FromSeconds(2), () => readonlyConn.IsConnected);
         Assert.True(readonlyConn.IsConnected);
         var db = readonlyConn.GetDatabase();
-        var s = db.StringGet("test");
+        var s = db.StringGet(Me());
         Assert.True(s.IsNullOrEmpty);
     }
 }

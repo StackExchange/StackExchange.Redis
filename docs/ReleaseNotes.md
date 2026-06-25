@@ -6,9 +6,54 @@ Current package versions:
 | ------------ | ----------------- | ----- |
 | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis MyGet](https://img.shields.io/myget/stackoverflow/vpre/StackExchange.Redis.svg)](https://www.myget.org/feed/stackoverflow/package/nuget/StackExchange.Redis) |
 
-## Unreleased
+## 3.0
 
+From 3.0, [release notes will be maintained in GitHub only](https://github.com/StackExchange/StackExchange.Redis/releases) to avoid duplication.
+
+---
+
+
+## 2.13.17
+
+- Fix TCP platform-dependent TCP keep-alive problems, and make an explicit option. ([#3090 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3090))
+- Tear down connection on write failure to prevent queue desync ([#3092 by @Pranish-Pantha](https://github.com/StackExchange/StackExchange.Redis/pull/3092)) 
+- Fix logic inversion with 8.8 `ARGREP NOCASE`, add `IsReversed` to simplify ordering, and support `ARINFO FULL`. ([#3087 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3087))
+- Avoid sentinel issues if `ROLE` unavailable; fix #3064 ([#3088 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3088))
+- Add 8.8 support for `INCREX` ([#3065 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3065))
+
+## 2.13.10
+
+- Add experimental Redis 8.8 array support, including array APIs on `IDatabase`/`IDatabaseAsync`,
+  array helper types, `RedisType.Array`, and array delete keyspace notification event types. ([#3076 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3076))
+- Enable TCP keep-alives ([#3078 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3078))
+- Fix incorrect routing of some sorted-set and stream commands ([#3080 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3080))
+- `ConfigurationOptions` : don't persist `Protocol` when it comes from the defaults-provider. ([#3082 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3082))
+
+## 2.13.1
+
+***IMPORTANT:*** This release changes the default protocol from RESP2 to RESP3 for Azure Managed Redis endpoints (only) ; this
+has scalability and feature advantages, but if you are using modules or ad-hoc commands,
+*[please see the RESP3 notes](https://stackexchange.github.io/StackExchange.Redis/Resp3)*,
+which includes:
+
+- the purpose of RESP3
+- scenarios where RESP2 vs RESP3 may be visible
+- how to explicitly choose to remain on RESP2
+- notes on additional libraries such as NRedisStack
+
+Changes:
+
+- Prefer RESP3 for Azure Managed Redis endpoints ([#3067 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3067))
+
+## 2.12.27
+
+- Recognize Azure Managed Redis (AMR) resources in new Azure clouds ([#3068 by @philon-msft](https://github.com/StackExchange/StackExchange.Redis/pull/3068))
+- Remove `[Experimental]` 8.8 `GCRA` feature ([#3074 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3074))
 - Detect server-mode correctly on Valkey 8+ instances ([#3050 by @wipiano](https://github.com/StackExchange/StackExchange.Redis/pull/3050))
+- Add Redis 8.8 stream negative acknowledgements (`XNACK`) ([#3058 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3058))
+- Add experimental `Aggregate.Count` support for sorted-set combination operations against Redis 8.8 ([#3059 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3059))
+- Support Redis 8.8 sub-key (hash field) notifications ([#3062 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3062))
+- Add `ValueCondition` overloads for `SortedSetIncrement`/`SortedSetIncrementAsync`, supporting `ZADD INCR` with existence conditions ([#3071 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3071))
 
 ## 2.12.14
 
@@ -16,7 +61,8 @@ Current package versions:
 
 ## 2.12.8
 
-- Add [`GCRA`](https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm) support (and remove experimental flag on `VSIM`) ([#3041 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3041))
+- (this release also includes experimental 8.8 `GCRA` support; this feature is not being shipped yet, and it is being removed from later releases)
+- Remove experimental flag on `VSIM` ([#3041 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3041))
 - Add `IServer.GetProductVariant` to detect the product variant and version of the connected server, and use that internally
   to enable multi-DB operations on Valkey clusters ([#3040 by @mgravell](https://github.com/StackExchange/StackExchange.Redis/pull/3040))
 - Ignore cluster nodes with the `handshake` flag ([#3043 by @TimLovellSmith](https://github.com/StackExchange/StackExchange.Redis/pull/3043))

@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ToolCommandName>resp-benchmark</ToolCommandName>
+    <PackAsTool>true</PackAsTool>
+    <Title>command-line "RESP" benchmark client, comparable to redis-benchmark</Title>
+    <GeneratePackageOnBuild Condition="'$(Configuration)'=='Release'">True</GeneratePackageOnBuild>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <GenerateDocumentationFile>False</GenerateDocumentationFile>
+    <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>
+    <SignAssembly>false</SignAssembly>
+    <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+    <!-- for for example: dotnet build /p:TargetVer=3 -->
+    <TargetVer>3</TargetVer>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers"/>
+  </ItemGroup>
+
+  <!-- v1 builds (for comparison) -->
+  <ItemGroup Condition="'$(TargetVer)'=='1'">
+    <PackageReference Include="StackExchange.Redis.StrongName" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(TargetVer)'=='1'">
+    <DefineConstants>$(DefineConstants);LEGACY_API</DefineConstants>
+  </PropertyGroup>
+  <!-- v2 builds -->
+  <ItemGroup Condition="'$(TargetVer)'=='2'">
+    <PackageReference Include="StackExchange.Redis"/>
+  </ItemGroup>
+  <!-- v3 builds -->
+  <ItemGroup Condition="'$(TargetVer)'=='3'">
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+<!-- 
+  <ItemGroup Condition="'$(TargetVer)'=='2'">
+    <ProjectReference Include="..\RESPite.StackExchange.Redis\RESPite.StackExchange.Redis.csproj"/>
+    <ProjectReference Include="..\RESPite\RESPite.csproj"/>
+    <PackageReference Include="StackExchange.Redis"/>
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>-->
+
+  <ItemGroup>
+    <None Include="readme.md" Pack="true" PackagePath="/"/>
+  </ItemGroup>
+</Project>

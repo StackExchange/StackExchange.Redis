@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
-using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis.Configuration
 {
@@ -25,6 +24,8 @@ namespace StackExchange.Redis.Configuration
             ".redis.azure.net",
             ".redis.chinacloudapi.cn",
             ".redis.usgovcloudapi.net",
+            ".redis.sovcloud-api.de",
+            ".redis.sovcloud-api.fr",
             ".redisenterprise.cache.azure.net",
         ];
 
@@ -54,9 +55,15 @@ namespace StackExchange.Redis.Configuration
 
         /// <inheritdoc/>
         public override Task AfterConnectAsync(ConnectionMultiplexer muxer, Action<string> log)
-            => AzureMaintenanceEvent.AddListenerAsync(muxer, log);
+            => Task.CompletedTask;
 
         /// <inheritdoc/>
         public override bool GetDefaultSsl(EndPointCollection endPoints) => true;
+
+        /// <inheritdoc/>
+        public override RedisProtocol? Protocol => RedisProtocol.Resp3; // prefer RESP3 on AMR
+
+        /// <inheritdoc/>
+        public override string ConfigurationChannel => ""; // disable on AMR
     }
 }

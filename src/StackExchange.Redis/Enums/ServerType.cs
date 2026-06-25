@@ -47,6 +47,9 @@ namespace StackExchange.Redis
         [AsciiHash]
         internal static partial bool TryParse(ReadOnlySpan<char> value, out ServerType serverType);
 
+        [AsciiHash]
+        internal static partial bool TryParse(ReadOnlySpan<byte> value, out ServerType serverType);
+
         internal static bool TryParse(string? val, out ServerType serverType)
         {
             if (val is not null) return TryParse(val.AsSpan().Trim(), out serverType);
@@ -67,7 +70,7 @@ namespace StackExchange.Redis
         };
 
         /// <summary>
-        /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection?, Microsoft.Extensions.Logging.ILogger?)"/>.
+        /// Whether a server type supports <see cref="ServerEndPoint.AutoConfigureAsync(PhysicalConnection?, Microsoft.Extensions.Logging.ILogger?, CommandFlags)"/>.
         /// </summary>
         internal static bool SupportsAutoConfigure(this ServerType type) => type switch
         {

@@ -38,12 +38,17 @@ public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
         var wr = new WeakReference(conn);
         conn = null;
 
-        ForceGC();
-        await Task.Delay(2000).ForAwait(); // GC is twitchy
-        ForceGC();
+        for (int i = 0; i < 5 && wr.IsAlive; i++)
+        {
+            ForceGC();
+            await Task.Delay(2000).ForAwait(); // GC is twitchy
+            ForceGC();
+        }
 
         // should be collectable
         Assert.Null(wr.Target);
+        // just to ensure we wrote conn, and to suppress a warning
+        Assert.Null(conn);
 
 // #if DEBUG // this counter only exists in debug
 //            int after = ConnectionMultiplexer.CollectedWithoutDispose;
@@ -52,6 +57,7 @@ public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
     public async Task UnrootedBackloggedAsyncTaskIsCompletedOnTimeout()
     {
         Skip.UnlessLongRunning();
@@ -70,6 +76,7 @@ public class GarbageCollectionTests(ITestOutputHelper helper) : TestBase(helper)
                     ConnectTimeout = 50,
                     SyncTimeout = 1000,
                     AllowAdmin = true,
+                    AllowSimulateConnectionFailure = true,
                     EndPoints = { GetConfiguration() },
                 },
                 Writer);

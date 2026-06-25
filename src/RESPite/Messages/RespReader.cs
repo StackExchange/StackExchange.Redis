@@ -714,6 +714,7 @@ public ref partial struct RespReader
         }
     }
 
+    [CLSCompliant(false)]
     public readonly unsafe bool TryParseScalar<T>(
         delegate* managed<ReadOnlySpan<byte>, out T, bool> parser, out T value)
     {
@@ -746,7 +747,6 @@ public ref partial struct RespReader
     /// <param name="value">The parsed value if successful.</param>
     /// <returns><c>true</c> if parsing succeeded; otherwise, <c>false</c>.</returns>
 #pragma warning disable RS0016, RS0027 // public API
-    [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #if DEBUG
     [Obsolete("Please prefer the function-pointer API for library-internal use.")]
@@ -758,6 +758,52 @@ public ref partial struct RespReader
         return TryGetSpan(out var span) ? parser(span, out value) : TryParseSlow(parser, out value);
     }
 
+    private readonly ReadOnlySpan<char> BufferChars(Span<char> target, out char[]? lease)
+    {
+        byte[] byteLease = [];
+        var bytes = Buffer(ref byteLease, byteLease);
+
+        int len = RespConstants.UTF8.GetMaxCharCount(bytes.Length);
+        if (len <= target.Length)
+        {
+            lease = null;
+        }
+        else
+        {
+            target = lease = ArrayPool<char>.Shared.Rent(len);
+        }
+        len = RespConstants.UTF8.GetChars(bytes, target);
+        return target.Slice(0, len);
+    }
+
+    /// <summary>
+    /// Tries to read the current scalar element using a parser callback.
+    /// </summary>
+    /// <typeparam name="T">The type of data being parsed.</typeparam>
+    /// <param name="parser">The parser callback.</param>
+    /// <param name="value">The parsed value if successful.</param>
+    /// <returns><c>true</c> if parsing succeeded; otherwise, <c>false</c>.</returns>
+    public readonly bool TryParseScalar<T>(ScalarParser<char, T> parser, out T value)
+    {
+        // note: no benefit in a function-ptr overload, after we've dealt with decoding bytes etc
+        var buffer = BufferChars(stackalloc char[128], out var lease);
+        try
+        {
+            return parser(buffer, out value);
+        }
+        finally
+        {
+            if (lease is not null) ArrayPool<char>.Shared.Return(lease);
+        }
+    }
+
+    /// <summary>
+    /// Tries to read the current scalar element using a parser callback.
+    /// </summary>
+    /// <typeparam name="T">The type of data being parsed.</typeparam>
+    /// <param name="parser">The parser callback.</param>
+    /// <param name="value">The parsed value if successful.</param>
+    /// <returns><c>true</c> if parsing succeeded; otherwise, <c>false</c>.</returns>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private readonly bool TryParseSlow<T>(ScalarParser<byte, T> parser, out T value)
     {
@@ -1682,7 +1728,7 @@ public ref partial struct RespReader
               && Utf8Parser.TryParse(span, out value, out int bytes)
               && bytes == span.Length))
         {
-            ThrowFormatException();
+            ThrowFormatException(nameof(Int64));
             value = 0;
         }
 
@@ -1716,7 +1762,7 @@ public ref partial struct RespReader
               && Utf8Parser.TryParse(span, out value, out int bytes)
               && bytes == span.Length))
         {
-            ThrowFormatException();
+            ThrowFormatException(nameof(Int32));
             value = 0;
         }
 
@@ -1764,7 +1810,7 @@ public ref partial struct RespReader
                 return double.NegativeInfinity;
         }
 
-        ThrowFormatException();
+        ThrowFormatException(nameof(Double));
         return 0;
     }
 
@@ -1844,7 +1890,7 @@ public ref partial struct RespReader
               && Utf8Parser.TryParse(span, out value, out int bytes)
               && bytes == span.Length))
         {
-            ThrowFormatException();
+            ThrowFormatException(nameof(Decimal));
             value = 0;
         }
 
@@ -1895,7 +1941,7 @@ public ref partial struct RespReader
     {
         if (!TryReadBoolean(out var value))
         {
-            ThrowFormatException();
+            ThrowFormatException(nameof(Boolean));
         }
         return value;
     }

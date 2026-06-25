@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 
 #if UNIX_SOCKET
@@ -409,7 +410,7 @@ namespace StackExchange.Redis
 #if NET
             return Encoding.UTF8.GetString(span);
 #else
-            fixed (byte* ptr = span)
+            fixed (byte* ptr = &MemoryMarshal.GetReference(span))
             {
                 return Encoding.UTF8.GetString(ptr, span.Length);
             }

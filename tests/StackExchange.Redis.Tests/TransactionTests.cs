@@ -1339,10 +1339,10 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         Assert.False(db.KeyExists(key));
 
         var tran = db.CreateTransaction("state");
-        var a = tran.ExecuteAsync("SET", "foo", "bar");
+        var a = tran.ExecuteAsync("SET", key, "bar");
         Assert.True(await tran.ExecuteAsync());
         await a;
-        var setting = db.StringGet("foo");
+        var setting = db.StringGet(key);
         Assert.Equal("bar", setting);
     }
 
@@ -1430,5 +1430,48 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         Log($"hash hit: {hashHit}, miss: {hashMiss}; expire hit: {expireHit}, miss: {expireMiss}");
         Assert.Equal(0, hashMiss);
         Assert.Equal(0, expireMiss);
+    }
+
+    [Fact]
+    public async Task TransactionWithFailingInnerOperation()
+    {
+        RedisKey keyA = Me() + ":A", keyB = Me() + ":B", keyC = Me() + ":C";
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+        db.StringSet(keyA, "42",  flags: CommandFlags.FireAndForget);
+        db.StringSet(keyB, "abc",  flags: CommandFlags.FireAndForget);
+        db.StringSet(keyC, 13,  flags: CommandFlags.FireAndForget);
+
+        var tran = db.CreateTransaction();
+        var pendingA = tran.StringIncrementAsync(keyA);
+        var pendingB = tran.StringIncrementAsync(keyB);
+        var pendingC = tran.StringIncrementAsync(keyC);
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal(43, await pendingA);
+        var ex = await Assert.ThrowsAsync<RedisServerException>(() => pendingB);
+        Assert.Contains("ERR value is not an integer or out of range", ex.Message);
+        Assert.Equal(14, await pendingC);
+    }
+
+    [Fact]
+    public async Task TransactionWithFailingCondition()
+    {
+        RedisKey keyA = Me() + ":A", keyB = Me() + ":B", keyC = Me() + ":C";
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+        db.StringSet(keyA, "42",  flags: CommandFlags.FireAndForget);
+        db.StringSet(keyB, "abc",  flags: CommandFlags.FireAndForget);
+        db.StringSet(keyC, 13,  flags: CommandFlags.FireAndForget);
+
+        var tran = db.CreateTransaction();
+        var condition = tran.AddCondition(Condition.HashExists(keyA, "field"));
+        var pendingA = tran.StringIncrementAsync(keyA);
+        var pendingB = tran.StringIncrementAsync(keyB);
+        var pendingC = tran.StringIncrementAsync(keyC);
+        Assert.False(await tran.ExecuteAsync());
+        Assert.False(condition.WasSatisfied);
+        Assert.Equal(TaskStatus.Canceled, pendingB.Status);
+        Assert.Equal(TaskStatus.Canceled, pendingB.Status);
+        Assert.Equal(TaskStatus.Canceled, pendingC.Status);
     }
 }

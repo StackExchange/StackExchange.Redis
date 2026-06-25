@@ -61,6 +61,7 @@ override StackExchange.Redis.SortedSetEntry.Equals(object? obj) -> bool
 override StackExchange.Redis.SortedSetEntry.GetHashCode() -> int
 override StackExchange.Redis.SortedSetEntry.ToString() -> string!
 StackExchange.Redis.Aggregate
+[SER006]StackExchange.Redis.Aggregate.Count = 3 -> StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Max = 2 -> StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Min = 1 -> StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Sum = 0 -> StackExchange.Redis.Aggregate
@@ -482,14 +483,14 @@ StackExchange.Redis.GeoUnit.Feet = 3 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Kilometers = 1 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Meters = 0 -> StackExchange.Redis.GeoUnit
 StackExchange.Redis.GeoUnit.Miles = 2 -> StackExchange.Redis.GeoUnit
-[SER006]StackExchange.Redis.GcraRateLimitResult
-[SER006]StackExchange.Redis.GcraRateLimitResult.AvailableRequests.get -> int
-[SER006]StackExchange.Redis.GcraRateLimitResult.FullBurstAfterSeconds.get -> int
-[SER006]StackExchange.Redis.GcraRateLimitResult.GcraRateLimitResult() -> void
-[SER006]StackExchange.Redis.GcraRateLimitResult.GcraRateLimitResult(bool limited, int maxRequests, int availableRequests, int retryAfterSeconds, int fullBurstAfterSeconds) -> void
-[SER006]StackExchange.Redis.GcraRateLimitResult.Limited.get -> bool
-[SER006]StackExchange.Redis.GcraRateLimitResult.MaxRequests.get -> int
-[SER006]StackExchange.Redis.GcraRateLimitResult.RetryAfterSeconds.get -> int
+[SER006]StackExchange.Redis.IncrementOptions
+[SER006]StackExchange.Redis.IncrementOptions.None = 0 -> StackExchange.Redis.IncrementOptions
+[SER006]StackExchange.Redis.IncrementOptions.Saturate = 1 -> StackExchange.Redis.IncrementOptions
+[SER006]StackExchange.Redis.StringIncrementResult<T>
+[SER006]StackExchange.Redis.StringIncrementResult<T>.AppliedIncrement.get -> T
+[SER006]StackExchange.Redis.StringIncrementResult<T>.StringIncrementResult() -> void
+[SER006]StackExchange.Redis.StringIncrementResult<T>.StringIncrementResult(T value, T appliedIncrement) -> void
+[SER006]StackExchange.Redis.StringIncrementResult<T>.Value.get -> T
 StackExchange.Redis.HashEntry
 StackExchange.Redis.HashEntry.Equals(StackExchange.Redis.HashEntry other) -> bool
 StackExchange.Redis.HashEntry.HashEntry() -> void
@@ -786,8 +787,9 @@ StackExchange.Redis.IDatabase.StringGetSet(StackExchange.Redis.RedisKey key, Sta
 StackExchange.Redis.IDatabase.StringGetSetExpiry(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringGetSetExpiry(StackExchange.Redis.RedisKey key, System.DateTime expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 StackExchange.Redis.IDatabase.StringGetWithExpiry(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValueWithExpiry
-[SER006]StackExchange.Redis.IDatabase.StringGcraRateLimit(StackExchange.Redis.RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1, int count = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.GcraRateLimitResult
+[SER006]StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.Expiration expiry, double? lowerBound = null, double? upperBound = null, StackExchange.Redis.IncrementOptions options = StackExchange.Redis.IncrementOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StringIncrementResult<double>
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> double
+[SER006]StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, long value, StackExchange.Redis.Expiration expiry, long? lowerBound = null, long? upperBound = null, StackExchange.Redis.IncrementOptions options = StackExchange.Redis.IncrementOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.StringIncrementResult<long>
 StackExchange.Redis.IDatabase.StringIncrement(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringLength(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 StackExchange.Redis.IDatabase.StringLongestCommonSubsequence(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> string?
@@ -1031,8 +1033,9 @@ StackExchange.Redis.IDatabaseAsync.StringGetSetAsync(StackExchange.Redis.RedisKe
 StackExchange.Redis.IDatabaseAsync.StringGetSetExpiryAsync(StackExchange.Redis.RedisKey key, System.TimeSpan? expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringGetSetExpiryAsync(StackExchange.Redis.RedisKey key, System.DateTime expiry, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 StackExchange.Redis.IDatabaseAsync.StringGetWithExpiryAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValueWithExpiry>!
-[SER006]StackExchange.Redis.IDatabaseAsync.StringGcraRateLimitAsync(StackExchange.Redis.RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1, int count = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.GcraRateLimitResult>!
+[SER006]StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.Expiration expiry, double? lowerBound = null, double? upperBound = null, StackExchange.Redis.IncrementOptions options = StackExchange.Redis.IncrementOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StringIncrementResult<double>>!
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, double value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<double>!
+[SER006]StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, long value, StackExchange.Redis.Expiration expiry, long? lowerBound = null, long? upperBound = null, StackExchange.Redis.IncrementOptions options = StackExchange.Redis.IncrementOptions.None, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.StringIncrementResult<long>>!
 StackExchange.Redis.IDatabaseAsync.StringIncrementAsync(StackExchange.Redis.RedisKey key, long value = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringLengthAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 StackExchange.Redis.IDatabaseAsync.StringLongestCommonSubsequenceAsync(StackExchange.Redis.RedisKey first, StackExchange.Redis.RedisKey second, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<string?>!
@@ -1721,7 +1724,6 @@ static StackExchange.Redis.ExtensionMethods.ToStringArray(this StackExchange.Red
 static StackExchange.Redis.ExtensionMethods.ToStringDictionary(this StackExchange.Redis.HashEntry[]? hash) -> System.Collections.Generic.Dictionary<string!, string!>?
 static StackExchange.Redis.ExtensionMethods.ToStringDictionary(this StackExchange.Redis.SortedSetEntry[]? sortedSet) -> System.Collections.Generic.Dictionary<string!, double>?
 static StackExchange.Redis.ExtensionMethods.ToStringDictionary(this System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisKey, StackExchange.Redis.RedisValue>[]? pairs) -> System.Collections.Generic.Dictionary<string!, string!>?
-[SER006]static StackExchange.Redis.ExtensionMethods.TryAcquireGcraAsync(this StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.RedisKey key, int maxBurst, int requestsPerPeriod, System.TimeSpan allow, double periodSeconds = 1, int count = 1, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 static StackExchange.Redis.GeoEntry.operator !=(StackExchange.Redis.GeoEntry x, StackExchange.Redis.GeoEntry y) -> bool
 static StackExchange.Redis.GeoEntry.operator ==(StackExchange.Redis.GeoEntry x, StackExchange.Redis.GeoEntry y) -> bool
 static StackExchange.Redis.GeoPosition.operator !=(StackExchange.Redis.GeoPosition x, StackExchange.Redis.GeoPosition y) -> bool
@@ -2081,7 +2083,9 @@ StackExchange.Redis.IDatabaseAsync.StringSetAsync(System.Collections.Generic.Key
 StackExchange.Redis.Expiration
 StackExchange.Redis.Expiration.Expiration() -> void
 StackExchange.Redis.Expiration.Expiration(System.DateTime when) -> void
+StackExchange.Redis.Expiration.Expiration(System.DateTime when, StackExchange.Redis.ExpirationFlags flags) -> void
 StackExchange.Redis.Expiration.Expiration(System.TimeSpan ttl) -> void
+StackExchange.Redis.Expiration.Expiration(System.TimeSpan ttl, StackExchange.Redis.ExpirationFlags flags) -> void
 override StackExchange.Redis.Expiration.Equals(object? obj) -> bool
 override StackExchange.Redis.Expiration.GetHashCode() -> int
 override StackExchange.Redis.Expiration.ToString() -> string!
@@ -2090,6 +2094,9 @@ static StackExchange.Redis.Expiration.KeepTtl.get -> StackExchange.Redis.Expirat
 static StackExchange.Redis.Expiration.Persist.get -> StackExchange.Redis.Expiration
 static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.DateTime when) -> StackExchange.Redis.Expiration
 static StackExchange.Redis.Expiration.implicit operator StackExchange.Redis.Expiration(System.TimeSpan ttl) -> StackExchange.Redis.Expiration
+StackExchange.Redis.ExpirationFlags
+StackExchange.Redis.ExpirationFlags.ExpireIfNotExists = 1 -> StackExchange.Redis.ExpirationFlags
+StackExchange.Redis.ExpirationFlags.None = 0 -> StackExchange.Redis.ExpirationFlags
 override StackExchange.Redis.ValueCondition.Equals(object? obj) -> bool
 override StackExchange.Redis.ValueCondition.GetHashCode() -> int
 override StackExchange.Redis.ValueCondition.ToString() -> string!
@@ -2258,9 +2265,13 @@ static StackExchange.Redis.RedisChannel.KeySpaceSingleKey(in StackExchange.Redis
 [SER003]StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 [SER003]StackExchange.Redis.IDatabase.StreamAdd(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
 [SER003]StackExchange.Redis.IDatabase.StreamConfigure(StackExchange.Redis.RedisKey key, StackExchange.Redis.StreamConfiguration! configuration, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+[SER006]StackExchange.Redis.IDatabase.StreamNegativeAcknowledge(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.StreamNackMode mode, StackExchange.Redis.RedisValue messageId, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+[SER006]StackExchange.Redis.IDatabase.StreamNegativeAcknowledge(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.StreamNackMode mode, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
 [SER003]StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.NameValueEntry[]! streamPairs, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 [SER003]StackExchange.Redis.IDatabaseAsync.StreamAddAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue streamField, StackExchange.Redis.RedisValue streamValue, StackExchange.Redis.StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StackExchange.Redis.StreamTrimMode trimMode = StackExchange.Redis.StreamTrimMode.KeepReferences, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
 [SER003]StackExchange.Redis.IDatabaseAsync.StreamConfigureAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.StreamConfiguration! configuration, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+[SER006]StackExchange.Redis.IDatabaseAsync.StreamNegativeAcknowledgeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.StreamNackMode mode, StackExchange.Redis.RedisValue messageId, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+[SER006]StackExchange.Redis.IDatabaseAsync.StreamNegativeAcknowledgeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.StreamNackMode mode, StackExchange.Redis.RedisValue[]! messageIds, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
 [SER003]StackExchange.Redis.StreamConfiguration
 [SER003]StackExchange.Redis.StreamConfiguration.IdmpDuration.get -> long?
 [SER003]StackExchange.Redis.StreamConfiguration.IdmpDuration.set -> void
@@ -2279,6 +2290,10 @@ static StackExchange.Redis.RedisChannel.KeySpaceSingleKey(in StackExchange.Redis
 [SER003]StackExchange.Redis.StreamInfo.IidsDuplicates.get -> long
 [SER003]StackExchange.Redis.StreamInfo.IidsTracked.get -> long
 [SER003]StackExchange.Redis.StreamInfo.PidsTracked.get -> long
+[SER006]StackExchange.Redis.StreamNackMode
+[SER006]StackExchange.Redis.StreamNackMode.Fail = 1 -> StackExchange.Redis.StreamNackMode
+[SER006]StackExchange.Redis.StreamNackMode.Fatal = 2 -> StackExchange.Redis.StreamNackMode
+[SER006]StackExchange.Redis.StreamNackMode.Silent = 0 -> StackExchange.Redis.StreamNackMode
 StackExchange.Redis.StreamInfo.EntriesAdded.get -> long
 StackExchange.Redis.StreamInfo.MaxDeletedEntryId.get -> StackExchange.Redis.RedisValue
 StackExchange.Redis.StreamInfo.RecordedFirstEntryId.get -> StackExchange.Redis.RedisValue
@@ -2303,3 +2318,225 @@ StackExchange.Redis.LCSMatchResult.LCSPosition.LCSPosition() -> void
 StackExchange.Redis.LCSMatchResult.LCSPosition.LCSPosition(long start, long end) -> void
 StackExchange.Redis.LCSMatchResult.LCSPosition.Start.get -> long
 StackExchange.Redis.RedisType.VectorSet = 8 -> StackExchange.Redis.RedisType
+StackExchange.Redis.IServer.GetProductVariant(out string! version) -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Garnet = 2 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Redis = 0 -> StackExchange.Redis.ProductVariant
+StackExchange.Redis.ProductVariant.Valkey = 1 -> StackExchange.Redis.ProductVariant
+[SER006]static StackExchange.Redis.RedisChannel.SubKeyEvent(StackExchange.Redis.KeyNotificationType type, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeyEvent(System.ReadOnlySpan<byte> type, int? database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceEvent(StackExchange.Redis.KeyNotificationType type, in StackExchange.Redis.RedisKey key, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceEvent(System.ReadOnlySpan<byte> type, in StackExchange.Redis.RedisKey key, int? database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceItem(in StackExchange.Redis.RedisKey key, in StackExchange.Redis.RedisKey subkey, int database) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePattern(in StackExchange.Redis.RedisKey pattern, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(in StackExchange.Redis.RedisKey prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpacePrefix(System.ReadOnlySpan<byte> prefix, int? database = null) -> StackExchange.Redis.RedisChannel
+[SER006]static StackExchange.Redis.RedisChannel.SubKeySpaceSingleKey(in StackExchange.Redis.RedisKey key, int database) -> StackExchange.Redis.RedisChannel
+[SER006]StackExchange.Redis.KeyNotification.GetSubKeys() -> StackExchange.Redis.KeyNotification.SubKeyEnumerable
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.SubKeyEnumerable() -> void
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.CopyTo(System.Span<StackExchange.Redis.RedisValue> destination) -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.Count() -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.First() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.FirstOrDefault() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.GetEnumerator() -> StackExchange.Redis.KeyNotification.SubKeyEnumerator
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.Single() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.SingleOrDefault() -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.ToArray() -> StackExchange.Redis.RedisValue[]!
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.ToList() -> System.Collections.Generic.List<StackExchange.Redis.RedisValue>!
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerable.TryCopyTo(System.Span<StackExchange.Redis.RedisValue> destination, out int count) -> bool
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.SubKeyEnumerator() -> void
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentByteCount.get -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.Current.get -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentMaxCharCount.get -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.CurrentSpan.get -> System.ReadOnlySpan<byte>
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.Dispose() -> void
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.GetCurrentCharCount() -> int
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.MoveNext() -> bool
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.TryCopyTo(scoped System.Span<byte> destination, out int bytesWritten) -> bool
+[SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.TryCopyTo(scoped System.Span<char> destination, out int charsWritten) -> bool
+StackExchange.Redis.KeyNotification.HasSubKey.get -> bool
+StackExchange.Redis.KeyNotification.Kind.get -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.KeyEvent = 2 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.KeySpace = 1 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeyEvent = 4 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpace = 3 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpaceEvent = 6 -> StackExchange.Redis.KeyNotificationKind
+[SER006]StackExchange.Redis.KeyNotificationKind.SubKeySpaceItem = 5 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationKind.Unknown = 0 -> StackExchange.Redis.KeyNotificationKind
+StackExchange.Redis.KeyNotificationType.HExpire = 50 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.IDatabase.SortedSetIncrement(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, double value, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags) -> double?
+StackExchange.Redis.IDatabaseAsync.SortedSetIncrementAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue member, double value, StackExchange.Redis.ValueCondition when, StackExchange.Redis.CommandFlags flags) -> System.Threading.Tasks.Task<double?>!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.ConfigurationChannel.get -> string!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
+[SER006]StackExchange.Redis.ArrayGrepRequest
+[SER006]StackExchange.Redis.ArrayGrepRequest.AddPredicate(StackExchange.Redis.ArrayGrepRequest.Predicate! predicate) -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.ArrayGrepRequest() -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.Count.get -> int
+[SER006]StackExchange.Redis.ArrayGrepRequest.End.get -> StackExchange.Redis.RedisArrayIndex?
+[SER006]StackExchange.Redis.ArrayGrepRequest.End.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.IncludeValues.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IncludeValues.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseSensitive.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseSensitive.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsIntersection.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsIntersection.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.Limit.get -> long?
+[SER006]StackExchange.Redis.ArrayGrepRequest.Limit.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.Predicate
+[SER006]StackExchange.Redis.ArrayGrepRequest.Start.get -> StackExchange.Redis.RedisArrayIndex?
+[SER006]StackExchange.Redis.ArrayGrepRequest.Start.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.this[int index].get -> StackExchange.Redis.ArrayGrepRequest.Predicate!
+[SER006]StackExchange.Redis.ArrayInfo
+[SER006]StackExchange.Redis.ArrayInfo.ArrayInfo() -> void
+[SER006]StackExchange.Redis.ArrayInfo.Count.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.ArrayInfo.DirectorySize.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.ArrayInfo.Length.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.ArrayInfo.NextInsertIndex.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.ArrayInfo.SliceSize.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.ArrayInfo.Slices.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.ArrayInfo.SuperDirEntries.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.And = 4 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.Match = 7 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.Max = 3 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.Min = 2 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.Or = 5 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.Sum = 1 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.Unknown = 0 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.Used = 8 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.ArrayOperation.Xor = 6 -> StackExchange.Redis.ArrayOperation
+[SER006]StackExchange.Redis.IDatabase.ArrayCount(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.IDatabase.ArrayDelete(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+[SER006]StackExchange.Redis.IDatabase.ArrayDelete(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex[]! indices, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> int
+[SER006]StackExchange.Redis.IDatabase.ArrayDeleteRange(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.IDatabase.ArrayDeleteRange(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayRange[]! ranges, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.IDatabase.ArrayGet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.IDatabase.ArrayGet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex[]! indices, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
+[SER006]StackExchange.Redis.IDatabase.ArrayGetRange(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
+[SER006]StackExchange.Redis.IDatabase.ArrayGrep(StackExchange.Redis.RedisKey key, StackExchange.Redis.ArrayGrepRequest! request, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayEntry[]!
+[SER006]StackExchange.Redis.IDatabase.ArrayInfo(StackExchange.Redis.RedisKey key, bool full = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ArrayInfo
+[SER006]StackExchange.Redis.IDatabase.ArrayInsert(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.IDatabase.ArrayInsert(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.IDatabase.ArrayLastItems(StackExchange.Redis.RedisKey key, int count, bool reverse = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]!
+[SER006]StackExchange.Redis.IDatabase.ArrayLength(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.IDatabase.ArrayNext(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex?
+[SER006]StackExchange.Redis.IDatabase.ArrayOperation(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end, StackExchange.Redis.ArrayOperation operation, StackExchange.Redis.RedisValue operand = default(StackExchange.Redis.RedisValue), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.IDatabase.ArrayRing(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex maxLength, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.IDatabase.ArrayRing(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex maxLength, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.IDatabase.ArrayScan(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end, int limit = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisArrayEntry[]!
+[SER006]StackExchange.Redis.IDatabase.ArraySeek(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+[SER006]StackExchange.Redis.IDatabase.ArraySet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayEntry[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> int
+[SER006]StackExchange.Redis.IDatabase.ArraySet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+[SER006]StackExchange.Redis.IDatabase.ArraySet(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> int
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayCountAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayDeleteAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayDeleteAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex[]! indices, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<int>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayDeleteRangeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayDeleteRangeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayRange[]! ranges, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayGetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayGetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex[]! indices, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayGetRangeAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayGrepAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.ArrayGrepRequest! request, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayEntry[]!>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayInfoAsync(StackExchange.Redis.RedisKey key, bool full = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ArrayInfo>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayInsertAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayInsertAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayLastItemsAsync(StackExchange.Redis.RedisKey key, int count, bool reverse = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]!>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayLengthAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayNextAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex?>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayOperationAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end, StackExchange.Redis.ArrayOperation operation, StackExchange.Redis.RedisValue operand = default(StackExchange.Redis.RedisValue), StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayRingAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex maxLength, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayRingAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex maxLength, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayIndex>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArrayScanAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end, int limit = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisArrayEntry[]!>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArraySeekAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArraySetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayEntry[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<int>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArraySetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER006]StackExchange.Redis.IDatabaseAsync.ArraySetAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.RedisValue[]! values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<int>!
+[SER006]StackExchange.Redis.KeyNotificationType.ArDel = 51 -> StackExchange.Redis.KeyNotificationType
+[SER006]StackExchange.Redis.KeyNotificationType.ArDelRange = 52 -> StackExchange.Redis.KeyNotificationType
+[SER006]StackExchange.Redis.KeyNotificationType.ArSet = 53 -> StackExchange.Redis.KeyNotificationType
+[SER006]StackExchange.Redis.RedisArrayEntry
+[SER006]StackExchange.Redis.RedisArrayEntry.Equals(StackExchange.Redis.RedisArrayEntry other) -> bool
+[SER006]StackExchange.Redis.RedisArrayEntry.Index.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.RedisArrayEntry.RedisArrayEntry() -> void
+[SER006]StackExchange.Redis.RedisArrayEntry.RedisArrayEntry(StackExchange.Redis.RedisArrayIndex index, StackExchange.Redis.RedisValue value) -> void
+[SER006]StackExchange.Redis.RedisArrayEntry.Value.get -> StackExchange.Redis.RedisValue
+[SER006]StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.RedisArrayIndex.Equals(StackExchange.Redis.RedisArrayIndex other) -> bool
+[SER006]StackExchange.Redis.RedisArrayIndex.RedisArrayIndex() -> void
+[SER006]StackExchange.Redis.RedisArrayIndex.RedisArrayIndex(int value) -> void
+[SER006]StackExchange.Redis.RedisArrayIndex.RedisArrayIndex(long value) -> void
+[SER006]StackExchange.Redis.RedisArrayIndex.RedisArrayIndex(ulong value) -> void
+[SER006]StackExchange.Redis.RedisArrayIndex.Value.get -> ulong
+[SER006]StackExchange.Redis.RedisArrayRange
+[SER006]StackExchange.Redis.RedisArrayRange.End.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.RedisArrayRange.Equals(StackExchange.Redis.RedisArrayRange other) -> bool
+[SER006]StackExchange.Redis.RedisArrayRange.RedisArrayRange() -> void
+[SER006]StackExchange.Redis.RedisArrayRange.RedisArrayRange(StackExchange.Redis.RedisArrayIndex start, StackExchange.Redis.RedisArrayIndex end) -> void
+[SER006]StackExchange.Redis.RedisArrayRange.Start.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]StackExchange.Redis.RedisType.Array = 9 -> StackExchange.Redis.RedisType
+[SER006]override StackExchange.Redis.RedisArrayEntry.Equals(object? obj) -> bool
+[SER006]override StackExchange.Redis.RedisArrayEntry.GetHashCode() -> int
+[SER006]override StackExchange.Redis.RedisArrayEntry.ToString() -> string!
+[SER006]override StackExchange.Redis.RedisArrayIndex.Equals(object? obj) -> bool
+[SER006]override StackExchange.Redis.RedisArrayIndex.GetHashCode() -> int
+[SER006]override StackExchange.Redis.RedisArrayIndex.ToString() -> string!
+[SER006]override StackExchange.Redis.RedisArrayRange.Equals(object? obj) -> bool
+[SER006]override StackExchange.Redis.RedisArrayRange.GetHashCode() -> int
+[SER006]override StackExchange.Redis.RedisArrayRange.ToString() -> string!
+[SER006]static StackExchange.Redis.ArrayGrepRequest.Predicate.Exact(StackExchange.Redis.RedisValue value) -> StackExchange.Redis.ArrayGrepRequest.Predicate!
+[SER006]static StackExchange.Redis.ArrayGrepRequest.Predicate.Glob(string! value) -> StackExchange.Redis.ArrayGrepRequest.Predicate!
+[SER006]static StackExchange.Redis.ArrayGrepRequest.Predicate.Match(string! value) -> StackExchange.Redis.ArrayGrepRequest.Predicate!
+[SER006]static StackExchange.Redis.ArrayGrepRequest.Predicate.Regex(string! value) -> StackExchange.Redis.ArrayGrepRequest.Predicate!
+[SER006]static StackExchange.Redis.RedisArrayEntry.implicit operator StackExchange.Redis.RedisArrayEntry(System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisArrayIndex, StackExchange.Redis.RedisValue> value) -> StackExchange.Redis.RedisArrayEntry
+[SER006]static StackExchange.Redis.RedisArrayEntry.implicit operator System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisArrayIndex, StackExchange.Redis.RedisValue>(StackExchange.Redis.RedisArrayEntry value) -> System.Collections.Generic.KeyValuePair<StackExchange.Redis.RedisArrayIndex, StackExchange.Redis.RedisValue>
+[SER006]static StackExchange.Redis.RedisArrayEntry.operator !=(StackExchange.Redis.RedisArrayEntry x, StackExchange.Redis.RedisArrayEntry y) -> bool
+[SER006]static StackExchange.Redis.RedisArrayEntry.operator ==(StackExchange.Redis.RedisArrayEntry x, StackExchange.Redis.RedisArrayEntry y) -> bool
+[SER006]static StackExchange.Redis.RedisArrayIndex.MaxValue.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]static StackExchange.Redis.RedisArrayIndex.MinValue.get -> StackExchange.Redis.RedisArrayIndex
+[SER006]static StackExchange.Redis.RedisArrayIndex.implicit operator StackExchange.Redis.RedisArrayIndex(int value) -> StackExchange.Redis.RedisArrayIndex
+[SER006]static StackExchange.Redis.RedisArrayIndex.implicit operator StackExchange.Redis.RedisArrayIndex(long value) -> StackExchange.Redis.RedisArrayIndex
+[SER006]static StackExchange.Redis.RedisArrayIndex.implicit operator StackExchange.Redis.RedisArrayIndex(ulong value) -> StackExchange.Redis.RedisArrayIndex
+[SER006]static StackExchange.Redis.RedisArrayIndex.implicit operator ulong(StackExchange.Redis.RedisArrayIndex value) -> ulong
+[SER006]static StackExchange.Redis.RedisArrayIndex.explicit operator int(StackExchange.Redis.RedisArrayIndex value) -> int
+[SER006]static StackExchange.Redis.RedisArrayIndex.explicit operator long(StackExchange.Redis.RedisArrayIndex value) -> long
+[SER006]static StackExchange.Redis.RedisArrayIndex.operator !=(StackExchange.Redis.RedisArrayIndex x, StackExchange.Redis.RedisArrayIndex y) -> bool
+[SER006]static StackExchange.Redis.RedisArrayIndex.operator ==(StackExchange.Redis.RedisArrayIndex x, StackExchange.Redis.RedisArrayIndex y) -> bool
+[SER006]static StackExchange.Redis.RedisArrayRange.operator !=(StackExchange.Redis.RedisArrayRange x, StackExchange.Redis.RedisArrayRange y) -> bool
+[SER006]static StackExchange.Redis.RedisArrayRange.operator ==(StackExchange.Redis.RedisArrayRange x, StackExchange.Redis.RedisArrayRange y) -> bool
+StackExchange.Redis.ConfigurationOptions.TcpKeepAlive.get -> bool
+StackExchange.Redis.ConfigurationOptions.TcpKeepAlive.set -> void
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.TcpKeepAlive.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsCaseInsensitive.set -> void
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.get -> bool
+[SER006]StackExchange.Redis.ArrayGrepRequest.IsReversed.set -> void
+[SER006]StackExchange.Redis.ArrayInfo.ArrayInfo(scoped System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<string!, StackExchange.Redis.RedisValue>> values) -> void
+[SER006]StackExchange.Redis.ArrayInfo.ToDictionary() -> System.Collections.Generic.Dictionary<string!, StackExchange.Redis.RedisValue>!
+[SER006]StackExchange.Redis.ArrayInfo.this[string! key].get -> StackExchange.Redis.RedisValue
+StackExchange.Redis.ConfigurationOptions.RequestBufferPool.get -> System.Buffers.MemoryPool<byte>?
+StackExchange.Redis.ConfigurationOptions.RequestBufferPool.set -> void
+StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.get -> System.Buffers.MemoryPool<byte>?
+StackExchange.Redis.ConfigurationOptions.ResponseBufferPool.set -> void
+static StackExchange.Redis.Lease<T>.Create(int length, System.Buffers.MemoryPool<T>? pool, bool clear = true) -> StackExchange.Redis.Lease<T>!
+[SER005]StackExchange.Redis.TestHarness
+[SER005]StackExchange.Redis.TestHarness.BufferValidator
+[SER005]StackExchange.Redis.TestHarness.ChannelPrefix.get -> StackExchange.Redis.RedisChannel
+[SER005]StackExchange.Redis.TestHarness.CommandMap.get -> StackExchange.Redis.CommandMap!
+[SER005]StackExchange.Redis.TestHarness.KeyPrefix.get -> StackExchange.Redis.RedisKey
+[SER005]StackExchange.Redis.TestHarness.Read(System.ReadOnlySpan<byte> value) -> StackExchange.Redis.RedisResult!
+[SER005]StackExchange.Redis.TestHarness.TestHarness(StackExchange.Redis.CommandMap? commandMap = null, StackExchange.Redis.RedisChannel channelPrefix = default(StackExchange.Redis.RedisChannel), StackExchange.Redis.RedisKey keyPrefix = default(StackExchange.Redis.RedisKey)) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateResp(System.ReadOnlySpan<byte> expected, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateResp(string! expected, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.ValidateRouting(in StackExchange.Redis.RedisKey expected, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.Write(System.Buffers.IBufferWriter<byte>! target, string! command, params System.Collections.Generic.ICollection<object!>! args) -> void
+[SER005]StackExchange.Redis.TestHarness.Write(string! command, params System.Collections.Generic.ICollection<object!>! args) -> byte[]!
+[SER005]static StackExchange.Redis.TestHarness.AssertEqual(System.ReadOnlySpan<byte> expected, System.ReadOnlySpan<byte> actual, System.Action<System.ReadOnlyMemory<byte>, System.ReadOnlyMemory<byte>>! handler) -> void
+[SER005]static StackExchange.Redis.TestHarness.AssertEqual(string! expected, System.ReadOnlySpan<byte> actual, System.Action<string!, string!>! handler) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.BufferValidator.Invoke(scoped System.ReadOnlySpan<byte> buffer) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(System.ReadOnlyMemory<byte> expected, System.ReadOnlyMemory<byte> actual) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(in StackExchange.Redis.RedisKey expected, in StackExchange.Redis.RedisKey actual) -> void
+[SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(string! expected, string! actual) -> void

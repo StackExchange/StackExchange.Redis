@@ -72,17 +72,18 @@ var conn = ConnectionMultiplexer.Connect("contoso5.redis.cache.windows.net,ssl=t
 The `ConfigurationOptions` object has a wide range of properties, all of which are fully documented in intellisense. Some of the more common options to use include:
 
 | Configuration string   | `ConfigurationOptions` | Default                      | Meaning                                                                                                   |
-| ---------------------- | ---------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| ---------------------- | ---------------------- |------------------------------| --------------------------------------------------------------------------------------------------------- |
 | abortConnect={bool}    | `AbortOnConnectFail`   | `true` (`false` on Azure)    | If true, `Connect` will not create a connection while no servers are available                            |
 | allowAdmin={bool}      | `AllowAdmin`           | `false`                      | Enables a range of commands that are considered risky                                                     |
 | channelPrefix={string} | `ChannelPrefix`        | `null`                       | Optional channel prefix for all pub/sub operations                                                        |
-| checkCertificateRevocation={bool} | `CheckCertificateRevocation` | `true`      | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
+| checkCertificateRevocation={bool} | `CheckCertificateRevocation` | `true`                       | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
 | connectRetry={int}     | `ConnectRetry`         | `3`                          | The number of times to repeat connect attempts during initial `Connect`                                   |
 | connectTimeout={int}   | `ConnectTimeout`       | `5000`                       | Timeout (ms) for connect operations                                                                       |
 | configChannel={string} | `ConfigurationChannel` | `__Booksleeve_MasterChanged` | Broadcast channel name for communicating configuration changes                                            |
 | configCheckSeconds={int} | `ConfigCheckSeconds` | `60`                         | Time (seconds) to check configuration. This serves as a keep-alive for interactive sockets, if it is supported.     |
 | defaultDatabase={int}  | `DefaultDatabase`      | `null`                       | Default database index, from `0` to `databases - 1`                                                       |
 | keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive (60 sec default)                     |
+| tcpKeepAlive={bool}    | `TcpKeepAlive`         | `true`                       | Enables TCP keep-alive when appropriate (endpoint- and platform-dependent)                                |
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
 | user={string}          | `User`                 | `null`                       | User for the redis server (for use with ACLs on redis 6 and above)                                        |
@@ -95,7 +96,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | syncTimeout={int}      | `SyncTimeout`          | `5000`                       | Time (ms) to allow for synchronous operations                                                             |
 | asyncTimeout={int}     | `AsyncTimeout`         | `SyncTimeout`                | Time (ms) to allow for asynchronous operations                                                            |
 | tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous primary scenario                                        |
-| version={string}       | `DefaultVersion`       | (`4.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
+| version={string}       | `DefaultVersion`       | (`7.4` in AMR, else `6.0`)   | Redis version level (useful when the server does not make this available)                                 |
 | tunnel={string}        | `Tunnel`               | `null`                       | Tunnel for connections (use `http:{proxy url}` for "connect"-based proxy server)                          |
 | setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
 | protocol={string}      | `Protocol`             | `null`                       | Redis protocol to use; see section below                                                                  |

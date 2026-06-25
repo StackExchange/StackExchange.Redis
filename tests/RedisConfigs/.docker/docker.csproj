@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.Build.NoTargets/3.3.0">
+    <!-- this is actually here just to serve as a hub for the folder, so we don't need to keep editing the sln-->
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+</Project>

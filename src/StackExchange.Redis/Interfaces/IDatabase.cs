@@ -2101,7 +2101,25 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The new score of member.</returns>
         /// <remarks><seealso href="https://redis.io/commands/zincrby"/></remarks>
+#pragma warning disable RS0027 // conditional overload needs an additional required ValueCondition parameter
         double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0027
+
+        /// <summary>
+        /// Increments the score of member in the sorted set stored at key by increment, when the specified condition is met.
+        /// If member does not exist in the sorted set and the condition permits it, it is added with increment as its score (as if its previous score was 0.0).
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="member">The member to increment.</param>
+        /// <param name="value">The amount to increment by.</param>
+        /// <param name="when">The condition to increment the element under; only existence conditions are currently supported.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The new score of member, or <see langword="null"/> when the condition was not met.</returns>
+        /// <remarks>
+        /// <para>Uses <c>ZINCRBY</c> when <paramref name="when"/> is <see cref="ValueCondition.Always"/>, and <c>ZADD INCR</c> for <see cref="ValueCondition.Exists"/> and <see cref="ValueCondition.NotExists"/>.</para>
+        /// <para><seealso href="https://redis.io/commands/zadd"/></para>
+        /// </remarks>
+        double? SortedSetIncrement(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags);
 
         /// <summary>
         /// Returns the cardinality of the intersection of the sorted sets at <paramref name="keys"/>.
@@ -2613,6 +2631,34 @@ namespace StackExchange.Redis
 #pragma warning disable RS0026 // similar overloads
         StreamTrimResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
+
+        /// <summary>
+        /// Allow the consumer to release a pending message back to the group without marking it as correctly processed.
+        /// Returns the number of messages negatively acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group that received the message.</param>
+        /// <param name="mode">The negative acknowledge mode to use.</param>
+        /// <param name="messageId">The ID of the message to negatively acknowledge.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns the number of messages successfully NACKed as a resp integer, regardless of mode (SILENT, FAIL, or FATAL) or options (RETRYCOUNT, FORCE) specified.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Allow the consumer to release pending messages back to the group without marking them as correctly processed.
+        /// Returns the number of messages negatively acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group that received the messages.</param>
+        /// <param name="mode">The negative acknowledge mode to use.</param>
+        /// <param name="messageIds">The IDs of the messages to negatively acknowledge.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns the number of messages successfully NACKed as a resp integer, regardless of mode (SILENT, FAIL, or FATAL) or options (RETRYCOUNT, FORCE) specified.</returns>
+        /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds an entry using the specified values to the given stream key.
@@ -3255,20 +3301,6 @@ namespace StackExchange.Redis
         ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Performs a GCRA (Generic Cell Rate Algorithm) rate limit check on the specified key.
-        /// </summary>
-        /// <param name="key">The key to rate limit.</param>
-        /// <param name="maxBurst">The maximum burst size.</param>
-        /// <param name="requestsPerPeriod">The number of requests allowed per period.</param>
-        /// <param name="periodSeconds">The period duration in seconds. Default is 1.0.</param>
-        /// <param name="count">The number of requests to consume. Default is 1.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A <see cref="GcraRateLimitResult"/> containing the rate limit decision and metadata.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/gcra"/></remarks>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-        GcraRateLimitResult StringGcraRateLimit(RedisKey key, int maxBurst, int requestsPerPeriod, double periodSeconds = 1.0, int count = 1, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Get the value of key. If the key does not exist the special value <see cref="RedisValue.Null"/> is returned.
         /// An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
@@ -3404,6 +3436,36 @@ namespace StackExchange.Redis
         /// <returns>The value of key after the increment.</returns>
         /// <remarks><seealso href="https://redis.io/commands/incrbyfloat"/></remarks>
         double StringIncrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Atomically increments the integer value stored at key, optionally constraining the result and applying expiration semantics.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="value">The amount to increment by.</param>
+        /// <param name="expiry">The expiration to apply. Use <see cref="Expiration.Default"/> to retain the existing TTL.</param>
+        /// <param name="lowerBound">The optional lower bound for the resulting value.</param>
+        /// <param name="upperBound">The optional upper bound for the resulting value.</param>
+        /// <param name="options">The options to use for this operation.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The resulting value and the increment actually applied.</returns>
+#pragma warning disable RS0026 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Atomically increments the floating point value stored at key, optionally constraining the result and applying expiration semantics.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="value">The amount to increment by.</param>
+        /// <param name="expiry">The expiration to apply. Use <see cref="Expiration.Default"/> to retain the existing TTL.</param>
+        /// <param name="lowerBound">The optional lower bound for the resulting value.</param>
+        /// <param name="upperBound">The optional upper bound for the resulting value.</param>
+        /// <param name="options">The options to use for this operation.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The resulting value and the increment actually applied.</returns>
+        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+        StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <summary>
         /// Returns the length of the string value stored at key.

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- can also run fine in net8.0, but: don't want triplicate by default, and don't want competition between runs --> 
-    <TargetFrameworks>net481;net10.0</TargetFrameworks>
+    <TargetFrameworks>net481;net8.0;net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
@@ -9,6 +9,9 @@
     <DebugType>full</DebugType>
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+    <!-- avoid parallelism on some brittle things like script-flush that *really* don't work well vs concurrent runtimes --> 
+    <DefineConstants Condition="'$(TargetFramework)'=='net10.0'">$(DefineConstants);BUILD_CURRENT</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,8 +22,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Update="ResultProcessorUnitTests.*.cs" DependentUpon="ResultProcessorUnitTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
-    <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" Aliases="respite"/>
     <ProjectReference Include="..\..\toys\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj" />
     <PackageReference Include="GitHubActionsTestLogger" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
@@ -28,10 +34,15 @@
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" />
+    <PackageReference Include="System.Threading.Channels" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.v3.runner.console" PrivateAssets="all" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="System.IO.Compression" />
     <PackageReference Include="System.IO.Pipelines" />
+    <ProjectReference Include="..\..\src\RESPite\RESPite.csproj" />
+    <ProjectReference Include="..\RESPite.Tests\RESPite.Tests.csproj" />
+    <!-- to deal with package security warning -->
+    <PackageReference Include="System.Private.Uri" />
   </ItemGroup>
 </Project>

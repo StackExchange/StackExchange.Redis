@@ -14,6 +14,8 @@ public class MultiPrimaryTests(ITestOutputHelper output) : TestBase(output)
     [Fact]
     public async Task CannotFlushReplica()
     {
+        NoConcurrentRuntime();
+
         var ex = await Assert.ThrowsAsync<RedisCommandException>(async () =>
         {
             await using var conn = await ConnectionMultiplexer.ConnectAsync(TestConfig.Current.ReplicaServerAndPort + ",allowAdmin=true");

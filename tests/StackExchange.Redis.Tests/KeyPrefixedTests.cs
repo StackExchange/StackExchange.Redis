@@ -104,6 +104,20 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task StringIncrementAsync_3()
+        {
+            await prefixed.StringIncrementAsync("key", 123L, TimeSpan.FromSeconds(5), lowerBound: 10, upperBound: 200, flags: CommandFlags.None, options: IncrementOptions.None);
+            await mock.Received().StringIncrementAsync("prefix:key", 123L, TimeSpan.FromSeconds(5), 10, 200, IncrementOptions.None, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StringIncrementAsync_4()
+        {
+            await prefixed.StringIncrementAsync("key", 1.23, TimeSpan.FromSeconds(5), lowerBound: -1.0, upperBound: 2.0, flags: CommandFlags.None, options: IncrementOptions.Saturate);
+            await mock.Received().StringIncrementAsync("prefix:key", 1.23, TimeSpan.FromSeconds(5), -1.0, 2.0, IncrementOptions.Saturate, CommandFlags.None);
+        }
+
+        [Fact]
         public async Task HashKeysAsync()
         {
             await prefixed.HashKeysAsync("key", CommandFlags.None);
@@ -776,6 +790,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task SortedSetIncrementAsync_When()
+        {
+            await prefixed.SortedSetIncrementAsync("key", "member", 1.23, ValueCondition.Exists, CommandFlags.None);
+            await mock.Received().SortedSetIncrementAsync("prefix:key", "member", 1.23, ValueCondition.Exists, CommandFlags.None);
+        }
+
+        [Fact]
         public async Task SortedSetIntersectionLengthAsync()
         {
             await prefixed.SortedSetIntersectionLengthAsync(["a", "b"], 1, CommandFlags.None);
@@ -938,6 +959,21 @@ namespace StackExchange.Redis.Tests
             var messageIds = new RedisValue[] { "0-0", "0-1", "0-2" };
             await prefixed.StreamAcknowledgeAsync("key", "group", messageIds, CommandFlags.None);
             await mock.Received().StreamAcknowledgeAsync("prefix:key", "group", messageIds, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamNegativeAcknowledgeAsync_1()
+        {
+            await prefixed.StreamNegativeAcknowledgeAsync("key", "group", StreamNackMode.Fail, "0-0", CommandFlags.None);
+            await mock.Received().StreamNegativeAcknowledgeAsync("prefix:key", "group", StreamNackMode.Fail, "0-0", CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task StreamNegativeAcknowledgeAsync_2()
+        {
+            var messageIds = new RedisValue[] { "0-0", "0-1", "0-2" };
+            await prefixed.StreamNegativeAcknowledgeAsync("key", "group", StreamNackMode.Fail, messageIds, CommandFlags.None);
+            await mock.Received().StreamNegativeAcknowledgeAsync("prefix:key", "group", StreamNackMode.Fail, messageIds, CommandFlags.None);
         }
 
         [Fact]

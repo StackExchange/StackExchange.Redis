@@ -140,7 +140,10 @@ namespace StackExchange.Redis.Configuration
         /// <summary>
         /// The server version to assume.
         /// </summary>
-        public virtual Version DefaultVersion => RedisFeatures.v3_0_0;
+        public virtual Version DefaultVersion => BaseDefaultVersion;
+
+        // this exists primarily to be queryable from tests
+        internal static Version BaseDefaultVersion = RedisFeatures.v6_0_0;
 
         /// <summary>
         /// Controls how often the connection heartbeats. A heartbeat includes:
@@ -258,6 +261,16 @@ namespace StackExchange.Redis.Configuration
         /// Whether to identify the client by library name/version when possible.
         /// </summary>
         public virtual bool SetClientLibrary => true;
+
+        /// <summary>
+        /// Gets the preferred protocol to use for the connection.
+        /// </summary>
+        public virtual RedisProtocol? Protocol => null;
+
+        /// <summary>
+        /// Gets whether to enable TCP keep-alive when appropriate (endpoint- and platform-dependent).
+        /// </summary>
+        public virtual bool TcpKeepAlive => true;
 
         /// <summary>
         /// Tries to get the RoleInstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.

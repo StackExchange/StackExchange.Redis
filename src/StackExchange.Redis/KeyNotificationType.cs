@@ -1,4 +1,5 @@
-﻿using RESPite;
+﻿using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 namespace StackExchange.Redis;
 
@@ -111,6 +112,17 @@ public enum KeyNotificationType
     ZRemByScore = 48,
     [AsciiHash("zrem")]
     ZRem = 49,
+    [AsciiHash("hexpire")]
+    HExpire = 50,
+    [AsciiHash("ardel")]
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    ArDel = 51,
+    [AsciiHash("ardelrange")]
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    ArDelRange = 52,
+    [AsciiHash("arset")]
+    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
+    ArSet = 53,
 
     // side-effect notifications
     [AsciiHash("expired")]

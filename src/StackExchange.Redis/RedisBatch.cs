@@ -50,7 +50,11 @@ namespace StackExchange.Redis
                 }
                 lastBridge = bridge;
                 lastList = list;
-
+                var count = list.Count;
+                if (count != 0)
+                {
+                    list[count - 1].SetNoFlush();
+                }
                 list.Add(message);
             }
 

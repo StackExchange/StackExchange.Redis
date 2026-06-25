@@ -1,4 +1,3 @@
-﻿using System;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -6,8 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace RESPite;
-
-#pragma warning disable SA1205 // deliberately omit accessibility - see AsciiHash.Public.cs
 
 /// <summary>
 /// This type is intended to provide fast hashing functions for small ASCII strings, for example well-known
@@ -22,7 +19,7 @@ namespace RESPite;
     Inherited = false)]
 [Conditional("DEBUG")] // evaporate in release
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-sealed partial class AsciiHashAttribute(string token = "") : Attribute
+public sealed partial class AsciiHashAttribute(string token = "") : Attribute
 {
     /// <summary>
     /// The token expected when parsing data, if different from the implied value. The implied
@@ -38,7 +35,7 @@ sealed partial class AsciiHashAttribute(string token = "") : Attribute
 
 // note: instance members are in AsciiHash.Instance.cs.
 [Experimental(Experiments.Respite, UrlFormat = Experiments.UrlFormat)]
-readonly partial struct AsciiHash
+public readonly partial struct AsciiHash
 {
     /// <summary>
     /// In-place ASCII upper-case conversion.
@@ -85,6 +82,9 @@ readonly partial struct AsciiHash
         return len <= MaxBytesHashed ? HashUC(first) == HashUC(second) : SequenceEqualsCI(first, second);
     }
 
+    public static bool EqualsCI(ReadOnlySpan<byte> first, ReadOnlySpan<char> second)
+        => EqualsCI(second, first);
+
     public static unsafe bool SequenceEqualsCI(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
     {
         var len = first.Length;
@@ -120,6 +120,9 @@ readonly partial struct AsciiHash
         }
     }
 
+    public static bool SequenceEqualsCI(ReadOnlySpan<byte> first, ReadOnlySpan<char> second)
+        => SequenceEqualsCI(second, first);
+
     public static bool EqualsCS(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
     {
         var len = first.Length;
@@ -136,6 +139,14 @@ readonly partial struct AsciiHash
         var len = first.Length;
         if (len != second.Length) return false;
         // for very short values, the CS hash performs CS equality; check that first
+        return len <= MaxBytesHashed ? HashUC(first) == HashUC(second) : SequenceEqualsCI(first, second);
+    }
+
+    public static bool EqualsCI(ReadOnlySpan<char> first, ReadOnlySpan<byte> second)
+    {
+        var len = first.Length;
+        if (len != second.Length) return false;
+        // for very short values, the UC hash performs CI equality
         return len <= MaxBytesHashed ? HashUC(first) == HashUC(second) : SequenceEqualsCI(first, second);
     }
 
@@ -163,6 +174,41 @@ readonly partial struct AsciiHash
                         if (xCI != (secondPtr[i] & CS_MASK)) return false;
                     }
                     else if (x != (byte)secondPtr[i])
+                    {
+                        // non-alpha mismatch
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+        }
+    }
+
+    public static unsafe bool SequenceEqualsCI(ReadOnlySpan<char> first, ReadOnlySpan<byte> second)
+    {
+        var len = first.Length;
+        if (len != second.Length) return false;
+
+        // OK, don't be clever (SIMD, etc); the purpose of FashHash is to compare RESP key tokens, which are
+        // typically relatively short, think 3-20 bytes. That wouldn't even touch a SIMD vector, so:
+        // just loop (the exact thing we'd need to do *anyway* in a SIMD implementation, to mop up the non-SIMD
+        // trailing bytes).
+        fixed (char* firstPtr = &MemoryMarshal.GetReference(first))
+        {
+            fixed (byte* secondPtr = &MemoryMarshal.GetReference(second))
+            {
+                const int CS_MASK = 0b0101_1111;
+                for (int i = 0; i < len; i++)
+                {
+                    int x = (byte)firstPtr[i];
+                    var xCI = x & CS_MASK;
+                    if (xCI >= 'A' & xCI <= 'Z')
+                    {
+                        // alpha mismatch
+                        if (xCI != (secondPtr[i] & CS_MASK)) return false;
+                    }
+                    else if (x != secondPtr[i])
                     {
                         // non-alpha mismatch
                         return false;

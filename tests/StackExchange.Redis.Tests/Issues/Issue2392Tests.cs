@@ -7,28 +7,28 @@ namespace StackExchange.Redis.Tests.Issues
     public class Issue2392Tests(ITestOutputHelper output) : TestBase(output)
     {
         [Fact]
+        [Trait(TestCategories.Category, TestCategories.SimulatedConnectionFailure)]
         public async Task Execute()
         {
-            var options = new ConfigurationOptions()
+            var options = ConfigurationOptions.Parse(GetConfiguration());
+            options.Protocol = TestContext.Current.GetProtocol();
+            options.BacklogPolicy = new()
             {
-                BacklogPolicy = new()
-                {
-                    QueueWhileDisconnected = true,
-                    AbortPendingOnConnectionFailure = false,
-                },
-                AbortOnConnectFail = false,
-                ConnectTimeout = 1,
-                ConnectRetry = 0,
-                AsyncTimeout = 1,
-                SyncTimeout = 1,
-                AllowAdmin = true,
+                QueueWhileDisconnected = true,
+                AbortPendingOnConnectionFailure = false,
             };
-            options.EndPoints.Add("127.0.0.1:1234");
+            options.AbortOnConnectFail = false;
+            options.ConnectRetry = 0;
+            options.AsyncTimeout = 1;
+            options.SyncTimeout = 1;
+            options.AllowAdmin = true;
+            options.AllowSimulateConnectionFailure = true;
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(options, Writer);
             var key = Me();
             var db = conn.GetDatabase();
             var server = conn.GetServerSnapshot()[0];
+            Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
 
             // Fail the connection
             conn.AllowConnect = false;

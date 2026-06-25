@@ -33,6 +33,23 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Like <see cref="Rent(int, out Span{TypedRedisValue}, RespPrefix)"/>, but allocates a new array,
+        /// and should **not** be recycled.
+        /// </summary>
+        public static TypedRedisValue Standalone(int count, out Span<TypedRedisValue> span, RespPrefix type)
+        {
+            if (count == 0)
+            {
+                span = default;
+                return EmptyArray(type);
+            }
+
+            var arr = new TypedRedisValue[count];
+            span = new Span<TypedRedisValue>(arr, 0, count);
+            return new TypedRedisValue(arr, count, type);
+        }
+
+        /// <summary>
         /// An invalid empty value that has no type.
         /// </summary>
         public static TypedRedisValue Nil => default;
@@ -116,6 +133,16 @@ namespace StackExchange.Redis
         /// <param name="value">The value to initialize from.</param>
         public static TypedRedisValue Integer(long value)
             => new TypedRedisValue(value, RespPrefix.Integer);
+
+        /// <summary>
+        /// Initialize a <see cref="TypedRedisValue"/> that represents a number.
+        /// </summary>
+        /// <param name="value">The value to initialize from.</param>
+        public static TypedRedisValue Number(double value)
+        {
+            var redisValue = (RedisValue)value;
+            return new TypedRedisValue(redisValue, redisValue.IsInteger ? RespPrefix.Integer : RespPrefix.Double);
+        }
 
         /// <summary>
         /// Initialize a <see cref="TypedRedisValue"/> from a <see cref="ReadOnlySpan{TypedRedisValue}"/>.
@@ -211,6 +238,7 @@ namespace StackExchange.Redis
                 case RespPrefix.BulkString:
                 case RespPrefix.SimpleString:
                 case RespPrefix.Integer:
+                case RespPrefix.Double:
                 case RespPrefix.SimpleError:
                     return $"{Type}:{_value}";
                 default:
@@ -228,5 +256,18 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="obj">The object to compare to.</param>
         public override bool Equals(object obj) => throw new NotSupportedException();
+
+        public RedisValue[] ReadRequest()
+        {
+            if (Type is not RespPrefix.Array) throw new InvalidOperationException("Expected array (root)");
+            var span = Span;
+            var result = new RedisValue[span.Length];
+            for (int i = 0; i < span.Length; i++)
+            {
+                if (span[i].Type is not RespPrefix.BulkString) throw new InvalidOperationException($"Expected bulk string ({i})");
+                result[i] = span[i].AsRedisValue();
+            }
+            return result;
+        }
     }
 }

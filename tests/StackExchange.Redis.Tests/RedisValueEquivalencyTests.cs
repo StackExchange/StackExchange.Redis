@@ -5,7 +5,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-public class RedisValueEquivalency
+public class RedisValueEquivalencyUnitTests
 {
     // internal storage types: null, integer, double, string, raw
     // public perceived types: int, long, double, bool, memory / byte[]
@@ -441,7 +441,7 @@ public class RedisValueEquivalency
     public void RedisValueLengthRaw()
     {
         RedisValue value = new byte[] { 0, 1, 2 };
-        Assert.Equal(RedisValue.StorageType.Raw, value.Type);
+        Assert.Equal(RedisValue.StorageType.ByteArray, value.Type);
         Assert.Equal(3, value.Length());
     }
 

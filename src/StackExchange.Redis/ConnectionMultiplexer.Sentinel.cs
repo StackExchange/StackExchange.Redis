@@ -6,7 +6,6 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis;
 
@@ -106,7 +105,7 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
     public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter? log = null)
     {
-        SocketConnection.AssertDependencies();
+        Dependencies.Assert();
         Validate(configuration);
 
         return ConnectImpl(configuration, log, ServerType.Sentinel);
@@ -119,7 +118,7 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
     public static Task<ConnectionMultiplexer> SentinelConnectAsync(ConfigurationOptions configuration, TextWriter? log = null)
     {
-        SocketConnection.AssertDependencies();
+        Dependencies.Assert();
         Validate(configuration);
 
         return ConnectImplAsync(configuration, log, ServerType.Sentinel);
@@ -240,10 +239,28 @@ public partial class ConnectionMultiplexer
 
             // verify role is primary according to:
             // https://redis.io/topics/sentinel-clients
-            if (connection.GetServer(newPrimaryEndPoint)?.Role()?.Value == RedisLiterals.master)
+            bool isPrimary;
+            var server = connection.GetServer(newPrimaryEndPoint);
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (server is { })
             {
-                success = true;
-                break;
+                try
+                {
+                    isPrimary = connection.CommandMap.IsAvailable(RedisCommand.ROLE)
+                        ? server.Role()?.Value == RedisLiterals.master
+                        : !server.IsReplica;
+                }
+                catch
+                {
+                    // fallback if ROLE unavailable but not declared; see #3064
+                    isPrimary = !server.IsReplica;
+                }
+
+                if (isPrimary)
+                {
+                    success = true;
+                    break;
+                }
             }
 
             Thread.Sleep(100);

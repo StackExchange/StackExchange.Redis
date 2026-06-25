@@ -1,0 +1,36 @@
+﻿using System;
+using System.Reflection;
+using StackExchange.Redis;
+
+namespace RESPite.Benchmark;
+
+public sealed class OldCoreBenchmark(string[] args) : OldCoreBenchmarkBase(args)
+{
+    private static readonly string withVersion = $"classic SE.Redis {GetLibVersion()}";
+    public override string ToString() => withVersion;
+
+    protected override IConnectionMultiplexer Create(int port)
+    {
+        var options = ConfigurationOptions.Parse($"{HostName}:{Port}");
+        if (WriteMode is { } wm && options.GetType().GetProperty(
+            "WriteMode",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) is { CanWrite: true, CanRead: true } prop)
+        {
+            prop.SetValue(options, wm);
+            Console.WriteLine($"Set WriteMode to {prop.GetValue(options)}");
+        }
+        return ConnectionMultiplexer.Connect(options);
+    }
+
+    private static string? _libVersion;
+    internal static string GetLibVersion()
+    {
+        if (_libVersion == null)
+        {
+            var assembly = typeof(ConnectionMultiplexer).Assembly;
+            _libVersion = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyFileVersionAttribute))!)?.Version
+                          ?? assembly.GetName().Version!.ToString();
+        }
+        return _libVersion;
+    }
+}

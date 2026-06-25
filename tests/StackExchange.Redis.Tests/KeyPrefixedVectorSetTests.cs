@@ -22,17 +22,11 @@ namespace StackExchange.Redis.Tests
         {
             if (BitConverter.IsLittleEndian)
             {
-                Assert.True(VectorSetAddMessage.UseFp32);
-#if DEBUG // can be suppressed
-                VectorSetAddMessage.SuppressFp32();
-                Assert.False(VectorSetAddMessage.UseFp32);
-                VectorSetAddMessage.RestoreFp32();
-                Assert.True(VectorSetAddMessage.UseFp32);
-#endif
+                Assert.True(VectorSetAddMessage.CanUseFp32);
             }
             else
             {
-                Assert.False(VectorSetAddMessage.UseFp32);
+                Assert.False(VectorSetAddMessage.CanUseFp32);
             }
         }
 

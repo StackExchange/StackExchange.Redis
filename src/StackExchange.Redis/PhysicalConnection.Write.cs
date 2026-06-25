@@ -1,0 +1,48 @@
+﻿using System;
+using System.Buffers;
+using System.IO;
+using System.Threading.Tasks;
+
+namespace StackExchange.Redis;
+
+internal partial class PhysicalConnection
+{
+    private BufferedStreamWriter? _output;
+    private long TotalBytesSent => _output?.TotalBytesWritten ?? 0;
+    public IBufferWriter<byte> Output
+    {
+        get
+        {
+            return _output ?? Throw();
+            static IBufferWriter<byte> Throw() => throw new InvalidOperationException("Output pipe not initialized");
+        }
+    }
+
+    private void InitOutput(Stream? stream)
+    {
+        if (stream is null) return;
+        _ioStream = stream;
+        var config = BridgeCouldBeNull?.Multiplexer?.RawConfig;
+        _output = BufferedStreamWriter.Create(WriteMode, connectionType, stream, config, OutputCancel);
+
+        // Nothing awaits WriteComplete in production (it is mostly a test affordance); observe it so a
+        // teardown-time (or any other) write fault never becomes an UnobservedTaskException. Applies to
+        // every BufferedStreamWriter implementation.
+        _output.WriteComplete.RedisFireAndForget();
+#if DEBUG
+        if (config?.OutputLog is { } log)
+        {
+            _output.DebugSetLog(log);
+        }
+#endif
+    }
+
+    internal bool HasOutputPipe => _output is not null;
+
+    internal Task CompleteOutputAsync(Exception? exception = null)
+    {
+        if (_output is not { } output) return Task.CompletedTask;
+        output.Complete(exception);
+        return output.WriteComplete;
+    }
+}

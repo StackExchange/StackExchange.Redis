@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite.Messages;
 
 namespace StackExchange.Redis
 {
@@ -166,6 +168,7 @@ namespace StackExchange.Redis
                 return Message.Create(-1, flags, RedisCommand.PING);
             }
             processor = TransactionProcessor.Default;
+
             return new TransactionMessage(Database, flags, cond, work);
         }
 
@@ -186,9 +189,9 @@ namespace StackExchange.Redis
                 set => wasQueued = value;
             }
 
-            protected override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(in MessageWriter writer)
             {
-                Wrapped.WriteTo(physical);
+                Wrapped.WriteTo(writer);
                 Wrapped.SetRequestSent();
             }
             public override int ArgCount => Wrapped.ArgCount;
@@ -201,16 +204,21 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.Resp2TypeBulkString == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
+                if (reader.Prefix == RespPrefix.SimpleString && reader.IsScalar)
                 {
-                    if (message is QueuedMessage q)
+                    Span<byte> buffer = stackalloc byte[8];
+                    var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(buffer);
+                    if (span.SequenceEqual("QUEUED"u8))
                     {
-                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
-                        q.WasQueued = true;
+                        if (message is QueuedMessage q)
+                        {
+                            connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog("Observed QUEUED for " + q.Wrapped?.CommandAndKey);
+                            q.WasQueued = true;
+                        }
+                        return true;
                     }
-                    return true;
                 }
                 return false;
             }
@@ -320,9 +328,7 @@ namespace StackExchange.Redis
                                 sb.AppendLine("checking conditions in the *early* path");
                                 // need to get those sent ASAP; if they are stuck in the buffers, we die
                                 multiplexer.Trace("Flushing and waiting for precondition responses");
-#pragma warning disable CS0618 // Type or member is obsolete
-                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
-#pragma warning restore CS0618
+                                connection.Flush(); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
 
                                 if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                                 {
@@ -380,9 +386,7 @@ namespace StackExchange.Redis
                                 sb.AppendLine("checking conditions in the *late* path");
 
                                 multiplexer.Trace("Flushing and waiting for precondition+queued responses");
-#pragma warning disable CS0618 // Type or member is obsolete
-                                connection.FlushSync(true, multiplexer.TimeoutMilliseconds); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
-#pragma warning restore CS0618
+                                connection.Flush(); // make sure they get sent, so we can check for QUEUED (and the preconditions if necessary)
                                 if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                                 {
                                     if (!AreAllConditionsSatisfied(multiplexer))
@@ -441,7 +445,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            protected override void WriteImpl(PhysicalConnection physical) => physical.WriteHeader(Command, 0);
+            protected override void WriteImpl(in MessageWriter writer) => writer.WriteHeader(Command, 0);
 
             public override int ArgCount => 0;
 
@@ -469,11 +473,13 @@ namespace StackExchange.Redis
         {
             public static readonly TransactionProcessor Default = new();
 
-            public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (result.IsError && message is TransactionMessage tran)
+                var copy = reader;
+                reader.MovePastBof();
+                if (reader.IsError && message is TransactionMessage tran)
                 {
-                    string error = result.GetString()!;
+                    string error = reader.ReadString()!;
                     foreach (var op in tran.InnerOperations)
                     {
                         var inner = op.Wrapped;
@@ -481,78 +487,68 @@ namespace StackExchange.Redis
                         inner.Complete();
                     }
                 }
-                return base.SetResult(connection, message, result);
+                return base.SetResult(connection, message, ref copy);
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 var muxer = connection.BridgeCouldBeNull?.Multiplexer;
-                muxer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
+                muxer?.OnTransactionLog($"got {reader.GetOverview()} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
                     var wrapped = tran.InnerOperations;
-                    switch (result.Resp2TypeArray)
+
+                    if (reader.IsNull) // EXEC returned with a NULL
                     {
-                        case ResultType.SimpleString:
-                            if (tran.IsAborted && result.IsEqual(CommonReplies.OK))
+                        if (tran.IsAborted)
+                        {
+                            muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
+                            connection.Trace("Server aborted due to failed WATCH");
+                            foreach (var op in wrapped)
                             {
-                                connection.Trace("Acknowledging UNWATCH (aborted electively)");
-                                SetResult(message, false);
-                                return true;
+                                var inner = op.Wrapped;
+                                inner.Cancel();
+                                inner.Complete();
                             }
-                            // EXEC returned with a NULL
-                            if (!tran.IsAborted && result.IsNull)
+                        }
+                        SetResult(message, false);
+                        return true;
+                    }
+                    if (reader.IsScalar && (tran.IsAborted & reader.IsOK()))
+                    {
+                        connection.Trace("Acknowledging UNWATCH (aborted electively)");
+                        SetResult(message, false);
+                        return true;
+                    }
+
+                    if (reader.IsAggregate && !tran.IsAborted)
+                    {
+                        var len = reader.AggregateLength();
+                        if (len == wrapped.Length)
+                        {
+                            connection.Trace("Server committed; processing nested replies");
+                            muxer?.OnTransactionLog($"Processing {len} wrapped messages");
+
+                            var iter = reader.AggregateChildren();
+                            int i = 0;
+                            // using "raw" to leave reader ahead of content
+                            // (so errors and attributes can be consumed appropriately)
+                            while (iter.MoveNextRaw())
                             {
-                                connection.Trace("Server aborted due to failed EXEC");
-                                // cancel the commands in the transaction and mark them as complete with the completion manager
-                                foreach (var op in wrapped)
+                                var inner = wrapped[i++].Wrapped;
+                                muxer?.OnTransactionLog($"> got {iter.Value.GetOverview()} for {inner.CommandAndKey}");
+                                if (inner.ComputeResult(connection, ref iter.Value))
                                 {
-                                    var inner = op.Wrapped;
-                                    inner.Cancel();
                                     inner.Complete();
                                 }
-                                SetResult(message, false);
-                                return true;
                             }
-                            break;
-                        case ResultType.Array:
-                            if (!tran.IsAborted)
-                            {
-                                var arr = result.GetItems();
-                                if (result.IsNull)
-                                {
-                                    muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
-                                    connection.Trace("Server aborted due to failed WATCH");
-                                    foreach (var op in wrapped)
-                                    {
-                                        var inner = op.Wrapped;
-                                        inner.Cancel();
-                                        inner.Complete();
-                                    }
-                                    SetResult(message, false);
-                                    return true;
-                                }
-                                else if (wrapped.Length == arr.Length)
-                                {
-                                    connection.Trace("Server committed; processing nested replies");
-                                    muxer?.OnTransactionLog($"Processing {arr.Length} wrapped messages");
 
-                                    int i = 0;
-                                    foreach (ref RawResult item in arr)
-                                    {
-                                        var inner = wrapped[i++].Wrapped;
-                                        muxer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
-                                        if (inner.ComputeResult(connection, in item))
-                                        {
-                                            inner.Complete();
-                                        }
-                                    }
-                                    SetResult(message, true);
-                                    return true;
-                                }
-                            }
-                            break;
+                            Debug.Assert(i == len, "we pre-checked the lengths");
+                            SetResult(message, true);
+                            return true;
+                        }
                     }
+
                     // even if we didn't fully understand the result, we still need to do something with
                     // the pending tasks
                     foreach (var op in wrapped)
