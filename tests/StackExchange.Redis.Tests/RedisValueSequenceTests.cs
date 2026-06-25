@@ -206,6 +206,25 @@ public class RedisValueSequenceTests
         Assert.Equal(-expected, Math.Sign(sy.CompareTo(sx))); // antisymmetry
     }
 
+    [Theory]
+    [InlineData("123")] // integer-valued
+    [InlineData("-123")]
+    [InlineData("123.5")] // fractional
+    [InlineData("inf")] // special doubles: deliberately not simplified, so they exercise the cast's text fallback
+    [InlineData("+inf")]
+    [InlineData("-inf")]
+    [InlineData("nan")]
+    public void MultiSegmentSequence_DoubleCast_MatchesByteArray(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        RedisValue asBytes = bytes; // single-buffer (ByteArray)
+        RedisValue asSequence = SplitEveryByte(bytes); // multi-buffer (Sequence)
+        Assert.Equal(RedisValue.StorageType.Sequence, asSequence.Type);
+
+        // the (double) cast must behave the same for a sequence as for the equivalent byte[]
+        Assert.Equal((double)asBytes, (double)asSequence);
+    }
+
     [Fact]
     public void MultiSegmentBytes_RoundTripToArray()
     {

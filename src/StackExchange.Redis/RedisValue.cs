@@ -369,19 +369,20 @@ namespace StackExchange.Redis
                     return false;
             }
 
-            if (xType == StorageType.Sequence &&
-                (yType == StorageType.ByteArray || yType == StorageType.MemoryManager))
-                return x.RawSequence().SequenceEqual(y.RawSpan());
+            // both are non-null, non-numeric, and of different kinds; the blob kinds (byte[] / memory /
+            // sequence) compare by bytes in any combination - and we keep the span-vs-span path for the
+            // case where neither side is a multi-segment sequence
+            switch (xType)
+            {
+                case StorageType.Sequence when yType is StorageType.ByteArray or StorageType.MemoryManager:
+                    return x.RawSequence().SequenceEqual(y.RawSpan());
+                case StorageType.ByteArray or StorageType.MemoryManager when yType == StorageType.Sequence:
+                    return y.RawSequence().SequenceEqual(x.RawSpan());
+                case StorageType.ByteArray or StorageType.MemoryManager when yType is StorageType.ByteArray or StorageType.MemoryManager:
+                    return x.RawSpan().SequenceEqual(y.RawSpan());
+            }
 
-            if (yType == StorageType.Sequence &&
-                (xType == StorageType.ByteArray || xType == StorageType.MemoryManager))
-                return y.RawSequence().SequenceEqual(x.RawSpan());
-
-            if ((xType == StorageType.ByteArray && yType == StorageType.MemoryManager) ||
-                (xType == StorageType.MemoryManager && yType == StorageType.ByteArray))
-                return x.RawSpan().SequenceEqual(y.RawSpan());
-
-            // otherwise, compare as strings
+            // otherwise (anything involving a string), compare as strings
             return (string?)x == (string?)y;
         }
 
@@ -870,6 +871,7 @@ namespace StackExchange.Redis
                 // special values like NaN/Inf are deliberately not handled by Simplify, but need to be considered for casting
                 StorageType.String when Format.TryParseDouble(value.RawString(), out var d) => d,
                 StorageType.MemoryManager or StorageType.ByteArray when TryParseDouble(value.RawSpan(), out var d) => d,
+                StorageType.Sequence when value.TryParse(out double d) => d, // linearizes + handles inf/nan, like the span case above
                 // anything else: fail
                 _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
             };
