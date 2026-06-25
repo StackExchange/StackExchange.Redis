@@ -280,6 +280,8 @@ namespace StackExchange.Redis
         internal ReadOnlySequence<byte> RawSequence()
         {
             if (_obj is ReadOnlySequenceSegment<byte> s) return GetSequence(s, _index, _length);
+            if (_obj is byte[] a) return new(a, _index, _length);
+            if (_obj is MemoryManager<byte> m) return new(m.Memory.Slice(_index, _length));
             ThrowRawType();
             return default;
         }
@@ -596,8 +598,8 @@ namespace StackExchange.Redis
                             return string.CompareOrdinal(x.RawString(), y.RawString());
                         case StorageType.MemoryManager or StorageType.ByteArray:
                             return x.RawSpan().SequenceCompareTo(y.RawSpan());
-                        // case StorageType.Sequence:
-                        //    return x.RawSequence().SequenceCompareTo(y.RawSequence());
+                        case StorageType.Sequence:
+                            return x.RawSequence().SequenceCompareTo(y.RawSequence());
                     }
                 }
 
@@ -615,9 +617,11 @@ namespace StackExchange.Redis
                         if (yType == StorageType.Double) return ((double)x.OverlappedValueUInt64).CompareTo(y.OverlappedValueDouble);
                         if (yType == StorageType.Int64) return -1; // we only use unsigned if > int64, so: x is bigger
                         break;
-                    case StorageType.MemoryManager or StorageType.ByteArray:
-                        if (yType == StorageType.MemoryManager || yType == StorageType.ByteArray) return x.RawSpan().SequenceCompareTo(y.RawSpan());
-                        break;
+                    case StorageType.MemoryManager or StorageType.ByteArray when yType is StorageType.MemoryManager or StorageType.ByteArray:
+                        return x.RawSpan().SequenceCompareTo(y.RawSpan());
+                    case StorageType.MemoryManager or StorageType.ByteArray when yType == StorageType.Sequence:
+                    case StorageType.Sequence when yType is StorageType.MemoryManager or StorageType.ByteArray:
+                        return x.RawSequence().SequenceCompareTo(y.RawSequence());
                 }
 
                 // otherwise, compare as strings

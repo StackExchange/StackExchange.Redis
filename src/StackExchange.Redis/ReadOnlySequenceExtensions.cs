@@ -149,8 +149,39 @@ internal static class ReadOnlySequenceExtensions
         return true;
     }
 
-    // public static int SequenceCompareTo(this in ReadOnlySequence<byte> first, in ReadOnlySequence<byte> other)
-    // {
-    //    throw new NotImplementedException();
-    // }
+    /// <summary>
+    /// Lexicographically compares two sequences (matching <see cref="MemoryExtensions.SequenceCompareTo{T}(ReadOnlySpan{T}, ReadOnlySpan{T})"/>
+    /// semantics): the first differing byte decides the order, and if one is a prefix of the other, the
+    /// shorter sorts first.
+    /// </summary>
+    public static int SequenceCompareTo(this in ReadOnlySequence<byte> first, in ReadOnlySequence<byte> other)
+    {
+        if (first.IsSingleSegment && other.IsSingleSegment)
+        {
+            return first.FirstSpan.SequenceCompareTo(other.FirstSpan);
+        }
+
+        // walk both sequences in tandem, comparing the overlapping window each step and short-circuiting on
+        // the first non-zero result; empty segments are skipped by the refill loops
+        var firstPos = first.Start;
+        var otherPos = other.Start;
+        ReadOnlySpan<byte> a = default, b = default;
+        while (true)
+        {
+            while (a.IsEmpty && first.TryGet(ref firstPos, out var aNext)) a = aNext.Span;
+            while (b.IsEmpty && other.TryGet(ref otherPos, out var bNext)) b = bNext.Span;
+
+            if (a.IsEmpty || b.IsEmpty) break; // at least one sequence is exhausted
+
+            var shared = Math.Min(a.Length, b.Length);
+            var cmp = a.Slice(0, shared).SequenceCompareTo(b.Slice(0, shared));
+            if (cmp != 0) return cmp;
+
+            a = a.Slice(shared);
+            b = b.Slice(shared);
+        }
+
+        // everything in the overlap matched, so the longer sequence sorts after the shorter
+        return first.Length.CompareTo(other.Length);
+    }
 }

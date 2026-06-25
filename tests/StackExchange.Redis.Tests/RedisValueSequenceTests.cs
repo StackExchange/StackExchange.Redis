@@ -152,6 +152,60 @@ public class RedisValueSequenceTests
         Assert.Equal(expectedDouble, actualDouble);
     }
 
+    [Theory]
+    [InlineData("abc", "abc")] // equal
+    [InlineData("abc", "abd")] // differ at last byte
+    [InlineData("abd", "abc")]
+    [InlineData("xbc", "abc")] // differ at first byte
+    [InlineData("abc", "abcd")] // prefix: shorter sorts first
+    [InlineData("abcd", "abc")]
+    [InlineData("abcdefardvark", "abcdefardwolf")] // longer, differ mid-way
+    public void MultiSegmentSequence_CompareTo_MatchesByteOrdinal(string x, string y)
+    {
+        var bx = Encoding.UTF8.GetBytes(x);
+        var by = Encoding.UTF8.GetBytes(y);
+        int expected = Math.Sign(((ReadOnlySpan<byte>)bx).SequenceCompareTo(by));
+
+        RedisValue seqX = SplitEveryByte(bx), seqY = SplitEveryByte(by);
+        RedisValue arrX = bx, arrY = by;
+        Assert.Equal(RedisValue.StorageType.Sequence, seqX.Type);
+        Assert.Equal(RedisValue.StorageType.Sequence, seqY.Type);
+
+        Assert.Equal(expected, Math.Sign(seqX.CompareTo(seqY))); // sequence vs sequence
+        Assert.Equal(expected, Math.Sign(seqX.CompareTo(arrY))); // sequence vs byte[]
+        Assert.Equal(expected, Math.Sign(arrX.CompareTo(seqY))); // byte[] vs sequence
+        Assert.Equal(expected, Math.Sign(arrX.CompareTo(arrY))); // byte[] vs byte[] baseline
+    }
+
+    [Fact]
+    public void MultiSegmentSequence_CompareTo_EqualContentDifferentBoundaries()
+    {
+        // identical content, but segmented differently on each side - the tandem walk must still see equality
+        var bytes = Encoding.UTF8.GetBytes("the quick brown fox");
+        RedisValue a = FragmentedSegment<byte>.Create(bytes[..4], bytes[4..11], bytes[11..]);
+        RedisValue b = FragmentedSegment<byte>.Create(bytes[..2], bytes[2..9], bytes[9..15], bytes[15..]);
+        Assert.Equal(RedisValue.StorageType.Sequence, a.Type);
+        Assert.Equal(RedisValue.StorageType.Sequence, b.Type);
+
+        Assert.Equal(0, a.CompareTo(b));
+        Assert.Equal(0, b.CompareTo(a));
+        Assert.True(a == b);
+    }
+
+    [Fact]
+    public void MultiSegmentSequence_CompareTo_DifferenceAcrossBoundaries()
+    {
+        // the differing byte (index 5: 'f' vs 'X') sits in a different segment on each side
+        var x = Encoding.UTF8.GetBytes("abcdefgh");
+        var y = Encoding.UTF8.GetBytes("abcdeXgh");
+        RedisValue sx = FragmentedSegment<byte>.Create(x[..3], x[3..]); // [abc][defgh]
+        RedisValue sy = FragmentedSegment<byte>.Create(y[..6], y[6..]); // [abcdeX][gh]
+
+        int expected = Math.Sign(((ReadOnlySpan<byte>)x).SequenceCompareTo(y)); // 'f' > 'X' => positive
+        Assert.Equal(expected, Math.Sign(sx.CompareTo(sy)));
+        Assert.Equal(-expected, Math.Sign(sy.CompareTo(sx))); // antisymmetry
+    }
+
     [Fact]
     public void MultiSegmentBytes_RoundTripToArray()
     {
