@@ -182,8 +182,8 @@ public class RedisValueSequenceTests
     {
         // identical content, but segmented differently on each side - the tandem walk must still see equality
         var bytes = Encoding.UTF8.GetBytes("the quick brown fox");
-        RedisValue a = FragmentedSegment<byte>.Create(bytes[..4], bytes[4..11], bytes[11..]);
-        RedisValue b = FragmentedSegment<byte>.Create(bytes[..2], bytes[2..9], bytes[9..15], bytes[15..]);
+        RedisValue a = FragmentedSegment<byte>.Create(Mem(bytes, 0, 4), Mem(bytes, 4, 7), Mem(bytes, 11, bytes.Length - 11));
+        RedisValue b = FragmentedSegment<byte>.Create(Mem(bytes, 0, 2), Mem(bytes, 2, 7), Mem(bytes, 9, 6), Mem(bytes, 15, bytes.Length - 15));
         Assert.Equal(RedisValue.StorageType.Sequence, a.Type);
         Assert.Equal(RedisValue.StorageType.Sequence, b.Type);
 
@@ -198,8 +198,8 @@ public class RedisValueSequenceTests
         // the differing byte (index 5: 'f' vs 'X') sits in a different segment on each side
         var x = Encoding.UTF8.GetBytes("abcdefgh");
         var y = Encoding.UTF8.GetBytes("abcdeXgh");
-        RedisValue sx = FragmentedSegment<byte>.Create(x[..3], x[3..]); // [abc][defgh]
-        RedisValue sy = FragmentedSegment<byte>.Create(y[..6], y[6..]); // [abcdeX][gh]
+        RedisValue sx = FragmentedSegment<byte>.Create(Mem(x, 0, 3), Mem(x, 3, x.Length - 3)); // [abc][defgh]
+        RedisValue sy = FragmentedSegment<byte>.Create(Mem(y, 0, 6), Mem(y, 6, y.Length - 6)); // [abcdeX][gh]
 
         int expected = Math.Sign(((ReadOnlySpan<byte>)x).SequenceCompareTo(y)); // 'f' > 'X' => positive
         Assert.Equal(expected, Math.Sign(sx.CompareTo(sy)));
@@ -225,4 +225,7 @@ public class RedisValueSequenceTests
         }
         return FragmentedSegment<byte>.Create(chunks);
     }
+
+    // a slice of the source as ReadOnlyMemory (no array allocation, and avoids range syntax for net481)
+    private static ReadOnlyMemory<byte> Mem(byte[] source, int start, int length) => new(source, start, length);
 }
