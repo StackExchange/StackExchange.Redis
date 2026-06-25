@@ -270,6 +270,13 @@ namespace StackExchange.Redis
             return new ReadOnlySequence<byte>(startSegment, startIndex, endSegment, endIndex);
         }
 
+        internal ReadOnlySequenceIterator<byte> RawSequenceIterator()
+        {
+            if (_obj is ReadOnlySequenceSegment<byte> s) return new(s, _index, _length);
+            ThrowRawType();
+            return default;
+        }
+
         internal ReadOnlySequence<byte> RawSequence()
         {
             if (_obj is ReadOnlySequenceSegment<byte> s) return GetSequence(s, _index, _length);
