@@ -1,1 +1,4 @@
 #nullable enable
+static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(System.Buffers.ReadOnlySequence<byte> value) -> StackExchange.Redis.RedisValue
+static StackExchange.Redis.RedisValue.implicit operator System.Buffers.ReadOnlySequence<byte>(StackExchange.Redis.RedisValue value) -> System.Buffers.ReadOnlySequence<byte>
+[SER002]static StackExchange.Redis.ValueCondition.CalculateDigest(in System.Buffers.ReadOnlySequence<byte> value) -> StackExchange.Redis.ValueCondition

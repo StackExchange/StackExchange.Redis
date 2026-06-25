@@ -1065,11 +1065,7 @@ public ref partial struct RespReader
 
     /// <inheritdoc cref="RespReader"/>
     public RespReader(scoped in ReadOnlySequence<byte> value)
-#if NET
         : this(value.FirstSpan)
-#else
-        : this(value.First.Span)
-#endif
     {
         if (!value.IsSingleSegment)
         {

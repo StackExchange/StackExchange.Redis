@@ -712,11 +712,7 @@ public partial struct CycleBuffer
     {
         if (value.IsSingleSegment)
         {
-#if NET
             Write(value.FirstSpan);
-#else
-            Write(value.First.Span);
-#endif
         }
         else
         {
@@ -727,11 +723,7 @@ public partial struct CycleBuffer
         {
             foreach (var segment in value)
             {
-#if NET
-                @this.Write(value.FirstSpan);
-#else
-                @this.Write(value.First.Span);
-#endif
+                @this.Write(segment.Span);
             }
         }
     }

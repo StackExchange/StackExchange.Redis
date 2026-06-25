@@ -125,11 +125,7 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
     {
         if (!_pubsub & state.TotalBytes == 0 & data.IsSingleSegment)
         {
-#if NET
             var status = TryFastRead(data.FirstSpan, ref state);
-#else
-            var status = TryFastRead(data.First.Span, ref state);
-#endif
             if (status != UseReader) return status;
         }
 

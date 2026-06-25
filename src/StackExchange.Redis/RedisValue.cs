@@ -255,6 +255,53 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator !=(RedisValue x, RedisValue y) => !(x == y);
 
+        private static ReadOnlySequence<byte> GetSequence(ReadOnlySequenceSegment<byte> startSegment, int startIndex, int length)
+        {
+            var endIndex = length - (startSegment.Memory.Length - startIndex);
+            var endSegment = startSegment;
+            do
+            {
+                endSegment = endSegment.Next ?? throw new InvalidOperationException("EndSegment is null");
+                var len = endSegment.Memory.Length;
+                if (endIndex <= len) break;
+                endIndex -= len;
+            }
+            while (true);
+            return new ReadOnlySequence<byte>(startSegment, startIndex, endSegment, endIndex);
+        }
+
+        internal ReadOnlySequenceSegmentIterator<byte> RawSequenceIterator()
+        {
+            if (_obj is ReadOnlySequenceSegment<byte> s) return new(s, _index, _length);
+            ThrowRawType();
+            return default;
+        }
+
+        internal ReadOnlySequence<byte> RawSequence()
+        {
+            if (_obj is ReadOnlySequenceSegment<byte> s) return GetSequence(s, _index, _length);
+            if (_obj is byte[] a) return new(a, _index, _length);
+            if (_obj is MemoryManager<byte> m) return new(m.Memory.Slice(_index, _length));
+            ThrowRawType();
+            return default;
+        }
+
+        // Linearizes a Sequence payload into the supplied buffer (which must be at least _length long),
+        // walking the segments directly via the iterator - i.e. without paying to build a ReadOnlySequence -
+        // and returns the populated portion of the buffer.
+        private ReadOnlySpan<byte> CopyRawSequence(Span<byte> destination)
+        {
+            var iterator = RawSequenceIterator();
+            int offset = 0;
+            while (iterator.TryNext(out var memory))
+            {
+                memory.Span.CopyTo(destination.Slice(offset));
+                offset += memory.Length;
+            }
+            Debug.Assert(offset == _length, "linearized length mismatch");
+            return destination.Slice(0, offset);
+        }
+
         internal ReadOnlySpan<byte> RawSpan()
         {
             if (_obj is byte[] b) return new ReadOnlySpan<byte>(b, _index, _length);
@@ -300,6 +347,8 @@ namespace StackExchange.Redis
                         return x.RawString() == y.RawString();
                     case StorageType.ByteArray or StorageType.MemoryManager:
                         return x.RawSpan().SequenceEqual(y.RawSpan());
+                    case StorageType.Sequence:
+                        return x.RawSequence().SequenceEqual(y.RawSequence());
                 }
             }
 
@@ -320,7 +369,20 @@ namespace StackExchange.Redis
                     return false;
             }
 
-            // otherwise, compare as strings
+            // both are non-null, non-numeric, and of different kinds; the blob kinds (byte[] / memory /
+            // sequence) compare by bytes in any combination - and we keep the span-vs-span path for the
+            // case where neither side is a multi-segment sequence
+            switch (xType)
+            {
+                case StorageType.Sequence when yType is StorageType.ByteArray or StorageType.MemoryManager:
+                    return x.RawSequence().SequenceEqual(y.RawSpan());
+                case StorageType.ByteArray or StorageType.MemoryManager when yType == StorageType.Sequence:
+                    return y.RawSequence().SequenceEqual(x.RawSpan());
+                case StorageType.ByteArray or StorageType.MemoryManager when yType is StorageType.ByteArray or StorageType.MemoryManager:
+                    return x.RawSpan().SequenceEqual(y.RawSpan());
+            }
+
+            // otherwise (anything involving a string), compare as strings
             return (string?)x == (string?)y;
         }
 
@@ -347,14 +409,38 @@ namespace StackExchange.Redis
         private static int GetHashCode(RedisValue x)
         {
             x = x.Simplify();
-            return x.Type switch
+            switch (x.Type)
             {
-                StorageType.Null => -1,
-                StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
-                StorageType.Int64 or StorageType.UInt64 => x._valueInt64.GetHashCode(),
-                StorageType.String => x.RawString().GetHashCode(),
-                _ => ((string)x!).GetHashCode(), // to match equality
-            };
+                case StorageType.Null:
+                    return -1;
+                case StorageType.Double:
+                    return x.OverlappedValueDouble.GetHashCode();
+                case StorageType.Int64 or StorageType.UInt64:
+                    return x._valueInt64.GetHashCode();
+                case StorageType.String:
+                    return x.RawString().GetHashCode();
+            }
+
+            // Everything else - byte/memory/sequence buffers - compares to each other (and to strings) "as
+            // strings" (see operator ==): e.g. "inf" the bytes equals "inf" the string. Anything that looked
+            // numeric was already reduced to Int64/Double by Simplify() above, so the equality-consistent
+            // hash for what remains is the hash of the string form. (We must NOT hash raw bytes: that would
+            // give byte buffers a different hash from the equal string.)
+#if NET
+            // hash the decoded UTF8 chars directly, which avoids allocating a transient string; this matches
+            // string.GetHashCode() for the equivalent text
+            const int StackLimit = 256;
+            var maxChars = x.GetMaxCharCount();
+            char[]? leased = null;
+            Span<char> chars = maxChars <= StackLimit ? stackalloc char[StackLimit] : (leased = ArrayPool<char>.Shared.Rent(maxChars));
+            var written = x.CopyTo(chars);
+            var hashCode = string.GetHashCode(chars.Slice(0, written));
+            if (leased is not null) ArrayPool<char>.Shared.Return(leased);
+            return hashCode;
+#else
+            // no string.GetHashCode(ReadOnlySpan<char>) on these targets, so fall back to the string form
+            return ((string)x!).GetHashCode();
+#endif
         }
 
         /// <summary>
@@ -386,14 +472,12 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal static unsafe int GetHashCode(ReadOnlySpan<byte> span)
+        private static int AddHashCode(ReadOnlySpan<byte> span, int acc)
         {
             unchecked
             {
                 int len = span.Length;
-                if (len == 0) return 0;
-
-                int acc = 728271210;
+                Debug.Assert(len > 0);
 
                 var span64 = MemoryMarshal.Cast<byte, long>(span);
                 for (int i = 0; i < span64.Length; i++)
@@ -411,6 +495,17 @@ namespace StackExchange.Redis
             }
         }
 
+        // used by RedisKey, whose equality is byte-based (unlike RedisValue, which treats non-numeric
+        // buffers as strings - see GetHashCode(RedisValue))
+        internal static int GetHashCode(ReadOnlySpan<byte> span)
+        {
+            if (span.Length == 0) return 0;
+
+            return AddHashCode(span, HashCodeStart);
+        }
+
+        private const int HashCodeStart = 728271210;
+
         internal void AssertNotNull()
         {
             if (IsNull) throw new ArgumentException("A null value is not valid in this context");
@@ -425,6 +520,7 @@ namespace StackExchange.Redis
             MemoryManager,
             ByteArray,
             String,
+            Sequence,
             Unknown,
         }
 
@@ -440,6 +536,7 @@ namespace StackExchange.Redis
                 if (obj is byte[]) return StorageType.ByteArray;
                 if (obj == Sentinel_UnsignedInteger) return StorageType.UInt64;
                 if (obj is MemoryManager<byte>) return StorageType.MemoryManager;
+                if (obj is ReadOnlySequenceSegment<byte>) return StorageType.Sequence;
                 return StorageType.Unknown;
             }
         }
@@ -483,7 +580,7 @@ namespace StackExchange.Redis
         public long Length() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray => _length,
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => _length,
             StorageType.String => Encoding.UTF8.GetByteCount(RawString()),
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
@@ -522,6 +619,8 @@ namespace StackExchange.Redis
                             return string.CompareOrdinal(x.RawString(), y.RawString());
                         case StorageType.MemoryManager or StorageType.ByteArray:
                             return x.RawSpan().SequenceCompareTo(y.RawSpan());
+                        case StorageType.Sequence:
+                            return x.RawSequence().SequenceCompareTo(y.RawSequence());
                     }
                 }
 
@@ -539,6 +638,11 @@ namespace StackExchange.Redis
                         if (yType == StorageType.Double) return ((double)x.OverlappedValueUInt64).CompareTo(y.OverlappedValueDouble);
                         if (yType == StorageType.Int64) return -1; // we only use unsigned if > int64, so: x is bigger
                         break;
+                    case StorageType.MemoryManager or StorageType.ByteArray when yType is StorageType.MemoryManager or StorageType.ByteArray:
+                        return x.RawSpan().SequenceCompareTo(y.RawSpan());
+                    case StorageType.MemoryManager or StorageType.ByteArray when yType == StorageType.Sequence:
+                    case StorageType.Sequence when yType is StorageType.MemoryManager or StorageType.ByteArray:
+                        return x.RawSequence().SequenceCompareTo(y.RawSequence());
                 }
 
                 // otherwise, compare as strings
@@ -657,6 +761,22 @@ namespace StackExchange.Redis
         public static implicit operator RedisValue(ReadOnlyMemory<byte> value) => new(value);
 
         /// <summary>
+        /// Creates a new <see cref="RedisValue"/> from a <see cref="T:ReadOnlySequence{byte}"/>.
+        /// </summary>
+        /// <param name="value">The <see cref="T:ReadOnlySequence{byte}"/> to cast to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(ReadOnlySequence<byte> value)
+        {
+            if (value.IsSingleSegment) return new(value.First);
+            // what is the maximum length? Array.MaxLength? 512MB?
+            if (value.Length > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(value));
+
+            var pos = value.Start;
+            var segment = pos.GetObject() ?? throw new InvalidOperationException("StartSegment is null");
+            return new((ReadOnlySequenceSegment<byte>)segment, pos.GetInteger(), checked((int)value.Length));
+        }
+
+        /// <summary>
         /// Creates a new <see cref="RedisValue"/> from a <see cref="T:Memory{byte}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:Memory{byte}"/> to convert to a <see cref="RedisValue"/>.</param>
@@ -771,6 +891,7 @@ namespace StackExchange.Redis
                 // special values like NaN/Inf are deliberately not handled by Simplify, but need to be considered for casting
                 StorageType.String when Format.TryParseDouble(value.RawString(), out var d) => d,
                 StorageType.MemoryManager or StorageType.ByteArray when TryParseDouble(value.RawSpan(), out var d) => d,
+                StorageType.Sequence when value.TryParse(out double d) => d, // linearizes + handles inf/nan, like the span case above
                 // anything else: fail
                 _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
             };
@@ -908,6 +1029,11 @@ namespace StackExchange.Redis
                     {
                         return ToHex(span);
                     }
+                case StorageType.Sequence:
+                    if (value._length == 0) return "";
+                    var seq = value.RawSequence();
+                    if (seq.IsEmpty) return "";
+                    return Format.GetString(seq);
                 default:
                     throw new InvalidOperationException();
             }
@@ -951,6 +1077,8 @@ namespace StackExchange.Redis
                     return arr;
                 case StorageType.ByteArray or StorageType.MemoryManager:
                     return value.RawSpan().ToArray();
+                case StorageType.Sequence:
+                    return value.RawSequence().ToArray();
                 case StorageType.Int64:
                     Debug.Assert(Format.MaxInt64TextLen <= 24);
                     Span<byte> span = stackalloc byte[24];
@@ -978,7 +1106,7 @@ namespace StackExchange.Redis
         public int GetByteCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray => _length,
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => _length,
             StorageType.String => Encoding.UTF8.GetByteCount(RawString()),
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
@@ -992,7 +1120,7 @@ namespace StackExchange.Redis
         internal int GetMaxByteCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray => _length,
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => _length,
             StorageType.String => Encoding.UTF8.GetMaxByteCount(RawString().Length),
             StorageType.Int64 => Format.MaxInt64TextLen,
             StorageType.UInt64 => Format.MaxInt64TextLen,
@@ -1007,6 +1135,7 @@ namespace StackExchange.Redis
         {
             StorageType.Null => 0,
             StorageType.MemoryManager or StorageType.ByteArray => Encoding.UTF8.GetCharCount(RawSpan()),
+            StorageType.Sequence => Encoding.UTF8.GetCharCount(RawSequence()),
             StorageType.String => _length,
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
@@ -1020,7 +1149,7 @@ namespace StackExchange.Redis
         internal int GetMaxCharCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray => Encoding.UTF8.GetMaxCharCount(_length),
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => Encoding.UTF8.GetMaxCharCount(_length),
             StorageType.String => _length,
             StorageType.Int64 => Format.MaxInt64TextLen,
             StorageType.UInt64 => Format.MaxInt64TextLen,
@@ -1049,6 +1178,9 @@ namespace StackExchange.Redis
                 case StorageType.MemoryManager or StorageType.ByteArray:
                     RawSpan().CopyTo(destination);
                     return _length;
+                case StorageType.Sequence:
+                    RawSequence().CopyTo(destination);
+                    return _length;
                 case StorageType.String:
                     return Encoding.UTF8.GetBytes(RawString().AsSpan(), destination);
                 case StorageType.Int64:
@@ -1073,6 +1205,8 @@ namespace StackExchange.Redis
                     return 0;
                 case StorageType.MemoryManager or StorageType.ByteArray:
                     return Encoding.UTF8.GetChars(RawSpan(), destination);
+                case StorageType.Sequence:
+                    return Encoding.UTF8.GetChars(RawSequence(), destination);
                 case StorageType.String:
                     var span = RawString().AsSpan();
                     span.CopyTo(destination);
@@ -1098,6 +1232,16 @@ namespace StackExchange.Redis
             if (value._obj is MemoryManager<byte> manager) return manager.Memory.Slice(value._index, value._length);
             if (value._obj is null) return default;
             return (byte[]?)value;
+        }
+
+        /// <summary>
+        /// Converts a <see cref="RedisValue"/> to a <see cref="ReadOnlySequence{T}"/>.
+        /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
+        public static implicit operator ReadOnlySequence<byte>(RedisValue value)
+        {
+            if (value._obj is ReadOnlySequenceSegment<byte> s) return GetSequence(s, value._index, value._length);
+            return new((ReadOnlyMemory<byte>)value);
         }
 
         TypeCode IConvertible.GetTypeCode() => TypeCode.Object;
@@ -1172,14 +1316,19 @@ namespace StackExchange.Redis
                     if (Format.TryParseDouble(s, out var f64) && !IsSpecialDouble(f64)) return f64;
                     break;
                 case StorageType.MemoryManager or StorageType.ByteArray:
-                    var b = RawSpan();
-                    if (Format.CouldBeInteger(b))
+                    if (TrySimplify(RawSpan(), out var simplified)) return simplified;
+                    break;
+                case StorageType.Sequence:
+                    // numeric forms are short, so we only need to consider plausibly-numeric lengths;
+                    // copy into a small stack buffer so we can reuse the exact same byte-based parsing
+                    var seq = RawSequence();
+                    if (seq.Length <= Format.MaxDoubleTextLen)
                     {
-                        if (Format.TryParseInt64(b, out i64)) return i64;
-                        if (Format.TryParseUInt64(b, out u64)) return u64;
+                        Span<byte> tmp = stackalloc byte[Format.MaxDoubleTextLen];
+                        int len = (int)seq.Length;
+                        seq.CopyTo(tmp);
+                        if (TrySimplify(tmp.Slice(0, len), out simplified)) return simplified;
                     }
-                    // note: don't simplify inf/nan, as that causes equality semantic problems
-                    if (TryParseDouble(b, out f64) && !IsSpecialDouble(f64)) return f64;
                     break;
                 case StorageType.Double:
                     // is the double actually an integer?
@@ -1188,6 +1337,33 @@ namespace StackExchange.Redis
                     break;
             }
             return this;
+
+            // shared by the ByteArray/MemoryManager and Sequence cases, so that identical bytes
+            // simplify identically regardless of how they happen to be stored
+            static bool TrySimplify(ReadOnlySpan<byte> bytes, out RedisValue value)
+            {
+                if (Format.CouldBeInteger(bytes))
+                {
+                    if (Format.TryParseInt64(bytes, out var i64))
+                    {
+                        value = i64;
+                        return true;
+                    }
+                    if (Format.TryParseUInt64(bytes, out var u64))
+                    {
+                        value = u64;
+                        return true;
+                    }
+                }
+                // note: don't simplify inf/nan, as that causes equality semantic problems
+                if (TryParseDouble(bytes, out var f64) && !IsSpecialDouble(f64))
+                {
+                    value = f64;
+                    return true;
+                }
+                value = default;
+                return false;
+            }
         }
 
         private static bool IsSpecialDouble(double d) => double.IsNaN(d) || double.IsInfinity(d);
@@ -1212,6 +1388,15 @@ namespace StackExchange.Redis
                     return Format.TryParseInt64(RawString(), out val);
                 case StorageType.MemoryManager or StorageType.ByteArray:
                     return Format.TryParseInt64(RawSpan(), out val);
+                case StorageType.Sequence:
+                    // longer than the largest possible Int64 text => cannot be an Int64; otherwise
+                    // linearize onto the stack and reuse the span-based parse (matching the ByteArray path)
+                    if (_length <= Format.MaxInt64TextLen)
+                    {
+                        Span<byte> buffer = stackalloc byte[Format.MaxInt64TextLen];
+                        return Format.TryParseInt64(CopyRawSequence(buffer), out val);
+                    }
+                    break;
                 case StorageType.Double:
                     var d = OverlappedValueDouble;
                     try
@@ -1272,6 +1457,15 @@ namespace StackExchange.Redis
                     return Format.TryParseDouble(RawString(), out val);
                 case StorageType.MemoryManager or StorageType.ByteArray:
                     return TryParseDouble(RawSpan(), out val);
+                case StorageType.Sequence:
+                    // longer than the largest possible double text => cannot be a double; otherwise
+                    // linearize onto the stack and reuse the span-based parse (matching the ByteArray path)
+                    if (_length <= Format.MaxDoubleTextLen)
+                    {
+                        Span<byte> buffer = stackalloc byte[Format.MaxDoubleTextLen];
+                        return TryParseDouble(CopyRawSequence(buffer), out val);
+                    }
+                    break;
                 case StorageType.Null:
                     // in redis-land 0 approx. equal null; so roll with it
                     val = 0;
@@ -1333,7 +1527,8 @@ namespace StackExchange.Redis
             if (IsNullOrEmpty) return false;
 
             var thisType = Type;
-            if (thisType == value.Type) // same? can often optimize
+            var otherType = value.Type;
+            if (thisType == otherType) // same? can often optimize
             {
                 switch (thisType)
                 {
@@ -1343,7 +1538,24 @@ namespace StackExchange.Redis
                         return sThis.StartsWith(sOther, StringComparison.Ordinal);
                     case StorageType.MemoryManager or StorageType.ByteArray:
                         return RawSpan().StartsWith(value.RawSpan());
+                    case StorageType.Sequence:
+                        return RawSequence().StartsWith(value.RawSequence());
                 }
+            }
+            if (thisType == StorageType.Sequence &&
+                (otherType == StorageType.MemoryManager || otherType == StorageType.ByteArray))
+            {
+                return RawSequence().StartsWith(value.RawSpan());
+            }
+            if (otherType == StorageType.Sequence &&
+                (thisType == StorageType.MemoryManager || thisType == StorageType.ByteArray))
+            {
+                return RawSpan().StartsWith(value.RawSequence());
+            }
+            if ((thisType == StorageType.MemoryManager && otherType == StorageType.ByteArray) ||
+                (thisType == StorageType.ByteArray && otherType == StorageType.MemoryManager))
+            {
+                return RawSpan().StartsWith(value.RawSpan());
             }
             byte[]? arr0 = null, arr1 = null;
             try
@@ -1370,6 +1582,10 @@ namespace StackExchange.Redis
                 case StorageType.ByteArray:
                     leased = null;
                     return new ReadOnlyMemory<byte>((byte[])_obj!, _index, _length);
+                case StorageType.Sequence:
+                    leased = ArrayPool<byte>.Shared.Rent(_length);
+                    RawSequence().CopyTo(leased);
+                    return new ReadOnlyMemory<byte>(leased, 0, _length);
                 case StorageType.String:
                     string s = RawString();
 HaveString:
@@ -1408,6 +1624,8 @@ HaveString:
             {
                 case StorageType.MemoryManager or StorageType.ByteArray:
                     return ValueCondition.CalculateDigest(RawSpan());
+                case StorageType.Sequence:
+                    return ValueCondition.CalculateDigest(RawSequence());
                 case StorageType.Null:
                     return ValueCondition.NotExists; // interpret === null as "not exists"
                 default:
@@ -1453,6 +1671,8 @@ HaveString:
             {
                 case StorageType.MemoryManager or StorageType.ByteArray:
                     return RawSpan().StartsWith(value);
+                case StorageType.Sequence:
+                    return RawSequence().StartsWith(value);
                 case StorageType.Int64:
                     Span<byte> buffer = stackalloc byte[Format.MaxInt64TextLen];
                     len = Format.FormatInt64(OverlappedValueInt64, buffer);
