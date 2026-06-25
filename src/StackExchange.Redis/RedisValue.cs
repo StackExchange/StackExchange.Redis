@@ -284,6 +284,22 @@ namespace StackExchange.Redis
             return default;
         }
 
+        // Linearizes a Sequence payload into the supplied buffer (which must be at least _length long),
+        // walking the segments directly via the iterator - i.e. without paying to build a ReadOnlySequence -
+        // and returns the populated portion of the buffer.
+        private ReadOnlySpan<byte> CopyRawSequence(Span<byte> destination)
+        {
+            var iterator = RawSequenceIterator();
+            int offset = 0;
+            while (iterator.TryNext(out var memory))
+            {
+                memory.Span.CopyTo(destination.Slice(offset));
+                offset += memory.Length;
+            }
+            Debug.Assert(offset == _length, "linearized length mismatch");
+            return destination.Slice(0, offset);
+        }
+
         internal ReadOnlySpan<byte> RawSpan()
         {
             if (_obj is byte[] b) return new ReadOnlySpan<byte>(b, _index, _length);
@@ -1346,6 +1362,15 @@ namespace StackExchange.Redis
                     return Format.TryParseInt64(RawString(), out val);
                 case StorageType.MemoryManager or StorageType.ByteArray:
                     return Format.TryParseInt64(RawSpan(), out val);
+                case StorageType.Sequence:
+                    // longer than the largest possible Int64 text => cannot be an Int64; otherwise
+                    // linearize onto the stack and reuse the span-based parse (matching the ByteArray path)
+                    if (_length <= Format.MaxInt64TextLen)
+                    {
+                        Span<byte> buffer = stackalloc byte[Format.MaxInt64TextLen];
+                        return Format.TryParseInt64(CopyRawSequence(buffer), out val);
+                    }
+                    break;
                 case StorageType.Double:
                     var d = OverlappedValueDouble;
                     try
@@ -1406,6 +1431,15 @@ namespace StackExchange.Redis
                     return Format.TryParseDouble(RawString(), out val);
                 case StorageType.MemoryManager or StorageType.ByteArray:
                     return TryParseDouble(RawSpan(), out val);
+                case StorageType.Sequence:
+                    // longer than the largest possible double text => cannot be a double; otherwise
+                    // linearize onto the stack and reuse the span-based parse (matching the ByteArray path)
+                    if (_length <= Format.MaxDoubleTextLen)
+                    {
+                        Span<byte> buffer = stackalloc byte[Format.MaxDoubleTextLen];
+                        return TryParseDouble(CopyRawSequence(buffer), out val);
+                    }
+                    break;
                 case StorageType.Null:
                     // in redis-land 0 approx. equal null; so roll with it
                     val = 0;

@@ -125,6 +125,33 @@ public class RedisValueSequenceTests
         Assert.Equal(expected, asSequence.GetHashCode());
     }
 
+    [Theory]
+    [InlineData("123")] // integer
+    [InlineData("-123")] // negative integer
+    [InlineData("00")] // leading zeros, within length limit
+    [InlineData("123.5")] // non-integer double
+    [InlineData("-0.25")] // negative double
+    [InlineData("abc")] // not numeric at all
+    [InlineData("12x")] // partially numeric (must not parse)
+    [InlineData("99999999999999999999999")] // oversize: cannot be Int64 or double-as-int
+    public void MultiSegmentSequence_TryParse_MatchesByteArray(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        RedisValue asBytes = bytes; // single-buffer (ByteArray)
+        RedisValue asSequence = SplitEveryByte(bytes); // multi-buffer (Sequence)
+        Assert.Equal(RedisValue.StorageType.Sequence, asSequence.Type);
+
+        // a sequence-backed value must parse exactly like the equivalent byte[]
+        Assert.Equal(asBytes.TryParse(out long expectedLong), asSequence.TryParse(out long actualLong));
+        Assert.Equal(expectedLong, actualLong);
+
+        Assert.Equal(asBytes.TryParse(out int expectedInt), asSequence.TryParse(out int actualInt));
+        Assert.Equal(expectedInt, actualInt);
+
+        Assert.Equal(asBytes.TryParse(out double expectedDouble), asSequence.TryParse(out double actualDouble));
+        Assert.Equal(expectedDouble, actualDouble);
+    }
+
     [Fact]
     public void MultiSegmentBytes_RoundTripToArray()
     {
