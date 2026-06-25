@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using RESPite.Messages;
 
@@ -15,12 +16,22 @@ internal static class RespReaderExtensions
             reader.DemandScalar();
             if (reader.IsNull) return RedisValue.Null;
 
-            return reader.Prefix switch
+            switch (reader.Prefix)
             {
-                RespPrefix.Boolean => reader.ReadBoolean(),
-                RespPrefix.Integer => reader.ReadInt64(),
-                _ => reader.ReadByteArray(),
-            };
+                case RespPrefix.Boolean:
+                    return reader.ReadBoolean();
+                case RespPrefix.Integer:
+                    return reader.ReadInt64();
+            }
+
+            // bulk/simple/verbatim string: for inline scalars, prefer a compact numeric storage kind when
+            // the text is the *canonical* representation of that number, so every projection (ToString,
+            // (byte[]), equality, hash) still round-trips byte-for-byte; otherwise keep the raw bytes
+            if (reader.TryGetSpan(out var span) && TryReadCanonicalNumber(span, out var number))
+            {
+                return number;
+            }
+            return reader.ReadByteArray();
         }
 
         public string DebugReadTruncatedString(int maxChars)
@@ -184,7 +195,7 @@ internal static class RespReaderExtensions
             RespPrefix.SimpleError => ResultType.Error,
             RespPrefix.Null => ResultType.Null,
             RespPrefix.VerbatimString => ResultType.VerbatimString,
-            RespPrefix.Push=> ResultType.Push,
+            RespPrefix.Push => ResultType.Push,
             _ => throw new ArgumentOutOfRangeException(nameof(prefix), prefix, null),
         };
     }
@@ -208,4 +219,67 @@ internal static class RespReaderExtensions
         public bool IsCompletedSuccessfully => task.Status is TaskStatus.RanToCompletion;
     }
 #endif
+
+    private static readonly int MaxCanonicalLength = Math.Max(Format.MaxInt64TextLen, Format.MaxDoubleTextLen);
+
+    // Recognizes the canonical decimal text of an integer or finite double, returning a numeric-backed
+    // RedisValue only when re-formatting the parsed value reproduces the exact input bytes. This keeps the
+    // optimization invisible to callers: non-canonical spellings ("01234", "+5", "1.50", "1e3"), oversize
+    // values, and the special inf/nan tokens all return false and are kept as a byte[] payload by the caller.
+    private static bool TryReadCanonicalNumber(ReadOnlySpan<byte> span, out RedisValue value)
+    {
+        static bool Failure(out RedisValue value)
+        {
+            value = default;
+            return false;
+        }
+        // integer: canonical exactly when the round-trip text length matches (rules out leading zeros, a
+        // leading '+', "-0", trailing junk, etc.) - so no need to re-emit and compare bytes
+        if (span.IsEmpty | span.Length > MaxCanonicalLength) return Failure(out value);
+
+        // restrict to *just* basic number tokens
+        foreach (var b in span)
+        {
+            switch (b)
+            {
+                case (byte)'0':
+                case (byte)'1':
+                case (byte)'2':
+                case (byte)'3':
+                case (byte)'4':
+                case (byte)'5':
+                case (byte)'6':
+                case (byte)'7':
+                case (byte)'8':
+                case (byte)'9':
+                case (byte)'.':
+                case (byte)'-':
+                case (byte)'E':
+                case (byte)'e':
+                    break;
+                default:
+                    return Failure(out value);
+            }
+        }
+
+        if (Format.TryParseInt64(span, out var i64) && Format.MeasureInt64(i64) == span.Length)
+        {
+            value = i64;
+            return true;
+        }
+
+        if (Format.TryParseDouble(span, out var dbl))
+        {
+            if (dbl == 0.0) dbl = Math.Abs(dbl); // prevent problems with -0 formatting
+            Span<byte> formatted = stackalloc byte[Format.MaxDoubleTextLen];
+            var len = Format.FormatDouble(dbl, formatted);
+            if (formatted.Slice(0, len).SequenceEqual(span))
+            {
+                value = dbl;
+                return true;
+            }
+        }
+
+        return Failure(out value);
+    }
 }
