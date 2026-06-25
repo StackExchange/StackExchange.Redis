@@ -574,6 +574,7 @@ internal readonly ref struct MessageWriter
         }
     }
 
+    /*
     private static void WriteUnifiedSequence(IBufferWriter<byte> writer, in ReadOnlySequence<byte> value)
     {
         if (value.IsSingleSegment)
@@ -582,7 +583,8 @@ internal readonly ref struct MessageWriter
         }
         else
         {
-            var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+            // value.Length is a long, so reserve room for a 64-bit length ('$' + up to 20 digits + CRLF)
+            var span = writer.GetSpan(3 + Format.MaxInt64TextLen);
             span[0] = (byte)'$';
             int bytes = WriteRaw(span, value.Length, offset: 1);
             writer.Advance(bytes);
@@ -595,6 +597,7 @@ internal readonly ref struct MessageWriter
             WriteCrlf(writer);
         }
     }
+    */
 
     private static void WriteUnifiedSequenceIterator(IBufferWriter<byte> writer, ReadOnlySequenceSegmentIterator<byte> seq)
     {
