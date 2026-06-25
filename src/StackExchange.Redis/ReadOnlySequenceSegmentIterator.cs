@@ -3,7 +3,7 @@ using System.Buffers;
 
 namespace StackExchange.Redis;
 
-internal ref struct ReadOnlySequenceIterator<T>(ReadOnlySequenceSegment<T> segment, int startIndex, int length)
+internal struct ReadOnlySequenceSegmentIterator<T>(ReadOnlySequenceSegment<T> segment, int startIndex, int length)
 {
     private int _index = startIndex;
     private int _length = length;

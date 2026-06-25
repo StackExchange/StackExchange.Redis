@@ -103,8 +103,7 @@ internal readonly ref struct MessageWriter
                 WriteUnifiedSpan(writer, value.RawSpan());
                 break;
             case RedisValue.StorageType.Sequence:
-                var rosi = value.RawSequenceIterator();
-                WriteUnifiedSequenceIterator(writer, ref rosi);
+                WriteUnifiedSequenceIterator(writer, value.RawSequenceIterator());
                 break;
             default:
                 throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
@@ -597,14 +596,14 @@ internal readonly ref struct MessageWriter
         }
     }
 
-    private static void WriteUnifiedSequenceIterator(IBufferWriter<byte> writer, ref ReadOnlySequenceIterator<byte> rosi)
+    private static void WriteUnifiedSequenceIterator(IBufferWriter<byte> writer, ReadOnlySequenceSegmentIterator<byte> seq)
     {
         var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
         span[0] = (byte)'$';
-        int bytes = WriteRaw(span, rosi.Length, offset: 1);
+        int bytes = WriteRaw(span, seq.Length, offset: 1);
         writer.Advance(bytes);
 
-        while (rosi.TryNext(out var memory))
+        while (seq.TryNext(out var memory))
         {
             writer.Write(memory.Span);
         }
