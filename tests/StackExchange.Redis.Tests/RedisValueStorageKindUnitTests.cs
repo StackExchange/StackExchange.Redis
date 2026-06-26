@@ -42,6 +42,9 @@ public class RedisValueStorageKindUnitTests(ITestOutputHelper output, InProcServ
     // > 8 bytes AND a canonical number => compact Int64/Double (also avoids the byte[] alloc)
     [InlineData("123456789", "Int64")] // 9 bytes
     [InlineData("9223372036854775807", "Int64")] // long.MaxValue (19 bytes)
+    // canonical, non-negative, and > long.MaxValue => UInt64 (covers the full ulong range on read)
+    [InlineData("9223372036854775808", "UInt64")] // long.MaxValue + 1 (19 bytes)
+    [InlineData("18446744073709551615", "UInt64")] // ulong.MaxValue (20 bytes)
     [InlineData("1048576.5", "Double")] // 9 bytes, exactly representable => canonical under G17
     [InlineData("-1048576.25", "Double")] // 11 bytes
     // > 8 bytes and not a canonical number => materialized as a byte[]

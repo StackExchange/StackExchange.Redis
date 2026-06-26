@@ -243,10 +243,11 @@ internal static class RespReaderExtensions
 
     private static readonly int MaxCanonicalLength = Math.Max(Format.MaxInt64TextLen, Format.MaxDoubleTextLen);
 
-    // Recognizes the canonical decimal text of an integer or finite double, returning a numeric-backed
-    // RedisValue only when re-formatting the parsed value reproduces the exact input bytes. This keeps the
-    // optimization invisible to callers: non-canonical spellings ("01234", "+5", "1.50", "1e3"), oversize
-    // values, and the special inf/nan tokens all return false and are kept as a byte[] payload by the caller.
+    // Recognizes the canonical decimal text of an integer (signed Int64 or, for non-negative values up to
+    // ulong.MaxValue, UInt64) or a finite double, returning a numeric-backed RedisValue only when re-formatting
+    // the parsed value reproduces the exact input bytes. This keeps the optimization invisible to callers:
+    // non-canonical spellings ("01234", "+5", "1.50", "1e3"), values beyond the ulong/double range, and the
+    // special inf/nan tokens all return false and are kept as a byte[] payload by the caller.
     private static bool TryReadCanonicalNumber(ReadOnlySpan<byte> span, out RedisValue value)
     {
         static bool Failure(out RedisValue value)
@@ -258,7 +259,10 @@ internal static class RespReaderExtensions
         // leading '+', "-0", trailing junk, etc.) - so no need to re-emit and compare bytes
         if (span.IsEmpty | span.Length > MaxCanonicalLength) return Failure(out value);
 
-        // restrict to *just* basic number tokens
+        // restrict to *just* basic number tokens, tracking the two facts that let us pick a single parse:
+        // whether a '-' appeared (so we know whether the integer is signed), and whether a '.'/'e'/'E'
+        // appeared (which rules out an integer entirely - only a double can be canonical)
+        bool seenNegative = false, seenDotOrExp = false;
         foreach (var b in span)
         {
             switch (b)
@@ -273,23 +277,44 @@ internal static class RespReaderExtensions
                 case (byte)'7':
                 case (byte)'8':
                 case (byte)'9':
-                case (byte)'.':
+                    break;
                 case (byte)'-':
+                    seenNegative = true;
+                    break;
+                case (byte)'.':
                 case (byte)'E':
                 case (byte)'e':
+                    seenDotOrExp = true;
                     break;
                 default:
                     return Failure(out value);
             }
         }
 
-        if (Format.TryParseInt64(span, out var i64) && Format.MeasureInt64(i64) == span.Length)
+        if (!seenDotOrExp)
         {
-            value = i64;
-            return true;
-        }
+            // pure integer text. For a non-negative value parse as *unsigned* so the full ulong range is
+            // covered; the RedisValue(ulong) ctor demotes to Int64 storage when the value fits, so smaller
+            // values still land as Int64 exactly as before. A negative value can only be Int64.
+            if (seenNegative)
+            {
+                if (Format.TryParseInt64(span, out var i64) && Format.MeasureInt64(i64) == span.Length)
+                {
+                    value = i64;
+                    return true;
+                }
+            }
+            else if (Format.TryParseUInt64(span, out var u64) && Format.MeasureUInt64(u64) == span.Length)
+            {
+                value = u64;
+                return true;
+            }
 
-        if (Format.TryParseDouble(span, out var dbl))
+            // note that all-digit text which isn't a canonical integer (oversize, leading zero, etc.) can't
+            // be a canonical double either - any such value re-formats with an exponent - so we simply fall
+            // through to the failure at the bottom rather than attempting a (futile) double parse
+        }
+        else if (Format.TryParseDouble(span, out var dbl))
         {
             if (dbl == 0.0) dbl = Math.Abs(dbl); // prevent problems with -0 formatting
             Span<byte> formatted = stackalloc byte[Format.MaxDoubleTextLen];

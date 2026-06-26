@@ -1498,7 +1498,6 @@ namespace StackExchange.Redis
                     return Format.TryParseInt64(RawString(), out val);
                 case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
                     return Format.TryParseInt64(UnsafeRawSpan(out _), out val);
-
                 case StorageType.Sequence:
                     // longer than the largest possible Int64 text => cannot be an Int64; otherwise
                     // linearize onto the stack and reuse the span-based parse (matching the ByteArray path)

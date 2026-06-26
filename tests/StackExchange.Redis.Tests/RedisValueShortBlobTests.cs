@@ -113,6 +113,25 @@ public class RedisValueShortBlobTests
     }
 
     [Fact]
+    public void ShortBlob_CompareTo_Sequence_NonEqualOrdering()
+    {
+        // the equal-content tests only assert CompareTo == 0; this pins the *non-zero* cross-kind branches
+        // of BlobCompareTo (contiguous ShortBlob vs multi-segment Sequence), in both directions.
+        var abc = Short("abc"u8.ToArray());
+        var abd = Sequence("abd"u8.ToArray());
+
+        // differing content: "abc" < "abd"
+        Assert.True(abc.CompareTo(abd) < 0); // ShortBlob (x) vs Sequence (y) - the ySeq branch
+        Assert.True(abd.CompareTo(abc) > 0); // Sequence (x) vs ShortBlob (y) - the negated xSeq branch
+
+        // length mismatch: "ab" is a prefix of "abc", so the shorter value sorts first
+        var ab = Short("ab"u8.ToArray());
+        var abcSeq = Sequence("abc"u8.ToArray());
+        Assert.True(ab.CompareTo(abcSeq) < 0);
+        Assert.True(abcSeq.CompareTo(ab) > 0);
+    }
+
+    [Fact]
     public void FromRaw_RoutesByLength()
     {
         Assert.Equal(RedisValue.StorageType.String, Short(Array.Empty<byte>()).Type); // empty => EmptyString
