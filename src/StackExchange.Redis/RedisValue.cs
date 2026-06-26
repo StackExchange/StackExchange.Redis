@@ -508,16 +508,38 @@ namespace StackExchange.Redis
         private static int GetHashCode(RedisValue x)
         {
             x = x.Simplify();
-            return x.Type switch
+            switch (x.Type)
             {
-                StorageType.Null => -1,
-                StorageType.ByteArray or StorageType.MemoryManager or StorageType.ShortBlob => GetHashCode(x.UnsafeRawSpan(out _)),
-                StorageType.Sequence => GetHashCode(x.RawSequenceIterator()),
-                StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
-                StorageType.Int64 or StorageType.UInt64 => x._valueInt64.GetHashCode(),
-                StorageType.String => GetHashCodeUtf8(x.RawString()),
-                _ => throw new InvalidOperationException("Invalid StorageType"),
-            };
+                case StorageType.Null:
+                    return -1;
+                case StorageType.Double:
+                    return x.OverlappedValueDouble.GetHashCode();
+                case StorageType.Int64 or StorageType.UInt64:
+                    return x._valueInt64.GetHashCode();
+                case StorageType.String:
+                    return x.RawString().GetHashCode();
+            }
+
+            // Everything else - byte/memory/sequence buffers - compares to each other (and to strings) "as
+            // strings" (see operator ==): e.g. "inf" the bytes equals "inf" the string. Anything that looked
+            // numeric was already reduced to Int64/Double by Simplify() above, so the equality-consistent
+            // hash for what remains is the hash of the string form. (We must NOT hash raw bytes: that would
+            // give byte buffers a different hash from the equal string.)
+#if NET
+            // hash the decoded UTF8 chars directly, which avoids allocating a transient string; this matches
+            // string.GetHashCode() for the equivalent text
+            const int StackLimit = 256;
+            var maxChars = x.GetMaxCharCount();
+            char[]? leased = null;
+            Span<char> chars = maxChars <= StackLimit ? stackalloc char[StackLimit] : (leased = ArrayPool<char>.Shared.Rent(maxChars));
+            var written = x.CopyTo(chars);
+            var hashCode = string.GetHashCode(chars.Slice(0, written));
+            if (leased is not null) ArrayPool<char>.Shared.Return(leased);
+            return hashCode;
+#else
+            // no string.GetHashCode(ReadOnlySpan<char>) on these targets, so fall back to the string form
+            return ((string)x!).GetHashCode();
+#endif
         }
 
         /// <summary>
@@ -549,12 +571,15 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private static int AddHashCode(ReadOnlySpan<byte> span, int acc)
+        // used by RedisKey, whose equality is byte-based (unlike RedisValue, which treats non-numeric
+        // buffers as strings - see GetHashCode(RedisValue))
+        internal static int GetHashCode(ReadOnlySpan<byte> span)
         {
             unchecked
             {
                 int len = span.Length;
-                Debug.Assert(len > 0);
+                if (len == 0) return 0;
+                var acc = 728271210;
 
                 var span64 = MemoryMarshal.Cast<byte, long>(span);
                 for (int i = 0; i < span64.Length; i++)
@@ -570,41 +595,6 @@ namespace StackExchange.Redis
                 }
                 return acc;
             }
-        }
-
-        // used by RedisKey, whose equality is byte-based (unlike RedisValue, which treats non-numeric
-        // buffers as strings - see GetHashCode(RedisValue))
-        internal static int GetHashCode(ReadOnlySpan<byte> span)
-        {
-            if (span.Length == 0) return 0;
-
-            return AddHashCode(span, HashCodeStart);
-        }
-
-        private static int GetHashCode(ReadOnlySequenceSegmentIterator<byte> span)
-        {
-            if (span.Length == 0) return 0;
-
-            var acc = HashCodeStart;
-            while (span.TryNext(out var memory))
-            {
-                acc = AddHashCode(memory.Span, acc);
-            }
-            return acc;
-        }
-
-        private static int GetHashCodeUtf8(string str)
-        {
-            var length = str.Length;
-            if (length == 0) return 0;
-
-            byte[]? leased = null;
-            var maxBytes = Encoding.UTF8.GetMaxByteCount(length);
-            Span<byte> bytes = maxBytes <= StackByteLimit ? stackalloc byte[maxBytes] : (leased = ArrayPool<byte>.Shared.Rent(maxBytes));
-            var written = Encoding.UTF8.GetBytes(str, bytes);
-            var hashCode = GetHashCode(bytes.Slice(0, written));
-            if (leased is not null) ArrayPool<byte>.Shared.Return(leased);
-            return hashCode;
         }
 
         private bool RawStringEquals(ReadOnlySpan<byte> span)
@@ -644,7 +634,6 @@ namespace StackExchange.Redis
         }
 
         private const int StackByteLimit = 512;
-        private const int HashCodeStart = 728271210;
 
         internal void AssertNotNull()
         {
