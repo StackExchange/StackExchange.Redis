@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Linq;
 using System.Text;
 using Xunit;
@@ -144,14 +143,34 @@ public class RedisValueShortBlobTests
         RedisValue byteArray = (byte[])bytes.Clone();
         Assert.Equal(RedisValue.StorageType.ShortBlob, shortBlob.Type);
 
-        var fromShortBlob = new ArrayBufferWriter<byte>();
-        var fromByteArray = new ArrayBufferWriter<byte>();
-        MessageWriter.WriteBulkString(shortBlob, fromShortBlob);
-        MessageWriter.WriteBulkString(byteArray, fromByteArray);
+        var fromShortBlob = WriteBulkString(shortBlob);
+        var fromByteArray = WriteBulkString(byteArray);
 
         // the wire bytes must be identical, and a well-formed RESP bulk string
-        Assert.Equal(fromByteArray.WrittenSpan.ToArray(), fromShortBlob.WrittenSpan.ToArray());
-        Assert.Equal(Encoding.ASCII.GetBytes("$5\r\nhello\r\n"), fromShortBlob.WrittenSpan.ToArray());
+        Assert.Equal(fromByteArray, fromShortBlob);
+        Assert.True(fromShortBlob.AsSpan().SequenceEqual("$5\r\nhello\r\n"u8), "RESP bulk string mismatch");
+
+        // serialize a single bulk string via the shared block buffer and copy out the exact wire bytes before
+        // releasing it (we avoid ArrayBufferWriter<byte>, which isn't available on net48x)
+        static byte[] WriteBulkString(RedisValue value)
+        {
+            ReadOnlyMemory<byte> payload = default;
+            try
+            {
+                MessageWriter.WriteBulkString(value, MessageWriter.BlockBuffer);
+                payload = MessageWriter.FlushBlockBuffer();
+                return payload.ToArray();
+            }
+            catch
+            {
+                MessageWriter.RevertBlockBuffer();
+                throw;
+            }
+            finally
+            {
+                MessageWriter.ReleaseBlockBuffer(payload);
+            }
+        }
     }
 
     [Fact]
