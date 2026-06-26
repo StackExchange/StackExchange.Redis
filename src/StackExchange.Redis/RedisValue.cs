@@ -469,6 +469,18 @@ namespace StackExchange.Redis
             // memory / short-blob / sequence) compare by raw bytes in any combination
             if (IsBlob(xType) && IsBlob(yType)) return BlobSequenceEqual(x, y);
 
+            switch (xType)
+            {
+                case StorageType.Sequence when yType == StorageType.String:
+                    return y.RawStringEquals(x.RawSequence());
+                case StorageType.String when yType == StorageType.Sequence:
+                    return x.RawStringEquals(y.RawSequence());
+                case StorageType.ByteArray or StorageType.MemoryManager or StorageType.ShortBlob when yType == StorageType.String:
+                    return y.RawStringEquals(x.UnsafeRawSpan(out _));
+                case StorageType.String when yType is StorageType.ByteArray or StorageType.MemoryManager or StorageType.ShortBlob:
+                    return x.RawStringEquals(y.UnsafeRawSpan(out _));
+            }
+
             // otherwise (anything involving a string), compare as strings
             return (string?)x == (string?)y;
         }
@@ -496,38 +508,16 @@ namespace StackExchange.Redis
         private static int GetHashCode(RedisValue x)
         {
             x = x.Simplify();
-            switch (x.Type)
+            return x.Type switch
             {
-                case StorageType.Null:
-                    return -1;
-                case StorageType.Double:
-                    return x.OverlappedValueDouble.GetHashCode();
-                case StorageType.Int64 or StorageType.UInt64:
-                    return x._valueInt64.GetHashCode();
-                case StorageType.String:
-                    return x.RawString().GetHashCode();
-            }
-
-            // Everything else - byte/memory/sequence buffers - compares to each other (and to strings) "as
-            // strings" (see operator ==): e.g. "inf" the bytes equals "inf" the string. Anything that looked
-            // numeric was already reduced to Int64/Double by Simplify() above, so the equality-consistent
-            // hash for what remains is the hash of the string form. (We must NOT hash raw bytes: that would
-            // give byte buffers a different hash from the equal string.)
-#if NET
-            // hash the decoded UTF8 chars directly, which avoids allocating a transient string; this matches
-            // string.GetHashCode() for the equivalent text
-            const int StackLimit = 256;
-            var maxChars = x.GetMaxCharCount();
-            char[]? leased = null;
-            Span<char> chars = maxChars <= StackLimit ? stackalloc char[StackLimit] : (leased = ArrayPool<char>.Shared.Rent(maxChars));
-            var written = x.CopyTo(chars);
-            var hashCode = string.GetHashCode(chars.Slice(0, written));
-            if (leased is not null) ArrayPool<char>.Shared.Return(leased);
-            return hashCode;
-#else
-            // no string.GetHashCode(ReadOnlySpan<char>) on these targets, so fall back to the string form
-            return ((string)x!).GetHashCode();
-#endif
+                StorageType.Null => -1,
+                StorageType.ByteArray or StorageType.MemoryManager or StorageType.ShortBlob => GetHashCode(x.UnsafeRawSpan(out _)),
+                StorageType.Sequence => GetHashCode(x.RawSequenceIterator()),
+                StorageType.Double => x.OverlappedValueDouble.GetHashCode(),
+                StorageType.Int64 or StorageType.UInt64 => x._valueInt64.GetHashCode(),
+                StorageType.String => GetHashCodeUtf8(x.RawString()),
+                _ => throw new InvalidOperationException("Invalid StorageType"),
+            };
         }
 
         /// <summary>
@@ -591,6 +581,69 @@ namespace StackExchange.Redis
             return AddHashCode(span, HashCodeStart);
         }
 
+        private static int GetHashCode(ReadOnlySequenceSegmentIterator<byte> span)
+        {
+            if (span.Length == 0) return 0;
+
+            var acc = HashCodeStart;
+            while (span.TryNext(out var memory))
+            {
+                acc = AddHashCode(memory.Span, acc);
+            }
+            return acc;
+        }
+
+        private static int GetHashCodeUtf8(string str)
+        {
+            var length = str.Length;
+            if (length == 0) return 0;
+
+            byte[]? leased = null;
+            var maxBytes = Encoding.UTF8.GetMaxByteCount(length);
+            Span<byte> bytes = maxBytes <= StackByteLimit ? stackalloc byte[maxBytes] : (leased = ArrayPool<byte>.Shared.Rent(maxBytes));
+            var written = Encoding.UTF8.GetBytes(str, bytes);
+            var hashCode = GetHashCode(bytes.Slice(0, written));
+            if (leased is not null) ArrayPool<byte>.Shared.Return(leased);
+            return hashCode;
+        }
+
+        private bool RawStringEquals(ReadOnlySpan<byte> span)
+        {
+            string s = RawString();
+            var length = s.Length;
+            if (length == 0) return span.IsEmpty;
+            var maxChars = Encoding.UTF8.GetMaxCharCount(span.Length);
+            if (length > maxChars) return false;
+
+            byte[]? leased = null;
+            var maxBytes = Encoding.UTF8.GetMaxByteCount(length);
+            Span<byte> bytes = maxBytes <= StackByteLimit ? stackalloc byte[maxBytes] : (leased = ArrayPool<byte>.Shared.Rent(maxBytes));
+            var written = Encoding.UTF8.GetBytes(s, bytes);
+            var result = span.SequenceEqual(bytes.Slice(0, written));
+            if (leased is not null) ArrayPool<byte>.Shared.Return(leased);
+            return result;
+        }
+
+        private bool RawStringEquals(ReadOnlySequence<byte> seq)
+        {
+            string s = RawString();
+            var length = s.Length;
+            var seqLength = seq.Length;
+            if (length == 0) return seqLength == 0;
+            if (seq.Length > int.MaxValue) return false;
+            var maxChars = Encoding.UTF8.GetMaxCharCount(checked((int)seqLength));
+            if (length > maxChars) return false;
+
+            byte[]? leased = null;
+            var maxBytes = Encoding.UTF8.GetMaxByteCount(length);
+            Span<byte> bytes = maxBytes <= StackByteLimit ? stackalloc byte[maxBytes] : (leased = ArrayPool<byte>.Shared.Rent(maxBytes));
+            var written = Encoding.UTF8.GetBytes(s, bytes);
+            var result = seq.SequenceEqual(bytes.Slice(0, written));
+            if (leased is not null) ArrayPool<byte>.Shared.Return(leased);
+            return result;
+        }
+
+        private const int StackByteLimit = 512;
         private const int HashCodeStart = 728271210;
 
         internal void AssertNotNull()
@@ -1791,7 +1844,8 @@ HaveString:
                     return buffer.Slice(0, len).StartsWith(value);
                 case StorageType.String:
                     var s = RawString().AsSpan();
-                    if (s.Length < value.Length) return false; // not enough characters to match
+                    // BUG if Not ASCII
+                    // if (s.Length < value.Length) return false; // not enough characters to match
                     if (s.Length > value.Length) s = s.Slice(0, value.Length); // only need to match the prefix
                     var maxBytes = Encoding.UTF8.GetMaxByteCount(s.Length);
                     byte[]? lease = null;
