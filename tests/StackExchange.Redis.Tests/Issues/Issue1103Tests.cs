@@ -8,13 +8,13 @@ namespace StackExchange.Redis.Tests.Issues;
 public class Issue1103Tests(ITestOutputHelper output) : TestBase(output)
 {
     [Theory]
-    [InlineData(142205255210238005UL, (int)StorageType.Int64)]
+    [InlineData(142205255210238005UL, (int)StorageType.Int64, (int)StorageType.Int64)]
     [InlineData(ulong.MaxValue, (int)StorageType.UInt64)]
-    [InlineData(ulong.MinValue, (int)StorageType.Int64)]
+    [InlineData(ulong.MinValue, (int)StorageType.Int64, (int)StorageType.ShortBlob)]
     [InlineData(0x8000000000000000UL, (int)StorageType.UInt64)]
     [InlineData(0x8000000000000001UL, (int)StorageType.UInt64)]
-    [InlineData(0x7FFFFFFFFFFFFFFFUL, (int)StorageType.Int64)]
-    public async Task LargeUInt64StoredCorrectly(ulong value, int storageType)
+    [InlineData(0x7FFFFFFFFFFFFFFFUL, (int)StorageType.Int64, (int)StorageType.Int64)] // long.MaxValue: 19-byte canonical int => Int64 on read
+    public async Task LargeUInt64StoredCorrectly(ulong value, int storageType, int fromRedisType = (int)StorageType.ByteArray)
     {
         await using var conn = Create();
 
@@ -29,7 +29,7 @@ public class Issue1103Tests(ITestOutputHelper output) : TestBase(output)
         var fromRedis = db.StringGet(key);
 
         Log($"{fromRedis.Type}: {fromRedis}");
-        Assert.Equal(StorageType.ByteArray, fromRedis.Type);
+        Assert.Equal((StorageType)fromRedisType, fromRedis.Type);
         Assert.Equal(value, (ulong)fromRedis);
         Assert.Equal(value.ToString(CultureInfo.InvariantCulture), fromRedis.ToString());
 
