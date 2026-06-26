@@ -24,12 +24,33 @@ internal static class RespReaderExtensions
                     return reader.ReadInt64();
             }
 
-            // bulk/simple/verbatim string: for inline scalars, prefer a compact numeric storage kind when
-            // the text is the *canonical* representation of that number, so every projection (ToString,
-            // (byte[]), equality, hash) still round-trips byte-for-byte; otherwise keep the raw bytes
-            if (reader.TryGetSpan(out var span) && TryReadCanonicalNumber(span, out var number))
+            // bulk/simple/verbatim string. Only inline (non-streaming) scalars get the compact storage
+            // kinds; streaming scalars fall through to ReadByteArray.
+            if (reader.IsInlineScalar)
             {
-                return number;
+                var length = reader.ScalarLength();
+
+                // Short payloads (<= 8 bytes) pack inline as a short-blob: allocation-free, and with *no*
+                // eager numeric parse - any later (long)/(double)/etc. is deferred to the caller (Simplify
+                // on demand), which is cheaper for the common case of values never interpreted as numbers.
+                // Contiguous data (the common case) is taken straight from TryGetSpan - no stackalloc. Only a
+                // scalar that straddles segments needs linearizing into the 8-byte stack buffer; the length
+                // guard is what makes that fixed buffer safe, since Buffer() silently truncates an over-long
+                // discontiguous payload.
+                if (length <= RedisValue.MaxInlineBytes)
+                {
+                    return RedisValue.FromRaw(reader.TryGetSpan(out var buffer) ?
+                        buffer : reader.Buffer(stackalloc byte[RedisValue.MaxInlineBytes]));
+                }
+
+                // Longer payloads: prefer a compact numeric storage kind when the text is the *canonical*
+                // representation of that number, so every projection (ToString, (byte[]), equality, hash)
+                // still round-trips byte-for-byte; this also avoids the byte[] alloc. Canonical parsing needs
+                // a contiguous span, so a discontiguous payload falls through to ReadByteArray.
+                if (reader.TryGetSpan(out var span) && TryReadCanonicalNumber(span, out var number))
+                {
+                    return number;
+                }
             }
             return reader.ReadByteArray();
         }

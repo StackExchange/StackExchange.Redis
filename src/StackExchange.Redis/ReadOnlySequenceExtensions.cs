@@ -184,4 +184,33 @@ internal static class ReadOnlySequenceExtensions
         // everything in the overlap matched, so the longer sequence sorts after the shorter
         return first.Length.CompareTo(other.Length);
     }
+
+    /// <summary>
+    /// Lexicographically compares a sequence against a contiguous span (same semantics as the
+    /// sequence-vs-sequence overload).
+    /// </summary>
+    public static int SequenceCompareTo(this in ReadOnlySequence<byte> first, ReadOnlySpan<byte> other)
+    {
+        if (first.IsSingleSegment) return first.FirstSpan.SequenceCompareTo(other);
+
+        long firstLength = first.Length;
+        int otherLength = other.Length;
+        var firstPos = first.Start;
+        ReadOnlySpan<byte> a = default;
+        while (true)
+        {
+            while (a.IsEmpty && first.TryGet(ref firstPos, out var aNext)) a = aNext.Span;
+            if (a.IsEmpty || other.IsEmpty) break;
+
+            var shared = Math.Min(a.Length, other.Length);
+            var cmp = a.Slice(0, shared).SequenceCompareTo(other.Slice(0, shared));
+            if (cmp != 0) return cmp;
+
+            a = a.Slice(shared);
+            other = other.Slice(shared);
+        }
+
+        // overlap matched, so the longer input sorts after the shorter
+        return firstLength.CompareTo((long)otherLength);
+    }
 }

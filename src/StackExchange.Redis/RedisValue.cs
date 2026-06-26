@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Buffers.Text;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -19,9 +20,16 @@ namespace StackExchange.Redis
     [StructLayout(LayoutKind.Explicit)]
     public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
-        // Note that this allocates a byte[]; fine when used for a static field from a u8 literal, but
-        // not a good option to call every time.
-        internal static RedisValue FromRaw(ReadOnlySpan<byte> bytes) => bytes.ToArray();
+        // Maximum payload that fits in an inline short-blob (packed into the overlapped int64 field).
+        internal const int MaxInlineBytes = sizeof(long);
+
+        // Prefers an inline (allocation-free) short-blob for <= 8 bytes; otherwise materializes a byte[].
+        internal static RedisValue FromRaw(ReadOnlySpan<byte> bytes)
+        {
+            if (bytes.IsEmpty) return EmptyString;
+            if (bytes.Length <= MaxInlineBytes) return new RedisValue(bytes);
+            return bytes.ToArray();
+        }
 
         internal static readonly RedisValue[] EmptyArray = Array.Empty<RedisValue>();
 
@@ -54,6 +62,19 @@ namespace StackExchange.Redis
                 _length = value.Length;
                 _obj = value;
             }
+        }
+
+        // inline short-blob (1..8 bytes): bytes are packed into the overlapped _valueInt64 field, length is
+        // carried by the ShortBlob sentinel. Read/write the bytes via the raw memory layout (MemoryMarshal)
+        // so it is endianness-agnostic - we never interpret _valueInt64 as a number for this kind.
+        private unsafe RedisValue(ReadOnlySpan<byte> shortBlob)
+        {
+            Debug.Assert(shortBlob.Length is > 0 and <= ShortBlob.MaxLength, "short-blob length out of range");
+            Unsafe.SkipInit(out this);
+            long packed = 0; // zero so the unused high bytes are deterministic
+            shortBlob.CopyTo(new Span<byte>(Unsafe.AsPointer(ref packed), sizeof(long)));
+            _valueInt64 = packed;
+            _obj = ShortBlob.For(shortBlob.Length);
         }
 
         private RedisValue(ReadOnlyMemory<byte> value)
@@ -236,8 +257,9 @@ namespace StackExchange.Redis
         {
             get
             {
-                // primitives are never null
-                if (_obj == Sentinel_Double || _obj == Sentinel_SignedInteger || _obj == Sentinel_UnsignedInteger) return false;
+                // primitives are never null; a short-blob is by construction always 1..8 bytes (and its
+                // _length field is unusable anyway, as it overlaps the inline bytes)
+                if (_obj == Sentinel_Double | _obj == Sentinel_SignedInteger | _obj == Sentinel_UnsignedInteger | _obj is ShortBlob) return false;
                 // everything else either null or a buffer or some kind; can use length
                 return _length == 0;
             }
@@ -277,7 +299,7 @@ namespace StackExchange.Redis
             return default;
         }
 
-        internal ReadOnlySequence<byte> RawSequence()
+        private ReadOnlySequence<byte> RawSequence()
         {
             if (_obj is ReadOnlySequenceSegment<byte> s) return GetSequence(s, _index, _length);
             if (_obj is byte[] a) return new(a, _index, _length);
@@ -302,12 +324,88 @@ namespace StackExchange.Redis
             return destination.Slice(0, offset);
         }
 
-        internal ReadOnlySpan<byte> RawSpan()
+        // Returns a span over the bytes of any contiguous-blob kind (ByteArray/MemoryManager/ShortBlob).
+        // For a ShortBlob the bytes are unpacked into 'stackStorage', so the caller MUST keep 'stackStorage'
+        // alive (it must be a genuine stack local) for as long as it uses the returned span - the span aliases
+        // that slot. For heap blobs 'stackStorage' is left untouched and the span points at the heap, so a
+        // discard ('out _') is always fine there.
+        //
+        // "Unsafe" because the contract is unstated in the type system: on older TFMs the ShortBlob span is
+        // built over a *raw* pointer to 'stackStorage', so passing a ref to a movable location (e.g. a field
+        // on a heap object) is undefined behaviour - the GC may relocate it out from under the span. On NET
+        // we keep a managed pointer throughout (CreateReadOnlySpan), which the GC tracks, removing that hazard.
+        internal
+#if !NET
+        unsafe
+#endif
+        ReadOnlySpan<byte> UnsafeRawSpan(out long stackStorage)
         {
+            if (_obj is ShortBlob sb)
+            {
+                stackStorage = _valueInt64;
+#if NET
+                return MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<long, byte>(ref stackStorage), sb.Length);
+#else
+                return new ReadOnlySpan<byte>(Unsafe.AsPointer(ref stackStorage), sb.Length);
+#endif
+            }
+            // heap path: 'stackStorage' is unused, so skip the redundant zero-init
+            Unsafe.SkipInit(out stackStorage);
             if (_obj is byte[] b) return new ReadOnlySpan<byte>(b, _index, _length);
             if (_obj is MemoryManager<byte> m) return m.GetSpan().Slice(_index, _length);
             ThrowRawType();
             return default;
+        }
+
+        // logical byte length of any contiguous-blob kind (ByteArray/MemoryManager/ShortBlob)
+        private int BlobLength => _obj is ShortBlob sb ? sb.Length : _length;
+
+        // true for the byte-backed storage kinds (everything that compares "by bytes")
+        private static bool IsBlob(StorageType type)
+            => type is StorageType.ByteArray or StorageType.MemoryManager or StorageType.ShortBlob or StorageType.Sequence;
+
+        // byte-wise equality between any two byte-backed values, in any combination of contiguous/sequence
+        private static bool BlobSequenceEqual(in RedisValue x, in RedisValue y)
+        {
+            // at most two stack slots back the inline short-blobs; reuse named locals rather than relying
+            // on the compiler to coalesce per-call 'out _' temps
+            long xScratch, yScratch;
+            if (x.Type == StorageType.Sequence)
+            {
+                return y.Type == StorageType.Sequence
+                    ? x.RawSequence().SequenceEqual(y.RawSequence())
+                    : x.RawSequence().SequenceEqual(y.UnsafeRawSpan(out yScratch));
+            }
+            if (y.Type == StorageType.Sequence)
+            {
+                return y.RawSequence().SequenceEqual(x.UnsafeRawSpan(out xScratch));
+            }
+            return x.UnsafeRawSpan(out xScratch).SequenceEqual(y.UnsafeRawSpan(out yScratch));
+        }
+
+        // byte-wise ordinal comparison between any two byte-backed values, in any combination of
+        // contiguous (ByteArray/MemoryManager/ShortBlob) and multi-segment (Sequence)
+        private static int BlobCompareTo(in RedisValue x, in RedisValue y)
+        {
+            long xScratch, yScratch; // at most two stack slots; reuse named locals (see BlobSequenceEqual)
+            var xSeq = x.Type == StorageType.Sequence;
+            var ySeq = y.Type == StorageType.Sequence;
+            if (xSeq && ySeq) return x.RawSequence().SequenceCompareTo(y.RawSequence());
+            if (xSeq) return x.RawSequence().SequenceCompareTo(y.UnsafeRawSpan(out yScratch));
+            if (ySeq) return -y.RawSequence().SequenceCompareTo(x.UnsafeRawSpan(out xScratch)); // negate: computed y vs x
+            return x.UnsafeRawSpan(out xScratch).SequenceCompareTo(y.UnsafeRawSpan(out yScratch));
+        }
+
+        // true if 'whole' starts with the bytes of 'prefix', for any combination of byte-backed kinds
+        private static bool BlobStartsWith(in RedisValue whole, in RedisValue prefix)
+        {
+            long wScratch, pScratch; // at most two stack slots; reuse named locals (see BlobSequenceEqual)
+            var wSeq = whole.Type == StorageType.Sequence;
+            var pSeq = prefix.Type == StorageType.Sequence;
+            if (wSeq && pSeq) return whole.RawSequence().StartsWith(prefix.RawSequence());
+            if (wSeq) return whole.RawSequence().StartsWith(prefix.UnsafeRawSpan(out pScratch));
+            if (pSeq) return whole.UnsafeRawSpan(out wScratch).StartsWith(prefix.RawSequence());
+            return whole.UnsafeRawSpan(out wScratch).StartsWith(prefix.UnsafeRawSpan(out pScratch));
         }
 
         internal string RawString()
@@ -345,10 +443,8 @@ namespace StackExchange.Redis
                         return x._valueInt64 == y._valueInt64;
                     case StorageType.String:
                         return x.RawString() == y.RawString();
-                    case StorageType.ByteArray or StorageType.MemoryManager:
-                        return x.RawSpan().SequenceEqual(y.RawSpan());
-                    case StorageType.Sequence:
-                        return x.RawSequence().SequenceEqual(y.RawSequence());
+                    case StorageType.ByteArray or StorageType.MemoryManager or StorageType.ShortBlob or StorageType.Sequence:
+                        return BlobSequenceEqual(x, y);
                 }
             }
 
@@ -369,18 +465,9 @@ namespace StackExchange.Redis
                     return false;
             }
 
-            // both are non-null, non-numeric, and of different kinds; the blob kinds (byte[] / memory /
-            // sequence) compare by bytes in any combination - and we keep the span-vs-span path for the
-            // case where neither side is a multi-segment sequence
-            switch (xType)
-            {
-                case StorageType.Sequence when yType is StorageType.ByteArray or StorageType.MemoryManager:
-                    return x.RawSequence().SequenceEqual(y.RawSpan());
-                case StorageType.ByteArray or StorageType.MemoryManager when yType == StorageType.Sequence:
-                    return y.RawSequence().SequenceEqual(x.RawSpan());
-                case StorageType.ByteArray or StorageType.MemoryManager when yType is StorageType.ByteArray or StorageType.MemoryManager:
-                    return x.RawSpan().SequenceEqual(y.RawSpan());
-            }
+            // both are non-null, non-numeric, and of different kinds; if both are byte-backed (byte[] /
+            // memory / short-blob / sequence) compare by raw bytes in any combination
+            if (IsBlob(xType) && IsBlob(yType)) return BlobSequenceEqual(x, y);
 
             // otherwise (anything involving a string), compare as strings
             return (string?)x == (string?)y;
@@ -521,7 +608,29 @@ namespace StackExchange.Redis
             ByteArray,
             String,
             Sequence,
+            ShortBlob,
             Unknown,
+        }
+
+        // Sentinel for inline blobs of 1..8 bytes: the bytes live directly in the overlapped _valueInt64
+        // field (so _index/_length are NOT usable - the length comes from this sentinel instead). This lets
+        // short payloads - most literals, short keys/values, and inbound DB strings - avoid a byte[] alloc.
+        private sealed class ShortBlob
+        {
+            internal const int MaxLength = MaxInlineBytes;
+            private ShortBlob(int length) => Length = length;
+            internal int Length { get; }
+            // instances for lengths 1..8 only; length 0 is always represented as EmptyString, never a
+            // ShortBlob - so a ShortBlob is, by construction, never null or empty
+            private static readonly ShortBlob[] s_byLength =
+            {
+                new(1), new(2), new(3), new(4), new(5), new(6), new(7), new(8),
+            };
+            internal static ShortBlob For(int length)
+            {
+                Debug.Assert(length is >= 1 and <= MaxLength, "short-blob length out of range");
+                return s_byLength[length - 1];
+            }
         }
 
         internal StorageType Type
@@ -533,6 +642,9 @@ namespace StackExchange.Redis
                 if (obj == Sentinel_SignedInteger) return StorageType.Int64;
                 if (obj == Sentinel_Double) return StorageType.Double;
                 if (obj is string) return StorageType.String;
+                // short blobs are expected to be very common on the inbound/read path (most small values
+                // and keys are <= 8 bytes), so probe for them early
+                if (obj is ShortBlob) return StorageType.ShortBlob;
                 if (obj is byte[]) return StorageType.ByteArray;
                 if (obj == Sentinel_UnsignedInteger) return StorageType.UInt64;
                 if (obj is MemoryManager<byte>) return StorageType.MemoryManager;
@@ -580,7 +692,7 @@ namespace StackExchange.Redis
         public long Length() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => _length,
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence or StorageType.ShortBlob => BlobLength,
             StorageType.String => Encoding.UTF8.GetByteCount(RawString()),
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
@@ -617,10 +729,8 @@ namespace StackExchange.Redis
                             return x.OverlappedValueUInt64.CompareTo(y.OverlappedValueUInt64);
                         case StorageType.String:
                             return string.CompareOrdinal(x.RawString(), y.RawString());
-                        case StorageType.MemoryManager or StorageType.ByteArray:
-                            return x.RawSpan().SequenceCompareTo(y.RawSpan());
-                        case StorageType.Sequence:
-                            return x.RawSequence().SequenceCompareTo(y.RawSequence());
+                        case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob or StorageType.Sequence:
+                            return BlobCompareTo(x, y);
                     }
                 }
 
@@ -638,11 +748,9 @@ namespace StackExchange.Redis
                         if (yType == StorageType.Double) return ((double)x.OverlappedValueUInt64).CompareTo(y.OverlappedValueDouble);
                         if (yType == StorageType.Int64) return -1; // we only use unsigned if > int64, so: x is bigger
                         break;
-                    case StorageType.MemoryManager or StorageType.ByteArray when yType is StorageType.MemoryManager or StorageType.ByteArray:
-                        return x.RawSpan().SequenceCompareTo(y.RawSpan());
-                    case StorageType.MemoryManager or StorageType.ByteArray when yType == StorageType.Sequence:
-                    case StorageType.Sequence when yType is StorageType.MemoryManager or StorageType.ByteArray:
-                        return x.RawSequence().SequenceCompareTo(y.RawSequence());
+                    case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob or StorageType.Sequence
+                        when IsBlob(yType):
+                        return BlobCompareTo(x, y);
                 }
 
                 // otherwise, compare as strings
@@ -890,7 +998,7 @@ namespace StackExchange.Redis
                 StorageType.Double => value.OverlappedValueDouble,
                 // special values like NaN/Inf are deliberately not handled by Simplify, but need to be considered for casting
                 StorageType.String when Format.TryParseDouble(value.RawString(), out var d) => d,
-                StorageType.MemoryManager or StorageType.ByteArray when TryParseDouble(value.RawSpan(), out var d) => d,
+                StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob when TryParseDouble(value.UnsafeRawSpan(out _), out var d) => d,
                 StorageType.Sequence when value.TryParse(out double d) => d, // linearizes + handles inf/nan, like the span case above
                 // anything else: fail
                 _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
@@ -1014,10 +1122,11 @@ namespace StackExchange.Redis
                 case StorageType.Int64: return Format.ToString(value.OverlappedValueInt64);
                 case StorageType.UInt64: return Format.ToString(value.OverlappedValueUInt64);
                 case StorageType.String: return value.RawString();
-                case StorageType.MemoryManager or StorageType.ByteArray:
-                    var span = value.RawSpan();
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    var span = value.UnsafeRawSpan(out _);
                     if (span.IsEmpty) return "";
-                    if (span.Length == 2 && span[0] == (byte)'O' && span[1] == (byte)'K') return "OK"; // frequent special-case
+                    const ushort OkPackedLE = 'O' | ('K' << 8); // frequent special-case
+                    if (span.Length is 2 && BinaryPrimitives.ReadUInt16LittleEndian(span) == OkPackedLE) return "OK";
                     try
                     {
                         return Format.GetString(span);
@@ -1075,8 +1184,8 @@ namespace StackExchange.Redis
                 case StorageType.ByteArray when value._obj is byte[] arr && value._index is 0 && value._length == arr.Length:
                     // the memory is backed by an array, and we're reading all of it
                     return arr;
-                case StorageType.ByteArray or StorageType.MemoryManager:
-                    return value.RawSpan().ToArray();
+                case StorageType.ByteArray or StorageType.MemoryManager or StorageType.ShortBlob:
+                    return value.UnsafeRawSpan(out _).ToArray();
                 case StorageType.Sequence:
                     return value.RawSequence().ToArray();
                 case StorageType.Int64:
@@ -1106,7 +1215,7 @@ namespace StackExchange.Redis
         public int GetByteCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => _length,
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence or StorageType.ShortBlob => BlobLength,
             StorageType.String => Encoding.UTF8.GetByteCount(RawString()),
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
             StorageType.UInt64 => Format.MeasureUInt64(OverlappedValueUInt64),
@@ -1120,7 +1229,7 @@ namespace StackExchange.Redis
         internal int GetMaxByteCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => _length,
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence or StorageType.ShortBlob => BlobLength,
             StorageType.String => Encoding.UTF8.GetMaxByteCount(RawString().Length),
             StorageType.Int64 => Format.MaxInt64TextLen,
             StorageType.UInt64 => Format.MaxInt64TextLen,
@@ -1134,7 +1243,7 @@ namespace StackExchange.Redis
         internal int GetCharCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray => Encoding.UTF8.GetCharCount(RawSpan()),
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob => Encoding.UTF8.GetCharCount(UnsafeRawSpan(out _)),
             StorageType.Sequence => Encoding.UTF8.GetCharCount(RawSequence()),
             StorageType.String => _length,
             StorageType.Int64 => Format.MeasureInt64(OverlappedValueInt64),
@@ -1149,7 +1258,7 @@ namespace StackExchange.Redis
         internal int GetMaxCharCount() => Type switch
         {
             StorageType.Null => 0,
-            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence => Encoding.UTF8.GetMaxCharCount(_length),
+            StorageType.MemoryManager or StorageType.ByteArray or StorageType.Sequence or StorageType.ShortBlob => Encoding.UTF8.GetMaxCharCount(BlobLength),
             StorageType.String => _length,
             StorageType.Int64 => Format.MaxInt64TextLen,
             StorageType.UInt64 => Format.MaxInt64TextLen,
@@ -1175,9 +1284,10 @@ namespace StackExchange.Redis
             {
                 case StorageType.Null:
                     return 0;
-                case StorageType.MemoryManager or StorageType.ByteArray:
-                    RawSpan().CopyTo(destination);
-                    return _length;
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    var blob = UnsafeRawSpan(out _);
+                    blob.CopyTo(destination);
+                    return blob.Length;
                 case StorageType.Sequence:
                     RawSequence().CopyTo(destination);
                     return _length;
@@ -1203,8 +1313,8 @@ namespace StackExchange.Redis
             {
                 case StorageType.Null:
                     return 0;
-                case StorageType.MemoryManager or StorageType.ByteArray:
-                    return Encoding.UTF8.GetChars(RawSpan(), destination);
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    return Encoding.UTF8.GetChars(UnsafeRawSpan(out _), destination);
                 case StorageType.Sequence:
                     return Encoding.UTF8.GetChars(RawSequence(), destination);
                 case StorageType.String:
@@ -1315,8 +1425,8 @@ namespace StackExchange.Redis
                     // note: don't simplify inf/nan, as that causes equality semantic problems
                     if (Format.TryParseDouble(s, out var f64) && !IsSpecialDouble(f64)) return f64;
                     break;
-                case StorageType.MemoryManager or StorageType.ByteArray:
-                    if (TrySimplify(RawSpan(), out var simplified)) return simplified;
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    if (TrySimplify(UnsafeRawSpan(out _), out var simplified)) return simplified;
                     break;
                 case StorageType.Sequence:
                     // numeric forms are short, so we only need to consider plausibly-numeric lengths;
@@ -1386,8 +1496,9 @@ namespace StackExchange.Redis
                     return false;
                 case StorageType.String:
                     return Format.TryParseInt64(RawString(), out val);
-                case StorageType.MemoryManager or StorageType.ByteArray:
-                    return Format.TryParseInt64(RawSpan(), out val);
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    return Format.TryParseInt64(UnsafeRawSpan(out _), out val);
+
                 case StorageType.Sequence:
                     // longer than the largest possible Int64 text => cannot be an Int64; otherwise
                     // linearize onto the stack and reuse the span-based parse (matching the ByteArray path)
@@ -1455,8 +1566,8 @@ namespace StackExchange.Redis
                     return true;
                 case StorageType.String:
                     return Format.TryParseDouble(RawString(), out val);
-                case StorageType.MemoryManager or StorageType.ByteArray:
-                    return TryParseDouble(RawSpan(), out val);
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    return TryParseDouble(UnsafeRawSpan(out _), out val);
                 case StorageType.Sequence:
                     // longer than the largest possible double text => cannot be a double; otherwise
                     // linearize onto the stack and reuse the span-based parse (matching the ByteArray path)
@@ -1536,26 +1647,15 @@ namespace StackExchange.Redis
                         var sThis = RawString();
                         var sOther = value.RawString();
                         return sThis.StartsWith(sOther, StringComparison.Ordinal);
-                    case StorageType.MemoryManager or StorageType.ByteArray:
-                        return RawSpan().StartsWith(value.RawSpan());
-                    case StorageType.Sequence:
-                        return RawSequence().StartsWith(value.RawSequence());
+                    case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob or StorageType.Sequence:
+                        return BlobStartsWith(this, value);
                 }
             }
-            if (thisType == StorageType.Sequence &&
-                (otherType == StorageType.MemoryManager || otherType == StorageType.ByteArray))
+
+            // mixed byte-backed kinds (byte[] / memory / short-blob / sequence) compare by raw bytes
+            if (IsBlob(thisType) && IsBlob(otherType))
             {
-                return RawSequence().StartsWith(value.RawSpan());
-            }
-            if (otherType == StorageType.Sequence &&
-                (thisType == StorageType.MemoryManager || thisType == StorageType.ByteArray))
-            {
-                return RawSpan().StartsWith(value.RawSequence());
-            }
-            if ((thisType == StorageType.MemoryManager && otherType == StorageType.ByteArray) ||
-                (thisType == StorageType.ByteArray && otherType == StorageType.MemoryManager))
-            {
-                return RawSpan().StartsWith(value.RawSpan());
+                return BlobStartsWith(this, value);
             }
             byte[]? arr0 = null, arr1 = null;
             try
@@ -1586,6 +1686,11 @@ namespace StackExchange.Redis
                     leased = ArrayPool<byte>.Shared.Rent(_length);
                     RawSequence().CopyTo(leased);
                     return new ReadOnlyMemory<byte>(leased, 0, _length);
+                case StorageType.ShortBlob:
+                    var blob = UnsafeRawSpan(out _);
+                    leased = ArrayPool<byte>.Shared.Rent(blob.Length);
+                    blob.CopyTo(leased);
+                    return new ReadOnlyMemory<byte>(leased, 0, blob.Length);
                 case StorageType.String:
                     string s = RawString();
 HaveString:
@@ -1622,8 +1727,8 @@ HaveString:
         {
             switch (Type)
             {
-                case StorageType.MemoryManager or StorageType.ByteArray:
-                    return ValueCondition.CalculateDigest(RawSpan());
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    return ValueCondition.CalculateDigest(UnsafeRawSpan(out _));
                 case StorageType.Sequence:
                     return ValueCondition.CalculateDigest(RawSequence());
                 case StorageType.Null:
@@ -1669,8 +1774,8 @@ HaveString:
             int len;
             switch (Type)
             {
-                case StorageType.MemoryManager or StorageType.ByteArray:
-                    return RawSpan().StartsWith(value);
+                case StorageType.MemoryManager or StorageType.ByteArray or StorageType.ShortBlob:
+                    return UnsafeRawSpan(out _).StartsWith(value);
                 case StorageType.Sequence:
                     return RawSequence().StartsWith(value);
                 case StorageType.Int64:

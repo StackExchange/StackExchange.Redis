@@ -99,8 +99,8 @@ internal readonly ref struct MessageWriter
             case RedisValue.StorageType.String:
                 WriteUnifiedPrefixedString(writer, null, value.RawString());
                 break;
-            case RedisValue.StorageType.MemoryManager or RedisValue.StorageType.ByteArray:
-                WriteUnifiedSpan(writer, value.RawSpan());
+            case RedisValue.StorageType.MemoryManager or RedisValue.StorageType.ByteArray or RedisValue.StorageType.ShortBlob:
+                WriteUnifiedSpan(writer, value.UnsafeRawSpan(out _));
                 break;
             case RedisValue.StorageType.Sequence:
                 WriteUnifiedSequenceIterator(writer, value.RawSequenceIterator());
