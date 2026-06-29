@@ -258,6 +258,9 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
     // non-throwing twin of Active, for callers that have a trivial answer when the group is fully down
     internal ConnectionMultiplexer? TryGetActive() => _active;
 
+    // a completed "no endpoint" result, shared by the database/subscriber facades when the group is fully down
+    internal static readonly Task<EndPoint?> NoEndpoint = Task.FromResult<EndPoint?>(null);
+
     private ConnectionGroupMember? GetActiveMember()
     {
         var active = _active;

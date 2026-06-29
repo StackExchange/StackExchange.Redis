@@ -11,7 +11,7 @@ internal sealed partial class MultiGroupDatabase
         => GetActiveDatabase().DebugObjectAsync(key, flags);
 
     public Task<EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-        => TryGetActiveDatabase()?.IdentifyEndpointAsync(key, flags) ?? NoEndpoint;
+        => TryGetActiveDatabase()?.IdentifyEndpointAsync(key, flags) ?? MultiGroupMultiplexer.NoEndpoint;
 
     public Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().KeyMigrateAsync(key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags);

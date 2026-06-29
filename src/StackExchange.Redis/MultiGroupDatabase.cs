@@ -17,10 +17,6 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     // member, for use by members that have an obvious trivial result when disconnected
     private IDatabase? TryGetActiveDatabase() => parent.TryGetActive()?.GetDatabase(database, asyncState);
 
-    // a completed "no endpoint" result, reused for IdentifyEndpointAsync when the group is fully down
-    internal static readonly System.Threading.Tasks.Task<System.Net.EndPoint?> NoEndpoint
-        = System.Threading.Tasks.Task.FromResult<System.Net.EndPoint?>(null);
-
     // Core methods
     public IBatch CreateBatch(object? asyncState = null)
         => GetActiveDatabase().CreateBatch(asyncState);
