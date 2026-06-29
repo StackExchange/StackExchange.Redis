@@ -1,12 +1,15 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using RESPite;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Describes a health check to perform against instances.
 /// </summary>
+[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
 public sealed partial class HealthCheck : ICloneable
 {
     private static HealthCheck? _default;

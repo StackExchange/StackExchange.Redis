@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 namespace StackExchange.Redis;
 
@@ -7,6 +9,7 @@ public sealed partial class HealthCheck
     /// <summary>
     /// Attempt to evaluate the outcome of a series of health check operations.
     /// </summary>
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
     public abstract class HealthCheckProbePolicy
     {
         /// <summary>

@@ -217,6 +217,11 @@ internal sealed partial class MultiGroupMultiplexer
                 ForwardFilteredMessages(this, member, tuple.Queue, from);
             }
         }
+
+        // Deliberately *not* in a try/finally: if an await above faults (e.g. timeout/cancellation), the
+        // in-flight async operation may still hold a reference to this array, so returning it to the pool
+        // could hand the same buffer to another renter while it is still being read. We only return it on
+        // the clean path; on the (rare) fault path we simply let it be collected.
         ArrayPool<HandlerTuple>.Shared.Return(lease);
     }
 

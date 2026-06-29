@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Threading.Tasks;
+using RESPite;
 
 namespace StackExchange.Redis;
 
@@ -9,6 +11,7 @@ public sealed partial class HealthCheck
     /// <summary>
     /// Describes an operation to perform as part of a health check.
     /// </summary>
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
     public abstract partial class HealthCheckProbe
     {
         /// <summary>
@@ -37,6 +40,7 @@ public sealed partial class HealthCheck
     /// <summary>
     /// Describes a key-based (write) operation to perform as part of a health check.
     /// </summary>
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
     public abstract class KeyWriteHealthCheckProbe : HealthCheckProbe
     {
         /// <inheritdoc/>
@@ -59,6 +63,7 @@ public sealed partial class HealthCheck
     /// <summary>
     /// Indicates the result of a health check.
     /// </summary>
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
     public enum HealthCheckResult
     {
         /// <summary>

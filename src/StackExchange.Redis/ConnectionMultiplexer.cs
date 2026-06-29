@@ -2367,6 +2367,12 @@ namespace StackExchange.Redis
 
         internal uint UpdateLatency()
         {
+            // Per-server latency is captured passively during the critical handshake (see
+            // ServerEndPoint.SetLatency), so the values read here are kept current without us issuing
+            // any extra traffic. We aggregate to the *worst* (max) connected server, so a group is only
+            // rated as fast as its slowest endpoint. Note that uint.MaxValue doubles as the "not yet
+            // measured" sentinel: if no connected server has a real measurement we leave the previously
+            // published value untouched rather than reporting a spurious MaxValue.
             var snapshot = GetServerSnapshot();
             uint max = uint.MaxValue;
             foreach (var server in snapshot)

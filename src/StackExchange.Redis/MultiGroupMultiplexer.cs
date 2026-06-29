@@ -340,14 +340,23 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
 
     private void StartPolling()
     {
-        // use a weak-ref to avoid the loop keeping the object alive
-        _ = Task.Run(() => PollAsync(new(this)));
+        // use a weak-ref to avoid the loop keeping the object alive; capturing the token (rather than
+        // the muxer) lets us break out of the delay promptly on dispose without resurrecting the target
+        var cancellationToken = _pollCancellation.Token;
+        _ = Task.Run(() => PollAsync(new(this), cancellationToken));
 
-        static async Task PollAsync(WeakReference weakRef)
+        static async Task PollAsync(WeakReference weakRef, CancellationToken cancellationToken)
         {
             while (TryGetHealthCheck(weakRef.Target, out var interval))
             {
-                await Task.Delay(interval).ForAwait();
+                try
+                {
+                    await Task.Delay(interval, cancellationToken).ForAwait();
+                }
+                catch (OperationCanceledException)
+                {
+                    break; // disposed; stop polling without waiting out the interval
+                }
                 if (!await TryHealthCheckAndSelectPreferredGroupAsync(weakRef.Target).ForAwait()) break;
             }
         }
@@ -436,8 +445,11 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         }
     }
 
+    private readonly CancellationTokenSource _pollCancellation = new();
+
     private List<ConnectionMultiplexer> DropAll()
     {
+        _pollCancellation.Cancel(); // stop the polling loop promptly (idempotent)
         _active = null;
         var members = Interlocked.Exchange(ref _members, []);
         if (members.Length is 0) return [];
@@ -495,8 +507,11 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         set => Active.PreserveAsyncOrder = value;
     }
 
-    public bool IsConnected => Active.IsConnected;
-    public bool IsConnecting => Active.IsConnecting;
+    // Unlike most members, these intentionally do *not* go via Active (which throws when no member is
+    // available); callers routinely use IsConnected/IsConnecting as a pre-flight check and expect a
+    // 'false' result - not an exception - when the entire group is down.
+    public bool IsConnected => _active?.IsConnected ?? false;
+    public bool IsConnecting => _active?.IsConnecting ?? false;
 
     [Obsolete]
     public bool IncludeDetailInExceptions

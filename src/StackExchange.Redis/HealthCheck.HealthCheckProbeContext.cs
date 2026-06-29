@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using RESPite;
 
 namespace StackExchange.Redis;
 
@@ -8,6 +10,7 @@ public sealed partial class HealthCheck
     /// <summary>
     /// Represents the context of a health check probe.
     /// </summary>
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
     public readonly struct HealthCheckProbeContext(HealthCheckResult result, int success, int failure, int remaining, TimeSpan probeInterval)
     {
         /// <inheritdoc/>

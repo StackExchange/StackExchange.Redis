@@ -168,11 +168,14 @@ public sealed partial class HealthCheck
 
                 if (remaining > 0)
                 {
-                    // delay if appropriate
+                    // delay between probes when the policy calls for it (today: only after a failure).
+                    // Note: TotalTimeoutMillis() assumes this effective interval equals ProbeInterval; if
+                    // the policy ever returns a variable interval (backoff/jitter), the budget formula must
+                    // be revisited in lockstep, else the outer timeout can fire and mark a member unhealthy.
                     var delay = ProbePolicy.GetEffectiveProbeInterval(in ctx);
                     if (delay > TimeSpan.Zero)
                     {
-                        await Task.Delay(ctx.ProbeInterval).ConfigureAwait(false);
+                        await Task.Delay(delay).ConfigureAwait(false);
                     }
                 }
             }
