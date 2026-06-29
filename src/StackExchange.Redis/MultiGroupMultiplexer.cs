@@ -255,6 +255,9 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         }
     }
 
+    // non-throwing twin of Active, for callers that have a trivial answer when the group is fully down
+    internal ConnectionMultiplexer? TryGetActive() => _active;
+
     private ConnectionGroupMember? GetActiveMember()
     {
         var active = _active;

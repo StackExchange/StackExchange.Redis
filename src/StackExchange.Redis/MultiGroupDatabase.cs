@@ -13,6 +13,14 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     // for high DB numbers this might allocate even for null async-state scenarios; unavoidable for now
     private IDatabase GetActiveDatabase() => parent.Active.GetDatabase(database, asyncState);
 
+    // non-throwing twin of GetActiveDatabase: returns null when the group currently has no active
+    // member, for use by members that have an obvious trivial result when disconnected
+    private IDatabase? TryGetActiveDatabase() => parent.TryGetActive()?.GetDatabase(database, asyncState);
+
+    // a completed "no endpoint" result, reused for IdentifyEndpointAsync when the group is fully down
+    internal static readonly System.Threading.Tasks.Task<System.Net.EndPoint?> NoEndpoint
+        = System.Threading.Tasks.Task.FromResult<System.Net.EndPoint?>(null);
+
     // Core methods
     public IBatch CreateBatch(object? asyncState = null)
         => GetActiveDatabase().CreateBatch(asyncState);
@@ -27,10 +35,10 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
         => GetActiveDatabase().DebugObject(key, flags);
 
     public System.Net.EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-        => GetActiveDatabase().IdentifyEndpoint(key, flags);
+        => TryGetActiveDatabase()?.IdentifyEndpoint(key, flags);
 
     public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None)
-        => GetActiveDatabase().IsConnected(key, flags);
+        => TryGetActiveDatabase()?.IsConnected(key, flags) ?? false;
 
     public System.TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().Ping(flags);

@@ -35,7 +35,6 @@ public sealed partial class HealthCheck
             SharedRandom.NextBytes(pooled);
 #endif
             var payload = (RedisValue)pooled.AsMemory(0, LEN);
-            Lease<byte>? lease = null;
             try
             {
                 // write a value to the db
@@ -52,7 +51,6 @@ public sealed partial class HealthCheck
             finally
             {
                 ArrayPool<byte>.Shared.Return(pooled);
-                lease?.Dispose();
             }
         }
     }
