@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -99,8 +99,11 @@ internal readonly ref struct MessageWriter
             case RedisValue.StorageType.String:
                 WriteUnifiedPrefixedString(writer, null, value.RawString());
                 break;
-            case RedisValue.StorageType.MemoryManager or RedisValue.StorageType.ByteArray:
-                WriteUnifiedSpan(writer, value.RawSpan());
+            case RedisValue.StorageType.MemoryManager or RedisValue.StorageType.ByteArray or RedisValue.StorageType.ShortBlob:
+                WriteUnifiedSpan(writer, value.UnsafeRawSpan(out _));
+                break;
+            case RedisValue.StorageType.Sequence:
+                WriteUnifiedSequenceIterator(writer, value.RawSequenceIterator());
                 break;
             default:
                 throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
@@ -569,6 +572,46 @@ internal readonly ref struct MessageWriter
 
             WriteCrlf(writer);
         }
+    }
+
+    /*
+    private static void WriteUnifiedSequence(IBufferWriter<byte> writer, in ReadOnlySequence<byte> value)
+    {
+        if (value.IsSingleSegment)
+        {
+            WriteUnifiedSpan(writer, value.FirstSpan);
+        }
+        else
+        {
+            // value.Length is a long, so reserve room for a 64-bit length ('$' + up to 20 digits + CRLF)
+            var span = writer.GetSpan(3 + Format.MaxInt64TextLen);
+            span[0] = (byte)'$';
+            int bytes = WriteRaw(span, value.Length, offset: 1);
+            writer.Advance(bytes);
+
+            foreach (var memory in value)
+            {
+                writer.Write(memory.Span);
+            }
+
+            WriteCrlf(writer);
+        }
+    }
+    */
+
+    private static void WriteUnifiedSequenceIterator(IBufferWriter<byte> writer, ReadOnlySequenceSegmentIterator<byte> seq)
+    {
+        var span = writer.GetSpan(3 + Format.MaxInt32TextLen);
+        span[0] = (byte)'$';
+        int bytes = WriteRaw(span, seq.Length, offset: 1);
+        writer.Advance(bytes);
+
+        while (seq.TryNext(out var memory))
+        {
+            writer.Write(memory.Span);
+        }
+
+        WriteCrlf(writer);
     }
 
     private static int AppendToSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)

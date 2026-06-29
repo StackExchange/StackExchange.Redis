@@ -2540,3 +2540,6 @@ static StackExchange.Redis.Lease<T>.Create(int length, System.Buffers.MemoryPool
 [SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(System.ReadOnlyMemory<byte> expected, System.ReadOnlyMemory<byte> actual) -> void
 [SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(in StackExchange.Redis.RedisKey expected, in StackExchange.Redis.RedisKey actual) -> void
 [SER005]virtual StackExchange.Redis.TestHarness.OnValidateFail(string! expected, string! actual) -> void
+static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(System.Buffers.ReadOnlySequence<byte> value) -> StackExchange.Redis.RedisValue
+static StackExchange.Redis.RedisValue.implicit operator System.Buffers.ReadOnlySequence<byte>(StackExchange.Redis.RedisValue value) -> System.Buffers.ReadOnlySequence<byte>
+[SER002]static StackExchange.Redis.ValueCondition.CalculateDigest(in System.Buffers.ReadOnlySequence<byte> value) -> StackExchange.Redis.ValueCondition

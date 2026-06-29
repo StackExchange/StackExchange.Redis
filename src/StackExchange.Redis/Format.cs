@@ -394,10 +394,11 @@ namespace StackExchange.Redis
 
         internal static string GetString(ReadOnlySequence<byte> buffer)
         {
-            if (buffer.IsSingleSegment) return GetString(buffer.First.Span);
+            if (buffer.IsSingleSegment) return GetString(buffer.FirstSpan);
 
-            var arr = ArrayPool<byte>.Shared.Rent(checked((int)buffer.Length));
-            var span = new Span<byte>(arr, 0, (int)buffer.Length);
+            var length = checked((int)buffer.Length);
+            var arr = ArrayPool<byte>.Shared.Rent(length);
+            var span = new Span<byte>(arr, 0, length);
             buffer.CopyTo(span);
             string s = GetString(span);
             ArrayPool<byte>.Shared.Return(arr);

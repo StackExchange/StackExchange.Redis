@@ -32,16 +32,20 @@ public class RedisValueEquivalencyUnitTests
         Check(42, 42.0);
         Check(42, "42");
         Check(42, "42.0");
-        Check(42, Bytes("42"));
-        Check(42, Bytes("42.0"));
+        Check(42, Bytes("42"u8));
+        Check(42, Bytes("42.0"u8));
+        Check(42, Bytes("4"u8, "2"u8)); // multi-segment sequence
+        Check(42, Bytes("4"u8, "2.0"u8)); // multi-segment sequence
         CheckString(42, "42");
 
         Check(-42, -42);
         Check(-42, -42.0);
         Check(-42, "-42");
         Check(-42, "-42.0");
-        Check(-42, Bytes("-42"));
-        Check(-42, Bytes("-42.0"));
+        Check(-42, Bytes("-42"u8));
+        Check(-42, Bytes("-42.0"u8));
+        Check(-42, Bytes("-"u8, "42"u8)); // multi-segment sequence
+        Check(-42, Bytes("-4"u8, "2"u8, ".0"u8)); // multi-segment sequence (3 segments)
         CheckString(-42, "-42");
 
         Check(1, true);
@@ -71,16 +75,19 @@ public class RedisValueEquivalencyUnitTests
         Check(1099511627848, 1099511627848.0);
         Check(1099511627848, "1099511627848");
         Check(1099511627848, "1099511627848.0");
-        Check(1099511627848, Bytes("1099511627848"));
-        Check(1099511627848, Bytes("1099511627848.0"));
+        Check(1099511627848, Bytes("1099511627848"u8));
+        Check(1099511627848, Bytes("1099511627848.0"u8));
+        Check(1099511627848, Bytes("109951"u8, "1627848"u8)); // multi-segment sequence
+        Check(1099511627848, Bytes("109951"u8, "1627848"u8, ".0"u8)); // multi-segment sequence
         CheckString(1099511627848, "1099511627848");
 
         Check(-1099511627848, -1099511627848);
         Check(-1099511627848, -1099511627848);
         Check(-1099511627848, "-1099511627848");
         Check(-1099511627848, "-1099511627848.0");
-        Check(-1099511627848, Bytes("-1099511627848"));
-        Check(-1099511627848, Bytes("-1099511627848.0"));
+        Check(-1099511627848, Bytes("-1099511627848"u8));
+        Check(-1099511627848, Bytes("-1099511627848.0"u8));
+        Check(-1099511627848, Bytes("-109951"u8, "1627848"u8)); // multi-segment sequence
         CheckString(-1099511627848, "-1099511627848");
 
         Check(1L, true);
@@ -110,16 +117,18 @@ public class RedisValueEquivalencyUnitTests
         Check(1099511627848.0, 1099511627848.0);
         Check(1099511627848.0, "1099511627848");
         Check(1099511627848.0, "1099511627848.0");
-        Check(1099511627848.0, Bytes("1099511627848"));
-        Check(1099511627848.0, Bytes("1099511627848.0"));
+        Check(1099511627848.0, Bytes("1099511627848"u8));
+        Check(1099511627848.0, Bytes("1099511627848.0"u8));
+        Check(1099511627848.0, Bytes("109951"u8, "1627848"u8)); // multi-segment sequence
+        Check(1099511627848.0, Bytes("1099511627848"u8, ".0"u8)); // multi-segment sequence
         CheckString(1099511627848.0, "1099511627848");
 
         Check(-1099511627848.0, -1099511627848);
         Check(-1099511627848.0, -1099511627848);
         Check(-1099511627848.0, "-1099511627848");
         Check(-1099511627848.0, "-1099511627848.0");
-        Check(-1099511627848.0, Bytes("-1099511627848"));
-        Check(-1099511627848.0, Bytes("-1099511627848.0"));
+        Check(-1099511627848.0, Bytes("-1099511627848"u8));
+        Check(-1099511627848.0, Bytes("-1099511627848.0"u8));
         CheckString(-1099511627848.0, "-1099511627848");
 
         Check(1.0, true);
@@ -127,12 +136,13 @@ public class RedisValueEquivalencyUnitTests
 
         Check(1099511627848.6001, 1099511627848.6001);
         Check(1099511627848.6001, "1099511627848.6001");
-        Check(1099511627848.6001, Bytes("1099511627848.6001"));
+        Check(1099511627848.6001, Bytes("1099511627848.6001"u8));
+        Check(1099511627848.6001, Bytes("1099511627848"u8, ".6001"u8)); // multi-segment sequence
         CheckString(1099511627848.6001, "1099511627848.6001");
 
         Check(-1099511627848.6001, -1099511627848.6001);
         Check(-1099511627848.6001, "-1099511627848.6001");
-        Check(-1099511627848.6001, Bytes("-1099511627848.6001"));
+        Check(-1099511627848.6001, Bytes("-1099511627848.6001"u8));
         CheckString(-1099511627848.6001, "-1099511627848.6001");
 
         Check(double.NegativeInfinity, double.NegativeInfinity);
@@ -270,7 +280,16 @@ public class RedisValueEquivalencyUnitTests
         Assert.True(s == expected, $"'{s}' vs '{expected}'");
     }
 
-    private static byte[]? Bytes(string? s) => s == null ? null : Encoding.UTF8.GetBytes(s);
+    // single contiguous buffer => stored as a byte[] (StorageType.ByteArray)
+    private static RedisValue Bytes(ReadOnlySpan<byte> value) => value.ToArray();
+
+    // multiple chunks => a (deliberately) multi-segment ReadOnlySequence<byte> (StorageType.Sequence).
+    // We trust the single-segment collapse logic, so callers pass >= 2 chunks to exercise the sequence path.
+    private static RedisValue Bytes(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
+        => FragmentedSegment<byte>.Create(a.ToArray(), b.ToArray());
+
+    private static RedisValue Bytes(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, ReadOnlySpan<byte> c)
+        => FragmentedSegment<byte>.Create(a.ToArray(), b.ToArray(), c.ToArray());
 
     private static string LineNumber([CallerLineNumber] int lineNumber = 0) => lineNumber.ToString();
 

@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -161,6 +162,31 @@ public readonly struct ValueCondition
     /// </summary>
     [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
     public static ValueCondition DigestNotEqual(in RedisValue value) => !value.Digest();
+
+    [ThreadStatic]
+    private static XxHash3? _xxh;
+
+    /// <summary>
+    /// Calculate the digest of a payload, as an equality test. For a non-equality test, use <see cref="NotEqual"/> on the result.
+    /// </summary>
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
+    public static ValueCondition CalculateDigest(in ReadOnlySequence<byte> value)
+    {
+        if (value.IsSingleSegment)
+        {
+            return CalculateDigest(value.FirstSpan);
+        }
+
+        var xxh = _xxh;
+        xxh ??= _xxh = new XxHash3();
+        xxh.Reset();
+        foreach (var memory in value)
+        {
+            xxh.Append(memory.Span);
+        }
+        var digest = unchecked((long)xxh.GetCurrentHashAsUInt64());
+        return new ValueCondition(ConditionKind.DigestEquals, digest);
+    }
 
     /// <summary>
     /// Calculate the digest of a payload, as an equality test. For a non-equality test, use <see cref="NotEqual"/> on the result.

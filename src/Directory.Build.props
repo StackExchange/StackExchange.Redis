@@ -5,10 +5,15 @@
     <IsPackable>true</IsPackable>
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
     <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+    <PackageIcon>seredis.png</PackageIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
     <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" Condition=" '$(DEVCONTAINER)' != 'true' " />
+  </ItemGroup>
+  <!-- shared NuGet package logo (assets/seredis.png at the repo root) -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\assets\seredis.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 </Project>

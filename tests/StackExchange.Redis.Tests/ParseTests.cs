@@ -43,21 +43,12 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
     public Task ParseAsLotsOfChunks(string ascii, int expected)
     {
         var bytes = Encoding.ASCII.GetBytes(ascii);
-        FragmentedSegment<byte>? chain = null, tail = null;
+        var chunks = new ReadOnlyMemory<byte>[bytes.Length];
         for (int i = 0; i < bytes.Length; i++)
         {
-            var next = new FragmentedSegment<byte>(i, new ReadOnlyMemory<byte>(bytes, i, 1));
-            if (tail == null)
-            {
-                chain = next;
-            }
-            else
-            {
-                tail.Next = next;
-            }
-            tail = next;
+            chunks[i] = new ReadOnlyMemory<byte>(bytes, i, 1);
         }
-        var buffer = new ReadOnlySequence<byte>(chain!, 0, tail!, 1);
+        var buffer = FragmentedSegment<byte>.Create(chunks);
         Assert.Equal(bytes.Length, buffer.Length);
         return ProcessMessagesAsync(buffer, expected);
     }
@@ -101,20 +92,5 @@ public class ParseTests(ITestOutputHelper output) : TestBase(output)
         }
         cancel.ThrowIfCancellationRequested();
         Assert.Equal(expected, found);
-    }
-
-    private sealed class FragmentedSegment<T> : ReadOnlySequenceSegment<T>
-    {
-        public FragmentedSegment(long runningIndex, ReadOnlyMemory<T> memory)
-        {
-            RunningIndex = runningIndex;
-            Memory = memory;
-        }
-
-        public new FragmentedSegment<T>? Next
-        {
-            get => (FragmentedSegment<T>?)base.Next;
-            set => base.Next = value;
-        }
     }
 }

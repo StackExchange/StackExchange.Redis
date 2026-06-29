@@ -392,11 +392,7 @@ internal sealed partial class PhysicalConnection
     {
         if (payload.IsSingleSegment)
         {
-#if NET
             OnResponseFrame(prefix, payload.FirstSpan, ref SharedNoLease);
-#else
-            OnResponseFrame(prefix, payload.First.Span, ref SharedNoLease);
-#endif
         }
         else
         {
