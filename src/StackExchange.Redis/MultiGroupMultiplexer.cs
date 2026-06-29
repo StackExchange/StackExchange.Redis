@@ -210,6 +210,11 @@ public sealed partial class ConnectionGroupMember(ConfigurationOptions configura
             : isConnected ? GroupConnectionChangedEventArgs.ChangeType.Reconnected
             : GroupConnectionChangedEventArgs.ChangeType.Disconnected;
     }
+
+    internal void UpdateLatency()
+    {
+        if (_muxer is { } muxer) SetLatency(muxer.UpdateLatency());
+    }
 }
 
 internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
@@ -415,6 +420,7 @@ internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
 
             if (member.IsConnected)
             {
+                member.UpdateLatency(); // this can change passively
                 preferredMember = ConnectionGroupMember.Select(preferredMember, member);
             }
         }

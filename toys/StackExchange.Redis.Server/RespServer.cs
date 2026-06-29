@@ -331,7 +331,7 @@ namespace StackExchange.Redis.Server
                         }
                         else
                         {
-                            await ClientPauseAsync(client);
+                            await ClientPauseAsync(client, request);
                             await client.AddOutboundAsync(response);
                         }
                         client.ResetAfterRequest();
@@ -418,7 +418,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        protected virtual ValueTask ClientPauseAsync(RedisClient client) => default;
+        protected virtual ValueTask ClientPauseAsync(RedisClient client, in RedisRequest request) => default;
 
         protected object ServerSyncLock => this;
 
@@ -431,7 +431,7 @@ namespace StackExchange.Redis.Server
             _totalCommandsProcesed = _totalErrorCount = _totalClientCount = 0;
         }
 
-        public virtual TypedRedisValue OnUnknownCommand(in RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
+        public virtual TypedRedisValue OnUnknownCommand(RedisClient client, in RedisRequest request, ReadOnlySpan<byte> command)
         {
             return request.CommandNotFound();
         }

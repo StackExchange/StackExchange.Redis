@@ -155,6 +155,7 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
         foreach (var member in conn.GetMembers())
         {
+            member.UpdateLatency();
             log.WriteLine($"{member.Name}: {member.Latency.TotalMilliseconds}us");
         }
         log.WriteLine($"Active: {typed.Active}");
@@ -171,10 +172,15 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         using var server1 = new InProcessTestServer(log, endpoint: canada);
         using var server2 = new InProcessTestServer(log, endpoint: tokyo);
 
+        static ConfigurationOptions Check(ConfigurationOptions options)
+        {
+            // options.HeartbeatConsistencyChecks = true;
+            return options;
+        }
         ConnectionGroupMember[] members = [
-            new(server0.GetClientConfig()),
-            new(server1.GetClientConfig()),
-            new(server2.GetClientConfig()),
+            new(Check(server0.GetClientConfig())),
+            new(Check(server1.GetClientConfig())),
+            new(Check(server2.GetClientConfig())),
         ];
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
         conn.ConnectionChanged += (_, args) => log.WriteLine($"Connection changed: {args.Type}, from {args.PreviousGroup?.Name ?? "(nil)"} to {args.Group.Name}");
@@ -189,7 +195,7 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
         typed.SelectPreferredGroup();
         WriteLatency(typed);
 
-        // (R.4.1) If multiple member databases are configured, then I want to failover to the one with the highest weight.
+        // select lowest latency
         var db = conn.GetDatabase();
         var ep = await db.IdentifyEndpointAsync();
         Assert.Equal(canada, ep);

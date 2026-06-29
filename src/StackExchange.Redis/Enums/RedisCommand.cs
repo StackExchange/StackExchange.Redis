@@ -310,6 +310,9 @@ internal static partial class RedisCommandMetadata
 
     [AsciiHash(CaseSensitive = false)]
     public static partial bool TryParseCI(ReadOnlySpan<char> command, out RedisCommand value);
+
+    [AsciiHash]
+    public static partial bool TryFormat(RedisCommand command, out string format);
 }
 
 // ReSharper restore InconsistentNaming
