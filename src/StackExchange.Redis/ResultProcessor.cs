@@ -3152,21 +3152,15 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class TracerProcessor : ResultProcessor<bool>
+        private sealed class TracerProcessor(bool establishConnection) : ResultProcessor<bool>
         {
-            private readonly bool establishConnection;
-
-            public TracerProcessor(bool establishConnection)
-            {
-                this.establishConnection = establishConnection;
-            }
-
             public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
             {
                 reader.MovePastBof();
                 bool isError = reader.IsError;
                 var copy = reader;
 
+                connection.BridgeCouldBeNull?.ServerEndPoint?.SetLatency(message.CreatedDateTime);
                 connection.BridgeCouldBeNull?.Multiplexer.OnInfoMessage($"got '{reader.Prefix}' for '{message.CommandAndKey}' on '{connection}'");
                 var final = base.SetResult(connection, message, ref reader);
 

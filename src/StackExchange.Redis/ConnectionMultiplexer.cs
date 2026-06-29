@@ -1036,7 +1036,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private void OnHeartbeat()
+        internal void OnHeartbeat()
         {
             try
             {
@@ -1129,7 +1129,7 @@ namespace StackExchange.Redis
         }
 
         // DB zero is stored separately, since 0-only is a massively common use-case
-        private const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
+        internal const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
         // Side note: "databases 16" is the default in redis.conf; happy to store one extra to get nice alignment etc
         private IDatabase? dbCacheZero;
         private IDatabase[]? dbCacheLow;
@@ -1281,6 +1281,8 @@ namespace StackExchange.Redis
                 return total;
             }
         }
+
+        internal uint LatencyTicks { get; private set; } = uint.MaxValue;
 
         // note that the RedisChannel->byte[] converter is always direct, so this is not an alloc
         // (we deal with channels far less frequently, so pay the encoding cost up-front)
@@ -2362,5 +2364,35 @@ namespace StackExchange.Redis
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
             => GetServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+
+        internal uint UpdateLatency()
+        {
+            // Per-server latency is captured passively during the critical handshake (see
+            // ServerEndPoint.SetLatency), so the values read here are kept current without us issuing
+            // any extra traffic. We aggregate to the *worst* (max) connected server, so a group is only
+            // rated as fast as its slowest endpoint. Note that uint.MaxValue doubles as the "not yet
+            // measured" sentinel: if no connected server has a real measurement we leave the previously
+            // published value untouched rather than reporting a spurious MaxValue.
+            var snapshot = GetServerSnapshot();
+            uint max = uint.MaxValue;
+            foreach (var server in snapshot)
+            {
+                if (server.IsConnected)
+                {
+                    var latency = server.LatencyTicks;
+                    if (max is uint.MaxValue || latency > max)
+                    {
+                        max = latency;
+                    }
+                }
+            }
+
+            if (max != uint.MaxValue)
+            {
+                LatencyTicks = max;
+            }
+
+            return LatencyTicks;
+        }
     }
 }

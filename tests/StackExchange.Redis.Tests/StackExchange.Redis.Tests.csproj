@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- can also run fine in net8.0, but: don't want triplicate by default, and don't want competition between runs --> 
+    <!-- can also run fine in net8.0, but: don't want triplicate by default, and don't want competition between runs -->
     <TargetFrameworks>net481;net8.0;net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
@@ -10,7 +10,7 @@
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
-    <!-- avoid parallelism on some brittle things like script-flush that *really* don't work well vs concurrent runtimes --> 
+    <!-- avoid parallelism on some brittle things like script-flush that *really* don't work well vs concurrent runtimes -->
     <DefineConstants Condition="'$(TargetFramework)'=='net10.0'">$(DefineConstants);BUILD_CURRENT</DefineConstants>
   </PropertyGroup>
 
