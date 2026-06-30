@@ -9,6 +9,18 @@ This walks through adding a command to **StackExchange.Redis** (the `src/StackEx
 
 Use an existing, similarly-shaped command as your template (e.g. `StringGet`/`GET` for a simple key command, `StreamAutoClaim`/`XAUTOCLAIM` for a structured aggregate reply). Grep `RedisDatabase.cs` for one and mirror it.
 
+## Source the command's spec first
+
+Before writing anything, get the command's exact argument order and reply shape — you need it for the `Message` (request bytes) and the `ResultProcessor` (reply parsing), and the round-trip test asserts both precisely.
+
+- **Existing / released commands** are described in two authoritative places (substitute the command name, lower-case):
+  - **Server source, JSON spec** — e.g. `https://github.com/redis/redis/blob/unstable/src/commands/xdelex.json`. This is the most precise: argument tokens/order/optionality, `arity`, key specs, and the **`write`/`readonly` command flags** (which directly tell you the `IsPrimaryOnly` classification) plus, often, a `reply_schema`.
+  - **HTML docs** — e.g. `https://redis.io/docs/latest/commands/xdelex/`. More readable, with reply examples.
+  - (For non-Redis targets the equivalents are the Valkey/Garnet/etc. source and docs — but the wire command is usually identical.)
+- **Module commands** (RediSearch `FT.*`, RedisJSON `JSON.*`, RedisTimeSeries `TS.*`, RedisBloom, …) live in each module's own repo, usually as a single aggregated `commands.json` (e.g. RediSearch: `https://github.com/RediSearch/RediSearch/blob/master/commands.json`) rather than core Redis's one-file-per-command layout. Use it the same way for argument/reply shape. **But module commands are generally handled by separate companion libraries (e.g. [NRedisStack](https://github.com/redis/NRedisStack)), not core StackExchange.Redis** — so usually you won't add them here at all; ad-hoc use goes through the generic `Execute`/`ExecuteAsync(string command, …)` → `RedisResult` API. If you *do* wire one as first-class, note the wire token is dotted (`FT.SEARCH`) and a C# enum member name can't contain `.`; the token for a member whose name isn't a valid identifier is supplied via the `[AsciiHash("FT.SEARCH")]` override — see `eng/StackExchange.Redis.Build/AsciiHash.md`. Confirm that a first-class typed binding is actually intended before following the enum steps below.
+- **New / unreleased commands** may not be in either yet. In that case **ask the user for the spec** — the exact argument order and a concrete sample request/reply (RESP bytes if possible) — rather than guessing; the round-trip and ResultProcessor tests are only as correct as that sample.
+- **RESP2 vs RESP3:** the reply (and occasionally argument handling) can differ subtly between protocols — e.g. a map/`%` vs a flat `*` array, a double/`,` vs a bulk-string number, or added attributes. The JSON `reply_schema` sometimes distinguishes them. Capture **both** forms and handle them in the `ResultProcessor` (and cover both in the unit tests).
+
 ## Steps
 
 1. **Add the command name to the `RedisCommand` enum** — `src/StackExchange.Redis/Enums/RedisCommand.cs`. The enum member name *is* the wire token (`CommandMap` serializes it via `command.ToString()`), so name it exactly as Redis expects (e.g. `GETEX`, `XAUTOCLAIM`). Keep the existing alphabetical grouping.
