@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite.Streams;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -32,7 +33,7 @@ public class TcpKeepAliveTests(ITestOutputHelper log, TcpTestFixture fixture) : 
         if (keepAlive)
         {
 #pragma warning disable CS0618
-            Assert.SkipUnless(SocketManager.TryEnableTcpKeepAlive(client, ep), "keep-alive not supported");
+            Assert.SkipUnless(SocketUtil.TryEnableTcpKeepAlive(client, ep), "keep-alive not supported");
 #pragma warning restore CS0618
         }
 

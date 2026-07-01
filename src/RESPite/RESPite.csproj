@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="RESPite.Tests"/>
+    <InternalsVisibleTo Include="RESPite.Proxy"/>
     <None Include="readme.md" Pack="true" PackagePath="/"/>
   </ItemGroup>
 

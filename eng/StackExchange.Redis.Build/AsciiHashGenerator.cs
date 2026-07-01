@@ -41,6 +41,8 @@ public class AsciiHashGenerator : IIncrementalGenerator
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
+        var compilation = context.CompilationProvider.Select(TransformCompilation);
+
         // looking for [AsciiHash("some type")] enum Foo { }
         var enums = context.SyntaxProvider
             .CreateSyntaxProvider(
@@ -50,9 +52,9 @@ public class AsciiHashGenerator : IIncrementalGenerator
             .Collect();
 
         context.RegisterSourceOutput(
-            types.Combine(methods).Combine(formatMethods).Combine(enums),
+            types.Combine(methods).Combine(formatMethods).Combine(enums).Combine(compilation),
             (ctx, content) =>
-                Generate(ctx, content.Left.Left.Left, content.Left.Left.Right, content.Left.Right, content.Right));
+                Generate(ctx, content.Left.Left.Left.Left, content.Left.Left.Left.Right, content.Left.Left.Right, content.Left.Right, content.Right));
 
         static bool IsStaticPartial(SyntaxTokenList tokens)
             => tokens.Any(SyntaxKind.StaticKeyword) && tokens.Any(SyntaxKind.PartialKeyword);
@@ -69,6 +71,13 @@ public class AsciiHashGenerator : IIncrementalGenerator
 
             return false;
         }
+    }
+
+    private (string Language, ImmutableArray<string> References) TransformCompilation(Compilation compilation, CancellationToken cancellationToken)
+    {
+        return (
+            compilation.Language,
+            compilation.ReferencedAssemblyNames.Select(x => x.Name).ToImmutableArray());
     }
 
     private static string GetName(INamedTypeSymbol type)
@@ -430,7 +439,8 @@ public class AsciiHashGenerator : IIncrementalGenerator
             (string Type, string Name, RefKind RefKind) From,
             (string Type, string Name, RefKind RefKind, bool IsBytes) To,
             BasicArray<(string EnumMember, string FormatText)> Members)> formatMethods,
-        ImmutableArray<(string Namespace, string ParentType, string Name, int Count, int MaxChars, int MaxBytes)> enums)
+        ImmutableArray<(string Namespace, string ParentType, string Name, int Count, int MaxChars, int MaxBytes)> enums,
+        (string Language, ImmutableArray<string> References) compilation)
     {
         if (types.IsDefaultOrEmpty & parseMethods.IsDefaultOrEmpty & formatMethods.IsDefaultOrEmpty & enums.IsDefaultOrEmpty) return; // nothing to do
 
@@ -438,7 +448,11 @@ public class AsciiHashGenerator : IIncrementalGenerator
             .AppendLine().Append("// ").Append(GetType().Name).Append(" v").Append(GetVersion()).AppendLine();
 
         sb.AppendLine("using System;");
-        sb.AppendLine("using StackExchange.Redis;");
+        if (compilation.References.Contains("StackExchange.Redis"))
+        {
+            sb.AppendLine("using StackExchange.Redis;");
+        }
+
         sb.AppendLine("#pragma warning disable CS8981, SER004");
 
         BuildTypeImplementations(sb, types);

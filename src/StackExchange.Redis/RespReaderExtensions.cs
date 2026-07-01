@@ -157,8 +157,6 @@ internal static class RespReaderExtensions
 
     extension(ref RespReader reader)
     {
-        public bool SafeTryMoveNext() => reader.TryMoveNext(checkError: false) & !reader.IsError;
-
         public void MovePastBof()
         {
             // if we're at BOF, read the first element, ignoring errors

@@ -14,7 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-
+using RESPite.Streams;
 using static StackExchange.Redis.Message;
 
 namespace StackExchange.Redis
@@ -176,7 +176,7 @@ namespace StackExchange.Redis
             if (connectTo is not null)
             {
                 #pragma warning disable CS0618
-                _socket = SocketManager.CreateSocket(connectTo, rawConfig.TcpKeepAlive);
+                _socket = SocketUtil.CreateSocket(connectTo, rawConfig.TcpKeepAlive);
                 #pragma warning restore CS0618
             }
 

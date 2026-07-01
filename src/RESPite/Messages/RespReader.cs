@@ -402,6 +402,8 @@ public ref partial struct RespReader
         return false;
     }
 
+    internal bool SafeTryMoveNext() => TryMoveNext(checkError: false) & !IsError;
+
     /// <summary>
     /// Move to the next content element; this skips attribute metadata, checking for RESP error messages by default.
     /// </summary>

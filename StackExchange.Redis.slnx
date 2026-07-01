@@ -25,6 +25,7 @@
   <Folder Name="/src/">
     <File Path="src/Directory.Build.props" />
     <Project Path="src/RESPite.Benchmark/RESPite.Benchmark.csproj" />
+    <Project Path="src/RESPite.Proxy/RESPite.Proxy.csproj" />
     <Project Path="src/RESPite/RESPite.csproj" />
     <Project Path="src/StackExchange.Redis/StackExchange.Redis.csproj" />
   </Folder>

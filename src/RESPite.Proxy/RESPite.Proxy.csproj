@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ToolCommandName>resp-proxy</ToolCommandName>
+    <PackAsTool>true</PackAsTool>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <SignAssembly>true</SignAssembly>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Copyright>2026 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers"/>
+    <ProjectReference Include="../RESPite/RESPite.csproj"/>
+  </ItemGroup>
+
+</Project>

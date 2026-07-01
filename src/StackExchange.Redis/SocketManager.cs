@@ -24,7 +24,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         public SocketManager(string name)
-            : this(name, 0, SocketManagerOptions.None) { }
+            : this(name, 0, SocketManagerOptions.None)
+        {
+        }
 
         /// <summary>
         /// Creates a new <see cref="SocketManager"/> instance.
@@ -32,7 +34,9 @@ namespace StackExchange.Redis
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, bool useHighPrioritySocketThreads)
-            : this(name, 0, UseHighPrioritySocketThreads(useHighPrioritySocketThreads)) { }
+            : this(name, 0, UseHighPrioritySocketThreads(useHighPrioritySocketThreads))
+        {
+        }
 
         /// <summary>
         /// Creates a new (optionally named) <see cref="SocketManager"/> instance.
@@ -41,7 +45,9 @@ namespace StackExchange.Redis
         /// <param name="workerCount">the number of dedicated workers for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, int workerCount, bool useHighPrioritySocketThreads)
-            : this(name, workerCount, UseHighPrioritySocketThreads(useHighPrioritySocketThreads)) { }
+            : this(name, workerCount, UseHighPrioritySocketThreads(useHighPrioritySocketThreads))
+        {
+        }
 
         private static SocketManagerOptions UseHighPrioritySocketThreads(bool value)
             => value ? SocketManagerOptions.UseHighPrioritySocketThreads : SocketManagerOptions.None;
@@ -90,7 +96,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Shared socket manager using the main thread-pool.
         /// </summary>
-        public static SocketManager ThreadPool { get; } = new("ThreadPoolSocketManager", options: SocketManagerOptions.UseThreadPool);
+        public static SocketManager ThreadPool { get; } =
+            new("ThreadPoolSocketManager", options: SocketManagerOptions.UseThreadPool);
 
         /// <summary>
         /// Returns a string that represents the current object.
@@ -102,70 +109,5 @@ namespace StackExchange.Redis
         /// Releases all resources associated with this instance.
         /// </summary>
         public void Dispose() { }
-
-        internal static Socket CreateSocket(EndPoint endpoint, bool tcpKeepAlive)
-        {
-            var addressFamily = endpoint.AddressFamily;
-            var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
-
-            var socket = addressFamily == AddressFamily.Unspecified
-                ? new Socket(SocketType.Stream, protocolType)
-                : new Socket(addressFamily, SocketType.Stream, protocolType);
-            TrySetNoDelay(socket);
-            if (tcpKeepAlive) TryEnableTcpKeepAlive(socket, endpoint);
-            return socket;
-        }
-
-        internal static bool TrySetNoDelay(Socket socket)
-        {
-            try
-            {
-                if (socket.AddressFamily is not AddressFamily.Unix)
-                {
-                    socket.NoDelay = true;
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message, nameof(Socket));
-            }
-
-            return false;
-        }
-
-        internal static bool TryEnableTcpKeepAlive(Socket socket, EndPoint endPoint)
-        {
-            // TCP keep-alive; there's a clue in the name
-            if (socket.ProtocolType is not ProtocolType.Tcp) return false;
-
-            switch (endPoint)
-            {
-#if !NET10_0_OR_GREATER
-                // Prior to .NET 10, enabling TCP keep-alive on host-based endpoints fails outside of Windows.
-                // see https://github.com/StackExchange/StackExchange.Redis/issues/3086
-                case DnsEndPoint when !RuntimeInformation.IsOSPlatform(OSPlatform.Windows): return false;
-#endif
-                case DnsEndPoint:
-                case IPEndPoint:
-                    // fine
-                    break;
-                default:
-                    // don't enable on unexpected endpoint types (unix domain sockets, for example)
-                    return false;
-            }
-
-            try
-            {
-                // enable TCP keep-alive (best effort only)
-                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-                return false;
-            }
-        }
     }
 }
