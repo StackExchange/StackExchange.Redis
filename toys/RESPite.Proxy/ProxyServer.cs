@@ -31,6 +31,9 @@ internal sealed class ProxyServer
 
     internal sealed class InnerLeg(ProxyServer server, Stream tail) : RespStream(tail)
     {
+        private readonly BufferedStreamWriter _outBuffer =
+            BufferedStreamWriter.Create(true, tail, server.Options.BufferPool);
+
         public ProxyServer Server => server;
         public CancellationToken Lifetime => server.Lifetime;
 
@@ -93,8 +96,8 @@ internal sealed class ProxyServer
                 if (db != _db) WriteSelectInsideLock(db);
 
                 _inFlightOwners.Enqueue(client.Id);
-                Tail.Write(frame);
-                Tail.Flush();
+                _outBuffer.Write(frame);
+                _outBuffer.Flush();
             }
         }
 
@@ -113,7 +116,7 @@ internal sealed class ProxyServer
             buffer[17] = (byte)('0' + bytes);
             intBuffer.Slice(0, bytes).CopyTo(buffer.Slice(select.Length));
             "\r\n"u8.CopyTo(buffer.Slice(select.Length + bytes));
-            Tail.Write(buffer.Slice(0, select.Length + bytes + 2));
+            _outBuffer.Write(buffer.Slice(0, select.Length + bytes + 2));
             _db = db;
 
             static void Throw() => throw new FormatException("Unable to format SELECT");

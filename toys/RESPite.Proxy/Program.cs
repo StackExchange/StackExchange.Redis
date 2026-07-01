@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Buffers;
+using System.Net;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.Connections;
 using RESPite.Proxy;
@@ -50,6 +51,7 @@ public class ProxyServerOptions
     }
 
     public EndPoint ServerEndpoint { get; set; } = new IPEndPoint(IPAddress.Loopback, 6379);
+    public MemoryPool<byte>? BufferPool { get; set; }
 
     public Stream Connect()
     {

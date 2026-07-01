@@ -3,7 +3,6 @@ override RESPite.Streams.RespStream.ToString() -> string!
 RESPite.Streams.RespStream
 RESPite.Streams.RespStream.RespStream(System.IO.Stream! tail) -> void
 RESPite.Streams.RespStream.StartReading(bool sync, System.Threading.CancellationToken cancellationToken) -> void
-RESPite.Streams.RespStream.Tail.get -> System.IO.Stream!
 RESPite.Streams.RespStream.TotalBytesRead.get -> long
 virtual RESPite.Streams.RespStream.ForceReconnect.get -> bool
 virtual RESPite.Streams.RespStream.IsPubSub.get -> bool
