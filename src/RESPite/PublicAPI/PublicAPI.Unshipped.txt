@@ -3,12 +3,13 @@ override RESPite.Streams.RespStream.ToString() -> string!
 RESPite.Streams.RespStream
 RESPite.Streams.RespStream.RespStream(System.IO.Stream! tail) -> void
 RESPite.Streams.RespStream.StartReading(bool sync, System.Threading.CancellationToken cancellationToken) -> void
+RESPite.Streams.RespStream.Tail.get -> System.IO.Stream!
 RESPite.Streams.RespStream.TotalBytesRead.get -> long
 virtual RESPite.Streams.RespStream.ForceReconnect.get -> bool
 virtual RESPite.Streams.RespStream.IsPubSub.get -> bool
 virtual RESPite.Streams.RespStream.Name.get -> string!
-virtual RESPite.Streams.RespStream.OnReadFrame(System.ReadOnlySpan<byte> frame, ref System.Buffers.IMemoryOwner<byte>? memoryOwner) -> void
-virtual RESPite.Streams.RespStream.OnReadOutOfBand(System.ReadOnlySpan<byte> frame, ref System.Buffers.IMemoryOwner<byte>? memoryOwner) -> bool
+virtual RESPite.Streams.RespStream.OnReadFrame(RESPite.Messages.RespPrefix prefix, System.ReadOnlySpan<byte> frame, ref System.Buffers.IMemoryOwner<byte>? memoryOwner) -> void
+virtual RESPite.Streams.RespStream.OnReadOutOfBand(RESPite.Messages.RespPrefix prefix, System.ReadOnlySpan<byte> frame, ref System.Buffers.IMemoryOwner<byte>? memoryOwner) -> bool
 virtual RESPite.Streams.RespStream.ReaderBufferPool.get -> System.Buffers.MemoryPool<byte>!
 virtual RESPite.Streams.RespStream.ShouldTransitionToAsync() -> bool
 virtual RESPite.Streams.RespStream.UpdateBufferStats(int lastFrameBytes, long bufferBytes) -> void

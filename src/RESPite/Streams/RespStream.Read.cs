@@ -368,7 +368,7 @@ public partial class RespStream
             case RespPrefix.Push: // explicit RESP3 push message
             case RespPrefix.Array when IsPubSub && !IsArrayPong(frame): // could be a RESP2 pub/sub payload
                 // out-of-band; pub/sub etc
-                if (OnReadOutOfBand(frame, ref memoryOwner))
+                if (OnReadOutOfBand(prefix, frame, ref memoryOwner))
                 {
                     OnDetailLog($"out-of-band message, not dequeuing: {prefix}");
                     return;
@@ -377,7 +377,7 @@ public partial class RespStream
         }
 
         // request/response; match to inbound
-        OnReadFrame(frame, ref memoryOwner);
+        OnReadFrame(prefix, frame, ref memoryOwner);
 
         static bool IsArrayPong(ReadOnlySpan<byte> payload)
         {
@@ -430,9 +430,9 @@ public partial class RespStream
         }
     }
 
-    protected virtual void OnReadFrame(ReadOnlySpan<byte> frame, ref IMemoryOwner<byte>? memoryOwner) { }
+    protected virtual void OnReadFrame(RespPrefix prefix, ReadOnlySpan<byte> frame, ref IMemoryOwner<byte>? memoryOwner) { }
 
-    protected virtual bool OnReadOutOfBand(ReadOnlySpan<byte> frame, ref IMemoryOwner<byte>? memoryOwner) => false;
+    protected virtual bool OnReadOutOfBand(RespPrefix prefix, ReadOnlySpan<byte> frame, ref IMemoryOwner<byte>? memoryOwner) => false;
 
     [AsciiHash("*2\r\n$4\r\npong\r\n$")]
     private static partial class ArrayPong_LC_Bulk { }

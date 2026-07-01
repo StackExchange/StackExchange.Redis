@@ -14,7 +14,7 @@
 
   <ItemGroup>
     <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers"/>
-    <ProjectReference Include="../RESPite/RESPite.csproj"/>
+    <ProjectReference Include="../../src/RESPite/RESPite.csproj"/>
   </ItemGroup>
 
 </Project>
