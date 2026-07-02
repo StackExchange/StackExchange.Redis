@@ -1,6 +1,8 @@
 ﻿using System.Buffers;
 using System.Buffers.Text;
+using System.Diagnostics;
 using System.IO.Pipelines;
+using System.Runtime.InteropServices;
 using System.Text;
 using RESPite.Messages;
 using RESPite.Streams;
@@ -47,74 +49,69 @@ internal sealed class ProxyClient(ProxyServer.InnerLeg upstream, Stream inbound,
         ReadOnlySpan<byte> frame,
         ref IMemoryOwner<byte>? memoryOwner)
     {
+        ReadOnlyMemory<byte> localResponse = default;
+        IDisposable? lease = null;
+        KnownCommands command = KnownCommands.Unknown;
+
         var reader = new RespReader(frame);
 #pragma warning disable CS0618
         if ((reader.TryReadNext() & reader.Prefix is RespPrefix.Array)
             && (reader.TryReadNext() & reader.Prefix is RespPrefix.BulkString))
 #pragma warning restore CS0618
         {
-            if (!reader.TryParseScalar(&KnownCommandsMetadata.TryParse, out KnownCommands command))
+            if (!reader.TryParseScalar(&KnownCommandsMetadata.TryParse, out command))
                 command = KnownCommands.Unknown; // just to be explicit
 
             switch (command)
             {
                 case KnownCommands.Unknown:
-                    SendUnknownCommand(reader);
+                    localResponse = CreateUnknownCommandResponse(reader, out lease);
                     break;
 #pragma warning disable CS0618
                 case KnownCommands.Select when (reader.TryReadNext() & reader.Prefix is RespPrefix.BulkString) &&
                                                reader.TryReadInt32(out var db)
                                                && !reader.TryReadNext():
 #pragma warning restore CS0618
-                    if (OnSelect(db)) SendOK();
-                    else SendRaw("-ERR invalid database\r\n"u8);
+                    localResponse = OnSelect(db) ? CannedResponses.OK : CannedResponses.InvalidDatabase;
                     break;
                 case KnownCommands.Select:
-                    SendUnknownCommandUsage();
+                    localResponse = CannedResponses.UnknownCommandUsage;
                     break;
                 case KnownCommands.Auth:
                 case KnownCommands.Hello:
                     // not yet implemented
-                    SendUnknownCommand(reader);
+                    command = KnownCommands.Unknown;
                     break;
 #pragma warning disable CS0618
                 case KnownCommands.Ping when reader.TryReadNext():
                 case KnownCommands.Echo when reader.TryReadNext():
 #pragma warning restore CS0618
-                    bool handled = false;
                     if (reader.Prefix is RespPrefix.BulkString)
                     {
-                        byte[] pooled = [];
-                        var chunk = reader.Buffer(ref pooled, stackalloc byte[32]);
-#pragma warning disable CS0618
-                        if (!reader.TryReadNext())
-#pragma warning restore CS0618
+                        localResponse = CreateEchoResponse(reader, out lease);
+                        if (reader.TryMoveNext())
                         {
-                            SendBlob(chunk);
-                            handled = true;
+                            // well that isn't right!
+                            lease?.Dispose();
+                            localResponse = default;
                         }
-
-                        ArrayPool<byte>.Shared.Return(pooled);
                     }
 
-                    if (!handled) SendUnknownCommandUsage();
+                    if (localResponse.IsEmpty) localResponse = CannedResponses.UnknownCommandUsage;
                     break;
                 case KnownCommands.Ping:
-                    SendRaw("+PONG\r\n"u8);
+                    localResponse = CannedResponses.Pong;
                     break;
                 case KnownCommands.Echo:
-                    SendUnknownCommandUsage();
+                    localResponse = CannedResponses.UnknownCommandUsage;
                     break;
 #pragma warning disable CS0618
                 case KnownCommands.Time when !reader.TryMoveNext():
-                    var delta = DateTime.UtcNow - DateTime.UnixEpoch;
-                    SendRaw("*2\r\n"u8, flush: false);
-                    SendBulkStringInt64((long)delta.TotalSeconds, flush: false);
-                    SendBulkStringInt64((delta.Milliseconds * 1000) + delta.Microseconds);
+                    localResponse = CreateTimeResponse(out lease);
                     break;
 #pragma warning restore CS0618
                 case KnownCommands.Time:
-                    SendUnknownCommandUsage();
+                    localResponse = CannedResponses.UnknownCommandUsage;
                     break;
 #pragma warning disable CS0618
                 case KnownCommands.Client when (reader.TryReadNext() & reader.Prefix is RespPrefix.BulkString)
@@ -123,92 +120,195 @@ internal sealed class ProxyClient(ProxyServer.InnerLeg upstream, Stream inbound,
                                                    out SubCommands subCommand)
                                                && subCommand is SubCommands.Id && !reader.TryReadNext():
 #pragma warning restore CS0618
-                    SendInt32(Id);
+                    localResponse = CreateInt32Response(Id, out lease);
                     break;
                 case KnownCommands.Client:
-                    SendUnknownCommandUsage();
+                    localResponse = CannedResponses.UnknownCommandUsage;
                     break;
                 case KnownCommands.Reset:
                     // deliberately, we never pollute the connection, so: nothing to do
-                    SendOK();
-                    break;
-                default:
-                    // known, and no special rules; forward it
-                    upstream.Send(_db, this, frame);
+                    localResponse = CannedResponses.OK;
                     break;
             }
         }
         else
         {
-            SendRaw("-ERR invalid request\r\n"u8);
+            localResponse = CannedResponses.InvalidRequest;
+        }
+
+        if (command is KnownCommands.Unknown & localResponse.IsEmpty)
+        {
+            localResponse = CannedResponses.UnknownCommand;
+        }
+
+        lock (_pending)
+        {
+            if (!localResponse.IsEmpty && _pending.Count is 0)
+            {
+                // pure local and nothing else in play; no need to enqueue etc
+                SendRawSynchronized(localResponse.Span);
+            }
+            else
+            {
+                _pending.Enqueue(new(command, localResponse, lease));
+            }
+        }
+
+        if (localResponse.IsEmpty)
+        {
+            upstream.Send(_db, this, frame);
         }
     }
 
-    private void SendBlob(ReadOnlySpan<byte> value)
+    private ReadOnlyMemory<byte> CreateTimeResponse(out IDisposable? lease)
     {
-        SendRaw(FormatInt32(RespPrefix.BulkString, value.Length, stackalloc byte[INT32_SCRATCH]), flush: false);
-        SendRaw(value, flush: false);
-        SendRaw("\r\n"u8);
+        var delta = DateTime.UtcNow - DateTime.UnixEpoch;
+        var unixTime = (long)delta.TotalSeconds;
+        var micros = (delta.Milliseconds * 1000) + delta.Microseconds;
+
+        var oversized = Rent(64, out lease);
+        var span = oversized.Span;
+        "*2\r\n"u8.CopyTo(span);
+        int offset = 4;
+        offset += FormatBulkStringInt64(unixTime, span.Slice(offset));
+        offset += FormatBulkStringInt64(micros, span.Slice(offset));
+        return oversized.Slice(0, offset);
     }
 
-    private static ReadOnlySpan<byte> FormatInt32(RespPrefix prefix, int value, Span<byte> target)
+    private ReadOnlyMemory<byte> CreateEchoResponse(RespReader reader, out IDisposable? lease)
+    {
+        var len = reader.ScalarLength();
+        var oversized = Rent(32 + len, out lease);
+        var span = oversized.Span;
+        var prefixLen = FormatInt32(RespPrefix.BulkString, len, span);
+        reader.CopyTo(span.Slice(prefixLen));
+        "\r\n"u8.CopyTo(span.Slice(prefixLen + len));
+        return oversized.Slice(prefixLen + len + 2);
+    }
+
+    private readonly struct PendingMessage(
+        KnownCommands command,
+        ReadOnlyMemory<byte> localResponse,
+        IDisposable? lease)
+    {
+        public KnownCommands Command => command;
+        public ReadOnlyMemory<byte> LocalResponse => localResponse;
+        public bool IsRemote => localResponse.IsEmpty;
+        public void Recycle() => lease?.Dispose();
+    }
+
+    private readonly Queue<PendingMessage> _pending = new();
+
+    public void ForwardResponse(ReadOnlySpan<byte> response)
+    {
+        PendingMessage next;
+        lock (_pending)
+        {
+            if (!_pending.TryDequeue(out next)) return; // unexpected! OOB?
+            SendRawSynchronized(response);
+        }
+
+        next.Recycle();
+
+        // flush any locally generated queued responses
+        while (true)
+        {
+            lock (_pending)
+            {
+                if (!_pending.TryPeek(out next) | next.IsRemote) break;
+                _ = _pending.Dequeue();
+
+                var resp = next.LocalResponse;
+                SendRawSynchronized(resp.Span);
+                next.Recycle();
+            }
+        }
+    }
+
+    private static int FormatInt32(RespPrefix prefix, int value, Span<byte> target)
     {
         target[0] = (byte)prefix;
         if (!Utf8Formatter.TryFormat(value, target.Slice(1), out var bytes))
             ThrowFormat();
         target[bytes + 1] = (byte)'\r';
         target[bytes + 2] = (byte)'\n';
-        return target.Slice(0, bytes + 3);
+        return bytes + 3;
     }
 
     private const int INT32_SCRATCH = 16;
 
-    private void SendInt32(int value, bool flush = true)
-        => SendRaw(FormatInt32(RespPrefix.Integer, value, stackalloc byte[INT32_SCRATCH]), flush);
+    private ReadOnlyMemory<byte> CreateInt32Response(int value, out IDisposable? lease)
+    {
+        var oversized = Rent(INT32_SCRATCH, out lease);
+        var len = FormatInt32(RespPrefix.Integer, value, oversized.Span);
+        return oversized.Slice(0, len);
+    }
 
-    private void SendBulkStringInt64(long value, bool flush = true)
+    private int FormatBulkStringInt64(long value, Span<byte> target)
     {
         // use a single stackalloc for the 2 parts - payload first (we can't write in the correct place
         // without knowing the lengths first... which is doable, but let's keep it simple)
-        Span<byte> scratch = stackalloc byte[32 + INT32_SCRATCH];
-        if (!Utf8Formatter.TryFormat(value, scratch, out var bytes))
+        Span<byte> scratch = stackalloc byte[INT32_SCRATCH];
+        if (!Utf8Formatter.TryFormat(value, scratch, out var payloadLen))
             ThrowFormat();
-        scratch[bytes] = (byte)'\r';
-        scratch[bytes + 1] = (byte)'\n';
-        var lengthPrefix = FormatInt32(RespPrefix.BulkString, bytes, scratch.Slice(bytes + 2));
-        SendRaw(lengthPrefix, flush: false);
-        SendRaw(scratch.Slice(0, bytes + 2), flush: flush);
+
+        var prefixLen = FormatInt32(RespPrefix.BulkString, payloadLen, target);
+        scratch.Slice(0, payloadLen).CopyTo(target.Slice(prefixLen));
+        "\r\n"u8.CopyTo(target.Slice(prefixLen + payloadLen));
+        return prefixLen + payloadLen + 2;
     }
 
     private static void ThrowFormat() => throw new FormatException();
 
-    private void SendOK() => SendRaw("+OK\r\n"u8);
-
-    private void SendUnknownCommand(in RespReader reader)
+    private static class CannedResponses
     {
-        byte[] pooled = [];
-        SendRaw("-ERR unknown command: "u8, flush: false);
-        SendRaw(reader.Buffer(ref pooled, stackalloc byte[32]), flush: false);
-        SendRaw("\r\n"u8);
-        ArrayPool<byte>.Shared.Return(pooled);
+        public static readonly ReadOnlyMemory<byte> OK = "+OK\r\n"u8.ToArray();
+        public static readonly ReadOnlyMemory<byte> Pong = "+PONG\r\n"u8.ToArray();
+        public static readonly ReadOnlyMemory<byte> InvalidDatabase = "-ERR invalid database\r\n"u8.ToArray();
+        public static readonly ReadOnlyMemory<byte> InvalidRequest = "-ERR invalid request\r\n"u8.ToArray();
+        public static readonly ReadOnlyMemory<byte> UnknownCommand = "-ERR unknown command\r\n"u8.ToArray();
+        public static readonly ReadOnlyMemory<byte> UnknownCommandUsage = "-ERR unknown command usage\r\n"u8.ToArray();
     }
 
-    private void SendUnknownCommandUsage() => SendRaw("-ERR unknown command usage\r\n"u8);
-
-    public void SendRaw(ReadOnlySpan<byte> frame, bool flush = true)
+    private Memory<byte> Rent(int minSize, out IDisposable? lease)
     {
-        outbound.Write(frame);
-        if (flush)
+        if (minSize is 0)
         {
-            var vt = outbound.FlushAsync(upstream.Lifetime);
-            if (vt.IsCompletedSuccessfully)
-            {
-                _ = vt.Result;
-            }
-            else
-            {
-                vt.AsTask().Wait(); // for test only
-            }
+            lease = null;
+            return default;
+        }
+
+        var src = MemoryPool<byte>.Shared.Rent(minSize);
+        lease = src;
+        return src.Memory;
+    }
+
+    private ReadOnlyMemory<byte> CreateUnknownCommandResponse(in RespReader reader, out IDisposable? lease)
+    {
+        ReadOnlySpan<byte> preamble = "-ERR unknown command: "u8;
+        var commandLength = reader.ScalarLength();
+        var oversized = Rent(preamble.Length + commandLength + 2, out lease);
+        var span = oversized.Span;
+        preamble.CopyTo(span);
+        int copied = reader.CopyTo(span.Slice(preamble.Length));
+        Debug.Assert(copied == commandLength);
+        "\r\n"u8.CopyTo(span.Slice(preamble.Length + commandLength));
+        return oversized.Slice(0, preamble.Length + commandLength + 2);
+    }
+
+    private void SendRawSynchronized(ReadOnlySpan<byte> frame)
+    {
+        Debug.Assert(Monitor.IsEntered(_pending), "should hold lock");
+        outbound.Write(frame);
+
+        var vt = outbound.FlushAsync(upstream.Lifetime);
+        if (vt.IsCompletedSuccessfully)
+        {
+            _ = vt.Result;
+        }
+        else
+        {
+            vt.AsTask().Wait(); // for test only
         }
     }
 }

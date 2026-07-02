@@ -61,7 +61,7 @@ internal sealed class ProxyServer
             }
             else if (_clients.TryGetValue(clientId, out var client))
             {
-                client.SendRaw(frame);
+                client.ForwardResponse(frame);
             }
             else
             {
