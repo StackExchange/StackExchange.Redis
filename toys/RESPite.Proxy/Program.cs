@@ -53,6 +53,12 @@ public class ProxyServerOptions
     public EndPoint ServerEndpoint { get; set; } = new IPEndPoint(IPAddress.Loopback, 6379);
     public MemoryPool<byte>? BufferPool { get; set; }
 
+    /// <summary>
+    /// Number of upstream connections (InnerLeg instances) to establish; incoming clients are
+    /// distributed (round-robin) over the pool and remain sticky to their assigned leg for life.
+    /// </summary>
+    public int UpstreamConnectionCount { get; set; } = 5;
+
     public Stream Connect()
     {
         var upstream = ServerEndpoint;
