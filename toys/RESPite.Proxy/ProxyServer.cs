@@ -65,7 +65,7 @@ internal sealed class ProxyServer
             }
             else
             {
-                Console.Error.WriteLine("Client unavailable");
+                // drop on the floor - client isn't there any more!
             }
         }
 
