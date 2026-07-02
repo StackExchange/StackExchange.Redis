@@ -183,7 +183,7 @@ internal sealed class ProxyClient(ProxyServer.InnerLeg upstream, Stream inbound,
         var prefixLen = FormatInt32(RespPrefix.BulkString, len, span);
         reader.CopyTo(span.Slice(prefixLen));
         "\r\n"u8.CopyTo(span.Slice(prefixLen + len));
-        return oversized.Slice(prefixLen + len + 2);
+        return oversized.Slice(0, prefixLen + len + 2);
     }
 
     private readonly struct PendingMessage(
