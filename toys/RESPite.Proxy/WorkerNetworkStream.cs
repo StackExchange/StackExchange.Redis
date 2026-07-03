@@ -84,7 +84,7 @@ internal sealed class WorkerNetworkStream : Stream
             _writeArgs.SetForPulse(_writeArgs);
             lock (_writeArgs)
             {
-                if (_socket.SendAsync(_writeArgs))
+                if (_writeArgs.SendAllAsync(_socket))
                     _writeArgs.WaitForPulse();
             }
         }
@@ -96,7 +96,7 @@ internal sealed class WorkerNetworkStream : Stream
         _writeArgs.SetBuffer(buffer, offset, count);
         _writeArgs.SetForAsync();
         if (cancellationToken.CanBeCanceled) _writeArgs.SetCancellation(cancellationToken);
-        _ = _socket.SendAsync(_writeArgs);
+        _ = _writeArgs.SendAllAsync(_socket);
         return _writeArgs.AsUntypedTask();
     }
 
@@ -106,7 +106,7 @@ internal sealed class WorkerNetworkStream : Stream
         _writeArgs.SetForPulse(_writeArgs);
         lock (_writeArgs)
         {
-            if (_socket.SendAsync(_writeArgs))
+            if (_writeArgs.SendAllAsync(_socket))
                 _writeArgs.WaitForPulse();
         }
         _ = _writeArgs.GetResult();
@@ -117,7 +117,7 @@ internal sealed class WorkerNetworkStream : Stream
         _writeArgs.SetBuffer(buffer);
         _writeArgs.SetForAsync();
         if (cancellationToken.CanBeCanceled) _writeArgs.SetCancellation(cancellationToken);
-        _ = _socket.SendAsync(_writeArgs);
+        _ = _writeArgs.SendAllAsync(_socket);
         return _writeArgs.AsUntypedValueTask();
     }
 

@@ -256,7 +256,7 @@ internal sealed class WorkerSocketAsyncEventArgs : SocketAsyncEventArgs, IValueT
             {
                 var buffer = MemoryBuffer;
                 if (buffer.IsEmpty) return UnableToWriteFullBuffer(); // multi-segment?
-                SetBuffer(buffer.Slice(count));
+                SetBuffer(buffer.Slice(sent));
             }
             Debug.Assert(Count == count - sent, "buffer slicing failure");
             return SliceOutcome.Sliced;
