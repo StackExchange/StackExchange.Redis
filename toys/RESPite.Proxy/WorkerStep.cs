@@ -9,4 +9,5 @@ internal enum WorkerStep
     SocketProxyClientWriteCallback,
     SocketProxyClientRead,
     SocketProxyClientReadCallback,
+    MonitorPulse,
 }

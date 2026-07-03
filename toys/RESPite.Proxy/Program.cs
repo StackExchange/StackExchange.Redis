@@ -11,7 +11,7 @@ var proxyOptions = new ProxyServerOptions
 };
 using var pool = new WorkerPool(workers: 0); // use CPU count
 pool.AddDebugLog(Console.WriteLine);
-var proxy = new ProxyServer(proxyOptions, applicationLifetime: null);
+var proxy = new ProxyServer(proxyOptions, pool, applicationLifetime: null);
 using var socket = new ProxySocketServer(proxy, pool);
 socket.Start(new IPEndPoint(IPAddress.Loopback, 6380));
 
@@ -81,12 +81,4 @@ public class ProxyServerOptions
     /// distributed (round-robin) over the pool and remain sticky to their assigned leg for life.
     /// </summary>
     public int UpstreamConnectionCount { get; set; } = 5;
-
-    public Stream Connect()
-    {
-        var upstream = ServerEndpoint;
-        var socket = SocketUtil.CreateSocket(upstream, true);
-        socket.Connect(upstream);
-        return new NetworkStream(socket);
-    }
 }

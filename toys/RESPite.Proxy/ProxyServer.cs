@@ -16,24 +16,36 @@ internal sealed class ProxyServer
     public CancellationToken Lifetime => _applicationLifetime?.ApplicationStopping ?? CancellationToken.None;
 
     private readonly ProxyServerOptions _options;
+    private readonly WorkerPool _pool;
     private readonly IHostApplicationLifetime? _applicationLifetime;
     private readonly InnerLeg[] _inner;
     private int _roundRobin = -1;
 
-    public ProxyServer(ProxyServerOptions options, IHostApplicationLifetime? applicationLifetime)
+    public ProxyServer(ProxyServerOptions options, WorkerPool pool, IHostApplicationLifetime? applicationLifetime)
     {
         _options = options;
+        _pool = pool;
         _applicationLifetime = applicationLifetime;
 
         var count = Math.Max(1, options.UpstreamConnectionCount);
         _inner = new InnerLeg[count];
         for (int i = 0; i < count; i++)
         {
-            var stream = options.Connect();
+            var stream = Connect();
             var leg = new InnerLeg(this, stream);
             leg.StartReading(stream, sync: true, cancellationToken: Lifetime);
             _inner[i] = leg;
         }
+    }
+
+    // establishes an upstream connection to the backing server; the resulting stream routes its
+    // socket completions through the worker pool.
+    private Stream Connect()
+    {
+        var upstream = _options.ServerEndpoint;
+        var socket = SocketUtil.CreateSocket(upstream, true);
+        socket.Connect(upstream);
+        return new WorkerNetworkStream(socket, _pool);
     }
 
     private InnerLeg GetNextLeg()
@@ -128,10 +140,7 @@ internal sealed class ProxyServer
             {
                 client.ForwardResponse(frame);
             }
-            else
-            {
-                // drop on the floor - client isn't there any more!
-            }
+            // else drop on the floor - client isn't there any more!
         }
 
         public Task RunClientAsync(IDuplexPipe transport)

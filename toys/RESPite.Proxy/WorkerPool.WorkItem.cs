@@ -31,6 +31,10 @@ internal partial class WorkerPool
                 case WorkerStep.SocketProxyClientReadCallback:
                     ((SocketProxyClient)target).WorkerReadCallback();
                     break;
+                case WorkerStep.MonitorPulse:
+                    // any contention here is just vs Monitor.Wait - should be super fast
+                    TryPulse(target, Timeout.Infinite);
+                    break;
                 default:
                     Throw();
                     break;
@@ -38,5 +42,16 @@ internal partial class WorkerPool
         }
 
         private void Throw() => throw new NotImplementedException($"No implementation for {step}");
+    }
+    internal static bool TryPulse(object @lock, int millisecondsTimeout)
+    {
+        bool lockTaken = false;
+        Monitor.TryEnter(@lock, millisecondsTimeout, ref lockTaken);
+        if (lockTaken)
+        {
+            Monitor.Pulse(@lock);
+            Monitor.Exit(@lock);
+        }
+        return lockTaken;
     }
 }
