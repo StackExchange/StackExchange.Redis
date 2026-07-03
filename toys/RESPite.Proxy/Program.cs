@@ -7,14 +7,29 @@ using RESPite.Streams;
 var proxyOptions = new ProxyServerOptions
 {
     Password = "letmein",
+    UpstreamConnectionCount = 5,
 };
-using var pool = new WorkerPool();
-pool.AddLog(Console.WriteLine);
+using var pool = new WorkerPool(workers: 0); // use CPU count
+pool.AddDebugLog(Console.WriteLine);
 var proxy = new ProxyServer(proxyOptions, applicationLifetime: null);
 using var socket = new ProxySocketServer(proxy, pool);
 socket.Start(new IPEndPoint(IPAddress.Loopback, 6380));
-Console.WriteLine("Listening...");
-Console.ReadLine();
+
+ulong lastOpCount = 0;
+int lastActiveClients = 0;
+bool first = true;
+while (true)
+{
+    var opCount = proxy.GetOpCount(out var activeClients);
+    if (first || opCount != lastOpCount || activeClients != lastActiveClients)
+    {
+        Console.WriteLine($"Active clients: {activeClients}; commands processed: {opCount}");
+        lastOpCount = opCount;
+        lastActiveClients = activeClients;
+        first = false;
+    }
+    await Task.Delay(TimeSpan.FromSeconds(5));
+}
 /*
 
 var builder = WebApplication.CreateBuilder(args);

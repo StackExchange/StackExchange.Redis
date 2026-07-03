@@ -71,7 +71,29 @@ internal sealed class ProxyServer
 
     internal bool TryGetClient(int id, out ProxyClient client) => _clients.TryGetValue(id, out client!);
 
-    internal void RemoveClient(ProxyClient client) => _clients.TryRemove(client.Id, out _);
+    internal void RemoveClient(ProxyClient client)
+    {
+        var opCount = client.OpCount;
+        if (_clients.TryRemove(client.Id, out _))
+        {
+            Interlocked.Add(ref _opCountFromDeadConnections, opCount);
+        }
+    }
+
+    public ulong GetOpCount(out int activeClients)
+    {
+        ulong tally = 0;
+        activeClients = 0;
+        foreach (var client in _clients)
+        {
+            tally += client.Value.OpCount;
+            activeClients++;
+        }
+
+        // intentionally delay this read
+        return tally + Interlocked.Read(ref _opCountFromDeadConnections);
+    }
+    private ulong _opCountFromDeadConnections;
 
     internal sealed class InnerLeg(ProxyServer server, Stream tail) : RespStream
     {

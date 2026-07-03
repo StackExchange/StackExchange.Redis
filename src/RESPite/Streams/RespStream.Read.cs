@@ -118,12 +118,12 @@ public partial class RespStream
         }
         catch (Exception ex)
         {
-            OnCleanup(SocketError.Fault, ex);
+            OnReceiveCleanup(SocketError.Fault, ex);
             return false;
         }
     }
 
-    private protected void OnCleanup(SocketError error, Exception? fault = null)
+    private protected virtual void OnReceiveCleanup(SocketError error, Exception? fault = null)
     {
         try
         {

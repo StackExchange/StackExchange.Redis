@@ -10,7 +10,7 @@ internal sealed partial class WorkerPool : IDisposable
     private event Action<string>? Log;
 #endif
     [Conditional("DEBUG")]
-    internal void AddLog(Action<string> value)
+    internal void AddDebugLog(Action<string> value)
     {
 #if DEBUG
         Log += value;
@@ -18,33 +18,52 @@ internal sealed partial class WorkerPool : IDisposable
     }
 
     [Conditional("DEBUG")]
+    private void OnLog(string value)
+    {
+#if DEBUG
+        Log?.Invoke(value);
+#endif
+    }
+
+#if NET8_0_OR_GREATER
+    [Conditional("DEBUG")]
     private void OnLog(ref DefaultInterpolatedStringHandler value)
     {
 #if DEBUG
         if (Log is { } log)
         {
-            Log?.Invoke(value.ToStringAndClear());
+            log(value.ToStringAndClear());
         }
         else
         {
 #if NET10_0_OR_GREATER
             value.Clear();
-#elif NET8_0_OR_GREATER
+#else
             Clear(ref value);
-            [UnsafeAccessor(UnsafeAccessorKind.Method, Name = nameof(Clear))]
+            [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "Clear")]
             static extern void Clear(ref DefaultInterpolatedStringHandler value);
 #endif
         }
 #endif
     }
+#endif
 
-    public WorkerPool()
+    public WorkerPool(int workers = 0)
     {
-        var thread = new Thread(static state => ((WorkerPool)state!).Execute());
-        thread.Priority = ThreadPriority.AboveNormal;
-        thread.IsBackground = true;
-        thread.Name = "dedicated worker";
-        thread.Start(this);
+        if (workers < 1) workers = Environment.ProcessorCount;
+
+        // any worker can run any item; per-connection serialization is guaranteed by the SAEA
+        // completion chain and the ActiveWriter flag, not by there being a single thread.
+        for (int i = 0; i < workers; i++)
+        {
+            var thread = new Thread(static state => ((WorkerPool)state!).Execute())
+            {
+                Priority = ThreadPriority.AboveNormal,
+                IsBackground = true,
+                Name = workers == 1 ? "dedicated worker" : $"dedicated worker {i}",
+            };
+            thread.Start(this);
+        }
     }
 
     private readonly partial struct WorkItem(object target, WorkerStep step, object? arg)
@@ -56,27 +75,29 @@ internal sealed partial class WorkerPool : IDisposable
 
     private readonly ConcurrentQueue<WorkItem> _queue = new();
     private readonly object _syncLock = new();
-    private int _flags;
 
-    private const int FlagsSleeping = 1, FlagsDisposed = 2;
+    // number of workers currently blocked in Monitor.Wait; only mutated under _syncLock. Reading it
+    // (unlocked) on the enqueue hot-path is just a "should I bother taking the lock to pulse?" hint.
+    private int _waiting;
+    private volatile bool _disposed;
 
-    private bool IsSleeping => (Volatile.Read(ref _flags) & FlagsSleeping) != 0;
-    private bool IsDisposed => (Volatile.Read(ref _flags) & FlagsDisposed) != 0;
+    private bool IsDisposed => _disposed;
 
     public bool HasWork => !_queue.IsEmpty;
 
     public void Enqueue(object target, WorkerStep step, object? arg = null)
     {
-        if (IsDisposed) return;
+        if (_disposed) return;
         _queue.Enqueue(new(target, step, arg));
-        if (IsSleeping)
+
+        // wake one worker per item; the re-check under the lock is authoritative and closes the
+        // "consumer decided to wait but hadn't incremented _waiting yet" race (it re-checks the
+        // queue under the same lock before waiting, so it can't miss this item).
+        if (Volatile.Read(ref _waiting) > 0)
         {
             lock (_syncLock)
             {
-                if (IsSleeping) // double-checked
-                {
-                    Monitor.Pulse(_syncLock);
-                }
+                if (_waiting > 0) Monitor.Pulse(_syncLock);
             }
         }
     }
@@ -85,11 +106,8 @@ internal sealed partial class WorkerPool : IDisposable
     {
         lock (_syncLock)
         {
-            _flags |= FlagsDisposed;
-            if (IsSleeping) // double-checked
-            {
-                Monitor.Pulse(_syncLock);
-            }
+            _disposed = true;
+            Monitor.PulseAll(_syncLock); // wake every worker so they can observe disposal and exit
         }
     }
 
@@ -134,11 +152,13 @@ internal sealed partial class WorkerPool : IDisposable
 
                 lock (_syncLock)
                 {
-                    if (_queue.IsEmpty)
+                    // re-check inside the lock: an item enqueued between the drain and here is visible,
+                    // so we won't wait on a non-empty queue (and thus can't miss its Pulse).
+                    if (_queue.IsEmpty && !_disposed)
                     {
-                        _flags |= FlagsSleeping;
+                        _waiting++;
                         Monitor.Wait(_syncLock);
-                        _flags &= ~FlagsSleeping;
+                        _waiting--;
                     }
                 }
             }

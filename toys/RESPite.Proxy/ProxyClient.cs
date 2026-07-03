@@ -12,14 +12,14 @@ namespace RESPite.Proxy;
 
 internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
 {
-    private CycleBuffer _buffer;
+    private CycleBuffer _receiveBuffer;
     private StateFlags _writeFlags;
     private readonly Socket _client;
     private readonly WorkerSocketAsyncEventArgs _readArgs, _writeArgs;
 
     public SocketProxyClient(ProxyServer.InnerLeg upstream, Socket client) : base(upstream)
     {
-        _buffer = CycleBuffer.Create(pool: upstream.BufferPool, callback: this);
+        _receiveBuffer = CycleBuffer.Create(pool: upstream.BufferPool, callback: this);
         _readArgs = new();
         _readArgs.Init(this, WorkerStep.SocketProxyClientReadCallback);
         _writeArgs = new();
@@ -39,7 +39,8 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         try
         {
             TakeWriteLock(ref lockTaken);
-            _buffer.Write(frame);
+            if ((_writeFlags & StateFlags.Closed) != 0) return; // torn down; nothing left to write to
+            _receiveBuffer.Write(frame);
             ActivateWriterInsideLock(StateFlags.Flush);
         }
         finally
@@ -78,14 +79,17 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
             CloseWriter();
             return false;
         }
-        Debug.Assert(_writeArgs.BytesTransferred == _writeArgs.MemoryBuffer.Length, "incomplete buffer write");
+        // a stream socket may legally report a partial send; we only discard what actually went out,
+        // and the remainder stays committed for the next TryGetFirstCommittedMemory, so this is safe.
+        Debug.Assert(_writeArgs.BytesTransferred <= _writeArgs.MemoryBuffer.Length, "over-send?!");
 
-        // we're done with the bytes
+        // we're done with the bytes that made it onto the wire
         bool lockTaken = false;
         try
         {
             TakeWriteLock(ref lockTaken);
-            _buffer.DiscardCommitted(_writeArgs.BytesTransferred);
+            if ((_writeFlags & StateFlags.Closed) != 0) return false; // torn down; buffer already released
+            _receiveBuffer.DiscardCommitted(_writeArgs.BytesTransferred);
         }
         finally
         {
@@ -106,6 +110,15 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         {
             ReleaseWriteLock(ref lockTaken);
         }
+        _writeArgs.Dispose();
+    }
+
+    protected override void ReleaseResources()
+    {
+        // dispose the socket first: this aborts any in-flight send/receive so the SAEAs are no longer
+        // in use by the time we dispose them (a stray completion just lands as OperationAborted).
+        try { _client.Dispose(); }
+        catch { /* already gone */ }
     }
 
     internal void WorkerRead()
@@ -131,10 +144,22 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
                 }
             }
         }
+        catch (Exception ex) when (ex is ObjectDisposedException or OperationCanceledException)
+        {
+            // socket torn down during shutdown/cancellation: treat as a normal close, not a fault
+            OnReceiveCleanup(SocketError.ConnectionAborted);
+        }
         catch (Exception ex)
         {
-            OnCleanup(SocketError.Fault, ex);
+            OnReceiveCleanup(SocketError.Fault, ex);
         }
+    }
+
+    private protected override void OnReceiveCleanup(SocketError error, Exception? fault = null)
+    {
+        base.OnReceiveCleanup(error, fault);
+        _readArgs.Dispose();
+        _receiveBuffer.Release();
     }
 
     private bool CheckReceive(bool inline)
@@ -142,12 +167,18 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         var err = _readArgs.SocketError;
         if (err is not SocketError.Success)
         {
-            OnCleanup(err);
+            OnReceiveCleanup(err);
             return false;
         }
 
-        OnAfterReceive(_readArgs.BytesTransferred, inline);
-        return true;
+        if (_readArgs.BytesTransferred == 0)
+        {
+            // EOF
+            OnReceiveCleanup(SocketError.Success);
+            return false;
+        }
+
+        return OnAfterReceive(_readArgs.BytesTransferred, inline);
     }
 
     public void WorkerReadCallback()
@@ -165,8 +196,13 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
             while (true)
             {
                 TakeWriteLock(ref lockTaken);
+                if ((_writeFlags & StateFlags.Closed) != 0)
+                {
+                    _writeFlags &= ~StateFlags.ActiveWriter;
+                    break; // torn down (buffer released); stop pumping
+                }
                 var minBytes = (_writeFlags & StateFlags.Flush) == 0 ? -1 : 1;
-                var success = _buffer.TryGetFirstCommittedMemory(minBytes, out var memory);
+                var success = _receiveBuffer.TryGetFirstCommittedMemory(minBytes, out var memory);
                 if (!success)
                 {
                     _writeFlags &= ~StateFlags.ActiveWriter;
@@ -198,7 +234,7 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
 
     private void ActivateWriterInsideLock(StateFlags newFlags)
     {
-        Debug.Assert(Monitor.IsEntered(this), $"{nameof(ActivateWriterInsideLock)} must be called while holding the writer lock.");
+        Debug.Assert(Monitor.IsEntered(_writeLock), $"{nameof(ActivateWriterInsideLock)} must be called while holding the writer lock.");
 
         var state = _writeFlags;
         if ((state & StateFlags.Closed) != 0) return;
@@ -215,11 +251,16 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         }
     }
 
+    // guards _buffer/_writeFlags on the write side; a dedicated object (rather than 'this') so no
+    // external code can contend the lock, and reentrancy via ICycleBufferCallback.PageComplete is
+    // still safe (Monitor is reentrant on the same thread).
+    private readonly object _writeLock = new();
+
     private void TakeWriteLock(ref bool lockTaken)
     {
         if (!lockTaken)
         {
-            Monitor.TryEnter(this, 10_000,  ref lockTaken);
+            Monitor.TryEnter(_writeLock, 10_000, ref lockTaken);
             if (!lockTaken) Throw();
         }
         static void Throw() => throw new TimeoutException("Unable to acquire writer lock");
@@ -229,7 +270,7 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
     {
         if (lockTaken)
         {
-            Monitor.Exit(this);
+            Monitor.Exit(_writeLock);
             lockTaken = false;
         }
     }
@@ -259,9 +300,12 @@ internal abstract class ProxyClient(ProxyServer.InnerLeg upstream) : RespStream
     protected CancellationToken Lifetime => upstream.Lifetime;
     public int Id { get; set; }
     public int Database => _db;
+    public ulong OpCount => Interlocked.Read(ref _opCount);
+
     private int _db;
     private TaskCompletionSource _completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    private ulong _opCount;
     private bool OnSelect(int db)
     {
         if (db < 0 | db > 999_999_999) return false;
@@ -275,8 +319,14 @@ internal abstract class ProxyClient(ProxyServer.InnerLeg upstream) : RespStream
         return _completionSource.Task;
     }
 
+    private int _closed; // 0 = open, 1 = closed; guards teardown so it runs exactly once
+
     private protected override void RecordConnectionFailed(StreamFailureKind kind, Exception? fault = null)
     {
+        // teardown can be reached from the read pump *and*, once the worker is multi-threaded, from a
+        // write-side fault on another thread; make it idempotent so we don't double-remove/double-dispose
+        if (Interlocked.Exchange(ref _closed, 1) != 0) return;
+
         if (fault is null)
         {
             _completionSource.TrySetResult();
@@ -287,13 +337,22 @@ internal abstract class ProxyClient(ProxyServer.InnerLeg upstream) : RespStream
         }
 
         upstream.Remove(this);
+        ReleaseResources();
     }
+
+    /// <summary>
+    /// Releases connection-scoped resources (sockets, buffers, ...). Invoked exactly once, after the
+    /// connection has been removed from the pool.
+    /// </summary>
+    protected virtual void ReleaseResources() { }
 
     protected override unsafe void OnReadFrame(
         RespPrefix prefix,
         ReadOnlySpan<byte> frame,
         ref IMemoryOwner<byte>? memoryOwner)
     {
+        _opCount++;
+
         ReadOnlyMemory<byte> localResponse = default;
         IDisposable? lease = null;
         KnownCommands command = KnownCommands.Unknown;
