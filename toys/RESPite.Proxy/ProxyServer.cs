@@ -3,6 +3,7 @@ using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipelines;
+using System.Net.Sockets;
 using System.Text;
 using RESPite.Messages;
 using RESPite.Streams;
@@ -12,14 +13,14 @@ namespace RESPite.Proxy;
 internal sealed class ProxyServer
 {
     public ProxyServerOptions Options => _options;
-    public CancellationToken Lifetime => _applicationLifetime.ApplicationStopping;
+    public CancellationToken Lifetime => _applicationLifetime?.ApplicationStopping ?? CancellationToken.None;
 
     private readonly ProxyServerOptions _options;
-    private readonly IHostApplicationLifetime _applicationLifetime;
+    private readonly IHostApplicationLifetime? _applicationLifetime;
     private readonly InnerLeg[] _inner;
     private int _roundRobin = -1;
 
-    public ProxyServer(ProxyServerOptions options, IHostApplicationLifetime applicationLifetime)
+    public ProxyServer(ProxyServerOptions options, IHostApplicationLifetime? applicationLifetime)
     {
         _options = options;
         _applicationLifetime = applicationLifetime;
@@ -30,9 +31,16 @@ internal sealed class ProxyServer
         {
             var stream = options.Connect();
             var leg = new InnerLeg(this, stream);
-            leg.StartReading(sync: true, cancellationToken: Lifetime);
+            leg.StartReading(stream, sync: true, cancellationToken: Lifetime);
             _inner[i] = leg;
         }
+    }
+
+    private InnerLeg GetNextLeg()
+    {
+        var arr = _inner;
+        var index = (uint)Interlocked.Increment(ref _roundRobin) % (uint)arr.Length;
+        return arr[index];
     }
 
     public Task RunClientAsync(IDuplexPipe transport)
@@ -41,8 +49,7 @@ internal sealed class ProxyServer
         // (ProxyClient captures its InnerLeg and never re-resolves it), so a single downstream
         // client never spreads commands across transports and can't be reordered. If a leg's
         // upstream connection dies we lose the ~1/N of clients pinned to it, which is acceptable.
-        var index = (uint)Interlocked.Increment(ref _roundRobin) % (uint)_inner.Length;
-        return _inner[index].RunClientAsync(transport);
+        return GetNextLeg().RunClientAsync(transport);
     }
 
     // Client identity is server-global so CLIENT ID is unique across the whole pool, not per-leg.
@@ -66,13 +73,14 @@ internal sealed class ProxyServer
 
     internal void RemoveClient(ProxyClient client) => _clients.TryRemove(client.Id, out _);
 
-    internal sealed class InnerLeg(ProxyServer server, Stream tail) : RespStream(tail)
+    internal sealed class InnerLeg(ProxyServer server, Stream tail) : RespStream
     {
         private readonly BufferedStreamWriter _outBuffer =
             BufferedStreamWriter.Create(true, tail, server.Options.BufferPool);
 
         public ProxyServer Server => server;
         public CancellationToken Lifetime => server.Lifetime;
+        public MemoryPool<byte>? BufferPool => server.Options.BufferPool;
 
         private readonly Queue<int> _inFlightOwners = new();
 
@@ -106,12 +114,11 @@ internal sealed class ProxyServer
 
         public Task RunClientAsync(IDuplexPipe transport)
         {
-            ProxyClient client = new(
+            var client = new PipeProxyClient(
                 this,
-                transport.Input.AsStream(),
                 transport.Output);
             server.RegisterClient(client);
-            return client.ExecuteAsync();
+            return client.ExecuteAsync(transport.Input);
         }
 
         private int _db;
@@ -149,7 +156,17 @@ internal sealed class ProxyServer
         }
 
         public void Remove(ProxyClient client) => server.RemoveClient(client);
+
+        public void RunClient(Socket socket)
+        {
+            WorkerPool.DebugAssertWorker();
+            var client = new SocketProxyClient(this, socket);
+            server.RegisterClient(client);
+            return client.ExecuteAsync();
+        }
     }
+
+    public void RunClient(Socket socket) => GetNextLeg().RunClient(socket);
 }
 
 [AsciiHash("+OK\r\n")]

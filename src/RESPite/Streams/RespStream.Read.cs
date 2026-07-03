@@ -28,7 +28,7 @@ public partial class RespStream
     [Conditional("PARSE_DETAIL")]
     private protected void OnDetailLog(string message) { }
 
-    private async Task ReadAllAsync(CancellationToken cancellationToken)
+    private async Task ReadAllAsync(Stream tail, CancellationToken cancellationToken)
     {
         if (_readStatus is not ReadStatus.TransitioningToAsync)
         {
@@ -88,7 +88,7 @@ public partial class RespStream
         }
     }
 
-    private void ReadAllSync(CancellationToken cancellationToken)
+    private void ReadAllSync(Stream tail, CancellationToken cancellationToken)
     {
         _readStatus = ReadStatus.Init;
         _readState = default;
@@ -144,7 +144,7 @@ public partial class RespStream
         {
             if (_readStatus is ReadStatus.TransitioningToAsync)
             {
-                StartReading(false, cancellationToken);
+                StartReading(tail, false, cancellationToken);
             }
             else
             {
@@ -156,15 +156,15 @@ public partial class RespStream
     protected virtual string Name => GetType().Name;
     public override string ToString() => Name;
 
-    public void StartReading(bool sync, CancellationToken cancellationToken)
+    public void StartReading(Stream source, bool sync, CancellationToken cancellationToken)
     {
         if (sync)
         {
-            StartReadingSync(this, cancellationToken);
-            static void StartReadingSync(RespStream conn, CancellationToken cancellation)
+            StartReadingSync(this, source, cancellationToken);
+            static void StartReadingSync(RespStream conn, Stream source, CancellationToken cancellation)
             {
                 // this method exists purely to limit capture context scope
-                Thread thread = new Thread(() => conn.ReadAllSync(cancellation))
+                Thread thread = new Thread(() => conn.ReadAllSync(source, cancellation))
                 {
                     IsBackground = true,
                     Priority = ThreadPriority.AboveNormal,
@@ -175,11 +175,11 @@ public partial class RespStream
         }
         else
         {
-            StartReadingAsync(this, cancellationToken);
-            static void StartReadingAsync(RespStream conn, CancellationToken cancellationToken)
+            StartReadingAsync(this, source, cancellationToken);
+            static void StartReadingAsync(RespStream conn, Stream source, CancellationToken cancellationToken)
             {
                 // this method exists purely to limit capture context scope
-                Task.Run(() => conn.ReadAllAsync(cancellationToken), cancellationToken).FireAndForget();
+                Task.Run(() => conn.ReadAllAsync(source, cancellationToken), cancellationToken).FireAndForget();
             }
         }
     }

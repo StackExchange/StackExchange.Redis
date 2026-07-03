@@ -2,16 +2,186 @@
 using System.Buffers.Text;
 using System.Diagnostics;
 using System.IO.Pipelines;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Text;
+using RESPite.Buffers;
 using RESPite.Messages;
 using RESPite.Streams;
+using StateFlags = RESPite.Streams.CycleBufferStreamWriter.StateFlags;
 
 namespace RESPite.Proxy;
 
-internal sealed class ProxyClient(ProxyServer.InnerLeg upstream, Stream inbound, PipeWriter outbound)
-    : RespStream(inbound)
+internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
 {
+    private CycleBuffer _buffer;
+    private StateFlags _stateFlags;
+    private readonly Socket _outbound;
+    private readonly WorkerSocketAsyncEventArgs _writeArgs;
+
+    public SocketProxyClient(ProxyServer.InnerLeg upstream, Socket outbound) : base(upstream)
+    {
+        _buffer = CycleBuffer.Create(pool: upstream.BufferPool, callback: this);
+        _writeArgs = new();
+        _outbound = outbound;
+    }
+
+    protected override void SendRawSynchronized(ReadOnlySpan<byte> frame)
+    {
+        bool lockTaken = false;
+        try
+        {
+            TakeLock(ref lockTaken);
+            _buffer.Write(frame);
+            ActivateInsideLock(StateFlags.Flush);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
+    }
+
+    void ICycleBufferCallback.PageComplete() => OnActivate(StateFlags.None);
+
+    public void Flush() => OnActivate(StateFlags.Flush);
+
+    private void OnActivate(StateFlags newFlags)
+    {
+        bool lockTaken = false;
+        try
+        {
+            TakeLock(ref lockTaken);
+            ActivateInsideLock(newFlags);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
+    }
+
+    internal void WorkerWriteCallback()
+    {
+        if (CheckSend()) WorkerWrite(); // try to do more
+    }
+
+    private bool CheckSend()
+    {
+        if (_writeArgs.SocketError is not SocketError.Success)
+        {
+            CloseWriter();
+            return false;
+        }
+        Debug.Assert(_writeArgs.BytesTransferred == _writeArgs.MemoryBuffer.Length, "incomplete buffer write");
+        return true;
+    }
+
+    private void CloseWriter()
+    {
+        bool lockTaken = false;
+        try
+        {
+            TakeLock(ref lockTaken);
+            _stateFlags = (_stateFlags | StateFlags.Closed) & ~StateFlags.ActiveWriter;
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
+    }
+
+    internal void WorkerWrite()
+    {
+        bool lockTaken = false;
+        try
+        {
+            const int maxLoop = 5;
+            int loop = 0;
+            do
+            {
+                TakeLock(ref lockTaken);
+                var minBytes = (_stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
+                var success = _buffer.TryGetFirstCommittedMemory(minBytes, out var memory);
+                if (!success)
+                {
+                    _stateFlags &= ~StateFlags.ActiveWriter;
+                    break;
+                }
+
+                ReleaseLock(ref lockTaken);
+
+                _writeArgs.Step = WorkerStep.SocketProxyClientWriteCallback;
+                _writeArgs.SetBuffer(MemoryMarshal.AsMemory(memory));
+                if (_outbound.SendAsync(_writeArgs)) break; // gone async, gets reactivated via pool
+            }
+            // on sync write, assert and continue - but don't hog the pool forever
+            while (CheckSend() & ++loop <= maxLoop);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
+    }
+
+    private void ActivateInsideLock(StateFlags newFlags)
+    {
+        Debug.Assert(Monitor.IsEntered(this), $"{nameof(ActivateInsideLock)} must be called while holding the writer lock.");
+
+        var state = _stateFlags;
+        if ((state & StateFlags.Closed) != 0) return;
+        state |= newFlags & ~StateFlags.ActiveWriter;
+        if ((state & StateFlags.ActiveWriter) == 0)
+        {
+            state |= StateFlags.ActiveWriter;
+            _stateFlags = state;
+            _writeArgs.Pool.Enqueue(this, WorkerStep.SocketProxyClientWrite);
+        }
+        else
+        {
+            _stateFlags = state;
+        }
+    }
+
+    private void TakeLock(ref bool lockTaken)
+    {
+        if (!lockTaken)
+        {
+            Monitor.TryEnter(this, 10_000,  ref lockTaken);
+            if (!lockTaken) Throw();
+        }
+        static void Throw() => throw new TimeoutException("Unable to acquire writer lock");
+    }
+
+    private void ReleaseLock(ref bool lockTaken)
+    {
+        if (lockTaken)
+        {
+            Monitor.Exit(this);
+            lockTaken = false;
+        }
+    }
+}
+
+internal sealed class PipeProxyClient(ProxyServer.InnerLeg upstream, PipeWriter outbound) : ProxyClient(upstream)
+{
+    protected override void SendRawSynchronized(ReadOnlySpan<byte> frame)
+    {
+        DebugAssertLock();
+        outbound.Write(frame);
+
+        var vt = outbound.FlushAsync(Lifetime);
+        if (vt.IsCompletedSuccessfully)
+        {
+            _ = vt.Result;
+        }
+        else
+        {
+            vt.AsTask().Wait(); // for test only
+        }
+    }
+}
+
+internal abstract class ProxyClient(ProxyServer.InnerLeg upstream) : RespStream
+{
+    protected CancellationToken Lifetime => upstream.Lifetime;
     public int Id { get; set; }
     public int Database => _db;
     private int _db;
@@ -24,9 +194,9 @@ internal sealed class ProxyClient(ProxyServer.InnerLeg upstream, Stream inbound,
         return true;
     }
 
-    public Task ExecuteAsync()
+    public Task ExecuteAsync(PipeReader source)
     {
-        StartReading(sync: false, cancellationToken: upstream.Lifetime);
+        StartReading(source.AsStream(), sync: false, cancellationToken: upstream.Lifetime);
         return _completionSource.Task;
     }
 
@@ -296,20 +466,12 @@ internal sealed class ProxyClient(ProxyServer.InnerLeg upstream, Stream inbound,
         return oversized.Slice(0, preamble.Length + commandLength + 2);
     }
 
-    private void SendRawSynchronized(ReadOnlySpan<byte> frame)
+    protected abstract void SendRawSynchronized(ReadOnlySpan<byte> frame);
+
+    [Conditional("DEBUG")]
+    private protected void DebugAssertLock()
     {
         Debug.Assert(Monitor.IsEntered(_pending), "should hold lock");
-        outbound.Write(frame);
-
-        var vt = outbound.FlushAsync(upstream.Lifetime);
-        if (vt.IsCompletedSuccessfully)
-        {
-            _ = vt.Result;
-        }
-        else
-        {
-            vt.AsTask().Wait(); // for test only
-        }
     }
 }
 

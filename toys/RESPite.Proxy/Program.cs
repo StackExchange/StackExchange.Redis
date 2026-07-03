@@ -9,6 +9,12 @@ var proxyOptions = new ProxyServerOptions
 {
     Password = "letmein",
 };
+using var pool = new WorkerPool();
+var proxy = new ProxyServer(proxyOptions, applicationLifetime: null);
+using var socket = new ProxySocketServer(proxy, pool);
+socket.Start(new IPEndPoint(IPAddress.Loopback, 6380));
+
+/*
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(proxyOptions);
@@ -40,6 +46,7 @@ var app = builder.Build();
 
 // run the server
 await app.RunAsync();
+*/
 
 public class ProxyServerOptions
 {

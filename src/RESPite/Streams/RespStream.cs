@@ -2,6 +2,6 @@
 
 namespace RESPite.Streams;
 
-public abstract partial class RespStream(Stream tail)
+public abstract partial class RespStream
 {
 }
