@@ -49,13 +49,14 @@ internal abstract class SocketServer : IDisposable
             {
                 while (!Volatile.Read(ref _isDisposed))
                 {
-                    _pool.Enqueue(this, WorkerStep.InitClient, socket.Accept());
+                    var client = socket.Accept();
+                    _pool.Enqueue(this, WorkerStep.InitClient, client);
                 }
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex.Message);
+            Console.Error.WriteLine(ex.Message);
         }
         finally
         {

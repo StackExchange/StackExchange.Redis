@@ -1,4 +1,5 @@
 ﻿using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks.Sources;
 
 namespace RESPite.Proxy;
@@ -10,17 +11,14 @@ internal sealed class WorkerSocketAsyncEventArgs : SocketAsyncEventArgs, IValueT
     // double-await, overlapped await, etc
     private readonly WorkerPool _pool;
     public WorkerPool Pool => _pool;
+
     internal WorkerSocketAsyncEventArgs(WorkerPool? pool = null)
     {
         _pool = pool ?? WorkerPool.Demand();
     }
 
-    private int _step;
-    public WorkerStep Step
-    {
-        get => (WorkerStep)_step;
-        set => _step = (int)value;
-    }
+    private WorkerStep _step;
+    public WorkerStep Step => _step;
 
     private static readonly Action<object?> _continuationCompleted = _ => { };
     private object? _continuationState;
@@ -28,25 +26,22 @@ internal sealed class WorkerSocketAsyncEventArgs : SocketAsyncEventArgs, IValueT
 
     protected override void OnCompleted(SocketAsyncEventArgs e)
     {
-        var c = _continuation;
-
-        if (c != null || (c = Interlocked.CompareExchange(ref _continuation, _continuationCompleted, null)) != null)
+        var step = _step;
+        if (step is WorkerStep.None)
         {
-            // await mode; inspired by aspnetcore
-            var continuationState = UserToken;
-            UserToken = null;
-            _continuation = _continuationCompleted;
+            // async/await mode
+            var c = _continuation;
 
-            _pool.Enqueue(this, WorkerStep.SocketPumpAwait, c);
+            if (c != null || (c = Interlocked.CompareExchange(ref _continuation, _continuationCompleted, null)) != null)
+            {
+                _continuation = _continuationCompleted;
+                _pool.Enqueue(this, WorkerStep.SocketPumpAwait, c);
+            }
         }
         else
         {
             // push mode
-            var next = Interlocked.Exchange(ref _step, 0);
-            if (next is not 0)
-            {
-                _pool.Enqueue(this, (WorkerStep)next);
-            }
+            _pool.Enqueue(_continuationState!, _step);
         }
     }
 
@@ -78,4 +73,13 @@ internal sealed class WorkerSocketAsyncEventArgs : SocketAsyncEventArgs, IValueT
 
     internal void PumpAwait(Action<object?> continuation)
         => continuation.Invoke(Interlocked.Exchange(ref _continuationState, null));
+
+    public void SetBuffer(ReadOnlyMemory<byte> buffer) // very common for write scenarios
+        => base.SetBuffer(MemoryMarshal.AsMemory(buffer));
+
+    public void Init(object target, WorkerStep step)
+    {
+        _continuationState = target;
+        _step = step;
+    }
 }

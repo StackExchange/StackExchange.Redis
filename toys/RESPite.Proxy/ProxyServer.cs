@@ -162,7 +162,7 @@ internal sealed class ProxyServer
             WorkerPool.DebugAssertWorker();
             var client = new SocketProxyClient(this, socket);
             server.RegisterClient(client);
-            return client.ExecuteAsync();
+            client.StartReading();
         }
     }
 

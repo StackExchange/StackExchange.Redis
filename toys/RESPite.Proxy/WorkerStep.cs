@@ -7,4 +7,6 @@ internal enum WorkerStep
     SocketPumpAwait,
     SocketProxyClientWrite,
     SocketProxyClientWriteCallback,
+    SocketProxyClientRead,
+    SocketProxyClientReadCallback,
 }

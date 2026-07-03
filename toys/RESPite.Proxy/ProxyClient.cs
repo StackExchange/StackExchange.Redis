@@ -3,7 +3,6 @@ using System.Buffers.Text;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using RESPite.Buffers;
 using RESPite.Messages;
 using RESPite.Streams;
@@ -14,15 +13,24 @@ namespace RESPite.Proxy;
 internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
 {
     private CycleBuffer _buffer;
-    private StateFlags _stateFlags;
-    private readonly Socket _outbound;
-    private readonly WorkerSocketAsyncEventArgs _writeArgs;
+    private StateFlags _writeFlags;
+    private readonly Socket _client;
+    private readonly WorkerSocketAsyncEventArgs _readArgs, _writeArgs;
 
-    public SocketProxyClient(ProxyServer.InnerLeg upstream, Socket outbound) : base(upstream)
+    public SocketProxyClient(ProxyServer.InnerLeg upstream, Socket client) : base(upstream)
     {
         _buffer = CycleBuffer.Create(pool: upstream.BufferPool, callback: this);
+        _readArgs = new();
+        _readArgs.Init(this, WorkerStep.SocketProxyClientReadCallback);
         _writeArgs = new();
-        _outbound = outbound;
+        _writeArgs.Init(this, WorkerStep.SocketProxyClientWriteCallback);
+        _client = client;
+    }
+
+    public void StartReading()
+    {
+        InitRead();
+        _readArgs.Pool.Enqueue(this, WorkerStep.SocketProxyClientRead);
     }
 
     protected override void SendRawSynchronized(ReadOnlySpan<byte> frame)
@@ -30,13 +38,13 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         bool lockTaken = false;
         try
         {
-            TakeLock(ref lockTaken);
+            TakeWriteLock(ref lockTaken);
             _buffer.Write(frame);
-            ActivateInsideLock(StateFlags.Flush);
+            ActivateWriterInsideLock(StateFlags.Flush);
         }
         finally
         {
-            ReleaseLock(ref lockTaken);
+            ReleaseWriteLock(ref lockTaken);
         }
     }
 
@@ -49,12 +57,12 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         bool lockTaken = false;
         try
         {
-            TakeLock(ref lockTaken);
-            ActivateInsideLock(newFlags);
+            TakeWriteLock(ref lockTaken);
+            ActivateWriterInsideLock(newFlags);
         }
         finally
         {
-            ReleaseLock(ref lockTaken);
+            ReleaseWriteLock(ref lockTaken);
         }
     }
 
@@ -71,6 +79,18 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
             return false;
         }
         Debug.Assert(_writeArgs.BytesTransferred == _writeArgs.MemoryBuffer.Length, "incomplete buffer write");
+
+        // we're done with the bytes
+        bool lockTaken = false;
+        try
+        {
+            TakeWriteLock(ref lockTaken);
+            _buffer.DiscardCommitted(_writeArgs.BytesTransferred);
+        }
+        finally
+        {
+            ReleaseWriteLock(ref lockTaken);
+        }
         return true;
     }
 
@@ -79,13 +99,60 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         bool lockTaken = false;
         try
         {
-            TakeLock(ref lockTaken);
-            _stateFlags = (_stateFlags | StateFlags.Closed) & ~StateFlags.ActiveWriter;
+            TakeWriteLock(ref lockTaken);
+            _writeFlags = (_writeFlags | StateFlags.Closed) & ~StateFlags.ActiveWriter;
         }
         finally
         {
-            ReleaseLock(ref lockTaken);
+            ReleaseWriteLock(ref lockTaken);
         }
+    }
+
+    internal void WorkerRead()
+    {
+        try
+        {
+            const uint MAX_LOOP = 5;
+            uint loop = 0; // uint so we're not too concerned about wrap-around
+            while (true)
+            {
+                _readArgs.SetBuffer(GetReceiveBuffer());
+                if (_client.ReceiveAsync(_readArgs))
+                    return; // gone async, gets reactivated via pool
+
+                if (!CheckReceive(inline: true))
+                    break; // validation failed
+
+                if (++loop > MAX_LOOP && _readArgs.Pool.HasWork)
+                {
+                    // yield to pool and come back for more
+                    _readArgs.Pool.Enqueue(this, WorkerStep.SocketProxyClientRead);
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            OnCleanup(SocketError.Fault, ex);
+        }
+    }
+
+    private bool CheckReceive(bool inline)
+    {
+        var err = _readArgs.SocketError;
+        if (err is not SocketError.Success)
+        {
+            OnCleanup(err);
+            return false;
+        }
+
+        OnAfterReceive(_readArgs.BytesTransferred, inline);
+        return true;
+    }
+
+    public void WorkerReadCallback()
+    {
+        if (CheckReceive(inline: false)) WorkerRead(); // try to do more
     }
 
     internal void WorkerWrite()
@@ -93,54 +160,62 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         bool lockTaken = false;
         try
         {
-            const int maxLoop = 5;
-            int loop = 0;
-            do
+            const uint MAX_LOOP = 5;
+            uint loop = 0;
+            while (true)
             {
-                TakeLock(ref lockTaken);
-                var minBytes = (_stateFlags & StateFlags.Flush) == 0 ? -1 : 1;
+                TakeWriteLock(ref lockTaken);
+                var minBytes = (_writeFlags & StateFlags.Flush) == 0 ? -1 : 1;
                 var success = _buffer.TryGetFirstCommittedMemory(minBytes, out var memory);
                 if (!success)
                 {
-                    _stateFlags &= ~StateFlags.ActiveWriter;
+                    _writeFlags &= ~StateFlags.ActiveWriter;
                     break;
                 }
 
-                ReleaseLock(ref lockTaken);
+                ReleaseWriteLock(ref lockTaken);
 
-                _writeArgs.Step = WorkerStep.SocketProxyClientWriteCallback;
-                _writeArgs.SetBuffer(MemoryMarshal.AsMemory(memory));
-                if (_outbound.SendAsync(_writeArgs)) break; // gone async, gets reactivated via pool
+                _writeArgs.SetBuffer(memory);
+                if (_client.SendAsync(_writeArgs))
+                    break; // gone async, gets reactivated via pool
+
+                if (!CheckSend())
+                    break; // validation failed
+
+                if (++loop > MAX_LOOP && _writeArgs.Pool.HasWork)
+                {
+                    // yield to pool and come back for more
+                    _writeArgs.Pool.Enqueue(this, WorkerStep.SocketProxyClientWrite);
+                    break;
+                }
             }
-            // on sync write, assert and continue - but don't hog the pool forever
-            while (CheckSend() & ++loop <= maxLoop);
         }
         finally
         {
-            ReleaseLock(ref lockTaken);
+            ReleaseWriteLock(ref lockTaken);
         }
     }
 
-    private void ActivateInsideLock(StateFlags newFlags)
+    private void ActivateWriterInsideLock(StateFlags newFlags)
     {
-        Debug.Assert(Monitor.IsEntered(this), $"{nameof(ActivateInsideLock)} must be called while holding the writer lock.");
+        Debug.Assert(Monitor.IsEntered(this), $"{nameof(ActivateWriterInsideLock)} must be called while holding the writer lock.");
 
-        var state = _stateFlags;
+        var state = _writeFlags;
         if ((state & StateFlags.Closed) != 0) return;
         state |= newFlags & ~StateFlags.ActiveWriter;
         if ((state & StateFlags.ActiveWriter) == 0)
         {
             state |= StateFlags.ActiveWriter;
-            _stateFlags = state;
+            _writeFlags = state;
             _writeArgs.Pool.Enqueue(this, WorkerStep.SocketProxyClientWrite);
         }
         else
         {
-            _stateFlags = state;
+            _writeFlags = state;
         }
     }
 
-    private void TakeLock(ref bool lockTaken)
+    private void TakeWriteLock(ref bool lockTaken)
     {
         if (!lockTaken)
         {
@@ -150,7 +225,7 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
         static void Throw() => throw new TimeoutException("Unable to acquire writer lock");
     }
 
-    private void ReleaseLock(ref bool lockTaken)
+    private void ReleaseWriteLock(ref bool lockTaken)
     {
         if (lockTaken)
         {

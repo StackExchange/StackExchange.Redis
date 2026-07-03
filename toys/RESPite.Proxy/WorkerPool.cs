@@ -1,10 +1,43 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace RESPite.Proxy;
 
 internal sealed partial class WorkerPool : IDisposable
 {
+#if DEBUG
+    private event Action<string>? Log;
+#endif
+    [Conditional("DEBUG")]
+    internal void AddLog(Action<string> value)
+    {
+#if DEBUG
+        Log += value;
+#endif
+    }
+
+    [Conditional("DEBUG")]
+    private void OnLog(ref DefaultInterpolatedStringHandler value)
+    {
+#if DEBUG
+        if (Log is { } log)
+        {
+            Log?.Invoke(value.ToStringAndClear());
+        }
+        else
+        {
+#if NET10_0_OR_GREATER
+            value.Clear();
+#elif NET8_0_OR_GREATER
+            Clear(ref value);
+            [UnsafeAccessor(UnsafeAccessorKind.Method, Name = nameof(Clear))]
+            static extern void Clear(ref DefaultInterpolatedStringHandler value);
+#endif
+        }
+#endif
+    }
+
     public WorkerPool()
     {
         var thread = new Thread(static state => ((WorkerPool)state!).Execute());
@@ -13,6 +46,7 @@ internal sealed partial class WorkerPool : IDisposable
         thread.Name = "dedicated worker";
         thread.Start(this);
     }
+
     private readonly partial struct WorkItem(object target, WorkerStep step, object? arg)
     {
         public object Target => target;
@@ -28,6 +62,8 @@ internal sealed partial class WorkerPool : IDisposable
 
     private bool IsSleeping => (Volatile.Read(ref _flags) & FlagsSleeping) != 0;
     private bool IsDisposed => (Volatile.Read(ref _flags) & FlagsDisposed) != 0;
+
+    public bool HasWork => !_queue.IsEmpty;
 
     public void Enqueue(object target, WorkerStep step, object? arg = null)
     {
@@ -86,6 +122,8 @@ internal sealed partial class WorkerPool : IDisposable
                 {
                     try
                     {
+                        OnLog(
+                            $"[{Thread.CurrentThread.ManagedThreadId}:{Thread.CurrentThread.Name}] {item.Step} on {item.Target}");
                         item.Execute();
                     }
                     catch (Exception ex)

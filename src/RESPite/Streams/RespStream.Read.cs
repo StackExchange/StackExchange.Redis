@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using RESPite.Buffers;
 using RESPite.Internal;
@@ -26,16 +27,19 @@ public partial class RespStream
     public long TotalBytesRead => _totalBytesRead;
 
     [Conditional("PARSE_DETAIL")]
-    private protected void OnDetailLog(string message) { }
+    private protected void OnDetailLog(string message)
+    {
+#if PARSE_DETAIL
+        Console.WriteLine(message);
+#endif
+    }
 
     private async Task ReadAllAsync(Stream tail, CancellationToken cancellationToken)
     {
         if (_readStatus is not ReadStatus.TransitioningToAsync)
         {
             // preserve existing state if transitioning
-            _readStatus = ReadStatus.Init;
-            _readState = default;
-            _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);
+            InitRead();
         }
 
         try
@@ -88,11 +92,70 @@ public partial class RespStream
         }
     }
 
-    private void ReadAllSync(Stream tail, CancellationToken cancellationToken)
+    private protected void InitRead()
     {
         _readStatus = ReadStatus.Init;
         _readState = default;
         _readBuffer = CycleBuffer.Create(pool: ReaderBufferPool);
+    }
+
+    private protected Memory<byte> GetReceiveBuffer()
+    {
+        _readStatus = ReadStatus.ReadSync;
+        return _readBuffer.GetUncommittedMemory();
+    }
+
+    private protected bool OnAfterReceive(int read, bool inline)
+    {
+        try
+        {
+            _readStatus = ReadStatus.UpdateWriteTime;
+            UpdateLastReadTime();
+
+            DebugCounters.OnAsyncRead(read, inline);
+            _readStatus = ReadStatus.TryParseResult;
+            return CommitAndParseFrames(read) & !ForceReconnect;
+        }
+        catch (Exception ex)
+        {
+            OnCleanup(SocketError.Fault, ex);
+            return false;
+        }
+    }
+
+    private protected void OnCleanup(SocketError error, Exception? fault = null)
+    {
+        try
+        {
+            switch (fault)
+            {
+                case null when error is SocketError.Success:
+                    _readStatus = ReadStatus.ProcessBufferComplete;
+                    _readBuffer.Release(); // clean exit, we can recycle
+
+                    _readStatus = ReadStatus.RanToCompletion;
+                    RecordConnectionFailed(StreamFailureKind.SocketClosed);
+                    break;
+                case null when error is SocketError.ConnectionReset or SocketError.ConnectionAborted:
+                case EndOfStreamException or OperationCanceledException when _readStatus is ReadStatus.ReadAsync:
+                    _readStatus = ReadStatus.RanToCompletion;
+                    RecordConnectionFailed(StreamFailureKind.SocketClosed);
+                    break;
+                default:
+                    _readStatus = ReadStatus.Faulted;
+                    RecordConnectionFailed(StreamFailureKind.InternalFailure, fault);
+                    break;
+            }
+        }
+        finally
+        {
+            _readBuffer = default; // wipe, however we exited
+        }
+    }
+
+    private void ReadAllSync(Stream tail, CancellationToken cancellationToken)
+    {
+        InitRead();
         try
         {
             int read;

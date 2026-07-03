@@ -8,6 +8,7 @@ internal enum ReadStatus
     Faulted,
     ReadSync,
     ReadAsync,
+    ReadWorker,
     TransitioningToAsync,
     UpdateWriteTime,
     ProcessBuffer,

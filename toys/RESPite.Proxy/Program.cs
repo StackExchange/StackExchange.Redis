@@ -1,7 +1,6 @@
 ﻿using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
-using Microsoft.AspNetCore.Connections;
 using RESPite.Proxy;
 using RESPite.Streams;
 
@@ -10,10 +9,12 @@ var proxyOptions = new ProxyServerOptions
     Password = "letmein",
 };
 using var pool = new WorkerPool();
+pool.AddLog(Console.WriteLine);
 var proxy = new ProxyServer(proxyOptions, applicationLifetime: null);
 using var socket = new ProxySocketServer(proxy, pool);
 socket.Start(new IPEndPoint(IPAddress.Loopback, 6380));
-
+Console.WriteLine("Listening...");
+Console.ReadLine();
 /*
 
 var builder = WebApplication.CreateBuilder(args);

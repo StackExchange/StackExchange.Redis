@@ -25,6 +25,12 @@ internal partial class WorkerPool
                 case WorkerStep.SocketProxyClientWriteCallback:
                     ((SocketProxyClient)target).WorkerWriteCallback();
                     break;
+                case WorkerStep.SocketProxyClientRead:
+                    ((SocketProxyClient)target).WorkerRead();
+                    break;
+                case WorkerStep.SocketProxyClientReadCallback:
+                    ((SocketProxyClient)target).WorkerReadCallback();
+                    break;
                 default:
                     Throw();
                     break;
