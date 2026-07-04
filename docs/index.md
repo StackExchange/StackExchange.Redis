@@ -1,4 +1,4 @@
-StackExchange.Redis
+U6GSkn74ExO8k6fh1icH7C0o1HsRYrrHAGVmPdtgFlsStackExchange.Redis
 ===================
 
 - [Release Notes](ReleaseNotes)
