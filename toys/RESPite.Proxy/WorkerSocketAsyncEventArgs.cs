@@ -106,7 +106,7 @@ internal sealed class WorkerSocketAsyncEventArgs : SocketAsyncEventArgs, IValueT
                 if (!WorkerPool.TryPulse(_continuationState!, 0))
                 {
                     // not immediately available - push to worker
-                    _pool.Enqueue(_continuationState!, WorkerStep.MonitorPulse, e);
+                    _pool.Enqueue(_continuationState!, WorkerStep.MonitorPulse, e, inline: false);
                 }
                 break;
             case WorkerStep.SocketPumpAwait:
@@ -116,16 +116,18 @@ internal sealed class WorkerSocketAsyncEventArgs : SocketAsyncEventArgs, IValueT
                 if (c != null || (c = Interlocked.CompareExchange(ref _continuation, _continuationCompleted, null)) != null)
                 {
                     _continuation = _continuationCompleted;
-                    _pool.Enqueue(this, WorkerStep.SocketPumpAwait, c);
+                    _pool.Enqueue(this, WorkerStep.SocketPumpAwait, c, inline: Inline);
                 }
 
                 break;
             default:
                 // push mode
-                _pool.Enqueue(_continuationState!, step);
+                _pool.Enqueue(_continuationState!, step, inline: Inline);
                 break;
         }
     }
+
+    public bool Inline { get; set; }
 
     void IValueTaskSource.GetResult(short token) => GetResult(token);
 

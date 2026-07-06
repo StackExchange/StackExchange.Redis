@@ -85,10 +85,27 @@ internal sealed partial class WorkerPool : IDisposable
 
     public bool HasWork => !_queue.IsEmpty;
 
-    public void Enqueue(object target, WorkerStep step, object? arg = null)
+    [ThreadStatic]
+    private static int _inlineDepth;
+
+    public void Enqueue(object target, WorkerStep step, object? arg = null, bool inline = false)
     {
         if (_disposed) return;
-        _queue.Enqueue(new(target, step, arg));
+
+        WorkItem op = new(target, step, arg);
+        const int MAX_INLINE_DEPTH = 2; // prevent IO stack-dive
+        if (inline && _inlineDepth < MAX_INLINE_DEPTH)
+        {
+            _inlineDepth++;
+            try
+            {
+                op.Execute();
+            }
+            catch { }
+            _inlineDepth--;
+            return;
+        }
+        _queue.Enqueue(op);
 
         // wake one worker per item; the re-check under the lock is authoritative and closes the
         // "consumer decided to wait but hadn't incremented _waiting yet" race (it re-checks the
@@ -130,6 +147,7 @@ internal sealed partial class WorkerPool : IDisposable
 
     private void Execute()
     {
+        using var control = ExecutionContext.SuppressFlow();
         _current = this;
         try
         {

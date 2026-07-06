@@ -20,7 +20,7 @@ internal sealed class SocketProxyClient : ProxyClient, ICycleBufferCallback
     public SocketProxyClient(ProxyServer.InnerLeg upstream, Socket client) : base(upstream)
     {
         _receiveBuffer = CycleBuffer.Create(pool: upstream.BufferPool, callback: this);
-        _readArgs = new();
+        _readArgs = new() { Inline = true };
         _readArgs.Init(this, WorkerStep.SocketProxyClientReadCallback);
         _writeArgs = new();
         _writeArgs.Init(this, WorkerStep.SocketProxyClientWriteCallback);
