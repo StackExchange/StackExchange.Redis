@@ -441,29 +441,27 @@ public class AsciiHashGenerator : IIncrementalGenerator
         sb.AppendLine("using StackExchange.Redis;");
         sb.AppendLine("#pragma warning disable CS8981, SER004");
 
-        BuildTypeImplementations(sb, types);
-        BuildEnumParsers(sb, parseMethods);
-        BuildEnumFormatters(sb, formatMethods);
-        BuildEnumLengths(sb, enums);
+        var writer = new CodeWriter(sb);
+        BuildTypeImplementations(writer, types);
+        BuildEnumParsers(writer, parseMethods);
+        BuildEnumFormatters(writer, formatMethods);
+        BuildEnumLengths(writer, enums);
         ctx.AddSource(nameof(AsciiHash) + ".generated.cs", sb.ToString());
     }
 
-    private void BuildEnumLengths(StringBuilder sb, ImmutableArray<(string Namespace, string ParentType, string Name, int Count, int MaxChars, int MaxBytes)> enums)
+    private void BuildEnumLengths(CodeWriter writer, ImmutableArray<(string Namespace, string ParentType, string Name, int Count, int MaxChars, int MaxBytes)> enums)
     {
         if (enums.IsDefaultOrEmpty) return; // nope
 
-        int indent = 0;
-        StringBuilder NewLine() => sb.AppendLine().Append(' ', indent * 4);
-
         foreach (var grp in enums.GroupBy(l => (l.Namespace, l.ParentType)))
         {
-            NewLine();
+            writer.NewLine();
             int braces = 0;
             if (!string.IsNullOrWhiteSpace(grp.Key.Namespace))
             {
-                NewLine().Append("namespace ").Append(grp.Key.Namespace);
-                NewLine().Append("{");
-                indent++;
+                writer.NewLine().Append("namespace ").Append(grp.Key.Namespace);
+                writer.NewLine().Append("{");
+                writer.Indent();
                 braces++;
             }
 
@@ -473,48 +471,48 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 {
                     foreach (var part in grp.Key.ParentType.Split('.'))
                     {
-                        NewLine().Append("partial class ").Append(part);
-                        NewLine().Append("{");
-                        indent++;
+                        writer.NewLine().Append("partial class ").Append(part);
+                        writer.NewLine().Append("{");
+                        writer.Indent();
                         braces++;
                     }
                 }
                 else
                 {
-                    NewLine().Append("partial class ").Append(grp.Key.ParentType);
-                    NewLine().Append("{");
-                    indent++;
+                    writer.NewLine().Append("partial class ").Append(grp.Key.ParentType);
+                    writer.NewLine().Append("{");
+                    writer.Indent();
                     braces++;
                 }
             }
 
             foreach (var @enum in grp)
             {
-                NewLine().Append("internal static partial class ").Append(@enum.Name);
-                NewLine().Append("{");
-                indent++;
-                NewLine().Append("public const int EnumCount = ").Append(@enum.Count).Append(";");
-                NewLine().Append("public const int MaxChars = ").Append(@enum.MaxChars).Append(";");
-                NewLine().Append("public const int MaxBytes = ").Append(@enum.MaxBytes).Append("; // as UTF8");
+                writer.NewLine().Append("internal static partial class ").Append(@enum.Name);
+                writer.NewLine().Append("{");
+                writer.Indent();
+                writer.NewLine().Append("public const int EnumCount = ").Append(@enum.Count).Append(";");
+                writer.NewLine().Append("public const int MaxChars = ").Append(@enum.MaxChars).Append(";");
+                writer.NewLine().Append("public const int MaxBytes = ").Append(@enum.MaxBytes).Append("; // as UTF8");
                 // for buffer bytes: we want to allow 1 extra byte (to check for false-positive over-long values),
                 // and then round up to the nearest multiple of 8 (for stackalloc performance, etc)
                 int bufferBytes = (@enum.MaxBytes + 1 + 7) & ~7;
-                NewLine().Append("public const int BufferBytes = ").Append(bufferBytes).Append(";");
-                indent--;
-                NewLine().Append("}");
+                writer.NewLine().Append("public const int BufferBytes = ").Append(bufferBytes).Append(";");
+                writer.Outdent();
+                writer.NewLine().Append("}");
             }
 
             // handle any closing braces
             while (braces-- > 0)
             {
-                indent--;
-                NewLine().Append("}");
+                writer.Outdent();
+                writer.NewLine().Append("}");
             }
         }
     }
 
     private void BuildEnumParsers(
-        StringBuilder sb,
+        CodeWriter writer,
         in ImmutableArray<(string Namespace, string ParentType, Accessibility Accessibility, string Name,
             (string Type, string Name, bool IsBytes, RefKind RefKind) From,
             (string Type, string Name, RefKind RefKind) To,
@@ -523,18 +521,15 @@ public class AsciiHashGenerator : IIncrementalGenerator
     {
         if (enums.IsDefaultOrEmpty) return; // nope
 
-        int indent = 0;
-        StringBuilder NewLine() => sb.AppendLine().Append(' ', indent * 4);
-
         foreach (var grp in enums.GroupBy(l => (l.Namespace, l.ParentType)))
         {
-            NewLine();
+            writer.NewLine();
             int braces = 0;
             if (!string.IsNullOrWhiteSpace(grp.Key.Namespace))
             {
-                NewLine().Append("namespace ").Append(grp.Key.Namespace);
-                NewLine().Append("{");
-                indent++;
+                writer.NewLine().Append("namespace ").Append(grp.Key.Namespace);
+                writer.NewLine().Append("{");
+                writer.Indent();
                 braces++;
             }
 
@@ -544,24 +539,24 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 {
                     foreach (var part in grp.Key.ParentType.Split('.'))
                     {
-                        NewLine().Append("partial class ").Append(part);
-                        NewLine().Append("{");
-                        indent++;
+                        writer.NewLine().Append("partial class ").Append(part);
+                        writer.NewLine().Append("{");
+                        writer.Indent();
                         braces++;
                     }
                 }
                 else
                 {
-                    NewLine().Append("partial class ").Append(grp.Key.ParentType);
-                    NewLine().Append("{");
-                    indent++;
+                    writer.NewLine().Append("partial class ").Append(grp.Key.ParentType);
+                    writer.NewLine().Append("{");
+                    writer.Indent();
                     braces++;
                 }
             }
 
             foreach (var method in grp)
             {
-                var line = NewLine().Append(Format(method.Accessibility)).Append(" static partial bool ")
+                var line = writer.NewLine().Append(Format(method.Accessibility)).Append(" static partial bool ")
                     .Append(method.Name).Append("(")
                     .Append(Format(method.From.RefKind))
                     .Append(method.From.Type).Append(" ").Append(method.From.Name).Append(", ")
@@ -573,14 +568,14 @@ public class AsciiHashGenerator : IIncrementalGenerator
                         .Append(method.CaseSensitive.Name);
                 }
                 line.Append(")");
-                NewLine().Append("{");
-                indent++;
-                NewLine().Append("// ").Append(method.To.Type).Append(" has ").Append(method.Members.Length).Append(" members");
+                writer.NewLine().Append("{");
+                writer.Indent();
+                writer.NewLine().Append("// ").Append(method.To.Type).Append(" has ").Append(method.Members.Length).Append(" members");
                 string valueTarget = method.To.Name;
                 if (method.To.RefKind != RefKind.Out)
                 {
                     valueTarget = "__tmp";
-                    NewLine().Append(method.To.Type).Append(" ").Append(valueTarget).Append(";");
+                    writer.NewLine().Append(method.To.Type).Append(" ").Append(valueTarget).Append(";");
                 }
 
                 bool alwaysCaseSensitive =
@@ -595,23 +590,23 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 {
                     if (twoPart)
                     {
-                        NewLine().Append("global::RESPite.AsciiHash.HashCS(").Append(method.From.Name).Append(", out var cs0, out var cs1);");
+                        writer.NewLine().Append("global::RESPite.AsciiHash.HashCS(").Append(method.From.Name).Append(", out var cs0, out var cs1);");
                     }
                     else
                     {
-                        NewLine().Append("var cs0 = global::RESPite.AsciiHash.HashCS(").Append(method.From.Name).Append(");");
+                        writer.NewLine().Append("var cs0 = global::RESPite.AsciiHash.HashCS(").Append(method.From.Name).Append(");");
                     }
                 }
                 else
                 {
                     if (twoPart)
                     {
-                        NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name)
+                        writer.NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name)
                             .Append(", out var cs0, out var uc0, out var cs1, out var uc1);");
                     }
                     else
                     {
-                        NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name)
+                        writer.NewLine().Append("global::RESPite.AsciiHash.Hash(").Append(method.From.Name)
                             .Append(", out var cs0, out var uc0);");
                     }
                 }
@@ -622,46 +617,46 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 }
                 else
                 {
-                    NewLine().Append("if (").Append(method.CaseSensitive.Name).Append(")");
-                    NewLine().Append("{");
-                    indent++;
+                    writer.NewLine().Append("if (").Append(method.CaseSensitive.Name).Append(")");
+                    writer.NewLine().Append("{");
+                    writer.Indent();
                     Write(true);
-                    indent--;
-                    NewLine().Append("}");
-                    NewLine().Append("else");
-                    NewLine().Append("{");
-                    indent++;
+                    writer.Outdent();
+                    writer.NewLine().Append("}");
+                    writer.NewLine().Append("else");
+                    writer.NewLine().Append("{");
+                    writer.Indent();
                     Write(false);
-                    indent--;
-                    NewLine().Append("}");
+                    writer.Outdent();
+                    writer.NewLine().Append("}");
                 }
 
                 if (method.To.RefKind == RefKind.Out)
                 {
-                    NewLine().Append("if (").Append(valueTarget).Append(" == (")
+                    writer.NewLine().Append("if (").Append(valueTarget).Append(" == (")
                         .Append(method.To.Type).Append(")").Append(method.DefaultValue).Append(")");
-                    NewLine().Append("{");
-                    indent++;
-                    NewLine().Append("// by convention, init to zero on miss");
-                    NewLine().Append(valueTarget).Append(" = default;");
-                    NewLine().Append("return false;");
-                    indent--;
-                    NewLine().Append("}");
-                    NewLine().Append("return true;");
+                    writer.NewLine().Append("{");
+                    writer.Indent();
+                    writer.NewLine().Append("// by convention, init to zero on miss");
+                    writer.NewLine().Append(valueTarget).Append(" = default;");
+                    writer.NewLine().Append("return false;");
+                    writer.Outdent();
+                    writer.NewLine().Append("}");
+                    writer.NewLine().Append("return true;");
                 }
                 else
                 {
-                    NewLine().Append("// do not update parameter on miss");
-                    NewLine().Append("if (").Append(valueTarget).Append(" == (")
+                    writer.NewLine().Append("// do not update parameter on miss");
+                    writer.NewLine().Append("if (").Append(valueTarget).Append(" == (")
                         .Append(method.To.Type).Append(")").Append(method.DefaultValue).Append(") return false;");
-                    NewLine().Append(method.To.Name).Append(" = ").Append(valueTarget).Append(";");
-                    NewLine().Append("return true;");
+                    writer.NewLine().Append(method.To.Name).Append(" = ").Append(valueTarget).Append(";");
+                    writer.NewLine().Append("return true;");
                 }
 
                 void Write(bool caseSensitive)
                 {
-                    NewLine().Append(valueTarget).Append(" = ").Append(method.From.Name).Append(".Length switch {");
-                    indent++;
+                    writer.NewLine().Append(valueTarget).Append(" = ").Append(method.From.Name).Append(".Length switch {");
+                    writer.Indent();
                     foreach (var member in method.Members
                                  .OrderBy(x => x.ParseText.Length)
                                  .ThenBy(x => x.ParseText))
@@ -671,7 +666,7 @@ public class AsciiHashGenerator : IIncrementalGenerator
 
                         bool valueCaseSensitive = caseSensitive || !HasCaseSensitiveCharacters(member.ParseText);
 
-                        line = NewLine().Append(len).Append(" when ");
+                        line = writer.NewLine().Append(len).Append(" when ");
                         if (twoPart) line.Append("(");
                         if (valueCaseSensitive)
                         {
@@ -713,27 +708,27 @@ public class AsciiHashGenerator : IIncrementalGenerator
                         line.Append(" => ").Append(method.To.Type).Append(".").Append(member.EnumMember).Append(",");
                     }
 
-                    NewLine().Append("_ => (").Append(method.To.Type).Append(")").Append(method.DefaultValue)
+                    writer.NewLine().Append("_ => (").Append(method.To.Type).Append(")").Append(method.DefaultValue)
                         .Append(",");
-                    indent--;
-                    NewLine().Append("};");
+                    writer.Outdent();
+                    writer.NewLine().Append("};");
                 }
 
-                indent--;
-                NewLine().Append("}");
+                writer.Outdent();
+                writer.NewLine().Append("}");
             }
 
             // handle any closing braces
             while (braces-- > 0)
             {
-                indent--;
-                NewLine().Append("}");
+                writer.Outdent();
+                writer.NewLine().Append("}");
             }
         }
     }
 
     private void BuildEnumFormatters(
-        StringBuilder sb,
+        CodeWriter writer,
         in ImmutableArray<(string Namespace, string ParentType, Accessibility Accessibility, string Name,
             (string Type, string Name, RefKind RefKind) From,
             (string Type, string Name, RefKind RefKind, bool IsBytes) To,
@@ -741,18 +736,15 @@ public class AsciiHashGenerator : IIncrementalGenerator
     {
         if (enums.IsDefaultOrEmpty) return; // nope
 
-        int indent = 0;
-        StringBuilder NewLine() => sb.AppendLine().Append(' ', indent * 4);
-
         foreach (var grp in enums.GroupBy(l => (l.Namespace, l.ParentType)))
         {
-            NewLine();
+            writer.NewLine();
             int braces = 0;
             if (!string.IsNullOrWhiteSpace(grp.Key.Namespace))
             {
-                NewLine().Append("namespace ").Append(grp.Key.Namespace);
-                NewLine().Append("{");
-                indent++;
+                writer.NewLine().Append("namespace ").Append(grp.Key.Namespace);
+                writer.NewLine().Append("{");
+                writer.Indent();
                 braces++;
             }
 
@@ -762,24 +754,24 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 {
                     foreach (var part in grp.Key.ParentType.Split('.'))
                     {
-                        NewLine().Append("partial class ").Append(part);
-                        NewLine().Append("{");
-                        indent++;
+                        writer.NewLine().Append("partial class ").Append(part);
+                        writer.NewLine().Append("{");
+                        writer.Indent();
                         braces++;
                     }
                 }
                 else
                 {
-                    NewLine().Append("partial class ").Append(grp.Key.ParentType);
-                    NewLine().Append("{");
-                    indent++;
+                    writer.NewLine().Append("partial class ").Append(grp.Key.ParentType);
+                    writer.NewLine().Append("{");
+                    writer.Indent();
                     braces++;
                 }
             }
 
             foreach (var method in grp)
             {
-                NewLine().Append(Format(method.Accessibility)).Append(" static partial bool ")
+                writer.NewLine().Append(Format(method.Accessibility)).Append(" static partial bool ")
                     .Append(method.Name).Append("(")
                     .Append(Format(method.From.RefKind))
                     .Append(method.From.Type).Append(" ").Append(method.From.Name).Append(", ")
@@ -787,12 +779,12 @@ public class AsciiHashGenerator : IIncrementalGenerator
                     .Append(method.To.Type).Append(" ").Append(method.To.Name)
                     .Append(")");
 
-                NewLine().Append("{");
-                indent++;
-                NewLine().Append("// ").Append(method.From.Type).Append(" has ").Append(method.Members.Length).Append(" formatted members");
-                NewLine().Append("switch (").Append(method.From.Name).Append(")");
-                NewLine().Append("{");
-                indent++;
+                writer.NewLine().Append("{");
+                writer.Indent();
+                writer.NewLine().Append("// ").Append(method.From.Type).Append(" has ").Append(method.Members.Length).Append(" formatted members");
+                writer.NewLine().Append("switch (").Append(method.From.Name).Append(")");
+                writer.NewLine().Append("{");
+                writer.Indent();
 
                 foreach (var member in method.Members)
                 {
@@ -801,29 +793,29 @@ public class AsciiHashGenerator : IIncrementalGenerator
                         .ToFullString();
                     if (method.To.IsBytes) formatted += "u8";
 
-                    NewLine().Append("case ").Append(method.From.Type).Append(".").Append(member.EnumMember).Append(":");
-                    indent++;
-                    NewLine().Append(method.To.Name).Append(" = ").Append(formatted).Append(";");
-                    NewLine().Append("return true;");
-                    indent--;
+                    writer.NewLine().Append("case ").Append(method.From.Type).Append(".").Append(member.EnumMember).Append(":");
+                    writer.Indent();
+                    writer.NewLine().Append(method.To.Name).Append(" = ").Append(formatted).Append(";");
+                    writer.NewLine().Append("return true;");
+                    writer.Outdent();
                 }
 
-                NewLine().Append("default:");
-                indent++;
-                NewLine().Append(method.To.Name).Append(" = ").Append(method.To.IsBytes ? "default" : "default!").Append(";");
-                NewLine().Append("return false;");
-                indent--;
-                indent--;
-                NewLine().Append("}");
-                indent--;
-                NewLine().Append("}");
+                writer.NewLine().Append("default:");
+                writer.Indent();
+                writer.NewLine().Append(method.To.Name).Append(" = ").Append(method.To.IsBytes ? "default" : "default!").Append(";");
+                writer.NewLine().Append("return false;");
+                writer.Outdent();
+                writer.Outdent();
+                writer.NewLine().Append("}");
+                writer.Outdent();
+                writer.NewLine().Append("}");
             }
 
             // handle any closing braces
             while (braces-- > 0)
             {
-                indent--;
-                NewLine().Append("}");
+                writer.Outdent();
+                writer.NewLine().Append("}");
             }
         }
     }
@@ -870,23 +862,20 @@ public class AsciiHashGenerator : IIncrementalGenerator
     };
 
     private static void BuildTypeImplementations(
-        StringBuilder sb,
+        CodeWriter writer,
         in ImmutableArray<(string Namespace, string ParentType, string Name, string Value)> types)
     {
         if (types.IsDefaultOrEmpty) return; // nope
 
-        int indent = 0;
-        StringBuilder NewLine() => sb.AppendLine().Append(' ', indent * 4);
-
         foreach (var grp in types.GroupBy(l => (l.Namespace, l.ParentType)))
         {
-            NewLine();
+            writer.NewLine();
             int braces = 0;
             if (!string.IsNullOrWhiteSpace(grp.Key.Namespace))
             {
-                NewLine().Append("namespace ").Append(grp.Key.Namespace);
-                NewLine().Append("{");
-                indent++;
+                writer.NewLine().Append("namespace ").Append(grp.Key.Namespace);
+                writer.NewLine().Append("{");
+                writer.Indent();
                 braces++;
             }
 
@@ -896,17 +885,17 @@ public class AsciiHashGenerator : IIncrementalGenerator
                 {
                     foreach (var part in grp.Key.ParentType.Split('.'))
                     {
-                        NewLine().Append("partial class ").Append(part);
-                        NewLine().Append("{");
-                        indent++;
+                        writer.NewLine().Append("partial class ").Append(part);
+                        writer.NewLine().Append("{");
+                        writer.Indent();
                         braces++;
                     }
                 }
                 else
                 {
-                    NewLine().Append("partial class ").Append(grp.Key.ParentType);
-                    NewLine().Append("{");
-                    indent++;
+                    writer.NewLine().Append("partial class ").Append(grp.Key.ParentType);
+                    writer.NewLine().Append("{");
+                    writer.Indent();
                     braces++;
                 }
             }
@@ -919,39 +908,39 @@ public class AsciiHashGenerator : IIncrementalGenerator
                     .ToFullString();
 
                 AsciiHash.Hash(literal.Value, out var hashCS, out var hashUC);
-                NewLine().Append("static partial class ").Append(literal.Name);
-                NewLine().Append("{");
-                indent++;
-                NewLine().Append("public const int Length = ").Append(literal.Value.Length).Append(';');
-                NewLine().Append("public const long HashCS = ").Append(hashCS).Append(';');
-                NewLine().Append("public const long HashUC = ").Append(hashUC).Append(';');
-                NewLine().Append("public static ReadOnlySpan<byte> U8 => ").Append(csValue).Append("u8;");
-                NewLine().Append("public const string Text = ").Append(csValue).Append(';');
+                writer.NewLine().Append("static partial class ").Append(literal.Name);
+                writer.NewLine().Append("{");
+                writer.Indent();
+                writer.NewLine().Append("public const int Length = ").Append(literal.Value.Length).Append(';');
+                writer.NewLine().Append("public const long HashCS = ").Append(hashCS).Append(';');
+                writer.NewLine().Append("public const long HashUC = ").Append(hashUC).Append(';');
+                writer.NewLine().Append("public static ReadOnlySpan<byte> U8 => ").Append(csValue).Append("u8;");
+                writer.NewLine().Append("public const string Text = ").Append(csValue).Append(';');
                 if (literal.Value.Length <= AsciiHash.MaxBytesHashed)
                 {
                     // the case-sensitive hash enforces all the values
-                    NewLine().Append(
+                    writer.NewLine().Append(
                         "public static bool IsCS(ReadOnlySpan<byte> value, long cs) => cs == HashCS & value.Length == Length;");
-                    NewLine().Append(
+                    writer.NewLine().Append(
                         "public static bool IsCI(ReadOnlySpan<byte> value, long uc) => uc == HashUC & value.Length == Length;");
                 }
                 else
                 {
-                    NewLine().Append(
+                    writer.NewLine().Append(
                         "public static bool IsCS(ReadOnlySpan<byte> value, long cs) => cs == HashCS && value.SequenceEqual(U8);");
-                    NewLine().Append(
+                    writer.NewLine().Append(
                         "public static bool IsCI(ReadOnlySpan<byte> value, long uc) => uc == HashUC && global::RESPite.AsciiHash.SequenceEqualsCI(value, U8);");
                 }
 
-                indent--;
-                NewLine().Append("}");
+                writer.Outdent();
+                writer.NewLine().Append("}");
             }
 
             // handle any closing braces
             while (braces-- > 0)
             {
-                indent--;
-                NewLine().Append("}");
+                writer.Outdent();
+                writer.NewLine().Append("}");
             }
         }
     }
