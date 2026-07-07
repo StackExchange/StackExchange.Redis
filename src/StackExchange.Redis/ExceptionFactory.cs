@@ -30,6 +30,9 @@ namespace StackExchange.Redis
         internal static Exception TooManyArgs(string command, int argCount)
             => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {MessageWriter.REDIS_MAX_ARGS}): {command}");
 
+        internal static Exception CommandHasWhitespace(string command)
+            => new RedisCommandException($"The command '{command}' contains whitespace and would be sent as a single unknown token; pass each word as a separate argument, for example Execute(\"ACL\", \"SETUSER\", \"x\") rather than Execute(\"ACL SETUSER x\").");
+
         internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint? server)
         {
             var ex = new RedisConnectionException(failureType, message);
