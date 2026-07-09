@@ -352,15 +352,29 @@ namespace StackExchange.Redis
             {
                 if (target is MultiGroupMultiplexer typed)
                 {
+                    if (typed.IsDisposed) return false;
+
+                    // serialize health-check + select: the poll loop and the circuit-breaker fast-path
+                    // can both land here, and we must not run two overlapping check/select passes (they
+                    // would race _active and emit duplicate change events). If a pass is already running,
+                    // skip - it will select on our behalf, and we converge on the next tick regardless.
+                    if (Interlocked.CompareExchange(ref typed._healthCheckGate, 1, 0) is not 0)
+                    {
+                        return true; // still a live target; keep polling
+                    }
+
                     try
                     {
-                        if (typed.IsDisposed) return false;
                         await typed.RunHealthCheckAsync().ForAwait();
                         typed.SelectPreferredGroup();
                     }
                     catch (Exception ex)
                     {
                         typed.OnInternalError(ex, origin: "update group");
+                    }
+                    finally
+                    {
+                        Volatile.Write(ref typed._healthCheckGate, 0);
                     }
 
                     return true; // even if we fault: try again
@@ -410,6 +424,7 @@ namespace StackExchange.Redis
             internal bool IsDisposed => _disposed;
 
             private Task<HealthCheck.HealthCheckResult>[]? _reusableHealthCheckBuffer;
+            private int _healthCheckGate; // 0 = idle, 1 = a check/select pass is in flight (see TryHealthCheckAndSelectPreferredGroupAsync)
 
             internal async Task RunHealthCheckAsync()
             {
@@ -654,7 +669,7 @@ namespace StackExchange.Redis
                         }
                         finally
                         {
-                            _circuitBreakerDebounce = 0;
+                            Volatile.Write(ref _circuitBreakerDebounce, 0);
                         }
                     });
                 }
