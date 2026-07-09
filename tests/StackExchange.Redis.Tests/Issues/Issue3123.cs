@@ -13,7 +13,7 @@ public class Issue3123(ITestOutputHelper output, SharedConnectionFixture? fixtur
         await using var conn = Create();
         var db = conn.GetDatabase();
         var key = Me();
-        await db.KeyDeleteAsync(key);
+        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
 
         Guid guid = Guid.NewGuid();
         byte[] payload = guid.ToByteArray();
@@ -22,7 +22,8 @@ public class Issue3123(ITestOutputHelper output, SharedConnectionFixture? fixtur
             key,
             longitude: -77.0365,
             latitude: 38.8977,
-            member: payload);
+            member: payload,
+            flags: CommandFlags.FireAndForget);
 
         GeoSearchCircle commonSearchCircle = new(1, GeoUnit.Kilometers);
 
@@ -33,7 +34,7 @@ public class Issue3123(ITestOutputHelper output, SharedConnectionFixture? fixtur
                 latitude: 38.8977,
                 shape: commonSearchCircle);
         var result = Assert.Single(results);
-        Log(result.Member);
+
         byte[] final = (byte[])result.Member!;
         Assert.True(final.SequenceEqual(payload));
         Assert.Equal(guid, new Guid(final));
