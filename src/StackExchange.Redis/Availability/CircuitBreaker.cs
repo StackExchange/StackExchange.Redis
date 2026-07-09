@@ -123,8 +123,14 @@ public abstract class CircuitBreaker
         internal bool ObserveResult(Exception? fault)
         {
             // only evaluate state upon failure; don't pay that overhead for success, just increment the counters
-            var ctx = new CircuitBreakerContext(fault, evaluate: fault is not null);
-            return ObserveResult(in ctx);
+            bool evaluate = fault is not null;
+            var ctx = new CircuitBreakerContext(fault, evaluate: evaluate);
+            bool healthy = ObserveResult(in ctx);
+
+            // when we didn't ask for an evaluation, the returned verdict is meaningless: a custom
+            // implementation might return default(false) without having actually computed anything.
+            // never treat a non-evaluating observation as unhealthy - only a genuine evaluation may trip.
+            return !evaluate || healthy;
         }
 
         /// <summary>

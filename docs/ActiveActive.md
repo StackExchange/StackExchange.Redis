@@ -217,7 +217,7 @@ var healthCheck = new HealthCheck
 
 var options = new MultiGroupOptions
 {
-    DefaultHealthCheck = healthCheck
+    HealthCheck = healthCheck
 };
 
 ConnectionGroupMember[] members = [
@@ -239,7 +239,7 @@ await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
 // Equivalent to:
 var options = new MultiGroupOptions
 {
-    DefaultHealthCheck = HealthCheck.Default
+    HealthCheck = HealthCheck.Default
 };
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
 ```
@@ -253,7 +253,7 @@ customHealthCheck.ProbeCount = 5;
 
 var options = new MultiGroupOptions
 {
-    DefaultHealthCheck = customHealthCheck
+    HealthCheck = customHealthCheck
 };
 ```
 
@@ -434,7 +434,7 @@ var healthCheck = new HealthCheck
 
 var options = new MultiGroupOptions
 {
-    DefaultHealthCheck = healthCheck
+    HealthCheck = healthCheck
 };
 ```
 
@@ -456,6 +456,133 @@ When a health check fails for a member:
 4. **Increase probe count for critical systems**: More probes with `MajoritySuccess` reduces false positives from transient failures
 5. **Set reasonable timeouts**: Ensure `ProbeTimeout` accounts for network latency to your Redis servers
 6. **Consider replica behavior**: Write-based probes automatically skip replicas to avoid false negatives
+
+## Circuit Breakers
+
+Where health checks *actively* probe each member on a timer, a **circuit breaker** works *passively*: it observes the outcome of the normal traffic already flowing over a connection, and tears that connection down as soon as it decides the connection has become unstable. The two are complementary:
+
+- A **health check** answers *"is this member reachable?"* by sending its own probes every `Interval`.
+- A **circuit breaker** answers *"is the traffic I'm already sending actually succeeding?"* with no extra round-trips, reacting the instant real commands start failing.
+
+When a circuit breaker trips, it shuts the underlying physical connection down with `ConnectionFailureType.CircuitBreaker`. The connection then reconnects as usual, and — in an Active:Active group — the health check and member-selection logic route traffic to other members until the affected member recovers. A circuit breaker is evaluated **per connection**, so
+its state is scoped to exactly the connection whose health it is measuring; a reconnect starts from a clean slate - but breaking the connection is sufficient for Active:Active to notice non-availability.
+
+### Configuring a Circuit Breaker for a Group
+
+Circuit breakers are configured globally for all members via `MultiGroupOptions`, alongside the health check. The setting flows into every member connection:
+
+```csharp
+var options = new MultiGroupOptions
+{
+    CircuitBreaker = CircuitBreaker.Default
+};
+
+ConnectionGroupMember[] members = [
+    new("us-east.redis.example.com:6379", name: "US East") { Weight = 10 },
+    new("us-west.redis.example.com:6379", name: "US West") { Weight = 5 }
+];
+
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+```
+
+If you don't specify one, `CircuitBreaker.Default` is used automatically:
+
+```csharp
+// these are equivalent
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
+
+var options = new MultiGroupOptions { CircuitBreaker = CircuitBreaker.Default };
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+```
+
+### Tuning the Default Circuit Breaker
+
+The default circuit breaker uses a rolling time-window: it counts successes and failures over a short window and trips once the failure rate crosses a
+threshold, provided enough failures have been seen to be statistically meaningful. Use `CircuitBreaker.Builder` to tune it:
+
+```csharp
+var options = new MultiGroupOptions
+{
+    CircuitBreaker = new CircuitBreaker.Builder
+    {
+        FailureRateThreshold = 25,                       // trip above 25% failures
+        MinimumNumberOfFailures = 100,                   // ...but only after 100 failures in the window
+        MetricsWindowSize = TimeSpan.FromSeconds(5),     // rolling window to measure over
+        TrackedExceptions = [typeof(RedisTimeoutException)], // which faults count as failures
+    }
+};
+```
+
+A `Builder` converts implicitly to a `CircuitBreaker`, so it can be assigned directly as above; calling `.Create()` explicitly is equivalent.
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `FailureRateThreshold` | 10 | Percentage of failures within the window that trips the breaker |
+| `MinimumNumberOfFailures` | 1000 | Minimum tracked failures in the window before the breaker can trip (avoids acting on tiny samples) |
+| `MetricsWindowSize` | 2 seconds | Rolling window over which successes and failures are counted |
+| `TrackedExceptions` | `null` | Exception types that count as failures; when `null`, `RedisConnectionException` and `RedisTimeoutException` are tracked |
+
+`TrackedExceptions` controls which faults count against the breaker; anything not tracked is treated as a success for circuit-breaking purposes (for example, a `RedisServerException` for a bad command is not a *connection* problem). Passing an array containing `typeof(Exception)` tracks everything; passing an empty array tracks nothing.
+
+### Disabling the Circuit Breaker
+
+Use `CircuitBreaker.None` to opt out entirely:
+
+```csharp
+var options = new MultiGroupOptions
+{
+    CircuitBreaker = CircuitBreaker.None
+};
+```
+
+### Custom Circuit Breakers (Advanced)
+
+> This is an advanced extension point; most applications should use `CircuitBreaker.Default` (optionally tuned via `CircuitBreaker.Builder`) or `CircuitBreaker.None`.
+
+You can implement your own policy by extending `CircuitBreaker` and its `Accumulator`. `CreateAccumulator()` is called once per underlying connection, so each accumulator holds the state for a single connection.
+For every completed message the connection calls `ObserveResult`, passing a `CircuitBreakerContext` that exposes whether the operation succeeded (`Success`) and the associated `Fault` (if any).
+Return `true` from `IsHealthy()` while the connection should be considered **healthy**, or `false` to **trip** the breaker and tear the connection down:
+
+```csharp
+public sealed class ConsecutiveFailureBreaker(int limit) : CircuitBreaker
+{
+    public override Accumulator CreateAccumulator() => new Acc(limit);
+
+    private sealed class Acc(int limit) : Accumulator
+    {
+        private int _consecutiveFailures;
+
+        public override bool ObserveResult(in CircuitBreakerContext context)
+        {
+            if (context.Success)
+            {
+                _consecutiveFailures = 0;
+            }
+            else
+            {
+                _consecutiveFailures++;
+            }
+
+            // if Evaluate is specified, we should also compute IsHealthy(),
+            // often this can reuse local state needed by ObserveResult
+            return context.Evaluate ? IsHealthy() : true;
+        }
+
+        // healthy until we hit the configured run of consecutive failures
+        public override bool IsHealthy() => _consecutiveFailures < limit;
+
+        // called if the connection wants to discard accumulated history
+        public override void Reset() => _consecutiveFailures = 0;
+    }
+}
+
+var options = new MultiGroupOptions
+{
+    CircuitBreaker = new ConsecutiveFailureBreaker(limit: 5)
+};
+```
+
+Keep `ObserveResult` cheap and thread-safe: it runs on the hot path for every completed message, and may be called concurrently.
 
 ## Manual Failover
 
