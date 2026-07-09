@@ -483,18 +483,21 @@ namespace StackExchange.Redis
 
         bool ICompletable.TryComplete(bool isAsync)
         {
-            Complete();
+            Complete(null);
             return true;
         }
 
-        public void Complete()
+        public void Complete(PhysicalConnection? connection)
         {
             // Ensure we can never call Complete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
 
             // set the completion/performance data
             performance?.SetCompleted();
-
+            if (currBox is not null)
+            {
+                connection?.ObserveMessageResult(currBox.Fault);
+            }
             currBox?.ActivateContinuations();
         }
 
@@ -693,7 +696,7 @@ namespace StackExchange.Redis
             {
                 connection.OnDetailLog($"{ex.GetType().Name}: {ex.Message}");
                 ex.Data.Add("got", prefix.ToString());
-                connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
+                connection.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 box?.SetException(ex);
                 return box != null; // we still want to pulse/complete
             }
@@ -706,10 +709,10 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation, muxer);
         }
 
-        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge? bridge)
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalConnection? connection)
         {
             resultBox?.SetException(exception);
-            Complete();
+            Complete(connection);
         }
 
         internal bool TrySetResult<T>(T value)

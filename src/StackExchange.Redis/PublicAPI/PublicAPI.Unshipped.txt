@@ -61,7 +61,7 @@ static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(System.IO.S
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreaker() -> void
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext() -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext(bool success, System.Exception? fault, bool evaluate = true) -> void
+[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext(System.Exception? fault, bool evaluate = true) -> void
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.Fault.get -> System.Exception?
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.Success.get -> bool
 [SER007]static StackExchange.Redis.Availability.CircuitBreaker.Builder.implicit operator StackExchange.Redis.Availability.CircuitBreaker!(StackExchange.Redis.Availability.CircuitBreaker.Builder! builder) -> StackExchange.Redis.Availability.CircuitBreaker!
@@ -128,6 +128,8 @@ static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(System.IO.S
 [SER007]StackExchange.Redis.Availability.IConnectionGroup.Remove(StackExchange.Redis.Availability.ConnectionGroupMember! member) -> bool
 [SER007]StackExchange.Redis.Availability.IConnectionGroup.TryFailoverTo(StackExchange.Redis.Availability.ConnectionGroupMember? member) -> bool
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions
+[SER007]StackExchange.Redis.Availability.MultiGroupOptions.CircuitBreaker.get -> StackExchange.Redis.Availability.CircuitBreaker!
+[SER007]StackExchange.Redis.Availability.MultiGroupOptions.CircuitBreaker.set -> void
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.HealthCheck.get -> StackExchange.Redis.Availability.HealthCheck!
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.HealthCheck.set -> void
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.MultiGroupOptions() -> void
@@ -152,3 +154,4 @@ static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(System.IO.S
 [SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.AnySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
 [SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.MajoritySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
 [SER007]static StackExchange.Redis.Availability.MultiGroupOptions.Default.get -> StackExchange.Redis.Availability.MultiGroupOptions!
+[SER007]StackExchange.Redis.ConnectionFailureType.CircuitBreaker = 11 -> StackExchange.Redis.ConnectionFailureType

@@ -117,7 +117,15 @@ public abstract class CircuitBreaker
         /// Record a message outcome, and indicate whether the connection is considered healthy.
         /// </summary>
         /// <returns>True if the connection is still considered healthy.</returns>
+        /// struct arg here is in case we want to add more things later
         public abstract bool ObserveResult(in CircuitBreakerContext context);
+
+        internal bool ObserveResult(Exception? fault)
+        {
+            // only evaluate state upon failure; don't pay that overhead for success, just increment the counters
+            var ctx = new CircuitBreakerContext(fault, evaluate: fault is not null);
+            return ObserveResult(in ctx);
+        }
 
         /// <summary>
         /// Indicate whether the connection is currently considered healthy, without recording an observation.
@@ -134,12 +142,13 @@ public abstract class CircuitBreaker
     /// <summary>
     /// Provides information about a circuit-breaker test.
     /// </summary>
-    public readonly struct CircuitBreakerContext(bool success, Exception? fault, bool evaluate = true)
+    public readonly struct CircuitBreakerContext(Exception? fault, bool evaluate = true)
     {
         /// <summary>
         /// Was the operation a success.
         /// </summary>
-        public bool Success => success;
+        [MemberNotNullWhen(false, nameof(Fault))]
+        public bool Success => fault is null;
 
         /// <summary>
         /// The fault associated with the operation.

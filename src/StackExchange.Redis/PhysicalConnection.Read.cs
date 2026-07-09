@@ -632,7 +632,7 @@ internal sealed partial class PhysicalConnection
         if (_awaitingToken is not null && (msg = Interlocked.Exchange(ref _awaitingToken, null)) is not null)
         {
             _readStatus = ReadStatus.ResponseSequenceCheck;
-            if (!ProcessHighIntegrityResponseToken(msg, frame, BridgeCouldBeNull))
+            if (!ProcessHighIntegrityResponseToken(msg, frame, this))
             {
                 RecordConnectionFailed(ConnectionFailureType.ResponseIntegrityFailure, origin: nameof(ReadStatus.ResponseSequenceCheck));
             }
@@ -678,7 +678,7 @@ internal sealed partial class PhysicalConnection
             if (highIntegrityToken is 0)
             {
                 // can't complete yet if needs checksum
-                msg.Complete();
+                msg.Complete(this);
             }
         }
         else
@@ -694,7 +694,7 @@ internal sealed partial class PhysicalConnection
         _readStatus = ReadStatus.MatchResultComplete;
         _activeMessage = null;
 
-        static bool ProcessHighIntegrityResponseToken(Message message, ReadOnlySpan<byte> frame, PhysicalBridge? bridge)
+        static bool ProcessHighIntegrityResponseToken(Message message, ReadOnlySpan<byte> frame, PhysicalConnection? connection)
         {
             bool isValid = false;
             var reader = new RespReader(frame);
@@ -716,12 +716,12 @@ internal sealed partial class PhysicalConnection
             }
             if (isValid)
             {
-                message.Complete();
+                message.Complete(connection);
                 return true;
             }
             else
             {
-                message.SetExceptionAndComplete(new InvalidOperationException("High-integrity mode detected possible protocol de-sync"), bridge);
+                message.SetExceptionAndComplete(new InvalidOperationException("High-integrity mode detected possible protocol de-sync"), connection);
                 return false;
             }
         }

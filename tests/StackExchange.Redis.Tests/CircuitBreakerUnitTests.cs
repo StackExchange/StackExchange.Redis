@@ -48,7 +48,7 @@ public class CircuitBreakerUnitTests
     {
         var acc = CircuitBreaker.None.CreateAccumulator();
         // even a solid wall of tracked failures never trips the no-op breaker
-        Assert.True(Record(acc, 10_000, success: false, new RedisTimeoutException("boom", CommandStatus.Unknown)));
+        Assert.True(Record(acc, 10_000, new RedisTimeoutException("boom", CommandStatus.Unknown)));
     }
 
 #if NET8_0_OR_GREATER
@@ -62,7 +62,7 @@ public class CircuitBreakerUnitTests
         var acc = Build(time, failureRateThreshold: 1, minimumNumberOfFailures: 10).CreateAccumulator();
 
         // nine tracked failures: one short of the minimum, so we withhold judgement
-        Assert.True(Record(acc, 9, success: false, Timeout()));
+        Assert.True(Record(acc, 9, Timeout()));
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class CircuitBreakerUnitTests
         var acc = Build(time, failureRateThreshold: 50, minimumNumberOfFailures: 10).CreateAccumulator();
 
         // 20 tracked failures, 0 successes -> 100% failure rate, well past both gates
-        Assert.False(Record(acc, 20, success: false, Timeout()));
+        Assert.False(Record(acc, 20, Timeout()));
     }
 
     [Fact]
@@ -81,8 +81,8 @@ public class CircuitBreakerUnitTests
         var time = new ManualTimeProvider();
         var acc = Build(time, failureRateThreshold: 50, minimumNumberOfFailures: 10).CreateAccumulator();
 
-        Record(acc, 10, success: false, Timeout()); // enough failures to clear the minimum-count gate
-        Record(acc, 190, success: true); // but drowned out by successes -> 5% failure rate
+        Record(acc, 10, Timeout()); // enough failures to clear the minimum-count gate
+        Record(acc, 190); // but drowned out by successes -> 5% failure rate
 
         // a pure health read confirms we're comfortably under the 50% threshold
         Assert.True(acc.IsHealthy());
@@ -96,10 +96,10 @@ public class CircuitBreakerUnitTests
         var acc = Build(time, failureRateThreshold: 1, minimumNumberOfFailures: 1).CreateAccumulator();
 
         // a flood of *untracked* failures must not trip the breaker...
-        Assert.True(Record(acc, 100, success: false, new InvalidOperationException("not tracked")));
+        Assert.True(Record(acc, 100, new InvalidOperationException("not tracked")));
 
         // ...whereas the same volume of tracked failures does
-        Assert.False(Record(acc, 100, success: false, Timeout()));
+        Assert.False(Record(acc, 100, Timeout()));
     }
 
     [Fact]
@@ -113,10 +113,10 @@ public class CircuitBreakerUnitTests
             trackedExceptions: [typeof(InvalidOperationException)]).CreateAccumulator();
 
         // the default Redis faults are now *un*tracked, so they read as success
-        Assert.True(Record(acc, 100, success: false, Timeout()));
+        Assert.True(Record(acc, 100, Timeout()));
 
         // whereas our nominated type trips it
-        Assert.False(Record(acc, 100, success: false, new InvalidOperationException("tracked")));
+        Assert.False(Record(acc, 100, new InvalidOperationException("tracked")));
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class CircuitBreakerUnitTests
         var acc = Build(time, failureRateThreshold: 50, minimumNumberOfFailures: 1).CreateAccumulator();
 
         // saturate the window with failures -> tripped
-        Assert.False(Record(acc, 100, success: false, Timeout()));
+        Assert.False(Record(acc, 100, Timeout()));
 
         // step past the whole window; the earlier failures should no longer count
         time.Advance(TimeSpan.FromSeconds(11));
@@ -143,7 +143,7 @@ public class CircuitBreakerUnitTests
 
         Assert.True(acc.IsHealthy()); // nothing observed yet
 
-        Assert.False(Record(acc, 100, success: false, Timeout())); // trip it via observations
+        Assert.False(Record(acc, 100, Timeout())); // trip it via observations
 
         // the context-free overload reports the same verdict, purely by reading the window
         Assert.False(acc.IsHealthy());
@@ -156,7 +156,7 @@ public class CircuitBreakerUnitTests
         var acc = Build(time, failureRateThreshold: 50, minimumNumberOfFailures: 1).CreateAccumulator();
 
         // trip it wide open...
-        Assert.False(Record(acc, 100, success: false, Timeout()));
+        Assert.False(Record(acc, 100, Timeout()));
 
         // ...then wipe the slate; the prior failures are forgotten
         acc.Reset();
@@ -198,9 +198,10 @@ public class CircuitBreakerUnitTests
     }
 #endif
 
-    private static bool Record(CircuitBreaker.Accumulator accumulator, int count, bool success, Exception? fault = null)
+    private static bool Record(CircuitBreaker.Accumulator accumulator, int count, Exception? fault = null)
     {
-        var context = new CircuitBreaker.CircuitBreakerContext(success, fault);
+        // success/failure is derived from the presence of a fault; pass a fault for a failure, none for a success
+        var context = new CircuitBreaker.CircuitBreakerContext(fault);
         bool healthy = true;
         for (int i = 0; i < count; i++)
         {

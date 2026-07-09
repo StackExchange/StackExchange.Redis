@@ -315,6 +315,7 @@ namespace StackExchange.Redis
                     var config = members[i].Configuration;
                     config.AbortOnConnectFail = false;
                     config.HeartbeatConsistencyChecks = true;
+                    config.CircuitBreaker ??= options.CircuitBreaker; // AA options flow into the children
                     pending[i] = ConnectionMultiplexer.ConnectAsync(config, log);
                 }
 
@@ -1055,6 +1056,7 @@ namespace StackExchange.Redis
                 // connect
                 member.Init(_members.Length);
                 member.Configuration.HeartbeatConsistencyChecks = true;
+                member.Configuration.CircuitBreaker ??= _options.CircuitBreaker; // AA options flow into the children
                 var muxer = await ConnectionMultiplexer.ConnectAsync(member.Configuration, log).ConfigureAwait(false);
                 member.SetMultiplexer(muxer);
                 var health = await _options.HealthCheck.CheckHealthAsync(muxer).ConfigureAwait(false);

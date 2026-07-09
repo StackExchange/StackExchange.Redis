@@ -36,6 +36,15 @@ public sealed class MultiGroupOptions()
         set => SetField(ref field, value);
     }
 
+    /// <summary>
+    /// The circuit-breaker to use for members of the group when no per-member circuit-breaker is specified.
+    /// </summary>
+    public CircuitBreaker CircuitBreaker
+    {
+        get => field ?? CircuitBreaker.Default;
+        set => SetField(ref field, value);
+    }
+
     // ReSharper disable once RedundantAssignment
     private void SetField<T>(ref T field, T value, [CallerMemberName] string caller = "")
     {

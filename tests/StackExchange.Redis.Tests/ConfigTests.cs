@@ -69,6 +69,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "CertificateSelection",
                 "CertificateValidation",
                 "ChannelPrefix",
+                "CircuitBreaker",
                 "ClientName",
                 "commandMap",
                 "configChannel",

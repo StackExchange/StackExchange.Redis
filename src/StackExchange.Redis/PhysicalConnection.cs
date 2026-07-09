@@ -14,7 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-
+using StackExchange.Redis.Availability;
 using static StackExchange.Redis.Message;
 
 namespace StackExchange.Redis
@@ -113,6 +113,8 @@ namespace StackExchange.Redis
                 _inputCancel = new();
                 _outputCancel = new();
             }
+            // grab a per-connection accumulator from the configured breaker (null when none is configured)
+            circuitBreaker = bridge.Multiplexer.RawConfig.CircuitBreaker?.CreateAccumulator();
             OnCreateEcho();
         }
 
@@ -505,12 +507,12 @@ namespace StackExchange.Redis
             nextMessage = Interlocked.Exchange(ref _awaitingToken, null);
             if (nextMessage is not null)
             {
-                RecordMessageFailed(nextMessage, ex, origin, bridge);
+                RecordMessageFailed(nextMessage, ex, origin, this);
             }
 
             while (TryDequeueLocked(_writtenAwaitingResponse, out nextMessage))
             {
-                RecordMessageFailed(nextMessage, ex, origin, bridge);
+                RecordMessageFailed(nextMessage, ex, origin, this);
             }
 
             // burn the socket
@@ -525,21 +527,22 @@ namespace StackExchange.Redis
             }
         }
 
-        private void RecordMessageFailed(Message next, Exception? ex, string? origin, PhysicalBridge? bridge)
+        private void RecordMessageFailed(Message next, Exception? ex, string? origin, PhysicalConnection? connection)
         {
             if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
             {
                 // fine, death of a socket is close enough
-                next.Complete();
+                next.Complete(this);
             }
             else
             {
-                if (bridge != null)
+                var bridge = connection?.BridgeCouldBeNull;
+                if (bridge is not null)
                 {
                     bridge.Trace("Failing: " + next);
                     bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
                 }
-                next.SetExceptionAndComplete(ex!, bridge);
+                next.SetExceptionAndComplete(ex!, connection);
             }
         }
 
@@ -594,7 +597,7 @@ namespace StackExchange.Redis
                 // we can still process it to avoid making things worse/more complex,
                 // but: we can't reliably assume this works, so: shout now!
                 next.Cancel();
-                next.Complete();
+                next.Complete(null);
             }
 
             bool wasEmpty;
@@ -741,7 +744,7 @@ namespace StackExchange.Redis
 
             lock (_writtenAwaitingResponse)
             {
-                if (_writtenAwaitingResponse.Count != 0 && BridgeCouldBeNull is PhysicalBridge bridge)
+                if (_writtenAwaitingResponse.Count != 0 && BridgeCouldBeNull is { } bridge)
                 {
                     var server = bridge.ServerEndPoint;
                     var multiplexer = bridge.Multiplexer;
@@ -760,7 +763,7 @@ namespace StackExchange.Redis
                                     : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)";
                                 var timeoutEx = ExceptionFactory.Timeout(multiplexer, baseErrorMessage, msg, server);
                                 multiplexer.OnMessageFaulted(msg, timeoutEx);
-                                msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
+                                msg.SetExceptionAndComplete(timeoutEx, this); // tell the message that it is doomed
                                 multiplexer.OnAsyncTimeout();
                                 asyncTimeoutDetected++;
                             }
@@ -1165,6 +1168,18 @@ namespace StackExchange.Redis
                 if (lockTaken) Monitor.Exit(_writtenAwaitingResponse);
             }
         }
+
+        public void ObserveMessageResult(Exception? fault)
+        {
+            // ObserveResult returns true while the connection is still considered healthy; we only
+            // tear down when it reports *un*healthy (i.e. the breaker has tripped)
+            if (circuitBreaker is { } cb && !cb.ObserveResult(fault))
+            {
+                Shutdown(ConnectionFailureType.CircuitBreaker);
+            }
+        }
+
+        private CircuitBreaker.Accumulator? circuitBreaker;
     }
 
     internal sealed class DummyHighIntegrityMessage : Message
