@@ -339,6 +339,13 @@ namespace StackExchange.Redis
                 _options = options;
                 _members = members;
                 _active = null;
+
+                _connectionFailedWithCircuitBreaker = OnMemberConnectionFailed;
+                // multiplexers should already be attached (ConnectAsync sets them before constructing us)
+                foreach (var member in members)
+                {
+                    member.Multiplexer?.ConnectionFailed += _connectionFailedWithCircuitBreaker;
+                }
             }
 
             internal static async Task<bool> TryHealthCheckAndSelectPreferredGroupAsync(object? target)
@@ -627,13 +634,42 @@ namespace StackExchange.Redis
                 }
             }
 
+            private int _circuitBreakerDebounce = 0;
+            private void OnMemberConnectionFailed(object? sender, ConnectionFailedEventArgs e)
+            {
+                // deliberately scoped to this one failure type; re-probe and re-select promptly rather
+                // than waiting for the next poll tick, so traffic routes away from the dropped member
+                if (e.FailureType is ConnectionFailureType.CircuitBreaker
+                    && Interlocked.CompareExchange(ref _circuitBreakerDebounce, 1, 0) is 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await TryHealthCheckAndSelectPreferredGroupAsync(this);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine(ex.Message);
+                        }
+                        finally
+                        {
+                            _circuitBreakerDebounce = 0;
+                        }
+                    });
+                }
+
+                // invoke any custom logic from consumers subscribing to the public events
+                _connectionFailedExternal?.Invoke(sender, e);
+            }
+
             /// <summary>
             /// Subscribe a child multiplexer to all local event handlers that have subscribers.
             /// </summary>
             private void AddEventHandlers(ConnectionMultiplexer muxer)
             {
                 muxer.ErrorMessage += _errorMessage;
-                muxer.ConnectionFailed += _connectionFailed;
+                muxer.ConnectionFailed += _connectionFailedWithCircuitBreaker; // always non-null
                 muxer.InternalError += _internalError;
                 muxer.ConnectionRestored += _connectionRestored;
                 muxer.ConfigurationChanged += _configurationChanged;
@@ -649,7 +685,7 @@ namespace StackExchange.Redis
             {
                 if (muxer is null) return;
                 muxer.ErrorMessage -= _errorMessage;
-                muxer.ConnectionFailed -= _connectionFailed;
+                muxer.ConnectionFailed -= _connectionFailedWithCircuitBreaker; // always non-null
                 muxer.InternalError -= _internalError;
                 muxer.ConnectionRestored -= _connectionRestored;
                 muxer.ConfigurationChanged -= _configurationChanged;
@@ -658,30 +694,15 @@ namespace StackExchange.Redis
                 muxer.HashSlotMoved -= _hashSlotMoved;
             }
 
-            private EventHandler<ConnectionFailedEventArgs>? _connectionFailed;
+            private readonly EventHandler<ConnectionFailedEventArgs> _connectionFailedWithCircuitBreaker;
+
+            private EventHandler<ConnectionFailedEventArgs>? _connectionFailedExternal; // from public callers
 
             public event EventHandler<ConnectionFailedEventArgs>? ConnectionFailed
             {
-                add
-                {
-                    if (AddHandler(ref _connectionFailed, value))
-                    {
-                        foreach (var member in _members)
-                        {
-                            member.Multiplexer.ConnectionFailed += value;
-                        }
-                    }
-                }
-                remove
-                {
-                    if (RemoveHandler(ref _connectionFailed, value))
-                    {
-                        foreach (var member in _members)
-                        {
-                            member.Multiplexer.ConnectionFailed -= value;
-                        }
-                    }
-                }
+                // note we *do not* need to hook/unhook the inner connection - we always subscribe to that
+                add => AddHandler(ref _connectionFailedExternal, value);
+                remove => RemoveHandler(ref _connectionFailedExternal, value);
             }
 
             private EventHandler<InternalErrorEventArgs>? _internalError;
@@ -1063,7 +1084,7 @@ namespace StackExchange.Redis
                 member.UpdateState(health);
 
                 // apply any shared hooks
-                AddEventHandlers(muxer);
+                AddEventHandlers(muxer); // includes circuit-breaker
                 if (_profilingSessionProvider is not null) muxer.RegisterProfiler(_profilingSessionProvider);
                 lock (_suffixes)
                 {
@@ -1161,7 +1182,7 @@ namespace StackExchange.Redis
                 }
 
                 var muxer = member.ClearMultiplexer();
-                RemoveEventHandlers(muxer);
+                RemoveEventHandlers(muxer); // includes circuit-breaker
                 OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Removed, member);
                 SelectPreferredGroup();
                 muxer?.Dispose();

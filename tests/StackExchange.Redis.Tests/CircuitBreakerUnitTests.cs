@@ -205,8 +205,6 @@ public class CircuitBreakerUnitTests
             TimeProvider = time,
         }.Create();
 
-    private static RedisTimeoutException Timeout() => new("timeout", CommandStatus.Unknown);
-
     /// <summary>
     /// A hand-cranked <see cref="TimeProvider"/> whose clock only moves when we tell it to,
     /// so the bucketed metrics window is fully deterministic.
@@ -223,6 +221,8 @@ public class CircuitBreakerUnitTests
         public void Advance(TimeSpan by) => Interlocked.Add(ref _timestamp, by.Ticks);
     }
 #endif
+
+    private static RedisTimeoutException Timeout() => new("timeout", CommandStatus.Unknown);
 
     private static bool Record(CircuitBreaker.Accumulator accumulator, int count, Exception? fault = null)
     {
