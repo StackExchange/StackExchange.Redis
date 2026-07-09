@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace StackExchange.Redis.Availability;
 
@@ -90,6 +93,14 @@ public abstract class CircuitBreaker
     {
         private readonly ExceptionStrategy _trackingStrategy;
         private readonly ImmutableArray<Type> _trackedExceptions;
+        private readonly double _failureRateThreshold;
+        private readonly int _minimumNumberOfFailures;
+
+        // the metrics window is divided into a fixed number of equal time-slices ("buckets");
+        // this lets us keep a rolling count cheaply, evicting whole buckets as they age out,
+        // rather than storing (and pruning) a timestamp per event
+        private const int BucketCount = 10;
+        private readonly long _bucketTicks; // width of one bucket, in Stopwatch ticks
 
         public DefaultCircuitBreaker(
             double failureRateThreshold,
@@ -98,17 +109,104 @@ public abstract class CircuitBreaker
             ImmutableArray<Type> trackedExceptions)
         {
             _trackedExceptions = CheckExceptions(trackedExceptions, out _trackingStrategy);
+            _failureRateThreshold = failureRateThreshold;
+            _minimumNumberOfFailures = minimumNumberOfFailures;
+
+            long windowTicks = (long)(metricsWindowSize.TotalSeconds * Stopwatch.Frequency);
+            _bucketTicks = Math.Max(1, windowTicks / BucketCount);
         }
 
         public override Accumulator CreateAccumulator() => new DefaultAccumulator(this);
 
-        internal class DefaultAccumulator(DefaultCircuitBreaker breaker) : Accumulator
+        private sealed class DefaultAccumulator(DefaultCircuitBreaker breaker) : Accumulator
         {
+            // ring of buckets; each holds the counts for a single time-slice, tagged with the
+            // slice ("epoch") it currently represents so we can tell live buckets from stale ones
+#if NET8_0_OR_GREATER
+            // inline it directly into the accumulator
+            private BucketRing _buckets; // cannot be "readonly", else the indexer is "ref readonly"
+            [InlineArray(BucketCount)]
+            private struct BucketRing
+            {
+                private Bucket _element0;
+            }
+#else
+            // fallback to a separate heap array
+            private readonly Bucket[] _buckets = new Bucket[BucketCount];
+#endif
+
+            private struct Bucket
+            {
+                private long _epoch;
+                private volatile int _success, _failure;
+
+                // note that Volatile guarantees atomicity (even on x86), so no torn values here
+                // see https://learn.microsoft.com/dotnet/api/system.threading.volatile
+                public long Epoch => Volatile.Read(ref _epoch);
+
+                public int Success => _success;
+                public int Failure => _failure;
+
+                public void Count(long epoch, bool success)
+                {
+                    if (epoch != Epoch)
+                    {
+                        // epoch rollover; clear the counts first, to prevent anyone over-counting
+                        // in their count loop (under-counting is fine); dropped counts are self-correcting
+                        // if there's an actual problem, stale data misread as current: is not.
+                        _success = _failure = 0;
+                        Volatile.Write(ref _epoch, epoch);
+
+                        // if we want to get *super* accurate, we could use bit-packing here and use
+                        // CAS over a 64-bit value, but we'd need to compromise on count upper bounds
+                        // *and* we'd need to consider the max epoch problem - maybe 32 bits for epoch
+                        // and 16 bits for each count, but... let's keep things simple and accept a
+                        // few dropped counts instead, and luxuriate in unreasonably fat epochs and counts.
+                    }
+                    // ReSharper disable ByRefArgumentIsVolatileField
+                    Interlocked.Increment(ref success ? ref _success : ref _failure);
+                    // ReSharper restore ByRefArgumentIsVolatileField
+                }
+            }
+
             public override bool IsHealthy(in CircuitBreakerContext context)
             {
-                bool tracked = context.Fault is { } ex && breaker.IsTracked(ex);
-                // if not tracked, it counts as success - probably the server telling them not to do silly things
-                return true;
+                // not-tracked failures (based on exception type) count as "success" for the purposes of circuit breaking
+                bool countAsSuccess = context.Success || !breaker.IsTracked(context.Fault);
+
+                // which time-slice are we in, and where does it live in the ring?
+                long epoch = Stopwatch.GetTimestamp() / breaker._bucketTicks;
+                int index = (int)(epoch % BucketCount);
+
+                // note: to avoid concurrency problems, we're going lock-free here; *technically* this
+                // might mean we see race oddities during epoch rollovers, but in general that means we're
+                // miscounting by a tiny amount during intervals when there's enough load to get a race,
+                // in which case: we're probably fine; also, note that when tracking by endpoint, we're
+                // only getting results one at a time, so we shouldn't be over-stomping much *anyway*
+                ref Bucket bucket = ref _buckets[index];
+                bucket.Count(epoch, countAsSuccess);
+
+                // sum only the buckets still inside the window; anything older is ignored
+                // (and contributes nothing even if left un-recycled). empty/never-used buckets
+                // add zero, so no explicit "unused" sentinel is required
+                long oldest = epoch - BucketCount + 1;
+                int failures, total = failures = 0;
+                foreach (ref readonly Bucket b in _buckets)
+                {
+                    if (b.Epoch < oldest) continue;
+
+                    int failure;
+                    failures += failure = b.Failure; // capture to avoid double-read (think epoch rollover)
+                    total += b.Success + failure;
+                }
+
+                // don't act until we've seen enough failures to be statistically meaningful
+                if (total is 0 | failures < breaker._minimumNumberOfFailures)
+                {
+                    return true;
+                }
+                double failureRate = (failures * 100d) / total;
+                return failureRate < breaker._failureRateThreshold;
             }
         }
 
@@ -163,8 +261,9 @@ public abstract class CircuitBreaker
             return tracked;
         }
 
-        private bool IsTracked(Exception fault)
+        private bool IsTracked(Exception? fault)
         {
+            if (fault is null) return false;
             switch (_trackingStrategy)
             {
                 case ExceptionStrategy.Any:
@@ -196,5 +295,3 @@ public abstract class CircuitBreaker
         }
     }
 }
-
-
