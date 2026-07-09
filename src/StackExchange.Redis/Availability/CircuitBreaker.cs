@@ -1,5 +1,7 @@
 ﻿using System;
+#if !NET8_0_OR_GREATER
 using System.Diagnostics;
+#endif
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -36,7 +38,10 @@ public abstract class CircuitBreaker
             DefaultFailureRateThreshold,
             DefaultMinimumNumberOfFailures,
             DefaultMetricsWindowSize,
-            null);
+#if NET8_0_OR_GREATER
+            timeProvider: null,
+#endif
+            trackedExceptions: null);
 
         /// <summary>
         /// Percentage of failures to trigger circuit breaker.
@@ -54,19 +59,36 @@ public abstract class CircuitBreaker
         /// </summary>
         public TimeSpan MetricsWindowSize { get; set; } = DefaultMetricsWindowSize;
 
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Time source used to drive the metrics window; when null, the system clock is used.
+        /// Intended for testing, to make the time-windowed logic deterministic.
+        /// </summary>
+        internal TimeProvider? TimeProvider { get; set; }
+#endif
+
         /// <summary>
         /// Create a new circuit-breaker instance.
         /// </summary>
         public CircuitBreaker Create()
         {
-            if ((FailureRateThreshold is DefaultFailureRateThreshold &
-                 MinimumNumberOfFailures is DefaultMinimumNumberOfFailures &
-                 TrackedExceptions is null)
+            if ((FailureRateThreshold is DefaultFailureRateThreshold
+                 & MinimumNumberOfFailures is DefaultMinimumNumberOfFailures
+#if NET8_0_OR_GREATER
+                 & TimeProvider is null
+#endif
+                 & TrackedExceptions is null)
                 && MetricsWindowSize == DefaultMetricsWindowSize)
                 return DefaultInstance;
 
             return new DefaultCircuitBreaker(
-                FailureRateThreshold, MinimumNumberOfFailures, MetricsWindowSize, TrackedExceptions);
+                FailureRateThreshold,
+                MinimumNumberOfFailures,
+                MetricsWindowSize,
+#if NET8_0_OR_GREATER
+                TimeProvider,
+#endif
+                TrackedExceptions);
         }
 
         /// <summary>
@@ -92,16 +114,27 @@ public abstract class CircuitBreaker
     public abstract class Accumulator
     {
         /// <summary>
-        /// Respond to a message outcome, and indicate whether the connection is considered healthy.
+        /// Record a message outcome, and indicate whether the connection is considered healthy.
         /// </summary>
         /// <returns>True if the connection is still considered healthy.</returns>
-        public abstract bool IsHealthy(in CircuitBreakerContext context);
+        public abstract bool ObserveResult(in CircuitBreakerContext context);
+
+        /// <summary>
+        /// Indicate whether the connection is currently considered healthy, without recording an observation.
+        /// </summary>
+        /// <returns>True if the connection is considered healthy.</returns>
+        public abstract bool IsHealthy();
+
+        /// <summary>
+        /// Discard all accumulated observations, returning to a clean state.
+        /// </summary>
+        public abstract void Reset();
     }
 
     /// <summary>
     /// Provides information about a circuit-breaker test.
     /// </summary>
-    public readonly struct CircuitBreakerContext(bool success, Exception? fault)
+    public readonly struct CircuitBreakerContext(bool success, Exception? fault, bool evaluate = true)
     {
         /// <summary>
         /// Was the operation a success.
@@ -112,6 +145,8 @@ public abstract class CircuitBreaker
         /// The fault associated with the operation.
         /// </summary>
         public Exception? Fault => fault;
+
+        internal bool Evaluate => evaluate;
     }
 
     private enum ExceptionStrategy
@@ -133,7 +168,9 @@ public abstract class CircuitBreaker
         {
             public static readonly NulAccumulator AccumulatorInstance = new();
             private NulAccumulator() { }
-            public override bool IsHealthy(in CircuitBreakerContext context) => true;
+            public override bool ObserveResult(in CircuitBreakerContext context) => true;
+            public override bool IsHealthy() => true;
+            public override void Reset() { }
         }
     }
     private sealed class DefaultCircuitBreaker : CircuitBreaker
@@ -147,19 +184,43 @@ public abstract class CircuitBreaker
         // this lets us keep a rolling count cheaply, evicting whole buckets as they age out,
         // rather than storing (and pruning) a timestamp per event
         private const int BucketCount = 10;
-        private readonly long _bucketTicks; // width of one bucket, in Stopwatch ticks
+        private readonly long _bucketTicks; // width of one bucket, in high-resolution ticks
+
+#if NET8_0_OR_GREATER
+        private readonly TimeProvider _time;
+#endif
+
+        // which time-slice ("epoch") are we in right now: the high-resolution timestamp (from
+        // TimeProvider where available, so tests can drive it; otherwise the Stopwatch clock)
+        // divided down to bucket width
+        private long GetEpoch() =>
+#if NET8_0_OR_GREATER
+            _time.GetTimestamp()
+#else
+            Stopwatch.GetTimestamp()
+#endif
+            / _bucketTicks;
 
         public DefaultCircuitBreaker(
             double failureRateThreshold,
             int minimumNumberOfFailures,
             TimeSpan metricsWindowSize,
+#if NET8_0_OR_GREATER
+            TimeProvider? timeProvider,
+#endif
             Type[]? trackedExceptions)
         {
             _trackedExceptions = CheckExceptions(trackedExceptions, out _trackingStrategy);
             _failureRateThreshold = failureRateThreshold;
             _minimumNumberOfFailures = minimumNumberOfFailures;
 
-            long windowTicks = (long)(metricsWindowSize.TotalSeconds * Stopwatch.Frequency);
+#if NET8_0_OR_GREATER
+            _time = timeProvider ?? TimeProvider.System;
+            long frequency = _time.TimestampFrequency;
+#else
+            long frequency = Stopwatch.Frequency;
+#endif
+            long windowTicks = (long)(metricsWindowSize.TotalSeconds * frequency);
             _bucketTicks = Math.Max(1, windowTicks / BucketCount);
         }
 
@@ -175,6 +236,8 @@ public abstract class CircuitBreaker
             [InlineArray(BucketCount)]
             private struct BucketRing
             {
+                // beware init rules; we're OK in this case because _buckets is in a field on a heap object,
+                // but if BucketRing was ever used as a local: [SkipLocalsInit] rules can apply.
                 private Bucket _element0;
             }
 #else
@@ -214,15 +277,23 @@ public abstract class CircuitBreaker
                     Interlocked.Increment(ref success ? ref _success : ref _failure);
                     // ReSharper restore ByRefArgumentIsVolatileField
                 }
+
+                public void Reset()
+                {
+                    // clear the counts first (as in Count), so a concurrent count-loop reader never
+                    // attributes these stale counts to the epoch; then blank the epoch back to "unused"
+                    _success = _failure = 0;
+                    Volatile.Write(ref _epoch, 0);
+                }
             }
 
-            public override bool IsHealthy(in CircuitBreakerContext context)
+            public override bool ObserveResult(in CircuitBreakerContext context)
             {
                 // not-tracked failures (based on exception type) count as "success" for the purposes of circuit breaking
                 bool countAsSuccess = context.Success || !breaker.IsTracked(context.Fault);
 
                 // which time-slice are we in, and where does it live in the ring?
-                long epoch = Stopwatch.GetTimestamp() / breaker._bucketTicks;
+                long epoch = breaker.GetEpoch();
                 int index = (int)(epoch % BucketCount);
 
                 // note: to avoid concurrency problems, we're going lock-free here; *technically* this
@@ -234,11 +305,21 @@ public abstract class CircuitBreaker
                 ref Bucket bucket = ref buckets[index];
                 bucket.Count(epoch, countAsSuccess);
 
+                return !context.Evaluate || Evaluate(epoch);
+            }
+
+            public override bool IsHealthy() => Evaluate(breaker.GetEpoch());
+
+            // evaluate health from the buckets still inside the window ending at the given epoch,
+            // without recording anything; shared by ObserveResult and IsHealthy
+            private bool Evaluate(long epoch)
+            {
                 // sum only the buckets still inside the window; anything older is ignored
                 // (and contributes nothing even if left un-recycled). empty/never-used buckets
                 // add zero, so no explicit "unused" sentinel is required
                 long oldest = epoch - BucketCount + 1;
                 int failures, total = failures = 0;
+                Span<Bucket> buckets = _buckets; // *not* a payload copy; this is in-place over the data
                 foreach (ref readonly Bucket b in buckets)
                 {
                     if (b.Epoch < oldest) continue;
@@ -255,6 +336,15 @@ public abstract class CircuitBreaker
                 }
                 double failureRate = (failures * 100d) / total;
                 return failureRate < breaker._failureRateThreshold;
+            }
+
+            public override void Reset()
+            {
+                Span<Bucket> buckets = _buckets; // in-place over the data, not a copy
+                foreach (ref Bucket b in buckets)
+                {
+                    b.Reset();
+                }
             }
         }
 

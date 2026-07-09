@@ -40,7 +40,9 @@ static StackExchange.Redis.Configuration.LoggingTunnel.ReplayAsync(string! path,
 static StackExchange.Redis.Configuration.LoggingTunnel.ReplayAsync(System.IO.Stream! out, System.IO.Stream! in, System.Action<StackExchange.Redis.RedisResult!, StackExchange.Redis.RedisResult!>! pair) -> System.Threading.Tasks.Task<long>!
 static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(string! path) -> System.Threading.Tasks.Task<long>!
 static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(System.IO.Stream! stream) -> System.Threading.Tasks.Task<long>!
-[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsHealthy(in StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext context) -> bool
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsHealthy() -> bool
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.ObserveResult(in StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext context) -> bool
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.Reset() -> void
 [SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.CreateAccumulator() -> StackExchange.Redis.Availability.CircuitBreaker.Accumulator!
 [SER007]StackExchange.Redis.Availability.CircuitBreaker
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Accumulator
@@ -59,7 +61,7 @@ static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(System.IO.S
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreaker() -> void
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext() -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext(bool success, System.Exception? fault) -> void
+[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext(bool success, System.Exception? fault, bool evaluate = true) -> void
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.Fault.get -> System.Exception?
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.Success.get -> bool
 [SER007]static StackExchange.Redis.Availability.CircuitBreaker.Builder.implicit operator StackExchange.Redis.Availability.CircuitBreaker!(StackExchange.Redis.Availability.CircuitBreaker.Builder! builder) -> StackExchange.Redis.Availability.CircuitBreaker!
