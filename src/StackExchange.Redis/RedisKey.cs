@@ -222,7 +222,7 @@ namespace StackExchange.Redis
 
         internal RedisValue AsRedisValue()
         {
-            if (KeyPrefix == null && KeyValue is string keyString) return keyString;
+            if (KeyPrefix == null && KeyValue is string keyString) return keyString.AsRedisValue();
             return (byte[]?)this;
         }
 

@@ -13,7 +13,12 @@
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
         public const string Server_8_8 = "SER006";
+
         // ReSharper restore InconsistentNaming
+
+        // this one is not a real experiment; it exists to help me
+        // spot bad API uses, via a DEBUG symbol
+        public const string StringToRedisValue = "StringToRedisValue";
     }
 }
 

@@ -55,13 +55,13 @@ namespace StackExchange.Redis
 
         public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint));
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, Format.ToString(endpoint).AsRedisValue());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, (RedisValue)Format.ToString(endpoint));
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.KILL, Format.ToString(endpoint).AsRedisValue());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
@@ -602,19 +602,20 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DateTime);
         }
 
+        private static readonly RedisValue NO = RedisValue.FromRaw("NO"u8), ONE = RedisValue.FromRaw("ONE"u8);
         internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint? primaryEndpoint, CommandFlags flags = CommandFlags.None)
         {
             RedisValue host, port;
             if (primaryEndpoint == null)
             {
-                host = "NO";
-                port = "ONE";
+                host = NO;
+                port = ONE;
             }
             else
             {
                 if (Format.TryGetHostPort(primaryEndpoint, out string? hostRaw, out int? portRaw))
                 {
-                    host = hostRaw;
+                    host = hostRaw.AsRedisValue();
                     port = portRaw;
                 }
                 else
@@ -934,61 +935,61 @@ namespace StackExchange.Redis
 
         public EndPoint? SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, serviceName.AsRedisValue());
             return ExecuteSync(msg, ResultProcessor.SentinelPrimaryEndpoint);
         }
 
         public Task<EndPoint?> SentinelGetMasterAddressByNameAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, serviceName.AsRedisValue());
             return ExecuteAsync(msg, ResultProcessor.SentinelPrimaryEndpoint);
         }
 
         public EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, serviceName.AsRedisValue());
             return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
         }
 
         public Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, serviceName.AsRedisValue());
             return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
         }
 
         public EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, serviceName.AsRedisValue());
             return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
         }
 
         public Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, serviceName.AsRedisValue());
             return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
         }
 
         public KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, serviceName.AsRedisValue());
             return ExecuteSync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
         }
 
         public Task<KeyValuePair<string, string>[]> SentinelMasterAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, serviceName.AsRedisValue());
             return ExecuteAsync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
         }
 
         public void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, serviceName.AsRedisValue());
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, serviceName.AsRedisValue());
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
@@ -1010,7 +1011,7 @@ namespace StackExchange.Redis
 
         public KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, serviceName.AsRedisValue());
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
@@ -1020,19 +1021,19 @@ namespace StackExchange.Redis
 
         public Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, serviceName.AsRedisValue());
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
         public KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, serviceName.AsRedisValue());
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
         public Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, serviceName.AsRedisValue());
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
         }
 
@@ -1096,12 +1097,12 @@ namespace StackExchange.Redis
                 case 0:
                     return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET);
                 case 1:
-                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET, (RedisValue)eventNames[0]);
+                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET, eventNames[0].AsRedisValue());
                 default:
                     var arr = new RedisValue[eventNames.Length + 1];
                     arr[0] = RedisLiterals.RESET;
                     for (int i = 0; i < eventNames.Length; i++)
-                        arr[i + 1] = eventNames[i];
+                        arr[i + 1] = eventNames[i].AsRedisValue();
                     return Message.Create(-1, flags, RedisCommand.LATENCY, arr);
             }
         }
@@ -1119,13 +1120,13 @@ namespace StackExchange.Redis
 
         public Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, (RedisValue)eventName);
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, eventName.AsRedisValue());
             return ExecuteAsync(msg, LatencyHistoryEntry.ToArray, defaultValue: Array.Empty<LatencyHistoryEntry>());
         }
 
         public LatencyHistoryEntry[] LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, (RedisValue)eventName);
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, eventName.AsRedisValue());
             return ExecuteSync(msg, LatencyHistoryEntry.ToArray, defaultValue: Array.Empty<LatencyHistoryEntry>());
         }
 

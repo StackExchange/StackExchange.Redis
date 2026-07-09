@@ -80,12 +80,62 @@ internal readonly ref struct MessageWriter
     internal void WriteBulkString(in RedisValue value)
         => WriteBulkString(value, _writer);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void WriteBulkString(in RedisKey key)
+    {
+        if (key.IsNull)
+        {
+            WriteRaw(NullBulkString);
+        }
+        else if (key.IsEmpty)
+        {
+            WriteRaw(EmptyBulkString);
+        }
+        else if (key.KeyPrefix is { Length: > 1 })
+        {
+            // this has been optimized in the experimental 3.2+ branch
+            byte[]? lease = null;
+            var maxLen = key.MaxByteCount();
+            Span<byte> span = maxLen <= 128 ? stackalloc byte[128] : (lease = ArrayPool<byte>.Shared.Rent(maxLen));
+            var len = key.CopyTo(span);
+            WriteBulkString(span.Slice(0, len));
+            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+        }
+        else if (key.KeyValue is string s)
+        {
+            // no prefix and not null/empty; value can be string...
+            WriteBulkString(s);
+        }
+        else
+        {
+            // ...or a blob
+            WriteBulkString((byte[])key.KeyValue!);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void WriteBulkString(string? value)
+    {
+        if (value is null)
+        {
+            WriteRaw(NullBulkString);
+        }
+        else if (value.Length is 0)
+        {
+            WriteRaw(EmptyBulkString);
+        }
+        else
+        {
+            WriteUnifiedPrefixedString(_writer, null, value);
+        }
+    }
+
     internal static void WriteBulkString(in RedisValue value, IBufferWriter<byte> writer)
     {
         switch (value.Type)
         {
             case RedisValue.StorageType.Null:
-                WriteUnifiedBlob(writer, (byte[]?)null);
+                writer.Write(NullBulkString);
                 break;
             case RedisValue.StorageType.Int64:
                 WriteUnifiedInt64(writer, value.OverlappedValueInt64);

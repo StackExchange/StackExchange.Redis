@@ -1020,14 +1020,14 @@ namespace StackExchange.Redis
             if (!string.IsNullOrWhiteSpace(user) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
             {
                 log?.LogInformationAuthenticatingUserPassword(new(this));
-                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, (RedisValue)user, (RedisValue)password);
+                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, user.AsRedisValue(), password.AsRedisValue());
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
             else if (!string.IsNullOrWhiteSpace(password) && Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH))
             {
                 log?.LogInformationAuthenticatingPassword(new(this));
-                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, (RedisValue)password);
+                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, password.AsRedisValue());
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
@@ -1037,7 +1037,7 @@ namespace StackExchange.Redis
                 if (!string.IsNullOrWhiteSpace(clientName))
                 {
                     log?.LogInformationSettingClientName(new(this), clientName);
-                    msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETNAME, (RedisValue)clientName);
+                    msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETNAME, clientName.AsRedisValue());
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                 }
@@ -1051,7 +1051,7 @@ namespace StackExchange.Redis
                     var libName = Multiplexer.GetFullLibraryName();
                     if (!string.IsNullOrWhiteSpace(libName))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_name, libName);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_name, libName.AsRedisValue());
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
@@ -1059,7 +1059,7 @@ namespace StackExchange.Redis
                     var version = ClientInfoSanitize(Utils.GetLibVersion());
                     if (!string.IsNullOrWhiteSpace(version))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version.AsRedisValue());
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }

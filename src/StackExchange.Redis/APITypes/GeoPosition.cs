@@ -7,12 +7,12 @@ namespace StackExchange.Redis;
 /// </summary>
 public readonly struct GeoPosition : IEquatable<GeoPosition>
 {
-    internal static string GetRedisUnit(GeoUnit unit) => unit switch
+    internal static RedisValue GetRedisUnit(GeoUnit unit) => unit switch
     {
-        GeoUnit.Meters => "m",
-        GeoUnit.Kilometers => "km",
-        GeoUnit.Miles => "mi",
-        GeoUnit.Feet => "ft",
+        GeoUnit.Meters => RedisLiterals.m,
+        GeoUnit.Kilometers => RedisLiterals.km,
+        GeoUnit.Miles => RedisLiterals.mi,
+        GeoUnit.Feet => RedisLiterals.ft,
         _ => throw new ArgumentOutOfRangeException(nameof(unit)),
     };
 

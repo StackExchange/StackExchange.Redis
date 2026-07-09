@@ -231,7 +231,7 @@ namespace StackExchange.Redis
             }
 
             var nodes = _serverSnapshot; // same as GetServerSnapshot(), but doesn't force span
-            RedisValue newPrimary = Format.ToString(server.EndPoint);
+            var newPrimary = Format.ToString(server.EndPoint);
 
             // try and write this everywhere; don't worry if some folks reject our advances
             if (RawConfig.TryGetTieBreaker(out var tieBreakerKey)
@@ -242,7 +242,7 @@ namespace StackExchange.Redis
                 {
                     if (!node.IsConnected || node.IsReplica) continue;
                     log?.LogInformationAttemptingToSetTieBreaker(new(node.EndPoint));
-                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
+                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary.AsRedisValue());
                     try
                     {
                         await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
@@ -267,7 +267,7 @@ namespace StackExchange.Redis
             if (!tieBreakerKey.IsNull && !server.IsReplica)
             {
                 log?.LogInformationResendingTieBreaker(new(server.EndPoint));
-                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary);
+                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary.AsRedisValue());
                 try
                 {
                     await server.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
@@ -298,7 +298,7 @@ namespace StackExchange.Redis
                     {
                         if (!node.IsConnected) continue;
                         log?.LogInformationBroadcastingViaNode(new(node.EndPoint));
-                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary);
+                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary.AsRedisValue());
                         await node.WriteDirectAsync(msg, ResultProcessor.Int64).ForAwait();
                     }
                 }

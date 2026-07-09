@@ -938,10 +938,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             RedisKey.ConcatenateBytes(Prefix, null, (byte[]?)outer);
 
         protected RedisValue SortByToInner(RedisValue outer) =>
-            (outer == "nosort") ? outer : ToInner(outer);
+            (outer == RedisLiterals.nosort) ? outer : ToInner(outer);
 
         protected RedisValue SortGetToInner(RedisValue outer) =>
-            (outer == "#") ? outer : ToInner(outer);
+            (outer == RedisLiterals.HashSymbol) ? outer : ToInner(outer);
 
         [return: NotNullIfNotNull("outer")]
         protected RedisValue[]? SortGetToInner(RedisValue[]? outer)

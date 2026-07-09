@@ -172,8 +172,14 @@ namespace StackExchange.Redis
             }
 
             if (values.Length == 0) return Array.Empty<RedisValue>();
-            return Array.ConvertAll(values, x => (RedisValue)x);
+            return Array.ConvertAll(values, x => x.AsRedisValue());
         }
+
+        // just like the implicit conversion operator, but by making it
+        // explicit, we're making it very clear that this is intentional,
+        // and avoiding the DEBUG check
+        internal static RedisValue AsRedisValue(this string? value)
+            => value is null ? RedisValue.Null : new(value);
 
         /// <summary>
         /// Create an array of strings from an array of values.

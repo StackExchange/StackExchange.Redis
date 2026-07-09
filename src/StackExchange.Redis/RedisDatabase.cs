@@ -1311,7 +1311,8 @@ namespace StackExchange.Redis
             private readonly MigrateOptions migrateOptions;
             private readonly int timeoutMilliseconds;
             private readonly int toDatabase;
-            private readonly RedisValue toHost, toPort;
+            private readonly string toHost;
+            private readonly int toPort;
 
             public KeyMigrateCommandMessage(int db, RedisKey key, EndPoint toServer, int toDatabase, int timeoutMilliseconds, MigrateOptions migrateOptions, CommandFlags flags)
                 : base(db, flags, RedisCommand.MIGRATE, key)
@@ -1319,7 +1320,7 @@ namespace StackExchange.Redis
                 if (toServer == null) throw new ArgumentNullException(nameof(toServer));
                 if (!Format.TryGetHostPort(toServer, out string? toHost, out int? toPort)) throw new ArgumentException($"Couldn't get host and port from {toServer}", nameof(toServer));
                 this.toHost = toHost;
-                this.toPort = toPort;
+                this.toPort = toPort.Value;
                 if (toDatabase < 0) throw new ArgumentOutOfRangeException(nameof(toDatabase));
                 this.toDatabase = toDatabase;
                 this.timeoutMilliseconds = timeoutMilliseconds;
@@ -4392,7 +4393,7 @@ namespace StackExchange.Redis
             {
                 if ((exclude & Exclude.Stop) == 0) return value; // inclusive is default
             }
-            return "(" + Format.ToString(value); // '(' prefix means exclusive
+            return ("(" + Format.ToString(value)).AsRedisValue(); // '(' prefix means exclusive
         }
 
         private Message GetRestoreMessage(RedisKey key, byte[] value, TimeSpan? expiry, CommandFlags flags)
@@ -4898,7 +4899,7 @@ namespace StackExchange.Redis
             values[offset++] = groupName;
             if (minIdleTimeInMs is not null)
             {
-                values[offset++] = "IDLE";
+                values[offset++] = RedisLiterals.IDLE;
                 values[offset++] = minIdleTimeInMs;
             }
             values[offset++] = minId ?? StreamConstants.ReadMinValue;
@@ -5480,7 +5481,7 @@ namespace StackExchange.Redis
             {
                 writer.WriteHeader(Command, 2);
                 writer.WriteRaw("$4\r\nLOAD\r\n"u8);
-                writer.WriteBulkString((RedisValue)Script);
+                writer.WriteBulkString(Script);
             }
             public override int ArgCount => 2;
         }
@@ -5675,12 +5676,12 @@ namespace StackExchange.Redis
                 else if (asciiHash != null)
                 {
                     writer.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
-                    writer.WriteBulkString((RedisValue)asciiHash);
+                    writer.WriteBulkString(asciiHash);
                 }
                 else
                 {
                     writer.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
-                    writer.WriteBulkString((RedisValue)script);
+                    writer.WriteBulkString(script);
                 }
                 writer.WriteBulkString(keys.Length);
                 for (int i = 0; i < keys.Length; i++)
@@ -5757,15 +5758,15 @@ namespace StackExchange.Redis
 
             RedisValue formattedStart = exclude switch
             {
-                Exclude.Both or Exclude.Start => $"({start}",
-                _ when sortedSetOrder == SortedSetOrder.ByLex => $"[{start}",
+                Exclude.Both or Exclude.Start => $"({start}".AsRedisValue(),
+                _ when sortedSetOrder == SortedSetOrder.ByLex => $"[{start}".AsRedisValue(),
                 _ => start,
             };
 
             RedisValue formattedStop = exclude switch
             {
-                Exclude.Both or Exclude.Stop => $"({stop}",
-                _ when sortedSetOrder == SortedSetOrder.ByLex => $"[{stop}",
+                Exclude.Both or Exclude.Stop => $"({stop}".AsRedisValue(),
+                _ when sortedSetOrder == SortedSetOrder.ByLex => $"[{stop}".AsRedisValue(),
                 _ => stop,
             };
 
