@@ -1,36 +1,73 @@
 ﻿using System;
-using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using RESPite;
 
 namespace StackExchange.Redis.Availability;
 
+/// <summary>
+/// Reports connection health by responding to observed success and failure conditions of processed messages.
+/// </summary>
+[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
 public abstract class CircuitBreaker
 {
+    /// <summary>
+    /// Default circuit-breaker logic.
+    /// </summary>
+    public static CircuitBreaker Default => Builder.DefaultInstance;
+
+    /// <summary>
+    /// No circuit-breaker logic is applied.
+    /// </summary>
+    public static CircuitBreaker None => NulCircuitBreaker.Instance;
+
+    /// <summary>
+    /// Allows configuration of the default <see cref="CircuitBreaker"/> implementation.
+    /// </summary>
     public class Builder
     {
+        private const double DefaultFailureRateThreshold = 10;
+        private const int DefaultMinimumNumberOfFailures = 1000;
+        private static readonly TimeSpan DefaultMetricsWindowSize = TimeSpan.FromSeconds(2);
+
+        internal static CircuitBreaker DefaultInstance = new DefaultCircuitBreaker(
+            DefaultFailureRateThreshold,
+            DefaultMinimumNumberOfFailures,
+            DefaultMetricsWindowSize,
+            null);
+
         /// <summary>
         /// Percentage of failures to trigger circuit breaker.
         /// </summary>
         /// <remarks>Failures are only included if they are of tracked exception types.</remarks>
-        public double FailureRateThreshold { get; set; } = 10;
+        public double FailureRateThreshold { get; set; } = DefaultFailureRateThreshold;
 
         /// <summary>
         /// Minimum failures before circuit breaker can open.
         /// </summary>
-        public int MinimumNumberOfFailures { get; set; } = 1000;
+        public int MinimumNumberOfFailures { get; set; } = DefaultMinimumNumberOfFailures;
 
         /// <summary>
         /// Time window for collecting metrics.
         /// </summary>
-        public TimeSpan MetricsWindowSize { get; set; } = TimeSpan.FromSeconds(2);
+        public TimeSpan MetricsWindowSize { get; set; } = DefaultMetricsWindowSize;
 
         /// <summary>
         /// Create a new circuit-breaker instance.
         /// </summary>
-        public CircuitBreaker Create() => new DefaultCircuitBreaker(
-            FailureRateThreshold, MinimumNumberOfFailures, MetricsWindowSize, TrackedExceptions);
+        public CircuitBreaker Create()
+        {
+            if ((FailureRateThreshold is DefaultFailureRateThreshold &
+                 MinimumNumberOfFailures is DefaultMinimumNumberOfFailures &
+                 TrackedExceptions is null)
+                && MetricsWindowSize == DefaultMetricsWindowSize)
+                return DefaultInstance;
+
+            return new DefaultCircuitBreaker(
+                FailureRateThreshold, MinimumNumberOfFailures, MetricsWindowSize, TrackedExceptions);
+        }
 
         /// <summary>
         /// Create a new circuit-breaker instance.
@@ -38,14 +75,11 @@ public abstract class CircuitBreaker
         public static implicit operator CircuitBreaker(Builder builder) => builder.Create();
 
         /// <summary>
-        /// Exceptions that count as failures.
+        /// Exceptions that count as failures. When null, <see cref="RedisConnectionException"/>
+        /// and <see cref="RedisTimeoutException"/> are assumed.
         /// </summary>
-        public ImmutableArray<Type> TrackedExceptions { get; set; } = TrackedExceptionsDefault;
+        public Type[]? TrackedExceptions { get; set; }
     }
-
-    // important: if this changes, update the _isDefaultExceptions logic
-    private static readonly ImmutableArray<Type> TrackedExceptionsDefault =
-        new[] { typeof(RedisConnectionException), typeof(RedisTimeoutException) }.ToImmutableArray();
 
     /// <summary>
     /// Create an object to collate observations for a connection.
@@ -89,10 +123,23 @@ public abstract class CircuitBreaker
         CustomSealed,
     }
 
+    private sealed class NulCircuitBreaker : CircuitBreaker
+    {
+        public static readonly NulCircuitBreaker Instance = new();
+        private NulCircuitBreaker() { }
+        public override Accumulator CreateAccumulator() => NulAccumulator.AccumulatorInstance;
+
+        private sealed class NulAccumulator : Accumulator
+        {
+            public static readonly NulAccumulator AccumulatorInstance = new();
+            private NulAccumulator() { }
+            public override bool IsHealthy(in CircuitBreakerContext context) => true;
+        }
+    }
     private sealed class DefaultCircuitBreaker : CircuitBreaker
     {
         private readonly ExceptionStrategy _trackingStrategy;
-        private readonly ImmutableArray<Type> _trackedExceptions;
+        private readonly Type[] _trackedExceptions;
         private readonly double _failureRateThreshold;
         private readonly int _minimumNumberOfFailures;
 
@@ -106,7 +153,7 @@ public abstract class CircuitBreaker
             double failureRateThreshold,
             int minimumNumberOfFailures,
             TimeSpan metricsWindowSize,
-            ImmutableArray<Type> trackedExceptions)
+            Type[]? trackedExceptions)
         {
             _trackedExceptions = CheckExceptions(trackedExceptions, out _trackingStrategy);
             _failureRateThreshold = failureRateThreshold;
@@ -183,7 +230,8 @@ public abstract class CircuitBreaker
                 // miscounting by a tiny amount during intervals when there's enough load to get a race,
                 // in which case: we're probably fine; also, note that when tracking by endpoint, we're
                 // only getting results one at a time, so we shouldn't be over-stomping much *anyway*
-                ref Bucket bucket = ref _buckets[index];
+                Span<Bucket> buckets = _buckets; // *not* a payload copy; this is in-place over the data
+                ref Bucket bucket = ref buckets[index];
                 bucket.Count(epoch, countAsSuccess);
 
                 // sum only the buckets still inside the window; anything older is ignored
@@ -191,7 +239,7 @@ public abstract class CircuitBreaker
                 // add zero, so no explicit "unused" sentinel is required
                 long oldest = epoch - BucketCount + 1;
                 int failures, total = failures = 0;
-                foreach (ref readonly Bucket b in _buckets)
+                foreach (ref readonly Bucket b in buckets)
                 {
                     if (b.Epoch < oldest) continue;
 
@@ -210,42 +258,43 @@ public abstract class CircuitBreaker
             }
         }
 
-        private static ImmutableArray<Type> CheckExceptions(ImmutableArray<Type> tracked, out ExceptionStrategy strategy)
+        private static Type[] CheckExceptions(Type[]? tracked, out ExceptionStrategy strategy)
         {
-            if (tracked.IsDefaultOrEmpty)
+            if (tracked is null)
+            {
+                strategy = ExceptionStrategy.Default;
+                return [];
+            }
+            if (tracked.Length is 0)
             {
                 strategy = ExceptionStrategy.None;
-                return default;
+                return [];
             }
             strategy = ExceptionStrategy.CustomOpen;
 
-            if (tracked.Length is 1 && tracked[0] == typeof(Exception))
+            static bool Contains(Type[] array, Type type)
             {
-                strategy = ExceptionStrategy.Any;
-                return default;
+                for (int i = 0; i < array.Length; i++)
+                {
+                    if (array[i] == type) return true;
+                }
+
+                return false;
             }
 
-            if (tracked.Equals(TrackedExceptionsDefault)) // identity equality
+            // if we have Exception anywhere: we'll track everything
+            if (Contains(tracked, typeof(Exception)))
             {
-                strategy = ExceptionStrategy.Default;
-                return default;
+                strategy = ExceptionStrategy.Any;
+                return [];
             }
-            if (tracked.Length == TrackedExceptionsDefault.Length) // semantic equality
+
+            if (tracked.Length is 2
+                && Contains(tracked, typeof(RedisConnectionException))
+                && Contains(tracked, typeof(RedisTimeoutException)))
             {
                 strategy = ExceptionStrategy.Default;
-                // iterate defaultTrackedExceptions, because we know it isn't duplicated
-                foreach (var exception in TrackedExceptionsDefault.AsSpan())
-                {
-                    if (!tracked.Contains(exception))
-                    {
-                        strategy = ExceptionStrategy.CustomOpen;
-                        break;
-                    }
-                }
-                if (strategy is ExceptionStrategy.Default)
-                {
-                    return default;
-                }
+                return [];
             }
 
             // finally, see if they're all sealed types
