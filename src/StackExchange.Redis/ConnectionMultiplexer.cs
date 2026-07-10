@@ -1362,9 +1362,9 @@ namespace StackExchange.Redis
                 log.LogInformationServerSummary(server.Summary(), server.GetCounters(), server.GetProfile());
             }
             log.LogInformationTimeoutsSummary(
-                Interlocked.Read(ref syncTimeouts),
-                Interlocked.Read(ref asyncTimeouts),
-                Interlocked.Read(ref fireAndForgets),
+                Volatile.Read(ref syncTimeouts),
+                Volatile.Read(ref asyncTimeouts),
+                Volatile.Read(ref fireAndForgets),
                 LastHeartbeatSecondsAgo);
         }
 

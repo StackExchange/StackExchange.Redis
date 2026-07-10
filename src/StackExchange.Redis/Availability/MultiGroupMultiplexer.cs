@@ -189,10 +189,10 @@ namespace StackExchange.Redis
             /// </summary>
             public double Weight
             {
-                // avoid "tearing", since we can't rule out this being updated concurrently, and the runtime
-                // only guarantees atomicity for 32-bit reads/writes
-                get => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _weight64));
-                set => Interlocked.Exchange(ref _weight64, BitConverter.DoubleToInt64Bits(value));
+                // avoid "tearing", since we can't rule out this being updated concurrently: Volatile.Read/Write
+                // on a double are atomic even on 32-bit processors, so no read-modify-write dance is needed
+                get => Volatile.Read(ref _weight);
+                set => Volatile.Write(ref _weight, value);
             }
 
             internal bool ExplicitOverride
@@ -201,7 +201,7 @@ namespace StackExchange.Redis
                 set => SetFlag(MemberFlags.ExplicitOverrideFlag, value);
             }
 
-            private long _weight64 = BitConverter.DoubleToInt64Bits(1.0);
+            private double _weight = 1.0;
 
             /// <summary>
             /// The measured latency to this member.

@@ -107,7 +107,7 @@ namespace StackExchange.Redis
         internal State ConnectionState => (State)state;
         internal bool IsBeating => Interlocked.CompareExchange(ref beating, 0, 0) == 1;
 
-        internal long OperationCount => Interlocked.Read(ref operationCount);
+        internal long OperationCount => Volatile.Read(ref operationCount);
 
         public RedisCommand LastCommand { get; private set; }
 
@@ -259,9 +259,9 @@ namespace StackExchange.Redis
             var clone = new long[ProfileLogSamples + 1];
             for (int i = 0; i < ProfileLogSamples; i++)
             {
-                clone[i] = Interlocked.Read(ref profileLog[i]);
+                clone[i] = Volatile.Read(ref profileLog[i]);
             }
-            clone[ProfileLogSamples] = Interlocked.Read(ref operationCount);
+            clone[ProfileLogSamples] = Volatile.Read(ref operationCount);
             Array.Sort(clone);
             sb.Append(' ').Append(clone[0]);
             for (int i = 1; i < clone.Length; i++)
@@ -282,9 +282,9 @@ namespace StackExchange.Redis
         internal void GetCounters(ConnectionCounters counters)
         {
             counters.OperationCount = OperationCount;
-            counters.SocketCount = Interlocked.Read(ref socketCount);
+            counters.SocketCount = Volatile.Read(ref socketCount);
             counters.WriterCount = Interlocked.CompareExchange(ref activeWriters, 0, 0);
-            counters.NonPreferredEndpointCount = Interlocked.Read(ref nonPreferredEndpointCount);
+            counters.NonPreferredEndpointCount = Volatile.Read(ref nonPreferredEndpointCount);
             counters.PendingUnsentItems = Volatile.Read(ref _backlogCurrentEnqueued);
             physical?.GetCounters(counters);
         }
@@ -342,7 +342,7 @@ namespace StackExchange.Redis
 
         internal BridgeStatus GetStatus() => new()
         {
-            MessagesSinceLastHeartbeat = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog)),
+            MessagesSinceLastHeartbeat = (int)(Volatile.Read(ref operationCount) - Volatile.Read(ref profileLastLog)),
             ConnectedAt = ConnectedAt,
             IsWriterActive = !_singleWriter.IsAvailable,
             BacklogMessagesPending = _backlog.Count,
@@ -551,7 +551,7 @@ namespace StackExchange.Redis
         private bool DueForConnectRetry()
         {
             int connectTimeMilliseconds = unchecked(Environment.TickCount - Volatile.Read(ref connectStartTicks));
-            return Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Interlocked.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
+            return Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Volatile.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
         }
 
         internal void OnHeartbeat(bool ifConnectedOnly)
@@ -572,7 +572,7 @@ namespace StackExchange.Redis
                 if (!runThisTime) return;
 
                 uint index = (uint)Interlocked.Increment(ref profileLogIndex);
-                long newSampleCount = Interlocked.Read(ref operationCount);
+                long newSampleCount = Volatile.Read(ref operationCount);
                 Interlocked.Exchange(ref profileLog[index % ProfileLogSamples], newSampleCount);
                 Interlocked.Exchange(ref profileLastLog, newSampleCount);
 
