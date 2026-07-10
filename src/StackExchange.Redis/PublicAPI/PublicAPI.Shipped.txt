@@ -1693,7 +1693,6 @@ static StackExchange.Redis.Configuration.DefaultOptionsProvider.AddProvider(Stac
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.ComputerName.get -> string!
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.GetProvider(StackExchange.Redis.EndPointCollection! endpoints) -> StackExchange.Redis.Configuration.DefaultOptionsProvider!
 static StackExchange.Redis.Configuration.DefaultOptionsProvider.GetProvider(System.Net.EndPoint! endpoint) -> StackExchange.Redis.Configuration.DefaultOptionsProvider!
-static StackExchange.Redis.Configuration.DefaultOptionsProvider.LibraryVersion.get -> string!
 static StackExchange.Redis.ConfigurationOptions.Parse(string! configuration) -> StackExchange.Redis.ConfigurationOptions!
 static StackExchange.Redis.ConfigurationOptions.Parse(string! configuration, bool ignoreUnknown) -> StackExchange.Redis.ConfigurationOptions!
 static StackExchange.Redis.ConnectionMultiplexer.Connect(StackExchange.Redis.ConfigurationOptions! configuration, System.IO.TextWriter? log = null) -> StackExchange.Redis.ConnectionMultiplexer!

@@ -237,9 +237,9 @@ namespace StackExchange.Redis.Configuration
         /// Gets the default client name for a connection.
         /// </summary>
         protected virtual string GetDefaultClientName() =>
-            (TryGetAzureRoleInstanceIdNoThrow()
+            $"{TryGetAzureRoleInstanceIdNoThrow()
              ?? ComputerName
-             ?? "StackExchange.Redis") + "(SE.Redis-v" + LibraryVersion + ")";
+             ?? "StackExchange.Redis"}({LibraryName}-v{LibraryVersion})";
 
         /// <summary>
         /// Gets the library name to use for CLIENT SETINFO lib-name calls to Redis during handshake.
@@ -248,9 +248,9 @@ namespace StackExchange.Redis.Configuration
         public virtual string LibraryName => "SE.Redis";
 
         /// <summary>
-        /// String version of the StackExchange.Redis library, for use in any options.
+        /// String version of the StackExchange.Redis library, for use in other options and in CLIENT SETINFO lib-ver.
         /// </summary>
-        protected static string LibraryVersion => Utils.GetLibVersion();
+        public virtual string LibraryVersion => Utils.GetLibVersion();
 
         /// <summary>
         /// Name of the machine we're running on, for use in any options.
