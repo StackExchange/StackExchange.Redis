@@ -347,9 +347,9 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
 
         try
         {
-            Interlocked.Exchange(ref primaryChanged, 0);
-            Interlocked.Exchange(ref aCount, 0);
-            Interlocked.Exchange(ref bCount, 0);
+            Volatile.Write(ref primaryChanged, 0);
+            Volatile.Write(ref aCount, 0);
+            Volatile.Write(ref bCount, 0);
             Log("Changing primary...");
             using (var sw = new StringWriter())
             {
