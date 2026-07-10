@@ -71,6 +71,8 @@ static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(System.IO.S
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.IsConnected.get -> bool
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.Latency.get -> System.TimeSpan
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.Name.get -> string!
+[SER007]StackExchange.Redis.Availability.ConnectionGroupMember.SkipInitialHealthCheck.get -> bool
+[SER007]StackExchange.Redis.Availability.ConnectionGroupMember.SkipInitialHealthCheck.set -> void
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.Weight.get -> double
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.Weight.set -> void
 [SER007]StackExchange.Redis.Availability.GroupConnectionChangedEventArgs

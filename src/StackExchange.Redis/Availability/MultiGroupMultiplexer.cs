@@ -85,7 +85,31 @@ namespace StackExchange.Redis
 
             internal ConfigurationOptions Configuration => configuration;
 
-            private int _activated; // each member can only be activated once
+            // all of the simple boolean state for a member is packed into a single flags field, updated atomically
+            [Flags]
+            private enum MemberFlags
+            {
+                None = 0,
+                Activated = 1 << 0,              // attached to a group; set exactly once (see Init)
+                Connected = 1 << 1,              // last observed health state (see IsConnected)
+                ExplicitOverrideFlag = 1 << 2,   // manual failover target (see ExplicitOverride)
+                SkipInitialHealthCheck = 1 << 3, // see SkipInitialHealthCheck
+            }
+
+            private int _flags;
+
+            private bool GetFlag(MemberFlags flag) => (Volatile.Read(ref _flags) & (int)flag) != 0;
+
+            private void SetFlag(MemberFlags flag, bool value)
+            {
+                int set = value ? (int)flag : 0, clear = value ? 0 : (int)flag;
+                while (true)
+                {
+                    int old = Volatile.Read(ref _flags);
+                    int updated = (old & ~clear) | set;
+                    if (updated == old || Interlocked.CompareExchange(ref _flags, updated, old) == old) return;
+                }
+            }
 
             /// <inheritdoc/>
             public override string ToString() => Name;
@@ -120,18 +144,40 @@ namespace StackExchange.Redis
                     }
                 }
 
-                // check not already attached
-                if (Interlocked.CompareExchange(ref _activated, 1, 0) != 0)
+                // check not already attached (atomic test-and-set of the Activated flag)
+                while (true)
                 {
-                    throw new InvalidOperationException(
-                        $"Member '{Name}' is already associated with a group, and cannot be reused.");
+                    int old = Volatile.Read(ref _flags);
+                    if ((old & (int)MemberFlags.Activated) != 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Member '{Name}' is already associated with a group, and cannot be reused.");
+                    }
+
+                    if (Interlocked.CompareExchange(ref _flags, old | (int)MemberFlags.Activated, old) == old) break;
                 }
             }
 
             /// <summary>
             /// Indicates whether this group is currently connected.
             /// </summary>
-            public bool IsConnected { get; private set; }
+            public bool IsConnected
+            {
+                get => GetFlag(MemberFlags.Connected);
+                private set => SetFlag(MemberFlags.Connected, value);
+            }
+
+            /// <summary>
+            /// Indicates whether the initial health-check should be skipped when this member is added to a group.
+            /// When <c>true</c>, the member is added immediately - as not-yet-connected - and only becomes selectable
+            /// once it subsequently passes a health-check, rather than blocking the add on an initial probe. This
+            /// allows adding a member that is not yet healthy.
+            /// </summary>
+            public bool SkipInitialHealthCheck
+            {
+                get => GetFlag(MemberFlags.SkipInitialHealthCheck);
+                set => SetFlag(MemberFlags.SkipInitialHealthCheck, value);
+            }
 
             /// <summary>
             /// The name of this group member.
@@ -149,7 +195,11 @@ namespace StackExchange.Redis
                 set => Interlocked.Exchange(ref _weight64, BitConverter.DoubleToInt64Bits(value));
             }
 
-            internal bool ExplicitOverride { get; set; }
+            internal bool ExplicitOverride
+            {
+                get => GetFlag(MemberFlags.ExplicitOverrideFlag);
+                set => SetFlag(MemberFlags.ExplicitOverrideFlag, value);
+            }
 
             private long _weight64 = BitConverter.DoubleToInt64Bits(1.0);
 
@@ -1094,13 +1144,21 @@ namespace StackExchange.Redis
             {
                 // connect
                 member.Init(_members.Length);
+                member.Configuration.AbortOnConnectFail = false; // members are gated by health-checks, not connect-fail
                 member.Configuration.HeartbeatConsistencyChecks = true;
                 member.Configuration.CircuitBreaker ??= _options.CircuitBreaker; // AA options flow into the children
                 var muxer = await ConnectionMultiplexer.ConnectAsync(member.Configuration, log).ConfigureAwait(false);
                 member.SetMultiplexer(muxer);
-                var health = await (muxer.RawConfig.HealthCheck ?? _options.HealthCheck)
-                    .CheckHealthAsync(muxer).ConfigureAwait(false);
-                member.UpdateState(health);
+
+                // unless told otherwise, run an initial health-check so a healthy member can be selected immediately;
+                // when skipped, the member is added as not-yet-connected and the poll loop brings it online once it
+                // passes - this is the only way to add a member that is not yet healthy
+                if (!member.SkipInitialHealthCheck)
+                {
+                    var health = await (muxer.RawConfig.HealthCheck ?? _options.HealthCheck)
+                        .CheckHealthAsync(muxer).ConfigureAwait(false);
+                    member.UpdateState(health);
+                }
 
                 // apply any shared hooks
                 AddEventHandlers(muxer); // includes circuit-breaker
