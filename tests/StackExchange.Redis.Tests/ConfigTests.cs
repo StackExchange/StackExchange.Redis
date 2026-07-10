@@ -80,6 +80,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "defaultOptions",
                 "defaultVersion",
                 "EndPoints",
+                "HealthCheck",
                 "heartbeatInterval",
                 "keepAlive",
                 "LibraryName",

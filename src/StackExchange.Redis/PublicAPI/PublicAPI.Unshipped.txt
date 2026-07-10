@@ -154,4 +154,8 @@ static StackExchange.Redis.Configuration.LoggingTunnel.ValidateAsync(System.IO.S
 [SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.AnySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
 [SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.MajoritySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
 [SER007]static StackExchange.Redis.Availability.MultiGroupOptions.Default.get -> StackExchange.Redis.Availability.MultiGroupOptions!
+[SER007]StackExchange.Redis.ConfigurationOptions.CircuitBreaker.get -> StackExchange.Redis.Availability.CircuitBreaker?
+[SER007]StackExchange.Redis.ConfigurationOptions.CircuitBreaker.set -> void
+[SER007]StackExchange.Redis.ConfigurationOptions.HealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
+[SER007]StackExchange.Redis.ConfigurationOptions.HealthCheck.set -> void
 [SER007]StackExchange.Redis.ConnectionFailureType.CircuitBreaker = 11 -> StackExchange.Redis.ConnectionFailureType

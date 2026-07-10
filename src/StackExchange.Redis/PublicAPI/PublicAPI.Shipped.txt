@@ -2356,7 +2356,7 @@ StackExchange.Redis.ProductVariant.Valkey = 1 -> StackExchange.Redis.ProductVari
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.MoveNext() -> bool
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.TryCopyTo(scoped System.Span<byte> destination, out int bytesWritten) -> bool
 [SER006]StackExchange.Redis.KeyNotification.SubKeyEnumerator.TryCopyTo(scoped System.Span<char> destination, out int charsWritten) -> bool
-StackExchange.Redis.KeyNotification.HasSubKey.get -> bool
+[SER006]StackExchange.Redis.KeyNotification.HasSubKey.get -> bool
 StackExchange.Redis.KeyNotification.Kind.get -> StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationKind
 StackExchange.Redis.KeyNotificationKind.KeyEvent = 2 -> StackExchange.Redis.KeyNotificationKind

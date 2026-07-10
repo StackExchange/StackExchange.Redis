@@ -434,7 +434,10 @@ namespace StackExchange.Redis
                 var pending = HealthCheck.GetReusablePending(ref _reusableHealthCheckBuffer, members.Length);
                 for (int i = 0; i < members.Length; i++)
                 {
-                    pending[i] = healthCheck.CheckHealthAsync(members[i].Multiplexer);
+                    // per-member health-check overrides the group default when specified (see the group/muxer
+                    // split on circuit-breakers); left null, we fall back to the shared group health-check
+                    var muxer = members[i].Multiplexer;
+                    pending[i] = (muxer.RawConfig.HealthCheck ?? healthCheck).CheckHealthAsync(muxer);
                 }
 
                 await Task.WhenAll(pending).TimeoutAfter(healthCheck.TotalTimeoutMillis()).ForAwait();
@@ -1095,7 +1098,8 @@ namespace StackExchange.Redis
                 member.Configuration.CircuitBreaker ??= _options.CircuitBreaker; // AA options flow into the children
                 var muxer = await ConnectionMultiplexer.ConnectAsync(member.Configuration, log).ConfigureAwait(false);
                 member.SetMultiplexer(muxer);
-                var health = await _options.HealthCheck.CheckHealthAsync(muxer).ConfigureAwait(false);
+                var health = await (muxer.RawConfig.HealthCheck ?? _options.HealthCheck)
+                    .CheckHealthAsync(muxer).ConfigureAwait(false);
                 member.UpdateState(health);
 
                 // apply any shared hooks

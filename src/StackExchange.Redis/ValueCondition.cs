@@ -109,11 +109,8 @@ public readonly struct ValueCondition
     /// <summary>
     /// Gets the underlying value for this condition.
     /// </summary>
-    public RedisValue Value
-    {
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
-        get => _value;
-    }
+    [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
+    public RedisValue Value => _value;
 
     private ValueCondition(ConditionKind kind, in RedisValue value)
     {

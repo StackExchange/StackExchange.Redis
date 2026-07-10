@@ -82,13 +82,11 @@ public readonly ref partial struct KeyNotification
     /// </summary>
     /// <remarks>This is true for SubKeySpace, SubKeyEvent, SubKeySpaceItem, and SubKeySpaceEvent notifications (Redis 8.8+).</remarks>
     [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-    public bool HasSubKey
-    {
-        get => _kind is KeyNotificationKind.SubKeySpace
-                     or KeyNotificationKind.SubKeyEvent
-                     or KeyNotificationKind.SubKeySpaceItem
-                     or KeyNotificationKind.SubKeySpaceEvent;
-    }
+    public bool HasSubKey =>
+        _kind is KeyNotificationKind.SubKeySpace
+            or KeyNotificationKind.SubKeyEvent
+            or KeyNotificationKind.SubKeySpaceItem
+            or KeyNotificationKind.SubKeySpaceEvent;
 
     /// <summary>
     /// If the channel is a keyspace, keyevent, subkeyspace, subkeyevent, subkeyspaceitem, or subkeyeventitem notification, resolve the key and event type.

@@ -980,6 +980,7 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             WriteMode = WriteMode,
             CircuitBreaker = CircuitBreaker,
+            HealthCheck = HealthCheck,
 #if DEBUG
             OutputLog = OutputLog,
 #endif
@@ -1184,6 +1185,7 @@ namespace StackExchange.Redis
             _protocol = default;
             WriteMode = default;
             CircuitBreaker = null;
+            HealthCheck = null;
 #if DEBUG
             OutputLog = null;
 #endif
@@ -1383,9 +1385,19 @@ namespace StackExchange.Redis
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
 
-        // circuit-breaker to apply to physical connections; when null, no breaker is used. Not surfaced as
-        // public API for now (minimizing drift); flows in from MultiGroupOptions when connecting a group.
-        internal CircuitBreaker? CircuitBreaker { get; set; }
+        /// <summary>
+        /// The circuit-breaker to apply to physical connections; when <c>null</c>, no breaker is used. When
+        /// connecting a group, this flows in from <see cref="MultiGroupOptions.CircuitBreaker"/> if not set explicitly.
+        /// </summary>
+        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        public CircuitBreaker? CircuitBreaker { get; set; }
+
+        /// <summary>
+        /// The health-check to apply when this connection is a member of a group; when <c>null</c>, the
+        /// group-level <see cref="MultiGroupOptions.HealthCheck"/> is used.
+        /// </summary>
+        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+        public HealthCheck? HealthCheck { get; set; }
 
         internal bool AllowSimulateConnectionFailure
         {
