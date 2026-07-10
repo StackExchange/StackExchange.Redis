@@ -1837,7 +1837,6 @@ static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.Redi
 static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(int? value) -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(long value) -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(long? value) -> StackExchange.Redis.RedisValue
-static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(string? value) -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(System.Memory<byte> value) -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(System.ReadOnlyMemory<byte> value) -> StackExchange.Redis.RedisValue
 static StackExchange.Redis.RedisValue.implicit operator StackExchange.Redis.RedisValue(uint value) -> StackExchange.Redis.RedisValue

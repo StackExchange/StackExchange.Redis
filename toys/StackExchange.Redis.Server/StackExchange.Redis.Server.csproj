@@ -9,7 +9,7 @@
     <PackageTags>Server;Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <OutputTypeEx>Library</OutputTypeEx>
     <SignAssembly>true</SignAssembly>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;StringToRedisValue</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />

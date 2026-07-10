@@ -41,7 +41,7 @@ public class Roles(ITestOutputHelper output, SharedConnectionFixture fixture) : 
             }
         }
         Assert.NotNull(role);
-        Assert.Equal(role.Value, RedisLiterals.master);
+        Assert.Equal(Role.LabelForMaster, role.Value);
         var primary = role as Role.Master;
         Assert.NotNull(primary);
         Assert.NotNull(primary.Replicas);
