@@ -81,39 +81,6 @@ internal readonly ref struct MessageWriter
         => WriteBulkString(value, _writer);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void WriteBulkString(in RedisKey key)
-    {
-        if (key.IsNull)
-        {
-            WriteRaw(NullBulkString);
-        }
-        else if (key.IsEmpty)
-        {
-            WriteRaw(EmptyBulkString);
-        }
-        else if (key.KeyPrefix is { Length: > 1 })
-        {
-            // this has been optimized in the experimental 3.2+ branch
-            byte[]? lease = null;
-            var maxLen = key.MaxByteCount();
-            Span<byte> span = maxLen <= 128 ? stackalloc byte[128] : (lease = ArrayPool<byte>.Shared.Rent(maxLen));
-            var len = key.CopyTo(span);
-            WriteBulkString(span.Slice(0, len));
-            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
-        }
-        else if (key.KeyValue is string s)
-        {
-            // no prefix and not null/empty; value can be string...
-            WriteBulkString(s);
-        }
-        else
-        {
-            // ...or a blob
-            WriteBulkString((byte[])key.KeyValue!);
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void WriteBulkString(string? value)
     {
         if (value is null)
