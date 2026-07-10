@@ -602,14 +602,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DateTime);
         }
 
-        private static readonly RedisValue NO = RedisValue.FromRaw("NO"u8), ONE = RedisValue.FromRaw("ONE"u8);
         internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint? primaryEndpoint, CommandFlags flags = CommandFlags.None)
         {
             RedisValue host, port;
             if (primaryEndpoint == null)
             {
-                host = NO;
-                port = ONE;
+                host = RedisLiterals.NO;
+                port = RedisLiterals.ONE;
             }
             else
             {

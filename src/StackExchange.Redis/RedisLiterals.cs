@@ -77,6 +77,7 @@ namespace StackExchange.Redis
             MIN = RedisValue.FromRaw("MIN"u8),
             MINMATCHLEN = RedisValue.FromRaw("MINMATCHLEN"u8),
             MODULE = RedisValue.FromRaw("MODULE"u8),
+            NO = RedisValue.FromRaw("NO"u8),
             NODES = RedisValue.FromRaw("NODES"u8),
             NOSAVE = RedisValue.FromRaw("NOSAVE"u8),
             nosort = RedisValue.FromRaw("nosort"u8),
