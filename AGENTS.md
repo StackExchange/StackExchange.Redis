@@ -107,6 +107,10 @@ Repo-specific [Agent Skills](https://agentskills.io/home) (the portable `SKILL.m
 
 That path is where Claude Code discovers them; the files themselves are tool-agnostic, so if your agent reads skills from a different directory (Codex uses `.agents/skills/`, etc.), point it at this folder or copy the skill across.
 
+## Manner
+
+Be consise and direct where possible, but with as much detail as is necessary; no need for flattery, and feel free to challenge anything the user says: users hallucinate too.
+
 ## Conventions
 
 - Code style is enforced via `.editorconfig` + `Shared.ruleset` + StyleCop; 4-space indent, BOM + final newline on `.cs`, `System.*` usings first, no redundant `this.`. Build will fail on violations.
