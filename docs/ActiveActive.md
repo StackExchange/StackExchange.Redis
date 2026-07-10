@@ -207,12 +207,12 @@ Health checks are configured globally for all members using the `MultiGroupOptio
 ```csharp
 var healthCheck = new HealthCheck
 {
-    Interval = TimeSpan.FromSeconds(10),      // How often to check health
-    ProbeCount = 3,                           // Maximum number of probe attempts per check
-    ProbeTimeout = TimeSpan.FromSeconds(2),   // Timeout for each probe attempt
-    ProbeInterval = TimeSpan.FromSeconds(1),  // Delay between failed probes
-    Probe = HealthCheckProbe.Ping,            // Which probe type to use
-    ProbePolicy = HealthCheckProbePolicy.AnySuccess // Evaluation policy
+    Interval = TimeSpan.FromSeconds(5),          // How often to check health
+    ProbeCount = 3,                              // Maximum number of probe attempts per check
+    ProbeTimeout = TimeSpan.FromSeconds(3),      // Timeout for each probe attempt
+    ProbeInterval = TimeSpan.FromMilliseconds(500), // Delay between failed probes
+    Probe = HealthCheckProbe.Ping,               // Which probe type to use
+    ProbePolicy = HealthCheckProbePolicy.AllSuccess // Evaluation policy
 };
 
 var options = new MultiGroupOptions
@@ -248,7 +248,7 @@ You can also clone and customize the default:
 
 ```csharp
 var customHealthCheck = HealthCheck.Default.Clone();
-customHealthCheck.Interval = TimeSpan.FromSeconds(5);
+customHealthCheck.Interval = TimeSpan.FromSeconds(15);
 customHealthCheck.ProbeCount = 5;
 
 var options = new MultiGroupOptions
@@ -263,12 +263,12 @@ The `HealthCheck` class provides several configurable properties:
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `Interval` | 10 seconds | How frequently health checks are performed |
+| `Interval` | 5 seconds | How frequently health checks are performed |
 | `ProbeCount` | 3 | Number of probe operations to perform per health check |
-| `ProbeTimeout` | 2 seconds | Maximum time allowed for an individual probe to complete |
-| `ProbeInterval` | 1 second | Delay between consecutive failed probes |
+| `ProbeTimeout` | 3 seconds | Maximum time allowed for an individual probe to complete |
+| `ProbeInterval` | 500 milliseconds | Delay between consecutive failed probes |
 | `Probe` | `Ping` | The probe operation to execute |
-| `ProbePolicy` | `AnySuccess` | Policy for evaluating multiple probe results |
+| `ProbePolicy` | `AllSuccess` | Policy for evaluating multiple probe results |
 
 ### Built-in Probes
 
@@ -317,7 +317,7 @@ This probe writes a random value to a health check key and verifies it can be re
 
 The probe policy determines how multiple probe results are evaluated to determine overall health:
 
-#### HealthCheckProbePolicy.AnySuccess (Default)
+#### HealthCheckProbePolicy.AnySuccess
 
 The health check passes if **any** probe succeeds. This provides the most lenient evaluation:
 
@@ -330,7 +330,7 @@ var healthCheck = new HealthCheck
 // Healthy if 1 or more of 3 probes succeed
 ```
 
-#### HealthCheckProbePolicy.AllSuccess
+#### HealthCheckProbePolicy.AllSuccess (Default)
 
 The health check passes only if **all** probes succeed. This provides the strictest evaluation:
 

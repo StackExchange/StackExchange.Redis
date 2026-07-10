@@ -52,12 +52,12 @@ public sealed partial class HealthCheck : ICloneable
     /// </summary>
     public HealthCheck()
     {
-        Interval = TimeSpan.FromSeconds(10);
+        Interval = TimeSpan.FromSeconds(5);
         ProbeCount = 3;
-        ProbeTimeout = TimeSpan.FromSeconds(2);
-        ProbeInterval = TimeSpan.FromSeconds(1);
+        ProbeTimeout = TimeSpan.FromSeconds(3);
+        ProbeInterval = TimeSpan.FromMilliseconds(500);
         Probe = HealthCheckProbe.Ping;
-        ProbePolicy = HealthCheckProbePolicy.AnySuccess;
+        ProbePolicy = HealthCheckProbePolicy.AllSuccess;
     }
 
     /// <summary>

@@ -128,6 +128,20 @@ Additional code-only options:
   - **Note: heartbeats are not free and that's why the default is 1 second. There is additional overhead to running this more often simply because it does some work each time it fires.**
 - LibraryName - Default: `SE.Redis` (unless a `DefaultOptionsProvider` specifies otherwise)
   - The library name to use with `CLIENT SETINFO` when setting the library name/version on the connection
+- IncludeDetailInExceptions - Default: `true`
+  - Whether exceptions include identifiable details (key names, and additional `.Data` annotations)
+- Defaults (`DefaultOptionsProvider`) - Default: resolved from the configured endpoints
+    - The provider that supplies default values for options that have not been set explicitly (for example, recognized cloud endpoints can apply tuned defaults)
+- IncludePerformanceCountersInExceptions - Default: `false`
+  - Whether exceptions include performance counter details (CPU usage, etc); note that this can be problematic on some platforms
+- RequestBufferPool (`MemoryPool<byte>`) - Default: `null`
+  - The buffer pool to use when buffering requests; when `null`, a shared default pool is used
+- ResponseBufferPool (`MemoryPool<byte>`) - Default: `null`
+  - The buffer pool to use when buffering responses (and for allocating `Lease<byte>` results); when `null`, a shared default pool is used
+- CircuitBreaker (`CircuitBreaker`) - Default: `null`
+  - **[Experimental](exp/SER007)** (Active:Active). A per-connection circuit breaker that *passively* observes the outcome of normal traffic and tears the connection down when it becomes unstable. When the connection is a member of an Active:Active group, this flows in from `MultiGroupOptions.CircuitBreaker` if not set explicitly. See [Active:Active](ActiveActive)
+- HealthCheck (`HealthCheck`) - Default: `null`
+  - **[Experimental](exp/SER007)** (Active:Active). An *active* health check used when the connection is a member of an Active:Active group; when `null`, the group-level `MultiGroupOptions.HealthCheck` is used. See [Active:Active](ActiveActive)
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
