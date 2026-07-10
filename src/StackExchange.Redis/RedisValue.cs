@@ -896,7 +896,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="string"/> to convert to a <see cref="RedisValue"/>.</param>
 #if DEBUG
-        [Experimental(Experiments.StringToRedisValue)]
+        // if you're here to ask "why is my compiler warning me": go read StringToRedisValue.md
+        [Experimental(Experiments.StringToRedisValue, UrlFormat = Experiments.UrlFormat)]
 #endif
 #pragma warning disable RS0016
         public static implicit operator RedisValue(string? value) => value is null ? Null : new(value);
