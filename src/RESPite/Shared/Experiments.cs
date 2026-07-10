@@ -5,7 +5,8 @@
     // where SomeFeature has the next label, for example "SER042", and /docs/exp/SER042.md exists
     internal static class Experiments
     {
-        public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/";
+        // note: {0} is substituted with the DiagnosticId by the analyzer, e.g. .../exp/SER002
+        public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/{0}";
 
         // ReSharper disable InconsistentNaming
         public const string Server_8_4 = "SER002";
