@@ -133,7 +133,7 @@ namespace StackExchange.Redis
         {
             isDisposed = true;
             // If there's anything in the backlog and we're being torn down - exfil it immediately (e.g. so all awaitables complete)
-            AbandonPendingBacklog(new ObjectDisposedException("Connection is being disposed"));
+            AbandonPendingBacklog(new ObjectDisposedException("Connection is being disposed"), null);
             try
             {
                 _backlogAutoReset?.Set();
@@ -152,7 +152,7 @@ namespace StackExchange.Redis
             isDisposed = true; // make damn sure we don't true to resurrect
 
             // If there's anything in the backlog and we're being torn down - exfil it immediately (e.g. so all awaitables complete)
-            AbandonPendingBacklog(new ObjectDisposedException("Connection is being finalized"));
+            AbandonPendingBacklog(new ObjectDisposedException("Connection is being finalized"), null);
 
             // shouldn't *really* touch managed objects
             // in a finalizer, but we need to kill that socket,
@@ -192,7 +192,7 @@ namespace StackExchange.Redis
             // Anything else goes in the bin - we're just not ready for you yet
             message.Cancel();
             Multiplexer.OnMessageFaulted(message, null);
-            message.Complete();
+            message.Complete(null);
             return WriteResult.NoConnectionAvailable;
         }
 
@@ -200,7 +200,7 @@ namespace StackExchange.Redis
         {
             message.Cancel();
             Multiplexer.OnMessageFaulted(message, null);
-            message.Complete();
+            message.Complete(null);
             return WriteResult.NoConnectionAvailable;
         }
 
@@ -462,7 +462,7 @@ namespace StackExchange.Redis
             // If we're configured to, fail all pending backlogged messages
             if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true)
             {
-                AbandonPendingBacklog(innerException);
+                AbandonPendingBacklog(innerException, connection);
             }
 
             if (reportNextFailure)
@@ -511,12 +511,12 @@ namespace StackExchange.Redis
             }
         }
 
-        private void AbandonPendingBacklog(Exception ex)
+        private void AbandonPendingBacklog(Exception ex, PhysicalConnection? connection)
         {
             while (BacklogTryDequeue(out Message? next))
             {
                 Multiplexer.OnMessageFaulted(next, ex);
-                next.SetExceptionAndComplete(ex, this);
+                next.SetExceptionAndComplete(ex, connection);
             }
         }
 
@@ -776,7 +776,7 @@ namespace StackExchange.Redis
                         // killed the underlying connection
                         Trace("Unable to write to server");
                         message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString(), Multiplexer);
-                        message.Complete();
+                        message.Complete(physical);
                         return result;
                     }
                     // The parent message (next) may be returned from GetMessages
@@ -996,7 +996,7 @@ namespace StackExchange.Redis
                     // Tell the message it has failed
                     // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
                     var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint, this);
-                    message.SetExceptionAndComplete(ex, this);
+                    message.SetExceptionAndComplete(ex, null);
                 }
             }
         }
@@ -1072,7 +1072,7 @@ namespace StackExchange.Redis
                         }
 
                         var ex = ExceptionFactory.Timeout(Multiplexer, "The message was in the backlog when connection was disposed", message, ServerEndPoint, WriteResult.TimeoutBeforeWrite, this);
-                        message.SetExceptionAndComplete(ex, this);
+                        message.SetExceptionAndComplete(ex, null);
                     }
                 }
             }
@@ -1222,7 +1222,7 @@ namespace StackExchange.Redis
         {
             message.Cancel();
             Multiplexer.OnMessageFaulted(message, null);
-            message.Complete();
+            message.Complete(null);
             return WriteResult.TimeoutBeforeWrite;
         }
 
@@ -1355,7 +1355,7 @@ namespace StackExchange.Redis
         private WriteResult HandleWriteException(PhysicalConnection? physical, Message message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
-            message.SetExceptionAndComplete(inner, this);
+            message.SetExceptionAndComplete(inner, physical);
             // Tear down the physical connection. A write that throws may have left a partial frame on the
             // wire, and continuing to use the same socket would let the next reply match the wrong message
             // in the response queue. Forcing a reconnect drains the in-flight queue with failures and
@@ -1588,7 +1588,7 @@ namespace StackExchange.Redis
             {
                 Trace("Write failed: " + ex.Message);
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
-                message.Complete();
+                message.Complete(connection);
 
                 // This failed without actually writing; we're OK with that... unless there's a transaction
                 if (connection?.TransactionActive == true)
@@ -1603,7 +1603,7 @@ namespace StackExchange.Redis
             {
                 Trace("Write failed: " + ex.Message);
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null, Multiplexer);
-                message.Complete();
+                message.Complete(connection);
 
                 // We're not sure *what* happened here - probably an IOException; kill the connection
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);

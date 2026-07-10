@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 

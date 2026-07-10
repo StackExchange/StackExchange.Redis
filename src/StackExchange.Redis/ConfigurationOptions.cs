@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RESPite;
 using RESPite.Buffers;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -978,6 +979,7 @@ namespace StackExchange.Redis
             _protocol = _protocol,
             heartbeatInterval = heartbeatInterval,
             WriteMode = WriteMode,
+            CircuitBreaker = CircuitBreaker,
 #if DEBUG
             OutputLog = OutputLog,
 #endif
@@ -1181,6 +1183,7 @@ namespace StackExchange.Redis
             Tunnel = null;
             _protocol = default;
             WriteMode = default;
+            CircuitBreaker = null;
 #if DEBUG
             OutputLog = null;
 #endif
@@ -1379,6 +1382,11 @@ namespace StackExchange.Redis
         }
 
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
+
+        // circuit-breaker to apply to physical connections; when null, no breaker is used. Not surfaced as
+        // public API for now (minimizing drift); flows in from MultiGroupOptions when connecting a group.
+        internal CircuitBreaker? CircuitBreaker { get; set; }
+
         internal bool AllowSimulateConnectionFailure
         {
             get => IsSet(OptionFlags.AllowSimulateConnectionFailure);

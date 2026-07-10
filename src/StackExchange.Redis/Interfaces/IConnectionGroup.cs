@@ -4,9 +4,10 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using RESPite;
+using StackExchange.Redis.Availability;
 
 // ReSharper disable once CheckNamespace
-namespace StackExchange.Redis;
+namespace StackExchange.Redis.Availability;
 
 /// <summary>
 /// A group of connections to redis servers, that manages connections to multiple

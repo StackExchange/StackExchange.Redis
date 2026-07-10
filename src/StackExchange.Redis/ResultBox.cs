@@ -6,6 +6,7 @@ namespace StackExchange.Redis
 {
     internal interface IResultBox
     {
+        Exception? Fault { get; }
         bool IsAsync { get; }
         bool IsFaulted { get; }
         void SetException(Exception ex);
@@ -24,6 +25,7 @@ namespace StackExchange.Redis
 
         bool IResultBox.IsAsync => false;
         bool IResultBox.IsFaulted => _exception != null;
+        Exception? IResultBox.Fault => _exception;
         void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
         void IResultBox.Cancel() => _exception = CancelledException;
 
@@ -95,6 +97,7 @@ namespace StackExchange.Redis
         bool IResultBox.IsAsync => true;
 
         bool IResultBox.IsFaulted => _exception != null;
+        Exception? IResultBox.Fault => _exception;
 
         void IResultBox.Cancel() => _exception = SimpleResultBox.CancelledException;
 

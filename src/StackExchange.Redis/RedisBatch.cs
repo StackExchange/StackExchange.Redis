@@ -116,13 +116,13 @@ namespace StackExchange.Redis
         internal override T ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
             => throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
 
-        private static void FailNoServer(ConnectionMultiplexer muxer, List<Message> messages)
+        private static void FailNoServer(ConnectionMultiplexer muxer, List<Message>? messages)
         {
-            if (messages == null) return;
+            if (messages is null) return;
             foreach (var msg in messages)
             {
                 msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null, "unable to write batch", muxer);
-                msg.Complete();
+                msg.Complete(null);
             }
         }
     }

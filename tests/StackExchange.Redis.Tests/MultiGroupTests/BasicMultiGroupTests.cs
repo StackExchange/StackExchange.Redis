@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 

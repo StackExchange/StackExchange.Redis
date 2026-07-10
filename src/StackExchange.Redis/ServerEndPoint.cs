@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis.Availability;
 using static StackExchange.Redis.PhysicalBridge;
 
 namespace StackExchange.Redis
