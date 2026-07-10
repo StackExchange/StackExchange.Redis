@@ -1,0 +1,132 @@
+using System;
+using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
+using Xunit;
+
+namespace StackExchange.Redis.Tests.MultiGroupTests;
+
+[RunPerProtocol]
+public class CircuitBreakerRerouteTests(ITestOutputHelper log)
+{
+    // A circuit-breaker trip must steer the group away from the affected member *promptly* - i.e. via
+    // the shim's ConnectionFailed(CircuitBreaker) fast-path, not by waiting for the next health-check
+    // poll. To isolate that mechanism we make the poll interval enormous, so the *only* thing that can
+    // reroute inside the test window is the fast-path; and we hold the tripped member unhealthy via a
+    // controllable probe, so the reroute is deterministic even though the physical connection reconnects
+    // immediately after being torn down.
+    [Fact]
+    public async Task CircuitBreakerTrip_ReroutesAwayFromMember()
+    {
+        EndPoint alpha = new DnsEndPoint("alpha", 6379);
+        EndPoint bravo = new DnsEndPoint("bravo", 6379);
+        EndPoint charlie = new DnsEndPoint("charlie", 6379);
+
+        using var serverA = new InProcessTestServer(log, endpoint: alpha);
+        using var serverB = new InProcessTestServer(log, endpoint: bravo);
+        using var serverC = new InProcessTestServer(log, endpoint: charlie);
+
+        var breaker = new FlipBreaker();
+        var probe = new ControllableProbe();
+
+        // only member A carries the trippable breaker; B and C are left with the default (which requires
+        // an implausible number of failures to trip, so they never interfere)
+        var configA = serverA.GetClientConfig();
+        configA.CircuitBreaker = breaker;
+
+        ConnectionGroupMember[] members =
+        [
+            new(configA, "A") { Weight = 9 },                     // highest weight -> initially active
+            new(serverB.GetClientConfig(), "B") { Weight = 3 },   // preferred failover target
+            new(serverC.GetClientConfig(), "C") { Weight = 1 },
+        ];
+
+        var options = new MultiGroupOptions
+        {
+            HealthCheck = new HealthCheck
+            {
+                Probe = probe,
+                // enormous, so the poll loop cannot be what reroutes us during the test
+                Interval = TimeSpan.FromMinutes(30),
+                ProbeCount = 1,
+                ProbeTimeout = TimeSpan.FromSeconds(5),
+            },
+        };
+
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+        var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
+
+        int circuitBreakerEvents = 0;
+        typed.ConnectionFailed += (_, e) =>
+        {
+            log.WriteLine($"ConnectionFailed: {e.FailureType} @ {e.EndPoint}");
+            if (e.FailureType == ConnectionFailureType.CircuitBreaker)
+            {
+                Interlocked.Increment(ref circuitBreakerEvents);
+            }
+        };
+
+        // sanity: A (highest weight) is the active member to begin with
+        Assert.True(conn.IsConnected);
+        Assert.Same(members[0], conn.ActiveMember);
+
+        // arm the breaker and hold A unhealthy, then drive a *faulting* command to the active member (A):
+        // the fault is what the breaker evaluates, and a tripped breaker tears the connection down
+        probe.MarkDown(alpha);
+        breaker.Trip();
+        var db = conn.GetDatabase();
+        var fault = await Assert.ThrowsAnyAsync<Exception>(() => db.ExecuteAsync("nonesuch"));
+        log.WriteLine($"observed fault: {fault.GetType().Name}: {fault.Message}");
+
+        // wait (briefly) for the fast-path to react; nothing else can move us within this window
+        var moved = await WaitForActiveAsync(conn, notMember: members[0], timeout: TimeSpan.FromSeconds(5));
+
+        Assert.True(moved, "expected the circuit-breaker trip to reroute away from member A");
+        Assert.Same(members[1], conn.ActiveMember); // B is the next-highest weight
+        Assert.True(circuitBreakerEvents > 0, "expected a ConnectionFailed event with FailureType == CircuitBreaker");
+    }
+
+    private static async Task<bool> WaitForActiveAsync(
+        IConnectionGroup conn, ConnectionGroupMember notMember, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (!ReferenceEquals(conn.ActiveMember, notMember) && conn.ActiveMember is not null)
+            {
+                return true;
+            }
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+        return false;
+    }
+
+    // trips on demand: healthy until Trip() is called; the trip only actuates on a *fault* observation
+    // (successes are never evaluated, by design), which the test provides via a bad command
+    private sealed class FlipBreaker : CircuitBreaker
+    {
+        private volatile bool _tripped;
+        public void Trip() => _tripped = true;
+
+        public override Accumulator CreateAccumulator() => new Acc(this);
+
+        private sealed class Acc(FlipBreaker owner) : Accumulator
+        {
+            public override bool ObserveResult(in CircuitBreakerContext context) => !owner._tripped;
+            public override bool IsHealthy() => !owner._tripped;
+            public override void Reset() { }
+        }
+    }
+
+    // reports the nominated endpoints unhealthy on demand; everything else is healthy. This keeps the
+    // tripped member deselected even after its physical connection reconnects.
+    private sealed class ControllableProbe : HealthCheck.HealthCheckProbe
+    {
+        private volatile EndPoint? _down;
+        public void MarkDown(EndPoint endpoint) => _down = endpoint;
+
+        public override Task<HealthCheck.HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server)
+            => Equals(server.EndPoint, _down) ? UnhealthyTask : HealthyTask;
+    }
+}

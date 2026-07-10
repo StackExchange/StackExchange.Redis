@@ -793,6 +793,14 @@ namespace StackExchange.Redis
                     }
                 }
             }
+
+            // backstop for a tripped circuit-breaker: normally the trip worker actuates the teardown, but
+            // if it hasn't been scheduled yet (and the connection has gone quiet) the heartbeat does it.
+            // Must be outside the lock above - RecordConnectionFailed takes that same lock.
+            if (Volatile.Read(ref _circuitBreakerState) is CircuitBreakerTripped)
+            {
+                CheckCircuitBreakerTrip();
+            }
         }
 
         internal void OnInternalError(Exception exception, [CallerMemberName] string? origin = null)
@@ -1171,15 +1179,50 @@ namespace StackExchange.Redis
 
         public void ObserveMessageResult(Exception? fault)
         {
-            // ObserveResult returns true while the connection is still considered healthy; we only
-            // tear down when it reports *un*healthy (i.e. the breaker has tripped)
-            if (circuitBreaker is { } cb && !cb.ObserveResult(fault))
+            // Hot path - runs per completed message. Let the breaker observe the outcome (ObserveResult
+            // returns true while healthy); if it trips and we're the *first* to notice, hand off the
+            // teardown rather than doing it inline: RecordConnectionFailed can fail the whole backlog and
+            // build a detailed exception, which we don't want to pay for on the completion thread.
+            if (circuitBreaker is { } cb && !cb.ObserveResult(fault)
+                && Interlocked.CompareExchange(ref _circuitBreakerState, CircuitBreakerTripped, CircuitBreakerHealthy) is CircuitBreakerHealthy)
             {
-                Shutdown(ConnectionFailureType.CircuitBreaker);
+                // hand off to a worker; the heartbeat (see OnBridgeHeartbeat) is a backstop in case the
+                // pool is slow to schedule us and the connection then goes quiet - either way the actual
+                // teardown happens exactly once, via CheckCircuitBreakerTrip. A cached static callback with
+                // the connection as state avoids any per-trip delegate/closure allocation.
+                ThreadPool.QueueUserWorkItem(s_CheckCircuitBreakerTrip, this);
+            }
+        }
+
+        private static readonly WaitCallback s_CheckCircuitBreakerTrip = static state =>
+        {
+            var connection = (PhysicalConnection)state!;
+            try
+            {
+                connection.CheckCircuitBreakerTrip();
+            }
+            catch (Exception ex)
+            {
+                connection.OnInternalError(ex);
+            }
+        };
+
+        // Actuates a pending circuit-breaker teardown at most once. Called from both the trip worker and
+        // the heartbeat backstop; whoever wins the tripped->actuated transition does the work. Routing via
+        // RecordConnectionFailed (not a bare Shutdown) is what surfaces the failure as a ConnectionFailed
+        // event, which is what Active:Active reacts to when re-routing away from this member.
+        private void CheckCircuitBreakerTrip()
+        {
+            if (Interlocked.CompareExchange(ref _circuitBreakerState, CircuitBreakerActuated, CircuitBreakerTripped) is CircuitBreakerTripped)
+            {
+                RecordConnectionFailed(ConnectionFailureType.CircuitBreaker);
             }
         }
 
         private CircuitBreaker.Accumulator? circuitBreaker;
+
+        private int _circuitBreakerState; // transitions strictly Healthy -> Tripped -> Actuated
+        private const int CircuitBreakerHealthy = 0, CircuitBreakerTripped = 1, CircuitBreakerActuated = 2;
     }
 
     internal sealed class DummyHighIntegrityMessage : Message
