@@ -137,7 +137,7 @@ public class LoggerTests(ITestOutputHelper output) : TestBase(output)
             _output.WriteLine(logLine);
         }
 
-        public long CallCount => Interlocked.Read(ref _callCount);
+        public long CallCount => Volatile.Read(ref _callCount);
         public override string ToString()
         {
             lock (sb)

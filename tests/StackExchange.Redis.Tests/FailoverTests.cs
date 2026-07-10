@@ -89,7 +89,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         await GetServer(receiverConn).PingAsync();
         await Task.Delay(1000).ConfigureAwait(false);
         Assert.True(count == -1 || count >= 2, "subscribers");
-        Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
+        Assert.True(Volatile.Read(ref total) >= 1, "total (1st)");
 
         Interlocked.Exchange(ref total, 0);
 
@@ -100,7 +100,7 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         await Task.Delay(1000).ConfigureAwait(false);
         await GetServer(receiverConn).PingAsync();
         await GetServer(receiverConn).PingAsync();
-        Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");
+        Assert.True(Volatile.Read(ref total) >= 1, "total (2nd)");
     }
 
     [Fact]
@@ -339,11 +339,11 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
         Log("  SubA ping: " + subA.Ping());
         Log("  SubB ping: " + subB.Ping());
         // If redis is under load due to this suite, it may take a moment to send across.
-        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
+        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => Volatile.Read(ref aCount) == 2 && Volatile.Read(ref bCount) == 2).ForAwait();
 
-        Assert.Equal(2, Interlocked.Read(ref aCount));
-        Assert.Equal(2, Interlocked.Read(ref bCount));
-        Assert.Equal(0, Interlocked.Read(ref primaryChanged));
+        Assert.Equal(2, Volatile.Read(ref aCount));
+        Assert.Equal(2, Volatile.Read(ref bCount));
+        Assert.Equal(0, Volatile.Read(ref primaryChanged));
 
         try
         {
@@ -410,17 +410,17 @@ public class FailoverTests(ITestOutputHelper output) : TestBase(output), IAsyncL
             await subA.PingAsync();
             await subB.PingAsync();
             Log("Ping Complete. Checking...");
-            await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
+            await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref aCount) == 2 && Volatile.Read(ref bCount) == 2).ForAwait();
 
             Log("Counts so far:");
-            Log("  aCount: " + Interlocked.Read(ref aCount));
-            Log("  bCount: " + Interlocked.Read(ref bCount));
-            Log("  primaryChanged: " + Interlocked.Read(ref primaryChanged));
+            Log("  aCount: " + Volatile.Read(ref aCount));
+            Log("  bCount: " + Volatile.Read(ref bCount));
+            Log("  primaryChanged: " + Volatile.Read(ref primaryChanged));
 
-            Assert.Equal(2, Interlocked.Read(ref aCount));
-            Assert.Equal(2, Interlocked.Read(ref bCount));
+            Assert.Equal(2, Volatile.Read(ref aCount));
+            Assert.Equal(2, Volatile.Read(ref bCount));
             // Expect 12, because a sees a, but b sees a and b due to replication, but contenders may add their own
-            Assert.True(Interlocked.CompareExchange(ref primaryChanged, 0, 0) >= 12);
+            Assert.True(Volatile.Read(ref primaryChanged) >= 12);
         }
         catch
         {

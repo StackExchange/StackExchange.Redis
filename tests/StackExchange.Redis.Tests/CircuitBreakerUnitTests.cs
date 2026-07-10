@@ -216,7 +216,7 @@ public class CircuitBreakerUnitTests
         // one tick == 100ns, matching TimeSpan; keeps Advance(TimeSpan) a straight addition
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
-        public override long GetTimestamp() => Interlocked.Read(ref _timestamp);
+        public override long GetTimestamp() => Volatile.Read(ref _timestamp);
 
         public void Advance(TimeSpan by) => Interlocked.Add(ref _timestamp, by.Ticks);
     }

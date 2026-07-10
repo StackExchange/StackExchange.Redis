@@ -689,9 +689,9 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             var counters = server.GetCounters();
             Log(counters.ToString());
         }
-        int final = Interlocked.CompareExchange(ref total, 0, 0);
+        int final = Volatile.Read(ref total);
         Assert.Equal(COUNT, final);
-        Assert.Equal(0, Interlocked.CompareExchange(ref slotMovedCount, 0, 0));
+        Assert.Equal(0, Volatile.Read(ref slotMovedCount));
     }
 
     [Theory]

@@ -105,7 +105,7 @@ namespace StackExchange.Redis
         public long SubscriptionCount => physical?.SubscriptionCount ?? 0;
 
         internal State ConnectionState => (State)state;
-        internal bool IsBeating => Interlocked.CompareExchange(ref beating, 0, 0) == 1;
+        internal bool IsBeating => Volatile.Read(ref beating) == 1;
 
         internal long OperationCount => Volatile.Read(ref operationCount);
 
@@ -283,7 +283,7 @@ namespace StackExchange.Redis
         {
             counters.OperationCount = OperationCount;
             counters.SocketCount = Volatile.Read(ref socketCount);
-            counters.WriterCount = Interlocked.CompareExchange(ref activeWriters, 0, 0);
+            counters.WriterCount = Volatile.Read(ref activeWriters);
             counters.NonPreferredEndpointCount = Volatile.Read(ref nonPreferredEndpointCount);
             counters.PendingUnsentItems = Volatile.Read(ref _backlogCurrentEnqueued);
             physical?.GetCounters(counters);
@@ -573,8 +573,8 @@ namespace StackExchange.Redis
 
                 uint index = (uint)Interlocked.Increment(ref profileLogIndex);
                 long newSampleCount = Volatile.Read(ref operationCount);
-                Interlocked.Exchange(ref profileLog[index % ProfileLogSamples], newSampleCount);
-                Interlocked.Exchange(ref profileLastLog, newSampleCount);
+                Volatile.Write(ref profileLog[index % ProfileLogSamples], newSampleCount);
+                Volatile.Write(ref profileLastLog, newSampleCount);
 
 #pragma warning disable CS0420 // A reference to a volatile field will not be treated as volatile
                 // ReSharper disable once LocalVariableHidesMember
@@ -613,7 +613,7 @@ namespace StackExchange.Redis
                                 // Track that we should reset the count on the next disconnect, but not do so in a loop, reset
                                 // the connect-retry-count (used for backoff decay etc), and remove any non-responsive flag.
                                 shouldResetConnectionRetryCount = true;
-                                Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
+                                Volatile.Write(ref connectTimeoutRetryCount, 0);
                                 tmp.BridgeCouldBeNull?.ServerEndPoint?.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
                             tmp.OnBridgeHeartbeat(out int asyncTimeoutThisHeartbeat, out int syncTimeoutThisHeartbeat);
@@ -687,7 +687,7 @@ namespace StackExchange.Redis
                         if (shouldResetConnectionRetryCount)
                         {
                             shouldResetConnectionRetryCount = false;
-                            Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
+                            Volatile.Write(ref connectTimeoutRetryCount, 0);
                         }
                         if (!ifConnectedOnly && DueForConnectRetry())
                         {
@@ -700,7 +700,7 @@ namespace StackExchange.Redis
                         }
                         break;
                     default:
-                        Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
+                        Volatile.Write(ref connectTimeoutRetryCount, 0);
                         break;
                 }
             }
