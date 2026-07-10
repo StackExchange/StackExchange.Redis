@@ -45,6 +45,19 @@ public sealed class MultiGroupOptions()
         set => SetField(ref field, value);
     }
 
+    /// <summary>
+    /// If a member has been marked unhealthy by a failing health-check or circuit-breaker, it will not be
+    /// re-selected as the active member until it has remained healthy for this interval following its most
+    /// recent failure. When <see cref="TimeSpan.Zero"/> (the default), failback is immediate; when
+    /// <see cref="TimeSpan.MaxValue"/>, failback is not automatic and requires explicit use of
+    /// <see cref="ConnectionGroupMember.ResetIsUnhealthy"/> or <see cref="IConnectionGroup.TryFailoverTo"/>.
+    /// </summary>
+    public TimeSpan FailbackDelay
+    {
+        get => field;
+        set => SetField(ref field, value);
+    }
+
     // ReSharper disable once RedundantAssignment
     private void SetField<T>(ref T field, T value, [CallerMemberName] string caller = "")
     {

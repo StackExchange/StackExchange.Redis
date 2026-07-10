@@ -121,3 +121,7 @@ StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = defa
 [SER007]StackExchange.Redis.ConfigurationOptions.HealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
 [SER007]StackExchange.Redis.ConfigurationOptions.HealthCheck.set -> void
 [SER007]StackExchange.Redis.ConnectionFailureType.CircuitBreaker = 11 -> StackExchange.Redis.ConnectionFailureType
+[SER007]StackExchange.Redis.Availability.ConnectionGroupMember.IsUnhealthy.get -> bool
+[SER007]StackExchange.Redis.Availability.ConnectionGroupMember.ResetIsUnhealthy() -> void
+[SER007]StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.get -> System.TimeSpan
+[SER007]StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.set -> void

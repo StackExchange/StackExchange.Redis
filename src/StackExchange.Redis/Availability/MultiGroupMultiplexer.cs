@@ -94,6 +94,7 @@ namespace StackExchange.Redis
                 Connected = 1 << 1,              // last observed health state (see IsConnected)
                 ExplicitOverrideFlag = 1 << 2,   // manual failover target (see ExplicitOverride)
                 SkipInitialHealthCheck = 1 << 3, // see SkipInitialHealthCheck
+                Unhealthy = 1 << 4,              // disabled by a health-check or circuit-breaker
             }
 
             private int _flags;
@@ -117,6 +118,27 @@ namespace StackExchange.Redis
             private ConnectionMultiplexer? _muxer;
 
             internal ConnectionMultiplexer Multiplexer => _muxer ?? ThrowNoMuxer();
+
+            internal void SetUnhealthy()
+            {
+                // stored as raw UTC ticks and only ever compared as a long against the failback cutoff;
+                // we never round-trip through a DateTime, so DateTimeKind never enters the picture
+                Volatile.Write(ref _lastUnhealthyTicks, DateTime.UtcNow.Ticks);
+                SetFlag(MemberFlags.Unhealthy, true);
+            }
+
+            // UTC ticks (DateTime.Ticks and TimeSpan.Ticks share the same 100ns unit); long for atomicity
+            private long _lastUnhealthyTicks;
+
+            /// <summary>
+            /// Clear the <see cref="IsUnhealthy"/> flag against this endpoint, allowing it to be reconsidered.
+            /// </summary>
+            public void ResetIsUnhealthy() => SetFlag(MemberFlags.Unhealthy, false);
+
+            /// <summary>
+            /// Gets whether the endpoint failed a health-check or circuit-breaker test.
+            /// </summary>
+            public bool IsUnhealthy => GetFlag(MemberFlags.Unhealthy);
 
             [DoesNotReturn]
             private static ConnectionMultiplexer ThrowNoMuxer() =>
@@ -209,6 +231,9 @@ namespace StackExchange.Redis
             public TimeSpan Latency =>
                 _latencyTicks is uint.MaxValue ? TimeSpan.MaxValue : TimeSpan.FromTicks(_latencyTicks);
 
+            internal bool ConsiderActive => // "IsConnected && !IsUnhealthy"
+                ((MemberFlags)Volatile.Read(ref _flags) & (MemberFlags.Connected | MemberFlags.Unhealthy)) is MemberFlags.Connected;
+
             private uint _latencyTicks = uint.MaxValue;
 
             internal void SetLatency(uint ticks) => _latencyTicks = ticks;
@@ -226,7 +251,7 @@ namespace StackExchange.Redis
 
             internal void SetLatency(TimeSpan latency) => SetLatency(ToLatencyTicks(latency));
 
-            internal static ConnectionGroupMember? Select(ConnectionGroupMember? x, ConnectionGroupMember? y)
+            internal static ConnectionGroupMember? Select(ConnectionGroupMember? x, ConnectionGroupMember? y, ConnectionMultiplexer? active)
             {
                 if (x is null) return y;
                 if (y is null) return x;
@@ -247,10 +272,17 @@ namespace StackExchange.Redis
 
                 // then by latency
                 uint xl = x._latencyTicks, yl = y._latencyTicks;
-                return xl <= yl ? x : y;
+                if (xl != yl) return xl < yl ? x : y;
+
+                // getting hard to choose; is either of them the existing active node? choose that to prevent flapping
+                if (ReferenceEquals(x._muxer, active)) return x;
+                if (ReferenceEquals(y._muxer, active)) return y;
+
+                // I've got nothing; choose x arbitrarily
+                return x;
             }
 
-            internal GroupConnectionChangedEventArgs.ChangeType UpdateState(HealthCheck.HealthCheckResult result)
+            internal GroupConnectionChangedEventArgs.ChangeType UpdateState(HealthCheck.HealthCheckResult result, long failbackFailureCutoffTicks)
             {
                 bool isConnected;
                 if (_muxer is { IsConnected: true } muxer)
@@ -261,6 +293,15 @@ namespace StackExchange.Redis
                 else
                 {
                     isConnected = false;
+                }
+
+                if (isConnected)
+                {
+                    if (Volatile.Read(ref _lastUnhealthyTicks) < failbackFailureCutoffTicks) ResetIsUnhealthy();
+                }
+                else
+                {
+                    SetUnhealthy();
                 }
 
                 var oldConnected = IsConnected;
@@ -321,14 +362,18 @@ namespace StackExchange.Redis
             // a completed "no endpoint" result, shared by the database/subscriber facades when the group is fully down
             internal static readonly Task<EndPoint?> NoEndpoint = Task.FromResult<EndPoint?>(null);
 
-            private ConnectionGroupMember? GetActiveMember()
+            private ConnectionGroupMember? GetActiveMember() => GetMember(_active);
+
+            private ConnectionGroupMember? GetMember(ConnectionMultiplexer? muxer)
             {
-                var active = _active;
-                foreach (var member in _members)
+                if (muxer is not null)
                 {
-                    if (ReferenceEquals(active, member.Multiplexer))
+                    foreach (var member in _members)
                     {
-                        return member;
+                        if (ReferenceEquals(muxer, member.Multiplexer))
+                        {
+                            return member;
+                        }
                     }
                 }
 
@@ -491,6 +536,7 @@ namespace StackExchange.Redis
                 }
 
                 await Task.WhenAll(pending).TimeoutAfter(healthCheck.TotalTimeoutMillis()).ForAwait();
+                var failbackFailureCutoff = GetFailbackFailureCutoff();
                 for (int i = 0; i < pending.Length; i++)
                 {
                     HealthCheck.HealthCheckResult result;
@@ -504,7 +550,7 @@ namespace StackExchange.Redis
                         result = HealthCheck.HealthCheckResult.Unhealthy;
                     }
 
-                    var delta = members[i].UpdateState(result);
+                    var delta = members[i].UpdateState(result, failbackFailureCutoff);
                     if (delta != GroupConnectionChangedEventArgs.ChangeType.Unknown)
                     {
                         OnConnectionChanged(delta, members[i]);
@@ -514,23 +560,37 @@ namespace StackExchange.Redis
                 HealthCheck.PutReusablePending(ref _reusableHealthCheckBuffer, ref pending);
             }
 
+            private long GetFailbackFailureCutoff()
+            {
+                // the minimum last-observed unhealthy time (as UTC ticks) that we'll allow for reconnect;
+                // for example, if the FailbackDelay is 2 minutes, and the time is 14:32:55, then the last
+                // failure must have happened at 14:30:55 or earlier. Pure long tick math on the wall clock:
+                // DateTime.Ticks and TimeSpan.Ticks are the same 100ns unit, so the subtraction is valid
+                var delay = _options.FailbackDelay;
+                if (delay == TimeSpan.MaxValue) return long.MinValue; // manual mode: never auto-reset
+
+                return DateTime.UtcNow.Ticks - delay.Ticks;
+            }
+
             internal void SelectPreferredGroup()
             {
                 if (_disposed) return;
-                var previousMuxer = _active;
+                var existingActive = _active;
                 ConnectionGroupMember? preferredMember = null, previousMember = null;
                 var members = _members;
                 foreach (var member in members)
                 {
-                    if (previousMember is null && ReferenceEquals(member.Multiplexer, previousMuxer))
+                    if (previousMember is null && ReferenceEquals(member.Multiplexer, existingActive))
                     {
                         previousMember = member;
                     }
 
-                    if (member.IsConnected)
+                    if (member.ConsiderActive)
                     {
                         member.UpdateLatency(); // this can change passively
-                        preferredMember = ConnectionGroupMember.Select(preferredMember, member);
+
+                        // (note that when in doubt, we prefer the active muxer, to prevent flapping)
+                        preferredMember = ConnectionGroupMember.Select(preferredMember, member, existingActive);
                     }
                 }
 
@@ -710,6 +770,7 @@ namespace StackExchange.Redis
                 if (e.FailureType is ConnectionFailureType.CircuitBreaker
                     && Interlocked.CompareExchange(ref _circuitBreakerDebounce, 1, 0) is 0)
                 {
+                    GetMember(sender as ConnectionMultiplexer)?.SetUnhealthy();
                     _ = Task.Run(async () =>
                     {
                         try
@@ -1157,7 +1218,7 @@ namespace StackExchange.Redis
                 {
                     var health = await (muxer.RawConfig.HealthCheck ?? _options.HealthCheck)
                         .CheckHealthAsync(muxer).ConfigureAwait(false);
-                    member.UpdateState(health);
+                    member.UpdateState(health, GetFailbackFailureCutoff());
                 }
 
                 // apply any shared hooks
@@ -1214,6 +1275,7 @@ namespace StackExchange.Redis
                     return false;
                 }
 
+                member.ResetIsUnhealthy(); // the user explicitly asked us to consider this node
                 if (!member.IsConnected)
                 {
                     // not allowed

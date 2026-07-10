@@ -189,6 +189,7 @@ foreach (var member in conn.GetMembers())
 {
     Console.WriteLine($"{member.Name}:");
     Console.WriteLine($"  Connected: {member.IsConnected}");
+    Console.WriteLine($"  Unhealthy: {member.IsUnhealthy}");
     Console.WriteLine($"  Weight: {member.Weight}");
     Console.WriteLine($"  Latency: {member.Latency}");
 }
@@ -443,10 +444,10 @@ This policy ensures that transient successes don't immediately mark an endpoint 
 ### Health Check Behavior
 
 When a health check fails for a member:
-- The member's `IsConnected` property reflects the unhealthy state
+- The member is flagged **unhealthy** (`IsUnhealthy`); this is distinct from `IsConnected` (see *Unhealthy State and Failback* below)
 - Traffic is automatically routed to other healthy members based on weight and latency
 - The system continues to perform health checks on the unhealthy member
-- Once the member recovers and passes health checks, traffic automatically resumes
+- Once the member recovers and passes health checks, traffic automatically resumes (subject to `FailbackDelay`)
 
 ### Best Practices
 
@@ -583,6 +584,55 @@ var options = new MultiGroupOptions
 ```
 
 Keep `ObserveResult` cheap and thread-safe: it runs on the hot path for every completed message, and may be called concurrently.
+
+## Unhealthy State and Failback
+
+Each member tracks two *independent* pieces of state:
+
+- **`IsConnected`** — the last observed connectivity of the underlying connection.
+- **`IsUnhealthy`** — whether the member has been *disabled* by a failing health-check or a tripped circuit breaker.
+
+A member is only eligible to be selected as the active member when it is **connected _and_ not unhealthy**. Separating the two lets a member that is technically reconnected still be held out of rotation until we're confident it is stable again — which is what `FailbackDelay` controls.
+
+### How a member becomes unhealthy
+
+- A **health check** returns `Unhealthy` for it.
+- Its **circuit breaker** trips (`ConnectionFailureType.CircuitBreaker`). The failing member is flagged unhealthy immediately on the circuit-breaker fast-path, so traffic routes away without waiting for the next health-check tick.
+
+Each time a member is (re)marked unhealthy, the time of that failure is recorded.
+
+### How a member becomes healthy again
+
+An unhealthy member is cleared in one of three ways:
+
+1. **Automatically**, once it passes a health check *and* its most recent failure is older than `FailbackDelay` (see below).
+2. **Explicitly**, by calling `member.ResetIsUnhealthy()`.
+3. **Implicitly**, by calling `IConnectionGroup.TryFailoverTo(member)` — an explicit failover request always clears the target's unhealthy flag first, since the caller is deliberately asking for that member.
+
+### `FailbackDelay`
+
+`MultiGroupOptions.FailbackDelay` is the interval a member must remain healthy — measured from its *most recent* failure — before it is automatically returned to rotation:
+
+```csharp
+var options = new MultiGroupOptions
+{
+    FailbackDelay = TimeSpan.FromMinutes(2), // must be healthy for 2 minutes after its last failure
+};
+```
+
+| Value | Behavior |
+|-------|----------|
+| `TimeSpan.Zero` (default) | Immediate failback — the member is eligible again as soon as a health check passes |
+| any positive `TimeSpan` | The member must go `FailbackDelay` with no further failures before it is re-selected |
+| `TimeSpan.MaxValue` | **Manual mode** — automatic failback is disabled; the member stays out of rotation until `ResetIsUnhealthy()` or `TryFailoverTo(...)` is called |
+
+This guards against **flapping**: a member that is intermittently failing will keep pushing its "last failure" time forward, so it never satisfies the delay and stays out of rotation until it is genuinely stable.
+
+> Implementation note: the failback check is pure tick math on the wall clock — the last-failure time and the cutoff (`UtcNow - FailbackDelay`) are both compared as raw `long` UTC ticks, so `DateTimeKind` never enters into it. (`DateTime.Ticks` and `TimeSpan.Ticks` share the same 100 ns unit.)
+
+### Anti-flap tiebreak in selection
+
+Member selection ranks candidates by connectivity, explicit override, weight, and latency. When two candidates are otherwise indistinguishable, selection prefers the member that is **already active**, rather than picking arbitrarily. 
 
 ## Manual Failover
 

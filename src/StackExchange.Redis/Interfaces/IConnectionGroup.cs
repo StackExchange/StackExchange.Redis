@@ -4,7 +4,6 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using RESPite;
-using StackExchange.Redis.Availability;
 
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis.Availability;
@@ -34,6 +33,7 @@ public interface IConnectionGroup : IConnectionMultiplexer
     /// </summary>
     /// <param name="member">The member to switch to, or <see langword="null"/> to remove an explicit failover.</param>
     /// <returns><see langword="true"/> if the failover was successful (i.e. the member can be used), <see langword="false"/> otherwise.</returns>
+    /// <remarks>This will implicitly include <see cref="ConnectionGroupMember.ResetIsUnhealthy"/>.</remarks>
     bool TryFailoverTo(ConnectionGroupMember? member);
 
     /// <summary>
