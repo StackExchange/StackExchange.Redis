@@ -86,7 +86,7 @@ internal partial class RedisDatabase
 
     public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
     {
-        var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, attributesJson);
+        var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, attributesJson.AsRedisValue());
         return ExecuteSync(msg, ResultProcessor.Boolean);
     }
 
@@ -178,7 +178,7 @@ internal partial class RedisDatabase
 
     public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
     {
-        var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, attributesJson);
+        var msg = Message.Create(Database, flags, RedisCommand.VSETATTR, key, member, attributesJson.AsRedisValue());
         return ExecuteAsync(msg, ResultProcessor.Boolean);
     }
 
@@ -205,7 +205,7 @@ internal partial class RedisDatabase
             if (value.IsNull) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
             var mask = isStart ? Exclude.Start : Exclude.Stop;
             var isExclusive = (exclude & mask) != 0;
-            return (isExclusive ? "(" : "[") + value;
+            return ((isExclusive ? "(" : "[") + value).AsRedisValue();
         }
 
         var from = GetTerminator(start, exclude, true);

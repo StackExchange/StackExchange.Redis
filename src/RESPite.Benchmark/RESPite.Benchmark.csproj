@@ -16,6 +16,7 @@
     <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
     <!-- for for example: dotnet build /p:TargetVer=3 -->
     <TargetVer>3</TargetVer>
+    <NoWarn>$(NoWarn);StringToRedisValue</NoWarn>
   </PropertyGroup>
   
   <ItemGroup>

@@ -193,7 +193,7 @@ public abstract class LoggingTunnel : Tunnel
                 // so we see the message that had a corrupted reply
                 if (sent.Result is not null)
                 {
-                    pair(sent.Result, RedisResult.Create(ex.Message, ResultType.Error));
+                    pair(sent.Result, RedisResult.Create(ex.Message.AsRedisValue(), ResultType.Error));
                 }
                 throw; // still surface the original exception
             }

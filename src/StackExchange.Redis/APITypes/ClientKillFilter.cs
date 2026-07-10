@@ -152,17 +152,17 @@ public class ClientKillFilter
         if (Username != null)
         {
             parts.Add(RedisLiterals.USERNAME);
-            parts.Add(Username);
+            parts.Add(Username.AsRedisValue());
         }
         if (Endpoint != null)
         {
             parts.Add(RedisLiterals.ADDR);
-            parts.Add((RedisValue)Format.ToString(Endpoint));
+            parts.Add(Format.ToString(Endpoint).AsRedisValue());
         }
         if (ServerEndpoint != null)
         {
             parts.Add(RedisLiterals.LADDR);
-            parts.Add((RedisValue)Format.ToString(ServerEndpoint));
+            parts.Add(Format.ToString(ServerEndpoint).AsRedisValue());
         }
         if (SkipMe != null)
         {

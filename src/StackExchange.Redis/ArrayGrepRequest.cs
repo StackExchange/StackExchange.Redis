@@ -367,7 +367,7 @@ public class ArrayGrepRequest
         protected override void WriteImpl(in MessageWriter writer)
         {
             writer.WriteHeader(Command, ArgCount);
-            writer.WriteBulkString(key);
+            writer.Write(key);
             if (request.IsReversed)
             {
                 AddIndex(writer, request.End, "$1\r\n+\r\n"u8);

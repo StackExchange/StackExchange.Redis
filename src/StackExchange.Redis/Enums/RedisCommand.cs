@@ -59,7 +59,9 @@ internal enum RedisCommand
     ECHO,
     EVAL,
     EVALSHA,
+    [AsciiHash("EVAL_RO")]
     EVAL_RO,
+    [AsciiHash("EVALSHA_RO")]
     EVALSHA_RO,
     EXEC,
     EXISTS,
@@ -208,6 +210,7 @@ internal enum RedisCommand
     SMISMEMBER,
     SMOVE,
     SORT,
+    [AsciiHash("SORT_RO")]
     SORT_RO,
     SPOP,
     SPUBLISH,

@@ -26,9 +26,7 @@ the library is moving in the direction of *preferring* RESP3. The default behavi
 | &lt; 2.13               | (any)                                                           | RESP2
 | &gt;= 2.13 and &lt; 3.0 | (non-AMR)                                                       | RESP2
 | &gt;= 2.13 and &lt; 3.0 | [AMR](https://azure.microsoft.com/products/managed-redis) | RESP3
-| &gt; 3.0<sup>†</sup>    | (any)                                                           | RESP3
-
-<sup>†</sup> = planned
+| &gt; 3.0    | (any)                                                           | RESP3
 
 You can override this behaviour by setting the `protocol` option in the connection string, or by setting the `ConfigurationOptions.Protocol` property:
 

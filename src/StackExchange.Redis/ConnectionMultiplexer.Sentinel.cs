@@ -247,7 +247,7 @@ public partial class ConnectionMultiplexer
                 try
                 {
                     isPrimary = connection.CommandMap.IsAvailable(RedisCommand.ROLE)
-                        ? server.Role()?.Value == RedisLiterals.master
+                        ? server.Role()?.Value == Role.LabelForMaster
                         : !server.IsReplica;
                 }
                 catch

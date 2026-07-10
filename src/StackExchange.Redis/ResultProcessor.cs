@@ -1901,7 +1901,7 @@ namespace StackExchange.Redis
                 if (options == GeoRadiusOptions.None)
                 {
                     // Without any WITH option specified, the command just returns a linear array like ["New York","Milan","Paris"].
-                    return new GeoRadiusResult(reader.ReadString(), null, null, null);
+                    return new GeoRadiusResult(reader.ReadRedisValue(), null, null, null);
                 }
 
                 // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
@@ -1913,12 +1913,12 @@ namespace StackExchange.Redis
                 reader.MoveNext(); // Move to first element in the sub-array
 
                 // the first item in the sub-array is always the name of the returned item.
-                var member = reader.ReadString();
+                var member = reader.ReadRedisValue();
 
                 /*  The other information is returned in the following order as successive elements of the sub-array.
 The distance from the center as a floating point number, in the same unit specified in the radius.
 The geohash integer.
-The coordinates as a two items x,y array (longitude,latitude).
+The coordinates as an array of two items x,y (longitude,latitude).
                  */
                 double? distance = null;
                 GeoPosition? position = null;

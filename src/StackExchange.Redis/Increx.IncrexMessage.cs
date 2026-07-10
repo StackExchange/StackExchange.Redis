@@ -32,7 +32,7 @@ internal partial class RedisDatabase
         protected override void WriteImpl(in MessageWriter writer)
         {
             writer.WriteHeader(Command, ArgCount);
-            writer.WriteBulkString(Key);
+            writer.Write(Key);
             WriteIncrementKindAndValue(writer);
             WriteBounds(writer);
             WriteOptions(writer);
