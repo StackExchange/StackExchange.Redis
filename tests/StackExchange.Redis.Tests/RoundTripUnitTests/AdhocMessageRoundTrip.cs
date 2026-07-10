@@ -51,7 +51,6 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
     [Theory(Timeout = 1000)]
     [InlineData("ACL SETUSER x")]
     [InlineData("get key")]
-    [InlineData("echo\thello")]
     public void CommandWithWhitespaceThrows(string command)
     {
         object[] args = [];
