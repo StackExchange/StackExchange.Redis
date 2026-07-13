@@ -2067,14 +2067,13 @@ namespace StackExchange.Redis
 
             internal static bool TryGetSubCommand(in RedisValue value, out SubCommand subCommand)
             {
-                // the inline short-blob is unpacked into this stack slot; keep it alive (a genuine
-                // named local) for as long as the span returned by UnsafeRawSpan is in use
                 switch (value.Type)
                 {
                     case RedisValue.StorageType.ByteArray:
                     case RedisValue.StorageType.MemoryManager:
                     case RedisValue.StorageType.ShortBlob:
                         // all three contiguous byte-blob kinds expose their bytes directly
+                        // (the discard here *must* be stack-local; that's the "Unsafe" in this API)
                         return TryParse(value.UnsafeRawSpan(out _), out subCommand);
                     case RedisValue.StorageType.String:
                         // char-backed: parse the chars directly, no UTF8 round-trip
