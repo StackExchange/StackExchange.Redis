@@ -38,7 +38,7 @@ public readonly struct BasicArray<T> : IEquatable<BasicArray<T>>, IReadOnlyList<
         int i = 0;
         foreach (ref readonly T el in this.Span)
         {
-            if (!_comparer.Equals(el, y[i])) return false;
+            if (!_comparer.Equals(el, y[i++])) return false;
         }
 
         return true;
@@ -58,7 +58,7 @@ public readonly struct BasicArray<T> : IEquatable<BasicArray<T>>, IReadOnlyList<
         var hash = Length;
         foreach (ref readonly T el in this.Span)
         {
-            _ = (hash * -37) + _comparer.GetHashCode(el);
+            hash = (hash * -37) + _comparer.GetHashCode(el);
         }
 
         return hash;
