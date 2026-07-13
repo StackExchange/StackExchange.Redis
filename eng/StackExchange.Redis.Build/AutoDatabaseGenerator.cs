@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ParamInfo = (string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default);
 using MethodInfo = (string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters);
 using InterfaceInfo = (string Name, string Namespace, StackExchange.Redis.Build.BasicArray<(string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters)> Methods);
+using ClassInfo = (string Name, string Namespace, bool IDatabase, bool IDatabaseAsync);
 
 namespace StackExchange.Redis.Build;
 
@@ -18,36 +19,49 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
     {
         var interfaces = ctx.SyntaxProvider
              .CreateSyntaxProvider(
-                 static (node, _) => node is InterfaceDeclarationSyntax decl && FastFilter(decl), ExtractInterfaceMethods)
+                 static (node, _) => node is InterfaceDeclarationSyntax decl && FastIndexFilter(decl), ExtractInterfaceMethods)
              .Where(pair => pair.Name is { Length: > 0 })
              .Collect();
 
-        ctx.RegisterSourceOutput(interfaces, static (ctx, content) => Generate(ctx, content));
+        var classes = ctx.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) => node is ClassDeclarationSyntax decl && FastClassFilter(decl), ExtractClasses)
+            .Where(pair => pair.Name is { Length: > 0 })
+            .Collect();
+
+        ctx.RegisterSourceOutput(interfaces.Combine(classes), static (ctx, content) => Generate(ctx, content.Left, content.Right));
     }
 
-    private static bool FastFilter(InterfaceDeclarationSyntax decl) // limit to IDatabase, IDatabaseAsync
+    private static bool FastIndexFilter(InterfaceDeclarationSyntax decl) // limit to IDatabase, IDatabaseAsync
         => decl.Identifier.ValueText is "IDatabase" or "IDatabaseAsync";
+
+    private static bool FastClassFilter(ClassDeclarationSyntax decl) // limit to IDatabase, IDatabaseAsync
+        => decl.AttributeLists.Any(x => x.Attributes.Any(x => x.Name.ToString() is "AutoDatabase" or "AutoDatabaseAttribute"));
+
+    private static bool IsOurInterface(INamedTypeSymbol symbol) =>
+        symbol is
+        {
+            TypeKind: TypeKind.Interface,
+            Name: "IDatabase" or "IDatabaseAsync",
+            ContainingType: null,
+            ContainingNamespace:
+            {
+                Name: "Redis",
+                ContainingNamespace:
+                {
+                    Name: "StackExchange",
+                    ContainingNamespace.IsGlobalNamespace: true
+                }
+            }
+        };
 
     private static InterfaceInfo ExtractInterfaceMethods(GeneratorSyntaxContext context, CancellationToken cancel)
     {
         // note: we deliberately do NOT interpret anything here - just capture the raw shape of every
         // method (name, return type, and per-parameter name/type/modifiers/optionality/default) so that
         // later passes have everything they might need.
-        if (context.SemanticModel.GetDeclaredSymbol(context.Node, cancel) is not INamedTypeSymbol
-            {
-                TypeKind: TypeKind.Interface,
-                Name: "IDatabase" or "IDatabaseAsync",
-                ContainingType: null,
-                ContainingNamespace:
-                {
-                    Name: "Redis",
-                    ContainingNamespace:
-                    {
-                        Name: "StackExchange",
-                        ContainingNamespace.IsGlobalNamespace: true
-                    }
-                }
-            } iface)
+        if (context.SemanticModel.GetDeclaredSymbol(context.Node, cancel) is not INamedTypeSymbol iface
+            || !IsOurInterface(iface))
         {
             return default;
         }
@@ -83,6 +97,55 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         return (iface.Name, ns, methodArray.Build());
     }
 
+    private ClassInfo ExtractClasses(GeneratorSyntaxContext context, CancellationToken cancel)
+    {
+        // note: we deliberately do NOT interpret anything here - just capture the raw shape of every
+        // method (name, return type, and per-parameter name/type/modifiers/optionality/default) so that
+        // later passes have everything they might need.
+        if (context.SemanticModel.GetDeclaredSymbol(context.Node, cancel) is not INamedTypeSymbol cls
+            || !HasAutoDatabaseAttrib(cls))
+        {
+            return default;
+        }
+
+        static bool HasAutoDatabaseAttrib(INamedTypeSymbol symbol)
+        {
+            var attribs = symbol.GetAttributes();
+            foreach (var attrib in attribs)
+            {
+                if (attrib.AttributeClass is
+                    {
+                        Name: "AutoDatabaseAttribute"
+                    })
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        bool db = false, dba = false;
+        foreach (var iFace in cls.Interfaces)
+        {
+            if (IsOurInterface(iFace))
+            {
+                switch (iFace.Name)
+                {
+                    case "IDatabase":
+                        db = true;
+                        break;
+                    case "IDatabaseAsync":
+                        dba = true;
+                        break;
+                }
+            }
+        }
+
+        var ns = cls.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+        return (cls.Name, ns, db, dba);
+    }
+
     private static string FormatDefault(object? value) => value switch
     {
         null => "null",
@@ -91,13 +154,17 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         _ => value.ToString() ?? "null",
     };
 
-    private static void Generate(SourceProductionContext ctx, ImmutableArray<InterfaceInfo> interfaces)
+    private static void Generate(SourceProductionContext ctx, ImmutableArray<InterfaceInfo> interfaces, ImmutableArray<ClassInfo> classes)
     {
         if (interfaces.IsDefaultOrEmpty) return; // nothing to do
 
         // each interface is declared across several partial files, so we get one (identical) entry per
         // partial declaration; structural equality lets us collapse those down to one per interface.
-        var distinct = interfaces.Distinct();
+        var iKeyed = new Dictionary<string, InterfaceInfo>(StringComparer.Ordinal);
+        foreach (var t in interfaces)
+        {
+            if (!iKeyed.ContainsKey(t.Name)) iKeyed.Add(t.Name, t);
+        }
 
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
@@ -105,7 +172,12 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         sb.AppendLine("// This file is informational only (everything is in comments); no real code is emitted yet.");
         sb.AppendLine();
 
-        foreach (var iface in distinct)
+        foreach (var cls in classes.Distinct())
+        {
+            sb.Append("// ==== ").Append(cls.Name).Append(" db: ").Append(cls.IDatabase).Append(" dba: ").Append(cls.IDatabaseAsync).AppendLine();
+        }
+
+        foreach (var iface in iKeyed.Values)
         {
             sb.Append("// ==== ").Append(iface.Namespace).Append('.').Append(iface.Name)
                 .Append(" (").Append(iface.Methods.Length).AppendLine(" methods) ====");

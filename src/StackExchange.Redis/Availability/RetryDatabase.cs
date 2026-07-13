@@ -9,7 +9,7 @@ internal sealed class AutoDatabaseAttribute : Attribute
 {
 }
 
-// [AutoDatabase]
-// internal partial class RetryDatabase : IDatabase, IDatabaseAsync
-// {
-// }
+[AutoDatabase]
+internal partial class RetryDatabase : IDatabase
+{
+}
