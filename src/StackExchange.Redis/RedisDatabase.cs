@@ -5613,6 +5613,24 @@ namespace StackExchange.Redis
                 return slot;
             }
             public override int ArgCount => _args.Count;
+
+            protected override bool TryGetSubCommand(out SubCommand subCommand)
+            {
+                // the sub-command (if any) is the first argument after the command itself,
+                // e.g. CLIENT [GETNAME]; ad-hoc Execute args are boxed objects, so normalize
+                // the first one to a RedisValue before probing it against the known sub-commands
+                foreach (object arg in _args)
+                {
+                    var value = RedisValue.TryParse(arg, out var valid);
+                    if (valid)
+                    {
+                        return SubCommandMetadata.TryGetSubCommand(value, out subCommand);
+                    }
+                    break; // only the first argument is a sub-command candidate
+                }
+                subCommand = SubCommand.Unknown;
+                return false;
+            }
         }
 
         private sealed class ScriptEvalMessage : Message, IMultiMessage
