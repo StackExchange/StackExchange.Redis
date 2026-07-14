@@ -127,7 +127,17 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             {
                 if (attrib.AttributeClass is
                     {
-                        Name: "AutoDatabaseAttribute"
+                        Name: "AutoDatabaseAttribute",
+                        ContainingType: null,
+                        ContainingNamespace:
+                        {
+                            Name: "Redis",
+                            ContainingNamespace:
+                            {
+                                Name: "StackExchange",
+                                ContainingNamespace.IsGlobalNamespace: true
+                            }
+                        }
                     })
                 {
                     return true;
@@ -176,6 +186,16 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         IRedis = 4,
         IRedisAsync = 8,
     }
+
+    // methods that don't fit the capture-and-replay shape are left for the caller to implement manually:
+    //  - generic methods (open type args can't be captured into a concrete state struct)
+    //  - the Wait family (synchronization over caller-supplied Tasks, not server calls)
+    //  - streaming returns (IEnumerable<T> / IAsyncEnumerable<T>) whose execution is deferred
+    private static bool SkipMethod(MethodInfo method)
+        => !method.TypeArgs.IsEmpty
+        || method.Name.Contains("Wait")
+        || method.ReturnType.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal)
+        || method.ReturnType.StartsWith("System.Collections.Generic.IAsyncEnumerable<", StringComparison.Ordinal);
 
     private static string FormatDefault(object? value) => value switch
     {
@@ -254,21 +274,10 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 if ((cls.Interfaces & knownType) is 0 | !iKeyed.TryGetValue(knownType, out var iType)) return;
                 foreach (var method in iType.Methods)
                 {
+                    if (SkipMethod(method)) continue; // wonky by nature - left for the caller to implement manually
+
                     writer.NewLine().Append(method.ReturnType).Append(" global::")
-                        .Append(iType.Namespace).Append('.').Append(iType.Name).Append('.').Append(method.Name);
-                    if (!method.TypeArgs.IsEmpty)
-                    {
-                        bool firstT = true;
-                        writer.Append("<");
-                        foreach (var t in method.TypeArgs)
-                        {
-                            if (firstT) firstT = false;
-                            else writer.Append(", ");
-                            writer.Append(t);
-                        }
-                        writer.Append(">");
-                    }
-                    writer.Append("(");
+                        .Append(iType.Namespace).Append('.').Append(iType.Name).Append('.').Append(method.Name).Append("(");
                     bool firstParam = true;
                     foreach (var p in method.Parameters.Span)
                     {
@@ -278,17 +287,9 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     }
                     writer.Append(')').Indent().NewLine();
 
-                    // generic methods can't be captured into a concrete state struct - leave them unimplemented for now
-                    if (!method.TypeArgs.IsEmpty)
-                    {
-                        writer.Append("=> throw new global::System.NotImplementedException();").Outdent().NewLine();
-                        continue;
-                    }
-
                     // Task / Task<T> methods route to ExecuteAsync (its own retry policy); everything
-                    // else (including IAsyncEnumerable, which returns synchronously) uses Execute. The
-                    // state struct is shared regardless of return type - keyed on parameter types only -
-                    // so e.g. ArraySet and ArraySetAsync land on the same _tupleN.
+                    // else uses Execute. The state struct is shared regardless of return type - keyed on
+                    // parameter types only - so e.g. ArraySet and ArraySetAsync land on the same _tupleN.
                     bool isAsync = method.ReturnType.StartsWith("System.Threading.Tasks.Task", StringComparison.Ordinal);
                     int tuple = GetTupleIndex(method.Parameters);
                     writer.Append(isAsync ? "=> ExecuteAsync(new _tuple" : "=> Execute(new _tuple").Append(tuple).Append("(");
@@ -330,21 +331,83 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
 
             void AppendTupleTypes()
             {
+                const string CommandFlagsType = "StackExchange.Redis.CommandFlags";
+                const string RedisKeyType = "StackExchange.Redis.RedisKey";
+                const string RedisChannelType = "StackExchange.Redis.RedisChannel";
+                // types that carry key(s) internally without "RedisKey" in their name, so the
+                // substring check below won't catch them; they rely on a Map extension method
+                const string StreamPositionType = "StackExchange.Redis.StreamPosition";
+                // the Execute/ExecuteAsync escape hatch boxes keys/channels inside a loosely-typed
+                // arg list; these route through a Map extension that unboxes and rewrites matches
+                const string ScriptArgArrayType = "object[]";
+                const string ScriptArgCollectionType = "System.Collections.Generic.ICollection<object>";
                 for (int i = 0; i < tupleDefs.Count; i++)
                 {
                     var parameters = tupleDefs[i].Span;
-                    writer.NewLine().NewLine().Append("private readonly struct _tuple").Append(i).Append("(");
+
+                    // locate the (single) CommandFlags argument, if any, to back IRedisArgs.Flags
+                    int flagsArg = -1;
+                    for (int p = 0; p < parameters.Length; p++)
+                    {
+                        if (parameters[p].Type == CommandFlagsType)
+                        {
+                            flagsArg = p;
+                            break;
+                        }
+                    }
+
+                    // fields are mutable: Map rewrites key/channel fields and Flags has a setter
+                    writer.NewLine().NewLine().Append("private struct _tuple").Append(i).Append("(");
                     for (int p = 0; p < parameters.Length; p++)
                     {
                         if (p != 0) writer.Append(", ");
                         writer.Append(parameters[p].Type).Append(" arg").Append(p);
                     }
-                    writer.Append(")").NewLine().Append("{").Indent();
+                    writer.Append(") : global::StackExchange.Redis.IRedisArgs").NewLine().Append("{").Indent();
                     for (int p = 0; p < parameters.Length; p++)
                     {
-                        writer.NewLine().Append("public readonly ").Append(parameters[p].Type)
+                        writer.NewLine().Append("public ").Append(parameters[p].Type)
                             .Append(" Arg").Append(p).Append(" = arg").Append(p).Append(";");
                     }
+
+                    // Flags maps onto the CommandFlags field when present, else a synthesized default
+                    writer.NewLine().Append("public global::StackExchange.Redis.CommandFlags Flags");
+                    if (flagsArg >= 0)
+                    {
+                        writer.Append(" { readonly get => Arg").Append(flagsArg).Append("; set => Arg").Append(flagsArg).Append(" = value; }");
+                    }
+                    else
+                    {
+                        writer.Append(" { get; set; }");
+                    }
+
+                    // Map rewrites each scalar key/channel field directly, and defers container or
+                    // loosely-typed fields to a matching Map extension method
+                    writer.NewLine().Append("public void Map(global::StackExchange.Redis.IRedisArgsMutator mutator)")
+                        .NewLine().Append("{").Indent();
+                    for (int p = 0; p < parameters.Length; p++)
+                    {
+                        if (parameters[p].Type == RedisKeyType)
+                        {
+                            writer.NewLine().Append("Arg").Append(p).Append(" = mutator.MapKey(Arg").Append(p).Append(");");
+                        }
+                        else if (parameters[p].Type == RedisChannelType)
+                        {
+                            writer.NewLine().Append("Arg").Append(p).Append(" = mutator.MapChannel(Arg").Append(p).Append(");");
+                        }
+                        else if (parameters[p].Type.IndexOf(RedisKeyType, StringComparison.Ordinal) >= 0
+                            || parameters[p].Type.IndexOf(StreamPositionType, StringComparison.Ordinal) >= 0
+                            || parameters[p].Type == ScriptArgArrayType
+                            || parameters[p].Type == ScriptArgCollectionType
+                            || parameters[p].Type == ScriptArgCollectionType + "?")
+                        {
+                            // key/channel-bearing container (or the loosely-typed script arg list); it
+                            // is the library's job to ensure a suitable Map extension method exists
+                            writer.NewLine().Append("Arg").Append(p).Append(" = mutator.Map(Arg").Append(p).Append(");");
+                        }
+                    }
+                    writer.Outdent().NewLine().Append("}");
+
                     writer.Outdent().NewLine().Append("}");
                 }
             }
