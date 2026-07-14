@@ -82,4 +82,25 @@ public readonly struct BasicArray<T> : IEquatable<BasicArray<T>>, IReadOnlyList<
 
         public BasicArray<T> Build() => new(elements, Count);
     }
+
+    public static BasicArray<T> From(ICollection<T> collection)
+    {
+        if (collection.Count is 0) return default;
+        var arr = new T[collection.Count];
+        collection.CopyTo(arr, 0);
+        return new(arr, arr.Length);
+    }
+
+    public static BasicArray<T> From<TSource>(ICollection<TSource> collection, Func<TSource, T> selector)
+    {
+        if (collection.Count is 0) return default;
+        var arr = new T[collection.Count];
+        int i = 0;
+        foreach (var item in collection)
+        {
+            arr[i++] = selector(item);
+        }
+
+        return new(arr, i);
+    }
 }

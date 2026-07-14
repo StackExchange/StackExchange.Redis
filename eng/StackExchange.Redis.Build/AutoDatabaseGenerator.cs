@@ -6,9 +6,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 // readable names for the info we gather; kept as tuples (+ BasicArray) so they have
 // value equality and play nicely with incremental generator caching.
 using ParamInfo = (string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default);
-using MethodInfo = (string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters);
-using InterfaceInfo = (string Name, string Namespace, StackExchange.Redis.Build.BasicArray<(string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters)> Methods);
-using ClassInfo = (string Name, string Namespace, bool IDatabase, bool IDatabaseAsync);
+using MethodInfo = (string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters, StackExchange.Redis.Build.BasicArray<string> TypeArgs);
+using InterfaceInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces KnownType, StackExchange.Redis.Build.BasicArray<(string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters, StackExchange.Redis.Build.BasicArray<string> TypeArgs)> Methods);
+using ClassInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces Interfaces);
 
 namespace StackExchange.Redis.Build;
 
@@ -32,8 +32,17 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         ctx.RegisterSourceOutput(interfaces.Combine(classes), static (ctx, content) => Generate(ctx, content.Left, content.Right));
     }
 
+    static KnownInterfaces Identify(string type) => type switch
+    {
+        "IDatabase" => KnownInterfaces.IDatabase,
+        "IDatabaseAsync" => KnownInterfaces.IDatabaseAsync,
+        "IRedis" => KnownInterfaces.IRedis,
+        "IRedisAsync" => KnownInterfaces.IRedisAsync,
+        _ => KnownInterfaces.None,
+    };
+
     private static bool FastIndexFilter(InterfaceDeclarationSyntax decl) // limit to IDatabase, IDatabaseAsync
-        => decl.Identifier.ValueText is "IDatabase" or "IDatabaseAsync";
+        => Identify(decl.Identifier.ValueText) is not 0;
 
     private static bool FastClassFilter(ClassDeclarationSyntax decl) // limit to IDatabase, IDatabaseAsync
         => decl.AttributeLists.Any(x => x.Attributes.Any(x => x.Name.ToString() is "AutoDatabase" or "AutoDatabaseAttribute"));
@@ -42,7 +51,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         symbol is
         {
             TypeKind: TypeKind.Interface,
-            Name: "IDatabase" or "IDatabaseAsync",
+            Name: "IDatabase" or "IDatabaseAsync" or "IRedis" or "IRedisAsync",
             ContainingType: null,
             ContainingNamespace:
             {
@@ -66,35 +75,38 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             return default;
         }
 
-        var methods = ImmutableArray.CreateBuilder<MethodInfo>();
+        var knownType = Identify(iface.Name);
+        if (knownType is KnownInterfaces.None) return default;
+
+        var methods = new List<MethodInfo>();
         foreach (var member in iface.GetMembers())
         {
             cancel.ThrowIfCancellationRequested();
             if (member is not IMethodSymbol { MethodKind: MethodKind.Ordinary } method) continue;
 
-            var parameters = new BasicArray<ParamInfo>.Builder(method.Parameters.Length);
-            foreach (var p in method.Parameters)
-            {
-                parameters.Add((
-                    Name: p.Name,
-                    Type: p.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-                    RefKind: p.RefKind,
-                    IsParams: p.IsParams,
-                    IsOptional: p.IsOptional,
-                    HasDefault: p.HasExplicitDefaultValue,
-                    Default: p.HasExplicitDefaultValue ? FormatDefault(p.ExplicitDefaultValue) : null));
-            }
+            var parameters = BasicArray<ParamInfo>.From(method.Parameters, static p => (
+                Name: p.Name,
+                Type: p.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                RefKind: p.RefKind,
+                IsParams: p.IsParams,
+                IsOptional: p.IsOptional,
+                HasDefault: p.HasExplicitDefaultValue,
+                Default: p.HasExplicitDefaultValue ? FormatDefault(p.ExplicitDefaultValue) : null));
 
+            BasicArray<string> typeArgs = default;
+            if (method.IsGenericMethod)
+            {
+                typeArgs = BasicArray<string>.From(method.TypeParameters, p => p.Name);
+            }
             methods.Add((
                 Name: method.Name,
                 ReturnType: method.ReturnType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-                Parameters: parameters.Build()));
+                Parameters: parameters,
+                TypeArgs: typeArgs));
         }
 
         var ns = iface.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        var methodArray = new BasicArray<MethodInfo>.Builder(methods.Count);
-        foreach (var m in methods) methodArray.Add(m);
-        return (iface.Name, ns, methodArray.Build());
+        return (iface.Name, ns, knownType, BasicArray<MethodInfo>.From(methods));
     }
 
     private ClassInfo ExtractClasses(GeneratorSyntaxContext context, CancellationToken cancel)
@@ -125,7 +137,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             return false;
         }
 
-        bool db = false, dba = false;
+        KnownInterfaces known = 0;
         foreach (var iFace in cls.Interfaces)
         {
             if (IsOurInterface(iFace))
@@ -133,17 +145,36 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 switch (iFace.Name)
                 {
                     case "IDatabase":
-                        db = true;
+                        known |= KnownInterfaces.IDatabase | KnownInterfaces.IDatabaseAsync |
+                                 KnownInterfaces.IRedis | KnownInterfaces.IRedisAsync;
                         break;
                     case "IDatabaseAsync":
-                        dba = true;
+                        known |= KnownInterfaces.IDatabaseAsync | KnownInterfaces.IRedisAsync;
+                        break;
+                    case "IRedis":
+                        known |= KnownInterfaces.IRedis | KnownInterfaces.IRedisAsync;
+                        break;
+                    case "IRedisAsync":
+                        known |= KnownInterfaces.IRedisAsync;
                         break;
                 }
             }
         }
 
+        if (known is KnownInterfaces.None) return default; // nothing to do!
+
         var ns = cls.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        return (cls.Name, ns, db, dba);
+        return (cls.Name, ns, known);
+    }
+
+    [Flags]
+    internal enum KnownInterfaces
+    {
+        None = 0,
+        IDatabase = 1,
+        IDatabaseAsync = 2,
+        IRedis = 4,
+        IRedisAsync = 8,
     }
 
     private static string FormatDefault(object? value) => value switch
@@ -160,10 +191,11 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
 
         // each interface is declared across several partial files, so we get one (identical) entry per
         // partial declaration; structural equality lets us collapse those down to one per interface.
-        var iKeyed = new Dictionary<string, InterfaceInfo>(StringComparer.Ordinal);
+        var iKeyed = new Dictionary<KnownInterfaces, InterfaceInfo>();
         foreach (var t in interfaces)
         {
-            if (!iKeyed.ContainsKey(t.Name)) iKeyed.Add(t.Name, t);
+            if (t.KnownType is KnownInterfaces.None) continue;
+            if (!iKeyed.ContainsKey(t.KnownType)) iKeyed.Add(t.KnownType, t);
         }
 
         var sb = new StringBuilder();
@@ -171,6 +203,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         writer.NewLine().Append("// <auto-generated/>");
         writer.NewLine().Append("// AutoDatabaseGenerator diagnostic dump - what ExtractInterfaceMethods found.");
         writer.NewLine().Append("// This file is informational only (everything is in comments); no real code is emitted yet.");
+        writer.NewLine().Append("#nullable enable"); // this needs to be explicit for code-gen
         writer.NewLine();
         foreach (var cls in classes.Distinct())
         {
@@ -179,8 +212,18 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 writer.NewLine().Append("namespace ").Append(cls.Namespace).NewLine().Append("{").Indent();
             }
 
-            writer.NewLine().Append("partial class ").Append(cls.Name).NewLine().Append("{").Indent();
-            writer.NewLine().Append($"// IDatabase: {cls.IDatabase}, IDatabaseAsync: {cls.IDatabaseAsync}");
+            bool isFirst = true;
+            writer.NewLine().Append("partial class ").Append(cls.Name);
+            AppendInterfaceDeclaration(KnownInterfaces.IDatabase);
+            AppendInterfaceDeclaration(KnownInterfaces.IDatabaseAsync);
+            AppendInterfaceDeclaration(KnownInterfaces.IRedis);
+            AppendInterfaceDeclaration(KnownInterfaces.IRedisAsync);
+            writer.NewLine().Append("{").Indent();
+            AppendInterfaceMethods(KnownInterfaces.IDatabase);
+            AppendInterfaceMethods(KnownInterfaces.IDatabaseAsync);
+            AppendInterfaceMethods(KnownInterfaces.IRedis);
+            AppendInterfaceMethods(KnownInterfaces.IRedisAsync);
+
             writer.Outdent().NewLine().Append("}");
 
             if (!string.IsNullOrWhiteSpace(cls.Namespace))
@@ -188,33 +231,49 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 writer.Outdent().NewLine().Append("}");
             }
             writer.NewLine();
-        }
-        writer.NewLine();
 
-        foreach (var iface in iKeyed.Values)
-        {
-            sb.Append("// ==== ").Append(iface.Namespace).Append('.').Append(iface.Name)
-                .Append(" (").Append(iface.Methods.Length).AppendLine(" methods) ====");
-            foreach (var method in iface.Methods.Span)
+
+            void AppendInterfaceDeclaration(KnownInterfaces knownType)
             {
-                sb.Append("//   ").Append(method.ReturnType).Append(' ').Append(method.Name).AppendLine("(");
-                for (int i = 0; i < method.Parameters.Length; i++)
-                {
-                    ref readonly var p = ref method.Parameters[i];
-                    sb.Append("//       [").Append(i).Append("] ");
-                    if (p.RefKind != RefKind.None) sb.Append(p.RefKind.ToString().ToLowerInvariant()).Append(' ');
-                    if (p.IsParams) sb.Append("params ");
-                    sb.Append(p.Type).Append(' ').Append(p.Name);
-                    if (p.IsOptional) sb.Append(" [optional]");
-                    if (p.HasDefault) sb.Append(" = ").Append(p.Default);
-                    sb.AppendLine();
-                }
-
-                sb.AppendLine("//   )");
+                if ((cls.Interfaces & knownType) is 0 | !iKeyed.TryGetValue(knownType, out var iType)) return;
+                writer.Append(isFirst ? " : " : ", ").Append("global::")
+                    .Append(iType.Namespace).Append('.') .Append(iType.Name);
+                isFirst = false;
             }
 
-            sb.AppendLine("//");
+            void AppendInterfaceMethods(KnownInterfaces knownType)
+            {
+                if ((cls.Interfaces & knownType) is 0 | !iKeyed.TryGetValue(knownType, out var iType)) return;
+                foreach (var method in iType.Methods)
+                {
+                    writer.NewLine().Append(method.ReturnType).Append(" global::")
+                        .Append(iType.Namespace).Append('.').Append(iType.Name).Append('.').Append(method.Name);
+                    if (!method.TypeArgs.IsEmpty)
+                    {
+                        bool firstT = true;
+                        writer.Append("<");
+                        foreach (var t in method.TypeArgs)
+                        {
+                            if (firstT) firstT = false;
+                            else writer.Append(", ");
+                            writer.Append(t);
+                        }
+                        writer.Append(">");
+                    }
+                    writer.Append("(");
+                    bool firstParam = true;
+                    foreach (var p in method.Parameters.Span)
+                    {
+                        if (firstParam) firstParam = false;
+                        else writer.Append(", ");
+                        writer.Append(p.Type).Append(" ").Append(p.Name);
+                    }
+                    writer.Append(')').Indent().NewLine().Append("=> throw new global::System.NotImplementedException();")
+                        .Outdent().NewLine();
+                }
+            }
         }
+        writer.NewLine();
 
         ctx.AddSource("AutoDatabase.generated.cs", sb.ToString());
     }
