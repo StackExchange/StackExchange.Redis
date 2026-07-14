@@ -5,11 +5,15 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis.Availability;
 
 [AutoDatabase]
-internal partial class RetryDatabase : IDatabase
+internal partial class RetryDatabase : IDatabase, IRedisArgsMutator
 {
     private readonly IDatabase _inner;
-
-    public RetryDatabase(IDatabase inner) => _inner = inner;
+    private readonly int _maxRetryCount;
+    public RetryDatabase(IDatabase inner, int maxRetryCount)
+    {
+        _inner = inner;
+        _maxRetryCount = maxRetryCount;
+    }
 
     public int Database => _inner.Database;
     public IConnectionMultiplexer Multiplexer => _inner.Multiplexer;
@@ -20,7 +24,25 @@ internal partial class RetryDatabase : IDatabase
     // policy will live here in due course; for now it is a straight pass-through.
     private TResult Execute<TState, TResult>(TState state, Func<TState, IDatabase, TResult> operation)
         where TState : struct, IRedisArgs
-        => operation(state, _inner);
+    {
+        state.Map(this);
+        int i = 0;
+        TResult result;
+        while (true)
+        {
+            try
+            {
+                result = operation(state, _inner);
+                break;
+            }
+            catch (Exception ex) when (++i < _maxRetryCount)
+            {
+                // we can give it another attempt
+                Debug.WriteLine(ex.Message);
+            }
+        }
+        return this.UnMap(state, result);
+    }
 
     private void Execute<TState>(TState state, Action<TState, IDatabase> operation)
         where TState : struct, IRedisArgs
@@ -57,4 +79,11 @@ internal partial class RetryDatabase : IDatabase
     System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotImplementedException();
     System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start, RedisValue end, long count, Exclude exclude, CommandFlags flags) => throw new NotImplementedException();
     System.Collections.Generic.IAsyncEnumerable<SortedSetEntry> IDatabaseAsync.SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotImplementedException();
+
+    RedisKey IRedisArgsMutator.Map(RedisKey key) => key;
+
+    RedisChannel IRedisArgsMutator.Map(RedisChannel channel) => channel;
+
+    RedisKey IRedisArgsMutator.UnMap(RedisKey key) => key;
+    RedisChannel IRedisArgsMutator.UnMap(RedisChannel channel) => channel;
 }

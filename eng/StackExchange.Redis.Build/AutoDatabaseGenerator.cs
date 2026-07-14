@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -236,7 +237,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             // unique parameter-type signatures encountered while emitting this class's methods;
             // keyed on the '|'-joined parameter types so distinct methods with the same shape share
             // one state struct. tupleDefs[i] holds a representative parameter list for _tuple{i}.
-            var tupleIndex = new Dictionary<string, int>();
+            var tupleIndex = new Dictionary<string, (int Index, HashSet<string>? ReturnTypes)>();
             var tupleDefs = new List<BasicArray<ParamInfo>>();
 
             bool isFirst = true;
@@ -291,7 +292,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     // else uses Execute. The state struct is shared regardless of return type - keyed on
                     // parameter types only - so e.g. ArraySet and ArraySetAsync land on the same _tupleN.
                     bool isAsync = method.ReturnType.StartsWith("System.Threading.Tasks.Task", StringComparison.Ordinal);
-                    int tuple = GetTupleIndex(method.Parameters);
+                    int tuple = GetTupleIndex(method.Parameters, method.ReturnType);
                     writer.Append(isAsync ? "=> ExecuteAsync(new _tuple" : "=> Execute(new _tuple").Append(tuple).Append("(");
                     firstParam = true;
                     foreach (var p in method.Parameters.Span)
@@ -310,7 +311,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 }
             }
 
-            int GetTupleIndex(BasicArray<ParamInfo> parameters)
+            static string GetTupleKey(BasicArray<ParamInfo> parameters)
             {
                 var keyBuilder = new StringBuilder();
                 foreach (var p in parameters.Span)
@@ -318,32 +319,70 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     keyBuilder.Append(p.Type).Append('|'); // types-only key; no ref/out on this surface, so type is sufficient
                 }
 
-                var key = keyBuilder.ToString();
-                if (!tupleIndex.TryGetValue(key, out var index))
+                return keyBuilder.ToString();
+            }
+
+            HashSet<string>? GetTupleMapReturns(BasicArray<ParamInfo> parameters) =>
+                tupleIndex.TryGetValue(GetTupleKey(parameters), out var found)
+                    ? found.ReturnTypes : null;
+
+            int GetTupleIndex(BasicArray<ParamInfo> parameters, string returnType)
+            {
+                var key = GetTupleKey(parameters);
+                bool map = NeedsMap(returnType);
+                int index;
+                if (tupleIndex.TryGetValue(key, out var found))
+                {
+                    index = found.Index;
+                    if (map)
+                    {
+                        if (found.ReturnTypes is null)
+                        {
+                            found.ReturnTypes = [];
+                            tupleIndex[key] = found;
+                        }
+                        found.ReturnTypes.Add(returnType);
+                    }
+                }
+                else
                 {
                     index = tupleDefs.Count;
-                    tupleIndex.Add(key, index);
+                    tupleIndex.Add(key, (index, map ? [ returnType ] : null));
                     tupleDefs.Add(parameters);
                 }
 
                 return index;
             }
 
+            const string CommandFlagsType = "StackExchange.Redis.CommandFlags";
+            const string RedisKeyType = "StackExchange.Redis.RedisKey";
+            const string RedisChannelType = "StackExchange.Redis.RedisChannel";
+            // types that carry key(s) internally without "RedisKey" in their name, so the
+            // substring check below won't catch them; they rely on a Map extension method
+            const string StreamPositionType = "StackExchange.Redis.StreamPosition";
+            // the Execute/ExecuteAsync escape hatch boxes keys/channels inside a loosely-typed
+            // arg list; these route through a Map extension that unboxes and rewrites matches
+            const string ScriptArgArrayType = "object[]";
+            const string ScriptArgCollectionType = "System.Collections.Generic.ICollection<object>";
+
+            static bool NeedsMap(string name) =>
+                name.IndexOf(RedisKeyType, StringComparison.Ordinal) >= 0
+                || name.IndexOf(RedisChannelType, StringComparison.Ordinal) >= 0
+                || name.IndexOf(StreamPositionType, StringComparison.Ordinal) >= 0
+                || name == ScriptArgArrayType
+                || name == ScriptArgCollectionType
+                || name.IndexOf("ListPopResult", StringComparison.Ordinal) >= 0
+                || name.IndexOf("SortedSetPopResult", StringComparison.Ordinal) >= 0
+                || name == ScriptArgCollectionType + "?";
+
             void AppendTupleTypes()
             {
-                const string CommandFlagsType = "StackExchange.Redis.CommandFlags";
-                const string RedisKeyType = "StackExchange.Redis.RedisKey";
-                const string RedisChannelType = "StackExchange.Redis.RedisChannel";
-                // types that carry key(s) internally without "RedisKey" in their name, so the
-                // substring check below won't catch them; they rely on a Map extension method
-                const string StreamPositionType = "StackExchange.Redis.StreamPosition";
-                // the Execute/ExecuteAsync escape hatch boxes keys/channels inside a loosely-typed
-                // arg list; these route through a Map extension that unboxes and rewrites matches
-                const string ScriptArgArrayType = "object[]";
-                const string ScriptArgCollectionType = "System.Collections.Generic.ICollection<object>";
+
                 for (int i = 0; i < tupleDefs.Count; i++)
                 {
-                    var parameters = tupleDefs[i].Span;
+                    var raw = tupleDefs[i];
+                    var returns = GetTupleMapReturns(raw);
+                    var parameters = raw.Span;
 
                     // locate the (single) CommandFlags argument, if any, to back IRedisArgs.Flags
                     int flagsArg = -1;
@@ -363,7 +402,19 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                         if (p != 0) writer.Append(", ");
                         writer.Append(parameters[p].Type).Append(" arg").Append(p);
                     }
-                    writer.Append(") : global::StackExchange.Redis.IRedisArgs").NewLine().Append("{").Indent();
+
+                    writer.Append(") : global::StackExchange.Redis.IRedisArgs");
+                    if (returns is not null)
+                    {
+                        writer.Indent();
+                        foreach (var retType in returns)
+                        {
+                            writer.Append(',').NewLine().Append("global::StackExchange.Redis.IRedisArgsResult<")
+                                .Append(retType).Append(">");
+                        }
+                        writer.Outdent();
+                    }
+                    writer.NewLine().Append("{").Indent();
                     for (int p = 0; p < parameters.Length; p++)
                     {
                         writer.NewLine().Append("public ").Append(parameters[p].Type)
@@ -387,19 +438,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                         .NewLine().Append("{").Indent();
                     for (int p = 0; p < parameters.Length; p++)
                     {
-                        if (parameters[p].Type == RedisKeyType)
-                        {
-                            writer.NewLine().Append("Arg").Append(p).Append(" = mutator.MapKey(Arg").Append(p).Append(");");
-                        }
-                        else if (parameters[p].Type == RedisChannelType)
-                        {
-                            writer.NewLine().Append("Arg").Append(p).Append(" = mutator.MapChannel(Arg").Append(p).Append(");");
-                        }
-                        else if (parameters[p].Type.IndexOf(RedisKeyType, StringComparison.Ordinal) >= 0
-                            || parameters[p].Type.IndexOf(StreamPositionType, StringComparison.Ordinal) >= 0
-                            || parameters[p].Type == ScriptArgArrayType
-                            || parameters[p].Type == ScriptArgCollectionType
-                            || parameters[p].Type == ScriptArgCollectionType + "?")
+                        if (NeedsMap(parameters[p].Type))
                         {
                             // key/channel-bearing container (or the loosely-typed script arg list); it
                             // is the library's job to ensure a suitable Map extension method exists
@@ -407,6 +446,19 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                         }
                     }
                     writer.Outdent().NewLine().Append("}");
+
+                    if (returns is not null)
+                    {
+                        foreach (var retType in returns)
+                        {
+                            writer.NewLine().NewLine().Append(retType).Append(' ')
+                                .Append("global::StackExchange.Redis.IRedisArgsResult<")
+                                .Append(retType)
+                                .Append(">.UnMap(global::StackExchange.Redis.IRedisArgsMutator mutator, ")
+                                .Append(retType).Append(" value)")
+                                .Indent().NewLine().Append("=> mutator.UnMap(value);").Outdent();
+                        }
+                    }
 
                     writer.Outdent().NewLine().Append("}");
                 }

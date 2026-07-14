@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace StackExchange.Redis;
 
@@ -19,8 +20,16 @@ internal interface IRedisArgs
 
 internal interface IRedisArgsMutator
 {
-    RedisKey MapKey(RedisKey key);
-    RedisChannel MapChannel(RedisChannel channel);
+    RedisKey Map(RedisKey key);
+    RedisChannel Map(RedisChannel channel);
+
+    RedisKey UnMap(RedisKey key);
+    RedisChannel UnMap(RedisChannel channel);
+}
+
+internal interface IRedisArgsResult<T>
+{
+    T UnMap(IRedisArgsMutator mutator, T value);
 }
 
 internal static class RedisArgsMutatorExtensions
@@ -31,7 +40,12 @@ internal static class RedisArgsMutatorExtensions
     public static KeyValuePair<RedisKey, RedisValue> Map(
         this IRedisArgsMutator mutator,
         KeyValuePair<RedisKey, RedisValue> value) =>
-        new(mutator.MapKey(value.Key), value.Value);
+        new(mutator.Map(value.Key), value.Value);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static TResult UnMap<TState, TResult>(this IRedisArgsMutator mutator, in TState state, TResult result)
+        where TState : struct, IRedisArgs =>
+        state is IRedisArgsResult<TResult> unmap ? unmap.UnMap(mutator, result) : result;
 
     [return: NotNullIfNotNull("keys")]
     public static RedisKey[]? Map(this IRedisArgsMutator mutator, RedisKey[]? keys)
@@ -40,7 +54,7 @@ internal static class RedisArgsMutatorExtensions
         var arr = new RedisKey[keys.Length];
         for (int i = 0; i < arr.Length; i++)
         {
-            arr[i] = mutator.MapKey(keys[i]);
+            arr[i] = mutator.Map(keys[i]);
         }
         return arr;
     }
@@ -55,13 +69,13 @@ internal static class RedisArgsMutatorExtensions
         for (int i = 0; i < arr.Length; i++)
         {
             ref readonly KeyValuePair<RedisKey, RedisValue> pair = ref pairs[i];
-            arr[i] = new(mutator.MapKey(pair.Key), pair.Value);
+            arr[i] = new(mutator.Map(pair.Key), pair.Value);
         }
         return arr;
     }
 
     public static StreamPosition Map(this IRedisArgsMutator mutator, StreamPosition value) =>
-        new(mutator.MapKey(value.Key), value.Position);
+        new(mutator.Map(value.Key), value.Position);
 
     [return: NotNullIfNotNull("positions")]
     public static StreamPosition[]? Map(this IRedisArgsMutator mutator, StreamPosition[]? positions)
@@ -71,7 +85,7 @@ internal static class RedisArgsMutatorExtensions
         for (int i = 0; i < arr.Length; i++)
         {
             ref readonly StreamPosition position = ref positions[i];
-            arr[i] = new(mutator.MapKey(position.Key), position.Position);
+            arr[i] = new(mutator.Map(position.Key), position.Position);
         }
         return arr;
     }
@@ -88,11 +102,11 @@ internal static class RedisArgsMutatorExtensions
         {
             if (args[i] is RedisKey key)
             {
-                (copy ??= (object[])args.Clone())[i] = mutator.MapKey(key);
+                (copy ??= (object[])args.Clone())[i] = mutator.Map(key);
             }
             else if (args[i] is RedisChannel channel)
             {
-                (copy ??= (object[])args.Clone())[i] = mutator.MapChannel(channel);
+                (copy ??= (object[])args.Clone())[i] = mutator.Map(channel);
             }
         }
         return copy ?? args;
@@ -119,11 +133,17 @@ internal static class RedisArgsMutatorExtensions
         {
             copy[i++] = arg switch
             {
-                RedisKey key => mutator.MapKey(key),
-                RedisChannel channel => mutator.MapChannel(channel),
+                RedisKey key => mutator.Map(key),
+                RedisChannel channel => mutator.Map(channel),
                 _ => arg,
             };
         }
         return copy;
     }
+
+    public static SortedSetPopResult UnMap(this IRedisArgsMutator mutator, SortedSetPopResult value) =>
+        value.IsNull ? SortedSetPopResult.Null : new(mutator.Map(value.Key), value.Entries);
+
+    public static ListPopResult UnMap(this IRedisArgsMutator mutator, ListPopResult value) =>
+        value.IsNull ? ListPopResult.Null : new(mutator.Map(value.Key), value.Values);
 }
