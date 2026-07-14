@@ -198,6 +198,22 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         || method.ReturnType.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal)
         || method.ReturnType.StartsWith("System.Collections.Generic.IAsyncEnumerable<", StringComparison.Ordinal);
 
+    private const string TaskType = "System.Threading.Tasks.Task";
+
+    // Task / Task<T> returns route through ExecuteAsync (its own retry policy); everything else
+    // uses Execute.
+    private static bool IsAsync(string returnType)
+        => returnType.StartsWith(TaskType, StringComparison.Ordinal);
+
+    // the retry machinery unwraps the Task and only ever sees the inner result, so key/channel
+    // (un)mapping must be decided on T, not Task<T>; this strips the Task<...> wrapper from an async
+    // return type. A bare (non-generic) Task has no result and is returned unchanged (as is any
+    // non-async return type), which is harmless since neither matches NeedsMap.
+    private static string StripTask(string returnType)
+        => IsAsync(returnType) && returnType.StartsWith(TaskType + "<", StringComparison.Ordinal)
+            ? returnType.Substring(TaskType.Length + 1, returnType.Length - TaskType.Length - 2)
+            : returnType;
+
     private static string FormatDefault(object? value) => value switch
     {
         null => "null",
@@ -237,8 +253,13 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             // unique parameter-type signatures encountered while emitting this class's methods;
             // keyed on the '|'-joined parameter types so distinct methods with the same shape share
             // one state struct. tupleDefs[i] holds a representative parameter list for _tuple{i}.
-            var tupleIndex = new Dictionary<string, (int Index, HashSet<string>? ReturnTypes)>();
+            var tupleIndex = new Dictionary<string, (int Index, bool NeedsMap)>();
             var tupleDefs = new List<BasicArray<ParamInfo>>();
+
+            // every unique key/channel-bearing result type across all shapes; a single shared
+            // singleton (emitted after the tuples) implements IRedisArgsResult<T> for each, so
+            // tuples expose unmap dispatch via UnMapper without ever being cast to an interface
+            var allReturns = new HashSet<string>();
 
             bool isFirst = true;
             writer.NewLine().Append("partial class ").Append(cls.Name);
@@ -288,11 +309,16 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     }
                     writer.Append(')').Indent().NewLine();
 
-                    // Task / Task<T> methods route to ExecuteAsync (its own retry policy); everything
-                    // else uses Execute. The state struct is shared regardless of return type - keyed on
-                    // parameter types only - so e.g. ArraySet and ArraySetAsync land on the same _tupleN.
-                    bool isAsync = method.ReturnType.StartsWith("System.Threading.Tasks.Task", StringComparison.Ordinal);
-                    int tuple = GetTupleIndex(method.Parameters, method.ReturnType);
+                    // async methods route to ExecuteAsync (its own retry policy); everything else uses
+                    // Execute. The state struct is shared regardless of return type - keyed on parameter
+                    // types only - so e.g. ArraySet and ArraySetAsync land on the same _tupleN. The return
+                    // type is Task-stripped so unmapping is keyed on the inner result the retry machinery
+                    // actually sees, not the Task<T> wrapper.
+                    bool isAsync = IsAsync(method.ReturnType);
+                    var simpleResult = StripTask(method.ReturnType);
+                    bool needsMap = NeedsMap(simpleResult);
+                    if (needsMap) allReturns.Add(simpleResult);
+                    int tuple = GetTupleIndex(method.Parameters, needsMap);
                     writer.Append(isAsync ? "=> ExecuteAsync(new _tuple" : "=> Execute(new _tuple").Append(tuple).Append("(");
                     firstParam = true;
                     foreach (var p in method.Parameters.Span)
@@ -322,32 +348,26 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 return keyBuilder.ToString();
             }
 
-            HashSet<string>? GetTupleMapReturns(BasicArray<ParamInfo> parameters) =>
-                tupleIndex.TryGetValue(GetTupleKey(parameters), out var found)
-                    ? found.ReturnTypes : null;
+            bool TupleNeedsMap(BasicArray<ParamInfo> parameters) =>
+                tupleIndex.TryGetValue(GetTupleKey(parameters), out var found) && found.NeedsMap;
 
-            int GetTupleIndex(BasicArray<ParamInfo> parameters, string returnType)
+            int GetTupleIndex(BasicArray<ParamInfo> parameters, bool needsMap)
             {
                 var key = GetTupleKey(parameters);
-                bool map = NeedsMap(returnType);
                 int index;
                 if (tupleIndex.TryGetValue(key, out var found))
                 {
                     index = found.Index;
-                    if (map)
+                    if (needsMap && !found.NeedsMap)
                     {
-                        if (found.ReturnTypes is null)
-                        {
-                            found.ReturnTypes = [];
-                            tupleIndex[key] = found;
-                        }
-                        found.ReturnTypes.Add(returnType);
+                        found.NeedsMap = true;
+                        tupleIndex[key] = found;
                     }
                 }
                 else
                 {
                     index = tupleDefs.Count;
-                    tupleIndex.Add(key, (index, map ? [ returnType ] : null));
+                    tupleIndex.Add(key, (index, needsMap));
                     tupleDefs.Add(parameters);
                 }
 
@@ -377,11 +397,10 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
 
             void AppendTupleTypes()
             {
-
                 for (int i = 0; i < tupleDefs.Count; i++)
                 {
                     var raw = tupleDefs[i];
-                    var returns = GetTupleMapReturns(raw);
+                    bool needsMap = TupleNeedsMap(raw);
                     var parameters = raw.Span;
 
                     // locate the (single) CommandFlags argument, if any, to back IRedisArgs.Flags
@@ -404,16 +423,6 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     }
 
                     writer.Append(") : global::StackExchange.Redis.IRedisArgs");
-                    if (returns is not null)
-                    {
-                        writer.Indent();
-                        foreach (var retType in returns)
-                        {
-                            writer.Append(',').NewLine().Append("global::StackExchange.Redis.IRedisArgsResult<")
-                                .Append(retType).Append(">");
-                        }
-                        writer.Outdent();
-                    }
                     writer.NewLine().Append("{").Indent();
                     for (int p = 0; p < parameters.Length; p++)
                     {
@@ -447,19 +456,40 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     }
                     writer.Outdent().NewLine().Append("}");
 
-                    if (returns is not null)
-                    {
-                        foreach (var retType in returns)
-                        {
-                            writer.NewLine().NewLine().Append(retType).Append(' ')
-                                .Append("global::StackExchange.Redis.IRedisArgsResult<")
-                                .Append(retType)
-                                .Append(">.UnMap(global::StackExchange.Redis.IRedisArgsMutator mutator, ")
-                                .Append(retType).Append(" value)")
-                                .Indent().NewLine().Append("=> mutator.UnMap(value);").Outdent();
-                        }
-                    }
+                    // tuples with key/channel-bearing results point UnMapper at the shared singleton
+                    // (which knows how to unmap every such result type); the rest return null so the
+                    // Execute helper skips unmapping entirely - and neither path boxes the struct
+                    writer.NewLine().Append("public readonly object? UnMapper => ")
+                        .Append(needsMap ? "_UnMapper.Instance;" : "null;");
 
+                    writer.Outdent().NewLine().Append("}");
+                }
+
+                if (allReturns.Count is not 0)
+                {
+                    // sorted for deterministic (cache-stable) output
+                    var ordered = new List<string>(allReturns);
+                    ordered.Sort(StringComparer.Ordinal);
+
+                    writer.NewLine().NewLine().Append("private sealed class _UnMapper").Indent();
+                    bool firstIface = true;
+                    foreach (var retType in ordered)
+                    {
+                        writer.NewLine().Append(firstIface ? ": " : ", ")
+                            .Append("global::StackExchange.Redis.IRedisArgsResult<").Append(retType).Append(">");
+                        firstIface = false;
+                    }
+                    writer.Outdent().NewLine().Append("{").Indent();
+                    writer.NewLine().Append("public static readonly _UnMapper Instance = new();");
+                    foreach (var retType in ordered)
+                    {
+                        writer.NewLine().NewLine().Append(retType).Append(' ')
+                            .Append("global::StackExchange.Redis.IRedisArgsResult<")
+                            .Append(retType)
+                            .Append(">.UnMap(global::StackExchange.Redis.IRedisArgsMutator mutator, ")
+                            .Append(retType).Append(" value)")
+                            .Indent().NewLine().Append("=> mutator.UnMap(value);").Outdent();
+                    }
                     writer.Outdent().NewLine().Append("}");
                 }
             }

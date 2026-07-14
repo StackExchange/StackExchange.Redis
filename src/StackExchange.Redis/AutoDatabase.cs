@@ -16,6 +16,7 @@ internal interface IRedisArgs
 {
     void Map(IRedisArgsMutator mutator);
     CommandFlags Flags { get; set; }
+    object? UnMapper { get; }
 }
 
 internal interface IRedisArgsMutator
@@ -44,8 +45,27 @@ internal static class RedisArgsMutatorExtensions
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static TResult UnMap<TState, TResult>(this IRedisArgsMutator mutator, in TState state, TResult result)
-        where TState : struct, IRedisArgs =>
-        state is IRedisArgsResult<TResult> unmap ? unmap.UnMap(mutator, result) : result;
+        where TState : struct, IRedisArgs
+    {
+        if (typeof(TResult) == typeof(RedisKey))
+        {
+            var tmp = mutator.UnMap(Unsafe.As<TResult, RedisKey>(ref result));
+            return Unsafe.As<RedisKey, TResult>(ref tmp);
+        }
+        else if (typeof(TResult) == typeof(RedisChannel))
+        {
+            var tmp = mutator.UnMap(Unsafe.As<TResult, RedisChannel>(ref result));
+            return Unsafe.As<RedisChannel, TResult>(ref tmp);
+        }
+        else if (typeof(TResult) == typeof(RedisValue))
+        {
+            return result; // never mapped
+        }
+        else
+        {
+            return state.UnMapper is IRedisArgsResult<TResult> unmap ? unmap.UnMap(mutator, result) : result;
+        }
+    }
 
     [return: NotNullIfNotNull("keys")]
     public static RedisKey[]? Map(this IRedisArgsMutator mutator, RedisKey[]? keys)

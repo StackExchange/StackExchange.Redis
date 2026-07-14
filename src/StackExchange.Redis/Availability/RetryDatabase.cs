@@ -41,21 +41,75 @@ internal partial class RetryDatabase : IDatabase, IRedisArgsMutator
                 Debug.WriteLine(ex.Message);
             }
         }
+        // post-process results outside the loop
         return this.UnMap(state, result);
     }
 
     private void Execute<TState>(TState state, Action<TState, IDatabase> operation)
         where TState : struct, IRedisArgs
-        => operation(state, _inner);
+    {
+        state.Map(this);
+        int i = 0;
+        while (true)
+        {
+            try
+            {
+                operation(state, _inner);
+                return;
+            }
+            catch (Exception ex) when (++i < _maxRetryCount)
+            {
+                // we can give it another attempt
+                Debug.WriteLine(ex.Message);
+            }
+        }
+    }
 
     // async counterparts (Task<T> / Task); these get their own retry/failover policy in due course.
-    private Task<TResult> ExecuteAsync<TState, TResult>(TState state, Func<TState, IDatabase, Task<TResult>> operation)
+    private async Task<TResult> ExecuteAsync<TState, TResult>(TState state, Func<TState, IDatabase, Task<TResult>> operation)
         where TState : struct, IRedisArgs
-        => operation(state, _inner);
+    {
+        state.Map(this);
 
-    private Task ExecuteAsync<TState>(TState state, Func<TState, IDatabase, Task> operation)
+        int i = 0;
+        TResult result;
+        while (true)
+        {
+            try
+            {
+                result = await operation(state, _inner).ConfigureAwait(false);
+                break;
+            }
+            catch (Exception ex) when (++i < _maxRetryCount)
+            {
+                // we can give it another attempt
+                Debug.WriteLine(ex.Message);
+            }
+        }
+        // post-process results outside the loop
+        return this.UnMap(state, result);
+    }
+
+    private async Task ExecuteAsync<TState>(TState state, Func<TState, IDatabase, Task> operation)
         where TState : struct, IRedisArgs
-        => operation(state, _inner);
+    {
+        state.Map(this);
+
+        int i = 0;
+        while (true)
+        {
+            try
+            {
+                await operation(state, _inner).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception ex) when (++i < _maxRetryCount)
+            {
+                // we can give it another attempt
+                Debug.WriteLine(ex.Message);
+            }
+        }
+    }
 
     void IRedisAsync.Wait(Task task) => _inner.Wait(task);
     T IRedisAsync.Wait<T>(Task<T> task) => _inner.Wait<T>(task);
