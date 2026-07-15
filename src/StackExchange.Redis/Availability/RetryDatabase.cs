@@ -37,6 +37,9 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         _maxAttempts = policy.MaxAttempts;
         if (_maxBeforeFailover == _maxAttempts) _maxBeforeFailover = int.MaxValue; // then we'll never look
         if (_maxAttempts < 1) throw new ArgumentOutOfRangeException(nameof(policy.MaxAttempts));
+        // guard the failover threshold: values < 1 can never be hit by the loop counter (which starts at 1),
+        // so they would *silently* disable failover rather than erroring; validate the raw policy value
+        if (policy.MaxAttemptsBeforeFailover < 1) throw new ArgumentOutOfRangeException(nameof(policy.MaxAttemptsBeforeFailover));
         _delayMillis = policy.DelayMilliseconds;
         _failoverMillis = policy.FailoverMilliseconds;
         _jitterMillis = policy.JitterMilliseconds;
@@ -67,11 +70,11 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         CancellationToken ct = CancellationToken.None;
         while (true)
         {
+            // note we need to capture this *before* the attempt - otherwise the failover could happen
+            // between the failed attempt and fetching this, and we'd miss it
+            if (++i == _maxBeforeFailover) ct = GetNextFailover();
             try
             {
-                // note we need to capture this *before* the attempt - otherwise the failover could happen
-                // between the failed attempt and fetching this, and we'd miss it
-                if (++i == _maxBeforeFailover) ct = GetNextFailover();
                 result = await operation(state, _inner).ConfigureAwait(false);
                 break;
             }
@@ -129,11 +132,11 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         CancellationToken ct = CancellationToken.None;
         while (true)
         {
+            // note we need to capture this *before* the attempt - otherwise the failover could happen
+            // between the failed attempt and fetching this, and we'd miss it
+            if (++i == _maxBeforeFailover) ct = GetNextFailover();
             try
             {
-                // note we need to capture this *before* the attempt - otherwise the failover could happen
-                // between the failed attempt and fetching this, and we'd miss it
-                if (++i == _maxBeforeFailover) ct = GetNextFailover();
                 await operation(state, _inner).ConfigureAwait(false);
                 return;
             }
