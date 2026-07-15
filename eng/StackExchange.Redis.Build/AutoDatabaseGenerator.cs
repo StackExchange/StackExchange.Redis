@@ -191,10 +191,14 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
     // methods that don't fit the capture-and-replay shape are left for the caller to implement manually:
     //  - generic methods (open type args can't be captured into a concrete state struct)
     //  - the Wait family (synchronization over caller-supplied Tasks, not server calls)
+    //  - IsConnected: a synchronous status probe that IDatabaseAsync carries; it would route through the
+    //    sync Execute funnel, which an async-only database (e.g. RetryDatabase) doesn't provide - and a
+    //    connection check shouldn't be retried in any case
     //  - streaming returns (IEnumerable<T> / IAsyncEnumerable<T>) whose execution is deferred
     private static bool SkipMethod(MethodInfo method)
         => !method.TypeArgs.IsEmpty
         || method.Name.Contains("Wait")
+        || method.Name == "IsConnected"
         || method.ReturnType.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal)
         || method.ReturnType.StartsWith("System.Collections.Generic.IAsyncEnumerable<", StringComparison.Ordinal);
 

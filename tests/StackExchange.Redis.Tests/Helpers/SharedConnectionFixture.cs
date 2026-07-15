@@ -58,6 +58,8 @@ public class SharedConnectionFixture : IDisposable
     {
         public IInternalConnectionMultiplexer UnderlyingConnection => _inner;
 
+        Availability.CircuitBreaker? IInternalConnectionMultiplexer.CircuitBreaker => _inner.CircuitBreaker;
+
         public bool AllowConnect
         {
             get => _inner.AllowConnect;

@@ -52,9 +52,9 @@ namespace StackExchange.Redis
         private int anyStartOffset = SharedRandom.Next(); // initialize to a random value so routing isn't uniform
 
         #if NET
-        private static Random SharedRandom => Random.Shared;
+        internal static Random SharedRandom => Random.Shared;
         #else
-        private static Random SharedRandom { get; } = new();
+        internal static Random SharedRandom { get; } = new();
         #endif
 
         private ServerEndPoint[]? map;

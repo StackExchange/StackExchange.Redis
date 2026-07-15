@@ -23,6 +23,8 @@ namespace StackExchange.Redis
     /// <remarks><seealso href="https://stackexchange.github.io/StackExchange.Redis/PipelinesMultiplexers"/></remarks>
     public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
     {
+        Availability.CircuitBreaker? IInternalConnectionMultiplexer.CircuitBreaker => RawConfig.CircuitBreaker;
+
         // This gets accessed for every received event; let's make sure we can process it "raw"
         internal readonly byte[]? ConfigurationChangedChannel;
         // Unique identifier used when tracing

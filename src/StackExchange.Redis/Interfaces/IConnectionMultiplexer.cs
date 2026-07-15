@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 using static StackExchange.Redis.ConnectionMultiplexer;
@@ -15,6 +16,8 @@ internal interface IInternalConnectionMultiplexer : IConnectionMultiplexer
     bool AllowConnect { get; set; }
 
     bool IgnoreConnect { get; set; }
+
+    CircuitBreaker? CircuitBreaker { get; }
 
     ReadOnlySpan<ServerEndPoint> GetServerSnapshot();
     ServerEndPoint GetServerEndPoint(EndPoint endpoint);

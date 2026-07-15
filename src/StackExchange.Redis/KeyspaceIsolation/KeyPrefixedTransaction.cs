@@ -1,10 +1,17 @@
 ﻿using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
     internal sealed class KeyPrefixedTransaction : KeyPrefixed<ITransaction>, ITransaction
     {
-        public KeyPrefixedTransaction(ITransaction inner, byte[] prefix) : base(inner, prefix) { }
+        public KeyPrefixedTransaction(ITransaction inner, byte[] prefix) : base(inner, prefix)
+        {
+            inner.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
+        }
+
+        private protected override DatabaseFeatureFlags GetDatabaseFeatures()
+            => base.GetDatabaseFeatures() | DatabaseFeatureFlags.Transaction;
 
         public ConditionResult AddCondition(Condition condition) => Inner.AddCondition(condition.MapKeys(GetMapFunction()));
 

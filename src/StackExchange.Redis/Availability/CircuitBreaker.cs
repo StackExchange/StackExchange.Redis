@@ -26,6 +26,12 @@ public abstract class CircuitBreaker
     public static CircuitBreaker None => NulCircuitBreaker.Instance;
 
     /// <summary>
+    /// Indicates a fault that should be handled by the circuit-breaker or related retry logic.
+    /// </summary>
+    public virtual bool IsConnectionFault(Exception? fault)
+        => fault is RedisTimeoutException or RedisConnectionException;
+
+    /// <summary>
     /// Allows configuration of the default <see cref="CircuitBreaker"/> implementation.
     /// </summary>
     public class Builder
@@ -187,6 +193,8 @@ public abstract class CircuitBreaker
             public override bool IsHealthy() => true;
             public override void Reset() { }
         }
+
+        // note we leave IsConnectionFault alone - that would impact RetryDatabase, where this is the key
     }
     private sealed class DefaultCircuitBreaker : CircuitBreaker
     {
@@ -305,7 +313,7 @@ public abstract class CircuitBreaker
             public override bool ObserveResult(in CircuitBreakerContext context)
             {
                 // not-tracked failures (based on exception type) count as "success" for the purposes of circuit breaking
-                bool countAsSuccess = context.Success || !breaker.IsTracked(context.Fault);
+                bool countAsSuccess = context.Success || !breaker.IsConnectionFault(context.Fault);
 
                 // which time-slice are we in, and where does it live in the ring?
                 long epoch = breaker.GetEpoch();
@@ -415,7 +423,7 @@ public abstract class CircuitBreaker
             return tracked;
         }
 
-        private bool IsTracked(Exception? fault)
+        public override bool IsConnectionFault(Exception? fault)
         {
             if (fault is null) return false;
             switch (_trackingStrategy)
