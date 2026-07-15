@@ -1,10 +1,1 @@
 ﻿#nullable enable
-StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.get -> System.TimeSpan
-StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.set -> void
-StackExchange.Redis.Availability.RetryPolicy.JitterMax.get -> System.TimeSpan
-StackExchange.Redis.Availability.RetryPolicy.JitterMax.set -> void
-StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.get -> int
-StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.set -> void
-StackExchange.Redis.Availability.RetryPolicy.RetryDelay.get -> System.TimeSpan
-StackExchange.Redis.Availability.RetryPolicy.RetryDelay.set -> void
-[SER007]override StackExchange.Redis.Availability.ConnectionGroupMember.ToString() -> string!

@@ -60,7 +60,7 @@ internal sealed partial class MultiGroupMultiplexer
         // invoke a handler only if the active member is the one we expect
         return (channel, value) =>
         {
-            if (ReferenceEquals(parent._active, active.Multiplexer))
+            if (ReferenceEquals(parent._activeStub.Active, active.Multiplexer))
             {
                 handler(channel, value);
             }
@@ -89,7 +89,7 @@ internal sealed partial class MultiGroupMultiplexer
                 {
                     while (readFrom.TryRead(out var message))
                     {
-                        if (ReferenceEquals(parent._active, active.Multiplexer))
+                        if (ReferenceEquals(parent._activeStub.Active, active.Multiplexer))
                         {
                             // Because of the switchover being imperfect, we can't guarantee exactly one writer, so
                             // we need to be synchronized; in reality, it will *almost never* be contended, so

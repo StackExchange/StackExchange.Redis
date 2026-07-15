@@ -2,8 +2,16 @@
 StackExchange.Redis.Availability.RetryPolicy
 StackExchange.Redis.Availability.RetryPolicy.CircuitBreaker.get -> StackExchange.Redis.Availability.CircuitBreaker?
 StackExchange.Redis.Availability.RetryPolicy.CircuitBreaker.set -> void
+StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.get -> System.TimeSpan
+StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.set -> void
+StackExchange.Redis.Availability.RetryPolicy.JitterMax.get -> System.TimeSpan
+StackExchange.Redis.Availability.RetryPolicy.JitterMax.set -> void
 StackExchange.Redis.Availability.RetryPolicy.MaxAttempts.get -> int
 StackExchange.Redis.Availability.RetryPolicy.MaxAttempts.set -> void
+StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.get -> int
+StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.set -> void
+StackExchange.Redis.Availability.RetryPolicy.RetryDelay.get -> System.TimeSpan
+StackExchange.Redis.Availability.RetryPolicy.RetryDelay.set -> void
 StackExchange.Redis.Availability.RetryPolicy.RetryPolicy() -> void
 StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = default(StackExchange.Redis.RedisKey)) -> StackExchange.Redis.RedisKey
 static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithRetry(this StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.Availability.RetryPolicy! retryPolicy) -> StackExchange.Redis.IDatabaseAsync!
@@ -108,3 +116,28 @@ static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithRetry(this S
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.ResetIsUnhealthy() -> void
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.get -> System.TimeSpan
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.set -> void
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsHealthy() -> bool
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.ObserveResult(in StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext context) -> bool
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.Reset() -> void
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.CreateAccumulator() -> StackExchange.Redis.Availability.CircuitBreaker.Accumulator!
+[SER007]virtual StackExchange.Redis.Availability.CircuitBreaker.IsConnectionFault(System.Exception? fault) -> bool
+[SER007]static StackExchange.Redis.Availability.CircuitBreaker.Default.get -> StackExchange.Redis.Availability.CircuitBreaker!
+[SER007]static StackExchange.Redis.Availability.CircuitBreaker.None.get -> StackExchange.Redis.Availability.CircuitBreaker!
+[SER007]static StackExchange.Redis.Availability.CircuitBreaker.Builder.implicit operator StackExchange.Redis.Availability.CircuitBreaker!(StackExchange.Redis.Availability.CircuitBreaker.Builder! builder) -> StackExchange.Redis.Availability.CircuitBreaker!
+[SER007]abstract StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IServer! server) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.HealthyTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.InconclusiveTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.UnhealthyTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.IsConnected.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.Ping.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.StringSet.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
+[SER007]abstract StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.Evaluate(in StackExchange.Redis.Availability.HealthCheck.HealthCheckProbeContext context) -> StackExchange.Redis.Availability.HealthCheck.HealthCheckResult
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.AllSuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.AnySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.MajoritySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
+[SER007]abstract StackExchange.Redis.Availability.HealthCheck.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.RedisKey key) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]override StackExchange.Redis.Availability.HealthCheck.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IServer! server) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]override StackExchange.Redis.Availability.HealthCheck.HealthCheckProbeContext.ToString() -> string!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.Default.get -> StackExchange.Redis.Availability.HealthCheck!
+[SER007]static StackExchange.Redis.Availability.MultiGroupOptions.Default.get -> StackExchange.Redis.Availability.MultiGroupOptions!
+[SER007]override StackExchange.Redis.Availability.ConnectionGroupMember.ToString() -> string!

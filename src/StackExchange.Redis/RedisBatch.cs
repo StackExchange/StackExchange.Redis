@@ -9,8 +9,8 @@ namespace StackExchange.Redis
     {
         private List<Message>? pending;
 
-        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database,
-            asyncState ?? wrapped.AsyncState)
+        public RedisBatch(RedisDatabase wrapped, object? asyncState)
+            : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
         {
             wrapped.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
         }
