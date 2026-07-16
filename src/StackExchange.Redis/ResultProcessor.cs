@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Availability;
 
 namespace StackExchange.Redis
 {
@@ -211,14 +212,14 @@ namespace StackExchange.Redis
                 sb.Append(annotation);
             }
             var ex = new RedisConnectionException(fail, sb.ToString(), innerException);
-            SetException(message, ex);
+            SetException(message, ex.With(fail));
         }
 
         public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage) =>
-            SetException(message, new RedisConnectionException(fail, errorMessage));
+            SetException(message, new RedisConnectionException(fail, errorMessage).With(fail));
 
-        public static void ServerFail(Message message, string errorMessage) =>
-            SetException(message, new RedisServerException(errorMessage));
+        public static void ServerFail(Message message, RedisErrorKind kind, string errorMessage) =>
+            SetException(message, new RedisServerException(errorMessage).With(kind));
 
         public static void SetException(Message? message, Exception ex)
         {
@@ -263,22 +264,24 @@ namespace StackExchange.Redis
         {
             connection.OnDetailLog($"applying common error-handling: {reader.GetOverview()}");
             var bridge = connection.BridgeCouldBeNull;
-            if (reader.StartsWith(Literals.NOAUTH.U8))
+            var errorKind = RedisErrorKindMetadata.Classify(reader);
+            switch (errorKind)
             {
-                bridge?.Multiplexer.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated"));
-            }
-            else if (reader.StartsWith(Literals.WRONGPASS.U8))
-            {
-                bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(reader.GetOverview()));
+                case RedisErrorKind.NoAuth:
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated").With(errorKind));
+                    break;
+                case RedisErrorKind.WrongPass:
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(reader.GetOverview()).With(errorKind));
+                    break;
             }
 
             var server = bridge?.ServerEndPoint;
             bool log = !message.IsInternalCall;
-            bool isMoved = reader.StartsWith(Literals.MOVED.U8);
+            bool isMoved = errorKind == RedisErrorKind.Moved;
             bool wasNoRedirect = (message.Flags & CommandFlags.NoRedirect) != 0;
             string? err = string.Empty;
             bool unableToConnectError = false;
-            if (isMoved || reader.StartsWith(Literals.ASK.U8))
+            if (isMoved || errorKind == RedisErrorKind.Ask)
             {
                 connection.OnDetailLog($"redirect via {(isMoved ? "MOVED" : "ASK")} to '{reader.ReadString()}'");
                 message.SetResponseReceived();
@@ -361,7 +364,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                ServerFail(message, err);
+                ServerFail(message, errorKind, err);
             }
 
             return true;
@@ -852,7 +855,7 @@ namespace StackExchange.Redis
             {
                 var copy = reader;
                 reader.MovePastBof();
-                if (reader.IsError && reader.StartsWith(Literals.READONLY.U8))
+                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.ReadOnly)
                 {
                     var bridge = connection.BridgeCouldBeNull;
                     if (bridge != null)
@@ -2249,7 +2252,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
             {
                 var copy = reader;
                 reader.MovePastBof();
-                if (reader.IsError && reader.StartsWith(Literals.NOSCRIPT.U8))
+                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.NoScript)
                 { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
                     connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                     message.SetScriptUnavailable();
@@ -3167,11 +3170,12 @@ The coordinates as an array of two items x,y (longitude,latitude).
                 if (isError)
                 {
                     reader = copy; // rewind and re-parse
-                    if (reader.StartsWith(Literals.ERR_not_permitted.U8) || reader.StartsWith(Literals.NOAUTH.U8))
+                    var errorKind = RedisErrorKindMetadata.Classify(reader);
+                    if (errorKind is RedisErrorKind.NotPermitted or RedisErrorKind.NoAuth)
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(reader.GetOverview() + " Verify if the Redis password provided is correct. Attempted command: " + message.Command));
                     }
-                    else if (reader.StartsWith(Literals.LOADING.U8))
+                    else if (errorKind == RedisErrorKind.Loading)
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.Loading);
                     }

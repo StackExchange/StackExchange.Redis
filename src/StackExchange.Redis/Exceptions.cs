@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Runtime.Serialization;
+using StackExchange.Redis.Availability;
 
 namespace StackExchange.Redis
 {
@@ -120,6 +121,8 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandStatus CommandStatus { get; }
 
+        internal ConnectionFailureType Kind { get; set; }
+
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -195,5 +198,7 @@ namespace StackExchange.Redis
         [EditorBrowsable(EditorBrowsableState.Never)]
 #endif
         private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+
+        internal RedisErrorKind Kind { get; set; }
     }
 }

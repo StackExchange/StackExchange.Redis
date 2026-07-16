@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interfaces;
@@ -22,21 +23,24 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     public override string ToString() => this.BuildString();
 
     private readonly IDatabaseAsync _inner;
-    private readonly CircuitBreaker _circuitBreaker;
     private readonly int _maxBeforeFailover, _maxAttempts, _delayMillis, _jitterMillis, _failoverMillis;
+    private readonly RetryPolicy _policy;
 
-    public CancellationToken GetNextFailover() => _inner.GetNextFailover();
+    public CancellationToken GetNextFailover()
+        => _maxAttempts > 1 & _maxBeforeFailover < _maxAttempts ? _inner.GetNextFailover() : CancellationToken.None;
 
     public RetryDatabase(IDatabaseAsync inner, RetryPolicy policy)
     {
         // cannot nest retry, and cannot issue retries *inside* a batch/transaction
         var features = inner.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction | DatabaseFeatureFlags.Retry);
 
+        _policy = policy;
+
         // capture config locally rather than constant cross-object lookups (plus: mutability)
         _maxBeforeFailover = (features & DatabaseFeatureFlags.Failover) == 0 ? int.MaxValue : policy.MaxAttemptsBeforeFailover;
         _maxAttempts = policy.MaxAttempts;
         if (_maxBeforeFailover == _maxAttempts) _maxBeforeFailover = int.MaxValue; // then we'll never look
-        if (_maxAttempts < 1) throw new ArgumentOutOfRangeException(nameof(policy.MaxAttempts));
+
         // guard the failover threshold: values < 1 can never be hit by the loop counter (which starts at 1),
         // so they would *silently* disable failover rather than erroring; validate the raw policy value
         if (policy.MaxAttemptsBeforeFailover < 1) throw new ArgumentOutOfRangeException(nameof(policy.MaxAttemptsBeforeFailover));
@@ -47,7 +51,6 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         if (_jitterMillis < 0) throw new ArgumentOutOfRangeException(nameof(policy.JitterMax));
         if (_failoverMillis < 0) throw new ArgumentOutOfRangeException(nameof(policy.FailoverDelay));
         _inner = inner;
-        _circuitBreaker = policy.CircuitBreaker ?? (inner.Multiplexer as IInternalConnectionMultiplexer)?.CircuitBreaker ?? CircuitBreaker.Default;
     }
 
     public int Database => _inner is IDatabase db ? db.Database : -1;
@@ -67,35 +70,61 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
 
         int i = 0;
         TResult result;
-        CancellationToken ct = CancellationToken.None;
+        // note we need to capture this *before* the attempt - otherwise the failover could happen
+        // between the failed attempt and fetching this, and we'd miss it
+        CancellationToken ct = GetNextFailover();
         while (true)
         {
-            // note we need to capture this *before* the attempt - otherwise the failover could happen
-            // between the failed attempt and fetching this, and we'd miss it
-            if (++i == _maxBeforeFailover) ct = GetNextFailover();
+            ++i;
             try
             {
                 result = await operation(state, _inner).ConfigureAwait(false);
                 break;
             }
-            catch (Exception ex) when (_circuitBreaker.IsConnectionFault(ex) && i < _maxAttempts)
+            catch (Exception ex) when (i < _maxAttempts && _policy.CanRetry(ex, state.Flags, out var switchToNewServer))
             {
                 // we can give it another attempt
-                Debug.WriteLine(ex.Message);
-                await FailoverOrDelayAsync(ct).ConfigureAwait(false);
-                ct = CancellationToken.None; // we only apply failover one time
+                await FailoverOrDelayAsync(i, switchToNewServer, ref ct).ConfigureAwait(false);
             }
         }
         // post-process results outside the loop
         return this.UnMap(state, result);
     }
 
-    private Task FailoverOrDelayAsync(CancellationToken failover)
+    private async Task ExecuteAsync<TState>(TState state, Func<TState, IDatabaseAsync, Task> operation)
+        where TState : struct, IRedisArgs
     {
-        if (failover.CanBeCanceled)
+        state.Map(this);
+
+        int i = 0;
+        // note we need to capture this *before* the attempt - otherwise the failover could happen
+        // between the failed attempt and fetching this, and we'd miss it
+        CancellationToken ct = GetNextFailover();
+        while (true)
         {
-            // we're in the failover slot; this gets exciting
-            return AwaitFailover(failover);
+            ++i;
+            try
+            {
+                await operation(state, _inner).ConfigureAwait(false);
+                break;
+            }
+            catch (Exception ex) when (i < _maxAttempts && _policy.CanRetry(ex, state.Flags, out var switchToNewServer))
+            {
+                // we can give it another attempt
+                await FailoverOrDelayAsync(i, switchToNewServer, ref ct).ConfigureAwait(false);
+            }
+        }
+        // (nothing to post-process)
+    }
+
+    private Task FailoverOrDelayAsync(int attempt, bool switchToNewServer, ref CancellationToken failover)
+    {
+        if (failover.CanBeCanceled && (attempt == _maxBeforeFailover | switchToNewServer))
+        {
+            // we're in the failover slot - possibly by count, possibly by the retry-policy
+            var snapshot = failover;
+            failover = CancellationToken.None; // only retry at most once
+            return AwaitFailover(snapshot);
         }
         else
         {
@@ -121,33 +150,6 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         // either way, we need to add jitter onto that; we can't add in the original delay, because if the failover
         // happened before the timeout+jitter, all the awaiters would stampede
         await Task.Delay(ServerSelectionStrategy.SharedRandom.Next(_jitterMillis), CancellationToken.None).ConfigureAwait(false);
-    }
-
-    private async Task ExecuteAsync<TState>(TState state, Func<TState, IDatabaseAsync, Task> operation)
-        where TState : struct, IRedisArgs
-    {
-        state.Map(this);
-
-        int i = 0;
-        CancellationToken ct = CancellationToken.None;
-        while (true)
-        {
-            // note we need to capture this *before* the attempt - otherwise the failover could happen
-            // between the failed attempt and fetching this, and we'd miss it
-            if (++i == _maxBeforeFailover) ct = GetNextFailover();
-            try
-            {
-                await operation(state, _inner).ConfigureAwait(false);
-                return;
-            }
-            catch (Exception ex) when (_circuitBreaker.IsConnectionFault(ex) && i < _maxAttempts)
-            {
-                // we can give it another attempt
-                Debug.WriteLine(ex.Message);
-                await FailoverOrDelayAsync(ct).ConfigureAwait(false);
-                ct = CancellationToken.None; // we only apply failover one time
-            }
-        }
     }
 
     void IRedisAsync.Wait(Task task) => _inner.Wait(task);

@@ -71,7 +71,7 @@ public class CircuitBreakerUnitTests
 
         private sealed class Acc : Accumulator
         {
-            public override bool ObserveResult(in CircuitBreakerContext context) => false;
+            public override bool ObserveResult(in FaultContext context) => false;
             public override bool IsHealthy() => false;
             public override void Reset() { }
         }

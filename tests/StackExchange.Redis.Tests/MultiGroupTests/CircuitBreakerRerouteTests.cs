@@ -113,7 +113,7 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log)
 
         private sealed class Acc(FlipBreaker owner) : Accumulator
         {
-            public override bool ObserveResult(in CircuitBreakerContext context) => !owner._tripped;
+            public override bool ObserveResult(in FaultContext context) => !owner._tripped;
             public override bool IsHealthy() => !owner._tripped;
             public override void Reset() { }
         }

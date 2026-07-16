@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
@@ -485,11 +486,12 @@ namespace StackExchange.Redis
                 reader.MovePastBof();
                 if (reader.IsError && message is TransactionMessage tran)
                 {
+                    var errorKind = RedisErrorKindMetadata.Classify(reader);
                     string error = reader.ReadString()!;
                     foreach (var op in tran.InnerOperations)
                     {
                         var inner = op.Wrapped;
-                        ServerFail(inner, error);
+                        ServerFail(inner, errorKind, error);
                         inner.Complete(connection);
                     }
                 }

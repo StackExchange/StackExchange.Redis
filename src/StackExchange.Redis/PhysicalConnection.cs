@@ -1183,7 +1183,7 @@ namespace StackExchange.Redis
             // returns true while healthy); if it trips and we're the *first* to notice, hand off the
             // teardown rather than doing it inline: RecordConnectionFailed can fail the whole backlog and
             // build a detailed exception, which we don't want to pay for on the completion thread.
-            if (circuitBreaker is { } cb && !cb.ObserveResult(fault)
+            if (circuitBreaker is { } cb && cb.Trip(fault)
                 && Interlocked.CompareExchange(ref _circuitBreakerState, CircuitBreakerTripped, CircuitBreakerHealthy) is CircuitBreakerHealthy)
             {
                 // hand off to a worker; the heartbeat (see OnBridgeHeartbeat) is a backstop in case the

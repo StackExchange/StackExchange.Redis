@@ -1,7 +1,5 @@
 ﻿#nullable enable
 StackExchange.Redis.Availability.RetryPolicy
-StackExchange.Redis.Availability.RetryPolicy.CircuitBreaker.get -> StackExchange.Redis.Availability.CircuitBreaker?
-StackExchange.Redis.Availability.RetryPolicy.CircuitBreaker.set -> void
 StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.get -> System.TimeSpan
 StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.set -> void
 StackExchange.Redis.Availability.RetryPolicy.JitterMax.get -> System.TimeSpan
@@ -27,14 +25,7 @@ static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithRetry(this S
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.MetricsWindowSize.set -> void
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.MinimumNumberOfFailures.get -> int
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.MinimumNumberOfFailures.set -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.TrackedExceptions.get -> System.Type![]?
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.TrackedExceptions.set -> void
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreaker() -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext() -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext(System.Exception? fault, bool evaluate = true) -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.Fault.get -> System.Exception?
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.Success.get -> bool
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.ConnectionGroupMember(StackExchange.Redis.ConfigurationOptions! configuration, string! name = "") -> void
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.ConnectionGroupMember(string! configuration, string! name = "") -> void
@@ -117,10 +108,8 @@ static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithRetry(this S
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.get -> System.TimeSpan
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.set -> void
 [SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsHealthy() -> bool
-[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.ObserveResult(in StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext context) -> bool
 [SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.Reset() -> void
 [SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.CreateAccumulator() -> StackExchange.Redis.Availability.CircuitBreaker.Accumulator!
-[SER007]virtual StackExchange.Redis.Availability.CircuitBreaker.IsConnectionFault(System.Exception? fault) -> bool
 [SER007]static StackExchange.Redis.Availability.CircuitBreaker.Default.get -> StackExchange.Redis.Availability.CircuitBreaker!
 [SER007]static StackExchange.Redis.Availability.CircuitBreaker.None.get -> StackExchange.Redis.Availability.CircuitBreaker!
 [SER007]static StackExchange.Redis.Availability.CircuitBreaker.Builder.implicit operator StackExchange.Redis.Availability.CircuitBreaker!(StackExchange.Redis.Availability.CircuitBreaker.Builder! builder) -> StackExchange.Redis.Availability.CircuitBreaker!
@@ -141,3 +130,42 @@ static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithRetry(this S
 [SER007]static StackExchange.Redis.Availability.HealthCheck.Default.get -> StackExchange.Redis.Availability.HealthCheck!
 [SER007]static StackExchange.Redis.Availability.MultiGroupOptions.Default.get -> StackExchange.Redis.Availability.MultiGroupOptions!
 [SER007]override StackExchange.Redis.Availability.ConnectionGroupMember.ToString() -> string!
+[SER007]StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.None = 0 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.Unknown = 1 -> StackExchange.Redis.Availability.RedisErrorKind
+StackExchange.Redis.Availability.FaultContext
+StackExchange.Redis.Availability.FaultContext.ConnectionFailureType.get -> StackExchange.Redis.ConnectionFailureType
+StackExchange.Redis.Availability.FaultContext.ErrorKind.get -> StackExchange.Redis.Availability.RedisErrorKind
+StackExchange.Redis.Availability.FaultContext.Fault.get -> System.Exception!
+StackExchange.Redis.Availability.FaultContext.FaultContext() -> void
+StackExchange.Redis.Availability.FaultContext.FaultContext(System.Exception! fault) -> void
+StackExchange.Redis.Availability.FaultContext.HasValue.get -> bool
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.Ask = 15 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.Busy = 12 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.ClusterDown = 6 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.ConnectionFault = 3 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.CrossSlot = 16 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.DatabaseSelectDisabled = 27 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.ExecAbort = 23 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.InvalidDatabaseIndex = 26 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.Loading = 5 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.MasterDown = 7 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.MaxClients = 13 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.Misconfigured = 10 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.Moved = 14 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.NoAuth = 17 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.NoPermission = 19 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.NoReplicas = 9 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.NoScript = 25 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.NotPermitted = 20 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.OutOfMemory = 11 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.ReadOnly = 24 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.Timeout = 4 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.TryAgain = 8 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.UnknownCommand = 21 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.UnknownError = 2 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.WrongPass = 18 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.RedisErrorKind.WrongType = 22 -> StackExchange.Redis.Availability.RedisErrorKind
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.ObserveResult(in StackExchange.Redis.Availability.FaultContext fault) -> void
+[SER007]virtual StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsFailure(in StackExchange.Redis.Availability.FaultContext fault) -> bool
+virtual StackExchange.Redis.Availability.RetryPolicy.CanRetry(in StackExchange.Redis.Availability.FaultContext fault, StackExchange.Redis.CommandFlags flags, ref bool onNewServer) -> bool

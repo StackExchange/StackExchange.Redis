@@ -111,5 +111,34 @@ namespace StackExchange.Redis
         // 2048: Use subscription connection type; never user-specified, so not visible on the public API
 
         // 4096: Identifies handshake completion messages; never user-specified, so not visible on the public API
+
+        /*
+         Command side-effect/retry logic:
+         Reserve a chunk of bits for command retry logic/categorization;
+         by default, nothing in this chunk will be passed and the library will
+         supply a value based on the command being issued. The caller can override,
+         though - ultimately it is their data/server! They will need to supply a
+         suitable value for Execute[Async] etc, otherwise we'll assume the worst.
+
+         The math here is intended so that we can specify a numeric "max" that we'll
+         retry, and can filter with <=, so the higher numbers have more side-effects.
+         As such, the main chunk are not flags per-se, and we are intentionally leaving gaps
+         to slide other things in later.
+
+        the numbers here are before << into their respective slot
+        CommandRetryAlways = 1, (distinct from 0, which is implicit "not specified")
+
+        CommandRetryConnection = 4 - things like CLIENT SETNAME or safe metadata (COMMAND, CONFIG GET); note that CLIENT KILL would also have CommandServerSpecific
+        CommandRetryReadOnly = 8 - things like GET
+        CommandRetryWriteChecked = 12 - things like SETNX or SET IFEQ
+        CommandRetryWriteLastWins = 16 - things like SET
+        CommandRetryWriteAccumulating = 20 - things like INCR, LPOP
+        CommandRetryServerAdmin = 24 - things like REPLICAOF, CONFIG SET; note these will commonly also include CommandServerSpecific
+        CommandRetryNever = (all the bits for the above region - I guess this means it is 31?)
+
+        CommandServerSpecific = (a single bit, means "never retry on a different endpoint" - think cursors)
+
+
+         */
     }
 }

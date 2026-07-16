@@ -8,16 +8,6 @@ internal partial class ResultProcessor
     {
 #pragma warning disable CS8981, SA1300, SA1134 // forgive naming etc
         // ReSharper disable InconsistentNaming
-        [AsciiHash] internal static partial class NOAUTH { }
-        [AsciiHash] internal static partial class WRONGPASS { }
-        [AsciiHash] internal static partial class NOSCRIPT { }
-        [AsciiHash] internal static partial class MOVED { }
-        [AsciiHash] internal static partial class ASK { }
-        [AsciiHash] internal static partial class READONLY { }
-        [AsciiHash] internal static partial class LOADING { }
-        [AsciiHash("ERR operation not permitted")]
-        internal static partial class ERR_not_permitted { }
-
         // Result processor literals
         [AsciiHash]
         internal static partial class OK

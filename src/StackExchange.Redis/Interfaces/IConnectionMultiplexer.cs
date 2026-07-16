@@ -17,8 +17,6 @@ internal interface IInternalConnectionMultiplexer : IConnectionMultiplexer
 
     bool IgnoreConnect { get; set; }
 
-    CircuitBreaker? CircuitBreaker { get; }
-
     ReadOnlySpan<ServerEndPoint> GetServerSnapshot();
     ServerEndPoint GetServerEndPoint(EndPoint endpoint);
 

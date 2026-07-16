@@ -1,5 +1,5 @@
 using System;
-using System.Threading;
+using System.Diagnostics;
 
 namespace StackExchange.Redis.Availability;
 
@@ -9,12 +9,6 @@ namespace StackExchange.Redis.Availability;
 /// </summary>
 public class RetryPolicy
 {
-    /// <summary>
-    /// Controls (via <see cref="CircuitBreaker.IsConnectionFault"/>) which faults can be retried; if not supplied,
-    /// the connection's configured <see cref="CircuitBreaker"/> will be used.
-    /// </summary>
-    public CircuitBreaker? CircuitBreaker { get; set; }
-
     /// <summary>
     /// The maximum number of times an operation can be attempted. Defaults to 3.
     /// </summary>
@@ -62,4 +56,110 @@ public class RetryPolicy
     internal int DelayMilliseconds => _delayMillis;
     internal int JitterMilliseconds => _jitterMillis;
     internal int FailoverMilliseconds => _failoverMillis;
+
+    internal bool CanRetry(Exception ex, CommandFlags flags, out bool onNewServer)
+    {
+        FaultContext ctx = new(ex);
+        onNewServer = false;
+        return CanRetry(ctx, flags, ref onNewServer);
+    }
+
+    /// <summary>
+    /// Controls which operations can be repeated, optionally indicating that this should progress to
+    /// a new server.
+    /// </summary>
+    public virtual bool CanRetry(in FaultContext fault, CommandFlags flags, ref bool onNewServer)
+        => CircuitBreaker.DefaultIsFailure(in fault); // use the same default logic that governs CircuitBreaker
+}
+
+internal static class RetryPolicyExtensions
+{
+    private const string ServerKey = "redis-server";
+    private const string ConnectionKey = "redis-conn";
+
+    internal static Exception Add(Exception target, string key, object boxed)
+    {
+        try // best effort
+        {
+            target.Data[key] = boxed;
+        }
+        catch (Exception fault)
+        {
+            Debug.WriteLine(fault.Message);
+        }
+        return target;
+    }
+
+    // we optimize for our expected exception kinds, but fallback to using .Data
+    internal static Exception With(this Exception target, RedisErrorKind kind) => Add(target, ServerKey, kind);
+
+    internal static Exception With(this RedisServerException target, RedisErrorKind kind)
+    {
+        target.Kind = kind;
+        return target;
+    }
+
+    internal static Exception With(this Exception target, ConnectionFailureType kind) => Add(target, ConnectionKey, kind);
+
+    internal static Exception With(this RedisConnectionException target, ConnectionFailureType kind)
+    {
+        target.Kind = kind;
+        return target;
+    }
+
+    internal static RedisErrorKind GetErrorKind(this Exception? target, out ConnectionFailureType connectionFailure)
+    {
+        RedisErrorKind kind = RedisErrorKind.None;
+        connectionFailure = ConnectionFailureType.None;
+        switch (target)
+        {
+            case null:
+                break;
+            case RedisServerException server:
+                kind = server.Kind;
+                break;
+            case RedisConnectionException connection:
+                connectionFailure = connection.Kind;
+                kind = RedisErrorKind.ConnectionFault;
+                break;
+            case TimeoutException: // includes RedisTimeoutException
+                kind = RedisErrorKind.Timeout;
+                break;
+            default:
+                try
+                {
+                    if (target.Data[ServerKey] is RedisErrorKind server)
+                    {
+                        kind = server;
+                    }
+                    if (target.Data[ConnectionKey] is ConnectionFailureType conn)
+                    {
+                        connectionFailure = conn;
+                        if (kind is RedisErrorKind.None) kind = RedisErrorKind.ConnectionFault;
+                    }
+                }
+                catch (Exception fault)
+                {
+                    Debug.WriteLine(fault.Message);
+                }
+
+                break;
+        }
+
+        if (kind is not RedisErrorKind.None & connectionFailure is ConnectionFailureType.None)
+        {
+            // fill in some blanks
+            switch (kind)
+            {
+                case RedisErrorKind.Loading:
+                    connectionFailure = ConnectionFailureType.Loading;
+                    break;
+                case RedisErrorKind.NoAuth:
+                case RedisErrorKind.WrongPass:
+                    connectionFailure = ConnectionFailureType.AuthenticationFailure;
+                    break;
+            }
+        }
+        return kind;
+    }
 }

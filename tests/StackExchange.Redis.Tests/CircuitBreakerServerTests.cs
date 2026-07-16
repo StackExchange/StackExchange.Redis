@@ -60,7 +60,7 @@ public class CircuitBreakerServerTests(ITestOutputHelper output) : TestBase(outp
 
         private sealed class CountingAccumulator(CountingCircuitBreaker owner) : Accumulator
         {
-            public override bool ObserveResult(in CircuitBreakerContext context)
+            public override bool ObserveResult(in FaultContext context)
             {
                 if (context.Success)
                 {
