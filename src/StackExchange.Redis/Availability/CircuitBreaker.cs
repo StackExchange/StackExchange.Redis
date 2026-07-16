@@ -34,15 +34,15 @@ public abstract class CircuitBreaker
         private const int DefaultMinimumNumberOfFailures = 1000;
         private static readonly TimeSpan DefaultMetricsWindowSize = TimeSpan.FromSeconds(2);
 
-#pragma warning disable SA1114 // Parameter list should follow declaration - false positive: the #if directive splits the argument list
         internal static CircuitBreaker DefaultInstance = new DefaultCircuitBreaker(
+#pragma warning disable SA1114 // Parameter list should follow declaration - false positive: the #if directive splits the argument list
 #if NET8_0_OR_GREATER
             null,
 #endif
+#pragma warning restore SA1114
             DefaultFailureRateThreshold,
             DefaultMinimumNumberOfFailures,
             DefaultMetricsWindowSize);
-#pragma warning restore SA1114
 
         /// <summary>
         /// Percentage of failures to trigger circuit breaker.
@@ -81,15 +81,15 @@ public abstract class CircuitBreaker
                 && MetricsWindowSize == DefaultMetricsWindowSize)
                 return DefaultInstance;
 
-#pragma warning disable SA1114 // Parameter list should follow declaration - false positive: the #if directive splits the argument list
             return new DefaultCircuitBreaker(
+#pragma warning disable SA1114 // Parameter list should follow declaration - false positive: the #if directive splits the argument list
 #if NET8_0_OR_GREATER
                 TimeProvider,
 #endif
+#pragma warning restore SA1114
                 FailureRateThreshold,
                 MinimumNumberOfFailures,
                 MetricsWindowSize);
-#pragma warning restore SA1114
         }
 
         /// <summary>
@@ -305,7 +305,7 @@ public abstract class CircuitBreaker
                 // only getting results one at a time, so we shouldn't be over-stomping much *anyway*
                 Span<Bucket> buckets = _buckets; // *not* a payload copy; this is in-place over the data
                 ref Bucket bucket = ref buckets[index];
-                bucket.Count(epoch, success: !result.HasValue);
+                bucket.Count(epoch, success: !result.IsFault);
             }
 
             public override bool IsHealthy() => Evaluate(breaker.GetEpoch());

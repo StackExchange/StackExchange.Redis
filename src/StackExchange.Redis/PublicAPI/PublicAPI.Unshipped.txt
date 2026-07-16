@@ -136,10 +136,10 @@ static StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithRetry(this S
 StackExchange.Redis.Availability.FaultContext
 StackExchange.Redis.Availability.FaultContext.ConnectionFailureType.get -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.Availability.FaultContext.ErrorKind.get -> StackExchange.Redis.Availability.RedisErrorKind
-StackExchange.Redis.Availability.FaultContext.Fault.get -> System.Exception!
+StackExchange.Redis.Availability.FaultContext.Fault.get -> System.Exception?
 StackExchange.Redis.Availability.FaultContext.FaultContext() -> void
-StackExchange.Redis.Availability.FaultContext.FaultContext(System.Exception! fault) -> void
-StackExchange.Redis.Availability.FaultContext.HasValue.get -> bool
+StackExchange.Redis.Availability.FaultContext.FaultContext(System.Exception? fault) -> void
+StackExchange.Redis.Availability.FaultContext.IsFault.get -> bool
 [SER007]StackExchange.Redis.Availability.RedisErrorKind.Ask = 15 -> StackExchange.Redis.Availability.RedisErrorKind
 [SER007]StackExchange.Redis.Availability.RedisErrorKind.Busy = 12 -> StackExchange.Redis.Availability.RedisErrorKind
 [SER007]StackExchange.Redis.Availability.RedisErrorKind.ClusterDown = 6 -> StackExchange.Redis.Availability.RedisErrorKind

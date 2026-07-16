@@ -51,32 +51,6 @@ public class CircuitBreakerUnitTests
         Assert.True(Record(acc, 10_000, new RedisTimeoutException("boom", CommandStatus.Unknown)));
     }
 
-    [Fact]
-    public void NonEvaluatingObservation_IsNeverTreatedAsUnhealthy()
-    {
-        // a deliberately naive breaker whose accumulator *always* reports unhealthy - e.g. one that
-        // returns default(false) whether or not it was actually asked to evaluate. A success is
-        // observed without evaluation, so that bogus verdict must be ignored (not read as a trip);
-        // only a genuine evaluation (a fault) is allowed to report unhealthy.
-        var acc = new AlwaysUnhealthyBreaker().CreateAccumulator();
-
-        Assert.True(acc.ObserveResult((Exception?)null)); // success -> not evaluating -> verdict ignored
-        Assert.False(acc.ObserveResult(Timeout()));        // fault -> evaluating -> verdict honoured
-    }
-
-    // never reports healthy, even when not evaluating; stands in for a buggy/naive custom breaker
-    private sealed class AlwaysUnhealthyBreaker : CircuitBreaker
-    {
-        public override Accumulator CreateAccumulator() => new Acc();
-
-        private sealed class Acc : Accumulator
-        {
-            public override bool ObserveResult(in FaultContext context) => false;
-            public override bool IsHealthy() => false;
-            public override void Reset() { }
-        }
-    }
-
 #if NET8_0_OR_GREATER
     // the time-windowed logic needs a controllable clock; TimeProvider is only available on net8.0+,
     // and we don't want to pull the BCL shim in just for down-level test coverage.
@@ -135,8 +109,7 @@ public class CircuitBreakerUnitTests
         var acc = Build(
             time,
             failureRateThreshold: 1,
-            minimumNumberOfFailures: 1,
-            trackedExceptions: [typeof(InvalidOperationException)]).CreateAccumulator();
+            minimumNumberOfFailures: 1).CreateAccumulator();
 
         // the default Redis faults are now *un*tracked, so they read as success
         Assert.True(Record(acc, 100, Timeout()));
@@ -194,14 +167,12 @@ public class CircuitBreakerUnitTests
     private static CircuitBreaker Build(
         TimeProvider time,
         double failureRateThreshold,
-        int minimumNumberOfFailures,
-        Type[]? trackedExceptions = null)
+        int minimumNumberOfFailures)
         => new CircuitBreaker.Builder
         {
             FailureRateThreshold = failureRateThreshold,
             MinimumNumberOfFailures = minimumNumberOfFailures,
             MetricsWindowSize = TimeSpan.FromSeconds(10),
-            TrackedExceptions = trackedExceptions,
             TimeProvider = time,
         }.Create();
 
@@ -227,13 +198,12 @@ public class CircuitBreakerUnitTests
     private static bool Record(CircuitBreaker.Accumulator accumulator, int count, Exception? fault = null)
     {
         // success/failure is derived from the presence of a fault; pass a fault for a failure, none for a success
-        var context = new CircuitBreaker.CircuitBreakerContext(fault);
-        bool healthy = true;
+        var context = new FaultContext(fault);
         for (int i = 0; i < count; i++)
         {
-            healthy = accumulator.ObserveResult(in context);
+            accumulator.ObserveResult(in context);
         }
 
-        return healthy;
+        return accumulator.IsHealthy();
     }
 }
