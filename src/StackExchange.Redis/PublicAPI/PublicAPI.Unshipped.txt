@@ -8,6 +8,8 @@ StackExchange.Redis.Availability.RetryPolicy.MaxAttempts.get -> int
 StackExchange.Redis.Availability.RetryPolicy.MaxAttempts.set -> void
 StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.get -> int
 StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.set -> void
+StackExchange.Redis.Availability.RetryPolicy.MaxCommandRetryCategory.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.Availability.RetryPolicy.MaxCommandRetryCategory.set -> void
 StackExchange.Redis.Availability.RetryPolicy.RetryDelay.get -> System.TimeSpan
 StackExchange.Redis.Availability.RetryPolicy.RetryDelay.set -> void
 StackExchange.Redis.Availability.RetryPolicy.RetryPolicy() -> void
@@ -168,4 +170,17 @@ StackExchange.Redis.Availability.FaultContext.IsFault.get -> bool
 [SER007]StackExchange.Redis.Availability.RedisErrorKind.WrongType = 22 -> StackExchange.Redis.Availability.RedisErrorKind
 [SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.ObserveResult(in StackExchange.Redis.Availability.FaultContext fault) -> void
 [SER007]virtual StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsFailure(in StackExchange.Redis.Availability.FaultContext fault) -> bool
-virtual StackExchange.Redis.Availability.RetryPolicy.CanRetry(in StackExchange.Redis.Availability.FaultContext fault, StackExchange.Redis.CommandFlags flags, ref bool onNewServer) -> bool
+virtual StackExchange.Redis.Availability.RetryPolicy.CanRetry(in StackExchange.Redis.Availability.FaultContext fault, StackExchange.Redis.CommandFlags flags) -> StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult.None = 0 -> StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult.SameServer = 1 -> StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult.FailoverServer = 2 -> StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+StackExchange.Redis.CommandFlags.CommandRetryAlways = 8192 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CommandRetryConnection = 32768 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CommandRetryReadOnly = 65536 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CommandRetryWriteChecked = StackExchange.Redis.CommandFlags.CommandRetryConnection | StackExchange.Redis.CommandFlags.CommandRetryReadOnly -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins = 131072 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CommandRetryWriteAccumulating = StackExchange.Redis.CommandFlags.CommandRetryConnection | StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CommandRetryServerAdmin = StackExchange.Redis.CommandFlags.CommandRetryReadOnly | StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CommandRetryNever = 253952 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CommandServerSpecific = 262144 -> StackExchange.Redis.CommandFlags

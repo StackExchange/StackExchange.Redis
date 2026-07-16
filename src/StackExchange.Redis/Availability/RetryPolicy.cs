@@ -57,19 +57,77 @@ public class RetryPolicy
     internal int JitterMilliseconds => _jitterMillis;
     internal int FailoverMilliseconds => _failoverMillis;
 
-    internal bool CanRetry(Exception ex, CommandFlags flags, out bool onNewServer)
+    /// <summary>
+    /// Gets or sets the max side-effect category that will be retried; defaults to <see cref="CommandFlags.CommandRetryWriteLastWins"/>.
+    /// </summary>
+    public CommandFlags MaxCommandRetryCategory
     {
-        FaultContext ctx = new(ex);
-        onNewServer = false;
-        return CanRetry(ctx, flags, ref onNewServer);
+        get => _maxCommandRetryCategory;
+        set
+        {
+            if ((value & Message.MaskRetryCategory) is 0 | (value & ~Message.MaskRetryCategory) is not 0)
+                throw new InvalidOperationException("Valid CommandRetry* flags should be specified");
+            _maxCommandRetryCategory = value;
+        }
     }
+
+    private CommandFlags _maxCommandRetryCategory = CommandFlags.CommandRetryWriteLastWins;
 
     /// <summary>
     /// Controls which operations can be repeated, optionally indicating that this should progress to
     /// a new server.
     /// </summary>
-    public virtual bool CanRetry(in FaultContext fault, CommandFlags flags, ref bool onNewServer)
-        => CircuitBreaker.DefaultIsFailure(in fault); // use the same default logic that governs CircuitBreaker
+    public virtual RetryPolicyResult CanRetry(in FaultContext fault, CommandFlags flags)
+    {
+        var actual = flags & Message.MaskRetryCategory;
+        if (actual is 0) actual = CommandFlags.CommandRetryWriteAccumulating; // if not set, assume similar to INCR
+
+        if (actual is CommandFlags.CommandRetryNever)
+        {
+            // explicitly disabled at command level
+            return RetryPolicyResult.None;
+        }
+
+        if (actual < MaxCommandRetryCategory) // note this also covers CommandRetryAlways
+        {
+            // side-effects are beyond what the policy allows
+            return RetryPolicyResult.None;
+        }
+
+        if (CircuitBreaker.DefaultIsFailure(in fault))
+        {
+            // assume we can send it everywhere
+            var result = RetryPolicyResult.SameServer | RetryPolicyResult.FailoverServer;
+            if ((flags & CommandFlags.CommandServerSpecific) != 0)
+                result &= ~RetryPolicyResult.FailoverServer;
+            return result;
+        }
+
+        // do not retry
+        return RetryPolicyResult.None;
+    }
+
+    /// <summary>
+    /// Indicates the result of a <see cref="RetryPolicy"/> query.
+    /// </summary>
+    [Flags]
+    public enum RetryPolicyResult
+    {
+        /// <summary>
+        /// None; the operation should not be retried.
+        /// </summary>
+        None = 0,
+
+        /// <summary>
+        /// The operation can be retried on the same server.
+        /// </summary>
+        SameServer = 1,
+
+        /// <summary>
+        /// The operation can be retried on a different server after a failover operation.
+        /// </summary>
+        FailoverServer = 2,
+    }
 }
 
 internal static class RetryPolicyExtensions

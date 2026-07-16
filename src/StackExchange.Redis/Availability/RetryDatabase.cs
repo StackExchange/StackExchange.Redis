@@ -12,10 +12,8 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
 {
     // Note: we very deliberately do not include synchronous support for retry; it is inherently delay-ish
 
-    // TODO: use message category; retrying a GET is very different to SET, SETNX, INCR, etc
-
-    // Note that only connection faults (as defined by the circuit-breaker, or the default circuit-breaker if
-    // not supplied) result in retries; we don't retry caller error.
+    // Note that only transient faults result in retries; this is defined by the RetryPolicy, along with
+    // understanding the category. The default RetryPolicy works the same as the default CircuitBreaker.
     DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
         => _inner.GetFeatures(out name) | DatabaseFeatureFlags.Retry;
 
@@ -68,23 +66,21 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     {
         state.Map(this);
 
-        int i = 0;
+        int attempt = 0;
         TResult result;
         // note we need to capture this *before* the attempt - otherwise the failover could happen
         // between the failed attempt and fetching this, and we'd miss it
-        CancellationToken ct = GetNextFailover();
+        CancellationToken failover = GetNextFailover();
         while (true)
         {
-            ++i;
             try
             {
                 result = await operation(state, _inner).ConfigureAwait(false);
                 break;
             }
-            catch (Exception ex) when (i < _maxAttempts && _policy.CanRetry(ex, state.Flags, out var switchToNewServer))
+            catch (Exception ex) when (CanRetry(++attempt, ex, state.Flags, ref failover, out var delay))
             {
-                // we can give it another attempt
-                await FailoverOrDelayAsync(i, switchToNewServer, ref ct).ConfigureAwait(false);
+                await FailoverOrDelayAsync(delay).ConfigureAwait(false);
             }
         }
         // post-process results outside the loop
@@ -96,41 +92,78 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     {
         state.Map(this);
 
-        int i = 0;
+        int attempt = 0;
         // note we need to capture this *before* the attempt - otherwise the failover could happen
         // between the failed attempt and fetching this, and we'd miss it
-        CancellationToken ct = GetNextFailover();
+        CancellationToken failover = GetNextFailover();
         while (true)
         {
-            ++i;
             try
             {
                 await operation(state, _inner).ConfigureAwait(false);
                 break;
             }
-            catch (Exception ex) when (i < _maxAttempts && _policy.CanRetry(ex, state.Flags, out var switchToNewServer))
+            catch (Exception ex) when (CanRetry(++attempt, ex, state.Flags, ref failover, out var delay))
             {
-                // we can give it another attempt
-                await FailoverOrDelayAsync(i, switchToNewServer, ref ct).ConfigureAwait(false);
+                await FailoverOrDelayAsync(delay).ConfigureAwait(false);
             }
         }
         // (nothing to post-process)
     }
 
-    private Task FailoverOrDelayAsync(int attempt, bool switchToNewServer, ref CancellationToken failover)
+    private bool CanRetry(
+        int attempt,
+        Exception fault,
+        CommandFlags flags,
+        ref CancellationToken failover,
+        out CancellationToken delay)
     {
-        if (failover.CanBeCanceled && (attempt == _maxBeforeFailover | switchToNewServer))
+        delay = CancellationToken.None;
+        if (attempt >= _maxAttempts)
         {
-            // we're in the failover slot - possibly by count, possibly by the retry-policy
-            var snapshot = failover;
-            failover = CancellationToken.None; // only retry at most once
-            return AwaitFailover(snapshot);
+            // all used up
+            return false;
         }
-        else
+
+        // ask the retry policy for advice, and mask off the bits we know about
+        FaultContext ctx = new(fault);
+        var policy = _policy.CanRetry(ctx, flags) &
+                     (RetryPolicy.RetryPolicyResult.FailoverServer | RetryPolicy.RetryPolicyResult.SameServer);
+        if (policy is 0)
         {
-            // this is just a routine wait between operations; await delay+jitter
-            return Task.Delay(_delayMillis + ServerSelectionStrategy.SharedRandom.Next(_jitterMillis), CancellationToken.None);
+            // retry policy says: nope
+            return false;
         }
+
+        if (policy is RetryPolicy.RetryPolicyResult.FailoverServer)
+        {
+            // we can *only* retry on a different server; is failover available?
+            delay = failover;
+            failover = CancellationToken.None; // only failover once
+            return delay.CanBeCanceled;
+        }
+
+        if (attempt == _maxBeforeFailover)
+        {
+            // by count, we should really switch over to the failover now; is failover available *and* are we allowed?
+            delay = failover;
+            failover = CancellationToken.None; // only failover once
+            return delay.CanBeCanceled & (policy & RetryPolicy.RetryPolicyResult.FailoverServer) != 0;
+        }
+
+        // can we pause and retry on the same server?
+        return (policy & RetryPolicy.RetryPolicyResult.SameServer) != 0;
+    }
+
+    private Task FailoverOrDelayAsync(CancellationToken delay)
+    {
+        if (delay.CanBeCanceled)
+        {
+            return AwaitFailover(delay);
+        }
+
+        // this is just a routine wait between operations; await delay+jitter
+        return Task.Delay(_delayMillis + ServerSelectionStrategy.SharedRandom.Next(_jitterMillis), CancellationToken.None);
     }
     private async Task AwaitFailover(CancellationToken failover)
     {

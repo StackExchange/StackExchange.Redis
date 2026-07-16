@@ -72,6 +72,11 @@ namespace StackExchange.Redis
                                                                  | CommandFlags.PreferMaster
                                                                  | CommandFlags.PreferReplica;
 
+        // the 5-bit retry-category severity region (bits 13-17); numerically equal to CommandRetryNever.
+        // deliberately excludes CommandServerSpecific (bit 18), which is an orthogonal flag, not part of
+        // the <=-comparable severity ladder.
+        internal const CommandFlags MaskRetryCategory = CommandFlags.CommandRetryNever;
+
         private const CommandFlags UserSelectableFlags = CommandFlags.None
                                                          | CommandFlags.DemandMaster
                                                          | CommandFlags.DemandReplica
@@ -83,6 +88,8 @@ namespace StackExchange.Redis
                                                          | CommandFlags.FireAndForget
                                                          | CommandFlags.NoRedirect
                                                          | CommandFlags.NoScriptCache
+                                                         | MaskRetryCategory // caller may override the retry category...
+                                                         | CommandFlags.CommandServerSpecific // ...and the server-specific flag
                                                          | NoFlushFlag; // we'll allow this one even though not advertised
 
         private IResultBox? resultBox;
@@ -597,6 +604,12 @@ namespace StackExchange.Redis
         {
             // for the purposes of the switch, we only care about two bits
             return flags & MaskPrimaryServerPreference;
+        }
+
+        internal static CommandFlags GetRetryCategory(CommandFlags flags)
+        {
+            // isolate the retry-category region; 0 here means "not specified" (resolved downstream)
+            return flags & MaskRetryCategory;
         }
 
         internal static bool RequiresDatabase(RedisCommand command)
