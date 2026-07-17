@@ -172,7 +172,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The command performs server administration (for example <c>REPLICAOF</c> or <c>CONFIG SET</c>); these
-        /// will commonly also carry <see cref="CommandServerSpecific"/>.
+        /// are commonly also endpoint-specific (the internal server-specific flag).
         /// </summary>
         [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
         CommandRetryServerAdmin = 24 << 13, // pre-shift value 24
@@ -183,11 +183,9 @@ namespace StackExchange.Redis
         [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
         CommandRetryNever = 31 << 13, // pre-shift value 31 (the full retry-category region)
 
-        /// <summary>
-        /// The command is tied to a specific endpoint and must never be retried on a different endpoint
-        /// (for example cursor-based operations); orthogonal to the retry-category region.
-        /// </summary>
-        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
-        CommandServerSpecific = 1 << 18,
+        // 262144 (bit 18): "server specific" - the command is tied to a specific endpoint and must never be
+        // retried on a different endpoint (for example cursor-based operations); orthogonal to the retry-category
+        // region. Internal-only (see Message.CommandServerSpecific): the wrapper database cannot yet express
+        // endpoint-stickiness over a *range* of operations, so this is not (currently) on the public API.
     }
 }

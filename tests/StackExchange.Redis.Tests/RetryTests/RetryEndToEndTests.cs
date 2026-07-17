@@ -7,7 +7,7 @@ using Xunit;
 namespace StackExchange.Redis.Tests.RetryTests;
 
 [RunPerProtocol]
-public class BasicRetryTests(ITestOutputHelper log)
+public class RetryEndToEndTests(ITestOutputHelper log)
 {
     protected TextWriter Log { get; } = new TextWriterOutputHelper(log);
 

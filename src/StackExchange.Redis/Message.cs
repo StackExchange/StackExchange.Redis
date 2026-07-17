@@ -58,7 +58,10 @@ namespace StackExchange.Redis
 
         internal const CommandFlags
             InternalCallFlag = (CommandFlags)128,
-            NoFlushFlag = (CommandFlags)1024;
+            NoFlushFlag = (CommandFlags)1024,
+            // "server specific" (bit 18): tied to a specific endpoint, never retry elsewhere. Not (yet) a
+            // public CommandFlags member - see the note on the hidden bit-18 value in CommandFlags.cs.
+            CommandServerSpecific = (CommandFlags)(1 << 18);
 
         protected RedisCommand command;
 
@@ -89,7 +92,7 @@ namespace StackExchange.Redis
                                                          | CommandFlags.NoRedirect
                                                          | CommandFlags.NoScriptCache
                                                          | MaskRetryCategory // caller may override the retry category...
-                                                         | CommandFlags.CommandServerSpecific // ...and the server-specific flag
+                                                         | CommandServerSpecific // ...and the server-specific flag
                                                          | NoFlushFlag; // we'll allow this one even though not advertised
 
         private IResultBox? resultBox;

@@ -28,10 +28,16 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         => _maxAttempts > 1 & _maxBeforeFailover < _maxAttempts ? _inner.GetNextFailover() : CancellationToken.None;
 
     public RetryDatabase(IDatabaseAsync inner, RetryPolicy policy)
-    {
         // cannot nest retry, and cannot issue retries *inside* a batch/transaction
-        var features = inner.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction | DatabaseFeatureFlags.Retry);
+        : this(inner, policy, inner.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction | DatabaseFeatureFlags.Retry))
+    {
+    }
 
+    // test-only: supply the inner database's feature set directly (in particular whether failover is
+    // available), instead of probing a live inner - so that failover behaviour can be exercised over a
+    // null inner without a full IDatabaseAsync double.
+    internal RetryDatabase(IDatabaseAsync inner, RetryPolicy policy, DatabaseFeatureFlags features)
+    {
         _policy = policy;
 
         // capture config locally rather than constant cross-object lookups (plus: mutability)
@@ -111,7 +117,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         // (nothing to post-process)
     }
 
-    private bool CanRetry(
+    internal bool CanRetry(
         int attempt,
         Exception fault,
         CommandFlags flags,

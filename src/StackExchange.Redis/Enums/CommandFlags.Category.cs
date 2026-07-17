@@ -47,7 +47,7 @@ internal static class CommandFlagsExtensions
 
                 // CLIENT etc often use server-specific IDs
                 case RedisCommand.CLIENT: // note some can be considered admin, overridden locally
-                    return CommandFlags.CommandRetryConnection | CommandFlags.CommandServerSpecific;
+                    return CommandFlags.CommandRetryConnection | Message.CommandServerSpecific;
 
                 // ==========================================================================
                 // READ-ONLY — no mutation, always safe to retry.
@@ -140,7 +140,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.ZSCAN:
                 case RedisCommand.SSCAN:
                 case RedisCommand.HSCAN:
-                    return CommandFlags.CommandRetryReadOnly | CommandFlags.CommandServerSpecific;
+                    return CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific;
 
                 // ==========================================================================
                 // WRITE - CHECKED — inherently conditional/idempotent; a retry either
@@ -267,7 +267,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.LATENCY:
                 case RedisCommand.SCRIPT:
                 case RedisCommand.CLUSTER: // note: some like MYID can be considered more safe
-                    return CommandFlags.CommandRetryServerAdmin | CommandFlags.CommandServerSpecific;
+                    return CommandFlags.CommandRetryServerAdmin | Message.CommandServerSpecific;
 
                 // ==========================================================================
                 // NEVER — transactions, arbitrary scripts, and blocking/destructive or
@@ -356,7 +356,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.HOTKEYS: // diagnostic/introspection, node-local
                 case RedisCommand.SENTINEL:
                 case RedisCommand.SYNC: // replication stream handshake
-                    return CommandFlags.CommandRetryServerAdmin | CommandFlags.CommandServerSpecific;
+                    return CommandFlags.CommandRetryServerAdmin | Message.CommandServerSpecific;
 
                 // if we don't recognize it: default to the most pessimistic
                 case RedisCommand.NONE:

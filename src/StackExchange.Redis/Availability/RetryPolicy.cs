@@ -91,7 +91,7 @@ public class RetryPolicy
             return RetryPolicyResult.None;
         }
 
-        if (actual < MaxCommandRetryCategory) // note this also covers CommandRetryAlways
+        if (actual > MaxCommandRetryCategory) // note this also covers CommandRetryAlways
         {
             // side-effects are beyond what the policy allows
             return RetryPolicyResult.None;
@@ -101,7 +101,7 @@ public class RetryPolicy
         {
             // assume we can send it everywhere
             var result = RetryPolicyResult.SameServer | RetryPolicyResult.FailoverServer;
-            if ((fault.Flags & CommandFlags.CommandServerSpecific) != 0)
+            if ((fault.Flags & Message.CommandServerSpecific) != 0)
                 result &= ~RetryPolicyResult.FailoverServer;
             return result;
         }

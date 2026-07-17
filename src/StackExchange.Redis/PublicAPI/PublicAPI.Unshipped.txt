@@ -184,6 +184,5 @@ StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = defa
 [SER007]StackExchange.Redis.CommandFlags.CommandRetryWriteAccumulating = StackExchange.Redis.CommandFlags.CommandRetryConnection | StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins -> StackExchange.Redis.CommandFlags
 [SER007]StackExchange.Redis.CommandFlags.CommandRetryServerAdmin = StackExchange.Redis.CommandFlags.CommandRetryReadOnly | StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins -> StackExchange.Redis.CommandFlags
 [SER007]StackExchange.Redis.CommandFlags.CommandRetryNever = 253952 -> StackExchange.Redis.CommandFlags
-[SER007]StackExchange.Redis.CommandFlags.CommandServerSpecific = 262144 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.RedisServerException.Kind.get -> StackExchange.Redis.RedisErrorKind
 StackExchange.Redis.RedisServerException.RedisServerException(StackExchange.Redis.RedisErrorKind kind, string! message) -> void
