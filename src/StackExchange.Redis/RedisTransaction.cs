@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
-using StackExchange.Redis.Availability;
 using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis

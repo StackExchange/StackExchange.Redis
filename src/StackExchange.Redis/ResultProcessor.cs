@@ -11,7 +11,6 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using RESPite;
 using RESPite.Messages;
-using StackExchange.Redis.Availability;
 
 namespace StackExchange.Redis
 {
@@ -212,14 +211,14 @@ namespace StackExchange.Redis
                 sb.Append(annotation);
             }
             var ex = new RedisConnectionException(fail, sb.ToString(), innerException);
-            SetException(message, ex.With(fail));
+            SetException(message, ex);
         }
 
         public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage) =>
-            SetException(message, new RedisConnectionException(fail, errorMessage).With(fail));
+            SetException(message, new RedisConnectionException(fail, errorMessage));
 
         public static void ServerFail(Message message, RedisErrorKind kind, string errorMessage) =>
-            SetException(message, new RedisServerException(errorMessage).With(kind));
+            SetException(message, new RedisServerException(kind, errorMessage));
 
         public static void SetException(Message? message, Exception ex)
         {
@@ -268,10 +267,10 @@ namespace StackExchange.Redis
             switch (errorKind)
             {
                 case RedisErrorKind.NoAuth:
-                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException("NOAUTH Returned - connection has not yet authenticated").With(errorKind));
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, "NOAUTH Returned - connection has not yet authenticated"));
                     break;
                 case RedisErrorKind.WrongPass:
-                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(reader.GetOverview()).With(errorKind));
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, reader.GetOverview()));
                     break;
             }
 
@@ -3181,7 +3180,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
                     }
                     else
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(reader.GetOverview()));
+                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(RedisErrorKind.ConnectionFault, reader.GetOverview()));
                     }
                 }
 

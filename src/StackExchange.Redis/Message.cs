@@ -77,7 +77,7 @@ namespace StackExchange.Redis
         // the <=-comparable severity ladder.
         internal const CommandFlags MaskRetryCategory = CommandFlags.CommandRetryNever;
 
-        private const CommandFlags UserSelectableFlags = CommandFlags.None
+        internal const CommandFlags UserSelectableFlags = CommandFlags.None
                                                          | CommandFlags.DemandMaster
                                                          | CommandFlags.DemandReplica
                                                          | CommandFlags.PreferMaster
@@ -503,7 +503,7 @@ namespace StackExchange.Redis
             performance?.SetCompleted();
             if (currBox is not null)
             {
-                connection?.ObserveMessageResult(currBox.Fault);
+                connection?.ObserveMessageResult(currBox.Fault, Flags);
             }
             currBox?.ActivateContinuations();
         }

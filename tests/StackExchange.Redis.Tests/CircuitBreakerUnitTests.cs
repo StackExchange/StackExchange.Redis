@@ -198,7 +198,7 @@ public class CircuitBreakerUnitTests
     private static bool Record(CircuitBreaker.Accumulator accumulator, int count, Exception? fault = null)
     {
         // success/failure is derived from the presence of a fault; pass a fault for a failure, none for a success
-        var context = new FaultContext(fault);
+        FaultContext context = fault is null ? new(CommandFlags.None) : new(fault, CommandFlags.None);
         for (int i = 0; i < count; i++)
         {
             accumulator.ObserveResult(in context);

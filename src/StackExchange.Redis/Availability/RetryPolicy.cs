@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
 
 namespace StackExchange.Redis.Availability;
 
@@ -7,6 +9,7 @@ namespace StackExchange.Redis.Availability;
 /// Configures how messages can be retried due to connection / transient faults. Other faults (such as invalid
 /// usage) are not retried.
 /// </summary>
+[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
 public class RetryPolicy
 {
     /// <summary>
@@ -77,9 +80,9 @@ public class RetryPolicy
     /// Controls which operations can be repeated, optionally indicating that this should progress to
     /// a new server.
     /// </summary>
-    public virtual RetryPolicyResult CanRetry(in FaultContext fault, CommandFlags flags)
+    public virtual RetryPolicyResult CanRetry(in FaultContext fault)
     {
-        var actual = flags & Message.MaskRetryCategory;
+        var actual = fault.Flags & Message.MaskRetryCategory;
         if (actual is 0) actual = CommandFlags.CommandRetryWriteAccumulating; // if not set, assume similar to INCR
 
         if (actual is CommandFlags.CommandRetryNever)
@@ -98,7 +101,7 @@ public class RetryPolicy
         {
             // assume we can send it everywhere
             var result = RetryPolicyResult.SameServer | RetryPolicyResult.FailoverServer;
-            if ((flags & CommandFlags.CommandServerSpecific) != 0)
+            if ((fault.Flags & CommandFlags.CommandServerSpecific) != 0)
                 result &= ~RetryPolicyResult.FailoverServer;
             return result;
         }
@@ -151,19 +154,15 @@ internal static class RetryPolicyExtensions
     // we optimize for our expected exception kinds, but fallback to using .Data
     internal static Exception With(this Exception target, RedisErrorKind kind) => Add(target, ServerKey, kind);
 
+    [Obsolete("Prefer .ctor", true)]
     internal static Exception With(this RedisServerException target, RedisErrorKind kind)
-    {
-        target.Kind = kind;
-        return target;
-    }
+        => throw new NotSupportedException();
 
     internal static Exception With(this Exception target, ConnectionFailureType kind) => Add(target, ConnectionKey, kind);
 
+    [Obsolete("Prefer .ctor", true)]
     internal static Exception With(this RedisConnectionException target, ConnectionFailureType kind)
-    {
-        target.Kind = kind;
-        return target;
-    }
+        => throw new NotSupportedException();
 
     internal static RedisErrorKind GetErrorKind(this Exception? target, out ConnectionFailureType connectionFailure)
     {
@@ -177,7 +176,7 @@ internal static class RetryPolicyExtensions
                 kind = server.Kind;
                 break;
             case RedisConnectionException connection:
-                connectionFailure = connection.Kind;
+                connectionFailure = connection.FailureType;
                 kind = RedisErrorKind.ConnectionFault;
                 break;
             case TimeoutException: // includes RedisTimeoutException

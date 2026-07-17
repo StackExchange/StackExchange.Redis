@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
+using RESPite;
 using StackExchange.Redis.Availability;
 using StackExchange.Redis.Interfaces;
 
@@ -71,6 +73,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         /// SE.Redis concepts, so can respond to server failover events, apply circuit-breaker rules, and
         /// respect command effect categorization.
         /// </summary>
+        [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
         public static IDatabaseAsync WithRetry(this IDatabaseAsync database, RetryPolicy retryPolicy)
             => new RetryDatabase(database, retryPolicy);
     }

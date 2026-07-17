@@ -126,8 +126,8 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         }
 
         // ask the retry policy for advice, and mask off the bits we know about
-        FaultContext ctx = new(fault);
-        var policy = _policy.CanRetry(ctx, flags) &
+        FaultContext ctx = new(fault, flags);
+        var policy = _policy.CanRetry(ctx) &
                      (RetryPolicy.RetryPolicyResult.FailoverServer | RetryPolicy.RetryPolicyResult.SameServer);
         if (policy is 0)
         {

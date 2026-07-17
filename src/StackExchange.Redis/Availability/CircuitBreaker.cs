@@ -149,18 +149,22 @@ public abstract class CircuitBreaker
         /// </summary>
         public abstract void Reset();
 
-        internal bool Trip(Exception? fault)
+        internal bool Trip(Exception? fault, CommandFlags flags)
         {
+            FaultContext ctx;
             if (fault is not null)
             {
-                var ctx = new FaultContext(fault);
+                ctx = new FaultContext(fault, flags);
                 if (IsFailure(ctx))
                 {
                     ObserveResult(ctx);
                     return !IsHealthy();
                 }
+                // otherwise, treat as success for the purposes of counting
             }
-            ObserveResult(in FaultContext.Success);
+
+            ctx = new(flags);
+            ObserveResult(ctx);
             return false; // never trip through success
         }
     }

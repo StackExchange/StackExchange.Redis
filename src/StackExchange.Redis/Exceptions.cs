@@ -1,7 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Runtime.Serialization;
-using StackExchange.Redis.Availability;
 
 namespace StackExchange.Redis
 {
@@ -121,8 +120,6 @@ namespace StackExchange.Redis
         /// </summary>
         public CommandStatus CommandStatus { get; }
 
-        internal ConnectionFailureType Kind { get; set; }
-
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -191,7 +188,16 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisServerException"/>.
         /// </summary>
         /// <param name="message">The message for the exception.</param>
-        public RedisServerException(string message) : base(message) { }
+        [Obsolete("Specify Kind when possible")]
+        public RedisServerException(string message) : this(RedisErrorKind.Unknown, message) { }
+
+        /// <summary>
+        /// Creates a new <see cref="RedisServerException"/>.
+        /// </summary>
+        /// <param name="kind">The categorized meaning of the error.</param>
+        /// <param name="message">The message for the exception.</param>
+        public RedisServerException(RedisErrorKind kind, string message) : base(message)
+            => Kind = kind;
 
 #if NET8_0_OR_GREATER
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
@@ -199,6 +205,9 @@ namespace StackExchange.Redis
 #endif
         private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
 
-        internal RedisErrorKind Kind { get; set; }
+        /// <summary>
+        /// Identifies the kind of error received.
+        /// </summary>
+        public RedisErrorKind Kind { get; }
     }
 }

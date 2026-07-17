@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using RESPite;
 using RESPite.Messages;
 
-namespace StackExchange.Redis.Availability;
+namespace StackExchange.Redis;
 
 /// <summary>
 /// Well-known server error conditions, identified from the error-reply prefix (and in some cases the
@@ -138,7 +140,7 @@ public enum RedisErrorKind
     /// <summary>
     /// <c>ERR unknown command</c> - the command is not known to the server (typo, disabled, or unsupported version).
     /// </summary>
-    [AsciiHash("")] // matched via the "ERR " branch, not the first token
+    [AsciiHash("ERR")] // matched via the "ERR " branch, not the first token
     UnknownCommand,
 
     /// <summary>
@@ -160,20 +162,6 @@ public enum RedisErrorKind
     /// <c>NOSCRIPT</c> - no matching script for <c>EVALSHA</c>; the script must be re-loaded.
     /// </summary>
     NoScript,
-
-    /// <summary>
-    /// <c>ERR DB index is out of range</c> / <c>ERR invalid DB index</c> - the database index passed to
-    /// <c>SELECT</c> is out of range or not a valid integer.
-    /// </summary>
-    [AsciiHash("")] // matched via the "ERR " branch, not the first token
-    InvalidDatabaseIndex,
-
-    /// <summary>
-    /// <c>ERR SELECT is not allowed in cluster mode</c> - selecting a non-default database is not supported
-    /// on this server/topology (e.g. cluster mode, or a server without multi-database support).
-    /// </summary>
-    [AsciiHash("")] // matched via the "ERR " branch, not the first token
-    DatabaseSelectDisabled,
 }
 
 internal static partial class RedisErrorKindMetadata
@@ -189,38 +177,36 @@ internal static partial class RedisErrorKindMetadata
     internal static unsafe RedisErrorKind Classify(in RespReader reader)
         => reader.TryParseScalar(&TryParse, out RedisErrorKind kind) ? kind : RedisErrorKind.Unknown;
 
+    internal static unsafe RedisErrorKind Classify(string message)
+        => RespReader.TryParseScalar(message.AsSpan(), &TryParse, out RedisErrorKind kind) ? kind : RedisErrorKind.Unknown;
+
     internal static bool TryParse(ReadOnlySpan<byte> value, out RedisErrorKind kind)
     {
         var space = value.IndexOf((byte)' ');
         // Deal with the exact matches on the first token first - many errors may or may not
         // have descriptive text after the leading token.
         var firstToken = space > 0 ? value.Slice(0, space) : value;
-        if (TryParseFirstTokenCI(firstToken, out kind)) return true;
-
-        // check for "ERR ..." scenarios
-        if (space > 0 && Err.IsCI(firstToken, AsciiHash.HashUC(firstToken)))
+        if (TryParseFirstTokenCI(firstToken, out kind))
         {
-            value = value.Slice(space + 1); // message text after "ERR "
-
-            // most ERR conditions are fixed messages matched in full; the exception is
-            // "unknown command '<name>', with args ...", which always carries a trailing
-            // command name and so is matched on its leading text (the final guarded arm)
-            var valueHash = AsciiHash.HashUC(value);
-            kind = value.Length switch
+            // check for more specific "ERR ..." scenarios
+            if (kind is RedisErrorKind.UnknownError & space > 0)
             {
-                DbIndexOutOfRange.Length when DbIndexOutOfRange.IsCI(value, valueHash) => RedisErrorKind
-                    .InvalidDatabaseIndex,
-                InvalidDbIndex.Length when InvalidDbIndex.IsCI(value, valueHash) => RedisErrorKind
-                    .InvalidDatabaseIndex,
-                OperationNotPermitted.Length when OperationNotPermitted.IsCI(value, valueHash) => RedisErrorKind
-                    .NotPermitted,
-                SelectNotAllowedInClusterMode.Length when SelectNotAllowedInClusterMode.IsCI(value, valueHash) => RedisErrorKind
-                    .DatabaseSelectDisabled,
-                _ when value.Length >= UnknownCommand.Length
-                    && AsciiHash.SequenceEqualsCI(value.Slice(0, UnknownCommand.Length), UnknownCommand.U8) => RedisErrorKind
-                    .UnknownCommand,
-                _ => RedisErrorKind.UnknownError,
-            };
+                // get the message text after "ERR "
+                value = value.Slice(space + 1);
+
+                // some ERR conditions can be identified further, noting that the text may or
+                // may not have some tokens - sometimes we need partial match.
+                var valueHash = AsciiHash.HashUC(value);
+                if (value.Length is OperationNotPermitted.Length && OperationNotPermitted.IsCI(value, valueHash))
+                {
+                    kind = RedisErrorKind.NotPermitted;
+                }
+                else if (value.Length >= UnknownCommand.Length &&
+                           AsciiHash.SequenceEqualsCI(value.Slice(0, UnknownCommand.Length), UnknownCommand.U8))
+                {
+                    kind = RedisErrorKind.UnknownCommand;
+                }
+            }
             return true;
         }
 
@@ -228,8 +214,14 @@ internal static partial class RedisErrorKindMetadata
         return true;
     }
 
-    [AsciiHash("ERR")]
-    private static partial class Err { }
+    [AsciiHash("operation not permitted")]
+    private static partial class OperationNotPermitted { }
+
+    [AsciiHash("unknown command")]
+    private static partial class UnknownCommand { }
+
+    /* while these are recognizable, we issue SELECT *on behalf* of the user
+     and react internally, so reporting them seems... unnecessary.
 
     [AsciiHash("DB index is out of range")]
     private static partial class DbIndexOutOfRange { }
@@ -237,12 +229,7 @@ internal static partial class RedisErrorKindMetadata
     [AsciiHash("invalid DB index")]
     private static partial class InvalidDbIndex { }
 
-    [AsciiHash("operation not permitted")]
-    private static partial class OperationNotPermitted { }
-
-    [AsciiHash("unknown command")]
-    private static partial class UnknownCommand { }
-
     [AsciiHash("SELECT is not allowed in cluster mode")]
-    private static partial class SelectNotAllowedInClusterMode { }
+   private static partial class SelectNotAllowedInClusterMode { }
+    */
 }
