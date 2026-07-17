@@ -2,6 +2,10 @@ namespace StackExchange.Redis;
 
 internal static class CommandFlagsExtensions
 {
+    public static CommandFlags WithCategory(this CommandFlags flags, CommandFlags category)
+        // if the user hasn't already specified a category: use the category supplied
+        => ((flags & Message.MaskRetryCategory) is 0) ? flags | (category & Message.MaskRetryCategory) : flags;
+
     public static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
     {
         if ((flags & Message.MaskRetryCategory) is 0)

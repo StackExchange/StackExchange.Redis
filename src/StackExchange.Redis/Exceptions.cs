@@ -149,7 +149,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The command-flags associated with the faulting operation (including its retry category).
         /// </summary>
-        public override CommandFlags Flags { get; }
+        public CommandFlags Flags { get; }
 
         /// <summary>
         /// Status of the command while communicating with Redis.
@@ -210,12 +210,6 @@ namespace StackExchange.Redis
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId)]
 #endif
         protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
-
-        /// <summary>
-        /// The command-flags associated with the faulting operation (including its retry category), or
-        /// <see cref="CommandFlags.None"/> when it is not known.
-        /// </summary>
-        public virtual CommandFlags Flags => CommandFlags.None;
     }
 
     /// <summary>
@@ -257,6 +251,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// The command-flags associated with the faulting operation (including its retry category).
         /// </summary>
-        public override CommandFlags Flags { get; }
+        public CommandFlags Flags { get; }
     }
 }

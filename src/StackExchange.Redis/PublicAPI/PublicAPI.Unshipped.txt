@@ -183,10 +183,9 @@ StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = defa
 [SER007]StackExchange.Redis.CommandFlags.CommandRetryWriteAccumulating = StackExchange.Redis.CommandFlags.CommandRetryConnection | StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins -> StackExchange.Redis.CommandFlags
 [SER007]StackExchange.Redis.CommandFlags.CommandRetryServerAdmin = StackExchange.Redis.CommandFlags.CommandRetryReadOnly | StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins -> StackExchange.Redis.CommandFlags
 [SER007]StackExchange.Redis.CommandFlags.CommandRetryNever = 253952 -> StackExchange.Redis.CommandFlags
-override StackExchange.Redis.RedisConnectionException.Flags.get -> StackExchange.Redis.CommandFlags
-virtual StackExchange.Redis.RedisException.Flags.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.RedisConnectionException.Flags.get -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.RedisConnectionException.RedisConnectionException(StackExchange.Redis.ConnectionFailureType failureType, StackExchange.Redis.CommandFlags flags, string! message, System.Exception? innerException = null, StackExchange.Redis.CommandStatus commandStatus = StackExchange.Redis.CommandStatus.Unknown) -> void
-override StackExchange.Redis.RedisServerException.Flags.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.RedisServerException.Flags.get -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.RedisServerException.Kind.get -> StackExchange.Redis.RedisErrorKind
 StackExchange.Redis.RedisServerException.RedisServerException(StackExchange.Redis.RedisErrorKind kind, StackExchange.Redis.CommandFlags flags, string! message) -> void
 StackExchange.Redis.RedisTimeoutException.Flags.get -> StackExchange.Redis.CommandFlags

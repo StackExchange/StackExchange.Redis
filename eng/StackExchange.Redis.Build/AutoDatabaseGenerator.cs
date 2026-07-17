@@ -378,7 +378,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 return index;
             }
 
-            const string CommandFlagsType = "StackExchange.Redis.CommandFlags";
+            // const string CommandFlagsType = "StackExchange.Redis.CommandFlags";
             const string RedisKeyType = "StackExchange.Redis.RedisKey";
             const string RedisChannelType = "StackExchange.Redis.RedisChannel";
             // types that carry key(s) internally without "RedisKey" in their name, so the
@@ -407,17 +407,6 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     bool needsMap = TupleNeedsMap(raw);
                     var parameters = raw.Span;
 
-                    // locate the (single) CommandFlags argument, if any, to back IRedisArgs.Flags
-                    int flagsArg = -1;
-                    for (int p = 0; p < parameters.Length; p++)
-                    {
-                        if (parameters[p].Type == CommandFlagsType)
-                        {
-                            flagsArg = p;
-                            break;
-                        }
-                    }
-
                     // fields are mutable: Map rewrites key/channel fields and Flags has a setter
                     writer.NewLine().NewLine().Append("private struct _tuple").Append(i).Append("(");
                     for (int p = 0; p < parameters.Length; p++)
@@ -430,19 +419,8 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     writer.NewLine().Append("{").Indent();
                     for (int p = 0; p < parameters.Length; p++)
                     {
-                        writer.NewLine().Append("public ").Append(parameters[p].Type)
+                        writer.NewLine().Append("public ").Append(NeedsMap(parameters[p].Type) ? "" : "readonly ").Append(parameters[p].Type)
                             .Append(" Arg").Append(p).Append(" = arg").Append(p).Append(";");
-                    }
-
-                    // Flags maps onto the CommandFlags field when present, else a synthesized default
-                    writer.NewLine().Append("public global::StackExchange.Redis.CommandFlags Flags");
-                    if (flagsArg >= 0)
-                    {
-                        writer.Append(" { readonly get => Arg").Append(flagsArg).Append("; set => Arg").Append(flagsArg).Append(" = value; }");
-                    }
-                    else
-                    {
-                        writer.Append(" { get; set; }");
                     }
 
                     // Map rewrites each scalar key/channel field directly, and defers container or

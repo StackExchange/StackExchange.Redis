@@ -45,9 +45,6 @@ public readonly struct FaultContext
             case TimeoutException:
                 kind = RedisErrorKind.Timeout;
                 break;
-            case RedisException redis:
-                flags = redis.Flags;
-                break;
         }
 
         if (kind is not RedisErrorKind.None & _connectionFailureType is ConnectionFailureType.None)
