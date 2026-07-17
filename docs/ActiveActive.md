@@ -9,6 +9,11 @@ The Active:Active feature provides automatic failover and intelligent routing ac
 3. **Circuit breakers** that *passively* monitor availability from the observed success and failure of the traffic already flowing.
 4. **Automatic retries** that let straightforward operations ride out a possibly-unstable connection — including silently transitioning to another endpoint during a failover, with no change to your calling code.
 
+The features for Active:Active are available in the `Availability` sub-namespace:
+
+``` csharp
+using StackExchange.Redis.Availability;
+```
 The library automatically selects the best available endpoint based on:
 
 1. **Availability** - Connected endpoints are always preferred over disconnected ones
