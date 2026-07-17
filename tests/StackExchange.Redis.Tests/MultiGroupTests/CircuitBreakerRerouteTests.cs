@@ -8,7 +8,7 @@ using Xunit;
 namespace StackExchange.Redis.Tests.MultiGroupTests;
 
 [RunPerProtocol]
-public class CircuitBreakerRerouteTests(ITestOutputHelper log)
+public class CircuitBreakerRerouteTests(ITestOutputHelper log) : TestBase(log)
 {
     // A circuit-breaker trip must steer the group away from the affected member *promptly* - i.e. via
     // the shim's ConnectionFailed(CircuitBreaker) fast-path, not by waiting for the next health-check
@@ -23,9 +23,9 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log)
         EndPoint bravo = new DnsEndPoint("bravo", 6379);
         EndPoint charlie = new DnsEndPoint("charlie", 6379);
 
-        using var serverA = new InProcessTestServer(log, endpoint: alpha);
-        using var serverB = new InProcessTestServer(log, endpoint: bravo);
-        using var serverC = new InProcessTestServer(log, endpoint: charlie);
+        using var serverA = new InProcessTestServer(Output, endpoint: alpha);
+        using var serverB = new InProcessTestServer(Output, endpoint: bravo);
+        using var serverC = new InProcessTestServer(Output, endpoint: charlie);
 
         var breaker = new FlipBreaker();
         var probe = new ControllableProbe();
@@ -60,7 +60,7 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log)
         int circuitBreakerEvents = 0;
         typed.ConnectionFailed += (_, e) =>
         {
-            log.WriteLine($"ConnectionFailed: {e.FailureType} @ {e.EndPoint}");
+            Log($"ConnectionFailed: {e.FailureType} @ {e.EndPoint}");
             if (e.FailureType == ConnectionFailureType.CircuitBreaker)
             {
                 Interlocked.Increment(ref circuitBreakerEvents);
@@ -77,7 +77,7 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log)
         breaker.Trip();
         var db = conn.GetDatabase();
         var fault = await Assert.ThrowsAnyAsync<Exception>(() => db.ExecuteAsync("nonesuch"));
-        log.WriteLine($"observed fault: {fault.GetType().Name}: {fault.Message}");
+        Log($"observed fault: {fault.GetType().Name}: {fault.Message}");
 
         // wait (briefly) for the fast-path to react; nothing else can move us within this window
         var moved = await WaitForActiveAsync(conn, notMember: members[0], timeout: TimeSpan.FromSeconds(5));
@@ -113,20 +113,13 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log)
 
         private sealed class Acc(FlipBreaker owner) : Accumulator
         {
+            // this breaker trips on demand regardless of *what* faulted, so treat every observed fault as a
+            // failure - otherwise Trip's IsFailure gate would filter out non-failure faults (e.g. an unknown
+            // command) before the tripped state is ever consulted
+            protected override bool IsFailure(in FaultContext fault) => true;
             public override void ObserveResult(in FaultContext context) { }
             public override bool IsHealthy() => !owner._tripped;
             public override void Reset() { }
         }
-    }
-
-    // reports the nominated endpoints unhealthy on demand; everything else is healthy. This keeps the
-    // tripped member deselected even after its physical connection reconnects.
-    private sealed class ControllableProbe : HealthCheck.HealthCheckProbe
-    {
-        private volatile EndPoint? _down;
-        public void MarkDown(EndPoint endpoint) => _down = endpoint;
-
-        public override Task<HealthCheck.HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server)
-            => Equals(server.EndPoint, _down) ? UnhealthyTask : HealthyTask;
     }
 }
