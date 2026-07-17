@@ -57,13 +57,15 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log) : TestBase(log)
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
 
-        int circuitBreakerEvents = 0;
+        // completes the first time we see a ConnectionFailed(CircuitBreaker); we await this (rather than
+        // polling a counter) so the assertion is deterministic and not subject to event-timing races
+        var circuitBreakerEvents = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.ConnectionFailed += (_, e) =>
         {
             Log($"ConnectionFailed: {e.FailureType} @ {e.EndPoint}");
             if (e.FailureType == ConnectionFailureType.CircuitBreaker)
             {
-                Interlocked.Increment(ref circuitBreakerEvents);
+                circuitBreakerEvents.TrySetResult(true);
             }
         };
 
@@ -84,7 +86,12 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log) : TestBase(log)
 
         Assert.True(moved, "expected the circuit-breaker trip to reroute away from member A");
         Assert.Same(members[1], conn.ActiveMember); // B is the next-highest weight
-        Assert.True(circuitBreakerEvents > 0, "expected a ConnectionFailed event with FailureType == CircuitBreaker");
+
+        // a ConnectionFailed event with FailureType == CircuitBreaker must have fired; await it (with a
+        // timeout linked to the ambient test cancellation) rather than racing on a counter read
+        using var cbCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cbCts.CancelAfter(TimeSpan.FromSeconds(5));
+        Assert.True(await circuitBreakerEvents.Task.WaitAsync(cbCts.Token), "expected a ConnectionFailed event with FailureType == CircuitBreaker");
     }
 
     private static async Task<bool> WaitForActiveAsync(
