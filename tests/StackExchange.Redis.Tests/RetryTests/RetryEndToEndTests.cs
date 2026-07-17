@@ -2,7 +2,6 @@ using System;
 using System.Net;
 using System.Threading.Tasks;
 using StackExchange.Redis.Availability;
-using StackExchange.Redis.KeyspaceIsolation;
 using StackExchange.Redis.Server;
 using Xunit;
 
