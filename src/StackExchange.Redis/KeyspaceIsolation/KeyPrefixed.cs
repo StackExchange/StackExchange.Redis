@@ -19,6 +19,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public IConnectionMultiplexer Multiplexer => Inner.Multiplexer;
 
+        public int Database => Inner.Database;
+
         internal TInner Inner { get; }
 
         internal byte[] Prefix { get; }

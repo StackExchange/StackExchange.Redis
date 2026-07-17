@@ -14,6 +14,9 @@ namespace StackExchange.Redis
     /// </summary>
     public partial interface IDatabaseAsync : IRedisAsync
     {
+        /// <inheritdoc cref="IDatabase.Database" />
+        int Database { get; }
+
         /// <summary>
         /// Indicates whether the instance can communicate with the server (resolved using the supplied key and optional flags).
         /// </summary>

@@ -51,7 +51,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         _inner = inner;
     }
 
-    public int Database => _inner is IDatabase db ? db.Database : -1;
+    public int Database => _inner.Database;
 
     public IConnectionMultiplexer Multiplexer => _inner.Multiplexer;
 

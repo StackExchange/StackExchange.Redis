@@ -1,4 +1,5 @@
 ﻿#nullable enable
+StackExchange.Redis.IDatabaseAsync.Database.get -> int
 [SER007]StackExchange.Redis.Availability.RetryPolicy
 [SER007]StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.get -> System.TimeSpan
 [SER007]StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.set -> void
