@@ -12,6 +12,7 @@ The Active:Active feature provides automatic failover and intelligent routing ac
 The features for Active:Active are available in the `Availability` sub-namespace:
 
 ``` csharp
+using StackExchange.Redis;
 using StackExchange.Redis.Availability;
 ```
 The library automatically selects the best available endpoint based on:
@@ -33,8 +34,6 @@ This enables scenarios such as:
 To create an Active:Active connection, use `ConnectionMultiplexer.ConnectGroupAsync()` with an array of `ConnectionGroupMember` instances:
 
 ```csharp
-using StackExchange.Redis;
-
 // Define your Redis endpoints
 ConnectionGroupMember[] members = [
     new("us-east.redis.example.com:6379", name: "US East"),

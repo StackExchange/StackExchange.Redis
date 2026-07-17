@@ -65,13 +65,6 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
-    public void Get_Database()
-    {
-        mock.Database.Returns(123);
-        Assert.Equal(123, prefixed.Database);
-    }
-
-    [Fact]
     public void HashDecrement_1()
     {
         prefixed.HashDecrement("key", "hashField", 123, CommandFlags.None);

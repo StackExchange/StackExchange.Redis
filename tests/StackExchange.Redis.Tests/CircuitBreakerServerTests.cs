@@ -30,20 +30,27 @@ public class CircuitBreakerServerTests(ITestOutputHelper output) : TestBase(outp
 
         var successesAfterGetSets = breaker.Successes;
 
-        // and something the server doesn't support -> server replies with an error -> observed as a fault
-        var fault = await Assert.ThrowsAnyAsync<Exception>(() => db.ExecuteAsync("nonesuch"));
-        Output.WriteLine($"execute fault: {fault.GetType().Name}: {fault.Message}");
+        // knock the server offline: it now replies LOADING to every command, which (unlike an
+        // application-level "unknown command") is a genuine availability fault the breaker observes.
+        // flip it straight back off so no background heartbeat can observe a second LOADING reply -
+        // the fault for our command is recorded synchronously as it completes, before the await returns.
+        server.IsLoading = true;
+        var fault = await Assert.ThrowsAsync<RedisServerException>(() => db.StringGetAsync(key));
+        server.IsLoading = false;
+        Assert.Equal(RedisErrorKind.Loading, fault.Kind);
+        Output.WriteLine($"loading fault: {fault.GetType().Name}: {fault.Message}");
 
         Output.WriteLine($"observed successes={breaker.Successes}, failures={breaker.Failures}, lastFault={breaker.LastFault?.GetType().Name}");
 
         // the get/sets were observed as successes
         Assert.True(successesAfterGetSets > 0, "expected the successful operations to be observed");
 
-        // exactly one fault (the unsupported command), captured as the clean server error. A healthy
+        // exactly one fault (the LOADING reply), captured as the clean server error. A healthy
         // breaker must NOT tear the connection down: a regression there shows up here as a
         // RedisConnectionException (and extra faults) rather than this RedisServerException.
         Assert.Equal(1, breaker.Failures);
-        Assert.IsType<RedisServerException>(breaker.LastFault);
+        var serverFault = Assert.IsType<RedisServerException>(breaker.LastFault);
+        Assert.Equal(RedisErrorKind.Loading, serverFault.Kind);
     }
 
     // a minimal breaker for tests: shares counters across all accumulators it creates, so we can

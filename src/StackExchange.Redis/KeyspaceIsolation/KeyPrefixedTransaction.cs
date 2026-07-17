@@ -7,7 +7,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
     {
         public KeyPrefixedTransaction(ITransaction inner, byte[] prefix) : base(inner, prefix)
         {
-            inner.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
         }
 
         private protected override DatabaseFeatureFlags GetDatabaseFeatures()
