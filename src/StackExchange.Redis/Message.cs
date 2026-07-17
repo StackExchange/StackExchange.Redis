@@ -129,7 +129,9 @@ namespace StackExchange.Redis
             bool primaryOnly = command.IsPrimaryOnly();
             Db = db;
             this.command = command;
-            Flags = flags & UserSelectableFlags;
+            // apply the user-selectable flags, then fill in the default retry-category for this command
+            // (WithDefaultCategory is a no-op if the caller already specified a CommandRetry* category)
+            Flags = (flags & UserSelectableFlags).WithDefaultCategory(command);
             if (primaryOnly) SetPrimaryOnly();
 
             CreatedDateTime = DateTime.UtcNow;

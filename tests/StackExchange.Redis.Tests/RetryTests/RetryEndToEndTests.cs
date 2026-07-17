@@ -1,6 +1,9 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
+using StackExchange.Redis.KeyspaceIsolation;
+using StackExchange.Redis.Server;
 using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 
@@ -11,52 +14,65 @@ public class RetryEndToEndTests(ITestOutputHelper log)
 {
     protected TextWriter Log { get; } = new TextWriterOutputHelper(log);
 
-    // Baseline: connect to a single in-proc server and exercise the *regular* (non-retry) database.
-    // This is the control case the retry suite will build on - no RetryDatabase wrapper yet.
+    // End-to-end: a server that answers the first couple of GETs with a transient LOADING error, then
+    // serves normally. Wrapping the database with .WithRetry should transparently ride through the LOADING
+    // responses; we can then observe (via the server's counter) that it really did take three GETs before
+    // one succeeded.
     [Fact]
-    public async Task ConnectAndGet()
+    public async Task WithRetry_RidesOutTransientLoading()
     {
-        using var server = new InProcessTestServer(log);
+        using var server = new LoadingServer(log);
         await using var conn = await server.ConnectAsync(log: Log);
         Assert.True(conn.IsConnected);
 
         var db = conn.GetDatabase();
 
-        RedisKey key = "retry:basic";
-        Assert.True(await db.StringSetAsync(key, "hello"));
+        RedisKey key = "retry:loading";
+        Assert.True(await db.StringSetAsync(key, "hello")); // seed the value before we start failing GETs
 
-        var value = await db.StringGetAsync(key);
-        Assert.Equal("hello", value);
+        // queue up two LOADING responses; the third GET should succeed
+        server.LoadingOps = 2;
 
-        // a couple more gets, including a miss
-        Assert.Equal("hello", await db.StringGetAsync(key));
-        Assert.Equal(RedisValue.Null, await db.StringGetAsync("retry:missing"));
+        // zero delay/jitter so the test isn't paying the default ~1s retry backoff between attempts
+        var policy = new RetryPolicy
+        {
+            MaxAttempts = 3,
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+        };
+        var retryDb = db.WithRetry(policy);
+
+        // NOTE: explicit category, pending the wrapper picking this up from command categorization
+        var value = await retryDb.StringGetAsync(key, CommandFlags.CommandRetryReadOnly);
+
+        Assert.Equal("hello", value); // retries rode out the LOADING responses
+        Assert.Equal(0, server.LoadingOps); // both LOADING responses were consumed
+        Assert.Equal(3, server.GetOpsReceived); // 2 x LOADING + 1 x success
     }
 
-    // Exploratory (no retry wrapper yet): flip the server into a LOADING state *after* connecting,
-    // then issue a GET and observe what exception type SE.Redis surfaces. No hard assertion on the
-    // type yet - we just want to see it in the log so we can decide how the circuit-breaker should
-    // classify it.
-    [Fact]
-    public async Task LoadingSurfacesAs()
+    // An in-proc server that fails the first LoadingOps GET operations with a transient LOADING error
+    // (decrementing the counter each time), then serves normally. Every GET bumps GetOpsReceived so the
+    // test can confirm how many attempts actually reached the server.
+    private sealed class LoadingServer(ITestOutputHelper? log) : InProcessTestServer(log)
     {
-        using var server = new InProcessTestServer(log);
-        await using var conn = await server.ConnectAsync(log: Log);
-        Assert.True(conn.IsConnected);
+        // the server core processes operations under a lock (single-threaded, like Redis), so plain fields
+        // are fine here
+        public int GetOpsReceived { get; private set; }
 
-        var db = conn.GetDatabase();
-        Assert.True(await db.StringSetAsync("retry:loading", "before")); // works before loading
+        public int LoadingOps { get; set; }
 
-        server.IsLoading = true;
-        try
+        protected override TypedRedisValue Get(RedisClient client, in RedisRequest request)
         {
-            var value = await db.StringGetAsync("retry:loading");
-            Log.WriteLine($"No exception; got value: {value}");
-        }
-        catch (Exception ex)
-        {
-            Log.WriteLine($"Exception type: {ex.GetType().FullName}");
-            Log.WriteLine($"Message: {ex.Message}");
+            GetOpsReceived++;
+
+            // while LOADING ops remain, consume one and reply with a transient LOADING error
+            if (LoadingOps > 0)
+            {
+                LoadingOps--;
+                return TypedRedisValue.Error("LOADING Redis is loading the dataset in memory");
+            }
+
+            return base.Get(client, in request);
         }
     }
 }
