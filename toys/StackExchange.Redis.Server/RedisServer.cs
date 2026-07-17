@@ -160,8 +160,18 @@ namespace StackExchange.Redis.Server
 
         public string Password { get; set; } = "";
 
+        /// <summary>
+        /// When set, every command is rejected with a <c>LOADING</c> error, mimicking a server that is
+        /// still loading its dataset into memory.
+        /// </summary>
+        public bool IsLoading { get; set; }
+
         public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
         {
+            if (IsLoading)
+            {
+                return TypedRedisValue.Error("LOADING");
+            }
             var pw = Password;
             if (!string.IsNullOrEmpty(pw) & !client.IsAuthenticated)
             {

@@ -320,12 +320,46 @@ namespace StackExchange.Redis
 
         internal sealed partial class MultiGroupMultiplexer : IConnectionGroup
         {
-            private ConnectionMultiplexer? _active;
+            private ActiveStub _activeStub = new(null);
+
+            private void SetActive(ConnectionMultiplexer? active)
+            {
+                ActiveStub? newObj = null;
+                while (true)
+                {
+                    var oldObj = Volatile.Read(ref _activeStub);
+
+                    // is it already the same?
+                    if (ReferenceEquals(oldObj.Active, active))
+                    {
+                        newObj?.Dispose(); // never actually released to the world
+                        return; // nothing to do!
+                    }
+
+                    newObj ??= new(active);
+                    if (ReferenceEquals(Interlocked.CompareExchange(ref _activeStub, newObj, oldObj), oldObj))
+                    {
+                        // successful swap; flag the old one as failed-over
+                        oldObj.Cancel(false);
+                        return;
+                    }
+
+                    // race? redo from start, but we can keep our newObj if we created one
+                }
+            }
+
+            public CancellationToken GetNextFailover() => _activeStub.Token;
+
+            private sealed class ActiveStub(ConnectionMultiplexer? active) : CancellationTokenSource
+            {
+                public ConnectionMultiplexer? Active => active;
+            }
+
             private ConnectionGroupMember[] _members;
 
             public override string ToString()
             {
-                var muxer = _active;
+                var muxer = _activeStub.Active;
                 ConnectionGroupMember? member = null;
                 if (muxer is not null)
                 {
@@ -348,7 +382,7 @@ namespace StackExchange.Redis
             {
                 get
                 {
-                    return _active ?? Throw();
+                    return _activeStub.Active ?? Throw();
 
                     [DoesNotReturn]
                     static ConnectionMultiplexer Throw() =>
@@ -357,12 +391,12 @@ namespace StackExchange.Redis
             }
 
             // non-throwing twin of Active, for callers that have a trivial answer when the group is fully down
-            internal ConnectionMultiplexer? TryGetActive() => _active;
+            internal ConnectionMultiplexer? TryGetActive() => _activeStub.Active;
 
             // a completed "no endpoint" result, shared by the database/subscriber facades when the group is fully down
             internal static readonly Task<EndPoint?> NoEndpoint = Task.FromResult<EndPoint?>(null);
 
-            private ConnectionGroupMember? GetActiveMember() => GetMember(_active);
+            private ConnectionGroupMember? GetActiveMember() => GetMember(_activeStub.Active);
 
             private ConnectionGroupMember? GetMember(ConnectionMultiplexer? muxer)
             {
@@ -433,7 +467,7 @@ namespace StackExchange.Redis
             {
                 _options = options;
                 _members = members;
-                _active = null;
+                SetActive(null);
 
                 _connectionFailedWithCircuitBreaker = OnMemberConnectionFailed;
                 // multiplexers should already be attached (ConnectAsync sets them before constructing us)
@@ -575,7 +609,7 @@ namespace StackExchange.Redis
             internal void SelectPreferredGroup()
             {
                 if (_disposed) return;
-                var existingActive = _active;
+                var existingActive = _activeStub.Active;
                 ConnectionGroupMember? preferredMember = null, previousMember = null;
                 var members = _members;
                 foreach (var member in members)
@@ -594,7 +628,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                _active = preferredMember?.Multiplexer;
+                SetActive(preferredMember?.Multiplexer);
 
                 if (preferredMember is not null && !ReferenceEquals(preferredMember, previousMember))
                 {
@@ -610,7 +644,7 @@ namespace StackExchange.Redis
             private List<ConnectionMultiplexer> DropAll()
             {
                 _pollCancellation.Cancel(); // stop the polling loop promptly (idempotent)
-                _active = null;
+                SetActive(null);
                 var members = Interlocked.Exchange(ref _members, []);
                 if (members.Length is 0) return [];
                 var muxers = new List<ConnectionMultiplexer>(members.Length);
@@ -671,8 +705,8 @@ namespace StackExchange.Redis
             // Unlike most members, these intentionally do *not* go via Active (which throws when no member is
             // available); callers routinely use IsConnected/IsConnecting as a pre-flight check and expect a
             // 'false' result - not an exception - when the entire group is down.
-            public bool IsConnected => _active?.IsConnected ?? false;
-            public bool IsConnecting => _active?.IsConnecting ?? false;
+            public bool IsConnected => _activeStub.Active?.IsConnected ?? false;
+            public bool IsConnecting => _activeStub.Active?.IsConnecting ?? false;
 
             [Obsolete]
             public bool IncludeDetailInExceptions

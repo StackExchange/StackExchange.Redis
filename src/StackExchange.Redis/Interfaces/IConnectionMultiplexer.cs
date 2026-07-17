@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Maintenance;
 using StackExchange.Redis.Profiling;
 using static StackExchange.Redis.ConnectionMultiplexer;

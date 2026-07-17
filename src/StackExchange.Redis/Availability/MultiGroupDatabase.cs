@@ -1,14 +1,30 @@
 using System;
+using System.Threading;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.Availability;
 
 internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, int database, object? asyncState)
-    : IDatabase
+    : IDatabase, IInternalDatabaseAsync
 {
     public object? AsyncState => asyncState;
     public int Database => database < 0 ? GetActiveDatabase().Database : database;
 
     public IConnectionMultiplexer Multiplexer => parent;
+
+    CancellationToken IInternalDatabaseAsync.GetNextFailover() => parent.GetNextFailover();
+
+    DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
+    {
+        // fold in the currently-active member's features (when there is one) and label with its name
+        var active = TryGetActiveDatabase();
+        var features = active is null ? DatabaseFeatureFlags.None : active.GetFeatures(out _);
+        name = ((IConnectionGroup)parent).ActiveMember?.Name ?? "";
+        return features | DatabaseFeatureFlags.ConnectionGroup | DatabaseFeatureFlags.Failover;
+    }
+
+    // uses the active member's name (via GetFeatures) when a member is active
+    public override string ToString() => this.BuildString();
 
     // for high DB numbers this might allocate even for null async-state scenarios; unavoidable for now
     private IDatabase GetActiveDatabase() => parent.Active.GetDatabase(database, asyncState);

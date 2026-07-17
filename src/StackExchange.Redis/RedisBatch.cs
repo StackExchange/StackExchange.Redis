@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
@@ -8,7 +9,14 @@ namespace StackExchange.Redis
     {
         private List<Message>? pending;
 
-        public RedisBatch(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState) { }
+        public RedisBatch(RedisDatabase wrapped, object? asyncState)
+            : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
+        {
+            wrapped.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
+        }
+
+        private protected override DatabaseFeatureFlags GetDatabaseFeatures()
+            => base.GetDatabaseFeatures() | DatabaseFeatureFlags.Batch;
 
         public void Execute()
         {

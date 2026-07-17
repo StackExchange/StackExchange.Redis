@@ -4,12 +4,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
-    internal partial class RedisDatabase : RedisBase, IDatabase
+    internal partial class RedisDatabase : RedisBase, IDatabase, IInternalDatabaseAsync
     {
         internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object? asyncState)
             : base(multiplexer, asyncState)
@@ -20,6 +22,20 @@ namespace StackExchange.Redis
         public object? AsyncState => asyncState;
 
         public int Database { get; }
+
+        DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
+        {
+            name = multiplexer.ClientName;
+            return GetDatabaseFeatures();
+        }
+
+        CancellationToken IInternalDatabaseAsync.GetNextFailover() => CancellationToken.None;
+
+        // the base feature set for this database; wrapping databases (batch, transaction, ...) override
+        // to fold in their own flag. Cluster is intrinsic to the underlying connection, so it lives here.
+        private protected virtual DatabaseFeatureFlags GetDatabaseFeatures()
+            => multiplexer.ServerSelectionStrategy.ServerType == ServerType.Cluster
+                ? DatabaseFeatureFlags.Cluster : DatabaseFeatureFlags.None;
 
         public IBatch CreateBatch(object? asyncState)
         {

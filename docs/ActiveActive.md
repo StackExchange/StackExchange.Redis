@@ -2,8 +2,19 @@
 
 ## Overview
 
-The Active:Active feature provides automatic failover and intelligent routing across multiple Redis deployments. The library
-automatically selects the best available endpoint based on:
+The Active:Active feature provides automatic failover and intelligent routing across multiple Redis deployments. It is built from several cooperating pieces:
+
+1. **Connecting to multiple servers or regions at once**, giving a deployment redundant endpoints to fall back on.
+2. **Health checks** that *actively* probe each endpoint on a timer to monitor its availability.
+3. **Circuit breakers** that *passively* monitor availability from the observed success and failure of the traffic already flowing.
+4. **Automatic retries** that let straightforward operations ride out a possibly-unstable connection — including silently transitioning to another endpoint during a failover, with no change to your calling code.
+
+The features for Active:Active are available in the `Availability` sub-namespace:
+
+``` csharp
+using StackExchange.Redis.Availability;
+```
+The library automatically selects the best available endpoint based on:
 
 1. **Availability** - Connected endpoints are always preferred over disconnected ones
 2. **Weight** - User-defined preference values (higher is better)
@@ -354,92 +365,8 @@ var healthCheck = new HealthCheck
     ProbeCount = 3,
     ProbePolicy = HealthCheckProbePolicy.MajoritySuccess
 };
-// Healthy if 2 or more of  probes succeed
+// Healthy if 2 or more of 3 probes succeed
 ```
-
-### Custom Health Check Probes
-
-You can implement custom health check logic by extending `HealthCheckProbe`. Note that care must be used
-if the probe involves talking to data via a `RedisKey`, as on "cluster" configurations, it must be ensured that the
-key used resolves to the correct server; for this purpose, the `server.InventKey` method can be used:
-
-```csharp
-public abstract class CustomProbe : HealthCheckProbe
-{
-    public override Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server)
-    {
-        // create a random key that routes to the correct server, using
-        // the specified prefix
-        RedisKey key = server.InventKey("health-check/");
-        // ...
-    }
-}
-````
-
-Or more conveniently, the key-specific `KeyWriteHealthCheckProbe` encapsulates this logic: 
-
-```csharp
-public class CustomWriteProbe : KeyWriteHealthCheckProbe
-{
-    public override async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheck healthCheck,
-        IDatabaseAsync database,
-        RedisKey key)
-    {
-        try
-        {
-            var value = Guid.NewGuid().ToString();
-            await database.StringSetAsync(key, value, expiry: healthCheck.ProbeTimeout);
-            bool isMatch = value == await database.StringGetAsync(key);
-
-            return isMatch ? HealthCheckResult.Healthy : HealthCheckResult.Unhealthy;
-        }
-        catch
-        {
-            return HealthCheckResult.Unhealthy;
-        }
-    }
-}
-```
-
-### Custom Probe Policies
-
-In addition to the inbuilt policies, custom policies can be implemented by extending `HealthCheckProbePolicy`.
-By checking the properties of the `HealthCheckProbeContext` parameter, your policy can make a determination
-about the health of the server - returning `HealthCheckResult.Healthy` or `HealthCheckResult.Unhealthy` as
-appropriate. If you return `HealthCheckResult.Inconclusive`, the health check will continue with additional probes.
-
-#### Example: Require at Least N Successes
-
-This example demonstrates a policy that requires at least a specified number of successful probes before declaring the endpoint healthy:
-
-```csharp
-public class AtLeastPolicy(int requiredSuccesses) : HealthCheckProbePolicy
-{
-    public override HealthCheckResult Evaluate(in HealthCheckProbeContext context)
-    {
-        // Success if we have at least the required number of successful probes
-        if (context.Success >= requiredSuccesses) return HealthCheckResult.Healthy;
-
-        // If no more probes remaining, we haven't met our threshold; otherwise: keep trying
-        return context.Remaining == 0 ? HealthCheckResult.Unhealthy : HealthCheckResult.Inconclusive;
-    }
-}
-
-// Use the custom policy requiring at least 2 successes
-var healthCheck = new HealthCheck
-{
-    ProbeCount = 5,  // Need enough probes to allow for the required successes
-    ProbePolicy = new AtLeastPolicy(2)
-};
-
-var options = new MultiGroupOptions
-{
-    HealthCheck = healthCheck
-};
-```
-
-This policy ensures that transient successes don't immediately mark an endpoint as healthy. It requires at least the specified number of successful probes, which provides better confidence in the endpoint's stability while still being more lenient than `AllSuccess`.
 
 ### Health Check Behavior
 
@@ -509,7 +436,6 @@ var options = new MultiGroupOptions
         FailureRateThreshold = 25,                       // trip above 25% failures
         MinimumNumberOfFailures = 100,                   // ...but only after 100 failures in the window
         MetricsWindowSize = TimeSpan.FromSeconds(5),     // rolling window to measure over
-        TrackedExceptions = [typeof(RedisTimeoutException)], // which faults count as failures
     }
 };
 ```
@@ -521,9 +447,8 @@ A `Builder` converts implicitly to a `CircuitBreaker`, so it can be assigned dir
 | `FailureRateThreshold` | 10 | Percentage of failures within the window that trips the breaker |
 | `MinimumNumberOfFailures` | 1000 | Minimum tracked failures in the window before the breaker can trip (avoids acting on tiny samples) |
 | `MetricsWindowSize` | 2 seconds | Rolling window over which successes and failures are counted |
-| `TrackedExceptions` | `null` | Exception types that count as failures; when `null`, `RedisConnectionException` and `RedisTimeoutException` are tracked |
 
-`TrackedExceptions` controls which faults count against the breaker; anything not tracked is treated as a success for circuit-breaking purposes (for example, a `RedisServerException` for a bad command is not a *connection* problem). Passing an array containing `typeof(Exception)` tracks everything; passing an empty array tracks nothing.
+Which faults count against the breaker is decided by *classification*, not by exception type: transient and connection-level errors (and timeouts) count as failures, while application-level errors — for example a `RedisServerException` for a bad command, or a `WRONGTYPE` — are treated as a success for circuit-breaking purposes, since they are not a sign of an unhealthy *connection*. This is derived from the fault's `RedisErrorKind`; to change what counts, override `IsFailure(in FaultContext)` on a custom accumulator (see *Custom circuit breakers* below).
 
 ### Disabling the Circuit Breaker
 
@@ -536,54 +461,87 @@ var options = new MultiGroupOptions
 };
 ```
 
-### Custom Circuit Breakers (Advanced)
+## Automatic Retries
 
-> This is an advanced extension point; most applications should use `CircuitBreaker.Default` (optionally tuned via `CircuitBreaker.Builder`) or `CircuitBreaker.None`.
-
-You can implement your own policy by extending `CircuitBreaker` and its `Accumulator`. `CreateAccumulator()` is called once per underlying connection, so each accumulator holds the state for a single connection.
-For every completed message the connection calls `ObserveResult`, passing a `CircuitBreakerContext` that exposes whether the operation succeeded (`Success`) and the associated `Fault` (if any).
-Return `true` from `IsHealthy()` while the connection should be considered **healthy**, or `false` to **trip** the breaker and tear the connection down:
+Health checks and circuit breakers keep the *group* pointed at a healthy member; **automatic retries** deal with the *individual operation* that was in flight when something went wrong. Wrapping a database with `WithRetry(...)` returns a database that transparently re-issues failed operations according to a `RetryPolicy` — riding out transient faults, and (in an Active:Active group) following a failover across to another member, without the caller having to catch-and-retry by hand.
 
 ```csharp
-public sealed class ConsecutiveFailureBreaker(int limit) : CircuitBreaker
-{
-    public override Accumulator CreateAccumulator() => new Acc(limit);
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
 
-    private sealed class Acc(int limit) : Accumulator
-    {
-        private int _consecutiveFailures;
+// wrap the database once; reuse the wrapper like any other IDatabaseAsync
+IDatabaseAsync db = conn.GetDatabase().WithRetry(new RetryPolicy());
 
-        public override bool ObserveResult(in CircuitBreakerContext context)
-        {
-            if (context.Success)
-            {
-                _consecutiveFailures = 0;
-            }
-            else
-            {
-                _consecutiveFailures++;
-            }
-
-            // if Evaluate is specified, we should also compute IsHealthy(),
-            // often this can reuse local state needed by ObserveResult
-            return context.Evaluate ? IsHealthy() : true;
-        }
-
-        // healthy until we hit the configured run of consecutive failures
-        public override bool IsHealthy() => _consecutiveFailures < limit;
-
-        // called if the connection wants to discard accumulated history
-        public override void Reset() => _consecutiveFailures = 0;
-    }
-}
-
-var options = new MultiGroupOptions
-{
-    CircuitBreaker = new ConsecutiveFailureBreaker(limit: 5)
-};
+// a transient fault (e.g. the active member briefly returning LOADING) is retried
+// automatically; if the group fails over in the meantime, the retry lands on the new member
+var value = await db.StringGetAsync("mykey");
 ```
 
-Keep `ObserveResult` cheap and thread-safe: it runs on the hot path for every completed message, and may be called concurrently.
+> You can call `WithRetry` on any database (`IDatabase` or `IDatabaseAsync`), but the wrapper it returns exposes only the **async** API — there is no synchronous form, since retrying may inherently have delays. It cannot wrap a batch or transaction, nor an already-retrying database.
+
+### RetryPolicy settings
+
+`RetryPolicy` controls how many times, how often, and how far an operation is retried:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `MaxAttempts` | 3 | Total attempts (including the first) before giving up |
+| `MaxAttemptsBeforeFailover` | 1 | Attempts against the current member before a retry is allowed to wait for / move to a failover member (only meaningful for multi-group connections) |
+| `RetryDelay` | 1 second | Delay between same-server retries |
+| `JitterMax` | 0.5 seconds | Upper bound of the additional random delay added to each retry, to avoid stampedes |
+| `FailoverDelay` | 5 seconds | Maximum time to wait for a failover, when a retry is gated on one happening |
+| `MaxCommandRetryCategory` | `CommandRetryWriteLastWins` | The most side-effecting command category that will be retried (see below) |
+
+```csharp
+var policy = new RetryPolicy
+{
+    MaxAttempts = 5,
+    RetryDelay = TimeSpan.FromMilliseconds(200),
+    JitterMax = TimeSpan.FromMilliseconds(100),
+};
+IDatabaseAsync db = conn.GetDatabase().WithRetry(policy);
+```
+
+Only *transient* faults are retried — the same `RedisErrorKind`-based classification the default circuit breaker uses. An application-level error such as `WRONGTYPE`, or an unknown command, is not transient and is never retried, no matter what the policy says.
+
+### Which operations are safe to retry
+
+Retrying is not free of consequence: replaying `INCR` after an ambiguous failure could double-count, whereas replaying `GET` is harmless; `SET` is "last wins", so: *usally* fine. Every command therefore carries a **retry category** describing its side-effects, and a policy only retries commands at or below its `MaxCommandRetryCategory`.
+
+For the built-in typed methods (`StringGet`, `StringSet`, `HashSet`, ...) the library assigns the appropriate category automatically, so retries "just work" within the default policy.
+
+### Custom commands: `Execute` and `ScriptEvaluate`
+
+The library cannot infer the side-effects of a command it doesn't recognise — and that includes arbitrary commands issued via `Execute`/`ExecuteAsync`, and Lua run via `ScriptEvaluate`/`ScriptEvaluateAsync` (whose effect depends entirely on the script). Such commands are therefore treated **pessimistically**: an uncategorised command defaults to `CommandRetryNever` and is *not* retried.
+
+The categories, from safest to most dangerous, are:
+
+| `CommandFlags` value | Meaning |
+|----------------------|---------|
+| `CommandRetryAlways` | Always safe to retry, regardless of connection/server state |
+| `CommandRetryConnection` | Connection-level or safe metadata (e.g. `CLIENT SETNAME`, `CONFIG GET`) |
+| `CommandRetryReadOnly` | Pure reads (e.g. `GET`) |
+| `CommandRetryWriteChecked` | Conditional writes (e.g. `SETNX`, `SET ... IFEQ`) |
+| `CommandRetryWriteLastWins` | Unconditional overwrite — last-writer-wins (e.g. `SET`) |
+| `CommandRetryWriteAccumulating` | Cumulative writes where a retry can double-apply (e.g. `INCR`, `LPUSH`) |
+| `CommandRetryServerAdmin` | Server administration (e.g. `CONFIG SET`) |
+| `CommandRetryNever` | Never retry |
+
+
+When possible when using ad-hoc commands or script, callers should supply the most appropriate `CommandRetry*` category in the command's `CommandFlags`:
+
+```csharp
+// an arbitrary read-only command: safe to retry
+var result = await db.ExecuteAsync("LOLWUT", args: [], flags: CommandFlags.CommandRetryReadOnly);
+
+// a Lua script that only reads: opt into retries
+var value = await db.ScriptEvaluateAsync(
+    "return redis.call('GET', KEYS[1])",
+    keys: [key],
+    flags: CommandFlags.CommandRetryReadOnly);
+```
+
+Choose the category honestly — it describes what a *replay* would do. If a retry could double-apply a side-effect, use `CommandRetryWriteAccumulating` (or leave it uncategorised) rather than claiming it's a read.
+Conversely, if you want more-side-effecting operations retried across the board, raise the policy's `MaxCommandRetryCategory` instead of tagging each call.
 
 ## Unhealthy State and Failback
 
@@ -824,4 +782,166 @@ if (newDC.IsConnected)
         Console.WriteLine("Old datacenter removed successfully");
     }
 }
+```
+
+## Advanced Customization
+
+The building blocks above cover the common cases. The extension points below let you replace the default health-check, retry, and circuit-breaker behavior with your own logic; most applications will not need them.
+
+### Custom Health Check Probes
+
+You can implement custom health check logic by extending `HealthCheckProbe`. Note that care must be used
+if the probe involves talking to data via a `RedisKey`, as on "cluster" configurations, it must be ensured that the
+key used resolves to the correct server; for this purpose, the `server.InventKey` method can be used:
+
+```csharp
+public abstract class CustomProbe : HealthCheckProbe
+{
+    public override Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server)
+    {
+        // create a random key that routes to the correct server, using
+        // the specified prefix
+        RedisKey key = server.InventKey("health-check/");
+        // ...
+    }
+}
+```
+
+Or more conveniently, the key-specific `KeyWriteHealthCheckProbe` encapsulates this logic: 
+
+```csharp
+public class CustomWriteProbe : KeyWriteHealthCheckProbe
+{
+    public override async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheck healthCheck,
+        IDatabaseAsync database,
+        RedisKey key)
+    {
+        try
+        {
+            var value = Guid.NewGuid().ToString();
+            await database.StringSetAsync(key, value, expiry: healthCheck.ProbeTimeout);
+            bool isMatch = value == await database.StringGetAsync(key);
+
+            return isMatch ? HealthCheckResult.Healthy : HealthCheckResult.Unhealthy;
+        }
+        catch
+        {
+            return HealthCheckResult.Unhealthy;
+        }
+    }
+}
+```
+
+### Custom Probe Policies
+
+In addition to the inbuilt policies, custom policies can be implemented by extending `HealthCheckProbePolicy`.
+By checking the properties of the `HealthCheckProbeContext` parameter, your policy can make a determination
+about the health of the server - returning `HealthCheckResult.Healthy` or `HealthCheckResult.Unhealthy` as
+appropriate. If you return `HealthCheckResult.Inconclusive`, the health check will continue with additional probes.
+
+#### Example: Require at Least N Successes
+
+This example demonstrates a policy that requires at least a specified number of successful probes before declaring the endpoint healthy:
+
+```csharp
+public class AtLeastPolicy(int requiredSuccesses) : HealthCheckProbePolicy
+{
+    public override HealthCheckResult Evaluate(in HealthCheckProbeContext context)
+    {
+        // Success if we have at least the required number of successful probes
+        if (context.Success >= requiredSuccesses) return HealthCheckResult.Healthy;
+
+        // If no more probes remaining, we haven't met our threshold; otherwise: keep trying
+        return context.Remaining == 0 ? HealthCheckResult.Unhealthy : HealthCheckResult.Inconclusive;
+    }
+}
+
+// Use the custom policy requiring at least 2 successes
+var healthCheck = new HealthCheck
+{
+    ProbeCount = 5,  // Need enough probes to allow for the required successes
+    ProbePolicy = new AtLeastPolicy(2)
+};
+
+var options = new MultiGroupOptions
+{
+    HealthCheck = healthCheck
+};
+```
+
+This policy ensures that transient successes don't immediately mark an endpoint as healthy. It requires at least the specified number of successful probes, which provides better confidence in the endpoint's stability while still being more lenient than `AllSuccess`.
+
+### Custom Circuit Breakers
+
+> This is an advanced extension point; most applications should use `CircuitBreaker.Default` (optionally tuned via `CircuitBreaker.Builder`) or `CircuitBreaker.None`.
+
+You can implement your own policy by extending `CircuitBreaker` and its `Accumulator`. `CreateAccumulator()` is called once per underlying connection, so each accumulator holds the state for a single connection.
+For every completed message the connection calls `ObserveResult`, passing a `FaultContext` that describes the outcome: `IsFault` indicates whether a fault occurred, with the associated `Fault`, `ErrorKind` and `ConnectionFailureType` available for inspection. `IsHealthy()` is consulted separately: return `true` while the connection should be considered **healthy**, or `false` to **trip** the breaker and tear the connection down.
+
+By default only faults that `IsFailure` regards as genuine failures reach `ObserveResult` *as* failures (transient/connection errors, timeouts, and similar - classified from the fault's `ErrorKind`); everything else - including application-level errors such as a bad command - is passed as a success. Override `IsFailure(in FaultContext)` if you need different rules for what counts:
+
+```csharp
+public sealed class ConsecutiveFailureBreaker(int limit) : CircuitBreaker
+{
+    public override Accumulator CreateAccumulator() => new Acc(limit);
+
+    private sealed class Acc(int limit) : Accumulator
+    {
+        private int _consecutiveFailures;
+
+        // a fault is present iff context.IsFault; a success resets the run
+        public override void ObserveResult(in FaultContext context)
+        {
+            if (context.IsFault)
+            {
+                _consecutiveFailures++;
+            }
+            else
+            {
+                _consecutiveFailures = 0;
+            }
+        }
+
+        // healthy until we hit the configured run of consecutive failures
+        public override bool IsHealthy() => _consecutiveFailures < limit;
+
+        // called if the connection wants to discard accumulated history
+        public override void Reset() => _consecutiveFailures = 0;
+
+        // (optional) override to change what counts as a failure; the default classifies from ErrorKind
+        // protected override bool IsFailure(in FaultContext fault) => fault.IsFault;
+    }
+}
+
+var options = new MultiGroupOptions
+{
+    CircuitBreaker = new ConsecutiveFailureBreaker(limit: 5)
+};
+```
+
+Keep `ObserveResult` cheap and thread-safe: it runs on the hot path for every completed message, and may be called concurrently.
+
+### Custom Retry Policies
+
+`RetryPolicy` is itself extensible: override `CanRetry(in FaultContext fault)` to make the retry decision yourself. It returns a `RetryPolicyResult` — `None` to give up, or a combination of `SameServer` and `FailoverServer` to indicate where a retry may be attempted.
+The `FaultContext` gives you the classified `ErrorKind`, the `ConnectionFailureType`, and the command `Flags` (including its retry category) to base the decision on:
+
+```csharp
+public sealed class ReadOnlyOnlyRetryPolicy : RetryPolicy
+{
+    public override RetryPolicyResult CanRetry(in FaultContext fault)
+    {
+        // only ever retry pure reads, and only on the same server
+        if (fault.ErrorKind == RedisErrorKind.Loading
+            && (fault.Flags & CommandFlags.CommandRetryReadOnly) != 0)
+        {
+            return RetryPolicyResult.SameServer;
+        }
+        // note: base.CanRetry(fault) would apply the default logic
+        return RetryPolicyResult.None;
+    }
+}
+
+IDatabaseAsync db = conn.GetDatabase().WithRetry(new ReadOnlyOnlyRetryPolicy());
 ```

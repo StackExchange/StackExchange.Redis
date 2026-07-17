@@ -1354,7 +1354,7 @@ namespace StackExchange.Redis
 
         private WriteResult HandleWriteException(PhysicalConnection? physical, Message message, Exception ex)
         {
-            var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
+            var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, message.Flags, "Failed to write", ex);
             message.SetExceptionAndComplete(inner, physical);
             // Tear down the physical connection. A write that throws may have left a partial frame on the
             // wire, and continuing to use the same socket would let the next reply match the wrong message

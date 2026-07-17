@@ -48,33 +48,7 @@ public class CircuitBreakerUnitTests
     {
         var acc = CircuitBreaker.None.CreateAccumulator();
         // even a solid wall of tracked failures never trips the no-op breaker
-        Assert.True(Record(acc, 10_000, new RedisTimeoutException("boom", CommandStatus.Unknown)));
-    }
-
-    [Fact]
-    public void NonEvaluatingObservation_IsNeverTreatedAsUnhealthy()
-    {
-        // a deliberately naive breaker whose accumulator *always* reports unhealthy - e.g. one that
-        // returns default(false) whether or not it was actually asked to evaluate. A success is
-        // observed without evaluation, so that bogus verdict must be ignored (not read as a trip);
-        // only a genuine evaluation (a fault) is allowed to report unhealthy.
-        var acc = new AlwaysUnhealthyBreaker().CreateAccumulator();
-
-        Assert.True(acc.ObserveResult((Exception?)null)); // success -> not evaluating -> verdict ignored
-        Assert.False(acc.ObserveResult(Timeout()));        // fault -> evaluating -> verdict honoured
-    }
-
-    // never reports healthy, even when not evaluating; stands in for a buggy/naive custom breaker
-    private sealed class AlwaysUnhealthyBreaker : CircuitBreaker
-    {
-        public override Accumulator CreateAccumulator() => new Acc();
-
-        private sealed class Acc : Accumulator
-        {
-            public override bool ObserveResult(in CircuitBreakerContext context) => false;
-            public override bool IsHealthy() => false;
-            public override void Reset() { }
-        }
+        Assert.True(Record(acc, 10_000, new RedisTimeoutException(CommandFlags.None, "boom", CommandStatus.Unknown)));
     }
 
 #if NET8_0_OR_GREATER
@@ -129,23 +103,6 @@ public class CircuitBreakerUnitTests
     }
 
     [Fact]
-    public void CustomTrackedExceptions_AreHonoured()
-    {
-        var time = new ManualTimeProvider();
-        var acc = Build(
-            time,
-            failureRateThreshold: 1,
-            minimumNumberOfFailures: 1,
-            trackedExceptions: [typeof(InvalidOperationException)]).CreateAccumulator();
-
-        // the default Redis faults are now *un*tracked, so they read as success
-        Assert.True(Record(acc, 100, Timeout()));
-
-        // whereas our nominated type trips it
-        Assert.False(Record(acc, 100, new InvalidOperationException("tracked")));
-    }
-
-    [Fact]
     public void OldFailures_AgeOutOfTheWindow()
     {
         var time = new ManualTimeProvider();
@@ -194,14 +151,12 @@ public class CircuitBreakerUnitTests
     private static CircuitBreaker Build(
         TimeProvider time,
         double failureRateThreshold,
-        int minimumNumberOfFailures,
-        Type[]? trackedExceptions = null)
+        int minimumNumberOfFailures)
         => new CircuitBreaker.Builder
         {
             FailureRateThreshold = failureRateThreshold,
             MinimumNumberOfFailures = minimumNumberOfFailures,
             MetricsWindowSize = TimeSpan.FromSeconds(10),
-            TrackedExceptions = trackedExceptions,
             TimeProvider = time,
         }.Create();
 
@@ -222,18 +177,17 @@ public class CircuitBreakerUnitTests
     }
 #endif
 
-    private static RedisTimeoutException Timeout() => new("timeout", CommandStatus.Unknown);
+    private static RedisTimeoutException Timeout() => new(CommandFlags.None, "timeout", CommandStatus.Unknown);
 
     private static bool Record(CircuitBreaker.Accumulator accumulator, int count, Exception? fault = null)
     {
-        // success/failure is derived from the presence of a fault; pass a fault for a failure, none for a success
-        var context = new CircuitBreaker.CircuitBreakerContext(fault);
-        bool healthy = true;
+        // Trip applies the IsFailure gate (a fault the breaker doesn't consider a failure is counted as a
+        // success), then records via ObserveResult; call it rather than ObserveResult directly so the gate runs
         for (int i = 0; i < count; i++)
         {
-            healthy = accumulator.ObserveResult(in context);
+            accumulator.Trip(fault);
         }
 
-        return healthy;
+        return accumulator.IsHealthy();
     }
 }

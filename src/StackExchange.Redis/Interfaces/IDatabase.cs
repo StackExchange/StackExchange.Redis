@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The numeric identifier of this database.
         /// </summary>
-        int Database { get; }
+        new int Database { get; }
 
         /// <summary>
         /// Allows creation of a group of operations that will be sent to the server as a single unit,

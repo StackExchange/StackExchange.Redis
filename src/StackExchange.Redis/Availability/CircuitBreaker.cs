@@ -35,13 +35,14 @@ public abstract class CircuitBreaker
         private static readonly TimeSpan DefaultMetricsWindowSize = TimeSpan.FromSeconds(2);
 
         internal static CircuitBreaker DefaultInstance = new DefaultCircuitBreaker(
+#pragma warning disable SA1114 // Parameter list should follow declaration - false positive: the #if directive splits the argument list
+#if NET8_0_OR_GREATER
+            null,
+#endif
+#pragma warning restore SA1114
             DefaultFailureRateThreshold,
             DefaultMinimumNumberOfFailures,
-            DefaultMetricsWindowSize,
-#if NET8_0_OR_GREATER
-            timeProvider: null,
-#endif
-            trackedExceptions: null);
+            DefaultMetricsWindowSize);
 
         /// <summary>
         /// Percentage of failures to trigger circuit breaker.
@@ -73,34 +74,28 @@ public abstract class CircuitBreaker
         public CircuitBreaker Create()
         {
             if ((FailureRateThreshold is DefaultFailureRateThreshold
-                 & MinimumNumberOfFailures is DefaultMinimumNumberOfFailures
 #if NET8_0_OR_GREATER
                  & TimeProvider is null
 #endif
-                 & TrackedExceptions is null)
+                 & MinimumNumberOfFailures is DefaultMinimumNumberOfFailures)
                 && MetricsWindowSize == DefaultMetricsWindowSize)
                 return DefaultInstance;
 
             return new DefaultCircuitBreaker(
-                FailureRateThreshold,
-                MinimumNumberOfFailures,
-                MetricsWindowSize,
+#pragma warning disable SA1114 // Parameter list should follow declaration - false positive: the #if directive splits the argument list
 #if NET8_0_OR_GREATER
                 TimeProvider,
 #endif
-                TrackedExceptions);
+#pragma warning restore SA1114
+                FailureRateThreshold,
+                MinimumNumberOfFailures,
+                MetricsWindowSize);
         }
 
         /// <summary>
         /// Create a new circuit-breaker instance.
         /// </summary>
         public static implicit operator CircuitBreaker(Builder builder) => builder.Create();
-
-        /// <summary>
-        /// Exceptions that count as failures. When null, <see cref="RedisConnectionException"/>
-        /// and <see cref="RedisTimeoutException"/> are assumed.
-        /// </summary>
-        public Type[]? TrackedExceptions { get; set; }
     }
 
     /// <summary>
@@ -108,30 +103,40 @@ public abstract class CircuitBreaker
     /// </summary>
     public abstract Accumulator CreateAccumulator();
 
+    internal static bool DefaultIsFailure(in FaultContext fault)
+    {
+        if (fault.ConnectionFailureType is not ConnectionFailureType.None) return true;
+        switch (fault.ErrorKind)
+        {
+            // what things *don't* trip the breaker?
+            case RedisErrorKind.None: // not even flagged
+            case RedisErrorKind.UnknownCommand: // application failure
+            case RedisErrorKind.ExecAbort: // transient to one command
+            case RedisErrorKind.WrongType: // application failure
+            case RedisErrorKind.NoPermission: // using the wrong keys?
+            case RedisErrorKind.UnknownError: // not sure what it is, but it starts ERR
+            case RedisErrorKind.Unknown: // pretty much anything we don't recognize; should we assume this is BAD?
+                return false;
+            default:
+                return true;
+        }
+    }
+
     /// <summary>
     /// Collates observations for a connection.
     /// </summary>
-    public abstract class Accumulator
+    public abstract class Accumulator()
     {
         /// <summary>
-        /// Record a message outcome, and indicate whether the connection is considered healthy.
+        /// Record a message outcome.
         /// </summary>
-        /// <returns>True if the connection is still considered healthy.</returns>
         /// struct arg here is in case we want to add more things later
-        public abstract bool ObserveResult(in CircuitBreakerContext context);
+        public abstract void ObserveResult(in FaultContext fault);
 
-        internal bool ObserveResult(Exception? fault)
-        {
-            // only evaluate state upon failure; don't pay that overhead for success, just increment the counters
-            bool evaluate = fault is not null;
-            var ctx = new CircuitBreakerContext(fault, evaluate: evaluate);
-            bool healthy = ObserveResult(in ctx);
-
-            // when we didn't ask for an evaluation, the returned verdict is meaningless: a custom
-            // implementation might return default(false) without having actually computed anything.
-            // never treat a non-evaluating observation as unhealthy - only a genuine evaluation may trip.
-            return !evaluate || healthy;
-        }
+        /// <summary>
+        /// Indicate whether a given fault should be considered a failure for the <see cref="Accumulator"/>.
+        /// </summary>
+        protected virtual bool IsFailure(in FaultContext fault) => DefaultIsFailure(in fault);
 
         /// <summary>
         /// Indicate whether the connection is currently considered healthy, without recording an observation.
@@ -143,34 +148,23 @@ public abstract class CircuitBreaker
         /// Discard all accumulated observations, returning to a clean state.
         /// </summary>
         public abstract void Reset();
-    }
 
-    /// <summary>
-    /// Provides information about a circuit-breaker test.
-    /// </summary>
-    public readonly struct CircuitBreakerContext(Exception? fault, bool evaluate = true)
-    {
-        /// <summary>
-        /// Was the operation a success.
-        /// </summary>
-        [MemberNotNullWhen(false, nameof(Fault))]
-        public bool Success => fault is null;
+        internal bool Trip(Exception? fault)
+        {
+            if (fault is not null)
+            {
+                var ctx = new FaultContext(fault);
+                if (IsFailure(ctx))
+                {
+                    ObserveResult(ctx);
+                    return !IsHealthy();
+                }
+                // otherwise, treat as success for the purposes of counting
+            }
 
-        /// <summary>
-        /// The fault associated with the operation.
-        /// </summary>
-        public Exception? Fault => fault;
-
-        internal bool Evaluate => evaluate;
-    }
-
-    private enum ExceptionStrategy
-    {
-        Default,
-        Any,
-        None,
-        CustomOpen,
-        CustomSealed,
+            ObserveResult(in FaultContext.Success);
+            return false; // never trip through success
+        }
     }
 
     private sealed class NulCircuitBreaker : CircuitBreaker
@@ -183,15 +177,15 @@ public abstract class CircuitBreaker
         {
             public static readonly NulAccumulator AccumulatorInstance = new();
             private NulAccumulator() { }
-            public override bool ObserveResult(in CircuitBreakerContext context) => true;
+            public override void ObserveResult(in FaultContext context) { }
             public override bool IsHealthy() => true;
             public override void Reset() { }
         }
+
+        // note we leave IsConnectionFault alone - that would impact RetryDatabase, where this is the key
     }
     private sealed class DefaultCircuitBreaker : CircuitBreaker
     {
-        private readonly ExceptionStrategy _trackingStrategy;
-        private readonly Type[] _trackedExceptions;
         private readonly double _failureRateThreshold;
         private readonly int _minimumNumberOfFailures;
 
@@ -217,15 +211,13 @@ public abstract class CircuitBreaker
             / _bucketTicks;
 
         public DefaultCircuitBreaker(
-            double failureRateThreshold,
-            int minimumNumberOfFailures,
-            TimeSpan metricsWindowSize,
 #if NET8_0_OR_GREATER
             TimeProvider? timeProvider,
 #endif
-            Type[]? trackedExceptions)
+            double failureRateThreshold,
+            int minimumNumberOfFailures,
+            TimeSpan metricsWindowSize)
         {
-            _trackedExceptions = CheckExceptions(trackedExceptions, out _trackingStrategy);
             _failureRateThreshold = failureRateThreshold;
             _minimumNumberOfFailures = minimumNumberOfFailures;
 
@@ -302,11 +294,8 @@ public abstract class CircuitBreaker
                 }
             }
 
-            public override bool ObserveResult(in CircuitBreakerContext context)
+            public override void ObserveResult(in FaultContext result)
             {
-                // not-tracked failures (based on exception type) count as "success" for the purposes of circuit breaking
-                bool countAsSuccess = context.Success || !breaker.IsTracked(context.Fault);
-
                 // which time-slice are we in, and where does it live in the ring?
                 long epoch = breaker.GetEpoch();
                 int index = (int)(epoch % BucketCount);
@@ -318,9 +307,7 @@ public abstract class CircuitBreaker
                 // only getting results one at a time, so we shouldn't be over-stomping much *anyway*
                 Span<Bucket> buckets = _buckets; // *not* a payload copy; this is in-place over the data
                 ref Bucket bucket = ref buckets[index];
-                bucket.Count(epoch, countAsSuccess);
-
-                return !context.Evaluate || Evaluate(epoch);
+                bucket.Count(epoch, success: !result.IsFault);
             }
 
             public override bool IsHealthy() => Evaluate(breaker.GetEpoch());
@@ -361,91 +348,6 @@ public abstract class CircuitBreaker
                     b.Reset();
                 }
             }
-        }
-
-        private static Type[] CheckExceptions(Type[]? tracked, out ExceptionStrategy strategy)
-        {
-            if (tracked is null)
-            {
-                strategy = ExceptionStrategy.Default;
-                return [];
-            }
-            if (tracked.Length is 0)
-            {
-                strategy = ExceptionStrategy.None;
-                return [];
-            }
-            strategy = ExceptionStrategy.CustomOpen;
-
-            static bool Contains(Type[] array, Type type)
-            {
-                for (int i = 0; i < array.Length; i++)
-                {
-                    if (array[i] == type) return true;
-                }
-
-                return false;
-            }
-
-            // if we have Exception anywhere: we'll track everything
-            if (Contains(tracked, typeof(Exception)))
-            {
-                strategy = ExceptionStrategy.Any;
-                return [];
-            }
-
-            if (tracked.Length is 2
-                && Contains(tracked, typeof(RedisConnectionException))
-                && Contains(tracked, typeof(RedisTimeoutException)))
-            {
-                strategy = ExceptionStrategy.Default;
-                return [];
-            }
-
-            // finally, see if they're all sealed types
-            strategy = ExceptionStrategy.CustomSealed;
-            foreach (var exception in tracked)
-            {
-                if (!exception.IsSealed)
-                {
-                    strategy = ExceptionStrategy.CustomOpen;
-                    break;
-                }
-            }
-            return tracked;
-        }
-
-        private bool IsTracked(Exception? fault)
-        {
-            if (fault is null) return false;
-            switch (_trackingStrategy)
-            {
-                case ExceptionStrategy.Any:
-                    return true;
-                case ExceptionStrategy.Default:
-                    return fault is RedisTimeoutException or RedisConnectionException;
-                case ExceptionStrategy.None:
-                    return false;
-            }
-
-            var span = _trackedExceptions.AsSpan();
-            var actualType = fault.GetType();
-            // check for exact matches
-            foreach (var testType in span)
-            {
-                if (ReferenceEquals(testType, actualType)) return true;
-            }
-
-            if (_trackingStrategy is ExceptionStrategy.CustomOpen)
-            {
-                // we need to check for subclasses (more expensive)
-                foreach (var testType in span)
-                {
-                    if (!testType.IsSealed && testType.IsAssignableFrom(actualType)) return true;
-                }
-            }
-
-            return false;
         }
     }
 }

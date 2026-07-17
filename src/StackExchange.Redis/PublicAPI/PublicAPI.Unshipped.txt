@@ -1,9 +1,22 @@
 ﻿#nullable enable
+StackExchange.Redis.IDatabaseAsync.Database.get -> int
+[SER007]StackExchange.Redis.Availability.RetryPolicy
+[SER007]StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.get -> System.TimeSpan
+[SER007]StackExchange.Redis.Availability.RetryPolicy.FailoverDelay.set -> void
+[SER007]StackExchange.Redis.Availability.RetryPolicy.JitterMax.get -> System.TimeSpan
+[SER007]StackExchange.Redis.Availability.RetryPolicy.JitterMax.set -> void
+[SER007]StackExchange.Redis.Availability.RetryPolicy.MaxAttempts.get -> int
+[SER007]StackExchange.Redis.Availability.RetryPolicy.MaxAttempts.set -> void
+[SER007]StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.get -> int
+[SER007]StackExchange.Redis.Availability.RetryPolicy.MaxAttemptsBeforeFailover.set -> void
+[SER007]StackExchange.Redis.Availability.RetryPolicy.MaxCommandRetryCategory.get -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.Availability.RetryPolicy.MaxCommandRetryCategory.set -> void
+[SER007]StackExchange.Redis.Availability.RetryPolicy.RetryDelay.get -> System.TimeSpan
+[SER007]StackExchange.Redis.Availability.RetryPolicy.RetryDelay.set -> void
+[SER007]StackExchange.Redis.Availability.RetryPolicy.RetryPolicy() -> void
 StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = default(StackExchange.Redis.RedisKey)) -> StackExchange.Redis.RedisKey
-[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsHealthy() -> bool
-[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.ObserveResult(in StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext context) -> bool
-[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.Reset() -> void
-[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.CreateAccumulator() -> StackExchange.Redis.Availability.CircuitBreaker.Accumulator!
+StackExchange.Redis.Availability.DatabaseExtensions
+[SER007]static StackExchange.Redis.Availability.DatabaseExtensions.WithRetry(this StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.Availability.RetryPolicy! retryPolicy) -> StackExchange.Redis.IDatabaseAsync!
 [SER007]StackExchange.Redis.Availability.CircuitBreaker
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Accumulator
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Accumulator.Accumulator() -> void
@@ -16,15 +29,7 @@ StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = defa
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.MetricsWindowSize.set -> void
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.MinimumNumberOfFailures.get -> int
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.MinimumNumberOfFailures.set -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.TrackedExceptions.get -> System.Type![]?
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.Builder.TrackedExceptions.set -> void
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreaker() -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext() -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.CircuitBreakerContext(System.Exception? fault, bool evaluate = true) -> void
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.Fault.get -> System.Exception?
-[SER007]StackExchange.Redis.Availability.CircuitBreaker.CircuitBreakerContext.Success.get -> bool
-[SER007]static StackExchange.Redis.Availability.CircuitBreaker.Builder.implicit operator StackExchange.Redis.Availability.CircuitBreaker!(StackExchange.Redis.Availability.CircuitBreaker.Builder! builder) -> StackExchange.Redis.Availability.CircuitBreaker!
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.ConnectionGroupMember(StackExchange.Redis.ConfigurationOptions! configuration, string! name = "") -> void
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.ConnectionGroupMember(string! configuration, string! name = "") -> void
@@ -97,25 +102,6 @@ StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = defa
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.MultiGroupOptions() -> void
 [SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.Availability.ConnectionGroupMember! member0, StackExchange.Redis.Availability.ConnectionGroupMember! member1, StackExchange.Redis.Availability.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.IConnectionGroup!>!
 [SER007]static StackExchange.Redis.ConnectionMultiplexer.ConnectGroupAsync(StackExchange.Redis.Availability.ConnectionGroupMember![]! members, StackExchange.Redis.Availability.MultiGroupOptions? options = null, System.IO.TextWriter? log = null) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.IConnectionGroup!>!
-[SER007]static StackExchange.Redis.Availability.CircuitBreaker.Default.get -> StackExchange.Redis.Availability.CircuitBreaker!
-[SER007]static StackExchange.Redis.Availability.CircuitBreaker.None.get -> StackExchange.Redis.Availability.CircuitBreaker!
-[SER007]abstract StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IServer! server) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
-[SER007]abstract StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.Evaluate(in StackExchange.Redis.Availability.HealthCheck.HealthCheckProbeContext context) -> StackExchange.Redis.Availability.HealthCheck.HealthCheckResult
-[SER007]abstract StackExchange.Redis.Availability.HealthCheck.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.RedisKey key) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
-[SER007]override StackExchange.Redis.Availability.ConnectionGroupMember.ToString() -> string!
-[SER007]override StackExchange.Redis.Availability.HealthCheck.HealthCheckProbeContext.ToString() -> string!
-[SER007]override StackExchange.Redis.Availability.HealthCheck.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IServer! server) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.Default.get -> StackExchange.Redis.Availability.HealthCheck!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.HealthyTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.InconclusiveTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.IsConnected.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.Ping.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.StringSet.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.UnhealthyTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.AllSuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.AnySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
-[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.MajoritySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
-[SER007]static StackExchange.Redis.Availability.MultiGroupOptions.Default.get -> StackExchange.Redis.Availability.MultiGroupOptions!
 [SER007]StackExchange.Redis.ConfigurationOptions.CircuitBreaker.get -> StackExchange.Redis.Availability.CircuitBreaker?
 [SER007]StackExchange.Redis.ConfigurationOptions.CircuitBreaker.set -> void
 [SER007]StackExchange.Redis.ConfigurationOptions.HealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
@@ -125,3 +111,83 @@ StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = defa
 [SER007]StackExchange.Redis.Availability.ConnectionGroupMember.ResetIsUnhealthy() -> void
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.get -> System.TimeSpan
 [SER007]StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.set -> void
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsHealthy() -> bool
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.Reset() -> void
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.CreateAccumulator() -> StackExchange.Redis.Availability.CircuitBreaker.Accumulator!
+[SER007]static StackExchange.Redis.Availability.CircuitBreaker.Default.get -> StackExchange.Redis.Availability.CircuitBreaker!
+[SER007]static StackExchange.Redis.Availability.CircuitBreaker.None.get -> StackExchange.Redis.Availability.CircuitBreaker!
+[SER007]static StackExchange.Redis.Availability.CircuitBreaker.Builder.implicit operator StackExchange.Redis.Availability.CircuitBreaker!(StackExchange.Redis.Availability.CircuitBreaker.Builder! builder) -> StackExchange.Redis.Availability.CircuitBreaker!
+[SER007]abstract StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IServer! server) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.HealthyTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.InconclusiveTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.UnhealthyTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.IsConnected.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.Ping.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe.StringSet.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbe!
+[SER007]abstract StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.Evaluate(in StackExchange.Redis.Availability.HealthCheck.HealthCheckProbeContext context) -> StackExchange.Redis.Availability.HealthCheck.HealthCheckResult
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.AllSuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.AnySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy.MajoritySuccess.get -> StackExchange.Redis.Availability.HealthCheck.HealthCheckProbePolicy!
+[SER007]abstract StackExchange.Redis.Availability.HealthCheck.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.RedisKey key) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]override StackExchange.Redis.Availability.HealthCheck.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheck! healthCheck, StackExchange.Redis.IServer! server) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheck.HealthCheckResult>!
+[SER007]override StackExchange.Redis.Availability.HealthCheck.HealthCheckProbeContext.ToString() -> string!
+[SER007]static StackExchange.Redis.Availability.HealthCheck.Default.get -> StackExchange.Redis.Availability.HealthCheck!
+[SER007]static StackExchange.Redis.Availability.MultiGroupOptions.Default.get -> StackExchange.Redis.Availability.MultiGroupOptions!
+[SER007]override StackExchange.Redis.Availability.ConnectionGroupMember.ToString() -> string!
+[SER007]StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.None = 0 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.Unknown = 1 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.FaultContext
+[SER007]StackExchange.Redis.Availability.FaultContext.ConnectionFailureType.get -> StackExchange.Redis.ConnectionFailureType
+[SER007]StackExchange.Redis.Availability.FaultContext.ErrorKind.get -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.Availability.FaultContext.Fault.get -> System.Exception?
+[SER007]StackExchange.Redis.Availability.FaultContext.FaultContext() -> void
+[SER007]StackExchange.Redis.Availability.FaultContext.FaultContext(System.Exception! fault) -> void
+[SER007]StackExchange.Redis.Availability.FaultContext.Flags.get -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.Availability.FaultContext.IsFault.get -> bool
+[SER007]StackExchange.Redis.RedisErrorKind.Ask = 15 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.Busy = 12 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.ClusterDown = 6 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.ConnectionFault = 3 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.CrossSlot = 16 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.ExecAbort = 23 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.Loading = 5 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.MasterDown = 7 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.MaxClients = 13 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.Misconfigured = 10 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.Moved = 14 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.NoAuth = 17 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.NoPermission = 19 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.NoReplicas = 9 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.NoScript = 25 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.NotPermitted = 20 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.OutOfMemory = 11 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.ReadOnly = 24 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.Timeout = 4 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.TryAgain = 8 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.UnknownCommand = 21 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.UnknownError = 2 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.WrongPass = 18 -> StackExchange.Redis.RedisErrorKind
+[SER007]StackExchange.Redis.RedisErrorKind.WrongType = 22 -> StackExchange.Redis.RedisErrorKind
+[SER007]abstract StackExchange.Redis.Availability.CircuitBreaker.Accumulator.ObserveResult(in StackExchange.Redis.Availability.FaultContext fault) -> void
+[SER007]virtual StackExchange.Redis.Availability.CircuitBreaker.Accumulator.IsFailure(in StackExchange.Redis.Availability.FaultContext fault) -> bool
+[SER007]virtual StackExchange.Redis.Availability.RetryPolicy.CanRetry(in StackExchange.Redis.Availability.FaultContext fault) -> StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+[SER007]StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+[SER007]StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult.None = 0 -> StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+[SER007]StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult.SameServer = 1 -> StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+[SER007]StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult.FailoverServer = 2 -> StackExchange.Redis.Availability.RetryPolicy.RetryPolicyResult
+[SER007]StackExchange.Redis.CommandFlags.CommandRetryAlways = 8192 -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.CommandFlags.CommandRetryConnection = 32768 -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.CommandFlags.CommandRetryReadOnly = 65536 -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.CommandFlags.CommandRetryWriteChecked = StackExchange.Redis.CommandFlags.CommandRetryConnection | StackExchange.Redis.CommandFlags.CommandRetryReadOnly -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins = 131072 -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.CommandFlags.CommandRetryWriteAccumulating = StackExchange.Redis.CommandFlags.CommandRetryConnection | StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.CommandFlags.CommandRetryServerAdmin = StackExchange.Redis.CommandFlags.CommandRetryReadOnly | StackExchange.Redis.CommandFlags.CommandRetryWriteLastWins -> StackExchange.Redis.CommandFlags
+[SER007]StackExchange.Redis.CommandFlags.CommandRetryNever = 253952 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.RedisConnectionException.Flags.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.RedisConnectionException.RedisConnectionException(StackExchange.Redis.ConnectionFailureType failureType, StackExchange.Redis.CommandFlags flags, string! message, System.Exception? innerException = null, StackExchange.Redis.CommandStatus commandStatus = StackExchange.Redis.CommandStatus.Unknown) -> void
+StackExchange.Redis.RedisServerException.Flags.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.RedisServerException.Kind.get -> StackExchange.Redis.RedisErrorKind
+StackExchange.Redis.RedisServerException.RedisServerException(StackExchange.Redis.RedisErrorKind kind, StackExchange.Redis.CommandFlags flags, string! message) -> void
+StackExchange.Redis.RedisTimeoutException.Flags.get -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.RedisTimeoutException.RedisTimeoutException(StackExchange.Redis.CommandFlags flags, string! message, StackExchange.Redis.CommandStatus commandStatus) -> void

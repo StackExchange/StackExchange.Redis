@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
@@ -14,8 +15,12 @@ namespace StackExchange.Redis
         private List<QueuedMessage>? _pending;
         private object SyncLock => this;
 
+        private protected override DatabaseFeatureFlags GetDatabaseFeatures()
+            => base.GetDatabaseFeatures() | DatabaseFeatureFlags.Transaction;
+
         public RedisTransaction(RedisDatabase wrapped, object? asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
         {
+            wrapped.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
             // need to check we can reliably do this...
             var commandMap = multiplexer.CommandMap;
             commandMap.AssertAvailable(RedisCommand.MULTI);
@@ -480,11 +485,12 @@ namespace StackExchange.Redis
                 reader.MovePastBof();
                 if (reader.IsError && message is TransactionMessage tran)
                 {
+                    var errorKind = RedisErrorKindMetadata.Classify(reader);
                     string error = reader.ReadString()!;
                     foreach (var op in tran.InnerOperations)
                     {
                         var inner = op.Wrapped;
-                        ServerFail(inner, error);
+                        ServerFail(inner, errorKind, error);
                         inner.Complete(connection);
                     }
                 }

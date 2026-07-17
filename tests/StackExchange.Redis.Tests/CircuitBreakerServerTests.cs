@@ -60,19 +60,17 @@ public class CircuitBreakerServerTests(ITestOutputHelper output) : TestBase(outp
 
         private sealed class CountingAccumulator(CountingCircuitBreaker owner) : Accumulator
         {
-            public override bool ObserveResult(in CircuitBreakerContext context)
+            public override void ObserveResult(in FaultContext context)
             {
-                if (context.Success)
-                {
-                    Interlocked.Increment(ref owner._successes);
-                }
-                else
+                if (context.IsFault)
                 {
                     Interlocked.Increment(ref owner._failures);
                     owner.LastFault = context.Fault;
                 }
-
-                return true; // stay healthy; we're only here to observe, not to trip the connection
+                else
+                {
+                    Interlocked.Increment(ref owner._successes);
+                }
             }
 
             public override bool IsHealthy() => true;
