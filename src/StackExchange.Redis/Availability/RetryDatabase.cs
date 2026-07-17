@@ -84,7 +84,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
                 result = await operation(state, _inner).ConfigureAwait(false);
                 break;
             }
-            catch (Exception ex) when (CanRetry(++attempt, ex, state.Flags, ref failover, out var delay))
+            catch (Exception ex) when (CanRetry(++attempt, ex, ref failover, out var delay))
             {
                 await FailoverOrDelayAsync(delay).ConfigureAwait(false);
             }
@@ -109,7 +109,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
                 await operation(state, _inner).ConfigureAwait(false);
                 break;
             }
-            catch (Exception ex) when (CanRetry(++attempt, ex, state.Flags, ref failover, out var delay))
+            catch (Exception ex) when (CanRetry(++attempt, ex, ref failover, out var delay))
             {
                 await FailoverOrDelayAsync(delay).ConfigureAwait(false);
             }
@@ -120,7 +120,6 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     internal bool CanRetry(
         int attempt,
         Exception fault,
-        CommandFlags flags,
         ref CancellationToken failover,
         out CancellationToken delay)
     {
@@ -132,7 +131,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         }
 
         // ask the retry policy for advice, and mask off the bits we know about
-        FaultContext ctx = new(fault, flags);
+        FaultContext ctx = new(fault);
         var policy = _policy.CanRetry(ctx) &
                      (RetryPolicy.RetryPolicyResult.FailoverServer | RetryPolicy.RetryPolicyResult.SameServer);
         if (policy is 0)

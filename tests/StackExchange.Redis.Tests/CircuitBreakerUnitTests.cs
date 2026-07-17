@@ -48,7 +48,7 @@ public class CircuitBreakerUnitTests
     {
         var acc = CircuitBreaker.None.CreateAccumulator();
         // even a solid wall of tracked failures never trips the no-op breaker
-        Assert.True(Record(acc, 10_000, new RedisTimeoutException("boom", CommandStatus.Unknown)));
+        Assert.True(Record(acc, 10_000, new RedisTimeoutException(CommandFlags.None, "boom", CommandStatus.Unknown)));
     }
 
 #if NET8_0_OR_GREATER
@@ -100,22 +100,6 @@ public class CircuitBreakerUnitTests
 
         // ...whereas the same volume of tracked failures does
         Assert.False(Record(acc, 100, Timeout()));
-    }
-
-    [Fact]
-    public void CustomTrackedExceptions_AreHonoured()
-    {
-        var time = new ManualTimeProvider();
-        var acc = Build(
-            time,
-            failureRateThreshold: 1,
-            minimumNumberOfFailures: 1).CreateAccumulator();
-
-        // the default Redis faults are now *un*tracked, so they read as success
-        Assert.True(Record(acc, 100, Timeout()));
-
-        // whereas our nominated type trips it
-        Assert.False(Record(acc, 100, new InvalidOperationException("tracked")));
     }
 
     [Fact]
@@ -193,15 +177,15 @@ public class CircuitBreakerUnitTests
     }
 #endif
 
-    private static RedisTimeoutException Timeout() => new("timeout", CommandStatus.Unknown);
+    private static RedisTimeoutException Timeout() => new(CommandFlags.None, "timeout", CommandStatus.Unknown);
 
     private static bool Record(CircuitBreaker.Accumulator accumulator, int count, Exception? fault = null)
     {
-        // success/failure is derived from the presence of a fault; pass a fault for a failure, none for a success
-        FaultContext context = fault is null ? new(CommandFlags.None) : new(fault, CommandFlags.None);
+        // Trip applies the IsFailure gate (a fault the breaker doesn't consider a failure is counted as a
+        // success), then records via ObserveResult; call it rather than ObserveResult directly so the gate runs
         for (int i = 0; i < count; i++)
         {
-            accumulator.ObserveResult(in context);
+            accumulator.Trip(fault);
         }
 
         return accumulator.IsHealthy();

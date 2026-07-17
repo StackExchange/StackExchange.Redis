@@ -13,8 +13,8 @@ public class CommandRetryPolicyUnitTests
     // command-flags, and asks the policy whether it may be retried.
     private static RetryPolicy.RetryPolicyResult CanRetry(RedisErrorKind kind, CommandFlags flags, RetryPolicy? policy = null)
     {
-        // a RedisServerException carries its Kind through to FaultContext.ErrorKind
-        var fault = new FaultContext(new RedisServerException(kind, kind.ToString()), flags);
+        // the exception carries both the Kind and the command-flags; FaultContext reads them back
+        var fault = new FaultContext(new RedisServerException(kind, flags, kind.ToString()));
         return (policy ?? new RetryPolicy()).CanRetry(in fault);
     }
 
@@ -114,8 +114,8 @@ public class CommandRetryPolicyUnitTests
         var token = cts.Token;
         var failover = token;
 
-        var fault = new RedisServerException(RedisErrorKind.Loading, "LOADING");
-        var result = db.CanRetry(attempt, fault, CommandFlags.CommandRetryWriteLastWins, ref failover, out var delay);
+        var fault = new RedisServerException(RedisErrorKind.Loading, CommandFlags.CommandRetryWriteLastWins, "LOADING");
+        var result = db.CanRetry(attempt, fault, ref failover, out var delay);
 
         Assert.Equal(expected, result);
         Assert.False(delay.CanBeCanceled); // never waiting for a failover
@@ -137,27 +137,27 @@ public class CommandRetryPolicyUnitTests
         using var cts = new CancellationTokenSource();
         var token = cts.Token;
         var failover = token;
-        var fault = new RedisServerException(RedisErrorKind.Loading, "LOADING");
+        var fault = new RedisServerException(RedisErrorKind.Loading, CommandFlags.CommandRetryWriteLastWins, "LOADING");
 
         // attempt 1: plain same-server retry; failover token not yet consumed
-        Assert.True(db.CanRetry(1, fault, CommandFlags.CommandRetryWriteLastWins, ref failover, out var delay));
+        Assert.True(db.CanRetry(1, fault, ref failover, out var delay));
         Assert.False(delay.CanBeCanceled);
         Assert.Equal(token, failover);
 
         // attempt 2 (== MaxAttemptsBeforeFailover): still a retry, but now fail over - "delay" becomes the
         // failover token and the ref is cleared to None so it only fires once
-        Assert.True(db.CanRetry(2, fault, CommandFlags.CommandRetryWriteLastWins, ref failover, out delay));
+        Assert.True(db.CanRetry(2, fault, ref failover, out delay));
         Assert.Equal(token, delay);
         Assert.True(delay.CanBeCanceled);
         Assert.Equal(CancellationToken.None, failover);
 
         // attempt 3: failover already spent (ref is None) -> back to a same-server retry
-        Assert.True(db.CanRetry(3, fault, CommandFlags.CommandRetryWriteLastWins, ref failover, out delay));
+        Assert.True(db.CanRetry(3, fault, ref failover, out delay));
         Assert.False(delay.CanBeCanceled);
         Assert.Equal(CancellationToken.None, failover);
 
         // attempt 4: no retries left
-        Assert.False(db.CanRetry(4, fault, CommandFlags.CommandRetryWriteLastWins, ref failover, out delay));
+        Assert.False(db.CanRetry(4, fault, ref failover, out delay));
         Assert.False(delay.CanBeCanceled);
     }
 
@@ -175,17 +175,17 @@ public class CommandRetryPolicyUnitTests
         using var cts = new CancellationTokenSource();
         var token = cts.Token;
         var failover = token;
-        var fault = new RedisServerException(RedisErrorKind.Loading, "LOADING");
         const CommandFlags flags = CommandFlags.CommandRetryWriteLastWins | Message.CommandServerSpecific;
+        var fault = new RedisServerException(RedisErrorKind.Loading, flags, "LOADING");
 
         // attempt 1: same-server retry; failover token untouched
-        Assert.True(db.CanRetry(1, fault, flags, ref failover, out var delay));
+        Assert.True(db.CanRetry(1, fault, ref failover, out var delay));
         Assert.False(delay.CanBeCanceled);
         Assert.Equal(token, failover);
 
         // attempt 2 (== MaxAttemptsBeforeFailover): sticky forbids failover -> gives up (false), even though
         // attempts remain; the failover token is still consumed to None as a side-effect of the branch
-        Assert.False(db.CanRetry(2, fault, flags, ref failover, out delay));
+        Assert.False(db.CanRetry(2, fault, ref failover, out delay));
         Assert.Equal(CancellationToken.None, failover);
     }
 }

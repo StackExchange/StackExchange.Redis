@@ -42,8 +42,7 @@ public class RetryEndToEndTests(ITestOutputHelper log)
         };
         var retryDb = db.WithRetry(policy);
 
-        // NOTE: explicit category, pending the wrapper picking this up from command categorization
-        var value = await retryDb.StringGetAsync(key, CommandFlags.CommandRetryReadOnly);
+        var value = await retryDb.StringGetAsync(key);
 
         Assert.Equal("hello", value); // retries rode out the LOADING responses
         Assert.Equal(0, server.LoadingOps); // both LOADING responses were consumed

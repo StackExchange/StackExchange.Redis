@@ -508,7 +508,7 @@ namespace StackExchange.Redis
             performance?.SetCompleted();
             if (currBox is not null)
             {
-                connection?.ObserveMessageResult(currBox.Fault, Flags);
+                connection?.ObserveMessageResult(currBox.Fault);
             }
             currBox?.ActivateContinuations();
         }

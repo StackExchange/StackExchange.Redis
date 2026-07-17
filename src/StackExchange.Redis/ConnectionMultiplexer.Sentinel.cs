@@ -169,6 +169,7 @@ public partial class ConnectionMultiplexer
         {
             throw new RedisConnectionException(
                 ConnectionFailureType.UnableToConnect,
+                CommandFlags.None,
                 "Sentinel: The ConnectionMultiplexer is not a Sentinel connection. Detected as: " + ServerSelectionStrategy.ServerType);
         }
 
@@ -204,6 +205,7 @@ public partial class ConnectionMultiplexer
             {
                 throw new RedisConnectionException(
                     ConnectionFailureType.UnableToConnect,
+                    CommandFlags.None,
                     $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
             }
 
@@ -271,6 +273,7 @@ public partial class ConnectionMultiplexer
         {
             throw new RedisConnectionException(
                 ConnectionFailureType.UnableToConnect,
+                CommandFlags.None,
                 $"Sentinel: Failed connecting to configured primary for service: {config.ServiceName}");
         }
 
@@ -418,7 +421,7 @@ public partial class ConnectionMultiplexer
         // Get new primary - try twice
         EndPoint newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName)
                                     ?? GetConfiguredPrimaryForService(serviceName)
-                                    ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
+                                    ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
 
         connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
 

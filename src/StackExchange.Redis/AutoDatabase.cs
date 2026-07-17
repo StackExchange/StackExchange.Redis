@@ -15,7 +15,6 @@ internal sealed class AutoDatabaseAttribute : Attribute
 internal interface IRedisArgs
 {
     void Map(IRedisArgsMutator mutator);
-    CommandFlags Flags { get; set; }
     object? UnMapper { get; }
 }
 

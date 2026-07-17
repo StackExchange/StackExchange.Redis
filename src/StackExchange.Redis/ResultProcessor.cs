@@ -210,15 +210,15 @@ namespace StackExchange.Redis
                 sb.Append(", ");
                 sb.Append(annotation);
             }
-            var ex = new RedisConnectionException(fail, sb.ToString(), innerException);
+            var ex = new RedisConnectionException(fail, message?.Flags ?? CommandFlags.None, sb.ToString(), innerException);
             SetException(message, ex);
         }
 
         public static void ConnectionFail(Message message, ConnectionFailureType fail, string errorMessage) =>
-            SetException(message, new RedisConnectionException(fail, errorMessage));
+            SetException(message, new RedisConnectionException(fail, message.Flags, errorMessage));
 
         public static void ServerFail(Message message, RedisErrorKind kind, string errorMessage) =>
-            SetException(message, new RedisServerException(kind, errorMessage));
+            SetException(message, new RedisServerException(kind, message.Flags, errorMessage));
 
         public static void SetException(Message? message, Exception ex)
         {
@@ -267,10 +267,10 @@ namespace StackExchange.Redis
             switch (errorKind)
             {
                 case RedisErrorKind.NoAuth:
-                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, "NOAUTH Returned - connection has not yet authenticated"));
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, message.Flags, "NOAUTH Returned - connection has not yet authenticated"));
                     break;
                 case RedisErrorKind.WrongPass:
-                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, reader.GetOverview()));
+                    bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, message.Flags, reader.GetOverview()));
                     break;
             }
 
@@ -3180,7 +3180,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
                     }
                     else
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(RedisErrorKind.ConnectionFault, reader.GetOverview()));
+                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(RedisErrorKind.ConnectionFault, message.Flags, reader.GetOverview()));
                     }
                 }
 

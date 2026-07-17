@@ -149,12 +149,11 @@ public abstract class CircuitBreaker
         /// </summary>
         public abstract void Reset();
 
-        internal bool Trip(Exception? fault, CommandFlags flags)
+        internal bool Trip(Exception? fault)
         {
-            FaultContext ctx;
             if (fault is not null)
             {
-                ctx = new FaultContext(fault, flags);
+                var ctx = new FaultContext(fault);
                 if (IsFailure(ctx))
                 {
                     ObserveResult(ctx);
@@ -163,8 +162,7 @@ public abstract class CircuitBreaker
                 // otherwise, treat as success for the purposes of counting
             }
 
-            ctx = new(flags);
-            ObserveResult(ctx);
+            ObserveResult(in FaultContext.Success);
             return false; // never trip through success
         }
     }

@@ -14,28 +14,65 @@ public readonly struct FaultContext
     private readonly ConnectionFailureType _connectionFailureType;
     private readonly CommandFlags _flags;
 
-    /// <summary>
-    /// Create a new <see cref="FaultContext"/>.
-    /// </summary>
-    /// <param name="fault">The fault associated with the operation, or <c>null</c> on success.</param>
-    /// <param name="flags">The command-flags associated with the operation.</param>
-    public FaultContext(Exception fault, CommandFlags flags)
-    {
-        _fault = fault;
-        _flags = flags & Message.UserSelectableFlags; // just the user-visible ones
-        ErrorKind = fault.GetErrorKind(out _connectionFailureType);
-    }
+    internal static readonly FaultContext Success = default;
 
     /// <summary>
     /// Create a new <see cref="FaultContext"/>.
     /// </summary>
-    /// <param name="flags">The command-flags associated with the operation.</param>
-    public FaultContext(CommandFlags flags)
+    /// <param name="fault">The fault associated with the operation, or <c>null</c> on success.</param>
+    public FaultContext(Exception fault)
     {
-        _fault = null;
-        _flags = flags & Message.UserSelectableFlags; // just the user-visible ones
-        ErrorKind = RedisErrorKind.None;
+        _fault = fault;
+
+        var kind = RedisErrorKind.None;
         _connectionFailureType = ConnectionFailureType.None;
+        var flags = CommandFlags.None;
+        switch (fault)
+        {
+            case RedisServerException server:
+                kind = server.Kind;
+                flags = server.Flags;
+                break;
+            case RedisConnectionException connection:
+                _connectionFailureType = connection.FailureType;
+                kind = RedisErrorKind.ConnectionFault;
+                flags = connection.Flags;
+                break;
+            case RedisTimeoutException timeout:
+                kind = RedisErrorKind.Timeout;
+                flags = timeout.Flags;
+                break;
+            case TimeoutException:
+                kind = RedisErrorKind.Timeout;
+                break;
+            case RedisException redis:
+                flags = redis.Flags;
+                break;
+        }
+
+        if (kind is not RedisErrorKind.None & _connectionFailureType is ConnectionFailureType.None)
+        {
+            // fill in some blanks
+            switch (kind)
+            {
+                case RedisErrorKind.Loading:
+                    _connectionFailureType = ConnectionFailureType.Loading;
+                    break;
+                case RedisErrorKind.NoAuth:
+                case RedisErrorKind.WrongPass:
+                    _connectionFailureType = ConnectionFailureType.AuthenticationFailure;
+                    break;
+            }
+        }
+
+        flags &= Message.UserSelectableFlags;
+        if ((flags & Message.MaskRetryCategory) is 0)
+        {
+            // if no retry category found: assume the worst
+            flags |= CommandFlags.CommandRetryNever;
+        }
+        _flags = flags;
+        ErrorKind = kind;
     }
 
     /// <summary>
