@@ -326,6 +326,11 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.ListMove(RedisKey, RedisKey, ListSide, ListSide, CommandFlags)"/>
         Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.ListMove(RedisKey, RedisKey, ListSide, ListSide, long, ListMoveCount, ListMoveOrder, CommandFlags)"/>
+#pragma warning disable RS0026 // competing overloads - disambiguated by the required count parameter
+        Task<RedisValue[]?> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
         /// <inheritdoc cref="IDatabase.ListRange(RedisKey, long, long, CommandFlags)"/>
         Task<RedisValue[]> ListRangeAsync(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None);
 

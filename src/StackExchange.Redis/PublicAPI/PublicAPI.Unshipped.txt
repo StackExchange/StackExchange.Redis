@@ -1,1 +1,9 @@
 #nullable enable
+StackExchange.Redis.IDatabase.ListMove(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.ListSide sourceSide, StackExchange.Redis.ListSide destinationSide, long count, StackExchange.Redis.ListMoveCount mode = StackExchange.Redis.ListMoveCount.UpTo, StackExchange.Redis.ListMoveOrder order = StackExchange.Redis.ListMoveOrder.Bulk, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]?
+StackExchange.Redis.IDatabaseAsync.ListMoveAsync(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.ListSide sourceSide, StackExchange.Redis.ListSide destinationSide, long count, StackExchange.Redis.ListMoveCount mode = StackExchange.Redis.ListMoveCount.UpTo, StackExchange.Redis.ListMoveOrder order = StackExchange.Redis.ListMoveOrder.Bulk, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]?>!
+StackExchange.Redis.ListMoveCount
+StackExchange.Redis.ListMoveCount.Exactly = 1 -> StackExchange.Redis.ListMoveCount
+StackExchange.Redis.ListMoveCount.UpTo = 0 -> StackExchange.Redis.ListMoveCount
+StackExchange.Redis.ListMoveOrder
+StackExchange.Redis.ListMoveOrder.Bulk = 0 -> StackExchange.Redis.ListMoveOrder
+StackExchange.Redis.ListMoveOrder.OneByOne = 1 -> StackExchange.Redis.ListMoveOrder

@@ -133,6 +133,7 @@ internal enum RedisCommand
     LINSERT,
     LLEN,
     LMOVE,
+    LMOVEM,
     LMPOP,
     LPOP,
     LPOS,
@@ -378,6 +379,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.INCREX:
             case RedisCommand.LINSERT:
             case RedisCommand.LMOVE:
+            case RedisCommand.LMOVEM:
             case RedisCommand.LMPOP:
             case RedisCommand.LPOP:
             case RedisCommand.LPUSH:

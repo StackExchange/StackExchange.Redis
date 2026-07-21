@@ -321,6 +321,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None) =>
             Inner.ListMoveAsync(ToInner(sourceKey), ToInner(destinationKey), sourceSide, destinationSide);
 
+        public Task<RedisValue[]?> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListMoveAsync(ToInner(sourceKey), ToInner(destinationKey), sourceSide, destinationSide, count, mode, order, flags);
+
         public Task<RedisValue[]> ListRangeAsync(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.ListRangeAsync(ToInner(key), start, stop, flags);
 

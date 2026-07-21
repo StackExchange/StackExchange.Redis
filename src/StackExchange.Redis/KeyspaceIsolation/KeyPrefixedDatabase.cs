@@ -308,6 +308,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None) =>
             Inner.ListMove(ToInner(sourceKey), ToInner(destinationKey), sourceSide, destinationSide);
 
+        public RedisValue[]? ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None) =>
+            Inner.ListMove(ToInner(sourceKey), ToInner(destinationKey), sourceSide, destinationSide, count, mode, order, flags);
+
         public RedisValue[] ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None) =>
             Inner.ListRange(ToInner(key), start, stop, flags);
 

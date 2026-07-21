@@ -1371,6 +1371,28 @@ namespace StackExchange.Redis
         RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes up to (or exactly) <paramref name="count"/> elements from the first or last of the list stored at
+        /// <paramref name="sourceKey"/>, and pushes them to the first or last of the list stored at <paramref name="destinationKey"/>,
+        /// returning the moved elements in destination order.
+        /// </summary>
+        /// <param name="sourceKey">The key of the list to remove from.</param>
+        /// <param name="destinationKey">The key of the list to move to.</param>
+        /// <param name="sourceSide">What side of the <paramref name="sourceKey"/> list to remove from.</param>
+        /// <param name="destinationSide">What side of the <paramref name="destinationKey"/> list to move to.</param>
+        /// <param name="count">The number of elements to move.</param>
+        /// <param name="mode">Whether <paramref name="count"/> is an upper bound (<c>COUNT</c>) or an exact requirement (<c>EXACTLY</c>).</param>
+        /// <param name="order">Whether the elements are moved as a single block (<c>BULK</c>) or one-by-one (<c>OBO</c>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The elements moved, in destination order; an empty array if there was nothing to move; or <see langword="null"/>
+        /// when <paramref name="mode"/> is <see cref="ListMoveCount.Exactly"/> and the source list does not have <paramref name="count"/> elements.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/lmovem"/></remarks>
+#pragma warning disable RS0026 // competing overloads - disambiguated by the required count parameter
+        RedisValue[]? ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
         /// Returns the specified elements of the list stored at key.
         /// The offsets start and stop are zero-based indexes, with 0 being the first element of the list (the head of the list), 1 being the next element and so on.
         /// These offsets can also be negative numbers indicating offsets starting at the end of the list.For example, -1 is the last element of the list, -2 the penultimate, and so on.

@@ -1630,6 +1630,21 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
+        public RedisValue[]? ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetListMoveMultipleMessage(sourceKey, destinationKey, sourceSide, destinationSide, count, mode, order, flags);
+            return ExecuteSync(msg, ResultProcessor.NullableRedisValueArray);
+        }
+
+        public Task<RedisValue[]?> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetListMoveMultipleMessage(sourceKey, destinationKey, sourceSide, destinationSide, count, mode, order, flags);
+            return ExecuteAsync(msg, ResultProcessor.NullableRedisValueArray);
+        }
+
+        private Message GetListMoveMultipleMessage(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode, ListMoveOrder order, CommandFlags flags) =>
+            Message.Create(Database, flags, RedisCommand.LMOVEM, sourceKey, destinationKey, sourceSide.ToLiteral(), destinationSide.ToLiteral(), mode.ToLiteral(), count, order.ToLiteral());
+
         public RedisValue[] ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LRANGE, key, start, stop);
