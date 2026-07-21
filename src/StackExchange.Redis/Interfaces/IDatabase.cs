@@ -1813,8 +1813,36 @@ namespace StackExchange.Redis
         /// <param name="limit">The number of elements to check (defaults to 0 and means unlimited).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The cardinality (number of elements) of the set, or 0 if key does not exist.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/scard"/></remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sintercard"/></remarks>
         long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        ///   <para>
+        ///     Returns the set cardinality (number of elements) of the set that would result from combining the sets
+        ///     stored at the given <paramref name="keys"/> with the specified <paramref name="operation"/>, without
+        ///     materializing the combined set or returning its members.
+        ///   </para>
+        ///   <para>
+        ///     If the cardinality reaches <paramref name="limit"/> partway through the computation, the algorithm
+        ///     will exit and yield <paramref name="limit"/> as the cardinality.
+        ///   </para>
+        /// </summary>
+        /// <param name="operation">The operation used to combine the sets (maps to <c>SUNIONCARD</c>, <c>SINTERCARD</c> or <c>SDIFFCARD</c>).</param>
+        /// <param name="keys">The keys of the sets.</param>
+        /// <param name="limit">The number of elements to check (defaults to 0 and means unlimited).</param>
+        /// <param name="approximate">
+        ///   When <see langword="true"/>, appends <c>APPROX</c> to request a HyperLogLog-based estimate rather than an
+        ///   exact count. At the time of writing only <see cref="SetOperation.Union"/> (<c>SUNIONCARD</c>) accepts this;
+        ///   it is passed through for any operation and the server will error if it is not supported.
+        /// </param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The cardinality (number of elements) of the combined set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunioncard"/>,
+        /// <seealso href="https://redis.io/commands/sintercard"/>,
+        /// <seealso href="https://redis.io/commands/sdiffcard"/>.
+        /// </remarks>
+        long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the set cardinality (number of elements) of the set stored at key.

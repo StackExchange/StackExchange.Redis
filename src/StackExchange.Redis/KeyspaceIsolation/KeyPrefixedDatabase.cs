@@ -425,6 +425,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SetIntersectionLength(ToInner(keys), limit, flags);
 
+        public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetCombineLength(operation, ToInner(keys), limit, approximate, flags);
+
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLength(ToInner(key), flags);
 

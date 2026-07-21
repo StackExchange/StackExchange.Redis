@@ -438,6 +438,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None) =>
             Inner.SetIntersectionLengthAsync(ToInner(keys), limit, flags);
 
+        public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetCombineLengthAsync(operation, ToInner(keys), limit, approximate, flags);
+
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLengthAsync(ToInner(key), flags);
 

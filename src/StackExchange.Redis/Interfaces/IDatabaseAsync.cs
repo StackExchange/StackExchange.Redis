@@ -431,6 +431,9 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.SetIntersectionLength(RedisKey[], long, CommandFlags)"/>
         Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.SetCombineLength(SetOperation, RedisKey[], long, bool, CommandFlags)"/>
+        Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.SetLength(RedisKey, CommandFlags)"/>
         Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 

@@ -2157,6 +2157,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSetCombineLengthMessage(operation, keys, limit, approximate, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSetCombineLengthMessage(operation, keys, limit, approximate, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SCARD, key);
@@ -4418,7 +4430,13 @@ namespace StackExchange.Redis
         }
 
         private Message GetSetCardinalityMessage(RedisCommand command, RedisKey[] keys, long limit, CommandFlags flags)
-            => new SetOperationCardinalityMessage(Database, flags, command, keys, limit);
+            => new SetOperationCardinalityMessage(Database, flags, command, keys, limit, approximate: false);
+
+        private Message GetSetCombineLengthMessage(SetOperation operation, RedisKey[] keys, long limit, bool approximate, CommandFlags flags)
+            // Deliberately do NOT gate `approximate` here: today only SUNIONCARD accepts APPROX (SINTERCARD/SDIFFCARD
+            // will error), but if later server versions extend it we don't want a stale client-side check blocking it.
+            // Let the server decide and surface any error.
+            => new SetOperationCardinalityMessage(Database, flags, operation.ToSetCardinalityCommand(), keys, limit, approximate);
 
         private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, SortedSetWhen when, bool change, CommandFlags flags)
             => new SingleSortedSetAddMessage(Database, flags, key, member, score, when, change, increment: false);
@@ -4608,7 +4626,7 @@ namespace StackExchange.Redis
         }
 
         private Message GetSortedSetIntersectionLengthMessage(RedisKey[] keys, long limit, CommandFlags flags)
-            => new SetOperationCardinalityMessage(Database, flags, RedisCommand.ZINTERCARD, keys, limit);
+            => new SetOperationCardinalityMessage(Database, flags, RedisCommand.ZINTERCARD, keys, limit, approximate: false);
 
         private Message GetSortedSetRangeByScoreMessage(RedisKey key, double start, double stop, Exclude exclude, Order order, long skip, long take, CommandFlags flags, bool withScores)
         {
