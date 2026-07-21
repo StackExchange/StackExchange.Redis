@@ -110,6 +110,49 @@ public class HashImportTests(ITestOutputHelper output, SharedConnectionFixture f
     }
 
     [Fact]
+    public async Task WorksInsideTransaction()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+        var db = conn.GetDatabase();
+        var prefix = Me();
+        RedisKey k1 = prefix + ":1", k2 = prefix + ":2";
+        await db.KeyDeleteAsync([k1, k2]);
+
+        var tran = db.CreateTransaction();
+        var importTask = tran.HashImportAsync(Fields, new HashImportEntry[]
+        {
+            new(k1, new RedisValue[] { "alice", "a@x", 30 }),
+            new(k2, new RedisValue[] { "bob", "b@x", 25 }),
+        });
+        // the hashes must not exist until the transaction executes
+        Assert.False(await db.KeyExistsAsync(k1));
+
+        Assert.True(await tran.ExecuteAsync());
+        await importTask;
+
+        Assert.Equal("alice", await db.HashGetAsync(k1, "name"));
+        Assert.Equal("bob", await db.HashGetAsync(k2, "name"));
+        Assert.Equal(3, await db.HashLengthAsync(k2));
+    }
+
+    [Fact]
+    public async Task SingleEntryWorksInsideTransaction()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var tran = db.CreateTransaction();
+        var importTask = tran.HashImportAsync(Fields, new HashImportEntry[] { new(key, new RedisValue[] { "alice", "a@x", 30 }) });
+        Assert.True(await tran.ExecuteAsync());
+        await importTask;
+
+        Assert.Equal("alice", await db.HashGetAsync(key, "name"));
+        Assert.Equal(3, await db.HashLengthAsync(key));
+    }
+
+    [Fact]
     public async Task NotSupportedInsideBatch()
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);

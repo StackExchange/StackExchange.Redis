@@ -55,5 +55,7 @@ Notes
   not the right tool.
 - A zero-entry import is a no-op, and a single-entry import is issued as a plain `HSET` (for a single row, that is
   cheaper than the full `HIMPORT` handshake).
-- Because it is connection-sticky, `HashImport` cannot be used inside a transaction or batch, and is not cluster-aware;
-  in a cluster, all supplied keys must map to a single node.
+- Inside a `MULTI`/`EXEC` transaction (`CreateTransaction`), the import is unrolled into individual queued commands
+  (`PREPARE`, one `SET` per entry, then `DISCARD`) so the whole import executes atomically as part of the transaction.
+  Batches are *not* supported.
+- Being connection-sticky, it is not cluster-aware; in a cluster, all supplied keys must map to a single node.

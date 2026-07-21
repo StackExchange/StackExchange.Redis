@@ -985,13 +985,13 @@ namespace StackExchange.Redis
 
         public void HashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None)
         {
-            if (this is IBatch) throw new NotSupportedException("HashImport is not possible inside a transaction or batch; the underlying HIMPORT is connection-sticky and unrolls into multiple commands.");
             ValidateHashImport(fields, entries);
+            if (entries.IsEmpty) return;
+            AssertHashImportContext();
             switch (entries.Length)
             {
-                case 0:
-                    return;
                 case 1:
+                    // note: inside a transaction this (correctly) throws via ExecuteSync, as all sync ops do
                     ExecuteSync(GetSingleHashImportMessage(fields, in entries.Span[0], flags), ResultProcessor.Int64);
                     return;
                 default:
@@ -1002,11 +1002,42 @@ namespace StackExchange.Redis
 
         public Task HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None)
         {
-            if (this is IBatch) throw new NotSupportedException("HashImport is not possible inside a transaction or batch; the underlying HIMPORT is connection-sticky and unrolls into multiple commands.");
             ValidateHashImport(fields, entries);
             if (entries.IsEmpty) return CompletedTask<bool>.Default(asyncState);
+            AssertHashImportContext();
             if (entries.Length == 1) return ExecuteAsync(GetSingleHashImportMessage(fields, in entries.Span[0], flags), ResultProcessor.Int64);
+            // a MULTI/EXEC transaction cannot host a nested IMultiMessage, so we unroll into individual queued
+            // commands instead; a normal connection uses the IMultiMessage form.
+            if (this is ITransaction) return QueueHashImportInTransaction(fields, entries, flags);
             return ExecuteAsync(new HashImportMessage(Database, flags, fields, entries), HashImportProcessor.Default);
+        }
+
+        private void AssertHashImportContext()
+        {
+            // transactions are supported (see QueueHashImportInTransaction); batches are not - a batch is a
+            // fire-and-forget pipeline with no ordering guarantees suitable for the connection-sticky HIMPORT.
+            if (this is IBatch && this is not ITransaction)
+            {
+                throw new NotSupportedException("HashImport is not supported inside a batch; the underlying HIMPORT is connection-sticky and unrolls into multiple ordered commands.");
+            }
+        }
+
+        // Inside a MULTI/EXEC we cannot nest the HashImportMessage (an IMultiMessage); instead we enqueue its
+        // constituent commands - PREPARE, one SET per entry, then DISCARD - as individual transaction operations.
+        // They execute in order within the single EXEC, on the one transaction connection, so the session-local
+        // fieldset created by PREPARE is valid for every SET and is cleaned up by DISCARD.
+        private Task QueueHashImportInTransaction(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags)
+        {
+            var fieldSet = Guid.NewGuid();
+            var tasks = new List<Task>(entries.Length + 2);
+            tasks.Add(ExecuteAsync(new HashImportPrepareMessage(Database, flags, fieldSet, fields), ResultProcessor.DemandOK));
+            var span = entries.Span;
+            for (int i = 0; i < span.Length; i++)
+            {
+                tasks.Add(ExecuteAsync(new HashImportSetMessage(Database, flags, fieldSet, span[i].Key, span[i].Values), ResultProcessor.DemandOK));
+            }
+            tasks.Add(ExecuteAsync(new HashImportDiscardMessage(Database, flags, fieldSet), ResultProcessor.Int64));
+            return Task.WhenAll(tasks);
         }
 
         private static void ValidateHashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries)
@@ -4294,12 +4325,34 @@ namespace StackExchange.Redis
 
             protected override void WriteImpl(in MessageWriter writer)
             {
-                writer.WriteHeader(RedisCommand.HIMPORT, 2);
-                writer.WriteBulkString(RedisLiterals.DISCARD);
-                WriteFieldSet(writer, _fieldSet);
+                WriteDiscard(writer, _fieldSet);
             }
 
             public override int ArgCount => 2;
+        }
+
+        // standalone HIMPORT DISCARD, used when the import is unrolled into a MULTI/EXEC transaction (where the
+        // IMultiMessage root cannot be used); see QueueHashImportInTransaction.
+        internal sealed class HashImportDiscardMessage : Message
+        {
+            private readonly Guid _fieldSet;
+
+            public HashImportDiscardMessage(int db, CommandFlags flags, Guid fieldSet)
+                : base(db, flags, RedisCommand.HIMPORT)
+            {
+                _fieldSet = fieldSet;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer) => WriteDiscard(writer, _fieldSet);
+
+            public override int ArgCount => 2;
+        }
+
+        private static void WriteDiscard(in MessageWriter writer, Guid fieldSet)
+        {
+            writer.WriteHeader(RedisCommand.HIMPORT, 2);
+            writer.WriteBulkString(RedisLiterals.DISCARD);
+            WriteFieldSet(writer, fieldSet);
         }
 
         // writes a fieldset GUID as a 16-byte bulk string with no allocation, uniformly across all target frameworks

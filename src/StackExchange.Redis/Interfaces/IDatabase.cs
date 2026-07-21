@@ -803,7 +803,10 @@ namespace StackExchange.Redis
         /// fails, earlier entries may already have been written. A zero-entry import is a no-op; a single-entry import
         /// is issued as a plain <c>HSET</c>.
         /// </para>
-        /// <para>This operation is not supported inside a transaction or batch, and (being connection-sticky) is not cluster-aware.</para>
+        /// <para>
+        /// Inside a <c>MULTI</c>/<c>EXEC</c> transaction the import is unrolled into individual queued commands so it
+        /// participates atomically; it is not supported inside a batch. Being connection-sticky, it is not cluster-aware.
+        /// </para>
         /// <para><seealso href="https://redis.io/commands/himport"/></para>
         /// </remarks>
         [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
