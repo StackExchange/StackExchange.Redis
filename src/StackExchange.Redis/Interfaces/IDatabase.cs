@@ -789,6 +789,27 @@ namespace StackExchange.Redis
         IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Bulk-creates many hashes that share a common set of field names, using the server-side session fieldset
+        /// mechanism (<c>HIMPORT</c>). Each entry supplies a key and the field values for that key, matched positionally
+        /// against <paramref name="fields"/>.
+        /// </summary>
+        /// <param name="fields">The field names shared by every hash being imported; every entry must supply exactly this many values.</param>
+        /// <param name="entries">The hashes to create; each carries the key and its field values.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>
+        /// <para>
+        /// The import is not atomic: it is unrolled into a session-local <c>HIMPORT PREPARE</c>, one <c>HIMPORT SET</c>
+        /// per entry, and a terminating <c>HIMPORT DISCARD</c>, all issued on a single connection. If a later entry
+        /// fails, earlier entries may already have been written. A zero-entry import is a no-op; a single-entry import
+        /// is issued as a plain <c>HSET</c>.
+        /// </para>
+        /// <para>This operation is not supported inside a transaction or batch, and (being connection-sticky) is not cluster-aware.</para>
+        /// <para><seealso href="https://redis.io/commands/himport"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
+        void HashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Sets the specified fields to their respective values in the hash stored at key.
         /// This command overwrites any specified fields that already exist in the hash, leaving other unspecified fields untouched.
         /// If key does not exist, a new key holding a hash is created.

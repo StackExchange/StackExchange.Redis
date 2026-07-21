@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using RESPite.Messages;
 
@@ -980,6 +981,65 @@ namespace StackExchange.Redis
         {
             var msg = GetHashSetMessage(key, hashFields, flags);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public void HashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None)
+        {
+            if (this is IBatch) throw new NotSupportedException("HashImport is not possible inside a transaction or batch; the underlying HIMPORT is connection-sticky and unrolls into multiple commands.");
+            ValidateHashImport(fields, entries);
+            switch (entries.Length)
+            {
+                case 0:
+                    return;
+                case 1:
+                    ExecuteSync(GetSingleHashImportMessage(fields, in entries.Span[0], flags), ResultProcessor.Int64);
+                    return;
+                default:
+                    ExecuteSync(new HashImportMessage(Database, flags, fields, entries), HashImportProcessor.Default);
+                    return;
+            }
+        }
+
+        public Task HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None)
+        {
+            if (this is IBatch) throw new NotSupportedException("HashImport is not possible inside a transaction or batch; the underlying HIMPORT is connection-sticky and unrolls into multiple commands.");
+            ValidateHashImport(fields, entries);
+            if (entries.IsEmpty) return CompletedTask<bool>.Default(asyncState);
+            if (entries.Length == 1) return ExecuteAsync(GetSingleHashImportMessage(fields, in entries.Span[0], flags), ResultProcessor.Int64);
+            return ExecuteAsync(new HashImportMessage(Database, flags, fields, entries), HashImportProcessor.Default);
+        }
+
+        private static void ValidateHashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries)
+        {
+            if (entries.IsEmpty) return; // no-op import; nothing to validate
+            if (fields.IsEmpty) throw new ArgumentException("At least one field name must be supplied.", nameof(fields));
+            int fieldCount = fields.Length;
+            var span = entries.Span;
+            for (int i = 0; i < span.Length; i++)
+            {
+                int valueCount = span[i].Values.Length;
+                if (valueCount != fieldCount)
+                {
+                    throw new ArgumentException(
+                        $"Entry {i} supplies {valueCount} value(s) but {fieldCount} field name(s) were provided; the counts must match.",
+                        nameof(entries));
+                }
+            }
+        }
+
+        // a single-row import is cheaper as a plain HSET than as a full PREPARE/SET/DISCARD round-trip
+        private Message GetSingleHashImportMessage(ReadOnlyMemory<RedisValue> fields, in HashImportEntry entry, CommandFlags flags)
+        {
+            var f = fields.Span;
+            var v = entry.Values.Span;
+            var arr = new RedisValue[f.Length * 2];
+            int offset = 0;
+            for (int i = 0; i < f.Length; i++)
+            {
+                arr[offset++] = f[i];
+                arr[offset++] = v[i];
+            }
+            return Message.Create(Database, flags, RedisCommand.HSET, entry.Key, arr);
         }
 
         public Task<bool> HashSetIfNotExistsAsync(RedisKey key, RedisValue hashField, RedisValue value, CommandFlags flags)
@@ -4171,6 +4231,173 @@ namespace StackExchange.Redis
                         arr[offset++] = hashFields[i].value;
                     }
                     return Message.Create(Database, flags, RedisCommand.HMSET, key, arr);
+            }
+        }
+
+        // HIMPORT is connection-sticky: a session-local fieldset (identified by a per-import GUID) is PREPAREd, one
+        // SET is issued per entry against that fieldset, and the fieldset is finally DISCARDed - all on one connection.
+        // This is modelled as an IMultiMessage: the sub-messages capture any server error into the parent, and the
+        // terminal DISCARD (this) carries the user-facing result, surfacing the first captured error (if any).
+        internal sealed class HashImportMessage : Message, IMultiMessage
+        {
+            private readonly ReadOnlyMemory<RedisValue> _fields;
+            private readonly ReadOnlyMemory<HashImportEntry> _entries;
+            private readonly Guid _fieldSet;
+            private string? _stepError;
+
+            public HashImportMessage(int db, CommandFlags flags, ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries)
+                : base(db, flags, RedisCommand.HIMPORT)
+            {
+                _fields = fields;
+                _entries = entries;
+                _fieldSet = Guid.NewGuid(); // unique per import; carried as a Guid and written as 16 raw bytes, no allocation
+                SetNoRedirect(); // every sub-command must stay on this one connection
+            }
+
+            internal void RecordStepError(string? error) => _stepError ??= error; // first error wins; single-threaded on the read loop
+            internal string? StepError => _stepError;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = ServerSelectionStrategy.NoSlot;
+                var span = _entries.Span;
+                for (int i = 0; i < span.Length; i++)
+                {
+                    slot = serverSelectionStrategy.CombineSlot(slot, span[i].Key);
+                }
+                return slot;
+            }
+
+            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            {
+                var step = new HashImportStepProcessor(this);
+
+                // HIMPORT PREPARE <fieldset> <field...>
+                var prepare = new HashImportPrepareMessage(Db, Flags, _fieldSet, _fields);
+                prepare.SetNoRedirect();
+                prepare.SetSource(step, null);
+                yield return prepare;
+
+                // HIMPORT SET <key> <fieldset> <value...>
+                for (int i = 0; i < _entries.Length; i++)
+                {
+                    var entry = _entries.Span[i];
+                    var set = new HashImportSetMessage(Db, Flags, _fieldSet, entry.Key, entry.Values);
+                    set.SetNoRedirect();
+                    set.SetSource(step, null);
+                    yield return set;
+                }
+
+                // HIMPORT DISCARD <fieldset> (this) - cleans up the session fieldset and carries the final result
+                yield return this;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                writer.WriteHeader(RedisCommand.HIMPORT, 2);
+                writer.WriteBulkString(RedisLiterals.DISCARD);
+                WriteFieldSet(writer, _fieldSet);
+            }
+
+            public override int ArgCount => 2;
+        }
+
+        // writes a fieldset GUID as a 16-byte bulk string with no allocation, uniformly across all target frameworks
+        // (the token is opaque - the server treats it as an arbitrary byte string - so the exact byte layout is
+        // irrelevant, only that PREPARE / SET / DISCARD within one import serialize the same GUID identically).
+        private static void WriteFieldSet(in MessageWriter writer, Guid fieldSet)
+        {
+            Span<byte> buffer = stackalloc byte[16];
+            Unsafe.WriteUnaligned(ref buffer[0], fieldSet);
+            writer.WriteBulkString(buffer);
+        }
+
+        internal sealed class HashImportPrepareMessage : Message
+        {
+            private readonly Guid _fieldSet;
+            private readonly ReadOnlyMemory<RedisValue> _fields;
+
+            public HashImportPrepareMessage(int db, CommandFlags flags, Guid fieldSet, ReadOnlyMemory<RedisValue> fields)
+                : base(db, flags, RedisCommand.HIMPORT)
+            {
+                _fieldSet = fieldSet;
+                _fields = fields;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                var fields = _fields.Span;
+                writer.WriteHeader(RedisCommand.HIMPORT, 2 + fields.Length);
+                writer.WriteBulkString(RedisLiterals.PREPARE);
+                WriteFieldSet(writer, _fieldSet);
+                for (int i = 0; i < fields.Length; i++) writer.WriteBulkString(fields[i]);
+            }
+
+            public override int ArgCount => 2 + _fields.Length;
+        }
+
+        internal sealed class HashImportSetMessage : Message.CommandKeyBase
+        {
+            private readonly Guid _fieldSet;
+            private readonly ReadOnlyMemory<RedisValue> _values;
+
+            public HashImportSetMessage(int db, CommandFlags flags, Guid fieldSet, in RedisKey key, ReadOnlyMemory<RedisValue> values)
+                : base(db, flags, RedisCommand.HIMPORT, key)
+            {
+                _fieldSet = fieldSet;
+                _values = values;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                var values = _values.Span;
+                writer.WriteHeader(RedisCommand.HIMPORT, 3 + values.Length);
+                writer.WriteBulkString(RedisLiterals.SET);
+                writer.Write(Key);
+                WriteFieldSet(writer, _fieldSet);
+                for (int i = 0; i < values.Length; i++) writer.WriteBulkString(values[i]);
+            }
+
+            public override int ArgCount => 3 + _values.Length;
+        }
+
+        // processor for the PREPARE / SET sub-messages: success (+OK) is discarded; the first server error is
+        // captured into the parent so the terminal DISCARD can surface it as the operation result.
+        internal sealed class HashImportStepProcessor : ResultProcessor<bool>
+        {
+            private readonly HashImportMessage _parent;
+            public HashImportStepProcessor(HashImportMessage parent) => _parent = parent;
+
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                reader.MovePastBof();
+                if (reader.IsError)
+                {
+                    _parent.RecordStepError(reader.ReadString());
+                }
+                message.SetResponseReceived();
+                return true; // always consumed; never fault the connection over a per-step error
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader) => true;
+        }
+
+        // processor for the terminal HIMPORT DISCARD: the integer reply is irrelevant; the result is success unless a
+        // prior PREPARE/SET step recorded a server error, in which case that error is surfaced to the caller.
+        internal sealed class HashImportProcessor : ResultProcessor<bool>
+        {
+            public static readonly HashImportProcessor Default = new();
+            private HashImportProcessor() { }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                if (message is HashImportMessage himport && himport.StepError is { } error)
+                {
+                    SetException(message, new RedisServerException(error));
+                    return true;
+                }
+                SetResult(message, true);
+                return true;
             }
         }
 

@@ -183,6 +183,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashStringLengthAsync(ToInner(key), hashField, flags);
 
+        public Task HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashImportAsync(fields, ToInner(entries), flags);
+
         public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSetAsync(ToInner(key), hashFields, flags);
 
@@ -913,6 +916,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         protected KeyValuePair<RedisKey, RedisValue> ToInner(KeyValuePair<RedisKey, RedisValue> outer) =>
             new KeyValuePair<RedisKey, RedisValue>(ToInner(outer.Key), outer.Value);
+
+        protected ReadOnlyMemory<HashImportEntry> ToInner(ReadOnlyMemory<HashImportEntry> outer)
+        {
+            if (outer.IsEmpty) return outer;
+            var span = outer.Span;
+            var inner = new HashImportEntry[span.Length];
+            for (int i = 0; i < span.Length; i++)
+            {
+                inner[i] = new HashImportEntry(ToInner(span[i].Key), span[i].Values);
+            }
+            return inner;
+        }
 
         [return: NotNullIfNotNull("outer")]
         protected KeyValuePair<RedisKey, RedisValue>[]? ToInner(KeyValuePair<RedisKey, RedisValue>[]? outer)

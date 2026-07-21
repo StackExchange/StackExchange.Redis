@@ -180,6 +180,10 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.HashScanNoValues(RedisKey, RedisValue, int, long, int, CommandFlags)"/>
         IAsyncEnumerable<RedisValue> HashScanNoValuesAsync(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.HashImport(ReadOnlyMemory{RedisValue}, ReadOnlyMemory{HashImportEntry}, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
+        Task HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.HashSet(RedisKey, HashEntry[], CommandFlags)"/>
         Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None);
 
