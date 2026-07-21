@@ -650,11 +650,9 @@ namespace StackExchange.Redis
 #pragma warning restore RS0026
 
         /// <inheritdoc cref="IDatabase.StreamNegativeAcknowledge(RedisKey, RedisValue, StreamNackMode, RedisValue, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StreamNegativeAcknowledge(RedisKey, RedisValue, StreamNackMode, RedisValue[], CommandFlags)"/>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, RedisValue, RedisValue, RedisValue?, int?, bool, CommandFlags)"/>
@@ -671,16 +669,13 @@ namespace StackExchange.Redis
         Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, RedisValue, RedisValue, StreamIdempotentId, long?, bool, long?, StreamTrimMode, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StreamAdd(RedisKey, NameValueEntry[], StreamIdempotentId, long?, bool, long?, StreamTrimMode, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <inheritdoc cref="IDatabase.StreamConfigure(RedisKey, StreamConfiguration, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         Task StreamConfigureAsync(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StreamAutoClaim(RedisKey, RedisValue, RedisValue, long, RedisValue, int?, CommandFlags)"/>
@@ -805,7 +800,6 @@ namespace StackExchange.Redis
         Task<double> StringDecrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringDigest(RedisKey, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         Task<ValueCondition?> StringDigestAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringGet(RedisKey, CommandFlags)"/>
@@ -846,11 +840,9 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.StringIncrement(RedisKey, long, Expiration, long?, long?, IncrementOptions, CommandFlags)"/>
 #pragma warning disable RS0026 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringIncrement(RedisKey, double, Expiration, double?, double?, IncrementOptions, CommandFlags)"/>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 

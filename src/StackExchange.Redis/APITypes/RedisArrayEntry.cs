@@ -10,7 +10,6 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <param name="index">The array index.</param>
 /// <param name="value">The value at this index.</param>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public readonly struct RedisArrayEntry(RedisArrayIndex index, RedisValue value) : IEquatable<RedisArrayEntry>
 {
     private readonly RedisArrayIndex _index = index;

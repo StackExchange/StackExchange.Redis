@@ -2643,7 +2643,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns the number of messages successfully NACKed as a resp integer, regardless of mode (SILENT, FAIL, or FATAL) or options (RETRYCOUNT, FORCE) specified.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2657,7 +2656,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns the number of messages successfully NACKed as a resp integer, regardless of mode (SILENT, FAIL, or FATAL) or options (RETRYCOUNT, FORCE) specified.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2728,7 +2726,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2765,7 +2762,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
@@ -2775,7 +2771,6 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="configuration">The configuration to apply.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         void StreamConfigure(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -3297,7 +3292,6 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks><seealso href="https://redis.io/commands/digest"/></remarks>
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -3449,7 +3443,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The resulting value and the increment actually applied.</returns>
 #pragma warning disable RS0026 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -3463,7 +3456,6 @@ namespace StackExchange.Redis
         /// <param name="options">The options to use for this operation.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The resulting value and the increment actually applied.</returns>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
