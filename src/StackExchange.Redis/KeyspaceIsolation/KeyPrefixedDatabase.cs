@@ -687,8 +687,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamRead(ToInner(key), position, count, flags);
 
-        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None) =>
+        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags) =>
             Inner.StreamRead(streamPositions, countPerStream, flags);
+
+        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamRead(streamPositions, countPerStream, maxCount, maxSize, flags);
 
         public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags) =>
             Inner.StreamReadGroup(ToInner(key), groupName, consumerName, position, count, flags);
@@ -705,8 +708,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, flags);
 
-        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None) =>
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags) =>
             Inner.StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, flags);
+
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags);
 
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
             Inner.StreamTrim(ToInner(key), maxLength, useApproximateMaxLength, flags);

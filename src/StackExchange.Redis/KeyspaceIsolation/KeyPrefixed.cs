@@ -705,8 +705,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamReadAsync(ToInner(key), position, count, flags);
 
-        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None) =>
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags) =>
             Inner.StreamReadAsync(streamPositions, countPerStream, flags);
+
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamReadAsync(streamPositions, countPerStream, maxCount, maxSize, flags);
 
         public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags) =>
             Inner.StreamReadGroupAsync(ToInner(key), groupName, consumerName, position, count, flags);
@@ -723,8 +726,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, flags);
 
-        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None) =>
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags) =>
             Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, flags);
+
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags);
 
         public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags) =>
             Inner.StreamTrimAsync(ToInner(key), maxLength, useApproximateMaxLength, flags);

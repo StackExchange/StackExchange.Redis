@@ -3090,7 +3090,28 @@ namespace StackExchange.Redis
         /// <para>Equivalent of calling <c>XREAD COUNT num STREAMS key1 key2 id1 id2</c>.</para>
         /// <para><seealso href="https://redis.io/commands/xread"/></para>
         /// </remarks>
-        RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags);
+
+        /// <summary>
+        /// Read from multiple streams, applying global caps on the total number of entries and/or the total reply size
+        /// across all streams (in addition to the per-stream <paramref name="countPerStream"/>).
+        /// </summary>
+        /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
+        /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="maxCount">The maximum total number of messages to return across all streams (<c>MAXCOUNT</c>); <see langword="null"/> for no cap.</param>
+        /// <param name="maxSize">The maximum total reply size in bytes across all streams (<c>MAXSIZE</c>); <see langword="null"/> for no cap.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
+        /// <remarks>
+        /// <para>
+        /// Equivalent of calling <c>XREAD COUNT num MAXCOUNT num MAXSIZE num STREAMS key1 key2 id1 id2</c>.
+        /// <c>MAXCOUNT</c>/<c>MAXSIZE</c> require server 8.10 or above; at least one entry is always returned even if it exceeds <paramref name="maxSize"/>.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/xread"/></para>
+        /// </remarks>
+#pragma warning disable RS0026 // additive overload: countPerStream is required here, so shorter calls still bind to the existing overload
+        RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <summary>
         /// Read messages from a stream into an associated consumer group.
@@ -3183,7 +3204,33 @@ namespace StackExchange.Redis
         /// <para>Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</c>.</para>
         /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
         /// </remarks>
-        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags);
+
+        /// <summary>
+        /// Read from multiple streams into the given consumer group, applying global caps on the total number of entries
+        /// and/or the total reply size across all streams (in addition to the per-stream <paramref name="countPerStream"/>).
+        /// The consumer group with the given <paramref name="groupName"/> will need to have been created for each stream prior to calling this method.
+        /// </summary>
+        /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="consumerName">The name of the consumer.</param>
+        /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
+        /// <param name="claimMinIdleTime">Auto-claim messages that have been idle for at least this long.</param>
+        /// <param name="maxCount">The maximum total number of messages to return across all streams (<c>MAXCOUNT</c>); <see langword="null"/> for no cap.</param>
+        /// <param name="maxSize">The maximum total reply size in bytes across all streams (<c>MAXSIZE</c>); <see langword="null"/> for no cap.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
+        /// <remarks>
+        /// <para>
+        /// Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream MAXCOUNT num MAXSIZE num STREAMS stream1 stream2 id1 id2</c>.
+        /// <c>MAXCOUNT</c>/<c>MAXSIZE</c> require server 8.10 or above; at least one entry is always returned even if it exceeds <paramref name="maxSize"/>.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
+        /// </remarks>
+#pragma warning disable RS0026 // additive overload: countPerStream/noAck/claimMinIdleTime are required here, so shorter calls still bind to the existing overloads
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <summary>
         /// Trim the stream to a specified maximum length.
