@@ -158,4 +158,68 @@ public class MovedUnitTests(ITestOutputHelper log)
         id = await server.ExecuteAsync("client", "id");
         log?.WriteLine($"Client id after: {id}");
     }
+
+    /// <summary>
+    /// Integration test: Verifies that batch commands issued during a MOVED-triggered
+    /// reconnection are queued to the backlog and succeed after reconnection completes,
+    /// rather than throwing NoConnectionAvailable immediately.
+    ///
+    /// Test scenario:
+    /// 1. Client connects to test server
+    /// 2. Client sends a batch containing SET commands, with the trigger key as the last command
+    /// 3. Server returns MOVED error for the trigger key pointing to same endpoint
+    /// 4. Client triggers reconnection and queues the MOVED command's retry in the backlog
+    /// 5. All batch commands complete successfully after reconnection
+    ///
+    /// Expected behavior:
+    /// - All batch tasks should complete successfully (no exceptions)
+    /// - MOVED response count should be 1
+    /// - Connection count should increase by 1 (reconnection after MOVED)
+    /// - Values should be stored correctly
+    /// </summary>
+    [Theory]
+    [InlineData(ServerType.Cluster)]
+    [InlineData(ServerType.Standalone)]
+    public async Task MovedToSameEndpoint_BatchCommands_QueuedDuringReconnect(ServerType serverType)
+    {
+        RedisKey key = Me();
+
+        using var testServer = new MovedTestServer(
+            triggerKey: key,
+            log: log) { ServerType = serverType, };
+
+        await using var conn = await testServer.ConnectAsync(withPubSub: false);
+        var server = conn.GetServer(testServer.DefaultEndPoint);
+        await server.PingAsync(); // init everything
+        Assert.Equal(serverType, server.ServerType);
+        var db = conn.GetDatabase();
+
+        // Record baseline counters
+        Assert.Equal(0, testServer.SetCmdCount);
+        Assert.Equal(0, testServer.MovedResponseCount);
+        var initialConnectionCount = testServer.TotalClientCount;
+
+        // Create a batch: normal commands + trigger key as last command
+        var batch = db.CreateBatch();
+        var setTask1 = batch.StringSetAsync("normalkey1", "value1");
+        var setTask2 = batch.StringSetAsync("normalkey2", "value2");
+        var triggerTask = batch.StringSetAsync(key, "triggervalue"); // this will get MOVED
+        batch.Execute();
+
+        // All tasks should complete successfully (trigger command retried after reconnect)
+        Assert.True(await setTask1, "First SET should succeed");
+        Assert.True(await setTask2, "Second SET should succeed");
+        Assert.True(await triggerTask, "Trigger SET should succeed after reconnect+retry");
+
+        // Verify values were stored
+        Assert.Equal("value1", (string?)await db.StringGetAsync("normalkey1"));
+        Assert.Equal("value2", (string?)await db.StringGetAsync("normalkey2"));
+        Assert.Equal("triggervalue", (string?)await db.StringGetAsync(key));
+
+        // Verify MOVED was returned exactly once
+        Assert.Equal(1, testServer.MovedResponseCount);
+
+        // Verify reconnection occurred
+        Assert.Equal(initialConnectionCount + 1, testServer.TotalClientCount);
+    }
 }
