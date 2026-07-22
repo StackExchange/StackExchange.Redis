@@ -12,11 +12,14 @@ values against that fieldset, and `HIMPORT DISCARD` releases the fieldset. The f
 that prepared it and disappears when that connection is reset or closed.
 
 Because StackExchange.Redis is a multiplexer that owns the connection lifetime on your behalf — you do not control
-*which* physical connection a given command travels on — it does **not** expose the individual `HIMPORT` sub-commands.
+*which* physical connection a given command travels on<sup>&dagger;</sup> — it does **not** expose the individual `HIMPORT` sub-commands.
 Managing a `PREPARE`/`SET`/`DISCARD` sequence yourself would require pinning them all to one connection, which is
 exactly the detail the multiplexer abstracts away. Instead, the library exposes a single bulk operation,
 `IDatabase.HashImport` (and `HashImportAsync`), that performs the whole import for you: it generates a private fieldset,
 issues the `PREPARE`, one `SET` per entry, and the terminating `DISCARD`, all guaranteed to land on a single connection.
+
+<sup>&dagger;</sup>: *in theory* because of multiplexing there is a single connection, but with automatic reconnects, cluster
+slot migrations, active-active / retries, etc: *in reality* it is more complicated than that.
 
 Usage
 ---
@@ -27,8 +30,10 @@ hash's values, in the same order as the field names:
 ``` c#
 IDatabase db = muxer.GetDatabase();
 
+// performance note: you may use leased/oversized buffers throughout, see Notes
+
 // the field names shared by every hash we are importing
-ReadOnlyMemory<RedisValue> fields = new RedisValue[] { "name", "email", "age" };
+var fields = new RedisValue[] { "name", "email", "age" };
 
 // one entry per hash: the key, plus its values positionally matching the fields above
 var entries = new HashImportEntry[]
@@ -38,7 +43,11 @@ var entries = new HashImportEntry[]
     new("user:3", new RedisValue[] { "carol", "c@example.com", 42 }),
 };
 
-await db.HashImportAsync(fields, entries);
+var failures = await db.HashImportAsync(fields, entries);
+foreach (var failure in failures) // empty array on full success
+{
+    Console.WriteLine($"entry {failure.Index} ({failure.Key}) failed: {failure.Message}");
+}
 ```
 
 After this completes, `user:1`, `user:2` and `user:3` each exist as a hash with the `name`, `email` and `age` fields
@@ -47,14 +56,20 @@ set to their respective values.
 Notes
 ---
 
-- `ReadOnlyMemory<T>` is used (rather than arrays) so that you can pass slices of larger buffers without copying — useful
+- `ReadOnlyMemory<T>` is used in the API (rather than arrays) so that you can pass slices of larger buffers without copying — useful
   when importing in chunks from a pooled or reused backing array.
-- Every entry must supply exactly as many values as there are field names; a mismatch throws before anything is sent.
-- The import is **not atomic**. If a later entry fails on the server (for example, a value/field count mismatch that
-  slipped past validation), earlier entries may already have been written. If you need all-or-nothing semantics, this is
-  not the right tool.
-- A zero-entry import is a no-op, and a single-entry import is issued as a plain `HSET` (for a single row, that is
-  cheaper than the full `HIMPORT` handshake).
+  - In particular, only 2 leases are needed: a buffer of type `HashImportEntry` of length `entries`,
+    and a buffer of type `RedisValue` of length `(entries + 1) * fields`, using a [stride](https://en.wikipedia.org/wiki/Stride_of_an_array) of
+    length `fields` per entry, plus a leading header row of the field names.
+- Every entry must supply exactly as many values as there are field names; a mismatch throws (`ArgumentException`)
+  before anything is sent.
+- Each entry **replaces** any existing hash at its key (it does not merge into it) — this is import, not `HSET`.
+- The import is **not atomic**. Per-entry failures — for example a key that already holds a non-hash value, which
+  yields a `WRONGTYPE` error — are returned as `HashImportFailure[]` (each with the entry `Index`, `Key`, and server
+  `Message`); an empty array means full success, and other entries still apply. A *setup* failure (an invalid field
+  list) is thrown instead. If you need all-or-nothing semantics, this is not the right tool.
+- A zero-entry import is a no-op. There is no single-row shortcut: one entry uses the same `HIMPORT` path so its
+  replace-semantics are identical to a multi-entry import.
 - Inside a `MULTI`/`EXEC` transaction (`CreateTransaction`), the import is unrolled into individual queued commands
   (`PREPARE`, one `SET` per entry, then `DISCARD`) so the whole import executes atomically as part of the transaction.
   Batches are *not* supported.

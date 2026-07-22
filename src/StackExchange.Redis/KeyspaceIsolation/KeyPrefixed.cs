@@ -183,8 +183,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashStringLengthAsync(ToInner(key), hashField, flags);
 
-        public Task HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashImportAsync(fields, ToInner(entries), flags);
+        public async Task<HashImportFailure[]> HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None) =>
+            ToOuter(await Inner.HashImportAsync(fields, ToInner(entries), flags).ForAwait());
 
         public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSetAsync(ToInner(key), hashFields, flags);
@@ -861,6 +861,29 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         protected internal RedisKey ToInner(RedisKey outer) =>
             RedisKey.WithPrefix(Prefix, outer);
+
+        // reverse of ToInner: strip the leading key-prefix bytes so a key that came back from the inner database
+        // (for example, inside a HashImport failure) is reported to the caller in their own, un-prefixed key-space.
+        protected internal RedisKey ToOuter(RedisKey inner)
+        {
+            var prefix = Prefix;
+            if (prefix is null || prefix.Length == 0) return inner;
+            byte[]? full = inner;
+            if (full is null || full.Length < prefix.Length) return inner; // not prefixed as expected; leave as-is
+            var outer = new byte[full.Length - prefix.Length];
+            Buffer.BlockCopy(full, prefix.Length, outer, 0, outer.Length);
+            return outer;
+        }
+
+        // maps failure keys back to the caller's key-space, in place (we own the array returned by the inner database)
+        private protected HashImportFailure[] ToOuter(HashImportFailure[] failures)
+        {
+            for (int i = 0; i < failures.Length; i++)
+            {
+                failures[i] = new HashImportFailure(failures[i].Index, ToOuter(failures[i].Key), failures[i].Message);
+            }
+            return failures;
+        }
 
         protected RedisKey ToInnerOrDefault(RedisKey outer) =>
             (outer == default(RedisKey)) ? outer : ToInner(outer);

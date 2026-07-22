@@ -796,12 +796,14 @@ namespace StackExchange.Redis
         /// <param name="fields">The field names shared by every hash being imported; every entry must supply exactly this many values.</param>
         /// <param name="entries">The hashes to create; each carries the key and its field values.</param>
         /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The entries that failed to import (an empty array on full success).</returns>
         /// <remarks>
         /// <para>
         /// The import is not atomic: it is unrolled into a session-local <c>HIMPORT PREPARE</c>, one <c>HIMPORT SET</c>
-        /// per entry, and a terminating <c>HIMPORT DISCARD</c>, all issued on a single connection. If a later entry
-        /// fails, earlier entries may already have been written. A zero-entry import is a no-op; a single-entry import
-        /// is issued as a plain <c>HSET</c>.
+        /// per entry, and a terminating <c>HIMPORT DISCARD</c>, all issued on a single connection. Each <c>SET</c>
+        /// <em>replaces</em> any existing hash at that key. Per-entry failures (such as a key holding a non-hash value)
+        /// are returned as <see cref="HashImportFailure"/> values rather than thrown; setup failures (an invalid field
+        /// list) are thrown. A zero-entry import is a no-op.
         /// </para>
         /// <para>
         /// Inside a <c>MULTI</c>/<c>EXEC</c> transaction the import is unrolled into individual queued commands so it
@@ -810,7 +812,7 @@ namespace StackExchange.Redis
         /// <para><seealso href="https://redis.io/commands/himport"/></para>
         /// </remarks>
         [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
-        void HashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None);
+        HashImportFailure[] HashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets the specified fields to their respective values in the hash stored at key.

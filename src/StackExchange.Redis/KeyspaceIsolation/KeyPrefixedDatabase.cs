@@ -174,8 +174,8 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long HashStringLength(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashStringLength(ToInner(key), hashField, flags);
 
-        public void HashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None) =>
-            Inner.HashImport(fields, ToInner(entries), flags);
+        public HashImportFailure[] HashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None) =>
+            ToOuter(Inner.HashImport(fields, ToInner(entries), flags));
 
         public void HashSet(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSet(ToInner(key), hashFields, flags);

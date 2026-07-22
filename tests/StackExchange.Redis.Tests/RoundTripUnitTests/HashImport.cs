@@ -29,7 +29,7 @@ public class HashImport(ITestOutputHelper log)
     public async Task Set_RoundTrips()
     {
         ReadOnlyMemory<RedisValue> values = new RedisValue[] { "v1", "v2" };
-        var msg = new RedisDatabase.HashImportSetMessage(0, CommandFlags.None, Guid.Empty, (RedisKey)"user:1", values);
+        var msg = new RedisDatabase.HashImportSetMessage(0, CommandFlags.None, Guid.Empty, (RedisKey)"user:1", 0, values);
 
         // HIMPORT SET user:1 <fieldset> v1 v2  (key is arg index 2 per the server key-spec)
         var request = "*6\r\n$7\r\nHIMPORT\r\n$3\r\nSET\r\n$6\r\nuser:1\r\n" + FieldSet + "$2\r\nv1\r\n$2\r\nv2\r\n";
@@ -41,7 +41,7 @@ public class HashImport(ITestOutputHelper log)
     public async Task Set_SingleValue_RoundTrips()
     {
         ReadOnlyMemory<RedisValue> values = new RedisValue[] { "only" };
-        var msg = new RedisDatabase.HashImportSetMessage(0, CommandFlags.None, Guid.Empty, (RedisKey)"k", values);
+        var msg = new RedisDatabase.HashImportSetMessage(0, CommandFlags.None, Guid.Empty, (RedisKey)"k", 0, values);
 
         var request = "*5\r\n$7\r\nHIMPORT\r\n$3\r\nSET\r\n$1\r\nk\r\n" + FieldSet + "$4\r\nonly\r\n";
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.DemandOK, request, "+OK\r\n", log: log);

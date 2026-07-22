@@ -182,7 +182,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.HashImport(ReadOnlyMemory{RedisValue}, ReadOnlyMemory{HashImportEntry}, CommandFlags)"/>
         [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
-        Task HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None);
+        Task<HashImportFailure[]> HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.HashSet(RedisKey, HashEntry[], CommandFlags)"/>
         Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None);
