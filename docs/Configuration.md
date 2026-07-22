@@ -86,7 +86,9 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | tcpKeepAlive={bool}    | `TcpKeepAlive`         | `true`                       | Enables TCP keep-alive when appropriate (endpoint- and platform-dependent)                                |
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
+| sentinelPassword={string} | `SentinelPassword`  | `null`                       | Optional password to authenticate with Sentinel servers (falls back to `password` if not provided)        |
 | user={string}          | `User`                 | `null`                       | User for the redis server (for use with ACLs on redis 6 and above)                                        |
+| sentinelUser={string}  | `SentinelUser`         | `null`                       | Optional username to authenticate with Sentinel servers (falls back to `user` if not provided)            |
 | proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy/envoyproxy"                                         |
 | resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit                          |
 | serviceName={string}   | `ServiceName`          | `null`                       | Used for connecting to a sentinel primary service                                                         |

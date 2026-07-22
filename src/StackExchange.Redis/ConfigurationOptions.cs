@@ -98,7 +98,9 @@ namespace StackExchange.Redis
                 KeepAlive = "keepAlive",
                 ClientName = "name",
                 User = "user",
+                SentinelUser = "sentinelUser",
                 Password = "password",
+                SentinelPassword = "sentinelPassword",
                 PreserveAsyncOrder = "preserveAsyncOrder",
                 Proxy = "proxy",
                 ResolveDns = "resolveDns",
@@ -133,7 +135,9 @@ namespace StackExchange.Redis
                 HighPrioritySocketThreads,
                 KeepAlive,
                 User,
+                SentinelUser,
                 Password,
+                SentinelPassword,
                 PreserveAsyncOrder,
                 Proxy,
                 ResolveDns,
@@ -209,7 +213,7 @@ namespace StackExchange.Redis
 
         private OptionFlags optionFlags;
 
-        private string? tieBreaker, sslHost, configChannel, user, password;
+        private string? tieBreaker, sslHost, configChannel, user, sentinelUser, password, sentinelPassword;
 
         private TimeSpan heartbeatInterval;
 
@@ -739,12 +743,32 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// The username to use to authenticate with Sentinel servers, only when different from the Redis server password (optional).
+        /// If not specified, <see cref="User"/> is used when communicating with Sentinels.
+        /// </summary>
+        public string? SentinelUser
+        {
+            get => sentinelUser ?? user ?? Defaults.User;
+            set => sentinelUser = value;
+        }
+
+        /// <summary>
         /// The password to use to authenticate with the server.
         /// </summary>
         public string? Password
         {
             get => password ?? Defaults.Password;
             set => password = value;
+        }
+
+        /// <summary>
+        /// The password to use to authenticate with Sentinel servers, only when different from the Redis server password (optional).
+        /// If not specified, <see cref="Password"/> is used when communicating with Sentinels.
+        /// </summary>
+        public string? SentinelPassword
+        {
+            get => sentinelPassword ?? password ?? Defaults.Password;
+            set => sentinelPassword = value;
         }
 
         /// <summary>
@@ -932,7 +956,7 @@ namespace StackExchange.Redis
         public ConfigurationOptions Clone() => new ConfigurationOptions
         {
             defaultOptions = defaultOptions,
-            optionFlags = this.optionFlags,
+            optionFlags = optionFlags,
             ClientName = ClientName,
             ServiceName = ServiceName,
             keepAlive = keepAlive,
@@ -941,7 +965,9 @@ namespace StackExchange.Redis
             defaultVersion = defaultVersion,
             connectTimeout = connectTimeout,
             user = user,
+            SentinelUser = SentinelUser,
             password = password,
+            SentinelPassword = SentinelPassword,
             tieBreaker = tieBreaker,
             sslHost = sslHost,
             configChannel = configChannel,
@@ -1040,7 +1066,9 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, OptionFlags.ConnectTimeoutHasValue, in connectTimeout);
             Append(sb, OptionKeys.User, user);
+            Append(sb, OptionKeys.SentinelUser, SentinelUser);
             Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(password)) ? password : "*****");
+            Append(sb, OptionKeys.SentinelPassword, (includePassword || string.IsNullOrEmpty(SentinelPassword)) ? SentinelPassword : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.Ssl, OptionFlags.SslHasValue, OptionFlags.SslValue);
             if (HasValue(OptionFlags.SslProtocolsHasValue)) Append(sb, OptionKeys.SslProtocols, sslProtocols.ToString().Replace(',', '|'));
@@ -1261,8 +1289,14 @@ namespace StackExchange.Redis
                         case OptionKeys.User:
                             user = value;
                             break;
+                        case OptionKeys.SentinelUser:
+                            SentinelUser = value;
+                            break;
                         case OptionKeys.Password:
                             password = value;
+                            break;
+                        case OptionKeys.SentinelPassword:
+                            SentinelPassword = value;
                             break;
                         case OptionKeys.TieBreaker:
                             TieBreaker = value;
