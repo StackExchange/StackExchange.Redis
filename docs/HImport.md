@@ -73,4 +73,5 @@ Notes
 - Inside a `MULTI`/`EXEC` transaction (`CreateTransaction`), the import is unrolled into individual queued commands
   (`PREPARE`, one `SET` per entry, then `DISCARD`) so the whole import executes atomically as part of the transaction.
   Batches are *not* supported.
-- Being connection-sticky, it is not cluster-aware; in a cluster, all supplied keys must map to a single node.
+- Being connection-sticky, it is not cluster-aware: in a cluster every supplied key must resolve to the same hash
+  [slot](HashTags), which you can arrange with [hash tags](HashTags).

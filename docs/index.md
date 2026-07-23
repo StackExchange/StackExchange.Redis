@@ -49,6 +49,7 @@ Documentation
 - [Arrays](Arrays) - how to use Redis Arrays as sparse arrays of values
 - [Vector Sets](VectorSets) - how to use Vector Sets for similarity search with embeddings
 - [Hash Import](HImport) - bulk-importing many hashes that share a common set of field names
+- [Hash Tags and Slots](HashTags) - co-locating keys in the same cluster slot for multi-key operations
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement
