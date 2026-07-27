@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite;
@@ -31,11 +32,11 @@ namespace StackExchange.Redis;
 public sealed class HashImport : IDisposable, IAsyncDisposable
 {
     // process-wide monotonic id; deliberately not bound to any multiplexer so a single field-set can span
-    // active/active deployments. The id doubles as the opaque, connection-local field-set name on the wire.
+    // active/active deployments. The id doubles as the opaque, connection-local field-set name on the wire - its 8 raw
+    // bytes are written verbatim (binary-safe) whenever a name is needed, so no separate byte[] is stored.
     private static long _counter;
 
     private readonly ReadOnlyMemory<RedisValue> _fields;
-    private readonly byte[] _name; // 8 raw bytes of _id, written verbatim as the field-set name (binary-safe)
     private readonly long _id;
 
     private readonly object _sync = new();
@@ -48,23 +49,24 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     {
         if (fields.IsEmpty) throw new ArgumentException("At least one field name must be supplied.", nameof(fields));
 
+        // Snapshot into storage we own. The field-set is long-lived and its wire encoding must stay stable for the
+        // object's lifetime, so we must not alias caller memory that could be mutated after Create - which would also
+        // silently bypass the validation below. A field-set is created once and reused for many rows, so this one
+        // copy is amortized to nothing (and a handful of RedisValue at that).
+        var snapshot = fields.ToArray();
+
         // The server rejects a PREPARE with duplicate field names, but because PREPARE is injected fire-and-forget that
         // would surface only indirectly as every SET failing with "no such fieldset". Reject it up front for a clear
-        // error at the point of the mistake. (Field names are validated against the field list, not the array's
-        // identity, so a subsequently-mutated caller array is out of scope - same caveat as any ReadOnlyMemory input.)
-        var span = fields.Span;
+        // error at the point of the mistake.
         var seen = new HashSet<RedisValue>();
-        for (int i = 0; i < span.Length; i++)
+        for (int i = 0; i < snapshot.Length; i++)
         {
-            if (span[i].IsNull) throw new ArgumentException("Field names must not be null.", nameof(fields));
-            if (!seen.Add(span[i])) throw new ArgumentException($"Duplicate field name: '{span[i]}'.", nameof(fields));
+            if (snapshot[i].IsNull) throw new ArgumentException("Field names must not be null.", nameof(fields));
+            if (!seen.Add(snapshot[i])) throw new ArgumentException($"Duplicate field name: '{snapshot[i]}'.", nameof(fields));
         }
 
-        _fields = fields;
+        _fields = snapshot;
         _id = Interlocked.Increment(ref _counter);
-        _name = new byte[8];
-        long id = _id;
-        for (int i = 0; i < 8; i++) _name[i] = (byte)(id >> (i * 8));
     }
 
     /// <summary>
@@ -79,7 +81,16 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     internal long Id => _id;
     internal ReadOnlyMemory<RedisValue> Fields => _fields;
     internal int FieldCount => _fields.Length;
-    internal ReadOnlySpan<byte> Name => _name;
+
+    // writes the opaque field-set name: the id's 8 raw bytes as a bulk string. Endianness is irrelevant (the server
+    // treats the name as an arbitrary byte string, and a token never leaves the process), so an unaligned blit of the
+    // id is enough - and identical for this token's every PREPARE/SET/DISCARD, which is all that matters.
+    internal void WriteName(in MessageWriter writer)
+    {
+        Span<byte> name = stackalloc byte[8];
+        Unsafe.WriteUnaligned(ref name[0], _id);
+        writer.WriteBulkString(name);
+    }
 
     // rejects use of a disposed field-set before anything is sent; a disposed field-set may already have been DISCARDed
     // on the server, so a SET against it would silently mis-behave (and would never be cleaned up).
@@ -93,11 +104,26 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     // failing with a "no such field-set" server error.
     internal Message CreatePrepareMessage(int db) => new HashImportPrepareMessage(db, CommandFlags.FireAndForget, this);
 
-    // records (once per server) that this field-set is now prepared somewhere on the given server, so disposal can
-    // target a DISCARD there. Bookkeeping only - it is called from inside the bridge write lock (during PREPARE
-    // injection), so it must never itself issue I/O. If the token is already being disposed we simply skip: a field-set
-    // prepared by a SET racing against Dispose may be stranded, but it dies with the connection anyway (best-effort),
-    // and using a token concurrently with disposing it is a caller error.
+    // Records (once per server) that this field-set is now prepared somewhere on the given server, so disposal can
+    // target a DISCARD there.
+    //
+    // Note the deliberate split of responsibilities, in case a future reader worries that ServerEndPoint (which
+    // outlives any one connection and spans reconnects/nodes) is too coarse to track connection-local state:
+    //   * Correctness - the "must I inject a PREPARE?" decision - is keyed on the actual PhysicalConnection
+    //     (PhysicalConnection._preparedFieldSets). That is the real thing tied to the real session; a reconnect gives a
+    //     fresh, empty set and re-prepares automatically. This list is NEVER consulted for that.
+    //   * This list is used ONLY for best-effort cleanup on Dispose, at node granularity. DISCARD is idempotent and
+    //     carries this field-set's globally-unique id, so it can only ever drop its own state or no-op ("no such
+    //     fieldset") - it can never disturb another field-set regardless of which connection it lands on. If the
+    //     connection rotated since PREPARE, the old session state is already gone and the DISCARD is a harmless no-op
+    //     on the new connection. Node granularity is also exactly right for cluster, where one field-set is prepared
+    //     independently on several nodes; deduping by server keeps this list bounded to the nodes touched (rather than
+    //     growing per reconnect) and naturally follows each node's current connection.
+    //
+    // Bookkeeping only - it is called from inside the bridge write lock (during PREPARE injection), so it must never
+    // itself issue I/O. If the token is already being disposed we simply skip: a field-set prepared by a SET racing
+    // against Dispose may be stranded, but it dies with the connection anyway (best-effort), and using a token
+    // concurrently with disposing it is a caller error.
     internal void RegisterServer(ServerEndPoint server, int db)
     {
         lock (_sync)
@@ -183,7 +209,7 @@ internal sealed class HashImportSetMessage : Message.CommandKeyBase
         writer.WriteHeader(RedisCommand.HIMPORT, 3 + values.Length);
         writer.WriteBulkString(RedisLiterals.SET);
         writer.Write(Key);
-        writer.WriteBulkString(_fieldSet.Name);
+        _fieldSet.WriteName(writer);
         for (int i = 0; i < values.Length; i++) writer.WriteBulkString(values[i]);
     }
 
@@ -204,7 +230,7 @@ internal sealed class HashImportPrepareMessage : Message
         var fields = _fieldSet.Fields.Span;
         writer.WriteHeader(RedisCommand.HIMPORT, 2 + fields.Length);
         writer.WriteBulkString(RedisLiterals.PREPARE);
-        writer.WriteBulkString(_fieldSet.Name);
+        _fieldSet.WriteName(writer);
         for (int i = 0; i < fields.Length; i++) writer.WriteBulkString(fields[i]);
     }
 
@@ -226,7 +252,7 @@ internal sealed class HashImportDiscardMessage : Message
     {
         writer.WriteHeader(RedisCommand.HIMPORT, 2);
         writer.WriteBulkString(RedisLiterals.DISCARD);
-        writer.WriteBulkString(_fieldSet.Name);
+        _fieldSet.WriteName(writer);
     }
 
     public override int ArgCount => 2;

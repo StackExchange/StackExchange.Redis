@@ -119,6 +119,23 @@ public class HashImportTests(ITestOutputHelper output, SharedConnectionFixture f
     }
 
     [Fact]
+    public async Task FieldsAreSnapshotAtCreate()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var fieldNames = new RedisValue[] { "name", "email", "age" };
+        await using var fieldSet = HashImport.Create(fieldNames);
+        fieldNames[0] = "MUTATED"; // mutate the caller's array after Create - must not affect the field-set
+
+        await db.HashImportAsync(key, fieldSet, Values("alice", "a@x", 30));
+        Assert.Equal("alice", await db.HashGetAsync(key, "name")); // still 'name', not 'MUTATED'
+        Assert.False(await db.HashExistsAsync(key, "MUTATED"));
+    }
+
+    [Fact]
     public void NullFieldName_RejectedAtCreate()
     {
         var ex = Assert.Throws<ArgumentException>(() => HashImport.Create("a", RedisValue.Null));

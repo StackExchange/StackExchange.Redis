@@ -24,7 +24,7 @@ public class HashImport(ITestOutputHelper log)
     public async Task Prepare_RoundTrips()
     {
         var token = StackExchange.Redis.HashImport.Create("name", "email", "age");
-        byte[] name = token.Name.ToArray();
+        byte[] name = BitConverter.GetBytes(token.Id);
         var msg = new HashImportPrepareMessage(0, CommandFlags.None, token);
 
         // HIMPORT PREPARE <field-set> name email age
@@ -37,7 +37,7 @@ public class HashImport(ITestOutputHelper log)
     public async Task Set_RoundTrips()
     {
         var token = StackExchange.Redis.HashImport.Create("f1", "f2");
-        byte[] name = token.Name.ToArray();
+        byte[] name = BitConverter.GetBytes(token.Id);
         ReadOnlyMemory<RedisValue> values = new RedisValue[] { "v1", "v2" };
         var msg = new HashImportSetMessage(0, CommandFlags.None, token, (RedisKey)"user:1", values);
 
@@ -51,7 +51,7 @@ public class HashImport(ITestOutputHelper log)
     public async Task Set_SingleValue_RoundTrips()
     {
         var token = StackExchange.Redis.HashImport.Create("only");
-        byte[] name = token.Name.ToArray();
+        byte[] name = BitConverter.GetBytes(token.Id);
         ReadOnlyMemory<RedisValue> values = new RedisValue[] { "v" };
         var msg = new HashImportSetMessage(0, CommandFlags.None, token, (RedisKey)"k", values);
 
@@ -64,7 +64,7 @@ public class HashImport(ITestOutputHelper log)
     public async Task Discard_RoundTrips()
     {
         var token = StackExchange.Redis.HashImport.Create("f");
-        byte[] name = token.Name.ToArray();
+        byte[] name = BitConverter.GetBytes(token.Id);
         var msg = new HashImportDiscardMessage(0, CommandFlags.None, token);
 
         // HIMPORT DISCARD <field-set>
