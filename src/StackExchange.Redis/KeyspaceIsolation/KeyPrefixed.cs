@@ -183,6 +183,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None) =>
             Inner.HashStringLengthAsync(ToInner(key), hashField, flags);
 
+        public Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None) =>
+            Inner.HashImportAsync(ToInner(key), fieldSet, values, flags);
+
         public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None) =>
             Inner.HashSetAsync(ToInner(key), hashFields, flags);
 

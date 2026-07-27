@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using RESPite;
 using RESPite.Internal;
 using RESPite.Messages;
 using StackExchange.Redis.Profiling;
@@ -171,6 +172,29 @@ namespace StackExchange.Redis
         public RedisCommand Command => command;
         public virtual string CommandAndKey => Command.ToString();
 
+        [AsciiHash(nameof(SubCommandMetadata))]
+        internal enum SubCommand
+        {
+            [AsciiHash("")]
+            Unknown = 0,
+            [AsciiHash("GETNAME")]
+            GetName,
+            [AsciiHash("ID")]
+            Id,
+            [AsciiHash("INFO")]
+            Info,
+            [AsciiHash("SETINFO")]
+            SetInfo,
+            [AsciiHash("SETNAME")]
+            SetName,
+        }
+
+        protected virtual bool TryGetSubCommand(out SubCommand subCommand)
+        {
+            subCommand = SubCommand.Unknown;
+            return false;
+        }
+
         /// <summary>
         /// Things with the potential to cause harm, or to reveal configuration information.
         /// </summary>
@@ -180,6 +204,21 @@ namespace StackExchange.Redis
             {
                 switch (Command)
                 {
+                    case RedisCommand.CLIENT when TryGetSubCommand(out var subCommand):
+                        switch (subCommand)
+                        {
+                            case SubCommand.GetName:
+                            case SubCommand.SetName:
+                            case SubCommand.Id:
+                            case SubCommand.Info:
+                            case SubCommand.SetInfo:
+                                return false;
+                        }
+                        return true;
+                    /* possible? reasonable?
+                    case RedisCommand.CONFIG when TryGetSubCommand(out var subCommand):
+                        // allow .Get?
+                    */
                     case RedisCommand.BGREWRITEAOF:
                     case RedisCommand.BGSAVE:
                     case RedisCommand.CLIENT:
@@ -691,7 +730,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                connection.OnDetailLog($"{ex.GetType().Name}: {ex.Message}");
+                connection?.OnDetailLog($"{ex.GetType().Name}: {ex.Message}");
                 ex.Data.Add("got", prefix.ToString());
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 box?.SetException(ex);
@@ -2017,5 +2056,40 @@ namespace StackExchange.Redis
         }
 
         public void SetNoFlush() => Flags |= NoFlushFlag;
+
+        internal static partial class SubCommandMetadata
+        {
+            [AsciiHash(CaseSensitive = false)]
+            internal static partial bool TryParse(ReadOnlySpan<byte> value, out SubCommand subCommand);
+
+            [AsciiHash(CaseSensitive = false)]
+            internal static partial bool TryParse(ReadOnlySpan<char> value, out SubCommand subCommand);
+
+            internal static bool TryGetSubCommand(in RedisValue value, out SubCommand subCommand)
+            {
+                switch (value.Type)
+                {
+                    case RedisValue.StorageType.ByteArray:
+                    case RedisValue.StorageType.MemoryManager:
+                    case RedisValue.StorageType.ShortBlob:
+                        // all three contiguous byte-blob kinds expose their bytes directly
+                        // (the discard here *must* be stack-local; that's the "Unsafe" in this API)
+                        return TryParse(value.UnsafeRawSpan(out _), out subCommand);
+                    case RedisValue.StorageType.String:
+                        // char-backed: parse the chars directly, no UTF8 round-trip
+                        return TryParse(value.RawString().AsSpan(), out subCommand);
+                    case RedisValue.StorageType.Sequence when value.GetByteCount() <= BufferBytes:
+                        // non-contiguous: normalize into a small stack buffer
+                        // (sub-commands are short, so anything longer cannot match)
+                        Span<byte> tmp = stackalloc byte[BufferBytes];
+                        var len = value.CopyTo(tmp);
+                        return TryParse(tmp.Slice(0, len), out subCommand);
+                    // numeric / null / unknown are never a sub-command (e.g. it is never `123`);
+                    // if that ever changes, revisit
+                }
+                subCommand = SubCommand.Unknown;
+                return false;
+            }
+        }
     }
 }

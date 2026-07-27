@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using RESPite.Messages;
 
@@ -980,6 +981,36 @@ namespace StackExchange.Redis
         {
             var msg = GetHashSetMessage(key, hashFields, flags);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public void HashImport(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => ExecuteSync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.DemandOK);
+
+        public Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => ExecuteAsync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.DemandOK);
+
+        private HashImportSetMessage GetHashImportMessage(in RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags)
+        {
+            if (fieldSet is null) throw new ArgumentNullException(nameof(fieldSet));
+            fieldSet.ThrowIfDisposed();
+            if (values.Length != fieldSet.FieldCount)
+            {
+                throw new ArgumentException(
+                    $"{values.Length} value(s) were supplied but the field-set defines {fieldSet.FieldCount} field(s); the counts must match.",
+                    nameof(values));
+            }
+            // HIMPORT needs its PREPARE and SET on the same physical connection; the multiplexer provides that via
+            // write-path injection (exactly like SELECT). That injection cannot be reused inside a MULTI: every queued
+            // command adds a slot to the positional EXEC result array, but the transaction only accounts for the ops it
+            // knows about - an injected PREPARE would desync every following result. (This is the same reason
+            // SELECT-injection is itself forbidden inside a transaction.) Supporting it would require enqueuing PREPARE
+            // as a tracked transaction op, which is deliberately out of scope. Batches are fine: an ordered pipeline
+            // with no EXEC aggregate, so PREPARE injects per connection as normal.
+            if (this is ITransaction)
+            {
+                throw new NotSupportedException("HashImport is not supported inside a transaction; the connection-local HIMPORT PREPARE cannot be injected into a MULTI/EXEC without desyncing the EXEC result array.");
+            }
+            return new HashImportSetMessage(Database, flags, fieldSet, key, values);
         }
 
         public Task<bool> HashSetIfNotExistsAsync(RedisKey key, RedisValue hashField, RedisValue value, CommandFlags flags)
@@ -5752,6 +5783,24 @@ namespace StackExchange.Redis
                 return slot;
             }
             public override int ArgCount => _args.Count;
+
+            protected override bool TryGetSubCommand(out SubCommand subCommand)
+            {
+                // the sub-command (if any) is the first argument after the command itself,
+                // e.g. CLIENT [GETNAME]; ad-hoc Execute args are boxed objects, so normalize
+                // the first one to a RedisValue before probing it against the known sub-commands
+                foreach (object arg in _args)
+                {
+                    var value = RedisValue.TryParse(arg, out var valid);
+                    if (valid)
+                    {
+                        return SubCommandMetadata.TryGetSubCommand(value, out subCommand);
+                    }
+                    break; // only the first argument is a sub-command candidate
+                }
+                subCommand = SubCommand.Unknown;
+                return false;
+            }
         }
 
         private sealed class ScriptEvalMessage : Message, IMultiMessage
