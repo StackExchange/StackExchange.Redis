@@ -8,12 +8,17 @@
         // note: {0} is substituted with the DiagnosticId by the analyzer, e.g. .../exp/SER002
         public const string UrlFormat = "https://stackexchange.github.io/StackExchange.Redis/exp/{0}";
 
+        // Retired experiments: these server features are now stable and no longer gated.
+        // The DiagnosticIds remain reserved (do NOT reuse them) so old callers' suppressions
+        // and the /docs/exp pages stay meaningful:
+        //   SER002 = Server_8_4  (Redis 8.4 features)
+        //   SER003 = Server_8_6  (Redis 8.6 features)
+        //   SER006 = Server_8_8  (Redis 8.8 features)
+
         // ReSharper disable InconsistentNaming
-        public const string Server_8_4 = "SER002";
-        public const string Server_8_6 = "SER003";
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
-        public const string Server_8_8 = "SER006";
+
         public const string Server_8_10 = "SER008";
 
         // ReSharper restore InconsistentNaming

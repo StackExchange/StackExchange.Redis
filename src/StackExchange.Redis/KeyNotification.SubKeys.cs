@@ -16,7 +16,6 @@ public readonly ref partial struct KeyNotification
     /// Gets all sub-keys in this notification. For notifications without sub-keys, returns an empty enumerable.
     /// </summary>
     /// <remarks>This method is available for SubKeySpace, SubKeyEvent, SubKeySpaceItem, and SubKeySpaceEvent notification types.</remarks>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     public SubKeyEnumerable GetSubKeys()
     {
         return new SubKeyEnumerable(this);
@@ -25,7 +24,6 @@ public readonly ref partial struct KeyNotification
     /// <summary>
     /// Provides enumeration over sub-keys in a keyspace notification.
     /// </summary>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     public readonly ref struct SubKeyEnumerable
     {
         private static readonly RedisValue[] Empty = [];
@@ -185,7 +183,6 @@ public readonly ref partial struct KeyNotification
     /// <summary>
     /// Enumerator for sub-keys in a keyspace notification.
     /// </summary>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     public ref struct SubKeyEnumerator
     {
         private readonly KeyNotificationKind _kind;

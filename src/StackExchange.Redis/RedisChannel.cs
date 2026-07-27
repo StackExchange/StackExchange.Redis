@@ -339,7 +339,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a subkey (hash) notification channel for a single key in a single database.
         /// </summary>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeySpaceSingleKey(in RedisKey key, int database)
             // note we can allow patterns, because we aren't using PSUBSCRIBE
             => BuildKeySpaceChannel(key, database, RedisChannelOptions.KeyRouted, default, false, true, subkey: true);
@@ -347,7 +346,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a subkey (hash) notification channel for a pattern, optionally in a specified database.
         /// </summary>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeySpacePattern(in RedisKey pattern, int? database = null)
             => BuildKeySpaceChannel(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, appendStar: pattern.IsNull, allowKeyPatterns: true, subkey: true);
 
@@ -355,7 +353,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a subkey (hash) notification channel using a raw prefix, optionally in a specified database.
         /// </summary>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeySpacePrefix(in RedisKey prefix, int? database = null)
         {
             if (prefix.IsEmpty) Throw();
@@ -367,7 +364,6 @@ namespace StackExchange.Redis
         /// Create a key-notification channel using a raw prefix, optionally in a specified database.
         /// </summary>
         [OverloadResolutionPriority(1)]
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeySpacePrefix(ReadOnlySpan<byte> prefix, int? database = null)
         {
             if (prefix.IsEmpty) Throw();
@@ -379,7 +375,6 @@ namespace StackExchange.Redis
         /// Create a subkey (hash) event-notification channel for a given event type, optionally in a specified database.
         /// </summary>
 #pragma warning disable RS0027
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeyEvent(KeyNotificationType type, int? database = null)
 #pragma warning restore RS0027
             => CreateKeyEvent(KeyNotificationTypeMetadata.GetRawBytes(type), database, subkey: true);
@@ -388,7 +383,6 @@ namespace StackExchange.Redis
         /// Create a subkey (hash) event-notification channel for a given event type, optionally in a specified database.
         /// </summary>
         /// <remarks>This API is intended for use with custom/unknown event types; for well-known types, use <see cref="KeyEvent(KeyNotificationType, int?)"/>.</remarks>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeyEvent(ReadOnlySpan<byte> type, int? database)
             => CreateKeyEvent(type, database, subkey: true);
 
@@ -396,7 +390,6 @@ namespace StackExchange.Redis
         /// Create a subkey (hash) notification channel for a specific key and subkey in a single database.
         /// </summary>
         /// <remarks>Format: __subkeyspaceitem@{db}__:{key}\n{subkey}.</remarks>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeySpaceItem(in RedisKey key, in RedisKey subkey, int database)
         {
             if (key.IsEmpty) throw new ArgumentNullException(nameof(key));
@@ -434,7 +427,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks>Format: __subkeyspaceevent@{db}__:{event}|{key}.</remarks>
 #pragma warning disable RS0027 // competing overloads - disambiguated via parameter types
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeySpaceEvent(KeyNotificationType type, in RedisKey key, int? database = null)
 #pragma warning restore RS0027
             => SubKeySpaceEvent(KeyNotificationTypeMetadata.GetRawBytes(type), key, database);
@@ -444,7 +436,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks>This API is intended for use with custom/unknown event types; for well-known types, use <see cref="SubKeySpaceEvent(KeyNotificationType, in RedisKey, int?)"/>.</remarks>
         /// <remarks>Format: __subkeyspaceevent@{db}__:{event}|{key}.</remarks>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         public static RedisChannel SubKeySpaceEvent(ReadOnlySpan<byte> type, in RedisKey key, int? database)
         {
             if (type.IsEmpty) throw new ArgumentNullException(nameof(type));

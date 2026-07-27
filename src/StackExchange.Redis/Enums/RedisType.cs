@@ -87,7 +87,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// Redis Arrays are sparse arrays of arbitrary values with a notional write head.
         /// </summary>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         [AsciiHash("array")]
         Array,
     }
