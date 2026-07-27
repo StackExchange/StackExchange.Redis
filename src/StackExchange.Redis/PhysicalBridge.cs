@@ -730,13 +730,39 @@ namespace StackExchange.Redis
 
             if (isDisposed) throw new ObjectDisposedException(Name);
 
-            if (!IsConnected)
+            if (!IsConnected || NeedsReconnect)
             {
+                // During reconnection (e.g. MOVED-to-same-endpoint), queue messages to the backlog
+                // so they can be sent once the connection is re-established.
+                // This matches the behavior of TryWriteAsync/TryWriteSync for individual commands.
+                if (Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    foreach (var message in messages)
+                    {
+                        message.SetEnqueued(null);
+                        BacklogEnqueue(message);
+                    }
+                    StartBacklogProcessor();
+                    return true;
+                }
                 return false;
             }
 
             var physical = this.physical;
-            if (physical == null) return false;
+            if (physical == null)
+            {
+                if (Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    foreach (var message in messages)
+                    {
+                        message.SetEnqueued(null);
+                        BacklogEnqueue(message);
+                    }
+                    StartBacklogProcessor();
+                    return true;
+                }
+                return false;
+            }
             foreach (var message in messages)
             {
                 // deliberately not taking a single lock here; we don't care if
