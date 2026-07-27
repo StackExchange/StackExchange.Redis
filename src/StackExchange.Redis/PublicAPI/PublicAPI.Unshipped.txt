@@ -1,14 +1,9 @@
 #nullable enable
-[SER008]StackExchange.Redis.HashImportEntry
-[SER008]StackExchange.Redis.HashImportEntry.HashImportEntry() -> void
-[SER008]StackExchange.Redis.HashImportEntry.HashImportEntry(StackExchange.Redis.RedisKey key, System.ReadOnlyMemory<StackExchange.Redis.RedisValue> values) -> void
-[SER008]StackExchange.Redis.HashImportEntry.Key.get -> StackExchange.Redis.RedisKey
-[SER008]StackExchange.Redis.HashImportEntry.Values.get -> System.ReadOnlyMemory<StackExchange.Redis.RedisValue>
-[SER008]StackExchange.Redis.HashImportFailure
-[SER008]StackExchange.Redis.HashImportFailure.HashImportFailure() -> void
-[SER008]StackExchange.Redis.HashImportFailure.Index.get -> int
-[SER008]StackExchange.Redis.HashImportFailure.Key.get -> StackExchange.Redis.RedisKey
-[SER008]StackExchange.Redis.HashImportFailure.Message.get -> string!
-[SER008]StackExchange.Redis.IDatabase.HashImport(System.ReadOnlyMemory<StackExchange.Redis.RedisValue> fields, System.ReadOnlyMemory<StackExchange.Redis.HashImportEntry> entries, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.HashImportFailure[]!
-[SER008]StackExchange.Redis.IDatabaseAsync.HashImportAsync(System.ReadOnlyMemory<StackExchange.Redis.RedisValue> fields, System.ReadOnlyMemory<StackExchange.Redis.HashImportEntry> entries, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.HashImportFailure[]!>!
+[SER008]StackExchange.Redis.HashImport
+[SER008]StackExchange.Redis.HashImport.Dispose() -> void
+[SER008]StackExchange.Redis.HashImport.DisposeAsync() -> System.Threading.Tasks.ValueTask
+[SER008]StackExchange.Redis.IDatabase.HashImport(StackExchange.Redis.RedisKey key, StackExchange.Redis.HashImport! fieldSet, System.ReadOnlyMemory<StackExchange.Redis.RedisValue> values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+[SER008]StackExchange.Redis.IDatabaseAsync.HashImportAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.HashImport! fieldSet, System.ReadOnlyMemory<StackExchange.Redis.RedisValue> values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+[SER008]static StackExchange.Redis.HashImport.Create(params StackExchange.Redis.RedisValue[]! fields) -> StackExchange.Redis.HashImport!
+[SER008]static StackExchange.Redis.HashImport.Create(System.ReadOnlyMemory<StackExchange.Redis.RedisValue> fields) -> StackExchange.Redis.HashImport!
 StackExchange.Redis.RedisFeatures.HashImport.get -> bool

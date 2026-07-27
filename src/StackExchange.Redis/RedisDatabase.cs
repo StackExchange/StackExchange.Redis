@@ -983,95 +983,30 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        public HashImportFailure[] HashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None)
-        {
-            ValidateHashImport(fields, entries);
-            if (entries.IsEmpty) return Array.Empty<HashImportFailure>();
-            AssertHashImportContext();
-            // note: inside a transaction this (correctly) throws via ExecuteSync, as all sync ops do
-            return ExecuteSync(new HashImportMessage(Database, flags, fields, entries), HashImportProcessor.Default, defaultValue: Array.Empty<HashImportFailure>());
-        }
+        public void HashImport(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => ExecuteSync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.DemandOK);
 
-        public Task<HashImportFailure[]> HashImportAsync(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags = CommandFlags.None)
-        {
-            ValidateHashImport(fields, entries);
-            if (entries.IsEmpty) return CompletedTask<HashImportFailure[]>.FromDefault(Array.Empty<HashImportFailure>(), asyncState);
-            AssertHashImportContext();
-            // a MULTI/EXEC transaction cannot host a nested IMultiMessage, so we unroll into individual queued
-            // commands instead; a normal connection uses the IMultiMessage form.
-            if (this is ITransaction) return QueueHashImportInTransaction(fields, entries, flags);
-            return ExecuteAsync(new HashImportMessage(Database, flags, fields, entries), HashImportProcessor.Default, defaultValue: Array.Empty<HashImportFailure>());
-        }
+        public Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => ExecuteAsync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.DemandOK);
 
-        private void AssertHashImportContext()
+        private HashImportSetMessage GetHashImportMessage(in RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags)
         {
-            // transactions are supported (see QueueHashImportInTransaction); batches are not - a batch is a
-            // fire-and-forget pipeline with no ordering guarantees suitable for the connection-sticky HIMPORT.
-            if (this is IBatch && this is not ITransaction)
+            if (fieldSet is null) throw new ArgumentNullException(nameof(fieldSet));
+            fieldSet.ThrowIfDisposed();
+            if (values.Length != fieldSet.FieldCount)
             {
-                throw new NotSupportedException("HashImport is not supported inside a batch; the underlying HIMPORT is connection-sticky and unrolls into multiple ordered commands.");
+                throw new ArgumentException(
+                    $"{values.Length} value(s) were supplied but the field-set defines {fieldSet.FieldCount} field(s); the counts must match.",
+                    nameof(values));
             }
-        }
-
-        // Inside a MULTI/EXEC we cannot nest the HashImportMessage (an IMultiMessage); instead we enqueue its
-        // constituent commands - PREPARE, one SET per entry, then DISCARD - as individual transaction operations.
-        // They execute in order within the single EXEC, on the one transaction connection, so the session-local
-        // fieldset created by PREPARE is valid for every SET and is cleaned up by DISCARD. Per-entry SET failures are
-        // gathered into the result (matching the IMultiMessage path); setup failures (PREPARE/DISCARD) are thrown.
-        private Task<HashImportFailure[]> QueueHashImportInTransaction(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries, CommandFlags flags)
-        {
-            var fieldSet = Guid.NewGuid();
-            var prepareTask = ExecuteAsync(new HashImportPrepareMessage(Database, flags, fieldSet, fields), ResultProcessor.DemandOK);
-            var span = entries.Span;
-            var setTasks = new Task<bool>[span.Length];
-            var keys = new RedisKey[span.Length];
-            for (int i = 0; i < span.Length; i++)
+            // HIMPORT relies on PREPARE and SET landing on the same physical connection in order; MULTI/EXEC would
+            // stage the injected PREPARE inside the transaction (committed only at EXEC, or lost on DISCARD), which
+            // breaks that guarantee. Batches are fine - they are an ordered pipeline and PREPARE injects per connection.
+            if (this is ITransaction)
             {
-                keys[i] = span[i].Key;
-                setTasks[i] = ExecuteAsync(new HashImportSetMessage(Database, flags, fieldSet, span[i].Key, i, span[i].Values), ResultProcessor.DemandOK);
+                throw new NotSupportedException("HashImport is not supported inside a transaction; the underlying HIMPORT PREPARE cannot be staged inside MULTI/EXEC.");
             }
-            var discardTask = ExecuteAsync(new HashImportDiscardMessage(Database, flags, fieldSet), ResultProcessor.Int64);
-            return AggregateHashImportAsync(prepareTask, setTasks, keys, discardTask);
-        }
-
-        private static async Task<HashImportFailure[]> AggregateHashImportAsync(Task<bool> prepareTask, Task<bool>[] setTasks, RedisKey[] keys, Task<long> discardTask)
-        {
-            // observe every task (even on setup failure) to avoid unobserved-exception noise
-            Exception? setupError = null;
-            try { await prepareTask.ForAwait(); }
-            catch (RedisServerException ex) { setupError = ex; }
-
-            List<HashImportFailure>? failures = null;
-            for (int i = 0; i < setTasks.Length; i++)
-            {
-                try { await setTasks[i].ForAwait(); }
-                catch (RedisServerException ex) when (setupError is null) { (failures ??= new()).Add(new HashImportFailure(i, keys[i], ex.Message)); }
-                catch (RedisServerException) { /* PREPARE already failed; the cascade of "no such fieldset" errors is noise */ }
-            }
-
-            try { await discardTask.ForAwait(); }
-            catch (RedisServerException ex) { setupError ??= ex; }
-
-            if (setupError is not null) throw setupError;
-            return failures?.ToArray() ?? Array.Empty<HashImportFailure>();
-        }
-
-        private static void ValidateHashImport(ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries)
-        {
-            if (entries.IsEmpty) return; // no-op import; nothing to validate
-            if (fields.IsEmpty) throw new ArgumentException("At least one field name must be supplied.", nameof(fields));
-            int fieldCount = fields.Length;
-            var span = entries.Span;
-            for (int i = 0; i < span.Length; i++)
-            {
-                int valueCount = span[i].Values.Length;
-                if (valueCount != fieldCount)
-                {
-                    throw new ArgumentException(
-                        $"Entry {i} supplies {valueCount} value(s) but {fieldCount} field name(s) were provided; the counts must match.",
-                        nameof(entries));
-                }
-            }
+            return new HashImportSetMessage(Database, flags, fieldSet, key, values);
         }
 
         public Task<bool> HashSetIfNotExistsAsync(RedisKey key, RedisValue hashField, RedisValue value, CommandFlags flags)
@@ -4263,215 +4198,6 @@ namespace StackExchange.Redis
                         arr[offset++] = hashFields[i].value;
                     }
                     return Message.Create(Database, flags, RedisCommand.HMSET, key, arr);
-            }
-        }
-
-        // HIMPORT is connection-sticky: a session-local fieldset (identified by a per-import GUID) is PREPAREd, one
-        // SET is issued per entry against that fieldset, and the fieldset is finally DISCARDed - all on one connection.
-        // This is modelled as an IMultiMessage: the sub-messages capture per-entry SET errors (into the failures list)
-        // and setup errors (PREPARE) into the parent; the terminal DISCARD (this) carries the user-facing result -
-        // returning the collected failures, or throwing when setup failed.
-        internal sealed class HashImportMessage : Message, IMultiMessage
-        {
-            private readonly ReadOnlyMemory<RedisValue> _fields;
-            private readonly ReadOnlyMemory<HashImportEntry> _entries;
-            private readonly Guid _fieldSet;
-            private string? _setupError;
-            private List<HashImportFailure>? _failures;
-
-            public HashImportMessage(int db, CommandFlags flags, ReadOnlyMemory<RedisValue> fields, ReadOnlyMemory<HashImportEntry> entries)
-                : base(db, flags, RedisCommand.HIMPORT)
-            {
-                _fields = fields;
-                _entries = entries;
-                _fieldSet = Guid.NewGuid(); // unique per import; carried as a Guid and written as 16 raw bytes, no allocation
-                SetNoRedirect(); // every sub-command must stay on this one connection
-            }
-
-            // note: replies are processed in order on the single read loop, so no synchronization is needed here
-            internal void RecordSetFailure(int index, in RedisKey key, string? error) => (_failures ??= new()).Add(new HashImportFailure(index, key, error ?? string.Empty));
-            internal void RecordSetupError(string? error) => _setupError ??= error;
-            internal string? SetupError => _setupError;
-            internal HashImportFailure[] BuildResult() => _failures?.ToArray() ?? Array.Empty<HashImportFailure>();
-
-            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-            {
-                int slot = ServerSelectionStrategy.NoSlot;
-                var span = _entries.Span;
-                for (int i = 0; i < span.Length; i++)
-                {
-                    slot = serverSelectionStrategy.CombineSlot(slot, span[i].Key);
-                }
-                return slot;
-            }
-
-            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
-            {
-                var step = new HashImportStepProcessor(this);
-
-                // HIMPORT PREPARE <fieldset> <field...>
-                var prepare = new HashImportPrepareMessage(Db, Flags, _fieldSet, _fields);
-                prepare.SetNoRedirect();
-                prepare.SetSource(step, null);
-                yield return prepare;
-
-                // HIMPORT SET <key> <fieldset> <value...>
-                for (int i = 0; i < _entries.Length; i++)
-                {
-                    var entry = _entries.Span[i];
-                    var set = new HashImportSetMessage(Db, Flags, _fieldSet, entry.Key, i, entry.Values);
-                    set.SetNoRedirect();
-                    set.SetSource(step, null);
-                    yield return set;
-                }
-
-                // HIMPORT DISCARD <fieldset> (this) - cleans up the session fieldset and carries the final result
-                yield return this;
-            }
-
-            protected override void WriteImpl(in MessageWriter writer)
-            {
-                WriteDiscard(writer, _fieldSet);
-            }
-
-            public override int ArgCount => 2;
-        }
-
-        // standalone HIMPORT DISCARD, used when the import is unrolled into a MULTI/EXEC transaction (where the
-        // IMultiMessage root cannot be used); see QueueHashImportInTransaction.
-        internal sealed class HashImportDiscardMessage : Message
-        {
-            private readonly Guid _fieldSet;
-
-            public HashImportDiscardMessage(int db, CommandFlags flags, Guid fieldSet)
-                : base(db, flags, RedisCommand.HIMPORT)
-            {
-                _fieldSet = fieldSet;
-            }
-
-            protected override void WriteImpl(in MessageWriter writer) => WriteDiscard(writer, _fieldSet);
-
-            public override int ArgCount => 2;
-        }
-
-        private static void WriteDiscard(in MessageWriter writer, Guid fieldSet)
-        {
-            writer.WriteHeader(RedisCommand.HIMPORT, 2);
-            writer.WriteBulkString(RedisLiterals.DISCARD);
-            WriteFieldSet(writer, fieldSet);
-        }
-
-        // writes a fieldset GUID as a 16-byte bulk string with no allocation, uniformly across all target frameworks
-        // (the token is opaque - the server treats it as an arbitrary byte string - so the exact byte layout is
-        // irrelevant, only that PREPARE / SET / DISCARD within one import serialize the same GUID identically).
-        private static void WriteFieldSet(in MessageWriter writer, Guid fieldSet)
-        {
-            Span<byte> buffer = stackalloc byte[16];
-            Unsafe.WriteUnaligned(ref buffer[0], fieldSet);
-            writer.WriteBulkString(buffer);
-        }
-
-        internal sealed class HashImportPrepareMessage : Message
-        {
-            private readonly Guid _fieldSet;
-            private readonly ReadOnlyMemory<RedisValue> _fields;
-
-            public HashImportPrepareMessage(int db, CommandFlags flags, Guid fieldSet, ReadOnlyMemory<RedisValue> fields)
-                : base(db, flags, RedisCommand.HIMPORT)
-            {
-                _fieldSet = fieldSet;
-                _fields = fields;
-            }
-
-            protected override void WriteImpl(in MessageWriter writer)
-            {
-                var fields = _fields.Span;
-                writer.WriteHeader(RedisCommand.HIMPORT, 2 + fields.Length);
-                writer.WriteBulkString(RedisLiterals.PREPARE);
-                WriteFieldSet(writer, _fieldSet);
-                for (int i = 0; i < fields.Length; i++) writer.WriteBulkString(fields[i]);
-            }
-
-            public override int ArgCount => 2 + _fields.Length;
-        }
-
-        internal sealed class HashImportSetMessage : Message.CommandKeyBase
-        {
-            private readonly Guid _fieldSet;
-            private readonly ReadOnlyMemory<RedisValue> _values;
-
-            public HashImportSetMessage(int db, CommandFlags flags, Guid fieldSet, in RedisKey key, int index, ReadOnlyMemory<RedisValue> values)
-                : base(db, flags, RedisCommand.HIMPORT, key)
-            {
-                _fieldSet = fieldSet;
-                Index = index;
-                _values = values;
-            }
-
-            // carried so a failing SET can be reported back with its originating entry index and key
-            internal int Index { get; }
-            internal RedisKey EntryKey => Key;
-
-            protected override void WriteImpl(in MessageWriter writer)
-            {
-                var values = _values.Span;
-                writer.WriteHeader(RedisCommand.HIMPORT, 3 + values.Length);
-                writer.WriteBulkString(RedisLiterals.SET);
-                writer.Write(Key);
-                WriteFieldSet(writer, _fieldSet);
-                for (int i = 0; i < values.Length; i++) writer.WriteBulkString(values[i]);
-            }
-
-            public override int ArgCount => 3 + _values.Length;
-        }
-
-        // processor for the PREPARE / SET sub-messages: success (+OK) is discarded; a server error on a SET is recorded
-        // as a per-entry failure (with its index + key), while a PREPARE error is recorded as a setup error - both on
-        // the parent, for the terminal DISCARD to surface.
-        internal sealed class HashImportStepProcessor : ResultProcessor<bool>
-        {
-            private readonly HashImportMessage _parent;
-            public HashImportStepProcessor(HashImportMessage parent) => _parent = parent;
-
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
-            {
-                reader.MovePastBof();
-                if (reader.IsError)
-                {
-                    var error = reader.ReadString();
-                    if (message is HashImportSetMessage set)
-                    {
-                        _parent.RecordSetFailure(set.Index, set.EntryKey, error);
-                    }
-                    else
-                    {
-                        _parent.RecordSetupError(error);
-                    }
-                }
-                message.SetResponseReceived();
-                return true; // always consumed; never fault the connection over a per-step error
-            }
-
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader) => true;
-        }
-
-        // processor for the terminal HIMPORT DISCARD: the integer reply is irrelevant; if a setup step (PREPARE) failed
-        // the whole operation throws, otherwise the collected per-entry failures are returned as the result.
-        internal sealed class HashImportProcessor : ResultProcessor<HashImportFailure[]>
-        {
-            public static readonly HashImportProcessor Default = new();
-            private HashImportProcessor() { }
-
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
-            {
-                if (message is not HashImportMessage himport) return false;
-                if (himport.SetupError is { } error)
-                {
-                    SetException(message, new RedisServerException(error));
-                    return true;
-                }
-                SetResult(message, himport.BuildResult());
-                return true;
             }
         }
 
