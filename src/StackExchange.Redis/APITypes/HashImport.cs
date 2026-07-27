@@ -41,9 +41,16 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
 
     private readonly object _sync = new();
     // servers this field-set has been prepared against, weakly held so an idle multiplexer can still be collected;
-    // used only to target DISCARD on disposal. Guarded by _sync.
-    private List<(WeakReference<ServerEndPoint> Server, int Db)>? _servers;
+    // used only to target DISCARD on disposal. Guarded by _sync. (A named struct rather than a ValueTuple: the shipped
+    // assembly must not reference System.ValueTuple - it breaks .NET Framework; see SanityChecks.ValueTupleNotReferenced.)
+    private List<ServerRef>? _servers;
     private volatile bool _disposed;
+
+    private readonly struct ServerRef(WeakReference<ServerEndPoint> server, int db)
+    {
+        public WeakReference<ServerEndPoint> Server { get; } = server;
+        public int Db { get; } = db;
+    }
 
     private HashImport(ReadOnlyMemory<RedisValue> fields)
     {
@@ -134,11 +141,11 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
             {
                 if (_servers[i].Server.TryGetTarget(out var existing) && ReferenceEquals(existing, server)) return;
             }
-            _servers.Add((new WeakReference<ServerEndPoint>(server), db));
+            _servers.Add(new ServerRef(new WeakReference<ServerEndPoint>(server), db));
         }
     }
 
-    private List<(WeakReference<ServerEndPoint> Server, int Db)>? TakeServers()
+    private List<ServerRef>? TakeServers()
     {
         lock (_sync)
         {
@@ -157,9 +164,9 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     {
         var servers = TakeServers();
         if (servers is null) return;
-        foreach (var (weak, db) in servers)
+        foreach (var entry in servers)
         {
-            if (weak.TryGetTarget(out var server)) _ = SafeDiscardAsync(server, db);
+            if (entry.Server.TryGetTarget(out var server)) _ = SafeDiscardAsync(server, entry.Db);
         }
     }
 
@@ -168,9 +175,9 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     {
         var servers = TakeServers();
         if (servers is null) return;
-        foreach (var (weak, db) in servers)
+        foreach (var entry in servers)
         {
-            if (weak.TryGetTarget(out var server)) await SafeDiscardAsync(server, db).ForAwait();
+            if (entry.Server.TryGetTarget(out var server)) await SafeDiscardAsync(server, entry.Db).ForAwait();
         }
     }
 
