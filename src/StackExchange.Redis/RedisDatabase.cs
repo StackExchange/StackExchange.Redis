@@ -999,12 +999,16 @@ namespace StackExchange.Redis
                     $"{values.Length} value(s) were supplied but the field-set defines {fieldSet.FieldCount} field(s); the counts must match.",
                     nameof(values));
             }
-            // HIMPORT relies on PREPARE and SET landing on the same physical connection in order; MULTI/EXEC would
-            // stage the injected PREPARE inside the transaction (committed only at EXEC, or lost on DISCARD), which
-            // breaks that guarantee. Batches are fine - they are an ordered pipeline and PREPARE injects per connection.
+            // HIMPORT needs its PREPARE and SET on the same physical connection; the multiplexer provides that via
+            // write-path injection (exactly like SELECT). That injection cannot be reused inside a MULTI: every queued
+            // command adds a slot to the positional EXEC result array, but the transaction only accounts for the ops it
+            // knows about - an injected PREPARE would desync every following result. (This is the same reason
+            // SELECT-injection is itself forbidden inside a transaction.) Supporting it would require enqueuing PREPARE
+            // as a tracked transaction op, which is deliberately out of scope. Batches are fine: an ordered pipeline
+            // with no EXEC aggregate, so PREPARE injects per connection as normal.
             if (this is ITransaction)
             {
-                throw new NotSupportedException("HashImport is not supported inside a transaction; the underlying HIMPORT PREPARE cannot be staged inside MULTI/EXEC.");
+                throw new NotSupportedException("HashImport is not supported inside a transaction; the connection-local HIMPORT PREPARE cannot be injected into a MULTI/EXEC without desyncing the EXEC result array.");
             }
             return new HashImportSetMessage(Database, flags, fieldSet, key, values);
         }
