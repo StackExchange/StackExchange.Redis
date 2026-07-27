@@ -98,6 +98,7 @@ internal enum RedisCommand
     HGETEX,
     HGETDEL,
     HGETALL,
+    HIMPORT,
     HINCRBY,
     HINCRBYFLOAT,
     HKEYS,
@@ -363,6 +364,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.HEXPIREAT:
             case RedisCommand.HGETDEL:
             case RedisCommand.HGETEX:
+            case RedisCommand.HIMPORT:
             case RedisCommand.HINCRBY:
             case RedisCommand.HINCRBYFLOAT:
             case RedisCommand.HMSET:

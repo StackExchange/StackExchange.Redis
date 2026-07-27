@@ -1,1 +1,9 @@
 #nullable enable
+[SER008]StackExchange.Redis.HashImport
+[SER008]StackExchange.Redis.HashImport.Dispose() -> void
+[SER008]StackExchange.Redis.HashImport.DisposeAsync() -> System.Threading.Tasks.ValueTask
+[SER008]StackExchange.Redis.IDatabase.HashImport(StackExchange.Redis.RedisKey key, StackExchange.Redis.HashImport! fieldSet, System.ReadOnlyMemory<StackExchange.Redis.RedisValue> values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+[SER008]StackExchange.Redis.IDatabaseAsync.HashImportAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.HashImport! fieldSet, System.ReadOnlyMemory<StackExchange.Redis.RedisValue> values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+[SER008]static StackExchange.Redis.HashImport.Create(params StackExchange.Redis.RedisValue[]! fields) -> StackExchange.Redis.HashImport!
+[SER008]static StackExchange.Redis.HashImport.Create(System.ReadOnlyMemory<StackExchange.Redis.RedisValue> fields) -> StackExchange.Redis.HashImport!
+StackExchange.Redis.RedisFeatures.HashImport.get -> bool

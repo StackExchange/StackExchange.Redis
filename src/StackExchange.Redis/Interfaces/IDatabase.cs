@@ -789,6 +789,27 @@ namespace StackExchange.Redis
         IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Creates a single hash from values supplied positionally against a reusable <see cref="HashImport"/> field-set,
+        /// using the server-side session field-set mechanism (<c>HIMPORT SET</c>). The <c>HIMPORT PREPARE</c> for
+        /// <paramref name="fieldSet"/> is injected automatically the first time it is seen on a connection.
+        /// </summary>
+        /// <param name="key">The key of the hash to create; any existing hash at this key is replaced.</param>
+        /// <param name="fieldSet">The field-set describing the ordered field names shared by imported hashes.</param>
+        /// <param name="values">The field values for this hash, matched positionally against the field-set (same count).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>
+        /// <para>
+        /// Each call is applied on its own and may be freely pipelined with unrelated work, so imports are effectively
+        /// unbounded. A server error (for example, a key already holding a non-hash value) is thrown as usual unless the
+        /// call is fire-and-forget. Cluster-aware: each key routes to its slot, re-preparing per node as needed.
+        /// </para>
+        /// <para>Not supported inside a transaction (the connection-local <c>PREPARE</c> cannot be staged in <c>MULTI</c>/<c>EXEC</c>).</para>
+        /// <para><seealso href="https://redis.io/commands/himport"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
+        void HashImport(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Sets the specified fields to their respective values in the hash stored at key.
         /// This command overwrites any specified fields that already exist in the hash, leaving other unspecified fields untouched.
         /// If key does not exist, a new key holding a hash is created.
