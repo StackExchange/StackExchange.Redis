@@ -127,7 +127,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task SetCombineLength_Union()
     {
-        await using var conn = Create(require: RedisFeatures.v8_10_0_rc2);
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
 
         var db = conn.GetDatabase();
 
@@ -158,7 +158,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task SetCombineLength_Difference()
     {
-        await using var conn = Create(require: RedisFeatures.v8_10_0_rc2);
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
 
         var db = conn.GetDatabase();
 
@@ -186,7 +186,7 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     [Fact]
     public async Task SetCombineLength_Intersect()
     {
-        await using var conn = Create(require: RedisFeatures.v8_10_0_rc2);
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
 
         var db = conn.GetDatabase();
 

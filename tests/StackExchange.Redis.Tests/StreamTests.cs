@@ -1283,7 +1283,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamReadMultipleMaxCount()
     {
-        await using var conn = Create(require: RedisFeatures.v8_10_0_rc2);
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
 
         var db = conn.GetDatabase();
         var stream1 = Me() + "a";
@@ -1317,7 +1317,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     [Fact]
     public async Task StreamReadGroupMultipleMaxCount()
     {
-        await using var conn = Create(require: RedisFeatures.v8_10_0_rc2);
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
 
         var db = conn.GetDatabase();
         const string groupName = "test_group";

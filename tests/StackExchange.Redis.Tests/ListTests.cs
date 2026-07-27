@@ -330,7 +330,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task ListMoveMultiple_UpTo()
     {
-        await using var conn = Create(require: RedisFeatures.v8_10_0_rc2);
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
 
         var db = conn.GetDatabase();
         RedisKey src = Me();
@@ -360,7 +360,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task ListMoveMultiple_Ordering()
     {
-        await using var conn = Create(require: RedisFeatures.v8_10_0_rc2);
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
 
         var db = conn.GetDatabase();
         RedisKey src = Me();
@@ -382,7 +382,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     [Fact]
     public async Task ListMoveMultiple_Exactly()
     {
-        await using var conn = Create(require: RedisFeatures.v8_10_0_rc2);
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
 
         var db = conn.GetDatabase();
         RedisKey src = Me();
