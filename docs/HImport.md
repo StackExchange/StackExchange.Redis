@@ -46,6 +46,33 @@ to their respective values. Disposing the field-set (`await using` / `Dispose`) 
 release the server-side state; it is optional (the state also dies with the connection) but good hygiene for long-lived
 connections.
 
+### Reusing a values buffer
+
+To avoid allocating a fresh array per row, you may reuse a single `RedisValue[]` (or a slice of a larger pooled buffer),
+refilling it for each hash. If you do, you **must await each import before refilling the buffer for the next
+row**<sup>&Dagger;</sup> — the library reads the values when the command is actually written to the socket, which (on the
+async path) can be *after* `HashImportAsync` returns, so awaiting the returned task is what guarantees the library has
+finished with your data and the buffer is safe to overwrite:
+
+``` c#
+await using var fields = HashImport.Create("name", "email", "age");
+var row = new RedisValue[3]; // reused for every hash
+
+foreach (var record in records)
+{
+    row[0] = record.Name;
+    row[1] = record.Email;
+    row[2] = record.Age;
+    await db.HashImportAsync(record.Key, fields, row); // MUST await before the next refill
+}
+```
+
+Do **not** fire off many `HashImportAsync` calls sharing one buffer without awaiting between them (nor pass the buffer
+fire-and-forget) — overwriting it while a prior write is still pending corrupts the data on the wire.
+
+<sup>&Dagger;</sup>: we hope to lift this restriction in a future release, so that a shared buffer can be refilled without
+waiting for each round-trip.
+
 Notes
 ---
 
