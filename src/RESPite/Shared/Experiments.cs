@@ -19,6 +19,8 @@
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
 
+        public const string Server_8_10 = "SER008";
+
         // ReSharper restore InconsistentNaming
 
         // this one is not a real experiment; it exists to help me
