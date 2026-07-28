@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Availability
         /// respect command effect categorization.
         /// </summary>
         [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
-        public static IRetryDatabase WithRetry(this IDatabaseAsync database, RetryPolicy retryPolicy)
+        public static IDatabaseAsync WithRetry(this IDatabaseAsync database, RetryPolicy retryPolicy)
             => new RetryDatabase(database, retryPolicy);
     }
 }

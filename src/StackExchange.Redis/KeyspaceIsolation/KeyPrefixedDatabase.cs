@@ -25,6 +25,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return new KeyPrefixedTransaction(Inner.CreateTransaction(asyncState), Prefix);
         }
 
+        // reimplement the async-only IDatabaseAsync slot (the base throws); we prefix a real transaction
+        ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);
+
         public RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.DebugObject(ToInner(key), flags);
 

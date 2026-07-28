@@ -49,6 +49,10 @@ namespace StackExchange.Redis
             return new RedisTransaction(this, asyncState);
         }
 
+        // the async-only IDatabaseAsync slot; the return type differs (ITransactionAsync vs ITransaction),
+        // so it does not implicitly bind to the public method above
+        ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);
+
         private ITransaction? CreateTransactionIfAvailable(object? asyncState)
         {
             var map = multiplexer.CommandMap;

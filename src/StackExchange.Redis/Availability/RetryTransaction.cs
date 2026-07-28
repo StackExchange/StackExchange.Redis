@@ -242,6 +242,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
 
     bool IDatabaseAsync.IsConnected(RedisKey key, CommandFlags flags) => _source.IsConnected(key, flags);
 
+    // nested transactions are not supported (mirrors RedisTransaction)
+    ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => throw new NotSupportedException("Nested transactions are not supported");
+
     IAsyncEnumerable<HashEntry> IDatabaseAsync.HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotSupportedException("Scans cannot be used inside a transaction");
     IAsyncEnumerable<RedisValue> IDatabaseAsync.HashScanNoValuesAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotSupportedException("Scans cannot be used inside a transaction");
     IAsyncEnumerable<RedisValue> IDatabaseAsync.SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotSupportedException("Scans cannot be used inside a transaction");

@@ -21,6 +21,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public int Database => Inner.Database;
 
+        // default: this wrapper is not a full database (it is the base for the batch/transaction wrappers too),
+        // so it cannot start a transaction; KeyPrefixedDatabase reimplements this to prefix a real one
+        ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState)
+            => throw new NotSupportedException("Transactions cannot be created here");
+
         internal TInner Inner { get; }
 
         internal byte[] Prefix { get; }

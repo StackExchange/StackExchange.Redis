@@ -8,7 +8,7 @@ using StackExchange.Redis.Interfaces;
 namespace StackExchange.Redis.Availability;
 
 [AutoDatabase]
-internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInternalDatabaseAsync, IRetryDatabase
+internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInternalDatabaseAsync
 {
     // Note: we very deliberately do not include synchronous support for retry; it is inherently delay-ish
 
@@ -41,7 +41,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         _inner = inner;
     }
 
-    ITransactionAsync IRetryDatabase.CreateTransaction(object? asyncState)
+    ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState)
     {
         // the underlying database must be able to create a "real" transaction for us to replay against;
         // every first-party async database is also an IDatabase, so this only bites exotic custom doubles
