@@ -1,6 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
-using RESPite;
 
 namespace StackExchange.Redis;
 
@@ -15,7 +13,6 @@ namespace StackExchange.Redis;
 /// <para>Transactions can also include constraints (implemented via <c>WATCH</c>).</para>
 /// <para><seealso href="https://redis.io/topics/transactions"/></para>
 /// </remarks>
-[Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
 public interface ITransactionAsync : IDatabaseAsync
 {
     /// <summary>

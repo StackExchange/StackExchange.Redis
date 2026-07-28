@@ -3,7 +3,7 @@ using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal sealed class KeyPrefixedTransaction : KeyPrefixed<ITransaction>, ITransaction, ITransactionAsync, IInternalTransaction
+    internal sealed class KeyPrefixedTransaction : KeyPrefixed<ITransaction>, ITransaction, IInternalTransaction
     {
         public KeyPrefixedTransaction(ITransaction inner, byte[] prefix) : base(inner, prefix)
         {

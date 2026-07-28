@@ -9,7 +9,7 @@ using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
-    internal sealed class RedisTransaction : RedisDatabase, ITransaction, ITransactionAsync, IInternalTransaction
+    internal sealed class RedisTransaction : RedisDatabase, ITransaction, IInternalTransaction
     {
         private List<ConditionResult>? _conditions;
         private List<QueuedMessage>? _pending;
