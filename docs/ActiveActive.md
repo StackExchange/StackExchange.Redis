@@ -475,7 +475,9 @@ IDatabaseAsync db = conn.GetDatabase().WithRetry(new RetryPolicy());
 var value = await db.StringGetAsync("mykey");
 ```
 
-> You can call `WithRetry` on any database (`IDatabase` or `IDatabaseAsync`), but the wrapper it returns exposes only the **async** API — there is no synchronous form, since retrying may inherently have delays. It cannot wrap a batch or transaction, nor an already-retrying database.
+> You can call `WithRetry` on any database (`IDatabase` or `IDatabaseAsync`), but the wrapper it returns exposes only the **async** API — there is no synchronous form, since retrying may inherently have delays. It cannot wrap a batch or an existing transaction, nor an already-retrying database.
+
+A retrying database can still *create* a transaction: `retryDb.CreateTransaction()` returns an `ITransactionAsync` whose `ExecuteAsync` is retried as a single unit. Each attempt replays the queued operations (and any `WATCH` constraints) against a fresh `MULTI`/`EXEC` - and, in an Active:Active group, onto whichever member is active at the time - so a transaction can ride out a failover just like a single command; the per-operation tasks handed back at build time resolve from the winning attempt. The retry-category gate (below) still applies, using the *most* side-effecting operation in the transaction: a transaction containing an `INCR` is treated as `CommandRetryWriteAccumulating`, so the default policy will not retry it unless you raise `MaxCommandRetryCategory`.
 
 ### RetryPolicy settings
 

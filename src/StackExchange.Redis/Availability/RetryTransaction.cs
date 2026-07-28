@@ -174,7 +174,13 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
             else _proxy.TrySetResult(attempt.GetAwaiter().GetResult());
         }
 
-        public void Fault(Exception ex) => _proxy.TrySetException(ex);
+        // observe the (faulted) inner attempt before faulting the durable proxy, so the discarded
+        // per-attempt task doesn't surface as an unobserved exception
+        public void Fault(Exception ex)
+        {
+            Observe();
+            _proxy.TrySetException(ex);
+        }
 
         public void Observe() => _ = _attempt?.Exception;
     }
@@ -205,7 +211,13 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
             else _proxy.TrySetResult(true);
         }
 
-        public void Fault(Exception ex) => _proxy.TrySetException(ex);
+        // observe the (faulted) inner attempt before faulting the durable proxy, so the discarded
+        // per-attempt task doesn't surface as an unobserved exception
+        public void Fault(Exception ex)
+        {
+            Observe();
+            _proxy.TrySetException(ex);
+        }
 
         public void Observe() => _ = _attempt?.Exception;
     }
