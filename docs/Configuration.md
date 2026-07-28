@@ -146,6 +146,8 @@ Additional code-only options:
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
 
+A single configuration string can also describe a multi-group topology for [client-side geographic failover](Failover), by separating each group with a bare `|` token (`,|,`) and (optionally) tagging each group with `weight=` and `member=`. See [Connecting from a configuration string](Failover#connecting-from-a-configuration-string).
+
 ## Obsolete Configuration Options
 ---
 

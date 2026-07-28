@@ -51,6 +51,12 @@ namespace StackExchange.Redis
                 return (float)tmp;
             }
 
+            public static double ParseDouble(string key, string value)
+            {
+                if (!Format.TryParseDouble(value, out double tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a numeric value; the value '{value}' is not recognised.");
+                return tmp;
+            }
+
             internal static bool ParseBoolean(string key, string value)
             {
                 if (!Format.TryParseBoolean(value, out bool tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a boolean value; the value '{value}' is not recognised.");
@@ -123,7 +129,9 @@ namespace StackExchange.Redis
                 SetClientLibrary = "setlib",
                 Protocol = "protocol",
                 HighIntegrity = "highIntegrity",
-                TcpKeepAlive = "tcpKeepAlive";
+                TcpKeepAlive = "tcpKeepAlive",
+                Weight = "weight",
+                Member = "member";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -159,6 +167,8 @@ namespace StackExchange.Redis
                 Protocol,
                 HighIntegrity,
                 TcpKeepAlive,
+                Weight,
+                Member,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -217,6 +227,13 @@ namespace StackExchange.Redis
         private OptionFlags optionFlags;
 
         private string? tieBreaker, sslHost, configChannel, user, password;
+
+        // Per-member group metadata, parsed from a multi-group connection string ("weight="/"member="). These are
+        // only meaningful for a member of a multi-group (Active-Active) connection; on a single connection they are
+        // parsed-but-inert. See <see cref="SplitGroups"/> and <c>ConnectionMultiplexer.ConnectGroupAsync(string, ...)</c>.
+        internal double? MemberWeight { get; private set; }
+
+        internal string? MemberName { get; private set; }
 
         private TimeSpan heartbeatInterval;
 
@@ -935,6 +952,80 @@ namespace StackExchange.Redis
             new ConfigurationOptions().DoParse(configuration, ignoreUnknown);
 
         /// <summary>
+        /// The token that delimits separate groups (members) within a multi-group (Active-Active) connection string.
+        /// It is only recognised as a delimiter when it appears as a whole comma-separated token (i.e. <c>,|,</c>);
+        /// a <c>|</c> appearing inside a value (for example <c>sslProtocols=Tls12|Tls13</c> or within a password) is
+        /// never treated as a delimiter, so this does not change the existing (already awkward) value-escaping rules.
+        /// </summary>
+        internal const char GroupDelimiter = '|';
+
+        /// <summary>
+        /// Split a (possibly) multi-group connection string into one <see cref="ConfigurationOptions"/> per group,
+        /// delimited by a bare <see cref="GroupDelimiter"/> token. Returns <see langword="null"/> when the string
+        /// contains no group delimiter (i.e. it is an ordinary single-group configuration and should be parsed via
+        /// <see cref="Parse(string)"/>). Empty segments (e.g. a leading <c>|</c>, which acts as an explicit
+        /// "this is multi-group" marker) are ignored.
+        /// </summary>
+        internal static bool IsMultiGroup(string? configuration)
+        {
+            if (string.IsNullOrEmpty(configuration)) return false;
+            foreach (var token in configuration!.Split(StringSplits.Comma))
+            {
+                if (IsDelimiter(token)) return true;
+            }
+            return false;
+
+            static bool IsDelimiter(string token)
+            {
+                token = token.Trim();
+                return token.Length == 1 && token[0] == GroupDelimiter;
+            }
+        }
+
+        internal static List<ConfigurationOptions>? SplitGroups(string configuration)
+        {
+            if (configuration is null) throw new ArgumentNullException(nameof(configuration));
+
+            var tokens = configuration.Split(StringSplits.Comma);
+            if (!IsMultiGroup(configuration)) return null;
+
+            var groups = new List<ConfigurationOptions>();
+            var current = new List<string>();
+            foreach (var token in tokens)
+            {
+                if (IsDelimiter(token))
+                {
+                    Flush(groups, current);
+                }
+                else
+                {
+                    current.Add(token);
+                }
+            }
+            Flush(groups, current);
+            return groups;
+
+            static bool IsDelimiter(string token)
+            {
+                token = token.Trim();
+                return token.Length == 1 && token[0] == GroupDelimiter;
+            }
+
+            static void Flush(List<ConfigurationOptions> groups, List<string> current)
+            {
+                if (current.Count != 0)
+                {
+                    var segment = string.Join(",", current);
+                    current.Clear();
+                    if (!string.IsNullOrWhiteSpace(segment))
+                    {
+                        groups.Add(Parse(segment));
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Create a copy of the configuration.
         /// </summary>
         public ConfigurationOptions Clone() => new ConfigurationOptions
@@ -986,6 +1077,8 @@ namespace StackExchange.Redis
 #endif
             RequestBufferPool = RequestBufferPool,
             ResponseBufferPool = ResponseBufferPool,
+            MemberWeight = MemberWeight,
+            MemberName = MemberName,
         };
 
         /// <summary>
@@ -1069,6 +1162,8 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.HighIntegrity, OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue);
             if (HasValue(OptionFlags.ProtocolHasValue)) Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
             Append(sb, OptionKeys.TcpKeepAlive, OptionFlags.TcpKeepAliveHasValue, OptionFlags.TcpKeepAliveValue);
+            if (MemberWeight is double weight) Append(sb, OptionKeys.Weight, Format.ToString(weight));
+            Append(sb, OptionKeys.Member, MemberName);
             if (Tunnel is { IsInbuilt: true } tunnel)
             {
                 Append(sb, OptionKeys.Tunnel, tunnel.ToString());
@@ -1159,6 +1254,8 @@ namespace StackExchange.Redis
             defaultOptions = null;
             optionFlags = OptionFlags.None;
             ClientName = ServiceName = user = password = tieBreaker = sslHost = configChannel = null;
+            MemberWeight = null;
+            MemberName = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = responseTimeout = connectRetry = configCheckSeconds = defaultDatabase = 0;
             sslProtocols = default;
             defaultVersion = null;
@@ -1215,6 +1312,16 @@ namespace StackExchange.Redis
                 var option = paddedOption.Trim();
 
                 if (string.IsNullOrWhiteSpace(option)) continue;
+
+                // a bare group-delimiter token means this is a multi-group (Active-Active) configuration; a single
+                // ConfigurationOptions cannot represent that, so refuse rather than silently merging every group's
+                // endpoints into one pool. Callers should use ConnectionMultiplexer.ConnectGroupAsync(string, ...).
+                if (option.Length == 1 && option[0] == GroupDelimiter)
+                {
+                    throw new ArgumentException(
+                        $"The configuration contains a group delimiter ('{GroupDelimiter}'), which denotes a multi-group (Active-Active) configuration; use ConnectionMultiplexer.ConnectGroupAsync(string, ...) to connect it.",
+                        nameof(configuration));
+                }
 
                 // check for special tokens
                 int idx = option.IndexOf('=');
@@ -1302,6 +1409,12 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.TcpKeepAlive:
                             TcpKeepAlive = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.Weight:
+                            MemberWeight = OptionKeys.ParseDouble(key, value);
+                            break;
+                        case OptionKeys.Member:
+                            MemberName = value;
                             break;
                         case OptionKeys.Tunnel:
                             if (value.IsNullOrWhiteSpace())
