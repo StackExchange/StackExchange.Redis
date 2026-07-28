@@ -205,9 +205,176 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Equal(3, server.ExecOpsReceived); // 1 (first block) + 2 (LOADING + commit)
     }
 
+    // A WATCH constraint is replayed on every attempt. Here the condition is satisfied, and the first EXEC
+    // hits a transient LOADING; the transaction should ride it out and the *durable* ConditionResult handed
+    // back at build time should reflect the winning attempt (satisfied). Confirms the condition survives the
+    // discard+replay and that its outcome is forwarded onto the caller-visible result.
+    [Fact]
+    public async Task WithRetry_Transaction_SatisfiedCondition_RidesOutTransientExec()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+        Assert.True(conn.IsConnected);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:cond";
+        Assert.True(await db.StringSetAsync(key, "seed"));
+
+        server.FailExecOps = 1; // fail the first EXEC; the condition must still hold on the replay
+
+        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var cond = tran.AddCondition(Condition.StringEqual(key, "seed")); // satisfied on both attempts
+        var setTask = tran.StringSetAsync(key, "committed");
+        bool committed = await tran.ExecuteAsync();
+
+        Assert.True(committed); // rode out the transient EXEC failure
+        Assert.True(cond.WasSatisfied); // durable condition result forwarded from the winning attempt
+        Assert.True(await setTask); // per-op proxy resolved
+        Assert.Equal("committed", await db.StringGetAsync(key)); // the write really landed
+        Assert.Equal(2, server.ExecOpsReceived); // 1 x LOADING + 1 x commit -> the WATCH replayed
+    }
+
+    // A WATCH constraint that is *not* satisfied is a business outcome, not a transient fault: the transaction
+    // aborts electively (no EXEC is ever issued), the per-operation proxies are cancelled, and - crucially -
+    // it is NOT retried. Confirms the ForwardSuccess cancellation branch and that a failed WATCH doesn't loop.
+    [Fact]
+    public async Task WithRetry_Transaction_UnsatisfiedCondition_AbortsWithoutRetry()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+        Assert.True(conn.IsConnected);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:cond:fail";
+        Assert.True(await db.StringSetAsync(key, "seed"));
+
+        server.FailExecOps = 0; // no transient fault; the condition itself aborts the transaction
+
+        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var cond = tran.AddCondition(Condition.StringEqual(key, "different")); // NOT satisfied
+        var setTask = tran.StringSetAsync(key, "committed");
+        bool committed = await tran.ExecuteAsync();
+
+        Assert.False(committed); // electively aborted via the failed WATCH
+        Assert.False(cond.WasSatisfied);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await setTask); // proxy cancelled, not hung
+        Assert.Equal("seed", await db.StringGetAsync(key)); // nothing was written
+        Assert.Equal(0, server.ExecOpsReceived); // never EXEC'd, and (the point) never retried
+    }
+
+    // A committed transaction can still carry a per-command error (e.g. INCR against a non-numeric string
+    // errors while EXEC itself succeeds). committed is true, the good op resolves, and only the offending op's
+    // proxy faults - exercising the ForwardSuccess faulted branch, which the transient-EXEC tests never hit.
+    [Fact]
+    public async Task WithRetry_Transaction_PerOpError_FaultsOnlyThatProxy()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+        Assert.True(conn.IsConnected);
+
+        var db = conn.GetDatabase();
+        RedisKey badKey = "retry:tran:notnum";
+        RedisKey goodKey = "retry:tran:str";
+        Assert.True(await db.StringSetAsync(badKey, "abc")); // non-numeric: INCR will error at EXEC time
+
+        server.FailExecOps = 0; // EXEC commits; one queued op errors at execution time
+
+        // allow accumulating so the INCR doesn't gate retries - though nothing here retries anyway (EXEC commits)
+        var policy = new RetryPolicy
+        {
+            MaxAttempts = 3,
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+            MaxCommandRetryCategory = CommandFlags.CommandRetryWriteAccumulating,
+        };
+        var tran = db.WithRetry(policy).CreateTransaction();
+        var badTask = tran.StringIncrementAsync(badKey); // errors at EXEC: INCR on a non-numeric value
+        var goodTask = tran.StringSetAsync(goodKey, "ok");
+        bool committed = await tran.ExecuteAsync();
+
+        Assert.True(committed); // EXEC still committed
+        Assert.True(await goodTask); // the good op resolved
+        await Assert.ThrowsAsync<RedisServerException>(async () => await badTask); // only the bad op faulted
+        Assert.Equal("ok", await db.StringGetAsync(goodKey)); // the good write landed
+        Assert.Equal(1, server.ExecOpsReceived); // committed first time; no retry
+    }
+
+    // Multi-group + a retryable transaction: A fails every EXEC and is knocked out, so the group reroutes to B.
+    // Because RetryTransaction builds a *fresh* inner transaction against the currently-active member on each
+    // attempt, the replay lands on B and commits there - the transaction analogue of the single-command
+    // WithRetry_FailsOverBetweenGroupsOnLoading test.
+    [Fact]
+    public async Task WithRetry_Transaction_FailsOverBetweenGroups()
+    {
+        EndPoint alpha = new DnsEndPoint("alpha", 6379);
+        EndPoint bravo = new DnsEndPoint("bravo", 6379);
+        using var serverA = new ExecFailServer(Output, endpoint: alpha); // EXEC always fails on A
+        using var serverB = new InProcessTestServer(Output, endpoint: bravo);
+
+        RedisKey key = "retry:tran:failover";
+
+        var probe = new ControllableProbe();
+
+        // A carries a hair-trigger breaker (trips on the first fault); B keeps the default
+        var configA = serverA.GetClientConfig();
+        configA.CircuitBreaker = new CircuitBreaker.Builder
+        {
+            MinimumNumberOfFailures = 1,
+            FailureRateThreshold = 1,
+        };
+
+        ConnectionGroupMember[] members =
+        [
+            new(configA, "A") { Weight = 9 }, // highest weight -> initially active
+            new(serverB.GetClientConfig(), "B") { Weight = 1 }, // failover target
+        ];
+
+        var options = new MultiGroupOptions
+        {
+            HealthCheck = new HealthCheck
+            {
+                Probe = probe,
+                Interval = TimeSpan.FromMinutes(30), // huge: the breaker fast-path is what reroutes us
+                ProbeCount = 1,
+                ProbeTimeout = TimeSpan.FromSeconds(5),
+            },
+        };
+
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+        Assert.True(conn.IsConnected);
+        Assert.Same(members[0], conn.ActiveMember); // A is active (highest weight)
+
+        var policy = new RetryPolicy
+        {
+            MaxAttempts = 20,
+            MaxAttemptsBeforeFailover = 1,
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+        };
+        var db = conn.GetDatabase().WithRetry(policy);
+
+        // A will fail every EXEC; knock it out so the group reroutes to B
+        serverA.FailExecOps = int.MaxValue;
+        probe.MarkDown(alpha);
+
+        var tran = db.CreateTransaction();
+        var setTask = tran.StringSetAsync(key, "committed-on-B");
+        bool committed = await tran.ExecuteAsync();
+
+        Assert.True(committed); // rode the failover across to B and committed there
+        Assert.True(await setTask);
+        Assert.Same(members[1], conn.ActiveMember); // we really did move to B
+
+        // the write landed on B, not A
+        await using var checkB = await serverB.ConnectAsync();
+        Assert.Equal("committed-on-B", await checkB.GetDatabase().StringGetAsync(key));
+    }
+
     // An in-proc server that fails the first FailExecOps EXEC operations with a transient LOADING error,
     // discarding that attempt's queued commands so nothing is applied, then commits normally.
-    private sealed class ExecFailServer(ITestOutputHelper? log) : InProcessTestServer(log)
+    private sealed class ExecFailServer(ITestOutputHelper? log, EndPoint? endpoint = null) : InProcessTestServer(log, endpoint)
     {
         public int ExecOpsReceived { get; private set; }
 
