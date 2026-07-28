@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Availability;
 internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsync
 {
     // Note: async-only, exactly like RetryDatabase - retrying is inherently delay-ish.
-    private readonly IDatabase _source;
+    private readonly IDatabaseAsync _source;
     private readonly object? _asyncState;
     private readonly RetryController _controller;
 
@@ -26,7 +26,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
     private List<RecordedCondition>? _conditions;
     private int _executed;
 
-    public RetryTransaction(IDatabase source, RetryController controller, object? asyncState)
+    public RetryTransaction(IDatabaseAsync source, RetryController controller, object? asyncState)
     {
         _source = source;
         _controller = controller;
@@ -224,7 +224,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
         // the durable result handed back to the caller from AddCondition
         public ConditionResult Result { get; }
 
-        public void Replay(ITransaction inner) => _attempt = inner.AddCondition(_condition);
+        public void Replay(ITransactionAsync inner) => _attempt = inner.AddCondition(_condition);
 
         public void ForwardSuccess()
         {

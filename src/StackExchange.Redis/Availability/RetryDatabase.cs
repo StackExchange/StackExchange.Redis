@@ -42,15 +42,8 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     }
 
     ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState)
-    {
-        // the underlying database must be able to create a "real" transaction for us to replay against;
-        // every first-party async database is also an IDatabase, so this only bites exotic custom doubles
-        if (_inner is not IDatabase source)
-        {
-            throw new NotSupportedException("The underlying database does not support transactions");
-        }
-        return new RetryTransaction(source, _controller, asyncState);
-    }
+        // the inner database creates the "real" (one-shot) transactions we replay against each attempt
+        => new RetryTransaction(_inner, _controller, asyncState);
 
     public int Database => _inner.Database;
 
