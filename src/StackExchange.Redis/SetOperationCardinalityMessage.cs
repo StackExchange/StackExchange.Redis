@@ -5,11 +5,12 @@ internal sealed class SetOperationCardinalityMessage(
     CommandFlags flags,
     RedisCommand command,
     RedisKey[] keys,
-    long limit) : Message(db, flags, command)
+    long limit,
+    bool approximate) : Message(db, flags, command)
 {
     private readonly RedisKey[] _keys = keys.AssertAllNonNull();
 
-    public override int ArgCount => 1 + _keys.Length + (limit > 0 ? 2 : 0);
+    public override int ArgCount => 1 + _keys.Length + (approximate ? 1 : 0) + (limit > 0 ? 2 : 0);
 
     public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(_keys);
 
@@ -20,6 +21,11 @@ internal sealed class SetOperationCardinalityMessage(
         for (var i = 0; i < _keys.Length; i++)
         {
             writer.Write(_keys[i]);
+        }
+
+        if (approximate)
+        {
+            writer.WriteRaw("$6\r\nAPPROX\r\n"u8);
         }
 
         if (limit > 0)

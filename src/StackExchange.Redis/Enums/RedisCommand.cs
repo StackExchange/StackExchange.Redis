@@ -134,6 +134,7 @@ internal enum RedisCommand
     LINSERT,
     LLEN,
     LMOVE,
+    LMOVEM,
     LMPOP,
     LPOP,
     LPOS,
@@ -192,6 +193,7 @@ internal enum RedisCommand
     SCARD,
     SCRIPT,
     SDIFF,
+    SDIFFCARD,
     SDIFFSTORE,
     SELECT,
     SENTINEL,
@@ -220,6 +222,7 @@ internal enum RedisCommand
     STRLEN,
     SUBSCRIBE,
     SUNION,
+    SUNIONCARD,
     SUNIONSTORE,
     SSCAN,
     SSUBSCRIBE,
@@ -380,6 +383,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.INCREX:
             case RedisCommand.LINSERT:
             case RedisCommand.LMOVE:
+            case RedisCommand.LMOVEM:
             case RedisCommand.LMPOP:
             case RedisCommand.LPOP:
             case RedisCommand.LPUSH:
@@ -531,6 +535,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.SCARD:
             case RedisCommand.SCRIPT:
             case RedisCommand.SDIFF:
+            case RedisCommand.SDIFFCARD:
             case RedisCommand.SELECT:
             case RedisCommand.SENTINEL:
             case RedisCommand.SHUTDOWN:
@@ -548,6 +553,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.STRLEN:
             case RedisCommand.SUBSCRIBE:
             case RedisCommand.SUNION:
+            case RedisCommand.SUNIONCARD:
             case RedisCommand.SUNSUBSCRIBE:
             case RedisCommand.SSCAN:
             case RedisCommand.SYNC:

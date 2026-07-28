@@ -41,6 +41,14 @@ namespace StackExchange.Redis
             _ => OutOfRange(operation),
         };
 
+        internal static RedisCommand ToSetCardinalityCommand(this SetOperation operation) => operation switch
+        {
+            SetOperation.Union => RedisCommand.SUNIONCARD,
+            SetOperation.Intersect => RedisCommand.SINTERCARD,
+            SetOperation.Difference => RedisCommand.SDIFFCARD,
+            _ => OutOfRange(operation),
+        };
+
         internal static RedisCommand ToSortedSetCommand(this SetOperation operation) => operation switch
         {
             SetOperation.Union => RedisCommand.ZUNION,
