@@ -9,11 +9,32 @@ using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis
 {
-    internal sealed class RedisTransaction : RedisDatabase, ITransaction
+    internal sealed class RedisTransaction : RedisDatabase, ITransaction, ITransactionAsync, IInternalTransaction
     {
         private List<ConditionResult>? _conditions;
         private List<QueuedMessage>? _pending;
         private object SyncLock => this;
+
+        // combine the retry categories of all queued operations, taking the most side-effecting (numerically
+        // highest) - this is what a replay of the whole transaction would do. WATCH constraints are *not*
+        // included: they live in _conditions, not _pending, and re-issuing them is what makes replay safe.
+        CommandFlags IInternalTransaction.GetAggregateRetryCategory()
+        {
+            var result = CommandFlags.None;
+            lock (SyncLock)
+            {
+                var list = _pending;
+                if (list != null)
+                {
+                    foreach (var q in list)
+                    {
+                        var cat = q.Wrapped.Flags & Message.MaskRetryCategory;
+                        if (cat > result) result = cat;
+                    }
+                }
+            }
+            return result;
+        }
 
         private protected override DatabaseFeatureFlags GetDatabaseFeatures()
             => base.GetDatabaseFeatures() | DatabaseFeatureFlags.Transaction;

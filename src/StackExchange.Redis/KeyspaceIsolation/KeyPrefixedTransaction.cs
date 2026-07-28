@@ -3,7 +3,7 @@ using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
-    internal sealed class KeyPrefixedTransaction : KeyPrefixed<ITransaction>, ITransaction
+    internal sealed class KeyPrefixedTransaction : KeyPrefixed<ITransaction>, ITransaction, ITransactionAsync, IInternalTransaction
     {
         public KeyPrefixedTransaction(ITransaction inner, byte[] prefix) : base(inner, prefix)
         {
@@ -11,6 +11,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         private protected override DatabaseFeatureFlags GetDatabaseFeatures()
             => base.GetDatabaseFeatures() | DatabaseFeatureFlags.Transaction;
+
+        CommandFlags IInternalTransaction.GetAggregateRetryCategory()
+            => Inner is IInternalTransaction it ? it.GetAggregateRetryCategory() : CommandFlags.CommandRetryNever;
 
         public ConditionResult AddCondition(Condition condition) => Inner.AddCondition(condition.MapKeys(GetMapFunction()));
 

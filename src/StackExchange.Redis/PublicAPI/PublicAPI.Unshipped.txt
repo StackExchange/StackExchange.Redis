@@ -16,7 +16,12 @@ StackExchange.Redis.IDatabaseAsync.Database.get -> int
 [SER007]StackExchange.Redis.Availability.RetryPolicy.RetryPolicy() -> void
 StackExchange.Redis.IServer.InventKey(StackExchange.Redis.RedisKey prefix = default(StackExchange.Redis.RedisKey)) -> StackExchange.Redis.RedisKey
 StackExchange.Redis.Availability.DatabaseExtensions
-[SER007]static StackExchange.Redis.Availability.DatabaseExtensions.WithRetry(this StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.Availability.RetryPolicy! retryPolicy) -> StackExchange.Redis.IDatabaseAsync!
+[SER007]static StackExchange.Redis.Availability.DatabaseExtensions.WithRetry(this StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.Availability.RetryPolicy! retryPolicy) -> StackExchange.Redis.Availability.IRetryDatabase!
+[SER007]StackExchange.Redis.Availability.IRetryDatabase
+[SER007]StackExchange.Redis.Availability.IRetryDatabase.CreateTransaction(object? asyncState = null) -> StackExchange.Redis.ITransactionAsync!
+[SER007]StackExchange.Redis.ITransactionAsync
+[SER007]StackExchange.Redis.ITransactionAsync.AddCondition(StackExchange.Redis.Condition! condition) -> StackExchange.Redis.ConditionResult!
+[SER007]StackExchange.Redis.ITransactionAsync.ExecuteAsync(StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
 [SER007]StackExchange.Redis.Availability.CircuitBreaker
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Accumulator
 [SER007]StackExchange.Redis.Availability.CircuitBreaker.Accumulator.Accumulator() -> void

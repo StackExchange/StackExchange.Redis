@@ -125,6 +125,109 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Same(members[1], conn.ActiveMember); // we really did move to B
     }
 
+    // End-to-end for a retryable transaction: a server that fails the first EXEC with a transient LOADING
+    // error (discarding that attempt's queued commands), then commits the second. A transaction created via
+    // the retrying database should ride this out: the per-operation tasks handed out at build time resolve
+    // from the winning (second) attempt, the value is actually written, and the server saw two EXECs.
+    [Fact]
+    public async Task WithRetry_Transaction_RidesOutTransientExec()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+        Assert.True(conn.IsConnected);
+
+        var db = conn.GetDatabase();
+
+        RedisKey key = "retry:tran";
+        Assert.True(await db.StringSetAsync(key, "seed")); // seed a value we expect the transaction to overwrite
+
+        server.FailExecOps = 1; // fail the first EXEC; the second should commit
+
+        var policy = new RetryPolicy
+        {
+            MaxAttempts = 3,
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+        };
+        var retryDb = db.WithRetry(policy);
+
+        var tran = retryDb.CreateTransaction();
+        var setTask = tran.StringSetAsync(key, "committed");
+        var getTask = tran.StringGetAsync(key);
+        bool committed = await tran.ExecuteAsync();
+
+        Assert.True(committed); // rode out the transient EXEC failure
+        Assert.True(await setTask); // per-op proxy resolved from the winning attempt
+        Assert.Equal("committed", await getTask); // read reflects the committed value
+        Assert.Equal("committed", await db.StringGetAsync(key)); // and it really landed on the server
+        Assert.Equal(0, server.FailExecOps); // the transient failure was consumed
+        Assert.Equal(2, server.ExecOpsReceived); // 1 x LOADING + 1 x commit
+    }
+
+    // The transaction's effective retry category is the most side-effecting of its operations. An INCR makes
+    // the whole transaction "accumulating", which the default policy (capped at write-last-wins) refuses to
+    // retry - so a transient EXEC failure surfaces and the per-op proxy faults rather than hanging. Raising
+    // the cap to allow accumulating writes lets the same transaction ride the failure out; and because the
+    // failed attempt is discarded server-side, the INCR applies exactly once (no double-count).
+    [Fact]
+    public async Task WithRetry_Transaction_AccumulatingOp_RespectsCategoryGate()
+    {
+        using var server = new ExecFailServer(Output);
+        await using var conn = await server.ConnectAsync(log: Writer);
+        Assert.True(conn.IsConnected);
+
+        var db = conn.GetDatabase();
+        RedisKey key = "retry:tran:incr";
+
+        // default cap = write-last-wins; an INCR makes the aggregate accumulating -> NOT retried
+        var conservative = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        server.FailExecOps = 1;
+        var tran1 = db.WithRetry(conservative).CreateTransaction();
+        var incr1 = tran1.StringIncrementAsync(key);
+        await Assert.ThrowsAsync<RedisServerException>(async () => await tran1.ExecuteAsync());
+        await Assert.ThrowsAsync<RedisServerException>(async () => await incr1); // proxy faulted, not left hanging
+        Assert.Equal(1, server.ExecOpsReceived); // gave up immediately, no retry
+        Assert.Equal(0, server.FailExecOps);
+
+        // raise the cap to allow accumulating writes: the same transaction now rides out the transient failure
+        var permissive = new RetryPolicy
+        {
+            MaxAttempts = 3,
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+            MaxCommandRetryCategory = CommandFlags.CommandRetryWriteAccumulating,
+        };
+        server.FailExecOps = 1;
+        var tran2 = db.WithRetry(permissive).CreateTransaction();
+        var incr2 = tran2.StringIncrementAsync(key);
+        Assert.True(await tran2.ExecuteAsync());
+        Assert.Equal(1, await incr2); // discarded attempt did NOT apply -> incremented exactly once
+        Assert.Equal(3, server.ExecOpsReceived); // 1 (first block) + 2 (LOADING + commit)
+    }
+
+    // An in-proc server that fails the first FailExecOps EXEC operations with a transient LOADING error,
+    // discarding that attempt's queued commands so nothing is applied, then commits normally.
+    private sealed class ExecFailServer(ITestOutputHelper? log) : InProcessTestServer(log)
+    {
+        public int ExecOpsReceived { get; private set; }
+
+        public int FailExecOps { get; set; }
+
+        protected override TypedRedisValue Exec(RedisClient client, in RedisRequest request)
+        {
+            ExecOpsReceived++;
+
+            if (FailExecOps > 0)
+            {
+                FailExecOps--;
+                client.Discard(); // drop this attempt's queued commands; nothing is applied
+                return TypedRedisValue.Error("LOADING Redis is loading the dataset in memory");
+            }
+
+            return base.Exec(client, in request);
+        }
+    }
+
     // An in-proc server that fails the first LoadingOps GET operations with a transient LOADING error
     // (decrementing the counter each time), then serves normally. Every GET bumps GetOpsReceived so the
     // test can confirm how many attempts actually reached the server.
