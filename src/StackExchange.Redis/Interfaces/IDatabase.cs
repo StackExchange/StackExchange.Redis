@@ -32,7 +32,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="asyncState">The async object state to be passed into the created <see cref="ITransaction"/>.</param>
         /// <returns>The created transaction.</returns>
-        ITransaction CreateTransaction(object? asyncState = null);
+        // hides IDatabaseAsync.CreateTransaction, refining the return type from ITransactionAsync to ITransaction
+        new ITransaction CreateTransaction(object? asyncState = null);
 
         /// <summary>
         /// Atomically transfer a key from a source Redis instance to a destination Redis instance.

@@ -40,6 +40,8 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     public ITransaction CreateTransaction(object? asyncState = null)
         => GetActiveDatabase().CreateTransaction(asyncState);
 
+    ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);
+
     public void KeyMigrate(RedisKey key, System.Net.EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().KeyMigrate(key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags);
 

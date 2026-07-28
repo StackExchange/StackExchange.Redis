@@ -23,6 +23,19 @@ internal interface IInternalDatabaseAsync : IDatabaseAsync
     CancellationToken GetNextFailover();
 }
 
+/// <summary>
+/// Exposes transaction-level detail needed by the retry machinery. Implemented by the concrete
+/// transaction types so a <c>RetryTransaction</c> can inspect the transaction it is replaying against.
+/// </summary>
+internal interface IInternalTransaction
+{
+    /// <summary>
+    /// The most side-effecting retry category across all queued operations (excluding <c>WATCH</c>
+    /// constraints); this describes what replaying the whole transaction would do.
+    /// </summary>
+    CommandFlags GetAggregateRetryCategory();
+}
+
 internal static class InternalDatabaseExtension
 {
     internal static DatabaseFeatureFlags GetFeatures(this IDatabaseAsync database, out string name)

@@ -953,6 +953,11 @@ namespace StackExchange.Redis
         internal IEnumerable<Message> CreateMessages(int db) => Condition.CreateMessages(db, resultBox);
 
         internal IResultBox<bool>? GetBox() => resultBox;
+
+        // used by the retry machinery to copy the outcome of a per-attempt condition onto the durable
+        // ConditionResult that was handed back to the caller when the transaction was built
+        internal void SetSatisfied(bool value) => wasSatisfied = value;
+
         internal bool UnwrapBox()
         {
             if (resultBox != null)

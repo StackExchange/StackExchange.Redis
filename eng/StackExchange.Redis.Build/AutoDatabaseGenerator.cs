@@ -199,6 +199,10 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         => !method.TypeArgs.IsEmpty
         || method.Name.Contains("Wait")
         || method.Name == "IsConnected"
+        // transaction/batch factories are not server round-trips and cannot be captured-and-replayed;
+        // the (few) databases that offer them implement them by hand
+        || method.Name == "CreateTransaction"
+        || method.Name == "CreateBatch"
         || method.ReturnType.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal)
         || method.ReturnType.StartsWith("System.Collections.Generic.IAsyncEnumerable<", StringComparison.Ordinal);
 
