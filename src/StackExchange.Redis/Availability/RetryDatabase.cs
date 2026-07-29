@@ -55,7 +55,9 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     // policy will live here in due course; for now it is a straight pass-through.
 
     // async counterparts (Task<T> / Task); these get their own retry/failover policy in due course.
-    private async Task<TResult> ExecuteAsync<TState, TResult>(TState state, Func<TState, IDatabaseAsync, Task<TResult>> operation)
+    // note: the state cannot be taken by `in` here (async methods forbid by-ref parameters), and we need a
+    // mutable copy anyway for Map; only the projection takes it by readonly-ref, avoiding a copy per attempt
+    private async Task<TResult> ExecuteAsync<TState, TResult>(TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
         where TState : struct, IRedisArgs
     {
         state.Map(this);
@@ -69,7 +71,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         {
             try
             {
-                result = await operation(state, _inner).ConfigureAwait(false);
+                result = await operation(in state, _inner).ConfigureAwait(false);
                 break;
             }
             catch (Exception ex) when (_controller.CanRetry(++attempt, ex, ref failover, out var delay))
@@ -81,7 +83,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         return this.UnMap(state, result);
     }
 
-    private async Task ExecuteAsync<TState>(TState state, Func<TState, IDatabaseAsync, Task> operation)
+    private async Task ExecuteAsync<TState>(TState state, AutoDatabaseAsyncOperation<TState> operation)
         where TState : struct, IRedisArgs
     {
         state.Map(this);
@@ -94,7 +96,7 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
         {
             try
             {
-                await operation(state, _inner).ConfigureAwait(false);
+                await operation(in state, _inner).ConfigureAwait(false);
                 break;
             }
             catch (Exception ex) when (_controller.CanRetry(++attempt, ex, ref failover, out var delay))
@@ -116,11 +118,16 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     // IsConnected is a straight pass-through: it is a cheap status check, not a server round-trip to retry.
     bool IDatabaseAsync.IsConnected(RedisKey key, CommandFlags flags) => _inner.IsConnected(key, flags);
 
-    System.Collections.Generic.IAsyncEnumerable<HashEntry> IDatabaseAsync.HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotImplementedException();
-    System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.HashScanNoValuesAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotImplementedException();
-    System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotImplementedException();
-    System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start, RedisValue end, long count, Exclude exclude, CommandFlags flags) => throw new NotImplementedException();
-    System.Collections.Generic.IAsyncEnumerable<SortedSetEntry> IDatabaseAsync.SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => throw new NotImplementedException();
+    // routing lookup, not a replayable server command - forward straight through (no retry)
+    Task<System.Net.EndPoint?> IDatabaseAsync.IdentifyEndpointAsync(RedisKey key, CommandFlags flags) => _inner.IdentifyEndpointAsync(key, flags);
+
+    // Scans are streaming/cursored, so they can't be captured-and-replayed as a single unit; rather than
+    // failing outright we forward straight to the inner database - giving up retry, but keeping the scan working.
+    System.Collections.Generic.IAsyncEnumerable<HashEntry> IDatabaseAsync.HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => _inner.HashScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+    System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.HashScanNoValuesAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => _inner.HashScanNoValuesAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+    System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => _inner.SetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+    System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start, RedisValue end, long count, Exclude exclude, CommandFlags flags) => _inner.VectorSetRangeEnumerateAsync(key, start, end, count, exclude, flags);
+    System.Collections.Generic.IAsyncEnumerable<SortedSetEntry> IDatabaseAsync.SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => _inner.SortedSetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
 
     RedisKey IRedisArgsMutator.Map(RedisKey key) => key;
 

@@ -194,11 +194,15 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
     //  - IsConnected: a synchronous status probe that IDatabaseAsync carries; it would route through the
     //    sync Execute funnel, which an async-only database (e.g. RetryDatabase) doesn't provide - and a
     //    connection check shouldn't be retried in any case
+    //  - IdentifyEndpoint / IdentifyEndpointAsync: a routing lookup ("which endpoint serves this key"),
+    //    not a replayable server command; wrappers want their own behaviour here (e.g. a connection-group
+    //    resolving against the currently-active member and returning null when there is none)
     //  - streaming returns (IEnumerable<T> / IAsyncEnumerable<T>) whose execution is deferred
     private static bool SkipMethod(MethodInfo method)
         => !method.TypeArgs.IsEmpty
         || method.Name.Contains("Wait")
         || method.Name == "IsConnected"
+        || method.Name.Contains("IdentifyEndpoint")
         // transaction/batch factories are not server round-trips and cannot be captured-and-replayed;
         // the (few) databases that offer them implement them by hand
         || method.Name == "CreateTransaction"
@@ -335,7 +339,10 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                         else writer.Append(", ");
                         writer.Append(p.Name);
                     }
-                    writer.Append("), static (state, inner) => inner.").Append(method.Name).Append("(");
+                    // the funnels take the state by readonly-ref (see AutoDatabase{Sync|Async}Operation) to avoid
+                    // copying the larger state structs; a lambda only binds to an `in` parameter if it says so,
+                    // hence the explicit modifier (C# 14 allows it without also naming the type)
+                    writer.Append("), static (in state, inner) => inner.").Append(method.Name).Append("(");
                     for (int i = 0; i < method.Parameters.Length; i++)
                     {
                         if (i != 0) writer.Append(", ");

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
 
@@ -17,6 +18,30 @@ internal interface IRedisArgs
     void Map(IRedisArgsMutator mutator);
     object? UnMapper { get; }
 }
+
+// The projections used by the auto-database funnels. These exist (rather than Func<,,>/Action<,>) purely to
+// pass the captured state by readonly-reference: some of the generated state structs are chunky (a dozen-plus
+// arguments), and by-value would copy the whole thing on every call. Note that a lambda can only bind to
+// these if it declares the modifier - the generator emits `static (in state, inner) => ...` accordingly.
+// The projections used by the auto-database funnels; there are exactly four real shapes, so each is named
+// rather than being expressed generically over the target/return type. This lets the type system encode the
+// invariants (sync goes to IDatabase, async goes to IDatabaseAsync and returns a Task) instead of leaving
+// nonsense combinations like "sync database, Task result" expressible.
+//
+// TState is necessarily invariant: it is passed by readonly-ref, and variant type parameters cannot carry
+// the struct constraint. TResult is covariant on the sync projection (it is the direct return); it cannot be
+// on the async one, because there it appears inside the invariant Task<TResult>.
+internal delegate void AutoDatabaseSyncOperation<TState>(in TState state, IDatabase database)
+    where TState : struct, IRedisArgs;
+
+internal delegate TResult AutoDatabaseSyncOperation<TState, out TResult>(in TState state, IDatabase database)
+    where TState : struct, IRedisArgs;
+
+internal delegate Task AutoDatabaseAsyncOperation<TState>(in TState state, IDatabaseAsync database)
+    where TState : struct, IRedisArgs;
+
+internal delegate Task<TResult> AutoDatabaseAsyncOperation<TState, TResult>(in TState state, IDatabaseAsync database)
+    where TState : struct, IRedisArgs;
 
 internal interface IRedisArgsMutator
 {

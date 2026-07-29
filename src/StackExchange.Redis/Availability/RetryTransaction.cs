@@ -43,7 +43,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
     // the generated explicit interface implementations funnel every builder call through these two
     // overloads, capturing the arguments in a generated state struct plus a cacheable static projection
     // (no per-call closure). Here we simply *record* them and return a durable proxy task.
-    private Task<TResult> ExecuteAsync<TState, TResult>(TState state, Func<TState, IDatabaseAsync, Task<TResult>> operation)
+    private Task<TResult> ExecuteAsync<TState, TResult>(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
         where TState : struct, IRedisArgs
     {
         CheckNotExecuted();
@@ -52,7 +52,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
         return op.Proxy;
     }
 
-    private Task ExecuteAsync<TState>(TState state, Func<TState, IDatabaseAsync, Task> operation)
+    private Task ExecuteAsync<TState>(in TState state, AutoDatabaseAsyncOperation<TState> operation)
         where TState : struct, IRedisArgs
     {
         CheckNotExecuted();
@@ -152,11 +152,11 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
         where TState : struct, IRedisArgs
     {
         private readonly TState _state;
-        private readonly Func<TState, IDatabaseAsync, Task<TResult>> _operation;
+        private readonly AutoDatabaseAsyncOperation<TState, TResult> _operation;
         private readonly TaskCompletionSource<TResult> _proxy = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task<TResult>? _attempt;
 
-        public RecordedOp(TState state, Func<TState, IDatabaseAsync, Task<TResult>> operation)
+        public RecordedOp(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
         {
             _state = state;
             _operation = operation;
@@ -164,7 +164,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
 
         public Task<TResult> Proxy => _proxy.Task;
 
-        public void Replay(IDatabaseAsync inner) => _attempt = _operation(_state, inner);
+        public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
         public void ForwardSuccess()
         {
@@ -189,11 +189,11 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
         where TState : struct, IRedisArgs
     {
         private readonly TState _state;
-        private readonly Func<TState, IDatabaseAsync, Task> _operation;
+        private readonly AutoDatabaseAsyncOperation<TState> _operation;
         private readonly TaskCompletionSource<bool> _proxy = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _attempt;
 
-        public RecordedVoidOp(TState state, Func<TState, IDatabaseAsync, Task> operation)
+        public RecordedVoidOp(in TState state, AutoDatabaseAsyncOperation<TState> operation)
         {
             _state = state;
             _operation = operation;
@@ -201,7 +201,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
 
         public Task Proxy => _proxy.Task;
 
-        public void Replay(IDatabaseAsync inner) => _attempt = _operation(_state, inner);
+        public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
         public void ForwardSuccess()
         {
@@ -253,6 +253,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
     bool IRedisAsync.TryWait(Task task) => _source.TryWait(task);
 
     bool IDatabaseAsync.IsConnected(RedisKey key, CommandFlags flags) => _source.IsConnected(key, flags);
+
+    // routing lookup against the underlying database, not a queued transaction operation
+    Task<System.Net.EndPoint?> IDatabaseAsync.IdentifyEndpointAsync(RedisKey key, CommandFlags flags) => _source.IdentifyEndpointAsync(key, flags);
 
     // nested transactions are not supported (mirrors RedisTransaction)
     ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => throw new NotSupportedException("Nested transactions are not supported");
