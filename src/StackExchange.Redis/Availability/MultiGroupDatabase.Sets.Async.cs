@@ -5,6 +5,9 @@ namespace StackExchange.Redis.Availability;
 internal sealed partial class MultiGroupDatabase
 {
     // Set Async operations
+    public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().SetCombineLengthAsync(operation, keys, limit, approximate, flags);
+
     public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().SetAddAsync(key, value, flags);
 

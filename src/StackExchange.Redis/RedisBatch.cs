@@ -33,6 +33,13 @@ namespace StackExchange.Redis
             foreach (var message in snapshot)
             {
                 var server = multiplexer.SelectServer(message);
+                // If no server found and we're allowed to queue while disconnected (e.g. during
+                // MOVED-triggered reconnection), retry with allowDisconnected to find the server
+                // so we can queue batch messages to its backlog.
+                if (server == null && multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    server = multiplexer.ServerSelectionStrategy.Select(message, allowDisconnected: true);
+                }
                 if (server == null)
                 {
                     FailNoServer(multiplexer, snapshot);

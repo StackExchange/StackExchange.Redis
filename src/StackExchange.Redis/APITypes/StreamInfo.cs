@@ -103,39 +103,51 @@ public readonly struct StreamInfo
     /// <summary>
     /// The duration value configured for the stream’s IDMP map (seconds), or <c>-1</c> if unavailable.
     /// </summary>
-    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
-    public long IdmpDuration { get; }
+    public long IdmpDuration
+    {
+        get;
+    }
 
     /// <summary>
     /// The maxsize value configured for the stream’s IDMP map, or <c>-1</c> if unavailable.
     /// </summary>
-    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
-    public long IdmpMaxSize { get; }
+    public long IdmpMaxSize
+    {
+        get;
+    }
 
     /// <summary>
     /// The number of idempotent pids currently tracked in the stream, or <c>-1</c> if unavailable.
     /// </summary>
-    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
-    public long PidsTracked { get; }
+    public long PidsTracked
+    {
+        get;
+    }
 
     /// <summary>
     /// The number of idempotent ids currently tracked in the stream, or <c>-1</c> if unavailable.
     /// This count reflects active iids that haven't expired or been evicted yet.
     /// </summary>
-    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
-    public long IidsTracked { get; }
+    public long IidsTracked
+    {
+        get;
+    }
 
     /// <summary>
     /// The count of all entries with an idempotent iid added to the stream during its lifetime, or <c>-1</c> if unavailable.
     /// This is a cumulative counter that increases with each idempotent entry added.
     /// </summary>
-    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
-    public long IidsAdded { get; }
+    public long IidsAdded
+    {
+        get;
+    }
 
     /// <summary>
     /// The count of all duplicate iids (for all pids) detected during the stream's lifetime, or <c>-1</c> if unavailable.
     /// This is a cumulative counter that increases with each duplicate iid.
     /// </summary>
-    [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
-    public long IidsDuplicates { get; }
+    public long IidsDuplicates
+    {
+        get;
+    }
 }

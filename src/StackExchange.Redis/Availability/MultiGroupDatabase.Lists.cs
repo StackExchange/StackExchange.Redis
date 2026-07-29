@@ -36,6 +36,9 @@ internal sealed partial class MultiGroupDatabase
     public RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().ListMove(sourceKey, destinationKey, sourceSide, destinationSide, flags);
 
+    public RedisValue[]? ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().ListMove(sourceKey, destinationKey, sourceSide, destinationSide, count, mode, order, flags);
+
     public long ListPosition(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().ListPosition(key, element, rank, maxLength, flags);
 

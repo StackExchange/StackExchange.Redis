@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Messages;
@@ -1002,6 +1003,36 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
+        public void HashImport(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => ExecuteSync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.DemandOK);
+
+        public Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+            => ExecuteAsync(GetHashImportMessage(key, fieldSet, values, flags), ResultProcessor.DemandOK);
+
+        private HashImportSetMessage GetHashImportMessage(in RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags)
+        {
+            if (fieldSet is null) throw new ArgumentNullException(nameof(fieldSet));
+            fieldSet.ThrowIfDisposed();
+            if (values.Length != fieldSet.FieldCount)
+            {
+                throw new ArgumentException(
+                    $"{values.Length} value(s) were supplied but the field-set defines {fieldSet.FieldCount} field(s); the counts must match.",
+                    nameof(values));
+            }
+            // HIMPORT needs its PREPARE and SET on the same physical connection; the multiplexer provides that via
+            // write-path injection (exactly like SELECT). That injection cannot be reused inside a MULTI: every queued
+            // command adds a slot to the positional EXEC result array, but the transaction only accounts for the ops it
+            // knows about - an injected PREPARE would desync every following result. (This is the same reason
+            // SELECT-injection is itself forbidden inside a transaction.) Supporting it would require enqueuing PREPARE
+            // as a tracked transaction op, which is deliberately out of scope. Batches are fine: an ordered pipeline
+            // with no EXEC aggregate, so PREPARE injects per connection as normal.
+            if (this is ITransaction)
+            {
+                throw new NotSupportedException("HashImport is not supported inside a transaction; the connection-local HIMPORT PREPARE cannot be injected into a MULTI/EXEC without desyncing the EXEC result array.");
+            }
+            return new HashImportSetMessage(Database, flags, fieldSet, key, values);
+        }
+
         public Task<bool> HashSetIfNotExistsAsync(RedisKey key, RedisValue hashField, RedisValue value, CommandFlags flags)
         {
             var msg = Message.Create(Database, flags, RedisCommand.HSETNX, key, hashField, value);
@@ -1650,6 +1681,21 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
+        public RedisValue[]? ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetListMoveMultipleMessage(sourceKey, destinationKey, sourceSide, destinationSide, count, mode, order, flags);
+            return ExecuteSync(msg, ResultProcessor.NullableRedisValueArray);
+        }
+
+        public Task<RedisValue[]?> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetListMoveMultipleMessage(sourceKey, destinationKey, sourceSide, destinationSide, count, mode, order, flags);
+            return ExecuteAsync(msg, ResultProcessor.NullableRedisValueArray);
+        }
+
+        private Message GetListMoveMultipleMessage(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode, ListMoveOrder order, CommandFlags flags) =>
+            Message.Create(Database, flags, RedisCommand.LMOVEM, sourceKey, destinationKey, sourceSide.ToLiteral(), destinationSide.ToLiteral(), mode.ToLiteral(), count, order.ToLiteral());
+
         public RedisValue[] ListRange(RedisKey key, long start = 0, long stop = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LRANGE, key, start, stop);
@@ -2159,6 +2205,18 @@ namespace StackExchange.Redis
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSetCardinalityMessage(RedisCommand.SINTERCARD, keys, limit, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSetCombineLengthMessage(operation, keys, limit, approximate, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSetCombineLengthMessage(operation, keys, limit, approximate, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -3448,17 +3506,31 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip, defaultValue: Array.Empty<StreamEntry>());
         }
 
-        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
         {
             var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags);
             return ExecuteSync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
         }
 
-        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
         {
             var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags);
             return ExecuteAsync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
         }
+
+#pragma warning disable RS0026 // additive overload: the existing overload's parameters are required, so shorter calls bind here
+        public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags, maxCount, maxSize);
+            return ExecuteSync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
+        }
+
+        public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags, maxCount, maxSize);
+            return ExecuteAsync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
+        }
+#pragma warning restore RS0026
 
         public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags) =>
             StreamReadGroup(
@@ -3556,7 +3628,7 @@ namespace StackExchange.Redis
                 null,
                 flags);
 
-        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags)
         {
             var msg = GetMultiStreamReadGroupMessage(
                 streamPositions,
@@ -3590,7 +3662,7 @@ namespace StackExchange.Redis
                 null,
                 flags);
 
-        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags)
         {
             var msg = GetMultiStreamReadGroupMessage(
                 streamPositions,
@@ -3603,6 +3675,40 @@ namespace StackExchange.Redis
 
             return ExecuteAsync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
         }
+
+#pragma warning disable RS0026 // additive overload: the existing overload's parameters are required, so shorter calls bind here
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetMultiStreamReadGroupMessage(
+                streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                noAck,
+                claimMinIdleTime,
+                flags,
+                maxCount,
+                maxSize);
+
+            return ExecuteSync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
+        }
+
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetMultiStreamReadGroupMessage(
+                streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                noAck,
+                claimMinIdleTime,
+                flags,
+                maxCount,
+                maxSize);
+
+            return ExecuteAsync(msg, ResultProcessor.MultiStream, defaultValue: Array.Empty<RedisStream>());
+        }
+#pragma warning restore RS0026
 
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
             => StreamTrim(key, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
@@ -4236,7 +4342,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags) =>
+        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags, int? maxCount = null, int? maxSize = null) =>
             new MultiStreamReadGroupCommandMessage(
                 Database,
                 flags,
@@ -4245,19 +4351,23 @@ namespace StackExchange.Redis
                 consumerName,
                 countPerStream,
                 noAck,
-                claimMinIdleTime);
+                claimMinIdleTime,
+                maxCount,
+                maxSize);
 
-        private sealed class MultiStreamReadGroupCommandMessage : Message // XREADGROUP with multiple stream. Example: XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2
+        internal sealed class MultiStreamReadGroupCommandMessage : Message // XREADGROUP with multiple stream. Example: XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2
         {
             private readonly StreamPosition[] streamPositions;
             private readonly RedisValue groupName;
             private readonly RedisValue consumerName;
             private readonly int? countPerStream;
+            private readonly int? maxCount;
+            private readonly int? maxSize;
             private readonly bool noAck;
             private readonly int argCount;
             private readonly TimeSpan? claimMinIdleTime;
 
-            public MultiStreamReadGroupCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime)
+            public MultiStreamReadGroupCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, int? maxCount = null, int? maxSize = null)
                 : base(db, flags, RedisCommand.XREADGROUP)
             {
                 if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
@@ -4272,6 +4382,16 @@ namespace StackExchange.Redis
                     throw new ArgumentOutOfRangeException(nameof(countPerStream), "countPerStream must be greater than 0.");
                 }
 
+                if (maxCount.HasValue && maxCount <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(maxCount), "maxCount must be greater than 0.");
+                }
+
+                if (maxSize.HasValue && maxSize <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(maxSize), "maxSize must be greater than 0.");
+                }
+
                 groupName.AssertNotNull();
                 consumerName.AssertNotNull();
 
@@ -4279,12 +4399,16 @@ namespace StackExchange.Redis
                 this.groupName = groupName;
                 this.consumerName = consumerName;
                 this.countPerStream = countPerStream;
+                this.maxCount = maxCount;
+                this.maxSize = maxSize;
                 this.noAck = noAck;
                 this.claimMinIdleTime = claimMinIdleTime;
 
                 argCount = 4 // Room for GROUP groupName consumerName & STREAMS
                     + (streamPositions.Length * 2) // Enough room for the stream keys and associated IDs.
                     + (countPerStream.HasValue ? 2 : 0) // Room for "COUNT num" or 0 if countPerStream is null.
+                    + (maxCount.HasValue ? 2 : 0) // Room for "MAXCOUNT num".
+                    + (maxSize.HasValue ? 2 : 0) // Room for "MAXSIZE num".
                     + (noAck ? 1 : 0) // Allow for the NOACK subcommand.
                     + (claimMinIdleTime.HasValue ? 2 : 0); // Allow for the CLAIM {minIdleTime} subcommand.
             }
@@ -4312,6 +4436,18 @@ namespace StackExchange.Redis
                     writer.WriteBulkString(countPerStream.Value);
                 }
 
+                if (maxCount.HasValue)
+                {
+                    writer.WriteRaw("$8\r\nMAXCOUNT\r\n"u8);
+                    writer.WriteBulkString(maxCount.Value);
+                }
+
+                if (maxSize.HasValue)
+                {
+                    writer.WriteRaw("$7\r\nMAXSIZE\r\n"u8);
+                    writer.WriteBulkString(maxSize.Value);
+                }
+
                 if (noAck)
                 {
                     writer.WriteRaw("$5\r\nNOACK\r\n"u8);
@@ -4337,16 +4473,18 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private Message GetMultiStreamReadMessage(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags) =>
-            new MultiStreamReadCommandMessage(Database, flags, streamPositions, countPerStream);
+        private Message GetMultiStreamReadMessage(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags, int? maxCount = null, int? maxSize = null) =>
+            new MultiStreamReadCommandMessage(Database, flags, streamPositions, countPerStream, maxCount, maxSize);
 
-        private sealed class MultiStreamReadCommandMessage : Message // XREAD with multiple stream. Example: XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
+        internal sealed class MultiStreamReadCommandMessage : Message // XREAD with multiple stream. Example: XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
         {
             private readonly StreamPosition[] streamPositions;
             private readonly int? countPerStream;
+            private readonly int? maxCount;
+            private readonly int? maxSize;
             private readonly int argCount;
 
-            public MultiStreamReadCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, int? countPerStream)
+            public MultiStreamReadCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, int? countPerStream, int? maxCount = null, int? maxSize = null)
                 : base(db, flags, RedisCommand.XREAD)
             {
                 if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
@@ -4361,11 +4499,25 @@ namespace StackExchange.Redis
                     throw new ArgumentOutOfRangeException(nameof(countPerStream), "countPerStream must be greater than 0.");
                 }
 
+                if (maxCount.HasValue && maxCount <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(maxCount), "maxCount must be greater than 0.");
+                }
+
+                if (maxSize.HasValue && maxSize <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(maxSize), "maxSize must be greater than 0.");
+                }
+
                 this.streamPositions = streamPositions;
                 this.countPerStream = countPerStream;
+                this.maxCount = maxCount;
+                this.maxSize = maxSize;
 
                 argCount = 1 // Streams keyword.
                     + (countPerStream.HasValue ? 2 : 0) // Room for "COUNT num" or 0 if countPerStream is null.
+                    + (maxCount.HasValue ? 2 : 0) // Room for "MAXCOUNT num".
+                    + (maxSize.HasValue ? 2 : 0) // Room for "MAXSIZE num".
                     + (streamPositions.Length * 2); // Room for the stream names and the ID after which to begin reading.
             }
 
@@ -4387,6 +4539,18 @@ namespace StackExchange.Redis
                 {
                     writer.WriteRaw("$5\r\nCOUNT\r\n"u8);
                     writer.WriteBulkString(countPerStream.Value);
+                }
+
+                if (maxCount.HasValue)
+                {
+                    writer.WriteRaw("$8\r\nMAXCOUNT\r\n"u8);
+                    writer.WriteBulkString(maxCount.Value);
+                }
+
+                if (maxSize.HasValue)
+                {
+                    writer.WriteRaw("$7\r\nMAXSIZE\r\n"u8);
+                    writer.WriteBulkString(maxSize.Value);
                 }
 
                 writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);
@@ -4423,7 +4587,13 @@ namespace StackExchange.Redis
         }
 
         private Message GetSetCardinalityMessage(RedisCommand command, RedisKey[] keys, long limit, CommandFlags flags)
-            => new SetOperationCardinalityMessage(Database, flags, command, keys, limit);
+            => new SetOperationCardinalityMessage(Database, flags, command, keys, limit, approximate: false);
+
+        private Message GetSetCombineLengthMessage(SetOperation operation, RedisKey[] keys, long limit, bool approximate, CommandFlags flags)
+            // Deliberately do NOT gate `approximate` here: today only SUNIONCARD accepts APPROX (SINTERCARD/SDIFFCARD
+            // will error), but if later server versions extend it we don't want a stale client-side check blocking it.
+            // Let the server decide and surface any error.
+            => new SetOperationCardinalityMessage(Database, flags, operation.ToSetCardinalityCommand(), keys, limit, approximate);
 
         private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, SortedSetWhen when, bool change, CommandFlags flags)
             => new SingleSortedSetAddMessage(Database, flags, key, member, score, when, change, increment: false);
@@ -4613,7 +4783,7 @@ namespace StackExchange.Redis
         }
 
         private Message GetSortedSetIntersectionLengthMessage(RedisKey[] keys, long limit, CommandFlags flags)
-            => new SetOperationCardinalityMessage(Database, flags, RedisCommand.ZINTERCARD, keys, limit);
+            => new SetOperationCardinalityMessage(Database, flags, RedisCommand.ZINTERCARD, keys, limit, approximate: false);
 
         private Message GetSortedSetRangeByScoreMessage(RedisKey key, double start, double stop, Exclude exclude, Order order, long skip, long take, CommandFlags flags, bool withScores)
         {
@@ -5633,6 +5803,24 @@ namespace StackExchange.Redis
                 return slot;
             }
             public override int ArgCount => _args.Count;
+
+            protected override bool TryGetSubCommand(out SubCommand subCommand)
+            {
+                // the sub-command (if any) is the first argument after the command itself,
+                // e.g. CLIENT [GETNAME]; ad-hoc Execute args are boxed objects, so normalize
+                // the first one to a RedisValue before probing it against the known sub-commands
+                foreach (object arg in _args)
+                {
+                    var value = RedisValue.TryParse(arg, out var valid);
+                    if (valid)
+                    {
+                        return SubCommandMetadata.TryGetSubCommand(value, out subCommand);
+                    }
+                    break; // only the first argument is a sub-command candidate
+                }
+                subCommand = SubCommand.Unknown;
+                return false;
+            }
         }
 
         private sealed class ScriptEvalMessage : Message, IMultiMessage

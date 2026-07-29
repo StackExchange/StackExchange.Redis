@@ -51,6 +51,11 @@ namespace StackExchange.Redis
 
         private volatile int currentDatabase = 0;
 
+        // ids of HIMPORT field-sets already PREPAREd on this specific connection; lazily allocated, only ever touched
+        // inside the bridge write lock. A fresh connection (e.g. after a reconnect) starts empty, so the write path
+        // transparently re-prepares on demand - the connection-local server state is scoped to exactly this socket.
+        private HashSet<long>? _preparedFieldSets;
+
         private ReadMode currentReadMode = ReadMode.NotSpecified;
 
         private int failureReported;
@@ -705,6 +710,14 @@ namespace StackExchange.Redis
                    ? ReusableChangeDatabaseCommands[targetDatabase] // 0-15 by default
                    : Message.Create(targetDatabase, CommandFlags.FireAndForget, RedisCommand.SELECT);
         }
+
+        // HIMPORT field-set tracking; only ever called inside the bridge write lock, so no synchronization is needed.
+        // Returns true when the id was not already prepared on this connection (i.e. the caller must inject a PREPARE).
+        internal bool TryAddPreparedFieldSet(long id) => (_preparedFieldSets ??= new()).Add(id);
+
+        // drops a field-set id when its DISCARD is written, keeping the set bounded to live field-sets over the life of
+        // a long-lived connection.
+        internal void RemovePreparedFieldSet(long id) => _preparedFieldSets?.Remove(id);
 
         internal int GetSentAwaitingResponseCount()
         {

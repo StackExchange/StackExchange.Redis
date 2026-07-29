@@ -38,6 +38,9 @@ internal sealed partial class MultiGroupDatabase
     public Task<RedisValue> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().ListMoveAsync(sourceKey, destinationKey, sourceSide, destinationSide, flags);
 
+    public Task<RedisValue[]?> ListMoveAsync(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().ListMoveAsync(sourceKey, destinationKey, sourceSide, destinationSide, count, mode, order, flags);
+
     public Task<long> ListPositionAsync(RedisKey key, RedisValue element, long rank = 1, long maxLength = 0, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().ListPositionAsync(key, element, rank, maxLength, flags);
 

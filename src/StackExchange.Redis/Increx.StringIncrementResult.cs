@@ -7,7 +7,6 @@ namespace StackExchange.Redis;
 /// Represents the result of an increment operation including the resulting value and the increment actually applied.
 /// </summary>
 /// <typeparam name="T">The numeric type represented by the result.</typeparam>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public readonly struct StringIncrementResult<T>(T value, T appliedIncrement)
 {
     /// <summary>

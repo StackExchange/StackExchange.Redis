@@ -90,6 +90,9 @@ internal sealed partial class MultiGroupDatabase
     public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StreamReadAsync(streamPositions, countPerStream, flags);
 
+    public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StreamReadAsync(streamPositions, countPerStream, maxCount, maxSize, flags);
+
     public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
         => GetActiveDatabase().StreamReadGroupAsync(key, groupName, consumerName, position, count, flags);
 
@@ -107,6 +110,9 @@ internal sealed partial class MultiGroupDatabase
 
     public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? blockingTimeout = null, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, blockingTimeout, flags);
+
+    public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags);
 
     public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StreamTrimAsync(key, maxLength, useApproximateMaxLength, flags);

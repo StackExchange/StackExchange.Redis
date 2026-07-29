@@ -6,6 +6,9 @@ namespace StackExchange.Redis.Availability;
 internal sealed partial class MultiGroupDatabase
 {
     // Hash Async
+    public Task HashImportAsync(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().HashImportAsync(key, fieldSet, values, flags);
+
     public Task<long> HashDecrementAsync(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().HashDecrementAsync(key, hashField, value, flags);
 

@@ -125,6 +125,84 @@ public class SetTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
+    public async Task SetCombineLength_Union()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+
+        var db = conn.GetDatabase();
+
+        var key1 = Me() + "1";
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        db.SetAdd(key1, [0, 1, 2, 3, 4], CommandFlags.FireAndForget);
+        var key2 = Me() + "2";
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+        db.SetAdd(key2, [3, 4, 5], CommandFlags.FireAndForget);
+
+        // union = {0,1,2,3,4,5}
+        Assert.Equal(6, db.SetCombineLength(SetOperation.Union, [key1, key2]));
+        Assert.Equal(6, await db.SetCombineLengthAsync(SetOperation.Union, [key1, key2]));
+        // with limit
+        Assert.Equal(4, db.SetCombineLength(SetOperation.Union, [key1, key2], 4));
+        Assert.Equal(4, await db.SetCombineLengthAsync(SetOperation.Union, [key1, key2], 4));
+        // approximate (HyperLogLog); exact for a set this small
+        Assert.Equal(6, db.SetCombineLength(SetOperation.Union, [key1, key2], approximate: true));
+        Assert.Equal(4, await db.SetCombineLengthAsync(SetOperation.Union, [key1, key2], 4, approximate: true));
+
+        // Missing keys contribute nothing
+        var key3 = Me() + "3";
+        db.KeyDelete(key3, CommandFlags.FireAndForget);
+        Assert.Equal(5, db.SetCombineLength(SetOperation.Union, [key1, key3]));
+        Assert.Equal(0, await db.SetCombineLengthAsync(SetOperation.Union, [key3]));
+    }
+
+    [Fact]
+    public async Task SetCombineLength_Difference()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+
+        var db = conn.GetDatabase();
+
+        var key1 = Me() + "1";
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        db.SetAdd(key1, [0, 1, 2, 3, 4], CommandFlags.FireAndForget);
+        var key2 = Me() + "2";
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+        db.SetAdd(key2, [3, 4, 5], CommandFlags.FireAndForget);
+
+        // difference (key1 - key2) = {0,1,2}
+        Assert.Equal(3, db.SetCombineLength(SetOperation.Difference, [key1, key2]));
+        Assert.Equal(3, await db.SetCombineLengthAsync(SetOperation.Difference, [key1, key2]));
+        // with limit
+        Assert.Equal(2, db.SetCombineLength(SetOperation.Difference, [key1, key2], 2));
+        Assert.Equal(2, await db.SetCombineLengthAsync(SetOperation.Difference, [key1, key2], 2));
+
+        // difference against a missing key leaves the first set intact
+        var key3 = Me() + "3";
+        db.KeyDelete(key3, CommandFlags.FireAndForget);
+        Assert.Equal(5, db.SetCombineLength(SetOperation.Difference, [key1, key3]));
+        Assert.Equal(0, await db.SetCombineLengthAsync(SetOperation.Difference, [key3, key1]));
+    }
+
+    [Fact]
+    public async Task SetCombineLength_Intersect()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+
+        var db = conn.GetDatabase();
+
+        var key1 = Me() + "1";
+        db.KeyDelete(key1, CommandFlags.FireAndForget);
+        db.SetAdd(key1, [0, 1, 2, 3, 4], CommandFlags.FireAndForget);
+        var key2 = Me() + "2";
+        db.KeyDelete(key2, CommandFlags.FireAndForget);
+        db.SetAdd(key2, [3, 4, 5], CommandFlags.FireAndForget);
+
+        // intersect = {3,4}; SetCombineLength(Intersect) maps to SINTERCARD
+        Assert.Equal(2, db.SetCombineLength(SetOperation.Intersect, [key1, key2]));
+        Assert.Equal(1, await db.SetCombineLengthAsync(SetOperation.Intersect, [key1, key2], 1));
+    }
+
+    [Fact]
     public async Task SScan()
     {
         await using var conn = Create();

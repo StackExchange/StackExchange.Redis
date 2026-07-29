@@ -328,6 +328,83 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     }
 
     [Fact]
+    public async Task ListMoveMultiple_UpTo()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+
+        var db = conn.GetDatabase();
+        RedisKey src = Me();
+        RedisKey dest = Me() + "dest";
+        db.KeyDelete([src, dest], CommandFlags.FireAndForget);
+
+        await db.ListRightPushAsync(src, ["a", "b", "c", "d"]);
+
+        // move up-to 2 from the head of src onto the tail of dest
+        var moved = await db.ListMoveAsync(src, dest, ListSide.Left, ListSide.Right, 2);
+        Assert.NotNull(moved);
+        Assert.Equal(["a", "b"], moved.Select(x => x.ToString()));
+        Assert.Equal(["c", "d"], db.ListRange(src).Select(x => x.ToString()));
+        Assert.Equal(["a", "b"], db.ListRange(dest).Select(x => x.ToString()));
+
+        // COUNT tolerates asking for more than exist: moves what's left (here, the final 2)
+        var rest = db.ListMove(src, dest, ListSide.Left, ListSide.Right, 100);
+        Assert.NotNull(rest);
+        Assert.Equal(["c", "d"], rest.Select(x => x.ToString()));
+        Assert.Equal(0, db.ListLength(src));
+
+        // COUNT against an empty source moves nothing and returns null (as LMOVE does)
+        var none = db.ListMove(src, dest, ListSide.Left, ListSide.Right, 5);
+        Assert.Null(none);
+    }
+
+    [Fact]
+    public async Task ListMoveMultiple_Ordering()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+
+        var db = conn.GetDatabase();
+        RedisKey src = Me();
+        RedisKey dest = Me() + "dest";
+
+        // BULK preserves the source's relative order...
+        db.KeyDelete([src, dest], CommandFlags.FireAndForget);
+        await db.ListRightPushAsync(src, ["a", "b", "c", "d"]);
+        var bulk = db.ListMove(src, dest, ListSide.Left, ListSide.Left, 2, ListMoveCount.UpTo, ListMoveOrder.Bulk);
+        Assert.Equal(["a", "b"], bulk!.Select(x => x.ToString()));
+
+        // ...whereas OBO moves them one-by-one, reversing them when pushed onto the head.
+        db.KeyDelete([src, dest], CommandFlags.FireAndForget);
+        await db.ListRightPushAsync(src, ["a", "b", "c", "d"]);
+        var obo = db.ListMove(src, dest, ListSide.Left, ListSide.Left, 2, ListMoveCount.UpTo, ListMoveOrder.OneByOne);
+        Assert.Equal(["b", "a"], obo!.Select(x => x.ToString()));
+    }
+
+    [Fact]
+    public async Task ListMoveMultiple_Exactly()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+
+        var db = conn.GetDatabase();
+        RedisKey src = Me();
+        RedisKey dest = Me() + "dest";
+        db.KeyDelete([src, dest], CommandFlags.FireAndForget);
+
+        await db.ListRightPushAsync(src, ["a", "b"]);
+
+        // EXACTLY is all-or-nothing: too few elements => null, and the source is left untouched
+        var unsatisfied = db.ListMove(src, dest, ListSide.Left, ListSide.Right, 3, ListMoveCount.Exactly);
+        Assert.Null(unsatisfied);
+        Assert.Equal(["a", "b"], db.ListRange(src).Select(x => x.ToString()));
+        Assert.Equal(0, db.ListLength(dest));
+
+        // exactly the right number => all move
+        var satisfied = db.ListMove(src, dest, ListSide.Left, ListSide.Right, 2, ListMoveCount.Exactly);
+        Assert.NotNull(satisfied);
+        Assert.Equal(["a", "b"], satisfied.Select(x => x.ToString()));
+        Assert.Equal(0, db.ListLength(src));
+    }
+
+    [Fact]
     public async Task ListPositionHappyPath()
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);

@@ -673,6 +673,13 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void SetCombineLength()
+    {
+        prefixed.SetCombineLength(SetOperation.Union, ["key1", "key2"]);
+        mock.Received().SetCombineLength(SetOperation.Union, IsKeys(["prefix:key1", "prefix:key2"]), 0, false, CommandFlags.None);
+    }
+
+    [Fact]
     public void SetLength()
     {
         prefixed.SetLength("key", CommandFlags.None);

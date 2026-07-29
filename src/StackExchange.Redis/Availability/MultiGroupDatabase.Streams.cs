@@ -83,6 +83,9 @@ internal sealed partial class MultiGroupDatabase
     public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StreamRead(streamPositions, countPerStream, flags);
 
+    public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StreamRead(streamPositions, countPerStream, maxCount, maxSize, flags);
+
     public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
         => GetActiveDatabase().StreamReadGroup(key, groupName, consumerName, position, count, flags);
 
@@ -127,6 +130,9 @@ internal sealed partial class MultiGroupDatabase
 
     public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? blockingTimeout = null, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, blockingTimeout, flags);
+
+    public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags);
 
     public long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().StreamTrim(key, maxLength, useApproximateMaxLength, limit, trimMode, flags);

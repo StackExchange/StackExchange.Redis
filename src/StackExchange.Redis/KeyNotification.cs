@@ -32,25 +32,21 @@ public enum KeyNotificationKind
     /// <summary>
     /// Subkey keyspace notification: __subkeyspace@{db}__:{key} with payload containing event|subkey.
     /// </summary>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     SubKeySpace = 3,
 
     /// <summary>
     /// Subkey keyevent notification: __subkeyevent@{db}__:{event} with payload containing key|subkey.
     /// </summary>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     SubKeyEvent = 4,
 
     /// <summary>
     /// Subkey keyspaceitem notification: __subkeyspaceitem@{db}__:{key}\n{subkey} with payload containing the event.
     /// </summary>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     SubKeySpaceItem = 5,
 
     /// <summary>
     /// Subkey keyspaceevent notification: __subkeyspaceevent@{db}__:{event}|{key} with payload containing the subkey.
     /// </summary>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
     SubKeySpaceEvent = 6,
 }
 
@@ -81,12 +77,13 @@ public readonly ref partial struct KeyNotification
     /// Indicates whether this notification includes a sub-key (hash field).
     /// </summary>
     /// <remarks>This is true for SubKeySpace, SubKeyEvent, SubKeySpaceItem, and SubKeySpaceEvent notifications (Redis 8.8+).</remarks>
-    [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
-    public bool HasSubKey =>
-        _kind is KeyNotificationKind.SubKeySpace
-            or KeyNotificationKind.SubKeyEvent
-            or KeyNotificationKind.SubKeySpaceItem
-            or KeyNotificationKind.SubKeySpaceEvent;
+    public bool HasSubKey
+    {
+        get => _kind is KeyNotificationKind.SubKeySpace
+                     or KeyNotificationKind.SubKeyEvent
+                     or KeyNotificationKind.SubKeySpaceItem
+                     or KeyNotificationKind.SubKeySpaceEvent;
+    }
 
     /// <summary>
     /// If the channel is a keyspace, keyevent, subkeyspace, subkeyevent, subkeyspaceitem, or subkeyeventitem notification, resolve the key and event type.

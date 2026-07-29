@@ -6,6 +6,9 @@ internal sealed partial class MultiGroupDatabase
     public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().SetAdd(key, value, flags);
 
+    public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
+        => GetActiveDatabase().SetCombineLength(operation, keys, limit, approximate, flags);
+
     public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         => GetActiveDatabase().SetAdd(key, values, flags);
 
