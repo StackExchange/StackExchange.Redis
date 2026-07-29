@@ -1,6 +1,6 @@
 using System;
+using StackExchange.Redis.Availability;
 using Xunit;
-using static StackExchange.Redis.Availability.HealthCheck;
 
 namespace StackExchange.Redis.Tests;
 

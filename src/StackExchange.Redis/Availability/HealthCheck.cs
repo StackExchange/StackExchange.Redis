@@ -1,7 +1,5 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using RESPite;
 
 namespace StackExchange.Redis.Availability;
@@ -9,117 +7,180 @@ namespace StackExchange.Redis.Availability;
 /// <summary>
 /// Describes a health check to perform against instances.
 /// </summary>
+/// <remarks>
+/// Instances are immutable and safe to share between members; use <see cref="Builder"/> to configure
+/// a custom check. Note that <em>how often</em> checks run is a group-level concern, configured via
+/// <see cref="MultiGroupOptions.HealthCheckInterval"/>, not a property of the check itself.
+/// </remarks>
 [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
-public sealed partial class HealthCheck : ICloneable
+public sealed partial class HealthCheck
 {
-    private static HealthCheck? _default;
+    internal const int DefaultProbeCount = 3;
+    internal static readonly TimeSpan DefaultProbeTimeout = TimeSpan.FromSeconds(3);
+    internal static readonly TimeSpan DefaultProbeInterval = TimeSpan.FromMilliseconds(500);
+
+    private static readonly HealthCheck DefaultInstance = new(
+        enabled: true,
+        DefaultProbeCount,
+        DefaultProbeTimeout,
+        DefaultProbeInterval,
+        HealthCheckProbe.Ping,
+        HealthCheckProbePolicy.AllSuccess);
+
+    private static readonly HealthCheck DisabledInstance = new(
+        enabled: false,
+        DefaultProbeCount,
+        DefaultProbeTimeout,
+        DefaultProbeInterval,
+        HealthCheckProbe.None,
+        HealthCheckProbePolicy.AllSuccess);
 
     /// <summary>
-    /// The default health check options. These options are immutable and cannot be modified; to customize, either
-    /// use <see cref="Clone"/> to create a mutable copy, or create a new instance - and customize as needed.
+    /// The default health check: three <see cref="HealthCheckProbe.Ping"/> probes, all of which must succeed.
     /// </summary>
-    public static HealthCheck Default => _default ?? CreateDefault();
+    public static HealthCheck Default => DefaultInstance;
 
-    private static HealthCheck CreateDefault()
+    /// <summary>
+    /// No health check is performed; every check reports <see cref="HealthCheckResult.Inconclusive"/>, leaving
+    /// member selection driven purely by the observed connectivity of each member (and by any circuit-breaker).
+    /// </summary>
+    public static HealthCheck None => DisabledInstance;
+
+    private HealthCheck(
+        bool enabled,
+        int probeCount,
+        TimeSpan probeTimeout,
+        TimeSpan probeInterval,
+        HealthCheckProbe probe,
+        HealthCheckProbePolicy probePolicy)
     {
-        var options = new HealthCheck();
-        options.Freeze();
-        // memoize, preferring to re-use the existing instance if we're competing (but since frozen: that's fine)
-        return Interlocked.CompareExchange(ref _default, options, null) ?? options;
+        IsEnabled = enabled;
+        ProbeCount = probeCount;
+        ProbeTimeout = probeTimeout;
+        ProbeInterval = probeInterval;
+        Probe = probe;
+        ProbePolicy = probePolicy;
     }
 
-    internal void Freeze() => _frozen = true;
-    private bool _frozen;
+    /// <inheritdoc/>
+    public override string ToString() => IsEnabled
+        ? $"{Probe.GetType().Name} x{ProbeCount} ({ProbePolicy.GetType().Name})"
+        : "(disabled)";
 
     /// <summary>
-    /// Create a mutable copy of this health check.
+    /// Whether this health check performs any probes; <c>false</c> only for <see cref="None"/>.
     /// </summary>
-    public HealthCheck Clone() => new()
-    {
-        // note: do not copy _frozen
-        Interval = Interval,
-        ProbeCount = ProbeCount,
-        ProbeTimeout = ProbeTimeout,
-        ProbeInterval = ProbeInterval,
-        Probe = Probe,
-        ProbePolicy = ProbePolicy,
-    };
-
-    object ICloneable.Clone() => Clone();
+    public bool IsEnabled { get; }
 
     /// <summary>
-    /// Create a new health check instance.
+    /// Gets the number of probes to perform for this health check.
     /// </summary>
-    public HealthCheck()
-    {
-        Interval = TimeSpan.FromSeconds(5);
-        ProbeCount = 3;
-        ProbeTimeout = TimeSpan.FromSeconds(3);
-        ProbeInterval = TimeSpan.FromMilliseconds(500);
-        Probe = HealthCheckProbe.Ping;
-        ProbePolicy = HealthCheckProbePolicy.AllSuccess;
-    }
+    public int ProbeCount { get; }
 
     /// <summary>
-    /// Gets or sets the interval at which health checks should be performed.
+    /// Gets the time that should be allowed for an individual probe to complete.
     /// </summary>
-    public TimeSpan Interval
-    {
-        get;
-        set => SetField(ref field, value);
-    }
+    public TimeSpan ProbeTimeout { get; }
 
     /// <summary>
-    /// Gets or sets the number of probes to perform for this health check.
+    /// Gets the interval between failed probes.
     /// </summary>
-    public int ProbeCount
-    {
-        get;
-        set => SetField(ref field, value);
-    }
+    public TimeSpan ProbeInterval { get; }
 
     /// <summary>
-    /// Gets or sets the time that should be allowed for an individual probe to complete.
+    /// Gets the probe to use for this health check.
     /// </summary>
-    public TimeSpan ProbeTimeout
-    {
-        get;
-        set => SetField(ref field, value);
-    }
+    public HealthCheckProbe Probe { get; }
 
     /// <summary>
-    /// Gets or sets the interval between failed probes.
+    /// Gets the policy to use for this health check.
     /// </summary>
-    public TimeSpan ProbeInterval
-    {
-        get;
-        set => SetField(ref field, value);
-    }
+    public HealthCheckProbePolicy ProbePolicy { get; }
 
     /// <summary>
-    /// Gets or sets the probe to use for this health check.
+    /// Allows configuration of a <see cref="HealthCheck"/>.
     /// </summary>
-    public HealthCheckProbe Probe
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+    public sealed class Builder
     {
-        get;
-        set => SetField(ref field, value);
-    }
+        /// <summary>
+        /// Create a builder pre-populated with the default values.
+        /// </summary>
+        public Builder()
+        {
+        }
 
-    /// <summary>
-    /// Gets or sets the policy to use for this health check.
-    /// </summary>
-    public HealthCheckProbePolicy ProbePolicy
-    {
-        get;
-        set => SetField(ref field, value);
-    }
+        /// <summary>
+        /// Create a builder pre-populated from an existing <see cref="HealthCheck"/>.
+        /// </summary>
+        public Builder(HealthCheck healthCheck)
+        {
+            ProbeCount = healthCheck.ProbeCount;
+            ProbeTimeout = healthCheck.ProbeTimeout;
+            ProbeInterval = healthCheck.ProbeInterval;
+            Probe = healthCheck.Probe;
+            ProbePolicy = healthCheck.ProbePolicy;
+        }
 
-    // ReSharper disable once RedundantAssignment
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string caller = "")
-    {
-        if (_frozen) Throw(caller);
-        field = value;
+        /// <summary>
+        /// The number of probes to perform for this health check.
+        /// </summary>
+        public int ProbeCount { get; set; } = DefaultProbeCount;
 
-        static void Throw(string caller) => throw new InvalidOperationException($"{nameof(HealthCheck)}.{caller} cannot be modified once the object is in use.");
+        /// <summary>
+        /// The time that should be allowed for an individual probe to complete.
+        /// </summary>
+        public TimeSpan ProbeTimeout { get; set; } = DefaultProbeTimeout;
+
+        /// <summary>
+        /// The interval between failed probes.
+        /// </summary>
+        public TimeSpan ProbeInterval { get; set; } = DefaultProbeInterval;
+
+        /// <summary>
+        /// The probe to use for this health check.
+        /// </summary>
+        public HealthCheckProbe Probe { get; set; } = HealthCheckProbe.Ping;
+
+        /// <summary>
+        /// The policy to use for this health check.
+        /// </summary>
+        public HealthCheckProbePolicy ProbePolicy { get; set; } = HealthCheckProbePolicy.AllSuccess;
+
+        /// <summary>
+        /// Create a new health check instance.
+        /// </summary>
+        public HealthCheck Create()
+        {
+            if (ProbeCount < 1) throw new ArgumentOutOfRangeException(nameof(ProbeCount), ProbeCount, "At least one probe is required; use HealthCheck.None to disable health checks.");
+            if (ProbeTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(ProbeTimeout), ProbeTimeout, "A positive probe timeout is required.");
+            if (ProbeInterval < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(ProbeInterval), ProbeInterval, "A non-negative probe interval is required.");
+            if (Probe is null) throw new ArgumentNullException(nameof(Probe));
+            if (ProbePolicy is null) throw new ArgumentNullException(nameof(ProbePolicy));
+
+            // the total budget is expressed in int milliseconds when the check runs; validate that here,
+            // rather than letting it overflow into a nonsensical (or negative) timeout later
+            if (!TryComputeTotalTimeoutMillis(ProbeCount, ProbeTimeout, ProbeInterval, out _))
+            {
+                throw new ArgumentOutOfRangeException(nameof(ProbeTimeout), "The combined probe budget (ProbeCount, ProbeTimeout, ProbeInterval) is too large.");
+            }
+
+            // prefer the shared default instance when nothing has been customized
+            if (ProbeCount == DefaultProbeCount
+                && ProbeTimeout == DefaultProbeTimeout
+                && ProbeInterval == DefaultProbeInterval
+                && ReferenceEquals(Probe, HealthCheckProbe.Ping)
+                && ReferenceEquals(ProbePolicy, HealthCheckProbePolicy.AllSuccess))
+            {
+                return DefaultInstance;
+            }
+
+            return new HealthCheck(enabled: true, ProbeCount, ProbeTimeout, ProbeInterval, Probe, ProbePolicy);
+        }
+
+        /// <summary>
+        /// Create a new health check instance.
+        /// </summary>
+        public static implicit operator HealthCheck(Builder builder) => builder.Create();
     }
 }

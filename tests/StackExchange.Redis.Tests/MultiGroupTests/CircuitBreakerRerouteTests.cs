@@ -42,13 +42,13 @@ public class CircuitBreakerRerouteTests(ITestOutputHelper log) : TestBase(log)
             new(serverC.GetClientConfig(), "C") { Weight = 1 },
         ];
 
-        var options = new MultiGroupOptions
+        MultiGroupOptions options = new MultiGroupOptions.Builder
         {
-            HealthCheck = new HealthCheck
+            // enormous, so the poll loop cannot be what reroutes us during the test
+            HealthCheckInterval = TimeSpan.FromMinutes(30),
+            HealthCheck = new HealthCheck.Builder
             {
                 Probe = probe,
-                // enormous, so the poll loop cannot be what reroutes us during the test
-                Interval = TimeSpan.FromMinutes(30),
                 ProbeCount = 1,
                 ProbeTimeout = TimeSpan.FromSeconds(5),
             },
