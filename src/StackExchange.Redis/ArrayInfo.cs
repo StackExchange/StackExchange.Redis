@@ -8,7 +8,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Contains metadata information about an array returned by the ARINFO command.
 /// </summary>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public readonly struct ArrayInfo
 {
     private readonly Dictionary<string, RedisValue>? otherValues;

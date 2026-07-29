@@ -789,6 +789,27 @@ namespace StackExchange.Redis
         IEnumerable<RedisValue> HashScanNoValues(RedisKey key, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Creates a single hash from values supplied positionally against a reusable <see cref="HashImport"/> field-set,
+        /// using the server-side session field-set mechanism (<c>HIMPORT SET</c>). The <c>HIMPORT PREPARE</c> for
+        /// <paramref name="fieldSet"/> is injected automatically the first time it is seen on a connection.
+        /// </summary>
+        /// <param name="key">The key of the hash to create; any existing hash at this key is replaced.</param>
+        /// <param name="fieldSet">The field-set describing the ordered field names shared by imported hashes.</param>
+        /// <param name="values">The field values for this hash, matched positionally against the field-set (same count).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>
+        /// <para>
+        /// Each call is applied on its own and may be freely pipelined with unrelated work, so imports are effectively
+        /// unbounded. A server error (for example, a key already holding a non-hash value) is thrown as usual unless the
+        /// call is fire-and-forget. Cluster-aware: each key routes to its slot, re-preparing per node as needed.
+        /// </para>
+        /// <para>Not supported inside a transaction (the connection-local <c>PREPARE</c> cannot be staged in <c>MULTI</c>/<c>EXEC</c>).</para>
+        /// <para><seealso href="https://redis.io/commands/himport"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_10, UrlFormat = Experiments.UrlFormat)]
+        void HashImport(RedisKey key, HashImport fieldSet, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Sets the specified fields to their respective values in the hash stored at key.
         /// This command overwrites any specified fields that already exist in the hash, leaving other unspecified fields untouched.
         /// If key does not exist, a new key holding a hash is created.
@@ -1371,6 +1392,28 @@ namespace StackExchange.Redis
         RedisValue ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes up to (or exactly) <paramref name="count"/> elements from the first or last of the list stored at
+        /// <paramref name="sourceKey"/>, and pushes them to the first or last of the list stored at <paramref name="destinationKey"/>,
+        /// returning the moved elements in destination order.
+        /// </summary>
+        /// <param name="sourceKey">The key of the list to remove from.</param>
+        /// <param name="destinationKey">The key of the list to move to.</param>
+        /// <param name="sourceSide">What side of the <paramref name="sourceKey"/> list to remove from.</param>
+        /// <param name="destinationSide">What side of the <paramref name="destinationKey"/> list to move to.</param>
+        /// <param name="count">The number of elements to move.</param>
+        /// <param name="mode">Whether <paramref name="count"/> is an upper bound (<c>COUNT</c>) or an exact requirement (<c>EXACTLY</c>).</param>
+        /// <param name="order">Whether the elements are moved as a single block (<c>BULK</c>) or one-by-one (<c>OBO</c>).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// The elements moved, in destination order; an empty array if there was nothing to move; or <see langword="null"/>
+        /// when <paramref name="mode"/> is <see cref="ListMoveCount.Exactly"/> and the source list does not have <paramref name="count"/> elements.
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/lmovem"/></remarks>
+#pragma warning disable RS0026 // competing overloads - disambiguated by the required count parameter
+        RedisValue[]? ListMove(RedisKey sourceKey, RedisKey destinationKey, ListSide sourceSide, ListSide destinationSide, long count, ListMoveCount mode = ListMoveCount.UpTo, ListMoveOrder order = ListMoveOrder.Bulk, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
         /// Returns the specified elements of the list stored at key.
         /// The offsets start and stop are zero-based indexes, with 0 being the first element of the list (the head of the list), 1 being the next element and so on.
         /// These offsets can also be negative numbers indicating offsets starting at the end of the list.For example, -1 is the last element of the list, -2 the penultimate, and so on.
@@ -1791,8 +1834,36 @@ namespace StackExchange.Redis
         /// <param name="limit">The number of elements to check (defaults to 0 and means unlimited).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The cardinality (number of elements) of the set, or 0 if key does not exist.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/scard"/></remarks>
+        /// <remarks><seealso href="https://redis.io/commands/sintercard"/></remarks>
         long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        ///   <para>
+        ///     Returns the set cardinality (number of elements) of the set that would result from combining the sets
+        ///     stored at the given <paramref name="keys"/> with the specified <paramref name="operation"/>, without
+        ///     materializing the combined set or returning its members.
+        ///   </para>
+        ///   <para>
+        ///     If the cardinality reaches <paramref name="limit"/> partway through the computation, the algorithm
+        ///     will exit and yield <paramref name="limit"/> as the cardinality.
+        ///   </para>
+        /// </summary>
+        /// <param name="operation">The operation used to combine the sets (maps to <c>SUNIONCARD</c>, <c>SINTERCARD</c> or <c>SDIFFCARD</c>).</param>
+        /// <param name="keys">The keys of the sets.</param>
+        /// <param name="limit">The number of elements to check (defaults to 0 and means unlimited).</param>
+        /// <param name="approximate">
+        ///   When <see langword="true"/>, appends <c>APPROX</c> to request a HyperLogLog-based estimate rather than an
+        ///   exact count. At the time of writing only <see cref="SetOperation.Union"/> (<c>SUNIONCARD</c>) accepts this;
+        ///   it is passed through for any operation and the server will error if it is not supported.
+        /// </param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The cardinality (number of elements) of the combined set.</returns>
+        /// <remarks>
+        /// <seealso href="https://redis.io/commands/sunioncard"/>,
+        /// <seealso href="https://redis.io/commands/sintercard"/>,
+        /// <seealso href="https://redis.io/commands/sdiffcard"/>.
+        /// </remarks>
+        long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the set cardinality (number of elements) of the set stored at key.
@@ -2643,7 +2714,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns the number of messages successfully NACKed as a resp integer, regardless of mode (SILENT, FAIL, or FATAL) or options (RETRYCOUNT, FORCE) specified.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2657,7 +2727,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns the number of messages successfully NACKed as a resp integer, regardless of mode (SILENT, FAIL, or FATAL) or options (RETRYCOUNT, FORCE) specified.</returns>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2728,7 +2797,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2765,7 +2833,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks><seealso href="https://redis.io/commands/xadd"/></remarks>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
@@ -2775,7 +2842,6 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="configuration">The configuration to apply.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         void StreamConfigure(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -3040,7 +3106,28 @@ namespace StackExchange.Redis
         /// <para>Equivalent of calling <c>XREAD COUNT num STREAMS key1 key2 id1 id2</c>.</para>
         /// <para><seealso href="https://redis.io/commands/xread"/></para>
         /// </remarks>
-        RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags);
+
+        /// <summary>
+        /// Read from multiple streams, applying global caps on the total number of entries and/or the total reply size
+        /// across all streams (in addition to the per-stream <paramref name="countPerStream"/>).
+        /// </summary>
+        /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
+        /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="maxCount">The maximum total number of messages to return across all streams (<c>MAXCOUNT</c>); <see langword="null"/> for no cap.</param>
+        /// <param name="maxSize">The maximum total reply size in bytes across all streams (<c>MAXSIZE</c>); <see langword="null"/> for no cap.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
+        /// <remarks>
+        /// <para>
+        /// Equivalent of calling <c>XREAD COUNT num MAXCOUNT num MAXSIZE num STREAMS key1 key2 id1 id2</c>.
+        /// <c>MAXCOUNT</c>/<c>MAXSIZE</c> require server 8.10 or above; at least one entry is always returned even if it exceeds <paramref name="maxSize"/>.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/xread"/></para>
+        /// </remarks>
+#pragma warning disable RS0026 // additive overload: countPerStream is required here, so shorter calls still bind to the existing overload
+        RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <summary>
         /// Read messages from a stream into an associated consumer group.
@@ -3133,7 +3220,33 @@ namespace StackExchange.Redis
         /// <para>Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</c>.</para>
         /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
         /// </remarks>
-        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags);
+
+        /// <summary>
+        /// Read from multiple streams into the given consumer group, applying global caps on the total number of entries
+        /// and/or the total reply size across all streams (in addition to the per-stream <paramref name="countPerStream"/>).
+        /// The consumer group with the given <paramref name="groupName"/> will need to have been created for each stream prior to calling this method.
+        /// </summary>
+        /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="consumerName">The name of the consumer.</param>
+        /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
+        /// <param name="claimMinIdleTime">Auto-claim messages that have been idle for at least this long.</param>
+        /// <param name="maxCount">The maximum total number of messages to return across all streams (<c>MAXCOUNT</c>); <see langword="null"/> for no cap.</param>
+        /// <param name="maxSize">The maximum total reply size in bytes across all streams (<c>MAXSIZE</c>); <see langword="null"/> for no cap.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
+        /// <remarks>
+        /// <para>
+        /// Equivalent of calling <c>XREADGROUP GROUP groupName consumerName COUNT countPerStream MAXCOUNT num MAXSIZE num STREAMS stream1 stream2 id1 id2</c>.
+        /// <c>MAXCOUNT</c>/<c>MAXSIZE</c> require server 8.10 or above; at least one entry is always returned even if it exceeds <paramref name="maxSize"/>.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/xreadgroup"/></para>
+        /// </remarks>
+#pragma warning disable RS0026 // additive overload: countPerStream/noAck/claimMinIdleTime are required here, so shorter calls still bind to the existing overloads
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
 
         /// <summary>
         /// Trim the stream to a specified maximum length.
@@ -3297,7 +3410,6 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <remarks><seealso href="https://redis.io/commands/digest"/></remarks>
-        [Experimental(Experiments.Server_8_4, UrlFormat = Experiments.UrlFormat)]
         ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -3449,7 +3561,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The resulting value and the increment actually applied.</returns>
 #pragma warning disable RS0026 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -3463,7 +3574,6 @@ namespace StackExchange.Redis
         /// <param name="options">The options to use for this operation.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The resulting value and the increment actually applied.</returns>
-        [Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
         StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 

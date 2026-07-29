@@ -730,13 +730,39 @@ namespace StackExchange.Redis
 
             if (isDisposed) throw new ObjectDisposedException(Name);
 
-            if (!IsConnected)
+            if (!IsConnected || NeedsReconnect)
             {
+                // During reconnection (e.g. MOVED-to-same-endpoint), queue messages to the backlog
+                // so they can be sent once the connection is re-established.
+                // This matches the behavior of TryWriteAsync/TryWriteSync for individual commands.
+                if (Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    foreach (var message in messages)
+                    {
+                        message.SetEnqueued(null);
+                        BacklogEnqueue(message);
+                    }
+                    StartBacklogProcessor();
+                    return true;
+                }
                 return false;
             }
 
             var physical = this.physical;
-            if (physical == null) return false;
+            if (physical == null)
+            {
+                if (Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+                {
+                    foreach (var message in messages)
+                    {
+                        message.SetEnqueued(null);
+                        BacklogEnqueue(message);
+                    }
+                    StartBacklogProcessor();
+                    return true;
+                }
+                return false;
+            }
             foreach (var message in messages)
             {
                 // deliberately not taking a single lock here; we don't care if
@@ -1463,6 +1489,33 @@ namespace StackExchange.Redis
             }
         }
 
+        // HIMPORT is connection-local: a field-set must be PREPAREd on the same physical connection before a SET can
+        // reference it. We inject that PREPARE lazily here (mirroring SELECT injection): the first SET for a given
+        // field-set on a given connection triggers a fire-and-forget PREPARE ahead of it; a reconnect starts with a
+        // fresh (empty) connection set and re-prepares transparently. A DISCARD drops the id so the connection's set
+        // stays bounded to live field-sets. All of this runs inside the write lock, so ordering PREPARE-before-SET on
+        // the wire is guaranteed and the connection's set needs no further synchronization.
+        private void PrepareFieldSetInsideWriteLock(PhysicalConnection connection, Message message)
+        {
+            if (message is HashImportSetMessage set)
+            {
+                var fieldSet = set.FieldSet;
+                if (connection.TryAddPreparedFieldSet(fieldSet.Id))
+                {
+                    var prepare = fieldSet.CreatePrepareMessage(message.Db);
+                    connection.EnqueueInsideWriteLock(prepare);
+                    prepare.WriteTo(connection);
+                    prepare.SetRequestSent();
+                    IncrementOpCount();
+                    fieldSet.RegisterServer(ServerEndPoint, message.Db);
+                }
+            }
+            else if (message is HashImportDiscardMessage discard)
+            {
+                connection.RemovePreparedFieldSet(discard.FieldSetId);
+            }
+        }
+
         private WriteResult WriteMessageToServerInsideWriteLock(PhysicalConnection connection, Message message)
         {
             if (message == null)
@@ -1549,6 +1602,7 @@ namespace StackExchange.Redis
                 {
                     Debug.Assert(!message.IsHighIntegrity, "prior high integrity message found during transaction?");
                 }
+                if (cmd is RedisCommand.HIMPORT) PrepareFieldSetInsideWriteLock(connection, message);
                 connection.EnqueueInsideWriteLock(message);
                 isQueued = true;
                 message.WriteTo(connection);

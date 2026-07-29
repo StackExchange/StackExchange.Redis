@@ -9,7 +9,6 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <param name="start">The start index.</param>
 /// <param name="end">The end index.</param>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public readonly struct RedisArrayRange(RedisArrayIndex start, RedisArrayIndex end) : IEquatable<RedisArrayRange>
 {
     private readonly RedisArrayIndex _start = start;
