@@ -44,7 +44,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
     // overloads, capturing the arguments in a generated state struct plus a cacheable static projection
     // (no per-call closure). Here we simply *record* them and return a durable proxy task.
     private Task<TResult> ExecuteAsync<TState, TResult>(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
-        where TState : struct, IRedisArgs
+        where TState : struct
     {
         CheckNotExecuted();
         var op = new RecordedOp<TState, TResult>(state, operation);
@@ -53,7 +53,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
     }
 
     private Task ExecuteAsync<TState>(in TState state, AutoDatabaseAsyncOperation<TState> operation)
-        where TState : struct, IRedisArgs
+        where TState : struct
     {
         CheckNotExecuted();
         var op = new RecordedVoidOp<TState>(state, operation);
@@ -149,7 +149,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
     }
 
     private sealed class RecordedOp<TState, TResult> : IRecordedOp
-        where TState : struct, IRedisArgs
+        where TState : struct
     {
         private readonly TState _state;
         private readonly AutoDatabaseAsyncOperation<TState, TResult> _operation;
@@ -186,7 +186,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
     }
 
     private sealed class RecordedVoidOp<TState> : IRecordedOp
-        where TState : struct, IRedisArgs
+        where TState : struct
     {
         private readonly TState _state;
         private readonly AutoDatabaseAsyncOperation<TState> _operation;

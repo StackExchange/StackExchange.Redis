@@ -1,6 +1,4 @@
 using System;
-using System.Diagnostics;
-using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interfaces;
@@ -8,7 +6,8 @@ using StackExchange.Redis.Interfaces;
 namespace StackExchange.Redis.Availability;
 
 [AutoDatabase]
-internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInternalDatabaseAsync
+internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
+    // IRedisArgsMutator <==== if we ever want to support key-mapping
 {
     // Note: we very deliberately do not include synchronous support for retry; it is inherently delay-ish
 
@@ -55,12 +54,13 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     // policy will live here in due course; for now it is a straight pass-through.
 
     // async counterparts (Task<T> / Task); these get their own retry/failover policy in due course.
-    // note: the state cannot be taken by `in` here (async methods forbid by-ref parameters), and we need a
-    // mutable copy anyway for Map; only the projection takes it by readonly-ref, avoiding a copy per attempt
+    // note: the state cannot be taken by `in` here (async methods forbid by-ref parameters);
+    // only the projection takes it by readonly-ref, avoiding a copy per attempt
     private async Task<TResult> ExecuteAsync<TState, TResult>(TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
-        where TState : struct, IRedisArgs
+        where TState : struct
     {
-        state.Map(this);
+        /* key mapping, not used currently
+         * state.MapInPlace(this); */
 
         int attempt = 0;
         TResult result;
@@ -79,14 +79,17 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
                 await _controller.FailoverOrDelayAsync(delay).ConfigureAwait(false);
             }
         }
+        /* key mapping, not used currently
         // post-process results outside the loop
-        return this.UnMap(state, result);
+        return this.UnMap(state, result);*/
+        return result;
     }
 
     private async Task ExecuteAsync<TState>(TState state, AutoDatabaseAsyncOperation<TState> operation)
-        where TState : struct, IRedisArgs
+        where TState : struct
     {
-        state.Map(this);
+        /* key mapping, not used currently
+         * state.MapInPlace(this); */
 
         int attempt = 0;
         // note we need to capture this *before* the attempt - otherwise the failover could happen
@@ -129,10 +132,12 @@ internal partial class RetryDatabase : IDatabaseAsync, IRedisArgsMutator, IInter
     System.Collections.Generic.IAsyncEnumerable<RedisValue> IDatabaseAsync.VectorSetRangeEnumerateAsync(RedisKey key, RedisValue start, RedisValue end, long count, Exclude exclude, CommandFlags flags) => _inner.VectorSetRangeEnumerateAsync(key, start, end, count, exclude, flags);
     System.Collections.Generic.IAsyncEnumerable<SortedSetEntry> IDatabaseAsync.SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags) => _inner.SortedSetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
 
+    /* optional: key mapping
     RedisKey IRedisArgsMutator.Map(RedisKey key) => key;
 
     RedisChannel IRedisArgsMutator.Map(RedisChannel channel) => channel;
 
     RedisKey IRedisArgsMutator.UnMap(RedisKey key) => key;
     RedisChannel IRedisArgsMutator.UnMap(RedisChannel channel) => channel;
+    */
 }

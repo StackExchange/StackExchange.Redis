@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ParamInfo = (string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default);
 using MethodInfo = (string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters, StackExchange.Redis.Build.BasicArray<string> TypeArgs);
 using InterfaceInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces KnownType, StackExchange.Redis.Build.BasicArray<(string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters, StackExchange.Redis.Build.BasicArray<string> TypeArgs)> Methods);
-using ClassInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces Interfaces);
+using ClassInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces Interfaces, bool IsMutator);
 
 namespace StackExchange.Redis.Build;
 
@@ -47,6 +47,24 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
 
     private static bool FastClassFilter(ClassDeclarationSyntax decl) // limit to IDatabase, IDatabaseAsync
         => decl.AttributeLists.Any(x => x.Attributes.Any(x => x.Name.ToString() is "AutoDatabase" or "AutoDatabaseAttribute"));
+
+    // does this auto-database rewrite keys/channels? if not, the captured-args structs need no mapping members
+    private static bool IsMutatorInterface(INamedTypeSymbol symbol) =>
+        symbol is
+        {
+            TypeKind: TypeKind.Interface,
+            Name: "IRedisArgsMutator",
+            ContainingType: null,
+            ContainingNamespace:
+            {
+                Name: "Redis",
+                ContainingNamespace:
+                {
+                    Name: "StackExchange",
+                    ContainingNamespace.IsGlobalNamespace: true
+                }
+            }
+        };
 
     private static bool IsOurInterface(INamedTypeSymbol symbol) =>
         symbol is
@@ -174,8 +192,19 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
 
         if (known is KnownInterfaces.None) return default; // nothing to do!
 
+        // AllInterfaces (not Interfaces) so an inherited/explicit implementation still counts
+        bool isMutator = false;
+        foreach (var iFace in cls.AllInterfaces)
+        {
+            if (IsMutatorInterface(iFace))
+            {
+                isMutator = true;
+                break;
+            }
+        }
+
         var ns = cls.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        return (cls.Name, ns, known);
+        return (cls.Name, ns, known, isMutator);
     }
 
     [Flags]
@@ -418,20 +447,36 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     bool needsMap = TupleNeedsMap(raw);
                     var parameters = raw.Span;
 
-                    // fields are mutable: Map rewrites key/channel fields and Flags has a setter
-                    writer.NewLine().NewLine().Append("private struct _tuple").Append(i).Append("(");
+                    // key/channel-bearing fields are mutable only when something can rewrite them (i.e. the
+                    // owning database is an IRedisArgsMutator); otherwise every field is readonly
+                    // a non-mutator's captured args never change after capture, so the struct itself can be
+                    // readonly - which also guarantees no defensive copies when read through an `in` ref
+                    writer.NewLine().NewLine().Append(cls.IsMutator ? "private struct _tuple" : "private readonly struct _tuple").Append(i).Append("(");
                     for (int p = 0; p < parameters.Length; p++)
                     {
                         if (p != 0) writer.Append(", ");
                         writer.Append(parameters[p].Type).Append(" arg").Append(p);
                     }
 
-                    writer.Append(") : global::StackExchange.Redis.IRedisArgs");
+                    // captured args are a plain struct unless the owning database rewrites keys, in which
+                    // case the mapping members - and the interface that carries them - are emitted below
+                    writer.Append(")");
+                    if (cls.IsMutator)
+                    {
+                        writer.Append(" : global::StackExchange.Redis.IMappableRedisArgs");
+                    }
                     writer.NewLine().Append("{").Indent();
                     for (int p = 0; p < parameters.Length; p++)
                     {
-                        writer.NewLine().Append("public ").Append(NeedsMap(parameters[p].Type) ? "" : "readonly ").Append(parameters[p].Type)
+                        writer.NewLine().Append("public ").Append(cls.IsMutator && NeedsMap(parameters[p].Type) ? "" : "readonly ").Append(parameters[p].Type)
                             .Append(" Arg").Append(p).Append(" = arg").Append(p).Append(";");
+                    }
+
+                    if (!cls.IsMutator)
+                    {
+                        // nothing rewrites keys here, so there is no Map/UnMapper to emit at all
+                        writer.Outdent().NewLine().Append("}");
+                        continue;
                     }
 
                     // Map rewrites each scalar key/channel field directly, and defers container or
@@ -458,7 +503,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                     writer.Outdent().NewLine().Append("}");
                 }
 
-                if (allReturns.Count is not 0)
+                if (cls.IsMutator && allReturns.Count is not 0)
                 {
                     // sorted for deterministic (cache-stable) output
                     var ordered = new List<string>(allReturns);

@@ -13,35 +13,52 @@ internal sealed class AutoDatabaseAttribute : Attribute
 {
 }
 
-internal interface IRedisArgs
+// Implemented by a generated captured-arguments struct only when the owning auto-database implements
+// IRedisArgsMutator - i.e. only when something actually rewrites keys/channels. Everything else captures its
+// arguments into a plain readonly struct with no interface at all; a funnel that wants to map opts in by
+// constraining its TState to this (which is how KeyPrefixedDatabase will work once it moves onto
+// [AutoDatabase]).
+//
+// Map mutates the struct in place, so a funnel that maps MUST take its state BY VALUE - never by `in`, because
+// calling a non-readonly member through an `in` reference silently takes a defensive copy, mutates that, and
+// throws it away. Invoke it via RedisArgsMutatorExtensions.MapInPlace, which makes that mistake a compile
+// error (CS8329) instead of a silent loss of prefixing. (`ref` on the funnel is not an alternative: the
+// generated call site passes a constructed temporary, which `ref` rejects with CS1510, and async funnels
+// cannot have by-ref parameters at all.) The by-value copy is not waste here - a mapping funnel needs its own
+// mutable copy by definition. Only non-mapping funnels take `in`, and their structs are readonly, so for them
+// no defensive copy is even possible.
+internal interface IMappableRedisArgs
 {
+    [Obsolete("Use MapInPlace instead; calling Map directly does nothing when the state is held by `in`.")]
     void Map(IRedisArgsMutator mutator);
+
     object? UnMapper { get; }
 }
 
-// The projections used by the auto-database funnels. These exist (rather than Func<,,>/Action<,>) purely to
-// pass the captured state by readonly-reference: some of the generated state structs are chunky (a dozen-plus
-// arguments), and by-value would copy the whole thing on every call. Note that a lambda can only bind to
-// these if it declares the modifier - the generator emits `static (in state, inner) => ...` accordingly.
-// The projections used by the auto-database funnels; there are exactly four real shapes, so each is named
-// rather than being expressed generically over the target/return type. This lets the type system encode the
+// The projections used by the auto-database funnels. There are exactly four real shapes, so each is named
+// rather than being expressed generically over the target/return type: that lets the type system encode the
 // invariants (sync goes to IDatabase, async goes to IDatabaseAsync and returns a Task) instead of leaving
 // nonsense combinations like "sync database, Task result" expressible.
+//
+// They exist at all (rather than Func<,,>/Action<,>) purely to pass the captured state by readonly-reference:
+// some of the generated state structs are chunky (a dozen-plus arguments), and by-value would copy the whole
+// thing on every call. Note that a lambda only binds to an `in` parameter if it says so - the generator emits
+// `static (in state, inner) => ...` accordingly.
 //
 // TState is necessarily invariant: it is passed by readonly-ref, and variant type parameters cannot carry
 // the struct constraint. TResult is covariant on the sync projection (it is the direct return); it cannot be
 // on the async one, because there it appears inside the invariant Task<TResult>.
 internal delegate void AutoDatabaseSyncOperation<TState>(in TState state, IDatabase database)
-    where TState : struct, IRedisArgs;
+    where TState : struct;
 
 internal delegate TResult AutoDatabaseSyncOperation<TState, out TResult>(in TState state, IDatabase database)
-    where TState : struct, IRedisArgs;
+    where TState : struct;
 
 internal delegate Task AutoDatabaseAsyncOperation<TState>(in TState state, IDatabaseAsync database)
-    where TState : struct, IRedisArgs;
+    where TState : struct;
 
 internal delegate Task<TResult> AutoDatabaseAsyncOperation<TState, TResult>(in TState state, IDatabaseAsync database)
-    where TState : struct, IRedisArgs;
+    where TState : struct;
 
 internal interface IRedisArgsMutator
 {
@@ -67,28 +84,41 @@ internal static class RedisArgsMutatorExtensions
         KeyValuePair<RedisKey, RedisValue> value) =>
         new(mutator.Map(value.Key), value.Value);
 
+    // Funnels should map via this rather than calling state.Map(mutator) directly. Mapping mutates the struct
+    // in place, so it is only correct on a writable variable; the `ref this` here means that applying it to an
+    // `in` parameter fails to compile (CS8329) instead of silently taking a defensive copy, mutating that, and
+    // discarding it - which would leave keys unprefixed, i.e. a wrong-keyspace bug rather than a perf nit.
+    // (Deliberately not named Map: an extension cannot shadow the instance member, so the guard would be lost.)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void MapInPlace<TState>(this ref TState state, IRedisArgsMutator mutator)
+        where TState : struct, IMappableRedisArgs
+#pragma warning disable CS0618 // the one sanctioned call site: `state` is a genuine `ref`, so this mutates in place
+        => state.Map(mutator);
+#pragma warning restore CS0618
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static TResult UnMap<TState, TResult>(this IRedisArgsMutator mutator, in TState state, TResult result)
-        where TState : struct, IRedisArgs
+        where TState : struct, IMappableRedisArgs
     {
+        // note JIT will elide these tests using per-TResult value-type rules
         if (typeof(TResult) == typeof(RedisKey))
         {
             var tmp = mutator.UnMap(Unsafe.As<TResult, RedisKey>(ref result));
             return Unsafe.As<RedisKey, TResult>(ref tmp);
         }
-        else if (typeof(TResult) == typeof(RedisChannel))
+
+        if (typeof(TResult) == typeof(RedisChannel))
         {
             var tmp = mutator.UnMap(Unsafe.As<TResult, RedisChannel>(ref result));
             return Unsafe.As<RedisChannel, TResult>(ref tmp);
         }
-        else if (typeof(TResult) == typeof(RedisValue))
+
+        if (typeof(TResult) == typeof(RedisValue))
         {
             return result; // never mapped
         }
-        else
-        {
-            return state.UnMapper is IRedisArgsResult<TResult> unmap ? unmap.UnMap(mutator, result) : result;
-        }
+
+        return state.UnMapper is IRedisArgsResult<TResult> unmap ? unmap.UnMap(mutator, result) : result;
     }
 
     [return: NotNullIfNotNull("keys")]

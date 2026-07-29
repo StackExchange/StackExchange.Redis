@@ -45,19 +45,19 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     // forward to the currently-active member. Unlike RetryDatabase there is no key mapping to apply (we are
     // not rewriting keys), so the captured state's Map/UnMapper is never invoked.
     private TResult Execute<TState, TResult>(in TState state, AutoDatabaseSyncOperation<TState, TResult> operation)
-        where TState : struct, IRedisArgs
+        where TState : struct
         => operation(in state, GetActiveDatabase());
 
     private void Execute<TState>(in TState state, AutoDatabaseSyncOperation<TState> operation)
-        where TState : struct, IRedisArgs
+        where TState : struct
         => operation(in state, GetActiveDatabase());
 
     private Task<TResult> ExecuteAsync<TState, TResult>(in TState state, AutoDatabaseAsyncOperation<TState, TResult> operation)
-        where TState : struct, IRedisArgs
+        where TState : struct
         => operation(in state, GetActiveDatabase());
 
     private Task ExecuteAsync<TState>(in TState state, AutoDatabaseAsyncOperation<TState> operation)
-        where TState : struct, IRedisArgs
+        where TState : struct
         => operation(in state, GetActiveDatabase());
 
     // ---- members the generator deliberately skips (see AutoDatabaseGenerator.SkipMethod) -------------
