@@ -50,6 +50,12 @@ public interface IConnectionGroup : IConnectionMultiplexer
     /// Gets the currently active member.
     /// </summary>
     ConnectionGroupMember? ActiveMember { get; }
+
+    /// <summary>
+    /// Gets the group-wide options this group was created with; these are immutable, and are the defaults
+    /// against which each <see cref="ConnectionGroupMember"/>'s overrides are resolved.
+    /// </summary>
+    MultiGroupOptions Options { get; }
 }
 
 /// <summary>

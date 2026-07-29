@@ -4,15 +4,12 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Availability;
 
-public sealed partial class HealthCheck
+public abstract partial class HealthCheckProbe
 {
-    public partial class HealthCheckProbe
-    {
-        /// <summary>
-        /// Verify that a string can be successfully set and retrieved.
-        /// </summary>
-        public static HealthCheckProbe StringSet => StringSetProbe.Instance;
-    }
+    /// <summary>
+    /// Verify that a string can be successfully set and retrieved.
+    /// </summary>
+    public static HealthCheckProbe StringSet => StringSetProbe.Instance;
 
     internal sealed class StringSetProbe : KeyWriteHealthCheckProbe
     {
@@ -23,7 +20,7 @@ public sealed partial class HealthCheck
         private static Random SharedRandom { get; } = new();
 #endif
 
-        public override async Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IDatabaseAsync database, RedisKey key)
+        public override async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, IDatabaseAsync database, RedisKey key)
         {
             // note we use the lock API here because that can selectively choose between appropriate strategies for
             // different server versions, including DELEX
@@ -41,7 +38,7 @@ public sealed partial class HealthCheck
                 await database.LockTakeAsync(
                     key: key,
                     value: payload,
-                    expiry: healthCheck.ProbeTimeout,
+                    expiry: context.ProbeTimeout,
                     flags: CommandFlags.FireAndForget).ForAwait();
 
                 // release from the db if matches (otherwise, we have no clue what happened, so: leave alone)

@@ -22,6 +22,8 @@ internal partial class RetryDatabase : IDatabaseAsync, IInternalDatabaseAsync
     private readonly IDatabaseAsync _inner;
     private readonly RetryController _controller;
 
+    internal RetryPolicy Policy => _controller.Policy;
+
     public CancellationToken GetNextFailover()
         => _controller.TracksFailover ? _inner.GetNextFailover() : CancellationToken.None;
 

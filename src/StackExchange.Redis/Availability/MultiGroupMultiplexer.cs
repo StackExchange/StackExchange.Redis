@@ -33,9 +33,7 @@ namespace StackExchange.Redis
         {
             // create a defensive copy of the array; we don't want callers being able to radically swap things!
             members = (ConnectionGroupMember[])members.Clone();
-            options ??= MultiGroupOptions.Default;
-            options.Freeze();
-            return MultiGroupMultiplexer.ConnectAsync(members, options, log);
+            return MultiGroupMultiplexer.ConnectAsync(members, options ?? MultiGroupOptions.Default, log);
         }
 
         /// <summary>
@@ -55,9 +53,7 @@ namespace StackExchange.Redis
             TextWriter? log = null)
 #pragma warning restore RS0026
         {
-            options ??= MultiGroupOptions.Default;
-            options.Freeze();
-            return MultiGroupMultiplexer.ConnectAsync([member0, member1], options, log);
+            return MultiGroupMultiplexer.ConnectAsync([member0, member1], options ?? MultiGroupOptions.Default, log);
         }
     }
 
@@ -206,6 +202,42 @@ namespace StackExchange.Redis
             /// </summary>
             public string Name { get; private set; } = name;
 
+            // ---- per-member overrides of the group-wide MultiGroupOptions defaults ----
+            // every value on MultiGroupOptions that can vary per member appears here as a nullable
+            // counterpart; null means "use the group default". These are read when the member is added
+            // to a group (for the circuit-breaker, which is fixed at connection construction) or on each
+            // health-check pass (for the rest), so changing them later is only meaningful for the latter.
+
+            /// <summary>
+            /// The health-check to use for this member; when <see langword="null"/>,
+            /// <see cref="MultiGroupOptions.HealthCheck"/> is used. Use <see cref="Availability.HealthCheck.None"/>
+            /// to leave this member's selection driven purely by its observed connectivity.
+            /// </summary>
+            public HealthCheck? HealthCheck { get; set; }
+
+            /// <summary>
+            /// The circuit-breaker to use for this member; when <see langword="null"/>, the member's own
+            /// <see cref="ConfigurationOptions.CircuitBreaker"/> is used, else
+            /// <see cref="MultiGroupOptions.CircuitBreaker"/>. This is applied when the member connects, so
+            /// setting it after the member has been added to a group has no effect on existing connections.
+            /// </summary>
+            public CircuitBreaker? CircuitBreaker { get; set; }
+
+            /// <summary>
+            /// How long this member must remain healthy, following its most recent failure, before it is
+            /// eligible to be selected again; when <see langword="null"/>,
+            /// <see cref="MultiGroupOptions.FailbackDelay"/> is used.
+            /// </summary>
+            public TimeSpan? FailbackDelay { get; set; }
+
+            // the breaker to hand to this member's connections: member override, else its own config, else the group
+            internal CircuitBreaker? ResolveCircuitBreaker(MultiGroupOptions options)
+                => CircuitBreaker ?? Configuration.CircuitBreaker ?? options.CircuitBreaker;
+
+            internal HealthCheck ResolveHealthCheck(MultiGroupOptions options) => HealthCheck ?? options.HealthCheck;
+
+            internal TimeSpan ResolveFailbackDelay(MultiGroupOptions options) => FailbackDelay ?? options.FailbackDelay;
+
             /// <summary>
             /// The relative weight of this group member; higher is preferred.
             /// </summary>
@@ -282,12 +314,12 @@ namespace StackExchange.Redis
                 return x;
             }
 
-            internal GroupConnectionChangedEventArgs.ChangeType UpdateState(HealthCheck.HealthCheckResult result, long failbackFailureCutoffTicks)
+            internal GroupConnectionChangedEventArgs.ChangeType UpdateState(HealthCheckResult result, long failbackFailureCutoffTicks)
             {
                 bool isConnected;
                 if (_muxer is { IsConnected: true } muxer)
                 {
-                    isConnected = result is not HealthCheck.HealthCheckResult.Unhealthy;
+                    isConnected = result is not HealthCheckResult.Unhealthy;
                     SetLatency(muxer.UpdateLatency());
                 }
                 else
@@ -444,8 +476,10 @@ namespace StackExchange.Redis
                     var config = members[i].Configuration;
                     config.AbortOnConnectFail = false;
                     config.HeartbeatConsistencyChecks = true;
-                    config.CircuitBreaker ??= options.CircuitBreaker; // AA options flow into the children
-                    pending[i] = ConnectionMultiplexer.ConnectAsync(config, log);
+
+                    // note the resolved circuit-breaker is passed *alongside* the configuration rather than
+                    // written into it; see ConnectionMultiplexer.GroupCircuitBreaker
+                    pending[i] = ConnectionMultiplexer.ConnectGroupMemberAsync(config, log, members[i].ResolveCircuitBreaker(options));
                 }
 
                 for (int i = 0; i < pending.Length; i++)
@@ -462,6 +496,8 @@ namespace StackExchange.Redis
             }
 
             private readonly MultiGroupOptions _options;
+
+            public MultiGroupOptions Options => _options;
 
             private MultiGroupMultiplexer(ConnectionGroupMember[] members, MultiGroupOptions options)
             {
@@ -538,10 +574,11 @@ namespace StackExchange.Redis
 
                 static bool TryGetHealthCheck(object? target, out TimeSpan interval)
                 {
-                    if (target is MultiGroupMultiplexer typed
-                        && typed._options.HealthCheck is { } healthCheck)
+                    if (target is MultiGroupMultiplexer typed)
                     {
-                        interval = healthCheck.Interval;
+                        // note the interval is a group-level concern (how often we re-evaluate the active
+                        // member), not a property of any individual health-check
+                        interval = typed._options.HealthCheckInterval;
                         return interval > TimeSpan.Zero & interval != TimeSpan.MaxValue;
                     }
 
@@ -552,28 +589,32 @@ namespace StackExchange.Redis
 
             internal bool IsDisposed => _disposed;
 
-            private Task<HealthCheck.HealthCheckResult>[]? _reusableHealthCheckBuffer;
+            private Task<HealthCheckResult>[]? _reusableHealthCheckBuffer;
             private int _healthCheckGate; // 0 = idle, 1 = a check/select pass is in flight (see TryHealthCheckAndSelectPreferredGroupAsync)
 
             internal async Task RunHealthCheckAsync()
             {
                 if (_disposed) return;
-                var healthCheck = _options.HealthCheck;
                 var members = _members;
+                if (members.Length == 0) return; // nothing to check (and no budget to compute)
+
                 var pending = HealthCheck.GetReusablePending(ref _reusableHealthCheckBuffer, members.Length);
+
+                // members can use different health-checks (see ConnectionGroupMember.HealthCheck), so the
+                // budget for the whole pass is the largest individual budget
+                int totalTimeoutMillis = 0;
                 for (int i = 0; i < members.Length; i++)
                 {
-                    // per-member health-check overrides the group default when specified (see the group/muxer
-                    // split on circuit-breakers); left null, we fall back to the shared group health-check
                     var muxer = members[i].Multiplexer;
-                    pending[i] = (muxer.RawConfig.HealthCheck ?? healthCheck).CheckHealthAsync(muxer);
+                    var healthCheck = members[i].ResolveHealthCheck(_options);
+                    totalTimeoutMillis = Math.Max(totalTimeoutMillis, healthCheck.TotalTimeoutMillis());
+                    pending[i] = healthCheck.CheckHealthAsync(muxer);
                 }
 
-                await Task.WhenAll(pending).TimeoutAfter(healthCheck.TotalTimeoutMillis()).ForAwait();
-                var failbackFailureCutoff = GetFailbackFailureCutoff();
+                await Task.WhenAll(pending).TimeoutAfter(totalTimeoutMillis).ForAwait();
                 for (int i = 0; i < pending.Length; i++)
                 {
-                    HealthCheck.HealthCheckResult result;
+                    HealthCheckResult result;
                     if (pending[i].IsCompletedSuccessfully)
                     {
                         result = await pending[i].ForAwait();
@@ -581,10 +622,10 @@ namespace StackExchange.Redis
                     else
                     {
                         _ = pending[i].ObserveErrors();
-                        result = HealthCheck.HealthCheckResult.Unhealthy;
+                        result = HealthCheckResult.Unhealthy;
                     }
 
-                    var delta = members[i].UpdateState(result, failbackFailureCutoff);
+                    var delta = members[i].UpdateState(result, GetFailbackFailureCutoff(members[i]));
                     if (delta != GroupConnectionChangedEventArgs.ChangeType.Unknown)
                     {
                         OnConnectionChanged(delta, members[i]);
@@ -594,13 +635,13 @@ namespace StackExchange.Redis
                 HealthCheck.PutReusablePending(ref _reusableHealthCheckBuffer, ref pending);
             }
 
-            private long GetFailbackFailureCutoff()
+            private long GetFailbackFailureCutoff(ConnectionGroupMember member)
             {
                 // the minimum last-observed unhealthy time (as UTC ticks) that we'll allow for reconnect;
                 // for example, if the FailbackDelay is 2 minutes, and the time is 14:32:55, then the last
                 // failure must have happened at 14:30:55 or earlier. Pure long tick math on the wall clock:
                 // DateTime.Ticks and TimeSpan.Ticks are the same 100ns unit, so the subtraction is valid
-                var delay = _options.FailbackDelay;
+                var delay = member.ResolveFailbackDelay(_options);
                 if (delay == TimeSpan.MaxValue) return long.MinValue; // manual mode: never auto-reset
 
                 return DateTime.UtcNow.Ticks - delay.Ticks;
@@ -1241,8 +1282,8 @@ namespace StackExchange.Redis
                 member.Init(_members.Length);
                 member.Configuration.AbortOnConnectFail = false; // members are gated by health-checks, not connect-fail
                 member.Configuration.HeartbeatConsistencyChecks = true;
-                member.Configuration.CircuitBreaker ??= _options.CircuitBreaker; // AA options flow into the children
-                var muxer = await ConnectionMultiplexer.ConnectAsync(member.Configuration, log).ConfigureAwait(false);
+                var muxer = await ConnectionMultiplexer.ConnectGroupMemberAsync(
+                    member.Configuration, log, member.ResolveCircuitBreaker(_options)).ConfigureAwait(false);
                 member.SetMultiplexer(muxer);
 
                 // unless told otherwise, run an initial health-check so a healthy member can be selected immediately;
@@ -1250,9 +1291,8 @@ namespace StackExchange.Redis
                 // passes - this is the only way to add a member that is not yet healthy
                 if (!member.SkipInitialHealthCheck)
                 {
-                    var health = await (muxer.RawConfig.HealthCheck ?? _options.HealthCheck)
-                        .CheckHealthAsync(muxer).ConfigureAwait(false);
-                    member.UpdateState(health, GetFailbackFailureCutoff());
+                    var health = await member.ResolveHealthCheck(_options).CheckHealthAsync(muxer).ConfigureAwait(false);
+                    member.UpdateState(health, GetFailbackFailureCutoff(member));
                 }
 
                 // apply any shared hooks

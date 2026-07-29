@@ -80,7 +80,6 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "defaultOptions",
                 "defaultVersion",
                 "EndPoints",
-                "HealthCheck",
                 "heartbeatInterval",
                 "keepAlive",
                 "LibraryName",
@@ -95,6 +94,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "RequestBufferPool",
                 "ResponseBufferPool",
                 "responseTimeout",
+                "RetryPolicy",
                 "ServiceName",
                 "SocketManager",
     #if !NETFRAMEWORK

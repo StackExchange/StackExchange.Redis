@@ -11,7 +11,9 @@ public sealed partial class HealthCheck
     /// Evaluate the health of the specified multiplexer, by evaluating all endpoints.
     /// </summary>
     public Task<HealthCheckResult> CheckHealthAsync(IConnectionMultiplexer multiplexer)
-        => multiplexer.IsConnected ? CheckHealthCoreAsync(multiplexer) : HealthCheckProbe.UnhealthyTask;
+        => !IsEnabled ? HealthCheckProbe.InconclusiveTask
+        : multiplexer.IsConnected ? CheckHealthCoreAsync(multiplexer)
+        : HealthCheckProbe.UnhealthyTask;
 
     private async Task<HealthCheckResult> CheckHealthCoreAsync(IConnectionMultiplexer multiplexer)
     {
@@ -51,21 +53,32 @@ public sealed partial class HealthCheck
 
     internal int TotalTimeoutMillis()
     {
-        int count = ProbeCount;
-        if (count <= 0)
-        {
-            Debug.Fail("We shouldn't get as far as calculating timeouts with a non-positive probe count.");
-            return 0;
-        }
-
-        TimeSpan probeTimeout = ProbeTimeout, probeInterval = ProbeInterval;
-
-        // the first probe doesn't have an interval before it, the rest do
-        var totalTicks = probeTimeout.Ticks
-            + ((probeTimeout.Ticks + probeInterval.Ticks) * (count - 1));
-        var millis = (int)TimeSpan.FromTicks(totalTicks).TotalMilliseconds;
-        Debug.Assert(millis > 0, "Total timeout should be positive");
+        bool valid = TryComputeTotalTimeoutMillis(ProbeCount, ProbeTimeout, ProbeInterval, out int millis);
+        Debug.Assert(valid, "The probe budget is validated by HealthCheck.Builder.Create, so should always be usable here.");
         return millis;
+    }
+
+    // the total time budget for a full health check, in milliseconds; shared with Builder.Create, which uses
+    // it to reject a configuration whose budget cannot be expressed (rather than overflowing at check time)
+    private static bool TryComputeTotalTimeoutMillis(int probeCount, TimeSpan probeTimeout, TimeSpan probeInterval, out int millis)
+    {
+        millis = 0;
+        if (probeCount < 1 || probeTimeout <= TimeSpan.Zero || probeInterval < TimeSpan.Zero) return false;
+
+        try
+        {
+            // the first probe doesn't have an interval before it, the rest do
+            long totalTicks = checked(probeTimeout.Ticks + ((probeTimeout.Ticks + probeInterval.Ticks) * (probeCount - 1)));
+            long totalMillis = totalTicks / TimeSpan.TicksPerMillisecond;
+            if (totalMillis is <= 0 or > int.MaxValue) return false;
+
+            millis = (int)totalMillis;
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     // apply timeout and collation logic to a group of probes
@@ -130,19 +143,22 @@ public sealed partial class HealthCheck
     /// Evaluate the health of an endpoint.
     /// </summary>
     public Task<HealthCheckResult> CheckHealthAsync(IServer server)
-        => server.IsConnected ? CheckHealthCoreAsync(server) : HealthCheckProbe.UnhealthyTask;
+        => !IsEnabled ? HealthCheckProbe.InconclusiveTask
+        : server.IsConnected ? CheckHealthCoreAsync(server)
+        : HealthCheckProbe.UnhealthyTask;
 
     private async Task<HealthCheckResult> CheckHealthCoreAsync(IServer server)
     {
         try
         {
             int timeout = (int)ProbeTimeout.TotalMilliseconds, success = 0, failure = 0, remaining = ProbeCount;
+            HealthCheckContext context = new(server, ProbeTimeout);
             while (remaining > 0)
             {
                 HealthCheckResult probeResult;
                 try
                 {
-                    var pendingProbe = Probe.CheckHealthAsync(this, server);
+                    var pendingProbe = Probe.CheckHealthAsync(context);
                     probeResult = await pendingProbe.TimeoutAfter(timeout).ForAwait()
                         ? await pendingProbe.ForAwait() // completed
                         : HealthCheckResult.Unhealthy; // timeout
