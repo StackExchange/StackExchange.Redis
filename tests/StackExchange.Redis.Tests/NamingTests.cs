@@ -168,6 +168,12 @@ public class NamingTests(ITestOutputHelper output) : TestBase(output)
         {
             case nameof(IDatabaseAsync.IsConnected):
                 return;
+            case nameof(IDatabaseAsync.CreateTransaction) when isAsync:
+                // IDatabaseAsync.CreateTransaction is a synchronous *factory*: it hands back an
+                // ITransactionAsync rather than performing an async operation, so neither the *Async
+                // suffix nor the Task-returning rule applies. IDatabase.CreateTransaction is unaffected
+                // and still goes through the checks below.
+                return;
             case nameof(IDatabase.CreateBatch):
             case nameof(IDatabase.CreateTransaction):
             case nameof(IDatabase.IdentifyEndpoint):
