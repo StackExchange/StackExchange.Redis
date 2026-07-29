@@ -22,7 +22,7 @@ public partial class ConnectionMultiplexer
     /// <param name="log">The <see cref="ILogger"/> to log to, if any.</param>
     internal void InitializeSentinel(ILogger? log)
     {
-        if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
+        if (!_isSentinel)
         {
             return;
         }
