@@ -88,6 +88,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "OutputLog",
 #endif
                 "password",
+                "sentinelPassword",
                 "proxy",
                 "reconnectRetryPolicy",
                 "RequestBufferPool",
@@ -104,6 +105,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "tieBreaker",
                 "Tunnel",
                 "user",
+                "sentinelUser",
             },
             fields);
     }

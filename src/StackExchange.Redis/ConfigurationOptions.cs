@@ -962,9 +962,9 @@ namespace StackExchange.Redis
             defaultVersion = defaultVersion,
             connectTimeout = connectTimeout,
             user = user,
-            SentinelUser = SentinelUser,
+            SentinelUser = sentinelUser,
             password = password,
-            SentinelPassword = SentinelPassword,
+            SentinelPassword = sentinelPassword,
             tieBreaker = tieBreaker,
             sslHost = sslHost,
             configChannel = configChannel,
@@ -1065,7 +1065,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.User, user);
             Append(sb, OptionKeys.SentinelUser, sentinelUser);
             Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(password)) ? password : "*****");
-            Append(sb, OptionKeys.SentinelPassword, (includePassword || string.IsNullOrEmpty(SentinelPassword)) ? sentinelPassword : "*****");
+            Append(sb, OptionKeys.SentinelPassword, (includePassword || string.IsNullOrEmpty(sentinelPassword)) ? sentinelPassword : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.Ssl, OptionFlags.SslHasValue, OptionFlags.SslValue);
             if (HasValue(OptionFlags.SslProtocolsHasValue)) Append(sb, OptionKeys.SslProtocols, sslProtocols.ToString().Replace(',', '|'));
@@ -1202,6 +1202,8 @@ namespace StackExchange.Redis
 #if DEBUG
             OutputLog = null;
 #endif
+            sentinelUser = null;
+            sentinelPassword = null;
         }
 
         object ICloneable.Clone() => Clone();
