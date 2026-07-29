@@ -96,7 +96,4 @@ public partial interface IDatabaseAsync
         long count = 100,
         Exclude exclude = Exclude.None,
         CommandFlags flags = CommandFlags.None);
-
-    /// <inheritdoc cref="IDatabase.StreamReadGroup(StreamPosition[], RedisValue, RedisValue, int?, bool, TimeSpan?, CommandFlags)"/>
-    Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None);
 }

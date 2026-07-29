@@ -1,4 +1,4 @@
-ARG CLIENT_LIBS_TEST_IMAGE=redislabs/client-libs-test:8.8.0
+ARG CLIENT_LIBS_TEST_IMAGE=redislabs/client-libs-test:8.10-rc2
 FROM ${CLIENT_LIBS_TEST_IMAGE}
 
 COPY --from=configs ./Basic /data/Basic/

@@ -9,7 +9,6 @@ namespace StackExchange.Redis;
 /// but wrapped for convenience from languages that do not work well with unsigned values.
 /// </summary>
 /// <param name="value">The array index.</param>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 [method: CLSCompliant(false)]
 public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex>
 {

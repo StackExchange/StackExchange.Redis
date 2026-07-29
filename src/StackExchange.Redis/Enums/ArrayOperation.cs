@@ -6,7 +6,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Describes an array aggregation operation.
 /// </summary>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 public enum ArrayOperation
 {
     /// <summary>

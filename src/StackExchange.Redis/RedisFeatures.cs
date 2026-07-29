@@ -50,7 +50,8 @@ namespace StackExchange.Redis
                                          v8_2_0_rc1 = new Version(8, 1, 240), // 8.2 RC1 is version 8.1.240
                                          v8_4_0_rc1 = new Version(8, 3, 224), // 8.4 RC1 is version 8.3.224
                                          v8_6_0 = new Version(8, 6, 0),
-                                         v8_8_0 = new Version(8, 7, 225); // 8.8 is version 8.7.225
+                                         v8_8_0 = new Version(8, 7, 225), // 8.8 is version 8.7.225
+                                         v8_10_0 = new Version(8, 9, 241); // 8.10 preview is version 8.9.241
 
 #pragma warning restore SA1310 // Field names should not contain underscore
 #pragma warning restore SA1311 // Static readonly fields should begin with upper-case letter
@@ -297,6 +298,11 @@ namespace StackExchange.Redis
         /// Are the <c>IF*</c> modifiers on <see href="https://redis.io/commands/del/">DEL</see> available?
         /// </summary>
         public bool DeleteWithValueCheck => Version.IsAtLeast(v8_4_0_rc1);
+
+        /// <summary>
+        /// Is session-based bulk hash import (<c>HIMPORT</c>) available?
+        /// </summary>
+        public bool HashImport => Version.IsAtLeast(v8_10_0);
 
 #pragma warning restore 1629 // Documentation text should end with a period.
 

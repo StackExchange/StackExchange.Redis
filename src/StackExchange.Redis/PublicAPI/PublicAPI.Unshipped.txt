@@ -1,1 +1,23 @@
 #nullable enable
+StackExchange.Redis.IDatabase.ListMove(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.ListSide sourceSide, StackExchange.Redis.ListSide destinationSide, long count, StackExchange.Redis.ListMoveCount mode = StackExchange.Redis.ListMoveCount.UpTo, StackExchange.Redis.ListMoveOrder order = StackExchange.Redis.ListMoveOrder.Bulk, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisValue[]?
+StackExchange.Redis.IDatabase.SetCombineLength(StackExchange.Redis.SetOperation operation, StackExchange.Redis.RedisKey[]! keys, long limit = 0, bool approximate = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long
+StackExchange.Redis.IDatabase.StreamRead(StackExchange.Redis.StreamPosition[]! streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisStream[]!
+StackExchange.Redis.IDatabase.StreamReadGroup(StackExchange.Redis.StreamPosition[]! streamPositions, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue consumerName, int? countPerStream = null, bool noAck = false, System.TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.RedisStream[]!
+StackExchange.Redis.IDatabaseAsync.ListMoveAsync(StackExchange.Redis.RedisKey sourceKey, StackExchange.Redis.RedisKey destinationKey, StackExchange.Redis.ListSide sourceSide, StackExchange.Redis.ListSide destinationSide, long count, StackExchange.Redis.ListMoveCount mode = StackExchange.Redis.ListMoveCount.UpTo, StackExchange.Redis.ListMoveOrder order = StackExchange.Redis.ListMoveOrder.Bulk, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisValue[]?>!
+StackExchange.Redis.IDatabaseAsync.SetCombineLengthAsync(StackExchange.Redis.SetOperation operation, StackExchange.Redis.RedisKey[]! keys, long limit = 0, bool approximate = false, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long>!
+StackExchange.Redis.IDatabaseAsync.StreamReadAsync(StackExchange.Redis.StreamPosition[]! streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisStream[]!>!
+StackExchange.Redis.IDatabaseAsync.StreamReadGroupAsync(StackExchange.Redis.StreamPosition[]! streamPositions, StackExchange.Redis.RedisValue groupName, StackExchange.Redis.RedisValue consumerName, int? countPerStream = null, bool noAck = false, System.TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.RedisStream[]!>!
+StackExchange.Redis.ListMoveCount
+StackExchange.Redis.ListMoveCount.Exactly = 1 -> StackExchange.Redis.ListMoveCount
+StackExchange.Redis.ListMoveCount.UpTo = 0 -> StackExchange.Redis.ListMoveCount
+StackExchange.Redis.ListMoveOrder
+StackExchange.Redis.ListMoveOrder.Bulk = 0 -> StackExchange.Redis.ListMoveOrder
+StackExchange.Redis.ListMoveOrder.OneByOne = 1 -> StackExchange.Redis.ListMoveOrder
+[SER008]StackExchange.Redis.HashImport
+[SER008]StackExchange.Redis.HashImport.Dispose() -> void
+[SER008]StackExchange.Redis.HashImport.DisposeAsync() -> System.Threading.Tasks.ValueTask
+[SER008]StackExchange.Redis.IDatabase.HashImport(StackExchange.Redis.RedisKey key, StackExchange.Redis.HashImport! fieldSet, System.ReadOnlyMemory<StackExchange.Redis.RedisValue> values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> void
+[SER008]StackExchange.Redis.IDatabaseAsync.HashImportAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.HashImport! fieldSet, System.ReadOnlyMemory<StackExchange.Redis.RedisValue> values, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task!
+[SER008]static StackExchange.Redis.HashImport.Create(params StackExchange.Redis.RedisValue[]! fields) -> StackExchange.Redis.HashImport!
+[SER008]static StackExchange.Redis.HashImport.Create(System.ReadOnlyMemory<StackExchange.Redis.RedisValue> fields) -> StackExchange.Redis.HashImport!
+StackExchange.Redis.RedisFeatures.HashImport.get -> bool

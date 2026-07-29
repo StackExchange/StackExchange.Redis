@@ -7,7 +7,6 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Describes options for increment operations.
 /// </summary>
-[Experimental(Experiments.Server_8_8, UrlFormat = Experiments.UrlFormat)]
 [Flags]
 public enum IncrementOptions
 {

@@ -105,7 +105,6 @@ public readonly struct StreamInfo
     /// </summary>
     public long IdmpDuration
     {
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         get;
     }
 
@@ -114,7 +113,6 @@ public readonly struct StreamInfo
     /// </summary>
     public long IdmpMaxSize
     {
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         get;
     }
 
@@ -123,7 +121,6 @@ public readonly struct StreamInfo
     /// </summary>
     public long PidsTracked
     {
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         get;
     }
 
@@ -133,7 +130,6 @@ public readonly struct StreamInfo
     /// </summary>
     public long IidsTracked
     {
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         get;
     }
 
@@ -143,7 +139,6 @@ public readonly struct StreamInfo
     /// </summary>
     public long IidsAdded
     {
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         get;
     }
 
@@ -153,7 +148,6 @@ public readonly struct StreamInfo
     /// </summary>
     public long IidsDuplicates
     {
-        [Experimental(Experiments.Server_8_6, UrlFormat = Experiments.UrlFormat)]
         get;
     }
 }

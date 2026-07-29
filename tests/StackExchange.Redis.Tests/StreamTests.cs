@@ -1281,6 +1281,70 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
+    public async Task StreamReadMultipleMaxCount()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+
+        var db = conn.GetDatabase();
+        var stream1 = Me() + "a";
+        var stream2 = Me() + "b";
+
+        db.StreamAdd(stream1, "f", "v"); // 3 in stream1
+        db.StreamAdd(stream1, "f", "v");
+        db.StreamAdd(stream1, "f", "v");
+        db.StreamAdd(stream2, "f", "v"); // 2 in stream2
+        db.StreamAdd(stream2, "f", "v");
+
+        StreamPosition[] pairs =
+        [
+            new StreamPosition(stream1, StreamPosition.Beginning),
+            new StreamPosition(stream2, StreamPosition.Beginning),
+        ];
+
+        // Without a global cap, all 5 come back.
+        var all = db.StreamRead(pairs, countPerStream: null);
+        Assert.Equal(5, all.Sum(s => s.Entries.Length));
+
+        // MAXCOUNT caps the *total* number of entries across all streams.
+        var capped = await db.StreamReadAsync(pairs, countPerStream: null, maxCount: 3);
+        Assert.Equal(3, capped.Sum(s => s.Entries.Length));
+
+        // MAXSIZE still returns at least one entry even with a tiny budget.
+        var oneish = db.StreamRead(pairs, countPerStream: null, maxSize: 1);
+        Assert.True(oneish.Sum(s => s.Entries.Length) >= 1);
+    }
+
+    [Fact]
+    public async Task StreamReadGroupMultipleMaxCount()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_10_0);
+
+        var db = conn.GetDatabase();
+        const string groupName = "test_group";
+        var stream1 = Me() + "a";
+        var stream2 = Me() + "b";
+
+        db.StreamAdd(stream1, "f", "v");
+        db.StreamAdd(stream1, "f", "v");
+        db.StreamAdd(stream1, "f", "v");
+        db.StreamAdd(stream2, "f", "v");
+        db.StreamAdd(stream2, "f", "v");
+
+        db.StreamCreateConsumerGroup(stream1, groupName, StreamPosition.Beginning);
+        db.StreamCreateConsumerGroup(stream2, groupName, StreamPosition.Beginning);
+
+        StreamPosition[] pairs =
+        [
+            new StreamPosition(stream1, StreamPosition.NewMessages),
+            new StreamPosition(stream2, StreamPosition.NewMessages),
+        ];
+
+        // MAXCOUNT caps the total across all streams (global budget of 3 vs the 5 available).
+        var capped = await db.StreamReadGroupAsync(pairs, groupName, "test_consumer", countPerStream: null, noAck: false, claimMinIdleTime: null, maxCount: 3);
+        Assert.Equal(3, capped.Sum(s => s.Entries.Length));
+    }
+
+    [Fact]
     public async Task StreamConsumerGroupViewPendingInfoNoConsumers()
     {
         await using var conn = Create(require: RedisFeatures.v5_0_0);
