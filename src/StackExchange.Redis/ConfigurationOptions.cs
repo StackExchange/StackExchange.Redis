@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -14,8 +13,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using RESPite;
-using RESPite.Buffers;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
