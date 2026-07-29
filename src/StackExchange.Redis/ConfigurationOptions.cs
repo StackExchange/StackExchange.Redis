@@ -1066,9 +1066,9 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, OptionFlags.ConnectTimeoutHasValue, in connectTimeout);
             Append(sb, OptionKeys.User, user);
-            Append(sb, OptionKeys.SentinelUser, SentinelUser);
+            Append(sb, OptionKeys.SentinelUser, sentinelUser);
             Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(password)) ? password : "*****");
-            Append(sb, OptionKeys.SentinelPassword, (includePassword || string.IsNullOrEmpty(SentinelPassword)) ? SentinelPassword : "*****");
+            Append(sb, OptionKeys.SentinelPassword, (includePassword || string.IsNullOrEmpty(SentinelPassword)) ? sentinelPassword : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.Ssl, OptionFlags.SslHasValue, OptionFlags.SslValue);
             if (HasValue(OptionFlags.SslProtocolsHasValue)) Append(sb, OptionKeys.SslProtocols, sslProtocols.ToString().Replace(',', '|'));
