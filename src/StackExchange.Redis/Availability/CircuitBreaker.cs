@@ -15,10 +15,24 @@ namespace StackExchange.Redis.Availability;
 [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
 public abstract class CircuitBreaker
 {
+    internal const double DefaultFailureRateThreshold = 10;
+    internal const int DefaultMinimumNumberOfFailures = 1000;
+    internal static readonly TimeSpan DefaultMetricsWindowSize = TimeSpan.FromSeconds(2);
+
+    private static readonly CircuitBreaker DefaultInstance = new DefaultCircuitBreaker(
+#pragma warning disable SA1114 // Parameter list should follow declaration - false positive: the #if directive splits the argument list
+#if NET8_0_OR_GREATER
+        null,
+#endif
+#pragma warning restore SA1114
+        DefaultFailureRateThreshold,
+        DefaultMinimumNumberOfFailures,
+        DefaultMetricsWindowSize);
+
     /// <summary>
-    /// Default circuit-breaker logic.
+    /// Default circuit-breaker logic: trips when the failure rate over a short rolling window crosses a threshold.
     /// </summary>
-    public static CircuitBreaker Default => Builder.DefaultInstance;
+    public static CircuitBreaker Default => DefaultInstance;
 
     /// <summary>
     /// No circuit-breaker logic is applied.
@@ -28,22 +42,9 @@ public abstract class CircuitBreaker
     /// <summary>
     /// Allows configuration of the default <see cref="CircuitBreaker"/> implementation.
     /// </summary>
-    public class Builder
+    [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
+    public sealed class Builder
     {
-        private const double DefaultFailureRateThreshold = 10;
-        private const int DefaultMinimumNumberOfFailures = 1000;
-        private static readonly TimeSpan DefaultMetricsWindowSize = TimeSpan.FromSeconds(2);
-
-        internal static CircuitBreaker DefaultInstance = new DefaultCircuitBreaker(
-#pragma warning disable SA1114 // Parameter list should follow declaration - false positive: the #if directive splits the argument list
-#if NET8_0_OR_GREATER
-            null,
-#endif
-#pragma warning restore SA1114
-            DefaultFailureRateThreshold,
-            DefaultMinimumNumberOfFailures,
-            DefaultMetricsWindowSize);
-
         /// <summary>
         /// Percentage of failures to trigger circuit breaker.
         /// </summary>
@@ -73,6 +74,11 @@ public abstract class CircuitBreaker
         /// </summary>
         public CircuitBreaker Create()
         {
+            if (FailureRateThreshold is < 0 or > 100) throw new ArgumentOutOfRangeException(nameof(FailureRateThreshold), FailureRateThreshold, "A percentage between 0 and 100 is required.");
+            if (MinimumNumberOfFailures < 1) throw new ArgumentOutOfRangeException(nameof(MinimumNumberOfFailures), MinimumNumberOfFailures, "At least one failure is required; use CircuitBreaker.None to disable circuit-breaking.");
+            if (MetricsWindowSize <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(MetricsWindowSize), MetricsWindowSize, "A positive window is required.");
+            if (MetricsWindowSize.TotalSeconds > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(MetricsWindowSize), MetricsWindowSize, "The window is too large.");
+
             if ((FailureRateThreshold is DefaultFailureRateThreshold
 #if NET8_0_OR_GREATER
                  & TimeProvider is null

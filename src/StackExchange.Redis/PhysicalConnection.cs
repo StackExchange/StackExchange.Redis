@@ -118,8 +118,9 @@ namespace StackExchange.Redis
                 _inputCancel = new();
                 _outputCancel = new();
             }
-            // grab a per-connection accumulator from the configured breaker (null when none is configured)
-            circuitBreaker = bridge.Multiplexer.RawConfig.CircuitBreaker?.CreateAccumulator();
+            // grab a per-connection accumulator from the configured breaker (null when none is configured);
+            // for a connection-group member this resolves the group's default too - see EffectiveCircuitBreaker
+            circuitBreaker = bridge.Multiplexer.EffectiveCircuitBreaker?.CreateAccumulator();
             OnCreateEcho();
         }
 

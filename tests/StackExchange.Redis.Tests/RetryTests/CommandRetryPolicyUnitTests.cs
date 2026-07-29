@@ -11,19 +11,19 @@ public class CommandRetryPolicyUnitTests
 
     // Builds a FaultContext for a spoofed server error of the given kind, carrying the given
     // command-flags, and asks the policy whether it may be retried.
-    private static RetryPolicy.RetryPolicyResult CanRetry(RedisErrorKind kind, CommandFlags flags, RetryPolicy? policy = null)
+    private static RetryResult CanRetry(RedisErrorKind kind, CommandFlags flags, RetryPolicy? policy = null)
     {
         // the exception carries both the Kind and the command-flags; FaultContext reads them back
         var fault = new FaultContext(new RedisServerException(kind, flags, kind.ToString()));
-        return (policy ?? new RetryPolicy()).CanRetry(in fault);
+        return (policy ?? RetryPolicy.Default).CanRetry(in fault);
     }
 
     // As above, but for an *ambiguous* fault: a timeout on a request we know was sent. We have no idea
     // whether the server applied it, so this is the case the retry-category exists to price.
-    private static RetryPolicy.RetryPolicyResult CanRetryAmbiguous(CommandFlags flags, RetryPolicy? policy = null)
+    private static RetryResult CanRetryAmbiguous(CommandFlags flags, RetryPolicy? policy = null)
     {
         var fault = new FaultContext(new RedisTimeoutException(flags, "timeout", CommandStatus.Sent));
-        return (policy ?? new RetryPolicy()).CanRetry(in fault);
+        return (policy ?? RetryPolicy.Default).CanRetry(in fault);
     }
 
     // The command's retry-category is checked against the policy's max category: the default max is
@@ -43,7 +43,7 @@ public class CommandRetryPolicyUnitTests
     public void CanRetry_CategoryVersusDefaultMax(CommandFlags category, bool expectRetry)
     {
         var result = CanRetryAmbiguous(category);
-        Assert.Equal(expectRetry, result != RetryPolicy.RetryPolicyResult.None);
+        Assert.Equal(expectRetry, result != RetryResult.None);
     }
 
     // When the fault proves the operation never took effect (here: the server was still LOADING, so it
@@ -58,10 +58,10 @@ public class CommandRetryPolicyUnitTests
     public void CanRetry_NotAppliedBypassesCategory(CommandFlags category, bool expectRetry)
     {
         // sanity: the same category against an ambiguous fault of the same "retryability" is refused
-        if (expectRetry) Assert.Equal(RetryPolicy.RetryPolicyResult.None, CanRetryAmbiguous(category));
+        if (expectRetry) Assert.Equal(RetryResult.None, CanRetryAmbiguous(category));
 
         var result = CanRetry(RedisErrorKind.Loading, category);
-        Assert.Equal(expectRetry, result != RetryPolicy.RetryPolicyResult.None);
+        Assert.Equal(expectRetry, result != RetryResult.None);
     }
 
     // The other source of certainty: the client knows it never wrote the message. Same conclusion, even
@@ -81,7 +81,7 @@ public class CommandRetryPolicyUnitTests
             commandStatus: status));
 
         Assert.Equal(expectRetry, fault.NotApplied);
-        Assert.Equal(expectRetry, new RetryPolicy().CanRetry(in fault) != RetryPolicy.RetryPolicyResult.None);
+        Assert.Equal(expectRetry, RetryPolicy.Default.CanRetry(in fault) != RetryResult.None);
     }
 
     // With an in-range category (== default max), the outcome is decided purely by whether the error
@@ -94,7 +94,7 @@ public class CommandRetryPolicyUnitTests
     public void CanRetry_ErrorKindGatesRetry_WhenInRange(RedisErrorKind kind, bool expectRetry)
     {
         var result = CanRetry(kind, CommandFlags.CommandRetryWriteLastWins);
-        Assert.Equal(expectRetry, result != RetryPolicy.RetryPolicyResult.None);
+        Assert.Equal(expectRetry, result != RetryResult.None);
     }
 
     // "never" and "always" adjust only the category range - they do not override the error-kind check:
@@ -108,15 +108,15 @@ public class CommandRetryPolicyUnitTests
     public void CanRetry_NeverAndAlwaysAffectRangeNotErrorKind(CommandFlags category, RedisErrorKind kind, bool expectRetry)
     {
         var result = CanRetry(kind, category);
-        Assert.Equal(expectRetry, result != RetryPolicy.RetryPolicyResult.None);
+        Assert.Equal(expectRetry, result != RetryResult.None);
     }
 
     // When a retry is permitted, it normally offers both the same server and a failover server; but a
     // "server specific" (sticky) command must not move endpoints, so only the same-server option remains.
     [Theory]
-    [InlineData(CommandFlags.None, RetryPolicy.RetryPolicyResult.SameServer | RetryPolicy.RetryPolicyResult.FailoverServer)]
-    [InlineData(Message.CommandServerSpecific, RetryPolicy.RetryPolicyResult.SameServer)]
-    public void CanRetry_ServerSpecificRestrictsToSameServer(CommandFlags extra, RetryPolicy.RetryPolicyResult expected)
+    [InlineData(CommandFlags.None, RetryResult.SameServer | RetryResult.FailoverServer)]
+    [InlineData(Message.CommandServerSpecific, RetryResult.SameServer)]
+    public void CanRetry_ServerSpecificRestrictsToSameServer(CommandFlags extra, RetryResult expected)
     {
         // in-range category (== default max) + transient error => a retry is offered; the sticky flag
         // only changes *where* the retry may go, not *whether* it happens.
@@ -135,8 +135,8 @@ public class CommandRetryPolicyUnitTests
         var withoutFlag = CanRetryAmbiguous(category);
         var withFlag = CanRetryAmbiguous(category | Message.CommandServerSpecific);
 
-        Assert.Equal(expectRetry, withoutFlag != RetryPolicy.RetryPolicyResult.None);
-        Assert.Equal(expectRetry, withFlag != RetryPolicy.RetryPolicyResult.None);
+        Assert.Equal(expectRetry, withoutFlag != RetryResult.None);
+        Assert.Equal(expectRetry, withFlag != RetryResult.None);
     }
 
     // --- RetryDatabase.CanRetry: attempt accounting ----------------------------------
@@ -153,7 +153,7 @@ public class CommandRetryPolicyUnitTests
     [InlineData(3, false)]
     public void RetryDatabase_CanRetry_MaxAttempts_NoFailover(int attempt, bool expected)
     {
-        var policy = new RetryPolicy { MaxAttempts = 3, MaxAttemptsBeforeFailover = 3 };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, MaxAttemptsBeforeFailover = 3 };
         var controller = new RetryController(policy, DatabaseFeatureFlags.None); // CanRetry never touches any database
 
         using var cts = new CancellationTokenSource();
@@ -176,7 +176,7 @@ public class CommandRetryPolicyUnitTests
     [Fact]
     public void RetryDatabase_CanRetry_FailoverAtThreshold()
     {
-        var policy = new RetryPolicy { MaxAttempts = 4, MaxAttemptsBeforeFailover = 2 };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 4, MaxAttemptsBeforeFailover = 2 };
         // failover is only armed when the inner database advertises the feature; supply it explicitly
         var controller = new RetryController(policy, DatabaseFeatureFlags.Failover);
 
@@ -215,7 +215,7 @@ public class CommandRetryPolicyUnitTests
     [Fact]
     public void RetryDatabase_CanRetry_ServerSpecific_CannotFailover()
     {
-        var policy = new RetryPolicy { MaxAttempts = 4, MaxAttemptsBeforeFailover = 2 };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 4, MaxAttemptsBeforeFailover = 2 };
         var controller = new RetryController(policy, DatabaseFeatureFlags.Failover);
 
         using var cts = new CancellationTokenSource();

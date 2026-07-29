@@ -108,13 +108,13 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
     [InlineData(InbuiltProbe.StringSet, ServerType.Cluster)]
     public async Task SelectByWeight(InbuiltProbe probe, ServerType serverType)
     {
-        var healthCheck = new HealthCheck
+        HealthCheck healthCheck = new HealthCheck.Builder
         {
             Probe = probe switch
             {
-                InbuiltProbe.IsConnected => HealthCheck.HealthCheckProbe.IsConnected,
-                InbuiltProbe.Ping => HealthCheck.HealthCheckProbe.Ping,
-                InbuiltProbe.StringSet => HealthCheck.HealthCheckProbe.StringSet,
+                InbuiltProbe.IsConnected => HealthCheckProbe.IsConnected,
+                InbuiltProbe.Ping => HealthCheckProbe.Ping,
+                InbuiltProbe.StringSet => HealthCheckProbe.StringSet,
                 _ => throw new ArgumentOutOfRangeException(nameof(probe)),
             },
         };
@@ -132,7 +132,7 @@ public class BasicMultiGroupTests(ITestOutputHelper log)
             new(server1.GetClientConfig()) { Weight = 9 },
             new(server2.GetClientConfig()) { Weight = 3 },
         ];
-        var options = new MultiGroupOptions { HealthCheck = healthCheck };
+        MultiGroupOptions options = new MultiGroupOptions.Builder { HealthCheck = healthCheck };
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
         Assert.True(conn.IsConnected);
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);

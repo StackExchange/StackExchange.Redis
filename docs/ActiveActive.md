@@ -15,6 +15,53 @@ The features for Active:Active are available in the `Availability` sub-namespace
 using StackExchange.Redis;
 using StackExchange.Redis.Availability;
 ```
+
+### How the configuration types work
+
+Every configurable piece in this namespace follows the same three-part shape, so once you have learned one you have learned all of them:
+
+1. The **policy type** (`HealthCheck`, `CircuitBreaker`, `RetryPolicy`) is **immutable** and safe to share between members and connections. It exposes a static `Default` and a static `None`.
+2. Each policy has a nested **`Builder`** carrying the mutable knobs. A new `Builder` already starts from the default values, so you only set what you want to change; `Create()` validates the values and returns the policy, and a `Builder` also converts *implicitly* to its policy, so it can be assigned or passed inline.
+3. **`MultiGroupOptions`** (itself immutable, with its own `Builder`) holds the group-wide defaults; the matching nullable property on `ConnectionGroupMember` overrides them per member.
+
+```csharp
+// the same pattern, three times; each builder only mentions what differs from the default
+HealthCheck healthCheck = new HealthCheck.Builder { ProbeCount = 5 };
+CircuitBreaker breaker = new CircuitBreaker.Builder { FailureRateThreshold = 25 };
+RetryPolicy retry = new RetryPolicy.Builder { MaxAttempts = 5 };
+
+MultiGroupOptions options = new MultiGroupOptions.Builder
+{
+    HealthCheck = healthCheck,
+    CircuitBreaker = breaker,
+    RetryPolicy = retry,
+    HealthCheckInterval = TimeSpan.FromSeconds(2),
+};
+```
+
+Anything you leave out keeps its default, so a group that only wants a longer failback is just:
+
+```csharp
+MultiGroupOptions options = new MultiGroupOptions.Builder { FailbackDelay = TimeSpan.FromMinutes(2) };
+```
+
+Because the policies are immutable, there is no question of whether a change "takes effect" after connecting: to change something, build a new instance. Values are validated once, in `Create()`, which throws `ArgumentOutOfRangeException`/`ArgumentException` naming the offending builder property - so a bad `ProbeCount` or `MaxAttempts` fails at the point you configure it, not later.
+
+### Where each setting lives
+
+| Setting | Group-wide default | Per-member override |
+|---------|--------------------|---------------------|
+| `HealthCheck` | `MultiGroupOptions.HealthCheck` | `ConnectionGroupMember.HealthCheck` |
+| `CircuitBreaker` | `MultiGroupOptions.CircuitBreaker` | `ConnectionGroupMember.CircuitBreaker`, else that member's `ConfigurationOptions.CircuitBreaker` |
+| `RetryPolicy` | `MultiGroupOptions.RetryPolicy` | *(none; retry is applied per-database via `WithRetry`)* |
+| `HealthCheckInterval` | `MultiGroupOptions.HealthCheckInterval` | *(none; it is the group's re-evaluation cadence)* |
+| `FailbackDelay` | `MultiGroupOptions.FailbackDelay` | `ConnectionGroupMember.FailbackDelay` |
+| `Weight` | *(none)* | `ConnectionGroupMember.Weight` |
+| `SkipInitialHealthCheck` | *(none)* | `ConnectionGroupMember.SkipInitialHealthCheck` |
+
+Resolution is always "member override, else group default". Resolving a group default never writes back into your `ConfigurationOptions` - you can safely reuse one `ConfigurationOptions` for a group member and for an unrelated `Connect` without the group's policies leaking across.
+
+`ConfigurationOptions` carries only the two availability settings that are meaningful for a **single** connection - `CircuitBreaker` and `RetryPolicy`. `HealthCheck` is a group-only concept and lives on `ConnectionGroupMember`.
 The library automatically selects the best available endpoint based on:
 
 1. **Availability** - Connected endpoints are always preferred over disconnected ones
@@ -213,22 +260,22 @@ The Active:Active feature includes configurable health checking to monitor the h
 
 ### Basic Health Check Configuration
 
-Health checks are configured globally for all members using the `MultiGroupOptions` parameter:
+Health checks are configured for all members via `MultiGroupOptions`, and can be overridden per member. Every knob is shown here for orientation, with **the value it already defaults to** - in real code you would set only the ones you want to change:
 
 ```csharp
-var healthCheck = new HealthCheck
+HealthCheck healthCheck = new HealthCheck.Builder
 {
-    Interval = TimeSpan.FromSeconds(5),          // How often to check health
-    ProbeCount = 3,                              // Maximum number of probe attempts per check
-    ProbeTimeout = TimeSpan.FromSeconds(3),      // Timeout for each probe attempt
+    ProbeCount = 3,                                 // Maximum number of probe attempts per check
+    ProbeTimeout = TimeSpan.FromSeconds(3),         // Timeout for each probe attempt
     ProbeInterval = TimeSpan.FromMilliseconds(500), // Delay between failed probes
-    Probe = HealthCheckProbe.Ping,               // Which probe type to use
+    Probe = HealthCheckProbe.Ping,                  // Which probe type to use
     ProbePolicy = HealthCheckProbePolicy.AllSuccess // Evaluation policy
 };
 
-var options = new MultiGroupOptions
+MultiGroupOptions options = new MultiGroupOptions.Builder
 {
-    HealthCheck = healthCheck
+    HealthCheck = healthCheck,
+    HealthCheckInterval = TimeSpan.FromSeconds(5),  // How often checks run (a group-level concern)
 };
 
 ConnectionGroupMember[] members = [
@@ -239,6 +286,8 @@ ConnectionGroupMember[] members = [
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
 ```
 
+Note that **how often** checks run is `MultiGroupOptions.HealthCheckInterval`, not a property of the check: it is the cadence at which the group re-evaluates *all* members, so a per-member value would be meaningless.
+
 ### Using Default Health Checks
 
 If you don't specify a health check, the system uses sensible defaults:
@@ -248,38 +297,62 @@ If you don't specify a health check, the system uses sensible defaults:
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
 
 // Equivalent to:
-var options = new MultiGroupOptions
-{
-    HealthCheck = HealthCheck.Default
-};
+MultiGroupOptions options = new MultiGroupOptions.Builder { HealthCheck = HealthCheck.Default };
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
 ```
 
-You can also clone and customize the default:
+A new `Builder` starts from the defaults, so customizing means setting only what differs:
 
 ```csharp
-var customHealthCheck = HealthCheck.Default.Clone();
-customHealthCheck.Interval = TimeSpan.FromSeconds(15);
-customHealthCheck.ProbeCount = 5;
+HealthCheck customHealthCheck = new HealthCheck.Builder { ProbeCount = 5 }; // everything else defaulted
 
-var options = new MultiGroupOptions
+MultiGroupOptions options = new MultiGroupOptions.Builder
 {
-    HealthCheck = customHealthCheck
+    HealthCheck = customHealthCheck,
+    HealthCheckInterval = TimeSpan.FromSeconds(15),
 };
+```
+
+There is also a `Builder(policy)` overload, for when you want to start from an instance that *isn't* the default - for example, adjusting a policy you were handed:
+
+```csharp
+// take the group's configured check and probe it harder for one member
+HealthCheck stricter = new HealthCheck.Builder(conn.Options.HealthCheck) { ProbeCount = 9 };
 ```
 
 ### Health Check Properties
 
-The `HealthCheck` class provides several configurable properties:
+The `HealthCheck.Builder` class provides several configurable properties:
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `Interval` | 5 seconds | How frequently health checks are performed |
 | `ProbeCount` | 3 | Number of probe operations to perform per health check |
 | `ProbeTimeout` | 3 seconds | Maximum time allowed for an individual probe to complete |
 | `ProbeInterval` | 500 milliseconds | Delay between consecutive failed probes |
 | `Probe` | `Ping` | The probe operation to execute |
 | `ProbePolicy` | `AllSuccess` | Policy for evaluating multiple probe results |
+
+### Per-member health checks, and turning them off
+
+A member can use its own check - including `HealthCheck.None`, which performs no probes at all and reports `Inconclusive`, leaving that member's selection driven purely by its observed connectivity (and by its circuit-breaker):
+
+```csharp
+ConnectionGroupMember[] members = [
+    new("us-east.redis.example.com:6379", name: "US East") { Weight = 10 },
+
+    // a member we only want to reach for on connectivity grounds - never probe it
+    new("archive.redis.example.com:6379", name: "Archive") { Weight = 1, HealthCheck = HealthCheck.None },
+
+    // ...and one we want checked much more aggressively than the rest
+    new("us-west.redis.example.com:6379", name: "US West")
+    {
+        Weight = 5,
+        HealthCheck = new HealthCheck.Builder { ProbeCount = 5, ProbePolicy = HealthCheckProbePolicy.MajoritySuccess },
+    },
+];
+```
+
+To disable periodic checking for the whole group, set `MultiGroupOptions.HealthCheckInterval` to `TimeSpan.MaxValue`; the group is then only re-evaluated in response to connection events (such as a tripped circuit-breaker).
 
 ### Built-in Probes
 
@@ -290,7 +363,7 @@ StackExchange.Redis provides several built-in health check probes:
 The simplest probe that executes a `PING` command against the server:
 
 ```csharp
-var healthCheck = new HealthCheck
+HealthCheck healthCheck = new HealthCheck.Builder
 {
     Probe = HealthCheckProbe.Ping
 };
@@ -303,7 +376,7 @@ This is the default and recommended probe for most scenarios as it's lightweight
 Checks the connection status without sending any commands:
 
 ```csharp
-var healthCheck = new HealthCheck
+HealthCheck healthCheck = new HealthCheck.Builder
 {
     Probe = HealthCheckProbe.IsConnected
 };
@@ -316,7 +389,7 @@ This is even more lightweight than `Ping` but only verifies the socket connectio
 Performs a write operation to verify read/write capability:
 
 ```csharp
-var healthCheck = new HealthCheck
+HealthCheck healthCheck = new HealthCheck.Builder
 {
     Probe = HealthCheckProbe.StringSet
 };
@@ -333,7 +406,7 @@ The probe policy determines how multiple probe results are evaluated to determin
 The health check passes if **any** probe succeeds. This provides the most lenient evaluation:
 
 ```csharp
-var healthCheck = new HealthCheck
+HealthCheck healthCheck = new HealthCheck.Builder
 {
     ProbeCount = 3,
     ProbePolicy = HealthCheckProbePolicy.AnySuccess
@@ -346,7 +419,7 @@ var healthCheck = new HealthCheck
 The health check passes only if **all** probes succeed. This provides the strictest evaluation:
 
 ```csharp
-var healthCheck = new HealthCheck
+HealthCheck healthCheck = new HealthCheck.Builder
 {
     ProbeCount = 3,
     ProbePolicy = HealthCheckProbePolicy.AllSuccess
@@ -359,7 +432,7 @@ var healthCheck = new HealthCheck
 The health check passes if a **majority** of probes succeed:
 
 ```csharp
-var healthCheck = new HealthCheck
+HealthCheck healthCheck = new HealthCheck.Builder
 {
     ProbeCount = 3,
     ProbePolicy = HealthCheckProbePolicy.MajoritySuccess
@@ -396,12 +469,12 @@ its state is scoped to exactly the connection whose health it is measuring; a re
 
 ### Configuring a Circuit Breaker for a Group
 
-Circuit breakers are configured globally for all members via `MultiGroupOptions`, alongside the health check. The setting flows into every member connection:
+Circuit breakers are configured for all members via `MultiGroupOptions`, alongside the health check. The setting flows into every member connection:
 
 ```csharp
-var options = new MultiGroupOptions
+MultiGroupOptions options = new MultiGroupOptions.Builder
 {
-    CircuitBreaker = CircuitBreaker.Default
+    CircuitBreaker = new CircuitBreaker.Builder { FailureRateThreshold = 25 }
 };
 
 ConnectionGroupMember[] members = [
@@ -418,9 +491,11 @@ If you don't specify one, `CircuitBreaker.Default` is used automatically:
 // these are equivalent
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
 
-var options = new MultiGroupOptions { CircuitBreaker = CircuitBreaker.Default };
+MultiGroupOptions options = new MultiGroupOptions.Builder { CircuitBreaker = CircuitBreaker.Default };
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
 ```
+
+A circuit breaker is also useful *without* a group: set `ConfigurationOptions.CircuitBreaker` and any connection will tear itself down when its traffic starts failing. For a group member, the effective breaker is the member's `CircuitBreaker`, else the member's own `ConfigurationOptions.CircuitBreaker`, else the group default.
 
 ### Tuning the Default Circuit Breaker
 
@@ -428,7 +503,7 @@ The default circuit breaker uses a rolling time-window: it counts successes and 
 threshold, provided enough failures have been seen to be statistically meaningful. Use `CircuitBreaker.Builder` to tune it:
 
 ```csharp
-var options = new MultiGroupOptions
+MultiGroupOptions options = new MultiGroupOptions.Builder
 {
     CircuitBreaker = new CircuitBreaker.Builder
     {
@@ -454,7 +529,7 @@ Which faults count against the breaker is decided by *classification*, not by ex
 Use `CircuitBreaker.None` to opt out entirely:
 
 ```csharp
-var options = new MultiGroupOptions
+MultiGroupOptions options = new MultiGroupOptions.Builder
 {
     CircuitBreaker = CircuitBreaker.None
 };
@@ -467,8 +542,9 @@ Health checks and circuit breakers keep the *group* pointed at a healthy member;
 ```csharp
 await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members);
 
-// wrap the database once; reuse the wrapper like any other IDatabaseAsync
-IDatabaseAsync db = conn.GetDatabase().WithRetry(new RetryPolicy());
+// wrap the database once; reuse the wrapper like any other IDatabaseAsync.
+// the parameterless overload uses the policy configured on the connection (see below)
+IDatabaseAsync db = conn.GetDatabase().WithRetry();
 
 // a transient fault (e.g. the active member briefly returning LOADING) is retried
 // automatically; if the group fails over in the meantime, the retry lands on the new member
@@ -496,9 +572,26 @@ In either case every per-operation task is cancelled, so `await`ing one throws `
 
 How likely is this in practice? Much less so than in `redis-cli`-style usage, where a `WATCH` can sit open for as long as the application takes to think. SE.Redis buffers the whole transaction and sends the `WATCH`, the condition reads, the `MULTI`, the queued commands and the `EXEC` as a single dispatch on a multiplexed connection, so a competing writer has only the gap between the condition reads and the `EXEC` landing to squeeze into. Small - but not zero, and on a busy key it will happen.
 
+### Configuring the retry policy
+
+Like the health check and the circuit breaker, `RetryPolicy` can be set as a group-wide default - and the parameterless `WithRetry()` picks it up, so callers don't have to thread a policy through their code:
+
+```csharp
+MultiGroupOptions options = new MultiGroupOptions.Builder
+{
+    RetryPolicy = new RetryPolicy.Builder { MaxAttempts = 5 },
+};
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+
+// uses MultiGroupOptions.RetryPolicy
+IDatabaseAsync db = conn.GetDatabase().WithRetry();
+```
+
+The same works for a single connection via `ConfigurationOptions.RetryPolicy`. `WithRetry()` resolves in this order: `MultiGroupOptions.RetryPolicy` for a connection group, `ConfigurationOptions.RetryPolicy` for a single connection, else `RetryPolicy.Default`. Pass a policy explicitly - `WithRetry(policy)` - to override that for one database, and use `RetryPolicy.None` to get a wrapper that never retries.
+
 ### RetryPolicy settings
 
-`RetryPolicy` controls how many times, how often, and how far an operation is retried:
+`RetryPolicy.Builder` controls how many times, how often, and how far an operation is retried:
 
 | Property | Default | Description |
 |----------|---------|-------------|
@@ -511,7 +604,7 @@ How likely is this in practice? Much less so than in `redis-cli`-style usage, wh
 | `MaxAttemptsOnWatchConflict` | 3 | Attempts allowed for a *conditional transaction* that keeps losing a `WATCH` race; separate from `MaxAttempts`, and `1` disables re-attempting |
 
 ```csharp
-var policy = new RetryPolicy
+RetryPolicy policy = new RetryPolicy.Builder
 {
     MaxAttempts = 5,
     RetryDelay = TimeSpan.FromMilliseconds(200),
@@ -601,13 +694,22 @@ An unhealthy member is cleared in one of three ways:
 
 ### `FailbackDelay`
 
-`MultiGroupOptions.FailbackDelay` is the interval a member must remain healthy — measured from its *most recent* failure — before it is automatically returned to rotation:
+`MultiGroupOptions.FailbackDelay` is the interval a member must remain healthy - measured from its *most recent* failure - before it is automatically returned to rotation:
 
 ```csharp
-var options = new MultiGroupOptions
+MultiGroupOptions options = new MultiGroupOptions.Builder
 {
     FailbackDelay = TimeSpan.FromMinutes(2), // must be healthy for 2 minutes after its last failure
 };
+```
+
+Individual members can override this via `ConnectionGroupMember.FailbackDelay`, for example to hold a known-flaky region out of rotation for longer than the rest:
+
+```csharp
+ConnectionGroupMember[] members = [
+    new("us-east.redis.example.com:6379", name: "US East") { Weight = 10 },
+    new("flaky.redis.example.com:6379", name: "Flaky") { Weight = 5, FailbackDelay = TimeSpan.FromMinutes(10) },
+];
 ```
 
 | Value | Behavior |
@@ -826,14 +928,16 @@ You can implement custom health check logic by extending `HealthCheckProbe`. Not
 if the probe involves talking to data via a `RedisKey`, as on "cluster" configurations, it must be ensured that the
 key used resolves to the correct server; for this purpose, the `server.InventKey` method can be used:
 
+A probe receives a `HealthCheckContext`, carrying the `Server` being probed and the `ProbeTimeout` budget:
+
 ```csharp
 public abstract class CustomProbe : HealthCheckProbe
 {
-    public override Task<HealthCheckResult> CheckHealthAsync(HealthCheck healthCheck, IServer server)
+    public override Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context)
     {
         // create a random key that routes to the correct server, using
         // the specified prefix
-        RedisKey key = server.InventKey("health-check/");
+        RedisKey key = context.Server.InventKey("health-check/");
         // ...
     }
 }
@@ -845,14 +949,14 @@ Or more conveniently, the key-specific `KeyWriteHealthCheckProbe` encapsulates t
 public class CustomWriteProbe : KeyWriteHealthCheckProbe
 {
     public override async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheck healthCheck,
+        HealthCheckContext context,
         IDatabaseAsync database,
         RedisKey key)
     {
         try
         {
             var value = Guid.NewGuid().ToString();
-            await database.StringSetAsync(key, value, expiry: healthCheck.ProbeTimeout);
+            await database.StringSetAsync(key, value, expiry: context.ProbeTimeout);
             bool isMatch = value == await database.StringGetAsync(key);
 
             return isMatch ? HealthCheckResult.Healthy : HealthCheckResult.Unhealthy;
@@ -864,6 +968,8 @@ public class CustomWriteProbe : KeyWriteHealthCheckProbe
     }
 }
 ```
+
+> The context is passed **by value** rather than by `in`, because probes are typically `async`, and async methods cannot take by-ref parameters. The sibling `HealthCheckProbePolicy.Evaluate` is synchronous, so it does take `in HealthCheckProbeContext`.
 
 ### Custom Probe Policies
 
@@ -890,13 +996,13 @@ public class AtLeastPolicy(int requiredSuccesses) : HealthCheckProbePolicy
 }
 
 // Use the custom policy requiring at least 2 successes
-var healthCheck = new HealthCheck
+HealthCheck healthCheck = new HealthCheck.Builder
 {
     ProbeCount = 5,  // Need enough probes to allow for the required successes
     ProbePolicy = new AtLeastPolicy(2)
 };
 
-var options = new MultiGroupOptions
+MultiGroupOptions options = new MultiGroupOptions.Builder
 {
     HealthCheck = healthCheck
 };
@@ -946,7 +1052,7 @@ public sealed class ConsecutiveFailureBreaker(int limit) : CircuitBreaker
     }
 }
 
-var options = new MultiGroupOptions
+MultiGroupOptions options = new MultiGroupOptions.Builder
 {
     CircuitBreaker = new ConsecutiveFailureBreaker(limit: 5)
 };
@@ -956,24 +1062,36 @@ Keep `ObserveResult` cheap and thread-safe: it runs on the hot path for every co
 
 ### Custom Retry Policies
 
-`RetryPolicy` is itself extensible: override `CanRetry(in FaultContext fault)` to make the retry decision yourself. It returns a `RetryPolicyResult` — `None` to give up, or a combination of `SameServer` and `FailoverServer` to indicate where a retry may be attempted.
+`RetryPolicy` is itself extensible: override `CanRetry(in FaultContext fault)` to make the retry decision yourself. It returns a `RetryResult` - `None` to give up, or a combination of `SameServer` and `FailoverServer` to indicate where a retry may be attempted.
 The `FaultContext` gives you the classified `ErrorKind`, the `ConnectionFailureType`, and the command `Flags` (including its retry category) to base the decision on:
 
 ```csharp
 public sealed class ReadOnlyOnlyRetryPolicy : RetryPolicy
 {
-    public override RetryPolicyResult CanRetry(in FaultContext fault)
+    public override RetryResult CanRetry(in FaultContext fault)
     {
         // only ever retry pure reads, and only on the same server
         if (fault.ErrorKind == RedisErrorKind.Loading
             && (fault.Flags & CommandFlags.CommandRetryReadOnly) != 0)
         {
-            return RetryPolicyResult.SameServer;
+            return RetryResult.SameServer;
         }
         // note: base.CanRetry(fault) would apply the default logic
-        return RetryPolicyResult.None;
+        return RetryResult.None;
     }
 }
 
 IDatabaseAsync db = conn.GetDatabase().WithRetry(new ReadOnlyOnlyRetryPolicy());
+```
+
+A derived policy inherits the default settings; to derive *and* change the settings, take a `Builder` and pass it to the base constructor:
+
+```csharp
+public sealed class ReadOnlyOnlyRetryPolicy(RetryPolicy.Builder builder) : RetryPolicy(builder)
+{
+    public override RetryResult CanRetry(in FaultContext fault) => /* ... */;
+}
+
+IDatabaseAsync db = conn.GetDatabase().WithRetry(
+    new ReadOnlyOnlyRetryPolicy(new RetryPolicy.Builder { MaxAttempts = 5 }));
 ```

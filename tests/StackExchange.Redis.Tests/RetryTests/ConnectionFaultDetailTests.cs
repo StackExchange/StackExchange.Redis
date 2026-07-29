@@ -49,11 +49,11 @@ public class ConnectionFaultDetailTests
 
         var ctx = new FaultContext(per);
         Assert.False(ctx.NotApplied); // it was on the wire; we cannot know whether the server ran it
-        Assert.NotEqual(RetryPolicy.RetryPolicyResult.None, new RetryPolicy().CanRetry(in ctx)); // ...but a read is safe
+        Assert.NotEqual(RetryResult.None, RetryPolicy.Default.CanRetry(in ctx)); // ...but a read is safe
 
         // for contrast: the shared exception the message used to receive is retryable for nothing at all
         var sharedCtx = new FaultContext(shared);
-        Assert.Equal(RetryPolicy.RetryPolicyResult.None, new RetryPolicy().CanRetry(in sharedCtx));
+        Assert.Equal(RetryResult.None, RetryPolicy.Default.CanRetry(in sharedCtx));
     }
 
     // Same situation, accumulating write: the category comes through and correctly *blocks* the retry, since
@@ -69,10 +69,10 @@ public class ConnectionFaultDetailTests
 
         var ctx = new FaultContext(per);
         Assert.False(ctx.NotApplied);
-        Assert.Equal(RetryPolicy.RetryPolicyResult.None, new RetryPolicy().CanRetry(in ctx));
+        Assert.Equal(RetryResult.None, RetryPolicy.Default.CanRetry(in ctx));
 
-        var permissive = new RetryPolicy { MaxCommandRetryCategory = CommandFlags.CommandRetryWriteAccumulating };
-        Assert.NotEqual(RetryPolicy.RetryPolicyResult.None, permissive.CanRetry(in ctx));
+        RetryPolicy permissive = new RetryPolicy.Builder { MaxCommandRetryCategory = CommandFlags.CommandRetryWriteAccumulating };
+        Assert.NotEqual(RetryResult.None, permissive.CanRetry(in ctx));
     }
 
     // A message that never left the client - still waiting to be written, or sitting in the backlog - is
@@ -93,7 +93,7 @@ public class ConnectionFaultDetailTests
         var ctx = new FaultContext(per);
         Assert.True(ctx.NotApplied);
         // accumulating, i.e. beyond the default cap - but nothing was applied, so there is nothing to repeat
-        Assert.NotEqual(RetryPolicy.RetryPolicyResult.None, new RetryPolicy().CanRetry(in ctx));
+        Assert.NotEqual(RetryResult.None, RetryPolicy.Default.CanRetry(in ctx));
     }
 
     // The connection-level diagnostics are the useful part of these exceptions, so they have to come across;

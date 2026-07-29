@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests.RetryTests;
 // (status probes, routing lookups, streaming scans) and so are implemented by hand.
 public class RetryGuardTests(ITestOutputHelper log) : TestBase(log)
 {
-    private static RetryPolicy Policy() => new() { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+    private static RetryPolicy Policy() => new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
 
     // Retrying inside a batch or a transaction makes no sense (the individual operations are not being
     // dispatched yet), and retry cannot be nested. All three are refused at wrap time.

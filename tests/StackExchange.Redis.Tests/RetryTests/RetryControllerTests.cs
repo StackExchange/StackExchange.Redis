@@ -8,21 +8,16 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests.RetryTests;
 
-// Configuration validation and the wait/failover timing state machine of RetryController; neither needs a
-// server (or even an inner database - CanRetry and the delays never touch one).
+// Configuration validation (which lives on RetryPolicy.Builder, since a RetryPolicy is immutable and
+// validated on construction) and the wait/failover timing state machine of RetryController; neither needs a
+// server, or even an inner database - CanRetry and the delays never touch one.
 public class RetryControllerTests
 {
     // A failover threshold below 1 could never be reached by the attempt counter (which starts at 1), so
-    // it would *silently* disable failover; that is rejected up front, whether or not the database being
-    // wrapped actually offers failover.
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Controller_RejectsUnreachableFailoverThreshold(bool withFailover)
-    {
-        var policy = new RetryPolicy { MaxAttemptsBeforeFailover = 0 };
-        Assert.Throws<ArgumentOutOfRangeException>(() => new RetryController(policy, Features(withFailover)));
-    }
+    // it would *silently* disable failover; that is rejected up front.
+    [Fact]
+    public void Policy_RejectsUnreachableFailoverThreshold()
+        => Assert.Throws<ArgumentOutOfRangeException>(() => new RetryPolicy.Builder { MaxAttemptsBeforeFailover = 0 }.Create());
 
     // DatabaseFeatureFlags is internal, so theories take a bool and map here
     private static DatabaseFeatureFlags Features(bool withFailover)
@@ -30,14 +25,12 @@ public class RetryControllerTests
 
     // Negative durations are nonsense for a delay; each is validated separately.
     [Fact]
-    public void Controller_RejectsNegativeDurations()
+    public void Policy_RejectsNegativeDurations()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new RetryController(new RetryPolicy { RetryDelay = TimeSpan.FromMilliseconds(-1) }, DatabaseFeatureFlags.None));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new RetryController(new RetryPolicy { JitterMax = TimeSpan.FromMilliseconds(-1) }, DatabaseFeatureFlags.None));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new RetryController(new RetryPolicy { FailoverDelay = TimeSpan.FromMilliseconds(-1) }, DatabaseFeatureFlags.None));
+        var negative = TimeSpan.FromMilliseconds(-1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RetryPolicy.Builder { RetryDelay = negative }.Create());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RetryPolicy.Builder { JitterMax = negative }.Create());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RetryPolicy.Builder { FailoverDelay = negative }.Create());
     }
 
     // The watch-contention budget counts *attempts*, so 1 means "try once, do not re-attempt"; zero or
@@ -45,10 +38,48 @@ public class RetryControllerTests
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Controller_RejectsNonPositiveWatchAttempts(int attempts)
+    public void Policy_RejectsNonPositiveWatchAttempts(int attempts)
+        => Assert.Throws<ArgumentOutOfRangeException>(() => new RetryPolicy.Builder { MaxAttemptsOnWatchConflict = attempts }.Create());
+
+    // ...and 1 is accepted, since that is how re-attempting is switched off
+    [Fact]
+    public void Policy_AcceptsSingleWatchAttempt()
+        => Assert.Equal(1, new RetryPolicy.Builder { MaxAttemptsOnWatchConflict = 1 }.Create().MaxAttemptsOnWatchConflict);
+
+    // The category cap must name exactly one of the CommandRetry* values: an empty value, or one that
+    // strays outside the category bits, is a usage error rather than something to interpret.
+    [Fact]
+    public void Policy_RejectsNonCategoryMaxCommandRetryCategory()
     {
-        var policy = new RetryPolicy { MaxAttemptsOnWatchConflict = attempts };
-        Assert.Throws<ArgumentOutOfRangeException>(() => new RetryController(policy, DatabaseFeatureFlags.None));
+        Assert.Throws<ArgumentException>(() => new RetryPolicy.Builder { MaxCommandRetryCategory = CommandFlags.None }.Create());
+        Assert.Throws<ArgumentException>(() => new RetryPolicy.Builder { MaxCommandRetryCategory = CommandFlags.FireAndForget }.Create());
+        Assert.Throws<ArgumentException>(
+            () => new RetryPolicy.Builder { MaxCommandRetryCategory = CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget }.Create());
+
+        RetryPolicy valid = new RetryPolicy.Builder { MaxCommandRetryCategory = CommandFlags.CommandRetryAlways };
+        Assert.Equal(CommandFlags.CommandRetryAlways, valid.MaxCommandRetryCategory);
+    }
+
+    // RetryPolicy.None means *nothing* is re-attempted - including watch contention, which is bounded by
+    // an attempt count rather than by CanRetry (nothing was applied, so there is no fault to judge).
+    [Fact]
+    public void NonePolicy_DisablesWatchReattempts()
+    {
+        Assert.Equal(1, RetryPolicy.None.MaxAttemptsOnWatchConflict);
+        Assert.Equal(DefaultMaxAttemptsOnWatchConflict, RetryPolicy.Default.MaxAttemptsOnWatchConflict);
+    }
+
+    private const int DefaultMaxAttemptsOnWatchConflict = 3;
+
+    // Round-tripping a policy through a builder must preserve the watch budget along with everything else.
+    [Fact]
+    public void Policy_RoundTripsThroughBuilder()
+    {
+        RetryPolicy original = new RetryPolicy.Builder { MaxAttemptsOnWatchConflict = 7, MaxAttempts = 4 };
+        var copy = new RetryPolicy.Builder(original).Create();
+
+        Assert.Equal(7, copy.MaxAttemptsOnWatchConflict);
+        Assert.Equal(4, copy.MaxAttempts);
     }
 
     // Contention is not a fault, so there is no backoff - only jitter, to stop two callers colliding again
@@ -57,7 +88,7 @@ public class RetryControllerTests
     public async Task WatchConflictDelay_HasNoBackoff()
     {
         var controller = new RetryController(
-            new RetryPolicy
+            new RetryPolicy.Builder
             {
                 RetryDelay = TimeSpan.FromMilliseconds(LongMillis),
                 FailoverDelay = TimeSpan.FromMilliseconds(LongMillis),
@@ -68,22 +99,6 @@ public class RetryControllerTests
         var watch = Stopwatch.StartNew();
         await controller.WatchConflictDelayAsync();
         Assert.True(watch.ElapsedMilliseconds < ShortMillis, $"returned after {watch.ElapsedMilliseconds}ms");
-    }
-
-    // The category cap must name exactly one of the CommandRetry* values: an empty value, or one that
-    // strays outside the category bits, is a usage error rather than something to interpret.
-    [Fact]
-    public void MaxCommandRetryCategory_RejectsNonCategoryValues()
-    {
-        var policy = new RetryPolicy();
-
-        Assert.Throws<InvalidOperationException>(() => policy.MaxCommandRetryCategory = CommandFlags.None);
-        Assert.Throws<InvalidOperationException>(() => policy.MaxCommandRetryCategory = CommandFlags.FireAndForget);
-        Assert.Throws<InvalidOperationException>(
-            () => policy.MaxCommandRetryCategory = CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget);
-
-        policy.MaxCommandRetryCategory = CommandFlags.CommandRetryAlways; // valid
-        Assert.Equal(CommandFlags.CommandRetryAlways, policy.MaxCommandRetryCategory);
     }
 
     // Capturing the "next failover" token costs something, so we only do it when a failover could
@@ -97,7 +112,7 @@ public class RetryControllerTests
     [InlineData(3, 4, true, false)] // threshold beyond cap: unreachable
     public void TracksFailover_OnlyWhenReachable(int maxAttempts, int beforeFailover, bool withFailover, bool expected)
     {
-        var policy = new RetryPolicy { MaxAttempts = maxAttempts, MaxAttemptsBeforeFailover = beforeFailover };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = maxAttempts, MaxAttemptsBeforeFailover = beforeFailover };
         Assert.Equal(expected, new RetryController(policy, Features(withFailover)).TracksFailover);
     }
 
@@ -105,7 +120,7 @@ public class RetryControllerTests
     [Fact]
     public void SingleAttempt_NeverRetries()
     {
-        var controller = new RetryController(new RetryPolicy { MaxAttempts = 1 }, DatabaseFeatureFlags.Failover);
+        var controller = new RetryController(new RetryPolicy.Builder { MaxAttempts = 1 }, DatabaseFeatureFlags.Failover);
         using var cts = new CancellationTokenSource();
         var failover = cts.Token;
         var fault = new RedisServerException(RedisErrorKind.Loading, CommandFlags.CommandRetryReadOnly, "LOADING");
@@ -124,7 +139,7 @@ public class RetryControllerTests
     public async Task Delay_WithoutFailoverToken_WaitsRetryDelay()
     {
         var controller = new RetryController(
-            new RetryPolicy { RetryDelay = TimeSpan.FromMilliseconds(LongMillis), JitterMax = TimeSpan.Zero },
+            new RetryPolicy.Builder { RetryDelay = TimeSpan.FromMilliseconds(LongMillis), JitterMax = TimeSpan.Zero },
             DatabaseFeatureFlags.None);
 
         var watch = Stopwatch.StartNew();
@@ -138,7 +153,7 @@ public class RetryControllerTests
     public async Task Delay_WithFiredFailoverToken_ReturnsImmediately()
     {
         var controller = new RetryController(
-            new RetryPolicy
+            new RetryPolicy.Builder
             {
                 RetryDelay = TimeSpan.FromMilliseconds(LongMillis),
                 FailoverDelay = TimeSpan.FromMilliseconds(LongMillis),
@@ -160,7 +175,7 @@ public class RetryControllerTests
     public async Task Delay_WhenFailoverArrives_StopsWaiting()
     {
         var controller = new RetryController(
-            new RetryPolicy { FailoverDelay = TimeSpan.FromMilliseconds(LongMillis * 4), JitterMax = TimeSpan.Zero },
+            new RetryPolicy.Builder { FailoverDelay = TimeSpan.FromMilliseconds(LongMillis * 4), JitterMax = TimeSpan.Zero },
             DatabaseFeatureFlags.Failover);
 
         using var cts = new CancellationTokenSource();
@@ -178,7 +193,7 @@ public class RetryControllerTests
     public async Task Delay_WhenFailoverNeverArrives_ProceedsAfterFailoverDelay()
     {
         var controller = new RetryController(
-            new RetryPolicy { FailoverDelay = TimeSpan.FromMilliseconds(LongMillis), JitterMax = TimeSpan.Zero },
+            new RetryPolicy.Builder { FailoverDelay = TimeSpan.FromMilliseconds(LongMillis), JitterMax = TimeSpan.Zero },
             DatabaseFeatureFlags.Failover);
 
         using var cts = new CancellationTokenSource();

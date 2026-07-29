@@ -980,7 +980,7 @@ namespace StackExchange.Redis
             heartbeatInterval = heartbeatInterval,
             WriteMode = WriteMode,
             CircuitBreaker = CircuitBreaker,
-            HealthCheck = HealthCheck,
+            RetryPolicy = RetryPolicy,
 #if DEBUG
             OutputLog = OutputLog,
 #endif
@@ -1185,7 +1185,7 @@ namespace StackExchange.Redis
             _protocol = default;
             WriteMode = default;
             CircuitBreaker = null;
-            HealthCheck = null;
+            RetryPolicy = null;
 #if DEBUG
             OutputLog = null;
 #endif
@@ -1386,18 +1386,25 @@ namespace StackExchange.Redis
         internal BufferedStreamWriter.WriteMode WriteMode { get; set; }
 
         /// <summary>
-        /// The circuit-breaker to apply to physical connections; when <c>null</c>, no breaker is used. When
-        /// connecting a group, this flows in from <see cref="MultiGroupOptions.CircuitBreaker"/> if not set explicitly.
+        /// The circuit-breaker to apply to physical connections; when <c>null</c>, no breaker is used.
         /// </summary>
+        /// <remarks>
+        /// For a member of a connection group, the effective breaker is
+        /// <see cref="ConnectionGroupMember.CircuitBreaker"/>, else this, else
+        /// <see cref="MultiGroupOptions.CircuitBreaker"/>.
+        /// </remarks>
         [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
         public CircuitBreaker? CircuitBreaker { get; set; }
 
         /// <summary>
-        /// The health-check to apply when this connection is a member of a group; when <c>null</c>, the
-        /// group-level <see cref="MultiGroupOptions.HealthCheck"/> is used.
+        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry"/> for databases
+        /// obtained from this connection; when <c>null</c>, <see cref="RetryPolicy.Default"/> is used.
         /// </summary>
+        /// <remarks>
+        /// For a member of a connection group, <see cref="MultiGroupOptions.RetryPolicy"/> applies instead.
+        /// </remarks>
         [Experimental(Experiments.ActiveActive, UrlFormat = Experiments.UrlFormat)]
-        public HealthCheck? HealthCheck { get; set; }
+        public RetryPolicy? RetryPolicy { get; set; }
 
         internal bool AllowSimulateConnectionFailure
         {

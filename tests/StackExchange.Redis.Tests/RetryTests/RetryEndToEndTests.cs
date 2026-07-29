@@ -31,7 +31,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         server.LoadingOps = 2;
 
         // zero delay/jitter so the test isn't paying the default ~1s retry backoff between attempts
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 3,
             RetryDelay = TimeSpan.Zero,
@@ -60,7 +60,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
 
         server.LoadingOps = 100; // more than we will ever attempt
 
-        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.WithRetry(policy).StringGetAsync(key));
 
         Assert.Equal(RedisErrorKind.Loading, ex.Kind);
@@ -82,7 +82,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         server.LoadingOps = 100;
         server.ErrorText = "WRONGTYPE Operation against a key holding the wrong kind of value";
 
-        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.WithRetry(policy).StringGetAsync(key));
 
         Assert.Equal(RedisErrorKind.WrongType, ex.Kind);
@@ -103,7 +103,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
 
         server.LoadingOps = 2;
 
-        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var result = await db.WithRetry(policy).ExecuteAsync("get", [key]);
 
         Assert.Equal("hello", result.AsString());
@@ -123,7 +123,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         var db = conn.GetDatabase();
         server.LoadingOps = 2; // the third attempt would succeed, if we are allowed a third
 
-        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var retryDb = db.WithRetry(policy);
 
         if (expectedAttempts == 1)
@@ -180,12 +180,12 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
             new(serverB.GetClientConfig(), "B") { Weight = 1 }, // failover target
         ];
 
-        var options = new MultiGroupOptions
+        MultiGroupOptions options = new MultiGroupOptions.Builder
         {
-            HealthCheck = new HealthCheck
+            HealthCheckInterval = TimeSpan.FromMinutes(30), // huge: the breaker fast-path is what reroutes us
+            HealthCheck = new HealthCheck.Builder
             {
                 Probe = probe,
-                Interval = TimeSpan.FromMinutes(30), // huge: the breaker fast-path is what reroutes us
                 ProbeCount = 1,
                 ProbeTimeout = TimeSpan.FromSeconds(5),
             },
@@ -196,7 +196,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Same(members[0], conn.ActiveMember); // A is active (highest weight)
 
         // failover enabled, plenty of attempts, no artificial delay between them
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 20,
             MaxAttemptsBeforeFailover = 1,
@@ -243,12 +243,12 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
             new(serverB.GetClientConfig(), "B") { Weight = 1 },
         ];
 
-        var options = new MultiGroupOptions
+        MultiGroupOptions options = new MultiGroupOptions.Builder
         {
-            HealthCheck = new HealthCheck
+            HealthCheckInterval = TimeSpan.FromMinutes(30),
+            HealthCheck = new HealthCheck.Builder
             {
                 Probe = new ControllableProbe(), // never marked down
-                Interval = TimeSpan.FromMinutes(30),
                 ProbeCount = 1,
                 ProbeTimeout = TimeSpan.FromSeconds(5),
             },
@@ -258,7 +258,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.Same(members[0], conn.ActiveMember);
 
         // failover is armed after the first attempt, but nothing will ever trigger it; keep the wait short
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 5,
             MaxAttemptsBeforeFailover = 1,
@@ -293,7 +293,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
 
         server.FailExecOps = 1; // fail the first EXEC; the second should commit
 
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 3,
             RetryDelay = TimeSpan.Zero,
@@ -330,7 +330,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         var db = conn.GetDatabase();
         RedisKey key = "retry:tran:incr";
 
-        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         Assert.Equal(CommandFlags.CommandRetryWriteLastWins, policy.MaxCommandRetryCategory); // i.e. the default
 
         server.FailExecOps = 1;
@@ -360,8 +360,15 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         var db = conn.GetDatabase();
         RedisKey key = "retry:ambiguous:incr";
 
-        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
-        if (allowAccumulating) policy.MaxCommandRetryCategory = CommandFlags.CommandRetryWriteAccumulating;
+        RetryPolicy policy = new RetryPolicy.Builder
+        {
+            MaxAttempts = 3,
+            RetryDelay = TimeSpan.Zero,
+            JitterMax = TimeSpan.Zero,
+            MaxCommandRetryCategory = allowAccumulating
+                ? CommandFlags.CommandRetryWriteAccumulating
+                : RetryPolicy.Default.MaxCommandRetryCategory,
+        };
 
         var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.WithRetry(policy).StringIncrementAsync(key));
         Assert.Equal(RedisErrorKind.OutOfMemory, ex.Kind);
@@ -388,7 +395,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
 
         server.FailExecOps = 1; // fail the first EXEC; the condition must still hold on the replay
 
-        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var tran = db.WithRetry(policy).CreateTransaction();
         var cond = tran.AddCondition(Condition.StringEqual(key, "seed")); // satisfied on both attempts
         var setTask = tran.StringSetAsync(key, "committed");
@@ -417,7 +424,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
 
         server.FailExecOps = 0; // no transient fault; the condition itself aborts the transaction
 
-        var policy = new RetryPolicy { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var tran = db.WithRetry(policy).CreateTransaction();
         var cond = tran.AddCondition(Condition.StringEqual(key, "different")); // NOT satisfied
         var setTask = tran.StringSetAsync(key, "committed");
@@ -448,7 +455,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         server.FailExecOps = 0; // EXEC commits; one queued op errors at execution time
 
         // allow accumulating so the INCR doesn't gate retries - though nothing here retries anyway (EXEC commits)
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 3,
             RetryDelay = TimeSpan.Zero,
@@ -497,12 +504,12 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
             new(serverB.GetClientConfig(), "B") { Weight = 1 }, // failover target
         ];
 
-        var options = new MultiGroupOptions
+        MultiGroupOptions options = new MultiGroupOptions.Builder
         {
-            HealthCheck = new HealthCheck
+            HealthCheckInterval = TimeSpan.FromMinutes(30), // huge: the breaker fast-path is what reroutes us
+            HealthCheck = new HealthCheck.Builder
             {
                 Probe = probe,
-                Interval = TimeSpan.FromMinutes(30), // huge: the breaker fast-path is what reroutes us
                 ProbeCount = 1,
                 ProbeTimeout = TimeSpan.FromSeconds(5),
             },
@@ -512,7 +519,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         Assert.True(conn.IsConnected);
         Assert.Same(members[0], conn.ActiveMember); // A is active (highest weight)
 
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 20,
             MaxAttemptsBeforeFailover = 1,
@@ -552,7 +559,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
 
         server.FailExecOps = 2; // fail twice; the third EXEC commits
 
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 4,
             RetryDelay = TimeSpan.Zero,
@@ -589,7 +596,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
 
         server.FailExecOps = 100; // never succeeds
 
-        var policy = new RetryPolicy { MaxAttempts = 2, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 2, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var tran = db.WithRetry(policy).CreateTransaction();
         var set = tran.StringSetAsync(key, "never");
         var get = tran.StringGetAsync(key);
@@ -622,7 +629,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         server.DriftOps = 1; // the next EXEC observes a concurrent write to the watched key
 
         // MaxAttempts = 1: no *fault* retries at all, proving the watch budget is separate
-        var policy = new RetryPolicy { MaxAttempts = 1, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 1, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var tran = db.WithRetry(policy).CreateTransaction();
         var cond = tran.AddCondition(Condition.StringEqual(key, "seed"));
         var setTask = tran.StringSetAsync(key, "committed");
@@ -658,7 +665,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         server.DriftKey = key;
         server.DriftOps = 1;
 
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 3,
             MaxAttemptsOnWatchConflict = 1, // i.e. do not re-attempt on contention
@@ -698,7 +705,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         server.DriftKey = key;
         server.DriftOps = int.MaxValue; // every EXEC loses the race
 
-        var policy = new RetryPolicy
+        RetryPolicy policy = new RetryPolicy.Builder
         {
             MaxAttempts = 3,
             MaxAttemptsOnWatchConflict = 4,
@@ -729,7 +736,7 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
         var db = conn.GetDatabase();
         RedisKey key = "retry:tran:nocond";
 
-        var policy = new RetryPolicy { MaxAttempts = 1, MaxAttemptsOnWatchConflict = 5, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
+        RetryPolicy policy = new RetryPolicy.Builder { MaxAttempts = 1, MaxAttemptsOnWatchConflict = 5, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero };
         var tran = db.WithRetry(policy).CreateTransaction();
         var set = tran.StringSetAsync(key, "committed");
 

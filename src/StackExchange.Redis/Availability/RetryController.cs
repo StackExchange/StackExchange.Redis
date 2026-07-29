@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Interfaces;
@@ -19,24 +20,28 @@ internal sealed class RetryController
     {
         _policy = policy;
 
-        // capture config locally rather than constant cross-object lookups (plus: mutability)
+        // capture config locally rather than constant cross-object lookups; a RetryPolicy is immutable and
+        // is validated by RetryPolicy.Builder, so no range checks are needed here
         _maxBeforeFailover = (features & DatabaseFeatureFlags.Failover) == 0 ? int.MaxValue : policy.MaxAttemptsBeforeFailover;
         _maxAttempts = policy.MaxAttempts;
         if (_maxBeforeFailover == _maxAttempts) _maxBeforeFailover = int.MaxValue; // then we'll never look
 
-        // guard the failover threshold: values < 1 can never be hit by the loop counter (which starts at 1),
-        // so they would *silently* disable failover rather than erroring; validate the raw policy value
-        if (policy.MaxAttemptsBeforeFailover < 1) throw new ArgumentOutOfRangeException(nameof(policy.MaxAttemptsBeforeFailover));
-        _delayMillis = policy.DelayMilliseconds;
-        _failoverMillis = policy.FailoverMilliseconds;
-        _jitterMillis = policy.JitterMilliseconds;
-        if (_delayMillis < 0) throw new ArgumentOutOfRangeException(nameof(policy.RetryDelay));
-        if (_jitterMillis < 0) throw new ArgumentOutOfRangeException(nameof(policy.JitterMax));
-        if (_failoverMillis < 0) throw new ArgumentOutOfRangeException(nameof(policy.FailoverDelay));
-
+        _delayMillis = ToMilliseconds(policy.RetryDelay);
+        _failoverMillis = ToMilliseconds(policy.FailoverDelay);
+        _jitterMillis = ToMilliseconds(policy.JitterMax);
         _maxWatchAttempts = policy.MaxAttemptsOnWatchConflict;
-        if (_maxWatchAttempts < 1) throw new ArgumentOutOfRangeException(nameof(policy.MaxAttemptsOnWatchConflict));
+
+        Debug.Assert(_maxAttempts >= 1 && _maxBeforeFailover >= 1, "attempt counts should be validated by RetryPolicy");
+        Debug.Assert(_delayMillis >= 0 && _jitterMillis >= 0 && _failoverMillis >= 0, "delays should be validated by RetryPolicy");
+        Debug.Assert(_maxWatchAttempts >= 1, "watch-conflict attempts should be validated by RetryPolicy");
+
+        static int ToMilliseconds(TimeSpan value) => (int)(value.Ticks / TimeSpan.TicksPerMillisecond);
     }
+
+    /// <summary>
+    /// The policy this controller is applying; exposed for tests, which assert how a policy was resolved.
+    /// </summary>
+    public RetryPolicy Policy => _policy;
 
     /// <summary>
     /// How many times a conditional transaction may be attempted when the server keeps rejecting the
@@ -75,14 +80,14 @@ internal sealed class RetryController
         // ask the retry policy for advice, and mask off the bits we know about
         FaultContext ctx = new(fault);
         var policy = _policy.CanRetry(ctx) &
-                     (RetryPolicy.RetryPolicyResult.FailoverServer | RetryPolicy.RetryPolicyResult.SameServer);
+                     (RetryResult.FailoverServer | RetryResult.SameServer);
         if (policy is 0)
         {
             // retry policy says: nope
             return false;
         }
 
-        if (policy is RetryPolicy.RetryPolicyResult.FailoverServer)
+        if (policy is RetryResult.FailoverServer)
         {
             // we can *only* retry on a different server; is failover available?
             delay = failover;
@@ -95,11 +100,11 @@ internal sealed class RetryController
             // by count, we should really switch over to the failover now; is failover available *and* are we allowed?
             delay = failover;
             failover = CancellationToken.None; // only failover once
-            return delay.CanBeCanceled & (policy & RetryPolicy.RetryPolicyResult.FailoverServer) != 0;
+            return delay.CanBeCanceled & (policy & RetryResult.FailoverServer) != 0;
         }
 
         // can we pause and retry on the same server?
-        return (policy & RetryPolicy.RetryPolicyResult.SameServer) != 0;
+        return (policy & RetryResult.SameServer) != 0;
     }
 
     public Task FailoverOrDelayAsync(CancellationToken delay)
