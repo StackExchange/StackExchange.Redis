@@ -13,7 +13,12 @@ namespace StackExchange.Redis
     {
         private List<ConditionResult>? _conditions;
         private List<QueuedMessage>? _pending;
+        private TransactionMessage? _lastMessage;
         private object SyncLock => this;
+
+        /// <inheritdoc/>
+        // set by TransactionProcessor when the server answers EXEC with a null array
+        public bool WasWatchConflict => _lastMessage?.WasWatchConflict == true;
 
         // combine the retry categories of all queued operations, taking the most side-effecting (numerically
         // highest) - this is what a replay of the whole transaction would do. WATCH constraints are *not*
@@ -195,7 +200,7 @@ namespace StackExchange.Redis
             }
             processor = TransactionProcessor.Default;
 
-            return new TransactionMessage(Database, flags, cond, work);
+            return _lastMessage = new TransactionMessage(Database, flags, cond, work);
         }
 
         private sealed class QueuedMessage : Message
@@ -278,6 +283,16 @@ namespace StackExchange.Redis
             }
 
             public bool IsAborted => command != RedisCommand.EXEC;
+
+            // the server rejected an EXEC we really did issue, because a watched key moved; volatile
+            // because it is written on the read loop and observed by whoever awaited the transaction
+            public bool WasWatchConflict
+            {
+                get => Volatile.Read(ref _watchConflict);
+                set => Volatile.Write(ref _watchConflict, value);
+            }
+
+            private bool _watchConflict;
 
             public override void AppendStormLog(StringBuilder sb)
             {
@@ -528,16 +543,23 @@ namespace StackExchange.Redis
 
                     if (reader.IsNull) // EXEC returned with a NULL
                     {
-                        if (tran.IsAborted)
+                        // the server refused to apply the transaction because a watched key changed
+                        // ("WATCH drift"); nothing was applied, so every queued operation must be
+                        // brought to a terminal state - otherwise the caller's tasks hang forever.
+                        // (in the electively-aborted case they were already cancelled in GetMessages;
+                        // Cancel/Complete are idempotent, so doing it again is harmless)
+                        muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
+                        connection.Trace("Server aborted due to failed WATCH");
+
+                        // distinguish "the server refused an EXEC we issued" from "we chose not to issue
+                        // one"; only the former is worth re-attempting (see IInternalTransaction)
+                        tran.WasWatchConflict = !tran.IsAborted;
+
+                        foreach (var op in wrapped)
                         {
-                            muxer?.OnTransactionLog("Aborting wrapped messages (failed watch)");
-                            connection.Trace("Server aborted due to failed WATCH");
-                            foreach (var op in wrapped)
-                            {
-                                var inner = op.Wrapped;
-                                inner.Cancel();
-                                inner.Complete(connection);
-                            }
+                            var inner = op.Wrapped;
+                            inner.Cancel();
+                            inner.Complete(connection);
                         }
                         SetResult(message, false);
                         return true;

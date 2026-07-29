@@ -24,6 +24,23 @@ public class RetryPolicy
     /// </summary>
     public int MaxAttemptsBeforeFailover { get; set; } = 1;
 
+    /// <summary>
+    /// The maximum number of times a *conditional* transaction may be attempted when the only problem is
+    /// that the server rejected the <c>EXEC</c> because a watched key changed underneath it. Defaults to 3;
+    /// a value of 1 disables re-attempting such transactions.
+    /// </summary>
+    /// <remarks>
+    /// <para>This is deliberately separate from <see cref="MaxAttempts"/>: a watch conflict is contention,
+    /// not a fault. Nothing was applied, nothing is broken, and the right response is to re-read the
+    /// conditions and try again immediately - so no <see cref="RetryDelay"/> is applied (only
+    /// <see cref="JitterMax"/>), no failover is attempted, and <see cref="MaxCommandRetryCategory"/> does
+    /// not apply. Each re-attempt re-issues the <c>WATCH</c> constraints, so a transaction whose condition
+    /// has genuinely stopped holding converges on an ordinary elective abort rather than looping.</para>
+    /// <para>Only transactions with conditions can be affected: without a condition there is no
+    /// <c>WATCH</c>, so there is nothing to conflict.</para>
+    /// </remarks>
+    public int MaxAttemptsOnWatchConflict { get; set; } = 3;
+
     private int _delayMillis = 1000, _jitterMillis = 500, _failoverMillis = 5000;
 
     /// <summary>
@@ -83,7 +100,7 @@ public class RetryPolicy
     public virtual RetryPolicyResult CanRetry(in FaultContext fault)
     {
         var actual = fault.Flags & Message.MaskRetryCategory;
-        if (actual is 0) actual = CommandFlags.CommandRetryWriteAccumulating; // if not set, assume similar to INCR
+        if (actual is 0) actual = CommandFlags.CommandRetryNever; // if not set, assume the worst (as FaultContext does)
 
         if (actual is CommandFlags.CommandRetryNever)
         {
@@ -91,7 +108,10 @@ public class RetryPolicy
             return RetryPolicyResult.None;
         }
 
-        if (actual > MaxCommandRetryCategory) // note this also covers CommandRetryAlways
+        // the category exists to price the *ambiguity* of a replay: if we know the operation never took
+        // effect, re-issuing it is a first attempt rather than a repeat, so it cannot double-apply and the
+        // side-effect scale is irrelevant. (CommandRetryNever above is still an absolute veto.)
+        if (actual > MaxCommandRetryCategory && !fault.NotApplied)
         {
             // side-effects are beyond what the policy allows
             return RetryPolicyResult.None;

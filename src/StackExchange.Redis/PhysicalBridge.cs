@@ -515,8 +515,12 @@ namespace StackExchange.Redis
         {
             while (BacklogTryDequeue(out Message? next))
             {
-                Multiplexer.OnMessageFaulted(next, ex);
-                next.SetExceptionAndComplete(ex, connection);
+                // as in PhysicalConnection.RecordMessageFailed: don't hand the same exception to every
+                // message. A backlogged message has provably never been written, which is exactly what the
+                // retry machinery needs to know, and it is lost if we share the connection-level instance.
+                var perMessage = ExceptionFactory.PerMessage(ex, next);
+                Multiplexer.OnMessageFaulted(next, perMessage);
+                next.SetExceptionAndComplete(perMessage, connection);
             }
         }
 

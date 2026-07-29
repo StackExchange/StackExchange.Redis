@@ -19,18 +19,22 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
 {
     // Note: async-only, exactly like RetryDatabase - retrying is inherently delay-ish.
     private readonly IDatabaseAsync _source;
-    private readonly object? _asyncState;
     private readonly RetryController _controller;
 
     private readonly List<IRecordedOp> _ops = new();
     private List<RecordedCondition>? _conditions;
     private int _executed;
+    private volatile bool _watchConflict;
 
-    public RetryTransaction(IDatabaseAsync source, RetryController controller, object? asyncState)
+    /// <inheritdoc/>
+    // reports the *final* attempt's outcome: false if we eventually committed (or aborted electively),
+    // true if we ran out of watch-conflict attempts still losing the race
+    public bool WasWatchConflict => _watchConflict;
+
+    public RetryTransaction(IDatabaseAsync source, RetryController controller)
     {
         _source = source;
         _controller = controller;
-        _asyncState = asyncState;
     }
 
     public int Database => _source.Database;
@@ -83,9 +87,14 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
         CancellationToken failover = _controller.TracksFailover ? _source.GetNextFailover() : CancellationToken.None;
 
         var conditions = _conditions;
+
+        // watch contention gets its own budget; only meaningful when there are conditions to WATCH
+        int watchAttempt = 0;
+        int maxWatchAttempts = conditions is null ? 1 : _controller.MaxWatchConflictAttempts;
         while (true)
         {
-            var inner = _source.CreateTransaction(_asyncState);
+            // no async-state: RetryDatabase refuses one (the durable proxies below cannot carry it)
+            var inner = _source.CreateTransaction();
 
             // replay the recorded constraints and operations onto this fresh, one-shot transaction; the
             // per-attempt tasks they return are forwarded to the durable proxies only on a clean execution
@@ -103,9 +112,25 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransactionAsy
             try
             {
                 bool committed = await inner.ExecuteAsync(effectiveFlags).ConfigureAwait(false);
+                _watchConflict = inner.WasWatchConflict; // surfaced to our own caller, per attempt
 
-                // clean completion (committed, or electively aborted via a failed WATCH); forward the
-                // per-attempt outcomes onto the durable proxies and we're done
+                // The server rejected an EXEC we really did issue, because another connection changed a
+                // watched key: the conditions still held, nothing was applied, and we simply lost a race.
+                // Re-read and try again (which re-issues the WATCH constraints, so a condition that has
+                // genuinely stopped holding converges on an elective abort instead of looping). This is
+                // contention rather than a fault, so it neither consumes the fault budget nor waits for a
+                // failover, and the side-effect category does not apply - nothing happened.
+                if (!committed
+                    && _watchConflict
+                    && ++watchAttempt < maxWatchAttempts)
+                {
+                    foreach (var op in _ops) op.Observe();
+                    await _controller.WatchConflictDelayAsync().ConfigureAwait(false);
+                    continue;
+                }
+
+                // clean completion (committed, or aborted); forward the per-attempt outcomes onto the
+                // durable proxies and we're done
                 if (conditions is not null)
                 {
                     foreach (var c in conditions) c.ForwardSuccess();

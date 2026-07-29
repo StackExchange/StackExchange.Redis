@@ -403,13 +403,15 @@ public class InProcessTestServer : MemoryCacheRedisServer
         if (disposing) _server.Dispose();
     }
     */
-    public void SetLatency(TimeSpan latency) => _latency = latency;
+    // written by the test thread, read by the server's own thread(s): store as ticks so the read/write can
+    // be made explicitly visible (a plain TimeSpan field can be missed indefinitely)
+    public void SetLatency(TimeSpan latency) => Volatile.Write(ref _latencyTicks, latency.Ticks);
 
-    private TimeSpan _latency = TimeSpan.Zero;
+    private long _latencyTicks;
 
     protected override ValueTask ClientPauseAsync(RedisClient client, in RedisRequest request)
     {
-        var latency = _latency;
+        var latency = TimeSpan.FromTicks(Volatile.Read(ref _latencyTicks));
         if (latency > TimeSpan.Zero & request.KnownCommand != RedisCommand.QUIT)
         {
             Log($"[{client}] holding {request.Command} response by {latency.TotalMilliseconds}ms");

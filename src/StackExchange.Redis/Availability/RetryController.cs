@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Availability;
 /// </summary>
 internal sealed class RetryController
 {
-    private readonly int _maxBeforeFailover, _maxAttempts, _delayMillis, _jitterMillis, _failoverMillis;
+    private readonly int _maxBeforeFailover, _maxAttempts, _delayMillis, _jitterMillis, _failoverMillis, _maxWatchAttempts;
     private readonly RetryPolicy _policy;
 
     public RetryController(RetryPolicy policy, DatabaseFeatureFlags features)
@@ -33,7 +33,25 @@ internal sealed class RetryController
         if (_delayMillis < 0) throw new ArgumentOutOfRangeException(nameof(policy.RetryDelay));
         if (_jitterMillis < 0) throw new ArgumentOutOfRangeException(nameof(policy.JitterMax));
         if (_failoverMillis < 0) throw new ArgumentOutOfRangeException(nameof(policy.FailoverDelay));
+
+        _maxWatchAttempts = policy.MaxAttemptsOnWatchConflict;
+        if (_maxWatchAttempts < 1) throw new ArgumentOutOfRangeException(nameof(policy.MaxAttemptsOnWatchConflict));
     }
+
+    /// <summary>
+    /// How many times a conditional transaction may be attempted when the server keeps rejecting the
+    /// <c>EXEC</c> due to watch contention; see <see cref="RetryPolicy.MaxAttemptsOnWatchConflict"/>.
+    /// </summary>
+    public int MaxWatchConflictAttempts => _maxWatchAttempts;
+
+    /// <summary>
+    /// The pause before re-attempting a transaction that lost a <c>WATCH</c> race. Contention, not a fault:
+    /// no backoff, just jitter to avoid two callers colliding again in lock-step.
+    /// </summary>
+    public Task WatchConflictDelayAsync()
+        => _jitterMillis is 0
+            ? Task.CompletedTask
+            : Task.Delay(ServerSelectionStrategy.SharedRandom.Next(_jitterMillis), CancellationToken.None);
 
     /// <summary>
     /// Whether it is ever worth capturing the next-failover token: only when there is more than one

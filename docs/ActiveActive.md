@@ -477,7 +477,24 @@ var value = await db.StringGetAsync("mykey");
 
 > You can call `WithRetry` on any database (`IDatabase` or `IDatabaseAsync`), but the wrapper it returns exposes only the **async** API — there is no synchronous form, since retrying may inherently have delays. It cannot wrap a batch or an existing transaction, nor an already-retrying database.
 
-A retrying database can still *create* a transaction: `retryDb.CreateTransaction()` returns an `ITransactionAsync` whose `ExecuteAsync` is retried as a single unit. Each attempt replays the queued operations (and any `WATCH` constraints) against a fresh `MULTI`/`EXEC` - and, in an Active:Active group, onto whichever member is active at the time - so a transaction can ride out a failover just like a single command; the per-operation tasks handed back at build time resolve from the winning attempt. The retry-category gate (below) still applies, using the *most* side-effecting operation in the transaction: a transaction containing an `INCR` is treated as `CommandRetryWriteAccumulating`, so the default policy will not retry it unless you raise `MaxCommandRetryCategory`.
+> **`asyncState` is not respected.** A database's `asyncState` is stamped onto the task produced by a single dispatch, but a retrying database hands back its own task spanning however many attempts the operation takes, and the per-operation tasks from `retryDb.CreateTransaction()` are durable proxies that outlive any single attempt. Neither can carry it. Rather than dropping the state silently, both refuse it: `conn.GetDatabase(0, asyncState).WithRetry(policy)` throws `InvalidOperationException`, as does `retryDb.CreateTransaction(asyncState)`. Wrap a database obtained without an `asyncState` - note that a key-prefixed view of a state-carrying database is refused too, since it inherits the inner state.
+
+A retrying database can still *create* a transaction: `retryDb.CreateTransaction()` returns an `ITransactionAsync` whose `ExecuteAsync` is retried as a single unit. Each attempt replays the queued operations (and any `WATCH` constraints) against a fresh `MULTI`/`EXEC` - and, in an Active:Active group, onto whichever member is active at the time - so a transaction can ride out a failover just like a single command; the per-operation tasks handed back at build time resolve from the winning attempt. The retry-category gate (below) applies to the transaction as a whole, using the *most* side-effecting operation in it: a transaction containing an `INCR` counts as `CommandRetryWriteAccumulating`. In practice that gate rarely blocks a transaction, because the faults that a transaction is most likely to hit - a `MULTI`/`EXEC` the server *rejected* wholesale - are known not to have applied anything, and the category is not consulted in that case (see [Known-not-applied faults](#known-not-applied-faults)).
+
+#### Losing a `WATCH` race
+
+A transaction with conditions can fail to commit in two different ways, and `Execute`/`ExecuteAsync` reports `false` for both. `ITransaction.WasWatchConflict` (also on `ITransactionAsync`, so it works for retrying transactions too) is what tells them apart:
+
+- **a condition was not satisfied** - the transaction is abandoned electively, and no `EXEC` is ever sent. `WasWatchConflict` is `false`, and the offending `ConditionResult.WasSatisfied` is `false` too. Re-attempting is pointless: the value really was not what you asserted, so a replay would assert the same thing again and fail the same way.
+- **another connection modified a watched key** - between this connection's conditions being evaluated and its `EXEC` arriving, some *other* client wrote to one of the keys being watched on behalf of those conditions, so the server refused the `EXEC`. `WasWatchConflict` is `true`, and `WasSatisfied` is `true` for every condition: your assertions were all correct, you just lost a race with a concurrent writer. This is contention, not a fault - nothing was applied and nothing is broken.
+
+Note that only *other connections* can cause this. Your own writes on this connection cannot: everything you queue inside the transaction is applied atomically by the `EXEC` itself, after the watch has already been satisfied.
+
+The second case is the one Redis's `WATCH`/`MULTI`/`EXEC` idiom expects you to retry, so a retrying transaction does exactly that, bounded by `MaxAttemptsOnWatchConflict` (default 3). Each re-attempt re-issues the constraints, so a transaction whose condition has genuinely stopped holding (because the concurrent writer left a value you were not expecting) converges on an ordinary elective abort rather than looping. Because it is contention rather than a fault it gets its own budget: `MaxAttempts` is untouched, `RetryDelay` is not applied (only `JitterMax`), no failover is attempted, and `MaxCommandRetryCategory` does not apply - nothing happened, so there is nothing to double-apply. Set `MaxAttemptsOnWatchConflict = 1` to restore the plain "report `false` and let me deal with it" behaviour. On a retrying transaction, `WasWatchConflict` describes the *final* attempt: `false` if it eventually committed, `true` if it ran out of attempts still losing the race.
+
+In either case every per-operation task is cancelled, so `await`ing one throws `OperationCanceledException` rather than hanging.
+
+How likely is this in practice? Much less so than in `redis-cli`-style usage, where a `WATCH` can sit open for as long as the application takes to think. SE.Redis buffers the whole transaction and sends the `WATCH`, the condition reads, the `MULTI`, the queued commands and the `EXEC` as a single dispatch on a multiplexed connection, so a competing writer has only the gap between the condition reads and the `EXEC` landing to squeeze into. Small - but not zero, and on a busy key it will happen.
 
 ### RetryPolicy settings
 
@@ -491,6 +508,7 @@ A retrying database can still *create* a transaction: `retryDb.CreateTransaction
 | `JitterMax` | 0.5 seconds | Upper bound of the additional random delay added to each retry, to avoid stampedes |
 | `FailoverDelay` | 5 seconds | Maximum time to wait for a failover, when a retry is gated on one happening |
 | `MaxCommandRetryCategory` | `CommandRetryWriteLastWins` | The most side-effecting command category that will be retried (see below) |
+| `MaxAttemptsOnWatchConflict` | 3 | Attempts allowed for a *conditional transaction* that keeps losing a `WATCH` race; separate from `MaxAttempts`, and `1` disables re-attempting |
 
 ```csharp
 var policy = new RetryPolicy
@@ -510,9 +528,22 @@ Retrying is not free of consequence: replaying `INCR` after an ambiguous failure
 
 For the built-in typed methods (`StringGet`, `StringSet`, `HashSet`, ...) the library assigns the appropriate category automatically, so retries "just work" within the default policy.
 
+#### Known-not-applied faults
+
+The category prices the *ambiguity* of a replay, not the write itself. If we know the operation never took effect, re-issuing it is a first attempt rather than a repeat: it cannot double-apply anything, so the category is not consulted at all and even an `INCR` is retried under the default policy. Two things give us that certainty:
+
+- **the client never wrote it** - the message was still waiting to be sent, or sitting in the backlog, when the connection failed.
+- **the server explicitly rejected it because of its own state** - `LOADING`, `CLUSTERDOWN`, `MASTERDOWN`, `TRYAGAIN`, `MOVED`, `ASK`, `READONLY`, `MISCONF`, `NOREPLICAS`, `BUSY`, `max clients`. The server can only report these *before* running anything.
+
+`FaultContext.NotApplied` exposes this to custom policies. It is deliberately conservative, and in particular a bare error reply is *not* enough on its own: a Lua script can fail part-way through having already written something, and it propagates the inner error (`WRONGTYPE`, `OOM`, ...) verbatim, so those kinds stay ambiguous. Timeouts, and connection loss after the request was sent, are always ambiguous - which is exactly where `MaxCommandRetryCategory` earns its keep.
+
+An explicit `CommandRetryNever` is still an absolute veto, as is an operation with no category at all (see below): certainty about *whether* it ran does not tell us that re-running it is meaningful.
+
 ### Custom commands: `Execute` and `ScriptEvaluate`
 
 The library cannot infer the side-effects of a command it doesn't recognise — and that includes arbitrary commands issued via `Execute`/`ExecuteAsync`, and Lua run via `ScriptEvaluate`/`ScriptEvaluateAsync` (whose effect depends entirely on the script). Such commands are therefore treated **pessimistically**: an uncategorised command defaults to `CommandRetryNever` and is *not* retried.
+
+Note that `Execute`/`ExecuteAsync` do try to *parse* the command name first, so `Execute("get", key)` is recognised as `GET` and picks up that command's category (read-only) automatically; only genuinely unrecognised command names fall back to `CommandRetryNever`.
 
 The categories, from safest to most dangerous, are:
 

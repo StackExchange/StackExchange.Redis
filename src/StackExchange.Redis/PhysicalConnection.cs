@@ -541,6 +541,10 @@ namespace StackExchange.Redis
             }
             else
             {
+                // the connection-level exception is shared across every message being failed here; give this
+                // one its own, carrying *its* flags and sent-status so retry policy can reason about it
+                if (ex is not null) ex = ExceptionFactory.PerMessage(ex, next);
+
                 var bridge = connection?.BridgeCouldBeNull;
                 if (bridge is not null)
                 {

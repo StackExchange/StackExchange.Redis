@@ -194,13 +194,16 @@ namespace StackExchange.Redis
             if (oversizedItems == null)
             {
                 if (count != 0) throw new ArgumentOutOfRangeException(nameof(count));
-                oversizedItems = [];
+
+                // a *null* array is not the same as an empty array; keep the value null so that
+                // IsNullArray reports true and we emit *-1 / _ rather than *0
+                _value = RedisValue.Null;
+                Type = type;
+                return;
             }
-            else
-            {
-                if (count < 0 || count > oversizedItems.Length) throw new ArgumentOutOfRangeException(nameof(count));
-                if (count == 0) oversizedItems = [];
-            }
+
+            if (count < 0 || count > oversizedItems.Length) throw new ArgumentOutOfRangeException(nameof(count));
+            if (count == 0) oversizedItems = [];
 
             _value = RedisValue.CreateForeign(oversizedItems, 0, count);
             Type = type;

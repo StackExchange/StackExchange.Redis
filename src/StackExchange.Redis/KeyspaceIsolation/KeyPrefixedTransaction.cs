@@ -15,6 +15,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         CommandFlags IInternalTransaction.GetAggregateRetryCategory()
             => Inner is IInternalTransaction it ? it.GetAggregateRetryCategory() : CommandFlags.CommandRetryNever;
 
+        /// <inheritdoc/>
+        public bool WasWatchConflict => Inner.WasWatchConflict;
+
         public ConditionResult AddCondition(Condition condition) => Inner.AddCondition(condition.MapKeys(GetMapFunction()));
 
         public bool Execute(CommandFlags flags = CommandFlags.None) => Inner.Execute(flags);

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Security.Authentication;
 using System.Text;
@@ -161,6 +162,37 @@ namespace StackExchange.Redis
                 sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary());
                 AddExceptionDetail(ex, message, server, commandLabel);
             }
+            return ex;
+        }
+
+        /// <summary>
+        /// A connection failure produces a single exception describing the *connection*, which is then handed
+        /// to every message that was in flight. Sharing one instance across many unrelated callers is dubious
+        /// in itself (<see cref="Exception.Data"/> is mutable, so each caller sees the others' additions), and
+        /// it discards the per-message detail the retry machinery needs: the command's retry category, and
+        /// whether this particular message had actually been written. Give each message its own.
+        /// </summary>
+        internal static Exception PerMessage(Exception shared, Message message)
+        {
+            // only connection failures get shared like this; anything else already describes one operation
+            if (shared is not RedisConnectionException conn
+                || (conn.Flags == message.Flags && conn.CommandStatus == message.Status))
+            {
+                return shared;
+            }
+
+            var ex = new RedisConnectionException(
+                conn.FailureType,
+                message.Flags,
+                conn.Message,
+                conn.InnerException,
+                message.Status);
+            foreach (DictionaryEntry entry in conn.Data)
+            {
+                ex.Data[entry.Key] = entry.Value;
+            }
+            ex.Data[DataSentStatusKey] = message.Status; // ...and correct this one for *this* message
+            if (conn.HelpLink is not null) ex.HelpLink = conn.HelpLink;
             return ex;
         }
 
